@@ -27,6 +27,9 @@ def resource_reference(
     caller's containment gate decide which local file it names. Decoding happens
     once, so escaped percent signs remain literal parts of filenames. A module's
     suffix is refused because the captured module graph keys execution by path.
+    Capture has no deployment origin: a resource must be local on both HTTP and
+    HTTPS or external on both. Scheme-dependent references are refused rather
+    than silently omitting a file the browser can load locally.
     """
     base = "https://leaf.invalid"
     other_base = "http://relative.invalid"
@@ -44,11 +47,20 @@ def resource_reference(
     # references keep their own host, even when it happens to equal one base.
     try:
         other = URL(specifier, other_base + other_importer_url)
-    except ValueError:
-        # An explicit scheme may resolve only against its own scheme. It cannot
-        # follow an arbitrary page origin, so it is not a local resource.
-        return None
+    except ValueError as error:
+        raise ReferenceError("dependency-scheme-dependent") from error
     if url.origin != base or other.origin != other_base:
+        # Following just one origin can mean a scheme-dependent relative URL or
+        # an external URL whose host happens to match that base. A third host
+        # with the matching scheme distinguishes them through the same parser.
+        for resolved, origin in ((url, base), (other, other_base)):
+            if resolved.origin == origin:
+                same_scheme_base = resolved.protocol + "//reference.invalid"
+                if (
+                    URL(specifier, same_scheme_base + importer_url).origin
+                    == same_scheme_base
+                ):
+                    raise ReferenceError("dependency-scheme-dependent")
         return None
     # Fragment-only references follow the base's filename too. An explicit
     # self-resource URL does not follow the other filename and remains captured.

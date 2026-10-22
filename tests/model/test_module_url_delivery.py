@@ -17,6 +17,7 @@ import pytest
         ("./im\tage.svg", "/page/main.css", ("/page/image.svg", "")),
         ("./im\nage.svg", "/page/main.css", ("/page/image.svg", "")),
         (r"./sub\image.svg", "/page/main.css", ("/page/sub/image.svg", "")),
+        ("HTTPS :image.svg", "/page/main.css", ("/page/HTTPS :image.svg", "")),
         ("./next.svg", "/page/?#%dir/main.css", ("/page/?#%dir/next.svg", "")),
         (
             "/page/%252e%252e/value.svg",
@@ -39,8 +40,12 @@ def test_capture_and_delivery_resolve_the_same_browser_url(
     "reference",
     [
         "https://leaf.invalid/page/image.svg",
-        "https:/page/image.svg",
+        "https://relative.invalid/page/image.svg",
+        "http://leaf.invalid/page/image.svg",
+        "http://relative.invalid/page/image.svg",
+        "https:///page/image.svg",
         "//leaf.invalid/page/image.svg",
+        "//relative.invalid/page/image.svg",
         r"\\leaf.invalid\page\image.svg",
         r"\\other-host\page\image.svg",
         "data:image/png,abc",
@@ -54,6 +59,38 @@ def test_nonlocal_and_fragment_resources_stay_as_written(reference):
 
     assert dependency_reference(reference, "/page/image.svg") is None
     assert page_path(reference, "/page/image.svg") is None
+
+
+@pytest.mark.parametrize("scheme", ["http", "https"])
+@pytest.mark.parametrize("path", ["/page/image.svg", "page/image.svg"])
+def test_scheme_dependent_html_resources_are_refused(tmp_path, scheme, path):
+    from leaf.revision_artifact import ArtifactError, capture_artifact
+    from leaf.revision_delivery import page_path
+    from leaf.structure import SourceDocument
+
+    reference = f"{scheme}:{path}"
+    (tmp_path / "leaf.js").write_text("export {};")
+    (tmp_path / "page").mkdir()
+    (tmp_path / "page/image.svg").write_text("<svg/>")
+    document = SourceDocument(f'<img src="{reference}">')
+    for read in (
+        lambda: capture_artifact(tmp_path, document, {}),
+        lambda: page_path(reference, "/index.html"),
+    ):
+        with pytest.raises(ArtifactError, match="depends on the page's URL scheme"):
+            read()
+
+
+@pytest.mark.parametrize(
+    "reference", ["https:", "http:", "https:#paint", "http:#paint", "https://["]
+)
+def test_invalid_or_scheme_dependent_resource_urls_reach_admission(tmp_path, reference):
+    from leaf.revision_artifact import ArtifactError, capture_artifact
+    from leaf.structure import SourceDocument
+
+    (tmp_path / "leaf.js").write_text("export {};")
+    with pytest.raises(ArtifactError):
+        capture_artifact(tmp_path, SourceDocument(f'<img src="{reference}">'), {})
 
 
 def test_an_explicit_self_resource_keeps_its_fragment():
@@ -76,12 +113,16 @@ def test_stylesheet_import_uses_the_same_browser_url_reading():
     assert delivered.data == b'@import "/revision/page/palette.css";'
 
 
-def test_javascript_absolute_imports_resolve_without_the_documents_base(tmp_path):
+@pytest.mark.parametrize("scheme", ["http", "https"])
+@pytest.mark.parametrize("path", ["/page/external.mjs", "page/external.mjs"])
+def test_javascript_absolute_imports_resolve_without_the_documents_base(
+    tmp_path, scheme, path
+):
     from leaf.revision_artifact import capture_artifact
     from leaf.revision_delivery import DeliveryAddress, rebase_module
     from leaf.structure import SourceDocument
 
-    source = b'import "https:/page/external.mjs";'
+    source = f'import "{scheme}:{path}";'.encode()
     (tmp_path / "leaf.js").write_text("export {};")
     (tmp_path / "page").mkdir()
     (tmp_path / "page/app.mjs").write_bytes(source)

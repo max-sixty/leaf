@@ -1491,6 +1491,12 @@ _TEXT = {
     # Capturing the page and the files it loads as an immutable revision: `file` is
     # the file a finding concerns, and `specifier` the reference in it.
     "dependency-url": _captured(lambda v: f"invalid dependency URL: {v['error']}"),
+    "dependency-scheme-dependent": _captured(
+        lambda v: (
+            "dependency's local or external meaning depends on the page's URL scheme;"
+            " use a relative path or a complete http(s) URL"
+        )
+    ),
     "dependency-not-local": _captured(
         lambda v: (
             "dependency must be a local URL (module URLs have no query or"

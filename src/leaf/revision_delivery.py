@@ -33,7 +33,6 @@ decodes, or a module once it runs.
 
 import html
 import json
-import posixpath
 import re
 import struct
 from collections.abc import Callable, Mapping
@@ -51,6 +50,7 @@ from .revision_artifact import (
     RevisionArtifact,
     authored_imports,
     bind_imports,
+    dependency_reference,
     rewrite_css,
 )
 from .schema import (
@@ -95,24 +95,12 @@ def page_path(reference: str, base: str) -> tuple[str, str] | None:
     `data:` URL, a fragment of this document, or a path outside the page's namespace.
     The suffix is the query and fragment, which travel with the path to its address.
     """
-    if not reference or reference.startswith(("#", "data:")):
+    if not reference:
         return None
-    try:
-        parsed = urlsplit(reference)
-    except ValueError:
+    reference = dependency_reference(reference, base)
+    if reference is None or not _PAGE_PATH.fullmatch(reference[0]):
         return None
-    if parsed.scheme or parsed.netloc or not parsed.path:
-        return None
-    path = unquote(parsed.path)
-    resolved = posixpath.normpath(
-        path if path.startswith("/") else posixpath.join(posixpath.dirname(base), path)
-    )
-    if not _PAGE_PATH.fullmatch(resolved):
-        return None
-    suffix = ("?" + parsed.query if parsed.query else "") + (
-        "#" + parsed.fragment if parsed.fragment else ""
-    )
-    return resolved, suffix
+    return reference
 
 
 def _attributes(attributes: Mapping[str, str]) -> str:

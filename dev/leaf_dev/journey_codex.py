@@ -37,11 +37,11 @@ The steps, in order:
   the Stop hook leaves input to the adapter's own turn, and is answered in a turn of
   its own. On `codex-queue` it enters the resumed turn, starting no turn of its own,
   since a queued turn would open on a message in the user's name;
-- `unload`: a comment is sent as the user's next turn starts, before its first tool
-  call, and must enter that turn at its first tool step, starting no turn of its
-  own. On `codex-queue` the user first leaves the task, which unloads it and ends
-  its instance, as the desktop app unloads an idle chat, so nothing the instance
-  ran before the turn proves Leaf's hooks run; over App Server the adapter's own
+- `unload`: the user's next turn holds its first shell command at a checkpoint.
+  A comment sent there must enter that turn, starting no turn of its own. On
+  `codex-queue` the user first leaves the task; the isolated server expires idle
+  instances immediately, and the journey waits for native closure and Leaf's
+  SessionEnd evidence before resuming it. Over App Server the adapter's own
   subscription keeps the task loaded;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
@@ -119,11 +119,13 @@ RESUME_TURN = (
     "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
     "skip the remaining shell command and report the interruption."
 )
-# A turn whose first tool call comes after a few sentences, long enough for a comment
-# sent as it starts to arrive before that call.
+# The driver releases this command only after admitting the comment. Model prose
+# and host scheduling therefore cannot make the first command finish too early.
+UNLOAD_READY = ".leaf-unload-ready"
 UNLOAD_TURN = (
-    "Before any tool call, tell me in three sentences what a release triage board "
-    "is for. Then run `printf 'verified\\n'` in the shell, then say done."
+    f"Run `while [ ! -e {UNLOAD_READY} ]; do sleep 0.1; done; printf 'verified\\n'` "
+    "in the shell in the foreground, with yield_time_ms 30000. "
+    "Then reply with the single word done."
 )
 
 
@@ -141,18 +143,30 @@ class Codex(Terminal):
 
     def record(self, message: dict) -> None:
         """Keep a notification of the task's thread as records, with where each turn
-        starts and ends and each model response's end, which App Server reports with
-        the response's token usage."""
+        starts and ends, each model response's end, which App Server reports with
+        the response's token usage, and how long each hook ran, all of them Leaf's,
+        since its plugin is the session's only one. App Server reports no request
+        or stream start, only the items a response produces, the first of them after
+        any hidden reasoning, so the model's time stays unsplit."""
         if self.task.thread and self.task.owns(message):
             normalized = records_for(message, self.task.thread, "")
+            method, params = message.get("method"), message.get("params") or {}
             marker = {
                 "turn/started": "turn_start",
                 "turn/completed": "turn_end",
-                "thread/tokenUsage/updated": "model_response",
                 "thread/closed": "thread_closed",
-            }.get(message.get("method"))
+            }.get(method)
             if marker is not None:
                 normalized.append({"type": marker})
+            elif method == "thread/tokenUsage/updated":
+                last = params["tokenUsage"]["last"]
+                normalized.append(
+                    {"type": "model_response", "outputTokens": last["outputTokens"]}
+                )
+            elif method == "hook/completed":
+                normalized.append(
+                    {"type": "leaf_hook", "ms": params["run"]["durationMs"]}
+                )
             self.trace.extend({**record, "received_at": now()} for record in normalized)
 
     def hear(self, seconds: float) -> None:
@@ -477,20 +491,18 @@ def steps(
             "the task left by its last client did not end its instance",
         )
         task.request("thread/resume", {"threadId": task.thread, **codex.settings})
-    previous_turns, previous_commands = len(task.started), len(task.commands)
+    previous_turns = len(task.started)
     early = task.say(UNLOAD_TURN)
+    codex.await_command(UNLOAD_READY, "the resumed turn did not reach its checkpoint")
     codex.until(
         lambda: page_claim(page)["turn"] == early,
         f"the claim never named the user's turn {early}",
     )
-    require(
-        not task.running_commands and len(task.commands) == previous_commands,
-        "the turn ran a command before the comment could be sent",
-    )
     during = user.comment("unload")
+    (Path(codex.settings["cwd"]) / UNLOAD_READY).touch()
     codex.settle(
         lambda: user.answered("unload"),
-        "the comment sent before the turn's first tool call was not answered",
+        "the comment sent at the resumed turn's checkpoint was not answered",
     )
     sent.append("unload")
     details = check_step()
@@ -501,11 +513,11 @@ def steps(
                 read_events(page), phase="opened", input_id=during
             )
         ),
-        f"the comment sent before the first tool call did not enter turn {early}",
+        f"the comment sent at the checkpoint did not enter turn {early}",
     )
     require(
         task.started[previous_turns:] == [early],
-        "the comment sent before the first tool call started a turn of its own",
+        "the comment sent at the checkpoint started a turn of its own",
     )
     step("unload", started, details)
 

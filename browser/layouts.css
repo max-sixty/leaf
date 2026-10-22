@@ -805,7 +805,7 @@
   .layout-tiles > * {
     margin: 0;
   }
-  /* Workspace: a full-height page between the window's head room and foot room. Header and
+  /* Workspace: a full-height page from the window's head to its foot. Header and
    * footer take their content's height and the body the rest, arranged as the body says:
    * a grid of panes, a pane, or a widget composing its own regions. Each pane's body
    * scrolls on its own, and `--lf-full-height` on the workspace tells a body widget it has a
@@ -825,6 +825,22 @@
     --lf-workspace-gutter: 12px;
     padding-inline: var(--lf-workspace-gutter);
     padding-block: var(--sp-2) var(--page-pad-end);
+  }
+  /* The root workspace owns the window's foot. Its readers keep the panel's room
+   * within their scrollable content, rather than leaving an empty band below every
+   * pane. Flowing workspaces still use the document's end room. */
+  @media screen and (min-width: 720px) and (min-height: 480px) {
+    html[data-lf-live][data-lf-layout~="workspace"] body {
+      padding-block-end: 0;
+    }
+    html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
+      block-size: calc(var(--lf-view-height) + var(--lf-foot-room));
+    }
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body > main.layout-workspace
+      [data-lf-reading-role="pane"] > :not(header, footer) {
+      padding-block-end: calc(var(--pane-inset) + var(--lf-foot-room));
+    }
   }
   /* The header is one row: the title with the page's status beside it, wrapping only
    * where the row runs out. A lede belongs in a pane. */

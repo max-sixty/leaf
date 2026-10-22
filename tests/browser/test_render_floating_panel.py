@@ -3797,7 +3797,7 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
 def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     """Past three lines the field offers more room, by a press rather than on its own:
     a mark stands over the leaf, beside the field's first line, taking no room of its
-    own, or among an open view's controls. Pressing it widens the panel and keeps the
+    own, including with a view open. Pressing it widens the panel and keeps the
     caret in the words; emptying the field folds it back."""
     page = floating(browser, serve(LONG_PAGE))
     panel = page.locator(".lf-floating-panel")
@@ -3817,11 +3817,15 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
-    expect(page.locator(".lf-fp-controls .lf-fp-expand")).to_be_visible()
-    expect(page.locator(".lf-fp-field .lf-fp-expand")).to_have_count(0)
+    expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
+    expect(expand).to_be_visible()
+    words = page.locator(".lf-fp-field").bounding_box()
+    leaf = page.locator(".lf-fp-leaf").bounding_box()
+    mark = expand.bounding_box()
+    assert mark["x"] + mark["width"] <= words["x"] + 0.5, (words, mark)
+    assert mark["y"] + mark["height"] <= leaf["y"] + 0.5, (leaf, mark)
     page.keyboard.press("Escape")
     field(page).click()
-    expect(page.locator(".lf-fp-row > .lf-fp-expand")).to_be_visible()
     expect(expand).to_have_attribute("aria-pressed", "false")
     expand.click()
     expect(expand).to_have_attribute("aria-pressed", "true")
@@ -3870,7 +3874,7 @@ def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     expect(view).to_be_visible()
     field(page).click()
     page.keyboard.insert_text("".join(f"Line {n} of a long draft\n" for n in range(40)))
-    page.locator(".lf-fp-controls .lf-fp-expand").click()
+    page.get_by_role("button", name="More room to write", exact=True).click()
     settled(page)
     head = page.locator(".lf-fp-head").bounding_box()
     shown = view.bounding_box()

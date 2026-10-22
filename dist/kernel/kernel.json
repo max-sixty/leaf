@@ -54,7 +54,7 @@
     "runtime/composing/region-selector.js": "773856a11a10b90229c60f1129778433893eb05ef709c7fe559aa6e266f3e2d4",
     "runtime/composing/selection.js": "a9251367737097a7b5e68ddc563db56484297660b4138e25840f7e0394bd78e4",
     "runtime/composing/standing.js": "a5ea57f888449868b25f8479dae874d9b875a716dda1ae6bad63e4883f53b98e",
-    "runtime/composing/surface.js": "d9152e1cec2a8c0c5bacf6d45256fc26f5b92dc6d3d59a5af7876f9685b62abb",
+    "runtime/composing/surface.js": "475454336f208d83f79b31eb397cc5a19c02a732d77f8dfaa8c2b48f2b033108",
     "runtime/composing/target-picker.js": "b0e2f4564efa9de948322086499eab3b8156b9b2cafa8bf3c3469190a31bf8b8",
     "runtime/composing/text-field.js": "adecf45199228dd92168bd71d1f97e43897318a4ca42adeb5256dda4ccb6286e",
     "runtime/content-layout.js": "a8d123038c5c71e7fa08c7b76a2da37b630547d5a6c328387574356989f22608",

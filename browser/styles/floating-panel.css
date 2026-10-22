@@ -201,7 +201,7 @@
     box-sizing: border-box;
     position: relative;
   }
-  /* With no view open the more-room mark stands over the leaf, in the corner a long
+  /* The more-room mark stands over the leaf, in the corner a long
      draft leaves free beside the field's first line (floating-panel.js, `expand`). A
      widened field may hold fewer lines than the two that corner needs, so the wide row
      keeps their height. Only the wide row does, so the mark standing at the fourth line

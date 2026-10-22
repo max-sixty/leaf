@@ -4663,8 +4663,11 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     (tests/js_facts.mjs), so one wrapped across lines or registered for several
     types in a loop counts as written.
 
-    Each allowed one is named here. The dispatcher is the register's own. The aim latch
-    is not a binding at all: holding ⌥ arms nothing and answers no press, it paints what
+    Each allowed one is named here. The dispatcher has a capture listener for
+    shortcut characters, before nested libraries' typeahead, and a bubble listener
+    for other keys, after controls' own handling; both use the same register.
+    The aim latch is not a binding at all: holding ⌥ arms nothing and answers no
+    press, it paints what
     a click would take, and its keyup half has no place in a table of presses. The
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
     page presents and hands them to the dispatcher's owner. The sample bootstrap's
@@ -4689,7 +4692,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         name = line.split(":")[0]
         by_file[name] = by_file.get(name, 0) + 1
     assert by_file == {
-        "controller.js": 1,
+        "controller.js": 2,
         "aim.js": 1,
         "bootstrap.js": 2,
         "prepaint.js": 1,

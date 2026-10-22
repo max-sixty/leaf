@@ -282,8 +282,8 @@
 }
 /* A quoted choose group renders as one that never declared `choose`. That promise is
  * kept where each pressable look is granted, not undone here: every affordance rule in
- * the lf-options section — the hand, the lift, the joined shape, the reserved strip and
- * binding-badge column, the row wash — excludes exhibits in its own selector
+ * the lf-options section — the hand, the joined shape, the reserved strip and
+ * binding-badge column, the hover wash — excludes exhibits in its own selector
  * (`:not(:where([data-lf-exhibit]) *)`, the marker the runtime paints from this entry's
  * x-exhibit), because an unkeying block here lost every contest against a plainly-spelled
  * guard and missed every affordance written after it. The upgrade holds the half no

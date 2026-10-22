@@ -147,7 +147,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note)),
 .lf-btn,
 .button,
-.lf-outline-chip:is(button, [role=button]),
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-msg-control,
@@ -158,7 +157,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   min-width: var(--aim-floor);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn)),
-.lf-outline-chip:is(button, [role=button]),
 .lf-thread-notice:is(button),
 .lf-react,
 .lf-msg-control,
@@ -906,34 +904,19 @@ leaf-text.lf-fab-input,
     display: none !important;
   }
 }
-.lf-outline-chip {
+:where(.lf-react-strip) .lf-react {
   appearance: none;
   margin: 0;
   padding: var(--chip-pad);
   white-space: nowrap;
-  border: 1px solid var(--border-2);
+  border: 1px solid transparent;
   border-radius: var(--chip-r);
-  background: var(--card);
-  color: var(--ink-2);
   font: inherit;
   font-family: var(--sans);
   font-size: var(--t-6);
   line-height: var(--chip-lh);
 }
-.lf-outline-chip:is(button, [role=button]) {
-  cursor: pointer;
-}
-.lf-outline-chip:is(button, [role=button]):hover {
-  background: var(--chip);
-}
-@media (pointer: coarse) {
-  .lf-outline-chip:is(button, [role=button]) {
-    display: inline-flex;
-    align-items: center;
-  }
-}
-.lf-outline-chip[data-lf-focus] {
-  outline: var(--focus-ring);
+.lf-react-strip .lf-react[data-lf-focus] {
   outline-offset: 1px;
 }
 .lf-msg-control {
@@ -1262,7 +1245,7 @@ svg[data-lf-icon] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
+:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true]):hover) {
   background: var(--chip);
 }
 :is(button, .lf-btn, .button).lf-quiet-action,
@@ -1273,7 +1256,7 @@ svg[data-lf-icon] {
   color: var(--muted);
   box-shadow: none;
 }
-:is(button, .lf-btn, .button).lf-quiet-action:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus]),
+:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus])),
 .lf-quiet-action.lf-ui:not(:disabled, [aria-disabled=true])::part(button):hover,
 .lf-quiet-action.lf-ui::part(lf-focus) {
   background: var(--chip);
@@ -1401,15 +1384,6 @@ svg[data-lf-icon] {
   inline-size: 16px;
   block-size: 16px;
   pointer-events: none;
-}
-.lf-close-action {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-}
-.lf-close-action:hover {
-  background: var(--chip);
-  color: var(--ink);
 }
 :is(.lf-compose-submit, .lf-compose-dictate),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {

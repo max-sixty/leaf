@@ -1386,13 +1386,13 @@ var commandReferenceSearch = searchField("lf-command-reference-search", {
   placeholder: "Find a key or action"
 });
 commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
-commandReferenceDialog.append(commandReferenceSearch);
 var commandReferenceClose = closeControl({
   name: "Close the command reference",
   className: "lf-command-reference-close"
 });
 commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
 commandReferenceClose.setAttribute("aria-label", "Close the command reference");
+commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
 function declaredStack(origin) {
   pruneScopedElements();
   const sections = /* @__PURE__ */ new Map();
@@ -4346,7 +4346,10 @@ pageSearchStatus.slot = "end";
 var pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
 var matchStep = (icon, name2) => {
-  const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
+  const control = el(
+    "button",
+    "lf-btn lf-icon-action lf-quiet-action lf-page-search-step"
+  );
   control.type = "button";
   control.tabIndex = -1;
   control.slot = "end";

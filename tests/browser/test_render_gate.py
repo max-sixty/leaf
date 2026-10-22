@@ -1681,11 +1681,13 @@ customElements.define("field-host", class extends HTMLElement {{
     }, failures
     # Delivery serves media under the revision, so the issue names that URL.
     issues = reported("devtools-issue")
-    assert sorted((f.scheme, f.at, f.values["issue"]) for f in issues) == sorted(
+    # Chromium may emit the same issue for a frame more than once. The gate's
+    # contract is which owned source nodes receive it, not CDP's event count.
+    assert {(f.scheme, f.at, f.values["issue"]) for f in issues} == {
         (scheme, where, "LazyLoadImageIssue")
         for scheme in ("light", "dark")
         for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
-    ), failures
+    }, failures
     assert all(
         [key for key, _ in f.values["details"]] == ["url"]
         and dict(f.values["details"])["url"].endswith(src)

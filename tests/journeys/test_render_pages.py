@@ -917,8 +917,9 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     resized(page, 1400, 900)
     margins_laid_out(page)
     roomy = page.evaluate(reading)
-    # At rest the map is its spine: it takes a strip of the margin, not its labels' width.
-    assert 0 < roomy["toc"]["width"] <= roomy["taken"] < 320, roomy
+    # The sidebar also holds prose, so it keeps its full margin claim while the map
+    # rests on its spine. Its labels may reveal inside that reserved space.
+    assert 0 < roomy["toc"]["width"] < roomy["taken"] < roomy["pageWidth"] / 2, roomy
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
     assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
         f"the sidebar's box reached into the reading column: {roomy}"
@@ -931,8 +932,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         <= 1
     ), f"the contents map moved the reading column off the page's axis: {roomy}"
     assert roomy["toc"]["width"] == 24
-    assert roomy["exhibit"]["left"] >= roomy["toc"]["left"] + roomy["taken"] - 1, (
-        f"a wide exhibit painted over the contents map's spine: {roomy}"
+    assert roomy["exhibit"]["left"] >= max(roomy["toc"]["right"], roomy["taken"] - 1), (
+        f"a wide exhibit painted over the reserved margin: {roomy}"
     )
     assert root_overflow(page) == 0
 

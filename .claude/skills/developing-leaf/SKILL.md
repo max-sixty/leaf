@@ -427,13 +427,9 @@ lose. A count read off the code overstates the saving.
 
 ## Land a change
 
-Before handing over a change that adds to an `AGENTS.md`, a protocol reference
-(`src/AGENTS.md`, "Protocol references"), this skill or its glossary, ask of each added
-sentence what its reader would do differently for having read it. A sentence that says
-how the change's code works, which failure it fixed or which harness version showed it
-belongs in the module's header or the commit message, and a command's flags belong in
-its `--help`. A rule one module owns goes in that module's header, and the area file
-keeps at most a pointer (root `AGENTS.md`, "Where instructions live").
+Before handing over a change that adds to an area `AGENTS.md`, ask of each addition
+whether one module owns it. If one does, the rule goes in that module's header and the
+area file keeps at most a pointer (root `AGENTS.md`, "Where instructions live").
 
 The thread appearance gate, `tests/*/test_render_thread_snapshots.py`, is paused while
 development moves fast (`TODO.md`, "Resume the thread appearance gate"), so a thread

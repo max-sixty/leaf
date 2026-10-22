@@ -3011,7 +3011,6 @@ Deprecates the v1 auth header. It keeps working until 4.0, and v1 responses now 
         </p>
         <lf-shot
           id="rn-console-shot"
-          outlines
           alt="the run list with and without a status column"
           before="/media/051bee487bfb5d13.png"
           after="/media/a99a1b63048502d0.png"
@@ -11220,47 +11219,25 @@ gallery/
                 </audio>
               </section>
               <p id="bg-shot-guide">
-                Sample labels invented content. Choose “Before” or “After” above the
-                image, or press the Shot control or image to flip. The selected label is
-                red for Before and green for After; a split colors both labels without
-                selecting either. Scroll through a tall pair: the Before/After rail
-                stays at the top of the view until the pair ends, below any page tabs.
-                This pair carries
-                <code>outlines</code>, so outlines mark each region where the two images
-                differ, on both sides of the divider. The rail offers three views:
-                Plain, Outlines, and Pixels. Outlines starts selected; Plain hides the
-                outlines, while Pixels shows the after image greyed with every changed
-                pixel painted over it: red where only Before drew something, blue where
-                only After did, and amber where both did. Use the arrow keys to select a
-                view, or choose it directly. Hover or focus Outlines to read the changed
-                and moved counts, or hold it on a phone. Slide off before releasing to
-                leave the current view selected. Clicking the pixel picture returns to
-                the previous comparison view with its divider preserved.
+                Sample labels invented content. Before &amp; after shows these wide run
+                lists at the same scale, stacked when there is not room for both
+                beside each other. Resize the window to inspect the paired layout.
+                Choose Slider and drag its divider to compare the same location, then
+                choose Pixel difference to see removed pixels in red, added pixels in
+                blue and recoloured pixels in amber. Outline changes marks changed
+                regions independently of the selected view. Compare Fit with 100%, and
+                scroll through any image larger than its view. Tab reaches every
+                control; the arrow keys move within the view choices.
               </p>
               <lf-shot
                 id="bg-shot"
-                outlines
-                pixels
-                alt="a sample run list with and without a status column"
-                before="/media/051bee487bfb5d13.png"
-                after="/media/a99a1b63048502d0.png"
-              ></lf-shot>
-              <p id="bg-shot-plain-guide">
-                The same pair without <code>outlines</code> offers Plain and Pixels,
-                starting in Pixels, which shows what each image draws differently in one
-                picture. Selecting Pixels again keeps that view open. Choose Plain,
-                Before or After, or click the pixel picture, to see the comparison.
-              </p>
-              <lf-shot
-                id="bg-shot-plain"
-                pixels
                 alt="a sample run list with and without a status column"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/a99a1b63048502d0.png"
               ></lf-shot>
               <p id="bg-shot-same-guide">
-                This pair is one picture twice. With or without <code>outlines</code>,
-                the rail reads “identical”.
+                This pair is one picture twice. The comparison reports identical
+                images in every view.
               </p>
               <lf-shot
                 id="bg-shot-same"

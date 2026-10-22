@@ -150,22 +150,24 @@ Put invented examples inside `lf-sample` and make them visibly fictional. Render
 tickets, source locations and URLs as real links.
 
 `lf-shot` shows two versions of an interface, before and after, captured at the same
-viewport. It draws each capture across the column (`--col`), so a capture of a whole
-window shows well below its real size. For a smaller change, capture the subject in a reading column
-rather than the whole window and crop both frames to the change, or show the element at
-real size. Before writing the prose and `alt`, open both images and compare them where
-the change should be.
+viewport. Before writing the prose and `alt`, open both images and compare them where
+the change should be. For a small change, crop both frames to the subject rather than
+making the reader search a whole window.
 
-Add `outlines` to outline what changed in each frame, and with a dashed line what only
-moved. Leave it off where most outlines would mark something else, such as live data
-that changed between captures, and say in the prose where to look. The pair's control
-strip reads "identical", "only slight changes" or "changed throughout". If it reads
-"identical", or no outline sits where the prose puts the change, capture a case that
-shows the change or say that nothing changed. If it reads "only slight changes", name
-the change in the prose, since the reader will hardly see it.
+Every pair offers **Before & after**, **Slider** and **Pixel difference**. Before &
+after keeps the captures at the same scale, side by side when there is room and stacked
+for wide captures. Fit fits the current view to the available width; 100% shows CSS
+pixels when capture metadata supplies the pixel ratio, or bitmap pixels otherwise.
+The reader can scroll to inspect an image larger than its view. A pair with focus
+metadata starts at that region and offers Full frame to inspect the rest.
 
-Add `pixels` when the reader must see exactly which pixels changed: a shift of a few
-pixels, a subtle recolour, a moved mark, or a claim that nothing else changed. It adds
-a view painting removed pixels red, added pixels blue and recoloured pixels amber over
-the greyed after image, so build no difference image of your own. Leave it off where
-the change reflows much of the frame.
+**Outline changes** independently marks changed regions and uses the accent color for
+content that only moved. **Pixel difference** paints removed pixels red, added pixels
+blue and recoloured pixels amber over the greyed after image, so build no difference
+image of your own. These controls belong to the reader; author the pair with `before`,
+`after` and `alt`.
+
+The comparison reports identical images, slight changes or changes throughout the
+frame. If it reports identical images, or no outline sits where the prose puts the
+change, capture a case that shows the change or say that nothing changed. Name subtle
+changes in the prose. Where live data changed between captures, say where to look.

@@ -51,13 +51,11 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
     page = open_page(browser, url)
     resized(page, 1000, 700)
     case = page.locator('.lf-vr-case[aria-hidden="false"]')
-    case.get_by_role("button", name="More inspection").click()
     case.get_by_role("checkbox", name="Full frame").check()
-    case.get_by_role("checkbox", name="Actual size").check()
-    page.keyboard.press("Escape")
+    case.get_by_role("radio", name="100%", exact=True).click()
     host = case.locator(".lf-vr-capture")
-    for mode in ("Before & after", "Slider"):
-        case.get_by_role("button", name=mode, exact=True).click()
+    for mode in ("Before & after", "Slider", "Pixel difference"):
+        case.get_by_role("radio", name=mode, exact=True).click()
         rendered(page)
         assert host.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     assert page.evaluate("document.scrollingElement.scrollHeight > innerHeight")
@@ -290,7 +288,7 @@ def test_visual_review_refresh_hands_focus_across_replaced_evidence(browser, ser
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator('.lf-vr-case[aria-hidden="false"]')
-    case.get_by_role("button", name="Slider", exact=True).click()
+    case.get_by_role("radio", name="Slider", exact=True).click()
     case.locator(".lf-shotcap").first.focus()
     expect(case.locator(".lf-shotcap").first).to_be_focused()
     record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
@@ -358,7 +356,7 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator('.lf-vr-case[aria-hidden="false"]')
-    case.get_by_role("button", name="Slider", exact=True).click()
+    case.get_by_role("radio", name="Slider", exact=True).click()
     caption = case.locator('.lf-shotcap[data-lf-state="before"]')
     caption.click()
     expect(caption).to_have_attribute("aria-pressed", "true")
@@ -378,14 +376,14 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     assert caption.evaluate("(node, old) => node === old", old_caption)
     expect(caption).to_have_attribute("aria-pressed", "true")
     expect(caption).to_have_attribute(
-        "aria-label", f"before — {record['cases'][0]['title']}. {result}"
+        "aria-label", f"Before — {record['cases'][0]['title']}. {result}"
     )
     expect(case.locator("lf-shot img").first).to_have_attribute(
         "alt", f"before: {record['cases'][0]['title']}. {result}"
     )
-    expect(case.locator(".lf-shotflip")).to_have_attribute(
+    expect(case.locator(".lf-shotstage")).to_have_attribute(
         "aria-label",
-        f"Compare before and after — {record['cases'][0]['title']}. {result}",
+        f"Screenshot comparison — {record['cases'][0]['title']}. {result}",
     )
     after = caption.bounding_box()
     assert abs(after["y"] - before["y"]) <= 1, (before, after)
@@ -431,7 +429,7 @@ def test_visual_review_selected_caption_owns_its_activation_keys(browser, serve)
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator('.lf-vr-case[aria-hidden="false"]')
-    case.get_by_role("button", name="Slider", exact=True).click()
+    case.get_by_role("radio", name="Slider", exact=True).click()
     for state in ("before", "after"):
         caption = case.locator(f'.lf-shotcap[data-lf-state="{state}"]')
         caption.click()

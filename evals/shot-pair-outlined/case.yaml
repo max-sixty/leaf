@@ -1,13 +1,8 @@
-# Added with lf-shot's `outlines`, which a pair must ask for. Against the PR's earlier
-# wording, where every pair drew outlines unless it set `no-outlines`, no base run
-# could write `outlines` (0 of 3) and every candidate run did (3 of 3); the judgment
-# passed in both arms. So it measures that the instructions names the attribute, which a
-# page now needs for its outlines.
 description: shot-pair-outlined
 metadata:
   purpose:
-    "Source files and media: a pair whose change is local asks for `outlines`, so the
-    page marks where it is."
+    "Source files and media: a local interface change is shown with a screenshot pair
+    and described accurately where the reader can inspect it."
   authoring: true
   tags:
     - evidence
@@ -28,8 +23,8 @@ vars:
     Write the Leaf page's section on the header, with its before/after pair.
 assert:
   - type: javascript
-    metric: pair-outlined
-    value: file://capture-pair.cjs:outlinedPair
+    metric: capture-pair
+    value: file://capture-pair.cjs:pair
   - type: agent-rubric
     metric: captures-in-order
     transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"

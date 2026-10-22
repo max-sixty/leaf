@@ -42,8 +42,6 @@ function pair(output, context, accept = () => true) {
 const pngWidth = (path) => readFileSync(path).readUInt32BE(16);
 
 exports.pair = (output, context) => pair(output, context);
-exports.outlinedPair = (output, context) =>
-  pair(output, context, (shot) => shot.hasAttribute("outlines"));
 exports.readablePair = (output, context) =>
   pair(output, context, (shot, registered) =>
     ["before", "after"].every((side) => {

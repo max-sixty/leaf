@@ -168,9 +168,11 @@ def test_visual_review_keeps_the_dashboard_stable_while_inspecting(
     for button in buttons.all():
         button.click()
         assert case.evaluate(reading) == baseline
-        case.get_by_role("button", name="More inspection").click()
+        case.get_by_role("button", name="Capture details").click()
         details = case.locator(".lf-vr-details")
         expect(details).to_be_visible()
+        expect(details.get_by_role("checkbox")).to_have_count(0)
+        expect(details.locator(".lf-vr-provenance")).to_contain_text("Capture")
         assert case.evaluate(reading) == baseline
         bounds = details.bounding_box()
         assert (
@@ -179,34 +181,6 @@ def test_visual_review_keeps_the_dashboard_stable_while_inspecting(
         page.keyboard.press("Escape")
         expect(details).to_be_hidden()
         assert root_overflow(page) == 0
-
-
-def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
-    browser, serve
-):
-    page = open_page(
-        browser,
-        serve(VISUAL_REVIEW_GALLERY),
-        init_script="""
-      const supports = CSS.supports.bind(CSS);
-      CSS.supports = (property, value) =>
-        property === 'object-view-box' ? false : supports(property, value);
-    """,
-    )
-    case = page.locator(SELECTED)
-    expect(case.locator("lf-shot")).to_have_attribute("data-lf-shot-focus", "true")
-    expect(case.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
-    image = case.locator(".lf-shotframe img").first.evaluate("""node => ({
-      renderedRatio: node.getBoundingClientRect().width / node.getBoundingClientRect().height,
-      naturalRatio: node.naturalWidth / node.naturalHeight,
-      objectViewBox: getComputedStyle(node).objectViewBox,
-    })""")
-    assert image["renderedRatio"] == pytest.approx(image["naturalRatio"], rel=0.01)
-    assert image["objectViewBox"] == "none"
-    case.get_by_role("button", name="More inspection").click()
-    expect(case.locator(".lf-vr-provenance")).to_contain_text(
-        "20, 100 · 350 × 640 CSS px"
-    )
 
 
 def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve):

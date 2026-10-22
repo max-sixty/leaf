@@ -1,8 +1,8 @@
 /* A visual review is a queue of claims, with one readable comparison open.
  * The source owns cases and captures; Leaf owns approvals and discussion. The
  * dashboard derives its queue and counts from that state. Selection
- * and inspection are transient view choices. Retained articles preserve their
- * controls and thread outlets; canonical reading regions preserve capture positions. */
+ * is transient. lf-shot owns comparison controls, layout and capture scrolling;
+ * the dashboard supplies capture metadata and retains case articles and threads. */
 import "/widgets/lf-shot.js";
 import {
   LeafElement,
@@ -30,18 +30,12 @@ import {
   threadSurface,
   scopedMediaUrl,
   describeDifference,
-  frameFor,
-  sizeObserver,
   whileConnected,
-  layoutChanged,
-  keeps,
   registerReadingRegion,
   compoundReadingRegionId,
   preserveReadingRegions,
 } from "/runtime/widget-api.js";
 
-const MODES = { compare: "Before & after", flip: "Slider" };
-const READABLE_SCALE = 0.7;
 const fact = (name, value) =>
   html`<div>
     <dt data-lf-gen="1" data-lf-said>${name}</dt>
@@ -64,7 +58,6 @@ customElements.define(
     #entries = new Map();
     #snapshot;
     #projected;
-    #sizes;
     #selected;
     #restoreFocus;
     #queue;
@@ -82,11 +75,6 @@ customElements.define(
         }),
       );
     }
-    #fit = frameFor(this, () => {
-      const entry = this.#entries.get(this.#selected);
-      if (entry) this.#inspect(entry);
-      layoutChanged(this);
-    });
     #presentShot = (promise) => this.controller.present(promise);
 
     setup() {
@@ -132,7 +120,7 @@ customElements.define(
         },
         {
           id: "visual.inspection",
-          title: "More inspection",
+          title: "Capture details",
           keys: ["i"],
           control: selectedControl(".lf-vr-inspect"),
           when: () => Boolean(this.#selected),
@@ -162,13 +150,6 @@ customElements.define(
           },
           { signal },
         );
-        this.#sizes = sizeObserver(this.#fit);
-        this.#sizes.observe(this);
-        this.#fit();
-        return () => {
-          this.#sizes.disconnect();
-          this.#sizes = null;
-        };
       });
     }
 
@@ -184,14 +165,9 @@ customElements.define(
       for (const record of records) {
         let entry = this.#entries.get(record.id);
         if (!entry) {
-          entry = { mode: "compare", full: false, actual: false };
+          entry = {};
           entry.place = (article) => {
             entry.article = article;
-          };
-          entry.capturePlace = (body) => {
-            if (!body || entry.body === body) return;
-            entry.body = body;
-            this.#readingRegion(body, `case-${record.id}`);
           };
           entry.threadPlace = (body) => {
             if (!body || entry.threads === body) return;
@@ -201,15 +177,7 @@ customElements.define(
           entry.prepare = (shot) => {
             entry.shot = shot;
             if (!shot) return;
-            shot.inspect({
-              mode: entry.mode,
-              pixelRatio: entry.record.capture.deviceScaleFactor,
-              captureWidth: entry.record.capture.viewport.width,
-              focus: entry.record.focus,
-              crop: !entry.full,
-              labels: { before: "Before", after: "After" },
-            });
-            this.#fit();
+            this.#configure(entry);
             shot.difference.then(
               (reading) => {
                 if (entry.shot !== shot || this.#entries.get(record.id) !== entry)
@@ -387,67 +355,17 @@ customElements.define(
       });
       this.#restoreFocus = null;
       paintKeys();
-      this.#fit();
+      for (const entry of this.#entries.values()) this.#configure(entry);
     }
 
-    #inspect(entry) {
+    #configure(entry) {
       const { shot, record } = entry;
-      if (!shot || record.id !== this.#selected) return;
-      shot.inspect({
-        mode: entry.mode,
+      shot?.inspect({
         pixelRatio: record.capture.deviceScaleFactor,
         captureWidth: record.capture.viewport.width,
         focus: record.focus,
-        crop: !entry.full,
         labels: { before: "Before", after: "After" },
       });
-      const geometry = shot.captureGeometry;
-      const stage = shot.parentElement;
-      const stageWidth = stage?.clientWidth;
-      if (geometry?.images.length !== 2 || !stageWidth) return;
-      const crop = record.focus && !entry.full && shot.supportsCrop;
-      const width = crop
-        ? record.focus.width
-        : geometry.images[0].width / record.capture.deviceScaleFactor ||
-          record.capture.viewport.width;
-      if (!width) return;
-      const border = geometry.frameBorder * 2;
-      const sideScale = (stageWidth - geometry.gap - 2 * border) / (2 * width);
-      const layout = sideScale >= READABLE_SCALE ? "side" : "stack";
-      const fit =
-        entry.mode === "compare" && layout === "side"
-          ? sideScale
-          : (stageWidth - border) / width;
-      const scale = entry.actual ? 1 : Math.max(READABLE_SCALE, Math.min(1, fit));
-      shot.inspect({ layout, scale });
-      const frameWidth = width * scale + border;
-      const contentWidth =
-        entry.mode === "compare" && layout === "side"
-          ? 2 * frameWidth + geometry.gap
-          : frameWidth;
-      const overflowing = contentWidth > stageWidth + 1;
-      const hint = stage.parentElement.querySelector(".lf-vr-pan-hint");
-      keeps(hint, "hidden", overflowing ? null : "");
-      const order =
-        entry.mode === "compare"
-          ? layout === "side"
-            ? "Before left · After right. "
-            : "Before above · After below. "
-          : "";
-      const hintText = `${order}Scroll sideways to inspect the full capture`;
-      if (hint.textContent !== hintText) hint.textContent = hintText;
-      keeps(
-        stage,
-        "aria-label",
-        overflowing ? "Capture comparison; scroll horizontally" : null,
-      );
-    }
-
-    #change(entry, key, value) {
-      entry[key] = value;
-      this.requestUpdate();
-      this.performUpdate();
-      this.#inspect(entry);
     }
 
     #review(record, approved) {
@@ -564,107 +482,6 @@ customElements.define(
             Next unchecked <span aria-hidden="true">→</span>
           </button>
         </div>
-        <div class="lf-vr-tools">
-          <div class="lf-vr-view" role="group" aria-label="Comparison view">
-            ${Object.entries(MODES).map(
-              ([value, text]) =>
-                html`<button
-                  type="button"
-                  ${offered(
-                    "lf-btn lf-quiet-action lf-compact-control lf-vr-mode-button",
-                  )}
-                  aria-pressed=${entry.mode === value ? "true" : "false"}
-                  @click=${() => this.#change(entry, "mode", value)}
-                >
-                  ${text}
-                </button>`,
-            )}
-          </div>
-          <button
-            type="button"
-            ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-inspect")}
-            aria-controls=${`${this.id}-${record.id}-inspection`}
-          >
-            More inspection
-          </button>
-          <div class="lf-vr-details" id=${`${this.id}-${record.id}-inspection`} popover>
-            <header class="lf-vr-inspection-heading">
-              <h4>Inspection settings</h4>
-              <button
-                type="button"
-                ${offered(
-                  "lf-btn lf-quiet-action lf-compact-control lf-vr-inspection-close",
-                )}
-                popovertarget=${`${this.id}-${record.id}-inspection`}
-                popovertargetaction="hide"
-                aria-label="Close inspection"
-              >
-                Close
-              </button>
-            </header>
-            <div class="lf-vr-inspection">
-              ${
-                record.focus
-                  ? html`<label
-                      ><input
-                        ${offered("lf-vr-full")}
-                        type="checkbox"
-                        .checked=${live(entry.full)}
-                        @change=${(event) =>
-                          this.#change(entry, "full", event.currentTarget.checked)}
-                      />Full frame</label
-                    >`
-                  : nothing
-              }
-              <label
-                ><input
-                  ${offered("lf-vr-actual")}
-                  type="checkbox"
-                  .checked=${live(entry.actual)}
-                  @change=${(event) =>
-                    this.#change(entry, "actual", event.currentTarget.checked)}
-                />Actual size</label
-              >
-            </div>
-            <dl class="lf-vr-provenance">
-              ${fact(
-                "Capture",
-                `${record.capture.viewport.width} × ${record.capture.viewport.height} · ${record.capture.deviceScaleFactor}× · ${record.capture.colorScheme}`,
-              )}
-              ${fact(
-                "Browser",
-                `${record.capture.browser} ${record.capture.browserVersion}`,
-              )}
-              ${fact("Observed", record.capture.observedAt)}${fact(
-                "Locale",
-                `${record.capture.locale} · ${record.capture.timezone}`,
-              )}
-              ${fact("Path", record.path)}${fact(
-                "Before revision",
-                run.base.revision,
-              )}${fact("After revision", run.candidate.revision)}
-              ${
-                record.focus
-                  ? fact(
-                      "Focus",
-                      `${record.focus.x}, ${record.focus.y} · ${record.focus.width} × ${record.focus.height} CSS px`,
-                    )
-                  : nothing
-              }
-              ${
-                entry.difference
-                  ? fact("Full-frame difference", describeDifference(entry.difference))
-                  : nothing
-              }
-            </dl>
-            <div class="lf-vr-sources">
-              ${link("Open before page", destination(run.base, record.path))}${link(
-                "Open after page",
-                destination(run.candidate, record.path),
-              )}${link("Capture trace", record.traceUrl)}
-            </div>
-          </div>
-        </div>
         <div class="lf-vr-evidence" data-lf-reading-role="pane" data-lf-generated>
           <header>
             <p class="lf-vr-evidence-note" data-lf-gen="1" data-lf-said>
@@ -672,11 +489,75 @@ customElements.define(
               ${record.capture.viewport.height} · ${record.capture.browser}. Links
               inside these images are not interactive.
             </p>
-            <p class="lf-vr-pan-hint" data-lf-gen="1" data-lf-said hidden>
-              Scroll sideways to inspect the full capture
-            </p>
+            <button
+              type="button"
+              ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-inspect")}
+              aria-controls=${`${this.id}-${record.id}-inspection`}
+            >
+              Capture details
+            </button>
+            <div
+              class="lf-vr-details"
+              id=${`${this.id}-${record.id}-inspection`}
+              popover
+            >
+              <header class="lf-vr-inspection-heading">
+                <h4>Capture details</h4>
+                <button
+                  type="button"
+                  ${offered(
+                    "lf-btn lf-quiet-action lf-compact-control lf-vr-inspection-close",
+                  )}
+                  popovertarget=${`${this.id}-${record.id}-inspection`}
+                  popovertargetaction="hide"
+                  aria-label="Close capture details"
+                >
+                  Close
+                </button>
+              </header>
+              <dl class="lf-vr-provenance">
+                ${fact(
+                  "Capture",
+                  `${record.capture.viewport.width} × ${record.capture.viewport.height} · ${record.capture.deviceScaleFactor}× · ${record.capture.colorScheme}`,
+                )}
+                ${fact(
+                  "Browser",
+                  `${record.capture.browser} ${record.capture.browserVersion}`,
+                )}
+                ${fact("Observed", record.capture.observedAt)}${fact(
+                  "Locale",
+                  `${record.capture.locale} · ${record.capture.timezone}`,
+                )}
+                ${fact("Path", record.path)}${fact(
+                  "Before revision",
+                  run.base.revision,
+                )}${fact("After revision", run.candidate.revision)}
+                ${
+                  record.focus
+                    ? fact(
+                        "Focus",
+                        `${record.focus.x}, ${record.focus.y} · ${record.focus.width} × ${record.focus.height} CSS px`,
+                      )
+                    : nothing
+                }
+                ${
+                  entry.difference
+                    ? fact(
+                        "Full-frame difference",
+                        describeDifference(entry.difference),
+                      )
+                    : nothing
+                }
+              </dl>
+              <div class="lf-vr-sources">
+                ${link("Open before page", destination(run.base, record.path))}${link(
+                  "Open after page",
+                  destination(run.candidate, record.path),
+                )}${link("Capture trace", record.traceUrl)}
+              </div>
+            </div>
           </header>
-          <div class="lf-vr-capture" ${ref(entry.capturePlace)}>
+          <div class="lf-vr-capture">
             ${keyed(
               imageKey,
               html`<lf-shot
@@ -684,10 +565,8 @@ customElements.define(
                 before=${before}
                 after=${after}
                 alt=${`${record.title}. ${record.result}`}
-                outlines
                 ._lfPresentGenerated=${this.#presentShot}
                 ${ref(entry.prepare)}
-                @captureload=${this.#fit}
               ></lf-shot>`,
             )}
             <div class="lf-vr-claim">

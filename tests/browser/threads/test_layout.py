@@ -716,21 +716,11 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
 def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     browser, serve, width, touch
 ):
-    """Reading down a long reply in the thread card, its head keeps the writer's name
-    and the time at the top, while its annotations, the progress disclosure and the
-    edited label, leave with the reply's first line as the words do. They stuck with
-    the name, so the row went on offering the reply's earlier updates over every line
-    of it. A narrow card wraps the disclosure onto a second row, and it rises under
-    the name rather than over it. A focused disclosure stays in the stuck row."""
+    """Reading down a long reply keeps its writer and time at the top while the
+    edited annotation leaves with the reply's first line."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Explain with examples?", {"section": "how-store"}
-    )
-    thread_model.post_reply(
-        serve.page_dir,
-        {"responds": root},
-        "I'm capturing both widths.",
-        ephemeral=True,
     )
     answer = thread_model.post_reply(
         serve.page_dir, {"responds": root}, LANDING_WORDS * 8
@@ -761,8 +751,6 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     rendered(page)
     scroll_settled(page, selector)
     message = transcript.locator(f'.lf-msg[data-event="{answer}"]')
-    toggle = message.get_by_role("button", name="Show 1 progress message", exact=True)
-    expect(toggle).to_be_visible()
     expect(message.locator(".lf-edited")).to_be_visible()
 
     def scrolled_past(distance):
@@ -791,12 +779,10 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
               // The name itself, and the gap between it and the time.
               const seen = [at.left + 4, time.getBoundingClientRect().left - 4]
                 .map(x => document.elementFromPoint(x, middle));
-              const toggle = head.querySelector('.lf-summary-expand');
               return {message: top(message), name: top(name),
                       time: top(time),
                       edited: top(head.querySelector('.lf-edited')),
-                      toggle: top(toggle),
-                      toggleBottom: toggle.getBoundingClientRect().bottom - from,
+                      editedBottom: head.querySelector('.lf-edited').getBoundingClientRect().bottom - from,
                       nameShown: seen.every(node => name.contains(node)),
                       head: head.offsetHeight};
             }""",
@@ -813,26 +799,11 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
         assert abs(reading["name"] - rest["name"]) <= 1, (rest, reading)
         assert abs(reading["time"] - rest["time"]) <= 1, (rest, reading)
         assert reading["nameShown"], reading
-        for part in ("toggle", "edited"):
-            moved = reading[part] - (rest[part] - distance)
-            assert abs(moved) <= 1, (part, rest, reading)
+        moved = reading["edited"] - (rest["edited"] - distance)
+        assert abs(moved) <= 1, (rest, reading)
     gone = scrolled_past(2 * rest["head"])
     assert abs(gone["name"] - rest["name"]) <= 1, (rest, gone)
-    assert gone["toggleBottom"] <= 0, gone
-
-    page.keyboard.press("Shift")
-    toggle.focus()
-    assert toggle.evaluate("node => node.matches(':focus-visible')")
-    rendered(page)
-    focused = transcript.evaluate(
-        """(box, toggle) => toggle.getBoundingClientRect().top
-             - box.getBoundingClientRect().top""",
-        toggle.element_handle(),
-    )
-    # Native focus reveals the offscreen disclosure below the stuck head; the
-    # exact offset depends on the space the scrollport has for that reveal.
-    assert focused >= rest["head"] - 1, (rest, focused)
-    expect(toggle).to_be_in_viewport(ratio=1)
+    assert gone["editedBottom"] <= 0, gone
 
 
 @pytest.mark.parametrize("scaled", [False, True])

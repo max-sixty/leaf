@@ -1,7 +1,6 @@
 """Pure folds over the append-only event model."""
 
 from collections import OrderedDict
-from itertools import groupby
 from typing import NamedTuple
 
 from leaf.findings import Finding
@@ -362,10 +361,8 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
 
     Summaries replace overlapping summaries whole. Editing a covered message
     invalidates a summary containing prose. A fold without prose keeps showing the
-    revised originals. Progress messages acquire a fold when the next ordinary
-    agent reply arrives, unless the user spoke after them. Explicit summaries own any
-    overlap with these derived folds; no extra event is written. The original messages
-    remain the authority.
+    revised originals. Progress completion is separate (`progress_completions`), so
+    opening a summary never restores completed progress.
     """
     edits = {}
     written = {}
@@ -374,19 +371,10 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
             edits[event["message"]] = event["seq"]
         elif event["kind"] == "summary" and event["thread"] in threads:
             written.setdefault(event["thread"], []).append(event)
-    result = {}
-    for thread_id, thread in threads.items():
-        explicit = _thread_summaries(thread, written.get(thread_id, []), edits)
-        covered = {identity for summary in explicit for identity in summary["covers"]}
-        automatic = _thread_summaries(thread, _ephemeral_ranges(thread, covered), {})
-        summaries = [*explicit, *automatic]
-        positions = {
-            message["id"]: index for index, message in enumerate(thread["msgs"])
-        }
-        result[thread_id] = sorted(
-            summaries, key=lambda summary: positions[summary["from"]]
-        )
-    return result
+    return {
+        thread_id: _thread_summaries(thread, written.get(thread_id, []), edits)
+        for thread_id, thread in threads.items()
+    }
 
 
 def progress_completions(thread: dict) -> dict[str, dict]:
@@ -411,49 +399,6 @@ def progress_completions(thread: dict) -> dict[str, dict]:
         completed.update((identity, message) for identity in pending)
         pending = []
     return completed
-
-
-def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
-    """Contiguous completed progress outside explicit summaries that the reply
-    completing it follows with nothing the user said between them.
-
-    A thread reads in the order it was said, so progress the user spoke after stays
-    where it stood: their message followed it, and folding it into a later answer would
-    take it from above their message, moving what they read. Rejected: folding every
-    run an answer completes, which either moved the user's message or held the answer
-    they waited for behind a notice.
-
-    The completing reply is also the presentation dependency: a renderer holding
-    that reply must hold its folds with it.
-    """
-    completed = progress_completions(thread)
-    turns = spoken_turns(thread)
-    positions = {message["id"]: index for index, message in enumerate(turns)}
-    ranges = []
-    for reply, messages in groupby(
-        turns,
-        key=lambda message: (
-            None if message["id"] in covered else completed.get(message["id"])
-        ),
-    ):
-        if reply is None:
-            continue
-        group = list(messages)
-        between = turns[positions[group[-1]["id"]] + 1 : positions[reply["id"]]]
-        if any(message["author"] == "user" for message in between):
-            continue
-        ranges.append(
-            {
-                "id": f"ephemeral:{group[0]['id']}:{reply['id']}",
-                "seq": reply["seq"],
-                "from": group[0]["id"],
-                "through": group[-1]["id"],
-                "text": "",
-                "label": "Previous progress messages",
-                "trigger": reply["id"],
-            }
-        )
-    return ranges
 
 
 def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
@@ -483,7 +428,6 @@ def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
                 "covers": covers,
                 "text": event["text"],
                 "label": event.get("label", "Earlier discussion"),
-                **({"trigger": event["trigger"]} if "trigger" in event else {}),
             }
         )
     return sorted(active, key=lambda summary: positions[summary["from"]])

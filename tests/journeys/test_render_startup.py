@@ -478,23 +478,39 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {watchProjection, clockValue} = await window.__lfWidgetApi();
+          const {LeafElement, noChange, clockValue} = await window.__lfWidgetApi();
           window.clockVersion = 0;
+          const probes = [];
           for (const stage of ['read', 'paint', 'async']) {
-            watchProjection(document.body, () => {
-              const version = clockValue(() => {
-                if (stage === 'read' && window.clockVersion)
-                  throw new Error('read broke');
-                return window.clockVersion;
-              });
-              if (!version) return;
-              if (stage === 'async') return Promise.reject(new Error('async broke'));
-              throw new Error('paint broke');
-            }).refresh();
+            const tag = `lf-clock-${stage}`;
+            customElements.define(tag, class extends LeafElement {
+              render() {
+                const version = clockValue(() => {
+                  if (stage === 'read' && window.clockVersion)
+                    throw new Error('read broke');
+                  return window.clockVersion;
+                });
+                if (!version) return noChange;
+                if (stage === 'async') {
+                  this.drawing(Promise.reject(new Error('async broke')));
+                  return noChange;
+                }
+                throw new Error('paint broke');
+              }
+            });
+            const probe = document.createElement(tag);
+            document.body.append(probe);
+            probes.push(probe);
           }
-          watchProjection(document.body, () => {
-            window.healthyClock = clockValue(() => window.clockVersion);
-          }).refresh();
+          customElements.define('lf-clock-healthy', class extends LeafElement {
+            render() {
+              window.healthyClock = clockValue(() => window.clockVersion);
+              return noChange;
+            }
+          });
+          const healthy = document.createElement('lf-clock-healthy');
+          document.body.append(healthy);
+          await Promise.all([...probes, healthy].map(probe => probe.updateComplete));
           window.clockVersion = 1;
         }"""
     )
@@ -515,7 +531,7 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
         if e["kind"] == "error"
     ]
     # Each failure is reported, through whichever route met it: the clock's tick, the
-    # paint's own rule (`readingPaint`), or the page's error handler.
+    # element's render boundary, or the page's error handler.
     assert {error.splitlines()[0].rsplit(": ", 1)[-1] for error in errors} == {
         "read broke",
         "paint broke",

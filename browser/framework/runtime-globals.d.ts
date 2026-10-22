@@ -152,6 +152,7 @@ interface Window {
 
 /** The runtime's own elements, by tag, as each module defines it. */
 interface HTMLElementTagNameMap {
+  "leaf-floating-panel": import("../runtime/floating-panel.js").FloatingPanelElement;
   "leaf-attached-media-shelf": import("../runtime/composing/input.js").AttachedMediaShelfElement;
   "leaf-text": import("../runtime/composing/text-field.js").LeafTextElement;
   "leaf-margin-cluster": import("../runtime/annotation-overlay/margin-cluster-view.js").MarginClusterViewElement;

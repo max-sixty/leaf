@@ -135,6 +135,9 @@
  * by the surface's clip, which hid each part that moved until the clip reached it. */
 import {
   html,
+  effect,
+  noChange,
+  untracked,
   keyed as keyedBy,
   nothing,
   ref,
@@ -158,11 +161,12 @@ import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageDoor, pageRung } from "./keyboard/register.js";
 import { advertisesKeys, parsed, rowArrows } from "./keyboard/bindings.js";
 import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.js";
-import { pageControls, watchPageControls } from "./page-controls.js";
+import { pageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
 import { hasUnread, threadCounts } from "./thread/model.js";
-import { watchProjection } from "./projection-watch.js";
+import { LeafElement } from "./leaf-element.js";
+import { afterScript } from "./rendering.js";
 import { threadAttention, workflowStep } from "./thread/workflow.js";
 import { messageReading, threadHeading, threadName } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -197,20 +201,16 @@ import { declareSide } from "./standing-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
-import { noticeReading, registerNoticePresentation } from "./notifications.js";
+import { noticeReading } from "./notifications.js";
 import {
   dismissError,
   dismissErrors,
   errorsReading,
   passErrors,
-  registerErrorPresentation,
   seeErrors,
 } from "./errors.js";
 import { move } from "./dom-move.js";
-import {
-  registerStatusContextPresentation,
-  statusContextReading,
-} from "./keyboard/status-context.js";
+import { statusContextReading } from "./keyboard/status-context.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
@@ -318,6 +318,16 @@ const isFace = (key) => key.startsWith(FACE);
 const clock = (at) =>
   new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+/** @typedef {FloatingPanel} FloatingPanelElement For its generated tag. */
+class FloatingPanel extends LeafElement {
+  draw = () => {};
+  render() {
+    this.draw();
+    return noChange;
+  }
+}
+customElements.define("leaf-floating-panel", FloatingPanel);
+
 export function createFloatingPanel({
   wireInput,
   threadActions,
@@ -334,7 +344,9 @@ export function createFloatingPanel({
   placedAt,
   openThreadSubject,
 }) {
-  const host = el("section", "lf-ui lf-floating-panel");
+  const host = new FloatingPanel();
+  host.className = "lf-ui lf-floating-panel";
+  host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
   // The surface the box stands on: a layer of its own over the whole window, cut to the
   // box's outline, with a ring a pixel outside it, so its outline can move between two
@@ -1795,7 +1807,7 @@ export function createFloatingPanel({
                   "Errors",
                   html`<span class="lf-fp-value">${errors.length}</span>`,
                   () => {
-                    showMenuAt({ view: "errors" });
+                    showMenuAt({ view: "errors", errors });
                     seeErrors();
                   },
                   {
@@ -1978,17 +1990,39 @@ export function createFloatingPanel({
 
   // The errors the user has met, newest first, each saying what failed and when, with
   // a press that dismisses it, whose name carries both, since a menu's keys reach only
-  // its presses; an error whose cause ends leaves by itself (errors.js). A dismissal
-  // leaves the user on the next error's press, or on the way back once none is left.
+  // its presses. Like the root menu, the list keeps the reading it opened with: new
+  // errors wait behind the leaf's dot until reopening. An error whose cause ends
+  // clears its words but keeps its space, so the next control stays under the reader.
+  // A dismissal removes that space by the user's gesture and leaves them on the next
+  // error's press, or on the way back once none is left.
   function errorsList() {
-    const errors = errorsReading();
+    const errors = menuAt.value.errors;
+    const live = new Set(errorsReading().map((error) => error.id));
     if (!errors.length) return html`<p class="lf-fp-empty" role="none">No errors</p>`;
-    // The user moves on before the list repaints, so its roving stop lands once.
-    const dismiss = (dismissed) => {
+    const movePast = (dismissed) => {
       const presses = [...menu.querySelectorAll(".lf-fp-error button")];
       const at = errors.findIndex((error) => error.id === dismissed);
-      const next = dismissed === null ? null : (presses[at + 1] ?? presses[at - 1]);
+      const after = errors.findIndex(
+        (error, index) => index > at && live.has(error.id),
+      );
+      const before = errors.findLastIndex(
+        (error, index) => index < at && live.has(error.id),
+      );
+      const next = dismissed === null ? null : presses[after >= 0 ? after : before];
       focusDestination(next ?? menu.querySelector(".lf-fp-menu-back"), "move");
+    };
+    // An error clearing itself also hands focus off before its control disappears.
+    const standing = focused()?.closest(".lf-fp-error");
+    const standingId = Number(standing?.dataset.key);
+    if (standing && !live.has(standingId)) movePast(standingId);
+    // The user moves on before the list repaints, so its roving stop lands once.
+    const dismiss = (dismissed) => {
+      movePast(dismissed);
+      menuAt.value = {
+        ...menuAt.value,
+        errors:
+          dismissed === null ? [] : errors.filter((error) => error.id !== dismissed),
+      };
       if (dismissed === null) dismissErrors();
       else dismissError(dismissed);
     };
@@ -1996,7 +2030,12 @@ export function createFloatingPanel({
       errors,
       (error) => error.id,
       (error) =>
-        html`<div class="lf-fp-error" role="none">
+        html`<div
+          class="lf-fp-error"
+          data-key=${error.id}
+          role="none"
+          style=${live.has(error.id) ? nothing : "visibility: hidden"}
+        >
           <p class="lf-fp-error-words" aria-hidden="true">
             <b>${error.message}</b><span class="lf-fp-note">${clock(error.at)}</span>
           </p>
@@ -2004,6 +2043,7 @@ export function createFloatingPanel({
             type="button"
             role="menuitem"
             class="lf-fp-quiet"
+            ?disabled=${!live.has(error.id)}
             aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
             @click=${() => dismiss(error.id)}
           >
@@ -3031,15 +3071,16 @@ export function createFloatingPanel({
 
   // A paint can blur what it removes, and the blur asks for a paint; that one runs
   // once this has finished rather than inside it. Every paint runs through the panel's
-  // watcher (`watchProjection`), so the readings it draws repaint it whichever input
+  // Lit host, so the readings it draws repaint it whichever input
   // asked for the paint.
   let painting = false;
   let again = false;
-  let watching = null;
   function paint() {
     if (painting) again = true;
-    else if (watching) watching.refresh();
-    else paintPanel();
+    else {
+      host.requestUpdate();
+      host.performUpdate();
+    }
   }
   function paintPanel() {
     painting = true;
@@ -3805,6 +3846,7 @@ export function createFloatingPanel({
   });
 
   function mount(parent) {
+    host.draw = paintPanel;
     parent.append(ground, host);
     follow.observe(card);
     presentation = registerChromeThreadPresentation(host, {
@@ -3860,22 +3902,23 @@ export function createFloatingPanel({
       repaint: () => paint(),
     });
     // A passing notice is said in the empty field, the one seat this chrome gives it.
-    registerNoticePresentation(() => paint());
-    // An error arriving while the user reads the list is seen there.
-    registerErrorPresentation(() => {
-      if (menuOpen.value && menuAt.value?.view === "errors") seeErrors();
-      paint();
+    effect(() => {
+      const { visible } = noticeReading();
+      untracked(() => (visible ? paint() : afterScript(paint)));
     });
-    registerStatusContextPresentation(() => paint());
-    watchPageControls(() => paint());
-    // A comparison started or stopped changes the versions without a publication.
-    versionPicker.watch(() => paint());
+    effect(() => {
+      errorsReading();
+      untracked(paint);
+    });
+    effect(() => {
+      statusContextReading();
+      untracked(paint);
+    });
     document.addEventListener("lf-chrome-preference", () => paint());
     onReadingInterrupted(() => {
       peekReading = null;
       paintPeek();
     });
-    watching = watchProjection(host, paintPanel);
     paint();
   }
 

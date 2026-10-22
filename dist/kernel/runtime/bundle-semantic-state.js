@@ -60,7 +60,8 @@ var queueWidgetUpdate = (widget, update) => schedule.enqueue(
 var PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  obligations: 2
+  obligations: 2,
+  annotations: 3
 });
 var documentPresenters = [];
 var applicationPresenter = ({

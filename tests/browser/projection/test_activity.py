@@ -210,7 +210,13 @@ def test_activity_prints_complete_history_even_when_closed_or_held(browser, serv
     )
     control = page.locator("#feed .lf-activity-news")
     expect(control).to_have_attribute("aria-expanded", "false")
+    # A feed reconnected after the media changed reads its current print mode.
+    page.evaluate("""() => {
+        window.detachedFeed = document.getElementById('feed');
+        window.detachedFeed.remove();
+    }""")
     page.emulate_media(media="print")
+    page.evaluate("() => document.querySelector('main').append(window.detachedFeed)")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
     expect(page.locator("#feed .lf-activity-row")).to_be_visible()
     expect(control).to_be_hidden()

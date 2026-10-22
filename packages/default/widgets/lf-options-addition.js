@@ -1,17 +1,21 @@
 /* The option the author did not list: its draft, the `add` and `choose` bound to that
  * draft generation, and the option nodes each `add` in force puts in the group. */
 import {
+  guard,
+  html,
   loadDraft,
   inlineMarkdownFragment,
   markdownReady,
+  move,
   offer,
+  render,
+  repeat,
   saveDraft,
   sendDraft,
   TEXT_FIELD,
   watchDraft,
   whileConnected,
   wireInput,
-  move,
 } from "/runtime/widget-api.js";
 
 const ANOTHER = "Another option";
@@ -27,6 +31,7 @@ export class OptionAddition {
   #add = null;
   #syncInput = null;
   #inForce = new Set();
+  #end = null;
 
   constructor(host, { offered, available, commit }) {
     this.#host = host;
@@ -144,45 +149,32 @@ export class OptionAddition {
     return { value: [...picked].map((option) => option.id) };
   }
 
-  /* Keep surviving nodes: replay must not discard focus or selection. Return only
-   * nodes the selection owner still needs to dress with a mark and key scope.
-   * `added` maps each option id in force to its words, in log order. */
-  reconcile(added = {}, fallbackBefore = null) {
-    const wanted = new Map(Object.entries(added));
-    this.#inForce = new Set(wanted.keys());
-    for (const option of this.#host.querySelectorAll(
-      ":scope > lf-option[data-lf-added]",
-    ))
-      if (!wanted.has(option.id)) option.remove();
-
-    const created = [];
-    for (const [id, text] of wanted) {
-      let option = document.getElementById(id);
-      if (option && option.parentElement !== this.#host) continue;
-      if (!option) {
-        option = document.createElement("lf-option");
-        option.id = id;
-        option.dataset.lfAdded = "";
-        move(this.#host, option, this.#form ?? fallbackBefore);
-        created.push(option);
-      }
-      if (option.hasAttribute("data-lf-added")) {
-        /** @type {HTMLElement & {source?: string, markdownReady?: boolean}} */
-        let words = option.querySelector(":scope > .lf-option-words");
-        if (!words) {
-          words = document.createElement("span");
-          words.className = "lf-option-words";
-          words.dataset.lfMarkdownWords = "";
-          option.prepend(words);
-        }
-        const ready = markdownReady();
-        if (words.source !== text || words.markdownReady !== ready) {
-          words.source = text;
-          words.markdownReady = ready;
-          words.replaceChildren(inlineMarkdownFragment(text));
-        }
-      }
+  /* Lit owns only the generated option range. Its keyed rows stay direct children
+   * of the group, before the persistent draft editor; authored options and their
+   * evidence are outside that range. Guarding Markdown keeps its text nodes and the
+   * reader's selection when another option changes. */
+  render(added = {}, fallbackBefore = null) {
+    const options = Object.entries(added);
+    this.#inForce = new Set(options.map(([id]) => id));
+    if (!this.#end) {
+      this.#end = document.createComment("added options");
+      move(this.#host, this.#end, this.#form ?? fallbackBefore);
     }
-    return created;
+    render(
+      repeat(
+        options,
+        ([id]) => id,
+        ([id, text]) =>
+          html`<lf-option id=${id} data-lf-added>
+            <span class="lf-option-words" data-lf-markdown-words
+              >${guard([text, markdownReady()], () =>
+                inlineMarkdownFragment(text),
+              )}</span
+            >
+          </lf-option>`,
+      ),
+      this.#host,
+      { renderBefore: this.#end },
+    );
   }
 }

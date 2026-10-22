@@ -226,7 +226,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                                          |
 | Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                                         |
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                                         |
-| Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`                                                                                            |
+| Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                                                |
 | Child pages                                                                                                 | `sample*.js`                                                                                                                                                              |
 | Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `page-sheets.js`                                                                                                        |
 | Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                                             |
@@ -518,7 +518,7 @@ await `updateComplete` and let other work run in between: the margin's chip
 placement took three ordering bugs to settle when it went asynchronous. Tracking
 reads needs no microtask, since a Preact `effect` tracks in the current script.
 
-A watcher's paint subscribes to every selection it reads (`projection-watch.js`), so a
+A Lit render subscribes to every selection it reads (`leaf-element.js`), so a
 reader called from a paint selects exactly what it returns (`readPart`) rather than
 selecting more and narrowing it. The paint then reruns only when that answer changes.
 Reading the whole root inside a paint throws.

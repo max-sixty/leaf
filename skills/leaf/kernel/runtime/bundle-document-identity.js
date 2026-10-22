@@ -2066,7 +2066,7 @@ function createSelectionComposer({
       const count = Math.min(reactionTokens2().length, 9);
       return count > 1 ? `1\u2013${count}` : "1";
     },
-    description: () => `Put a reaction on the response target: ${reactionTokens2().slice(0, 9).map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`).join(", ")}`,
+    description: () => reactionTokens2().slice(0, 9).map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`).join(", "),
     title: "react",
     when: () => reactionAvailable2() && !takesLetters(focused()) && responseReactionButtons().length > 0,
     run: (binding) => responseReactionButtons()[+binding - 1]?.click()
@@ -4682,8 +4682,8 @@ function createReactionController({
   let marginAnchor = null;
   let pageCommands = null;
   const marginReactionKey = (name, ordinal) => `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
-  function registerReactSurface(surface, { palette, target, trigger }) {
-    surfaces.set(surface, { palette, target, trigger });
+  function registerReactSurface(surface, { palette, trigger }) {
+    surfaces.set(surface, { palette, trigger });
     return {
       toggle: () => setReact(!(reactArmed && reactSurface === surface), { surface }),
       close: () => {
@@ -4927,7 +4927,6 @@ function createReactionController({
       () => listWalkPosition(responseChoices(reactSurface), focused())
     );
   }
-  const reactTargetWord = () => reactSurface === marginSurface ? anchorWord(marginAnchor) : typeof pickerFor(reactSurface)?.target === "function" ? pickerFor(reactSurface).target() : pickerFor(reactSurface)?.target ?? "the target";
   const REACT = {
     title: "With reactions open",
     ready: savedReadingSettled,
@@ -4950,7 +4949,7 @@ function createReactionController({
           const n = Math.min(reactionTokens().length, 9);
           return n > 1 ? `1\u2013${n}` : "1";
         },
-        description: () => `Put a reaction on ${reactTargetWord()}: ${reactionTokens().slice(0, 9).map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`).join(", ")}`,
+        description: () => reactionTokens().slice(0, 9).map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`).join(", "),
         title: "react",
         when: reactionAvailable,
         run: (binding) => {
@@ -5018,7 +5017,7 @@ function createReactionController({
     ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
-    description: "For the selection, the focused item, or the open reply",
+    description: "On the selection, the focused item or the open reply",
     title: "reactions",
     when: () => reactionAvailable() && reactionTokens().length > 0 && hasReactionTarget() && (anchoringIsReady() || !pageSelection()),
     run: () => {

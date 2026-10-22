@@ -9,10 +9,9 @@ Before writing a view's words, decide what it shows. Ask what the user would oth
 have to picture from a description, and put that thing on the page in its own form:
 
 - An existing interface is a screenshot, cropped or marked so the eye lands on the
-  point, with crops cutting through background rather than text. Leaf frames every
-  image, so capture a panel, card or menu with enough of the page around it to hold
-  its whole shadow: a clip at its bounding box cuts the shadow off and squares its
-  rounded corners against the frame. A visual change between two versions is an
+  point, with crops cutting through background rather than text. Capture a panel,
+  card or menu with enough of the page around it to hold its whole shadow: a clip
+  at its bounding box cuts the shadow off and squares its rounded corners. A visual change between two versions is an
   `lf-shot` before-and-after pair, and captures that vary along other axes go in a
   table of captures (`authoring-evidence.md`, "Source files and media").
 - A behavior, such as an interaction, a motion or a process over time, runs: in a live

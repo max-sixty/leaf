@@ -909,6 +909,14 @@ customElements.define(
     #showing = false;
     threadSizeManagers = new Map();
 
+    shouldUpdate(changed) {
+      const ready = super.shouldUpdate(changed);
+      // An inline patch is authored once. Its async reader owns the only repaint
+      // (including a retry cut short by departure); a reconnect's Lit update would
+      // clear its visible refusal without changing that reading.
+      return ready && (this.hasAttribute("source") || !this.hasUpdated);
+    }
+
     setup() {
       this.singleFile = this.getAttribute("view") === "file";
       commands(

@@ -409,11 +409,10 @@ on 2026-10-07.
 
 - **Decide the Leaf-owned defects the bad-pages eval left open.**
   [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)
-  lists four that follow from recorded choices: an open thread card covers the text
-  near its passage (14 of 40 pages), a phone's thread pin covers words (5), a
-  playground's bounded stage is 190–280px tall at 900×700 (4 of 9 configurations), and
-  `lf-tally` counts an obligation left with the agent while its Next on me skips it
-  (2). Decide whether each choice stays, then fix the owner of any that goes and rerun
+  lists three that follow from recorded choices: an open thread card covers the text
+  near its passage (14 of 40 pages), a phone's thread pin covers words (5), and a
+  playground's bounded stage is 190–280px tall at 900×700 (4 of 9 configurations).
+  Decide whether each choice stays, then fix the owner of any that goes and rerun
   `page-reads-at-every-width`.
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The

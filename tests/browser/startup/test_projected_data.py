@@ -948,12 +948,11 @@ customElements.define(TAG, class extends LeafElement {
     consume_browser_errors(page, "<lf-array-feed> input data requires rows")
 
 
-def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_cut_the_paint(
+def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
     browser, serve
 ):
-    """A projection reading that failed stands across a departure and return, so the
-    author is told once, as a widget's is; a paint the departure cut short is
-    owed again."""
+    """A returning watcher paints once to restore subscriptions, including after a
+    failed paint or one the departure cut short."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     result = page.evaluate(
         """async () => {
@@ -1008,15 +1007,15 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
         }"""
     )
     assert result == {
-        "failed": {"throwing": 1, "rejecting": 1},
+        "failed": {"throwing": 2, "rejecting": 2},
         "interrupted": 2,
-        "kept": 2,
+        "kept": 3,
     }
     errors = consume_browser_errors(page, "paint failed")
     reported = sorted(said(error) for error in errors)
     assert reported == sorted(
         f"leaf: paint failed for div#failing-{name}: {name} paint failed"
-        for name in ["throwing", "rejecting"]
+        for name in ["throwing", "throwing", "rejecting", "rejecting"]
     )
 
 

@@ -445,7 +445,7 @@ RING_CASES = (
         (),
         {
             "ship-review": (
-                (".lf-react-palette:popover-open .lf-react", ".lf-outline-chip"),
+                (".lf-react-palette:popover-open .lf-react", "[data-lf-offer]"),
             )
         },
     ),
@@ -692,7 +692,7 @@ AIM_BOXES = browser_function("aims.js", "offeredAims")
 AIM_SURFACES = (
     ".lf-fp-settle",
     '[data-row="preview"]',
-    ".lf-outline-chip",
+    ".lf-react-strip .lf-react",
     ".lf-fp-compare",
     ".lf-command-reference-command",
     ".lf-quote",

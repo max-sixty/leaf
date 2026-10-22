@@ -2,18 +2,22 @@
  * Presentation owners allocate and position this control, in the document or a
  * declared shadow tree; they do not restate its typography, focus or face. */
 /* An icon action's hit box, and the height of an empty composer field, which stands
-   that action inside it with 6px of room either side. Stated at the root, where a widget
+   that action inside its action inset on either side. Stated at the root, where a widget
    that seats a composer in its own content reads the height to hold its room before the
    composer is drawn, and again on each field and action, so a field whose context sizes
    its action (lf-options' Add row) derives its height from that size. */
+:root {
+  --lf-icon-action-face: 28px;
+  --lf-compose-action-inset: 6px;
+}
 :root,
 .lf-compose-field,
 .lf-icon-action {
-  --lf-icon-action-hit: max(28px, var(--aim-floor));
+  --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
 .lf-compose-field {
-  --lf-compose-h: calc(var(--lf-icon-action-hit) + 12px);
+  --lf-compose-h: calc(var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
@@ -89,7 +93,8 @@
    whole line. */
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
   --lf-field-end-room: calc(
-    var(--lf-icon-action-hit) + 12px - var(--lf-compose-pad-inline-start)
+    var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) -
+      var(--lf-compose-pad-inline-start)
   );
 }
 .lf-icon-action {
@@ -110,18 +115,8 @@
   block-size: 16px;
   pointer-events: none;
 }
-/* Closing changes the view; resolving changes durable thread state. */
-.lf-close-action {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-}
-.lf-close-action:hover {
-  background: var(--chip);
-  color: var(--ink);
-}
 /* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
-   whose ::before is a 28px disc that stays clear at rest and takes the action's tint
+   whose ::before is the action's disc that stays clear at rest and takes its tint
    on hover. The hit box around the disc is the icon-action floor above. The glyph's
    ink outranks the .lf-ui face by coming later. Reopen standing in Resolve's place
    is the same glyph drawn done, on every surface that seats a thread. */
@@ -140,8 +135,8 @@
   content: "";
   position: absolute;
   box-sizing: border-box;
-  inline-size: 28px;
-  block-size: 28px;
+  inline-size: var(--lf-icon-action-face);
+  block-size: var(--lf-icon-action-face);
   border-radius: var(--r);
   background: transparent;
 }
@@ -157,8 +152,8 @@
 :is(.lf-compose-submit, .lf-compose-dictate) {
   position: absolute;
   z-index: 1;
-  inset-inline-end: 6px;
-  inset-block-end: 6px;
+  inset-inline-end: var(--lf-compose-action-inset);
+  inset-block-end: var(--lf-compose-action-inset);
   color: var(--accent);
 }
 :is(.lf-compose-submit, .lf-compose-dictate):not(
@@ -240,9 +235,13 @@
    content, which 56px was not. A surface whose ground is not the paper sets the
    ground and ring its pictures meet it with. */
 .lf-composer-media {
+  --lf-media-mark-size: 18px;
+  --lf-media-mark-overhang: 6px;
   --lf-media-room: max(
     calc(var(--raise-1-drop) + var(--raise-1-blur)),
-    calc(var(--aim-floor) / 2 - 3px)
+    calc(
+      var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--lf-media-mark-size)) / 2
+    )
   );
   --lf-media-h: 120px;
   display: flex;
@@ -251,10 +250,10 @@
   min-width: 0;
   overflow-x: auto;
   padding: var(--lf-media-room);
-  /* In flow, the pictures stand 6px into their row, which keeps the removal mark on
-     their corner (6px over it) inside the row, and 4px over what follows. */
-  margin: calc(6px - var(--lf-media-room)) calc(-1 * var(--lf-media-room))
-    calc(4px - var(--lf-media-room));
+  /* In flow, the pictures stand far enough into their row to keep the corner mark
+     inside it, and 4px over what follows. */
+  margin: calc(var(--lf-media-mark-overhang) - var(--lf-media-room))
+    calc(-1 * var(--lf-media-room)) calc(4px - var(--lf-media-room));
   box-sizing: border-box;
 }
 .lf-composer-media-item {
@@ -318,13 +317,13 @@ button.lf-media-open {
 .lf-composer-media-item > button:not(.lf-media-open) {
   position: absolute;
   z-index: 1;
-  inset-block-start: -6px;
-  inset-inline-end: -6px;
+  inset-block-start: calc(-1 * var(--lf-media-mark-overhang));
+  inset-inline-end: calc(-1 * var(--lf-media-mark-overhang));
   display: grid;
   place-items: center;
-  inline-size: 18px;
+  inline-size: var(--lf-media-mark-size);
   min-inline-size: 0;
-  block-size: 18px;
+  block-size: var(--lf-media-mark-size);
   min-block-size: 0;
   padding: 0;
   border: 0;
@@ -336,12 +335,12 @@ button.lf-media-open {
   cursor: pointer;
 }
 .lf-composer-media-item > .lf-composer-drawing-undo {
-  inset-inline: -6px auto;
+  inset-inline: calc(-1 * var(--lf-media-mark-overhang)) auto;
 }
 .lf-composer-media-item > button:not(.lf-media-open)::before {
   content: "";
   position: absolute;
-  inset: calc((18px - var(--aim-floor)) / 2);
+  inset: calc((var(--lf-media-mark-size) - var(--aim-floor)) / 2);
 }
 .lf-composer-media-item > button:not(.lf-media-open):hover {
   background: var(--ink);

@@ -1,6 +1,6 @@
 """Page and neighboring-leaf presence readings, and the one write that follows
 from them: the message to a claimant whose input nothing will carry
-(`nudge_unwatched`)."""
+(`nudge_unwatched`, `nudge_interrupted`)."""
 
 import hashlib
 import json
@@ -391,15 +391,15 @@ def nudge_unwatched(page: PageTransaction) -> None:
     session can be reached at all and what to say; a harness whose watcher is a
     process of its own has nowhere to put this and answers no.
 
-    Admission calls it, and so does a watch giving up its lease. It runs under the
+    Admission calls it, and so does a watch giving up its lease, and the page's
+    server once it reads a turn interrupted (`nudge_interrupted`). It runs under the
     page's lock, so the mark it leaves is exact: a local socket accepts or refuses at
     once, and input after a refusal tries again."""
     claim, page_dir = page.active_claim, page.page_dir
     if not claim or wait_is_live(page_dir, claim["id"]):
         return
     present, turn = claimant_reading(page_dir, page.events)
-    stamp = claim["turn_closed"] or claim["turn_opened"]
-    mark = f"{claim['turn']}@{stamp}"
+    mark = turn_ending(claim)
     if (
         turn.ended is not None
         and not takes_input(present, turn)
@@ -407,3 +407,39 @@ def nudge_unwatched(page: PageTransaction) -> None:
         and claim_harness(claim).nudge(page_dir)
     ):
         page.note_messaged(mark)
+
+
+def turn_ending(claim: dict) -> str:
+    """The ending of the claimant's turn a message to its session answers: the
+    turn's id and its close stamp, or for an interrupted turn its last opening
+    (`PageTransaction.note_messaged`)."""
+    return f"{claim['turn']}@{claim['turn_closed'] or claim['turn_opened']}"
+
+
+def nudge_interrupted(page_dir: Path) -> None:
+    """Message the claimant whose turn was interrupted, as Escape ends one, for the
+    input that turn left on the page (`nudge_unwatched`): what arrived while it ran
+    and its tool boundaries had not yet taken, and what its hooks handed over that
+    no later hook confirmed (`delivery.deliverable`), as when Escape landed while
+    another prompt hook still ran and Claude Code dropped the prompt with Leaf's
+    context.
+
+    No hook runs on an interrupt, so nothing on the page moves when one happens;
+    the page's server reads it from the harness's own record, among the live facts
+    it looks at every presence interval (`server_rows`), and calls this when they
+    change. A watch from before the turn still holds the lease and wakes for the
+    input itself, and marks the ending it woke the session for, so the moment
+    between its lease going and the woken turn starting sends nothing more. A turn
+    a Stop hook closed is left alone: that hook starts the watch that wakes for what
+    the turn left."""
+    from .delivery import deliverable
+    from .session import wake_inputs
+
+    with PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        if (
+            claim is not None
+            and claim["turn_closed"] is None
+            and wake_inputs(page, deliverable(page))
+        ):
+            nudge_unwatched(page)

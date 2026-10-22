@@ -42,9 +42,13 @@ export function mountKeyboard({
   // Page shortcut characters need Leaf's scope resolution before a nested
   // library can use them for typeahead. Other keys keep the control's own
   // handling first, including search's Enter and Escape steps.
-  document.addEventListener("keydown", (ev) => {
-    if (ev.key.length === 1) press(ev);
-  }, { capture: true });
+  document.addEventListener(
+    "keydown",
+    (ev) => {
+      if (ev.key.length === 1) press(ev);
+    },
+    { capture: true },
+  );
   document.addEventListener("keydown", (ev) => {
     if (ev.key.length !== 1) press(ev);
   });

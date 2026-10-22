@@ -11073,9 +11073,13 @@ function mountKeyboard({
       run(ev);
     }
   };
-  document.addEventListener("keydown", (ev) => {
-    if (ev.key.length === 1) press(ev);
-  }, { capture: true });
+  document.addEventListener(
+    "keydown",
+    (ev) => {
+      if (ev.key.length === 1) press(ev);
+    },
+    { capture: true }
+  );
   document.addEventListener("keydown", (ev) => {
     if (ev.key.length !== 1) press(ev);
   });

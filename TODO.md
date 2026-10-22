@@ -493,6 +493,16 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `AGENTS.md` rather than treating it as a web domain. Establish how that context
   reaches Markdown before inferring a destination from the filename alone.
 
+- **Revisit the Claude desktop app opening a page's file over the live page.** In
+  the app's Code tab, every Write or Edit of a page's `index.html` opens that file in
+  the Browser pane, the authored markup without Leaf's runtime, in front of any tab
+  showing the served page. The app's own PostToolUse hook does this (app 3.6556.1).
+  It holds back only when the app's `launchAutoOpenFiles` preference is off, when the
+  user isn't watching the session, or when a preview server the app started from
+  `.claude/launch.json` serves the folder. A tab opened with `preview_start` and a
+  URL doesn't count, and nothing lets a plugin or a file opt out. Trigger: an app
+  release that lets a plugin or file opt out, or that leaves a served tab in front.
+
 - **Decide the site's structure before release.** Choose how much of the status
   derivation the site explains, and whether to reorganize its pages by reader
   ([proposal](notes/site-structure.md)). Trigger: preparing a release.

@@ -597,9 +597,12 @@ summary {
   min-width: 0;
   padding-inline: var(--lf-thread-text-inset) 0;
 }
-/* Conversation flow is separate from the outer flex body that retains reply room. */
+/* Conversation flow is separate from the outer flex body that retains reply room.
+   The positioning parent stays outside the transcript's scroll clip, so a message
+   control's focus ring can extend past the transcript's top edge. */
 .lf-thread-content {
   display: flow-root;
+  position: relative;
   min-width: 0;
   anchor-scope: --lf-thread-headline;
   --lf-thread-action-room: var(--lf-msg-head-height);
@@ -714,10 +717,7 @@ summary {
    so opening a group moves none of their words: an answer folding the progress a
    reader is on keeps it open in place (held-news.js). It spans siblings, from the
    checkpoint's head to the foot of its last message, so it is anchored to both, in the
-   transcript that holds them and scrolls them. Collapsed disclosures stay inline. */
-.lf-thread-transcript {
-  position: relative;
-}
+   thread content outside the scrolling transcript. Collapsed disclosures stay inline. */
 .lf-thread-checkpoint[data-expanded="true"]::before {
   content: "";
   position: absolute;

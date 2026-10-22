@@ -5,6 +5,7 @@ import json
 import pytest
 from interact_support import PAGE
 from interact_support import append_carried_log_record as append_event
+
 from leaf.files import replace_files, revision_path
 from leaf.live_shell import write_live_shell
 from leaf.revision_artifact import read_artifact

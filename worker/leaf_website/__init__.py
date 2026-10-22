@@ -52,6 +52,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
+from starlette.responses import Response
+
 from leaf.codex import (
     CarriedTurn,
     abandon_codex_delivery,
@@ -100,7 +102,6 @@ from leaf.thread import (
     release_delivery_reply,
 )
 from leaf.thread_titles import app_server_title, name_thread
-from starlette.responses import Response
 
 if TYPE_CHECKING:
     from websockets.sync.client import ClientConnection
@@ -1459,7 +1460,7 @@ class WebsitePageEndpoint(PageEndpoint):
         # observability record belongs. This adapter has no Worker in front of it,
         # so it owes the browser the same "recorded, nothing to read back" answer
         # the edge gives — otherwise every page served here loads with a 404 in its
-        # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
+        # console (`browser/runtime/bootstrap.js`, `observePublicStartup`).
         return self._content(204, "application/json", b"")
 
     # The two routes below are for the Worker, which refuses every `/_leaf/` path from

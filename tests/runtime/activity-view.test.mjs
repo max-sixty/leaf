@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { initialRender } from "/runtime/initial-render.js";
 import { tabStore } from "/runtime/storage.js";
-import { ACTIVITY_VIEW } from "../../skills/leaf/packages/default/widgets/activity-view.js";
-import "../../skills/leaf/packages/default/initial/lf-activity.js";
+import { ACTIVITY_VIEW } from "../../packages/default/widgets/activity-view.js";
+import "../../packages/default/initial/lf-activity.js";
 
 const row = (id, target) => ({
   id,

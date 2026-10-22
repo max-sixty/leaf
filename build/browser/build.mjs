@@ -64,12 +64,12 @@ import { adapt, seam, vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const assets = "skills/leaf/assets";
+const assets = "browser";
 /** The committed kernel, which installs serve while it matches the tree's modules. */
-const kernelDirectory = "skills/leaf/kernel";
-const sourceRoot = "build/browser";
+const kernelDirectory = "dist/kernel";
+const sourceRoot = "browser/framework";
 const compilerPathsFile = `${sourceRoot}/tsconfig.paths.json`;
-const packageRoot = "skills/leaf/packages";
+const packageRoot = "packages";
 const facade = "vendor/browser-runtime.js";
 const frameworkDirectory = "vendor/browser-runtime";
 /** The framework's layer paths: its facade and the directory of its modules. */
@@ -102,7 +102,7 @@ export async function compilerPaths(directory = root) {
       ]),
     ),
     "/runtime/*": [path.posix.relative(sourceRoot, `${assets}/runtime/*`)],
-    "/checks/*": ["../../skills/leaf/scripts/leaf/render-checks/*"],
+    "/checks/*": ["../../src/leaf/render-checks/*"],
   };
   return Buffer.from(`${JSON.stringify({ compilerOptions: { paths } }, null, 2)}\n`);
 }
@@ -235,7 +235,7 @@ async function litModule() {
 // Every schema a page vendored at the current protocol relies on, and every record's,
 // as it last stood (`protocol.mjs`). It is an output, so a build that passes moves it
 // forward. A build refuses a change that breaks it.
-const baselineName = `${sourceRoot}/protocol-baseline.json`;
+const baselineName = "build/browser/protocol-baseline.json";
 
 // JSON with a key per line to `depth` levels and each value below on one line, so the
 // baseline's diff names the event kinds and records a change moved.
@@ -257,7 +257,7 @@ async function protocolOutputs() {
   const refused = protocolBreaks(baseline, held);
   if (refused.length)
     throw new Error(
-      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in skills/leaf/assets/registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
+      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
     );
   return {
     contract: await contractTypes(new URL("../../", import.meta.url), schemas),
@@ -285,7 +285,7 @@ async function protocolOutputs() {
 // the build drops it.
 const runtimeChecks = (file) =>
   file.endsWith(".js") &&
-  !/^skills\/leaf\/(?:assets|packages\/[^/]+)\/vendor\//.test(file) &&
+  !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file) &&
   !readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
 
 function typecheck(config, reports = () => true) {

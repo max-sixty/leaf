@@ -7,6 +7,7 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
+
 from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner, ReadableAssets
 from leaf.files import revision_path
@@ -530,6 +531,7 @@ def test_an_export_runs_the_exporters_runtime(page_dir, monkeypatch):
     """An export pairs the state the exporting Leaf reads with that Leaf's runtime,
     whichever Leaf captured the version, since only that runtime reads that state."""
     from click.testing import CliRunner
+
     from leaf import cli as cli_model
     from leaf import runtime_selection
     from leaf.exporting import cmd_export

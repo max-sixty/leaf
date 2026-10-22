@@ -5,6 +5,7 @@ from dataclasses import replace
 from types import MappingProxyType
 
 import pytest
+
 from leaf.runtime_selection import ServingRuntime
 
 

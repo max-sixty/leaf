@@ -1,7 +1,7 @@
 /** Derive structural TypeScript records from the kernel's admission schema for each
- * event record (`$events.kinds` in skills/leaf/assets/registry.json), which the page
+ * event record (`$events.kinds` in browser/registry.json), which the page
  * protocol holds, and the state the server serves the runtime
- * (skills/leaf/scripts/leaf/served_state/state.schema.json), which it doesn't; and the values of
+ * (src/leaf/served_state/state.schema.json), which it doesn't; and the values of
  * each page-wide declaration an author writes (`$authored`). Value constraints
  * (patterns, ranges, and conditional clauses) stay with the schemas' readers. Widget
  * detail stays open: the page's registry, rather than the kernel, owns it.
@@ -214,12 +214,12 @@ print(json.dumps({"references": leaf_resources(), "records": records}))
  * verb, and each `state.Record` with the protocol its shape was set at. */
 export async function protocolSchemas(root) {
   const read = async (file) => JSON.parse(await readFile(new URL(file, root)));
-  const { $events } = await read("skills/leaf/assets/registry.json");
+  const { $events } = await read("browser/registry.json");
   const { references, records } = pythonSchemas(root);
   return {
     protocol: $events.protocol,
     events: { ownership: $events.ownership, kinds: $events.kinds },
-    served: await read("skills/leaf/scripts/leaf/served_state/state.schema.json"),
+    served: await read("src/leaf/served_state/state.schema.json"),
     verb: references["leaf:verb"],
     // The composer's draft (`$events.draft`) beside the `state.Record`s.
     records: {
@@ -255,8 +255,6 @@ function written(schema, references) {
 }
 
 export async function contractTypes(root, { events, served, verb }) {
-  const registry = JSON.parse(
-    await readFile(new URL("skills/leaf/assets/registry.json", root)),
-  );
+  const registry = JSON.parse(await readFile(new URL("browser/registry.json", root)));
   return `/* @noformat Generated from registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}`;
 }

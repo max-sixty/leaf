@@ -5,8 +5,6 @@ import re
 import pytest
 from browser.test_render_drawing import draw_over
 from interact_support import append_command, wait_for
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import _publish
@@ -23,6 +21,9 @@ from render_harness import (
     watched,
     write,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import wait_until_ready
 
 EARLY_PAGE = leaf_page(
     "Early comments",

@@ -31,6 +31,8 @@ from interact_support import (
     wait_for,
     write_record,
 )
+from leaf_dev.page_fixtures import package_selection_args
+
 from leaf import cli as cli_model
 from leaf import event_log as event_model
 from leaf import files as files_model
@@ -48,7 +50,6 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.runtime_selection import serving_runtime
-from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_authored_recordings_are_served_with_seekable_captured_bytes(
@@ -76,7 +77,10 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
     markup = "".join(f'<audio controls src="{path}"></audio>' for path, _ in paths)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
     publish(page_dir)
-    captured = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    captured = (
+        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
+        f"/{serving_runtime().identity}"
+    )
     for path, mime in paths:
         for route in (path, captured + path):
             conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
@@ -603,7 +607,10 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     assert "Backfill plan\u2028Q3" in body
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
-    artifact_root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    artifact_root = (
+        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
+        f"/{serving_runtime().identity}"
+    )
     theme = structure_model.SourceDocument(body).tree.find(
         "link", attrs={"href": f"{artifact_root}/theme.css"}
     )

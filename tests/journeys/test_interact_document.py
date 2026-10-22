@@ -31,6 +31,13 @@ from interact_support import (
     state_json,
     suggest,
 )
+from model.test_interact_document import (
+    _drop_x_between_a_and_b,
+    _move,
+    _todo_order,
+    _write_board,
+)
+
 from leaf import agent_state as agent_state_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -39,12 +46,6 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
-from model.test_interact_document import (
-    _drop_x_between_a_and_b,
-    _move,
-    _todo_order,
-    _write_board,
-)
 
 
 def test_check_accepts_a_valid_page(page_dir):

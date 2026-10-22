@@ -1,8 +1,8 @@
 # Committed bundles
 
 This directory builds the browser files Leaf commits: everything under
-`skills/leaf/assets/vendor/`, each package's `vendor/`, and the compiled kernel in
-`skills/leaf/kernel/`. Installation, page init and export use the committed files and
+`browser/vendor/`, each package's `vendor/`, and the compiled kernel in
+`dist/kernel/`. Installation, page init and export use the committed files and
 never run a compiler, so nothing here runs on a user's machine. Package authors write
 native JavaScript with no build.
 
@@ -11,13 +11,15 @@ every output; `pnpm run check:browser`, part of `pnpm run check`, compares a fre
 with the committed bytes without writing. Its header lists the outputs; each script
 below owns its own:
 
-- `browser/`: the TypeScript browser framework and its Node tests. `build.mjs`
-  compiles each module to one JavaScript module, line for line, so branches conflict in
-  the output only where their TypeScript conflicts. `browser/shipped.mjs` refuses a
-  module an export can't load and writes each bundle's license notices.
+- `browser/`: the framework compiler, protocol/type generators and their tests.
+  Authored TypeScript and its module tests live in `../browser/framework/`.
+  `browser/build.mjs` compiles each source module to one JavaScript module, line for
+  line, so branches conflict in the output only where their TypeScript conflicts.
+  `browser/shipped.mjs` refuses a module an export can't load and writes each bundle's
+  license notices.
 - `initial.mjs`: builds each widget's first-paint drawing from its package's
   `initial/<tag>.js` into the bundle its registry entry names in `x-initial`.
-- `styles.mjs`: resolves CSS imports in `skills/leaf/assets/styles/` and bundled
+- `styles.mjs`: resolves CSS imports in `browser/styles/` and bundled
   packages' `styles/` into the committed complete sheets.
 - `registry.mjs`: generates the runtime modules that carry a registry fact to the
   browser.
@@ -35,7 +37,7 @@ below owns its own:
 
 After `pnpm install --frozen-lockfile`, a build reproduces the committed bytes, so a
 diff after rebuilding means the lock, a build script, a runtime module or a registry
-input changed. A change to `skills/leaf/assets/leaf.js`, or to a `.js` module under its
+input changed. A change to `browser/leaf.js`, or to a `.js` module under its
 `runtime/`, `vendor/` or `widgets/`, takes a rebuild in the same change. Resolve a
 kernel file that conflicts in a merge by merging `main` and rebuilding, never by hand.
 

@@ -4,9 +4,6 @@ import re
 from pathlib import Path
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
-from leaf.render_gate import version as render_gate_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
@@ -18,6 +15,10 @@ from render_harness import (
     scroll_settled,
     undo,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
+from leaf.render_gate import version as render_gate_model
 
 ROOT = Path(__file__).parents[2]
 

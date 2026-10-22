@@ -36,6 +36,13 @@ import pytest
 import yaml
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
+from pytest_regtest.snapshot_handler import (
+    BaseSnapshotHandler,
+    SnapshotHandlerRegistry,
+)
+from websockets.sync.server import serve as serve_websocket
+from websockets.sync.server import unix_serve as serve_unix_websocket
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
@@ -71,21 +78,12 @@ from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
 from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
-from pytest_regtest.snapshot_handler import (
-    BaseSnapshotHandler,
-    SnapshotHandlerRegistry,
-)
-from websockets.sync.server import serve as serve_websocket
-from websockets.sync.server import unix_serve as serve_unix_websocket
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a harness installs are one tree now; PLUGIN_ROOT still
 # names the role a path plays — "what a harness runs" — for the tests built on that.
 PLUGIN_ROOT = ROOT
-# The payload's manifests, hooks and launcher hang off PLUGIN_ROOT; the six product parts
-# sit one skill directory below it. Both are wanted often enough to be worth naming, and
-# spelled by hand the two are one plausible typo apart — a glob a level short matches
-# nothing and reports nothing.
+# The skill contains agent instructions; application resources belong to the plugin.
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
 COMMAND_HUB_PACKAGE = ROOT / "tests" / "fixtures" / "packages" / "work"
 # The complete shipped vocabulary, in the order `page init` composes it for an example.
@@ -97,7 +95,7 @@ SHIPPED_PACKAGES = [
     schema_model.ASSETS,
     schema_model.DEFAULT_PACKAGE,
     *(
-        SKILL_ROOT / "packages" / name
+        schema_model.BUNDLED_PACKAGES / name
         for name in json.loads(
             (ROOT / "examples" / "layer.json").read_text(encoding="utf-8")
         )

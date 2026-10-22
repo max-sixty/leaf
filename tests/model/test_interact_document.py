@@ -53,6 +53,8 @@ from interact_support import (
     state_json,
     write_revision,
 )
+from leaf_dev.example_data import captured_value, patch_manifest
+
 from leaf import agent_state as agent_state_model
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
@@ -86,7 +88,6 @@ from leaf.validation import composition as validation_model
 from leaf.validation.admission import message_markup_errors
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
-from leaf_dev.example_data import captured_value, patch_manifest
 
 
 def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(

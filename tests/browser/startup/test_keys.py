@@ -4,8 +4,6 @@ controls waiting for saved history, and the help overlay."""
 import re
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_navigation import JOURNEY_V1, _publish
 from render_harness import (
@@ -26,6 +24,8 @@ from browser.startup import (
     HELD_KEYS_PAGE,
     _hold_startup,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

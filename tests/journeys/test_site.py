@@ -29,19 +29,6 @@ import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
 from interact_support import declared, running_http_server
-from leaf import data as data_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import schema as schema_model
-from leaf.event_log import _parse_events, read_events
-from leaf.events import bare_reaction, build_threads
-from leaf.passages import enclosing_ids
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.revision_artifact import read_artifact
-from leaf.service import acknowledged
-from leaf.structure import SourceDocument
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
@@ -72,6 +59,19 @@ from render_harness import (
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "Waits".
 from journeys import expect_showing
+from leaf import data as data_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import layer as layer_model
+from leaf import schema as schema_model
+from leaf.event_log import _parse_events, read_events
+from leaf.events import bare_reaction, build_threads
+from leaf.passages import enclosing_ids
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.revision_artifact import read_artifact
+from leaf.service import acknowledged
+from leaf.structure import SourceDocument
 
 ROOT = Path(__file__).parents[2]
 DOCS = ROOT / "docs"

@@ -12,7 +12,7 @@
  * kernel again with the widgets while preserving authored module locations. Neither
  * build runs on a user's machine.
  *
- * `build/browser/build.mjs` commits the kernel to `skills/leaf/kernel/`
+ * `build/browser/build.mjs` commits the kernel to `dist/kernel/`
  * (`kernelOutputs`) and checks it against a rebuild with every other committed
  * bundle, and an install serves it only while it matches the tree's modules
  * (`leaf.runtime_selection.read_runtime`). Its form is what keeps it committable: it is

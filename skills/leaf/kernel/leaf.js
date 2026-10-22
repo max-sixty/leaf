@@ -5950,12 +5950,12 @@ async function approve() {
     return;
   }
   approving = true;
-  presentation?.repaint();
+  afterScript(paintApproval);
   try {
     await approveVersion();
   } finally {
     approving = false;
-    presentation?.repaint();
+    afterScript(paintApproval);
   }
 }
 function stateSignoff(next) {

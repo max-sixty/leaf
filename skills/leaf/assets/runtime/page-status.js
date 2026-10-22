@@ -28,6 +28,7 @@ import { UPGRADE } from "./presentation.js";
 import { readQueues } from "./queue-api.js";
 import { approvalBlockingObligations } from "./obligations/model.js";
 import { holdingError, raiseError } from "./errors.js";
+import { afterScript } from "./rendering.js";
 
 // ---------- status ----------
 // Upgrade opens new comments before the buffered saved reading is applied.
@@ -241,12 +242,13 @@ export async function approve() {
     return;
   }
   approving = true;
-  presentation?.repaint();
+  // A same-script settlement need not disable and re-enable the focused control.
+  afterScript(paintApproval);
   try {
     await approveVersion();
   } finally {
     approving = false;
-    presentation?.repaint();
+    afterScript(paintApproval);
   }
 }
 

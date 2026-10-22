@@ -113,13 +113,14 @@ underlying fix only when the change leaves it as easy to make as before.
 
 ## Repository map
 
-The repository is the plugin: `.claude-plugin/marketplace.json`,
-`.agents/plugins/marketplace.json` and `package.json`'s `pi` key name `./` as
-the payload, so the payload is the whole repository, whether a harness copies it
-into a cache or loads it in place. Read an area's `AGENTS.md` before changing it.
+The repository is the plugin: `.claude-plugin/marketplace.json` and
+`.agents/plugins/marketplace.json` name `./` as the payload, and
+`package.json`'s `pi` key makes it a Pi package. The payload is the whole
+repository, whether a harness copies it into a cache or loads it in place.
+Read an area's `AGENTS.md` before changing it.
 
-The plugin root is the installation and execution boundary: manifests register
-harness components there, and `bin/leaf` runs its uv project. The skill root,
+The **plugin root** is the installation and execution boundary: manifests register
+harness components there, and `bin/leaf` runs its uv project. The **skill root**,
 `skills/leaf/`, is the agent's instruction entry point, with `SKILL.md` and its
 references; copied alone, it is not an installation. `pyproject.toml` owns
 Python's module location, `leaf.state` locates the plugin root, and
@@ -129,8 +130,9 @@ browser assets and the packages into a page's layer.
 - `bin/leaf`, `pyproject.toml`, `uv.lock`: the launcher and its uv project.
 - `src/leaf/`: the CLI, server and event model (`src/AGENTS.md`).
 - `browser/`: the browser runtime, registry and theme, with the framework's
-  TypeScript under `browser/framework/` (`browser/AGENTS.md`;
-  `browser/runtime/keyboard/AGENTS.md` for commands, bindings and scopes).
+  TypeScript under `browser/framework/`
+  (`browser/AGENTS.md`; `browser/runtime/keyboard/AGENTS.md`
+  for commands, bindings and scopes).
 - `packages/`: the bundled packages (`packages/AGENTS.md`).
 - `skills/leaf/references/`: contracts for page authors, package authors and harnesses.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
@@ -148,7 +150,8 @@ browser assets and the packages into a page's layer.
 - `dist/kernel/`: the compiled core runtime that pages vendor, generated and
   committed; it is a delivery form of the runtime, not a skill or an
   installation root.
-- `dev/`: the `leaf-dev` developer commands (`dev/AGENTS.md`).
+- `dev/`: the `leaf-dev` developer commands
+  (`dev/AGENTS.md`).
 - `worker/`: the Cloudflare Worker and containers behind <https://leaf.page/>
   (`worker/README.md`).
 - `docs/`: the site's own pages, each a Leaf source.
@@ -182,8 +185,8 @@ Use maintained dependencies, including the platform and standard library, for
 established capabilities, in prototypes too. Leaf code owns product-specific
 behavior and integration, and writes a mechanism itself only when existing ones
 can't meet a concrete requirement. In the browser, use the platform's layout,
-cascade and focus model first (`browser/AGENTS.md`, "The browser answers
-first"). Build browser dependencies in Leaf's pipeline and ship ready
+cascade and focus model first (`browser/AGENTS.md`, "The browser
+answers first"). Build browser dependencies in Leaf's pipeline and ship ready
 assets.
 
 ### The install runs this tree
@@ -199,19 +202,19 @@ the install must be writable, and Leaf writes nothing else there. A plugin
 update may replace the directory, so anything that must survive one belongs in
 the page directory or the state home.
 
-Runtime dependencies, including a bundled package script's, state a minimum
-version and no maximum. The host supplies Chrome and `jq`; Leaf never downloads
-a browser.
+Runtime dependencies,
+including a bundled package script's, state a minimum version and no maximum. The
+host supplies Chrome and `jq`; Leaf never downloads a browser.
 
-Every tracked byte ships in every install and stays in history, so the tree
-holds no binary or large files except the kernel. An image a tool here reads
-lives in `max-sixty/leaf-assets`, pinned by `leaf-assets.json`. Publish there as
-part of the change that needs it, with no separate approval, since publishing
-moves only this checkout's pin; the `dev/leaf_dev/leaf_assets.py` header says
-how to resolve a conflict over the pins. Evidence, such as screenshots, probe
-captures, recordings and raw run output, stays in `.tmp/` and reaches the user
-on a Leaf page; a note keeps the finding and the command that reproduces it, not
-the capture.
+Every tracked byte ships in every install and stays in history, so the tree holds
+no binary or large files except the kernel. An image a tool here reads lives in
+`max-sixty/leaf-assets`, pinned by
+`leaf-assets.json`. Publish there as part of the change that needs it, with no
+separate approval, since publishing moves only this checkout's pin; the
+`dev/leaf_dev/leaf_assets.py` header says how to resolve a conflict over the
+pins. Evidence, such as screenshots, probe captures, recordings and raw run
+output, stays in `.tmp/` and reaches the user on a Leaf page; a note keeps the
+finding and the command that reproduces it, not the capture.
 
 ## Cross-runtime invariants
 
@@ -230,18 +233,18 @@ deletes an event or invents a counter-event.
 The registry keys each widget action and report by its widget, the unit of that
 widget's state it changes, and its verb (`events.md`). From one consistent read
 of the log, Python computes which action wins each key, what was withdrawn, the
-state of each obligation and thread, and the user's updates, and serves that to
-the browser.
+state of each On me obligation and thread, and the user's updates, and serves that to the
+browser.
 
-In the browser, only `applicationState` (`runtime/semantic-state.js`) combines
-the authored initial values, the server's latest reading and the tab's
-unresolved gestures into current state. It publishes each state as one immutable
-value that components read through selectors and never write, holding no
-renderer nodes, promises or DOM attributes. Widgets draw the complete state,
-unset and undecided values included, and undo never rebuilds widgets or replays
-authored actions into the DOM. A page widget's state is bounded by the document
-version; a widget frozen into a thread message is bounded by its thread's
-window.
+In the browser, only `applicationState` (`runtime/semantic-state.js`) combines the
+authored initial values, the server's latest reading and the tab's unresolved
+gestures into current state. It publishes each state as one immutable value that
+components read through selectors and never write, holding no renderer nodes,
+promises or DOM attributes. Widgets draw the complete state, unset and undecided
+values included, and undo never rebuilds widgets or replays authored actions
+into the DOM. A page widget's state is bounded by
+the document version; a widget frozen into a thread message is bounded by its
+thread's window.
 
 A renderer repaints only when something it read through a selector has changed,
 or when whoever changes an input outside the state, such as a draft, calls its
@@ -252,12 +255,13 @@ order.
 
 A gesture's own result shows in the task that sends it, before the server
 answers ("Responsiveness"); a disabled control, spinner or delivery status is
-not that result. Everything that depends on the whole log, such as which
-obligations remain, which the user owes and whose turn a thread is, comes from
-the server's reading. The browser adds only what a gesture decides by itself: a
+not that result. Everything that depends on the whole log, such as which obligations
+remain, which the user owes and whose turn a thread is, comes from the server's
+reading. The browser adds only what a gesture decides by itself: a
 required-version approval, a to-do the user ends, a thread the user opens, the
-user's own reply and the answer it is owed, and the resend a refused send
-leaves. A refusal restores the server's state.
+user's own reply and its wait for an answer, and the resend a refused send
+leaves. A refusal restores
+the server's state.
 
 Focus, scroll, selection, open disclosures, a draft being typed, a drag and
 layout stay with the browser until a gesture makes them part of the page's
@@ -266,12 +270,13 @@ code that replaces a node carries that state to the new node, matched by the key
 the replacement already uses.
 
 Python decides where the agent's work stands: `activity.py` for the whole page,
-read by the Leaf panel, and `workflows.py` for each update the user handed over,
-read by messages, thread attention, margin entries and the Stop hook; thread
-attention also reads the user's outstanding obligations. A busy page doesn't
-mean every message is being worked on. The browser adds its own unsent gestures
-but never ages or reclassifies a workflow. Other pages read a page's activity
-only from the row `server_rows.py` writes and whether its server is alive.
+read by the Leaf panel, and `workflows.py` for each update
+the user handed over, read by messages, thread attention, margin entries and the
+Stop hook; thread attention also reads the user's outstanding obligations. A busy page
+doesn't mean every message is being worked on. The browser adds its own unsent
+gestures but never ages or reclassifies a workflow. Other pages read a page's
+activity only from the row `server_rows.py` writes and whether its server is
+alive.
 
 The page directory is the durable record and the unit of deployment
 (`src/leaf/page-storage.md`).
@@ -319,25 +324,32 @@ Before finishing a feature:
   `evals/` before and after (`/developing-leaf`, "Score an instruction change").
 
 Several sessions share one machine, so local compute is often the bottleneck.
-Before handing over, run the tests that cover what the change touches, and `pnpm
-run test:runtime` when it reaches the runtime (`tests/AGENTS.md`, "Run what the
-change needs"). The broad selection, `uv run pytest tests`, runs at landing.
-Don't run it by hand, nor a whole browser test file or later tier (`--run-main`,
-`--run-nightly`, `tests/browser`, `tests/journeys`): each takes minutes to over
-an hour and slows every session on the host. Before widening your selection or
-its parallelism, check CPU, memory pressure and other running suites.
+Before handing over, run the tests that cover what the change touches, and
+`pnpm run test:runtime` when it reaches the runtime (`tests/AGENTS.md`, "Run what
+the change needs"). The broad selection, `uv run pytest tests`, runs at landing,
+in a pull request's `test` job and `wt merge`'s pre-merge. Don't run it by hand,
+nor a whole browser test file or later tier (`--run-main`, `--run-nightly`,
+`tests/browser`, `tests/journeys`), even for a change most of the suite runs
+through: each takes minutes to over an hour and slows every session on the host.
+Before widening your selection or its parallelism, check CPU, memory pressure and
+other running suites, and on a busy host keep to focused checks.
 
-`pnpm run check` runs the gates the suite and pre-commit don't reach: the
-TypeScript in `worker/src/` and `browser/framework/`, and the lock every committed
-bundle is built from. Both landing paths run it too.
+The TypeScript in `worker/src/` and `browser/framework/`, and the lock every committed
+bundle is built from, have gates the suite and pre-commit don't reach.
+`pnpm run check` runs them, and both
+landing paths run them too. The website's delivery checks (the site build, the
+Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull
+request and in `publish-site`, but not in `wt merge`.
 
 For a change that can alter browser startup, compare base and candidate: served
 previews for a runtime change, `leaf-dev verify-site website-worker` for site
-delivery, Worker routing or containers. Compare the requests and bytes loaded
-before the page first shows the server's state; elapsed time is only diagnostic.
-A change that adds work on that path says what the user gains and why it can't
-wait. Bytes off the path, such as a lazy module, a vendored file or the
-install's size, are not alone a reason for a change.
+delivery, Worker routing or containers. Read the comparison by phase (the
+document arriving, widgets upgrading, the page first showing the server's
+state), and compare the requests and bytes loaded before that last phase
+directly; elapsed time is only diagnostic. A change that adds work on that path
+says what the user gains and why it can't wait. Bytes off the path, such as a
+lazy module, a vendored file or the install's size, are not alone a reason for a
+change.
 
 Land through a pull request or `wt merge`, which squash-merges to `main`. For
 now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`,

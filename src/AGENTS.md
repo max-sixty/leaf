@@ -1,16 +1,15 @@
 # The Python side
 
-`leaf/` is the package a harness installs. `leaf/cli.py` declares the commands, and
-`leaf/__main__.py` runs them as `python -m leaf`, the form `bin/leaf` and every leaf
-subprocess use. `cli.py` only parses and dispatches; domain logic, and any branching
-across modules, belongs in the module that owns it.
+`leaf/` is the package a harness installs, and `leaf/cli.py` declares its commands
+(`leaf/__main__.py` says how they run). `cli.py` only parses and dispatches; domain
+logic, and any branching across modules, belongs in the module that owns it.
 
 Each module owns one concern and states its contract in its header, so read the headers
-to find an owner (`head -n 3 leaf/*.py leaf/*/*.py`). Callers import the owning module
-directly; a subpackage's `__init__.py` is only a marker, never a second API. Domain code
-refuses by raising `refusals.Refused` or a subclass; only a process or transport
-boundary exits, prints or answers HTTP. A command returns its result and never prints it
-(`cli.py`'s header).
+to find an owner (`head -n 3 leaf/*.py leaf/*/*.py`). Callers import the
+owning module directly; a subpackage's `__init__.py` is only a marker, never a second
+API. Domain code refuses by raising `refusals.Refused` or a subclass; only a process or
+transport boundary exits, prints or answers HTTP. A command returns its result and
+never prints it (`cli.py`'s header).
 
 Some owners are the one way to do something anywhere in the package: every event is
 appended through `event_contracts.append_admitted`, every finding a check reports or

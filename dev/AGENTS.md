@@ -1,15 +1,13 @@
 # The `leaf-dev` package
 
-`leaf_dev` is Leaf's developer tooling: the code the suite and the eval harnesses share,
-and the `leaf-dev` commands built on it. `uv run leaf-dev --help` lists each command
-with its summary, and each command's `--help` and module header say the rest.
+`leaf_dev` is Leaf's developer tooling: the code the suite and the eval harnesses
+share, and the `leaf-dev` commands built on it. `uv run leaf-dev --help` lists each
+command with its summary, and each command's `--help` and module header say the rest.
 
-Only the root dev dependency group installs this package, so the checkout's
-environment has it and `bin/leaf`, which runs `--no-dev`, never does. Nothing in
-`src/` may import it.
+Nothing in `src/` may import it; `dev/pyproject.toml` says who installs it.
 
-A command writes under `.tmp/` unless its reader expects the output at a committed path,
-as `leaf-dev corpus` writes `examples/corpus.html`.
+A command writes under `.tmp/` unless its reader expects the output at a committed
+path, as `leaf-dev corpus` writes `examples/corpus.html`.
 
 ## Where tooling goes
 
@@ -23,17 +21,18 @@ When agents keep writing the same throwaway script, make it a command: a module 
 `leaf_dev/commands/` named after it (`journey_chart.py` for `leaf-dev journey-chart`),
 which the CLI finds by name. Tooling that CI, a hook or an alias runs is a command too,
 so the repository has no directory of loose scripts. Code two tools need lives in one
-module here that the others import, never through `sys.path`, `PYTHONPATH` or a file
-path. Before writing a mechanism, read the headers of the modules beside `cli.py`:
-`arms.py` builds arms and isolated harness sessions, `page_fixtures.py` page
-directories, and `browser.py` the browser every command drives.
+module
+here that the others import, never through `sys.path`, `PYTHONPATH` or a file path.
+Before writing a mechanism, read the headers of the modules beside `cli.py`: `arms.py`
+builds arms and isolated harness sessions, `page_fixtures.py` page directories, and
+`browser.py` the browser every command drives.
 
 ## Tests
 
-Developer-tool tests live in `dev/tests/` and run only when explicitly requested. They
-are outside PR CI, main-push CI, the daily suite and landing gates, even when a branch
-changes them. Keep product guarantees in `tests/`, even when a fixture uses a developer
-helper.
+Developer-tool tests live in `dev/tests/` and run only when explicitly requested.
+They are outside PR CI, main-push CI, the daily suite and landing gates, even when a
+branch changes them. Keep product guarantees in `tests/`, even when a fixture uses a
+developer helper.
 
 A benchmark needs only a couple of broad smoke tests showing that a task reaches the
 agent and its result reaches the grader; work out detailed failures while running the
@@ -52,11 +51,14 @@ pnpm run test:evals
 
 - `leaf-dev refresh-previews` (as `wt refresh-previews`), `record-demo` and
   `publish-media` publish images to `max-sixty/leaf-assets`; in the tree they change
-  only the pin in `leaf-assets.json` and the README's image URLs. `thread-snapshots`
-  accepts reviewed images by moving `leaf-assets.json`'s `thread_snapshots_revision`.
+  only the pin
+  in `leaf-assets.json` and the README's image URLs.
+  `thread-snapshots` accepts reviewed images by moving `leaf-assets.json`'s
+  `thread_snapshots_revision`.
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout to the
   `leaf-website-dev` environment. Production deploys only through
   `.github/workflows/publish-site.yaml`; `worker/README.md` owns diagnostics.
-- `leaf-dev journey` and `leaf-dev eval` spend the host's logins and model calls, so CI
-  runs neither on a harness target (`/developing-leaf`, "Run the agent journey" and
-  "Score an instruction change").
+- `leaf-dev journey` appends each sample to `$XDG_STATE_HOME/leaf-dev/journey.jsonl`. On
+  a harness target it spends the host's logins, as `leaf-dev eval` does, so CI runs
+  neither; `publish-site` runs the journey against each deployed release
+  (`/developing-leaf`, "Run the agent journey" and "Score an instruction change").

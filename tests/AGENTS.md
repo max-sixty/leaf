@@ -3,10 +3,11 @@
 This suite protects shipped Leaf behavior. Tests of developer tools belong in
 `dev/tests/` (`dev/AGENTS.md`, "Tests"). A product test may still use `leaf_dev` to
 build or serve its fixture, since what a test proves decides where it belongs, not what
-it imports. A check that holds a product schema's consumers to it, eval fixtures
-included, lives here, because a change to the schema is what breaks it. PR CI time is
-scarce: add coverage there only for consequential product failures that should block
-landing, however quick the check.
+it imports. A check
+that holds a product schema's consumers to it, eval fixtures included, lives here,
+because a change to the schema is what breaks it. PR CI time is scarce: add coverage
+there only for consequential product failures that should block landing, however quick
+the check.
 
 Root `AGENTS.md`'s **Stage** says what a test here protects and when to rewrite or
 delete one. Agents wrote most of this suite, and many of its tests assert the shape the
@@ -20,9 +21,9 @@ is not a regression requirement.
 The suite's cost is CPU time, which every run pays and CI bills. Extra workers fill a
 test's waiting only while CPU is spare, so remove a fixed delay rather than relying on
 parallelism. Each CI `test` job's summary says where its CPU and time went, and
-`leaf-dev suite-profile` reads the same from the job's `pytest-results-*` artifact. When
-a browser test is slow, or fails on timing or geometry outside its contract, repair its
-setup or move its contract to a lower boundary.
+`leaf-dev suite-profile` reads the same from the job's `pytest-results-*`
+artifact. When a browser test is slow, or fails on timing or geometry outside its
+contract, repair its setup or move its contract to a lower boundary.
 
 Each helper's docstring owns its contract, and code cites the sections below by heading.
 Message delivery has one shared journey, `leaf_dev.thread_journey`.
@@ -40,11 +41,11 @@ races, so a user could hit it, or the test's setup does ("Races"), and fix that 
 ## Run what the change needs
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22.18 or newer, and the pnpm
-version `package.json` pins. `wt setup` installs the browsers, their Linux libraries and
-fonts, the example assets and the Node dependencies, and waits for the preparation
-Worktrunk starts in a new worktree; run it before testing. `uv run` syncs Python. Tend
-agents run tests directly in their prepared environment, since setup's system packages
-need privileges the sandbox lacks.
+version `package.json` pins. `wt setup` installs the browsers, their Linux
+libraries and fonts, the example assets and the Node dependencies, and waits for the
+preparation Worktrunk starts in a new worktree; run it before testing. `uv run` syncs
+Python. Tend agents run tests directly in their prepared environment, since setup's
+system packages need privileges the sandbox lacks.
 
 ```sh
 uv run pytest tests/browser/widgets/test_boards.py -q -n0 -k lifecycle
@@ -65,16 +66,18 @@ runs it (`TIERS` in `conftest.py`):
   sweeps, multi-page journeys and the site build. The daily run and manual dispatch.
 
 A test in `model/` or `process/` takes under three seconds on CI's runner, and one in
-`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite_profile.py`). Put a new
-test in the directory of the boundary it crosses, or in `journeys/` when it is over
-budget or needs the external network, which it also marks `network`. To move a test to
-an earlier tier, make it cheaper.
+`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite_profile.py`). Put a new test in
+the directory of the boundary it crosses, or in `journeys/` when it is over budget or
+needs the external network, which it also marks `network`. To move a test to an earlier
+tier, make it cheaper.
 
 A subject whose tests cross different boundaries has a module of the same name in each
 directory, such as `browser/test_render_aim.py` and `journeys/test_render_aim.py`, and
 the module holding most of them keeps the helpers. `model/` and `process/` share a tier,
-so a subject's tests of both kinds stay in one module. A subject too large for one
-module is a package with a module per behavior, such as `browser/margin/`.
+so a subject's tests of both kinds stay in
+one module.
+A subject too large for one module is a package with a module per behavior, such as
+`browser/margin/`.
 
 Broad discovery skips `browser/` and `journeys/`; `--run-main` adds `browser/` and
 `--run-nightly` runs every tier. An explicit directory, file, node id, `-k`, `-m` or
@@ -86,8 +89,7 @@ under `--run-nightly`.
 ### Without external network access
 
 After setup, `UV_OFFLINE=1` keeps uv on its cache; the suite still needs loopback
-sockets. This runs every tier except the tests that download from external services, and
-focused checks still name node ids or use `-k`:
+sockets. This runs every tier except the tests that download from external services:
 
 ```sh
 UV_OFFLINE=1 uv run pytest tests --run-nightly -m 'not network'
@@ -98,21 +100,21 @@ UV_OFFLINE=1 uv run pytest tests --run-nightly -m 'not network'
 Find the tests that hold the behavior you changed, in any tier, by reading which tests
 exercise the changed code, and run them by node id or `-k`.
 
-A change lands through a gate that runs the broad selection: a pull request's `test` job
-or `wt merge`'s pre-merge. A failure there that the change causes is the gate doing its
-job; fix it and push. A failure the change doesn't cause, such as one main's latest run
-also shows (confirm by running it on main by node id), blocks nothing and calls for no
-rerun: name it in the pull request as inherited and land. For now, by the user's choice,
-`test` is not a required check on `main`. `wt merge` refuses on any failure, so such a
-change lands through a pull request.
+A change lands through a gate that runs the broad selection: a pull request's `test`
+job or `wt merge`'s pre-merge. A failure there that the change causes is the gate doing
+its job; fix it and push. A failure the change doesn't cause, such as one main's latest
+run also shows (confirm by running it on main by node id), blocks nothing and calls
+for no rerun: name it in the pull request as inherited and land. For now, by the user's
+choice, `test` is not a required check on `main`.
+`wt merge` refuses on any failure, so such a change lands through a pull request.
 
-CI's `test` job (`ci.yaml`) runs the `main` tier once main moves and every tier daily,
-and `tend-ci-fix` repairs what fails. The user accepted that a pull request can land
-green and break a test it never ran, so a red main is no reason to widen a change or its
-tests. A newer push cancels main's waiting run, as intended. To learn what main fails,
-read that job's run and reproduce a failure by node id. A failure only macOS reproduces
-is beyond `tend-ci-fix`: check that no session, worktree or open pull request covers it,
-then start a local session for it (for example with `/dispatch`).
+`tend-ci-fix` repairs what CI's `test` job (`ci.yaml`) fails on main. The user accepted
+that a pull request can land green and break a test it never ran, so a red main is no
+reason to widen a change or its tests. A newer push cancels main's waiting run, as
+intended. To learn what main fails, read that job's run and reproduce a failure by node
+id. A failure only macOS reproduces is beyond `tend-ci-fix`: check that no session,
+worktree or open pull request covers it, then start a local session for it (for example
+with `/dispatch`).
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for
@@ -121,41 +123,43 @@ the diff.
 
 GitHub Actions on Ubuntu 24.04 is the Linux authority: use the candidate's and base's
 workflow runs for Linux evidence, not a local container. A pull request's `test` job
-also runs the site build, the Worker dry-run deploy and `verify-site website-worker`,
-which `wt merge` doesn't; use local Docker only to reproduce a concrete Worker or
-container failure.
+also runs the website's delivery checks (root `AGENTS.md`, "Working on the repository");
+use local Docker only to reproduce a concrete Worker or container failure.
 
 Subprocess tests invoke leaf through `LEAF_COMMAND`, and `bin/leaf` only where the
 launcher itself is the subject.
 
 ## Put each assertion at the boundary that owns it
 
-Put a new test in the module whose docstring names the behavior it protects, not the one
-the change happened to open, and start a module where none does.
+Put a new test in the module whose
+docstring names the behavior it protects, not the one the change happened to open, and
+start a module where none does.
 
 File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, and reusable browser cases in `render_cases_*.py`.
 `tests/runtime/*.test.mjs` tests what one runtime module decides on its own, in the
-document `tests/runtime/dom.mjs` sets up; `browser/framework/application.test.mjs` tests how
-the publisher combines those results. Both build server state with `served.mjs`, which
-calls the server's own `served_records.py`. A fixture carries every field the server
-sends and changes only the fields the case is about. `fixtures/pages/` holds full-page
-regressions under `examples/AGENTS.md`'s rules. A result that depends on a primitive
-Node and Chrome implement differently, such as `Intl.Segmenter`, is tested in the
-browser.
+document `tests/runtime/dom.mjs` sets up; `browser/framework/application.test.mjs` tests
+how the publisher combines those results. Both build server state with `served.mjs`,
+which calls the server's own `served_records.py`. A fixture carries every field the
+server sends and changes only the fields the
+case is about. `fixtures/pages/` holds full-page regressions under
+`examples/AGENTS.md`'s rules.
+A result that depends on a primitive Node and Chrome implement differently, such as
+`Intl.Segmenter`, is tested in the browser.
 
-A property a particular page causes belongs in `render_version`, because `leaf page
-check --render` must report it to that page's author. A property identical for every
-valid page, such as how the layer restores browser state (`arrival_findings`), belongs
-in the suite. A test of a state no authored page reaches, such as DOM a script changes
-after load, puts the page in that state and calls the probe through
-`leaf.render_checks.evaluate_probe`.
+A property a particular page causes belongs in `render_version`, because
+`leaf page check --render` must report it to that page's author. A property identical
+for every valid page, such as how the layer restores browser state
+(`arrival_findings`), belongs in the suite. A test of a state no authored page reaches,
+such as DOM a script changes after load, puts the page in
+that state and calls the probe through `leaf.render_checks.evaluate_probe`.
 
 Where the product already answers a question, use its answer: `root_overflow` for
-sideways scroll, `draft_key` and `stored_draft` for drafts, `event_log.read_events` for
-the log. Read the page through its public entries (`window.__lfWidgetApi()`,
-`__lfCheckApi()`, `__lfClientApi()`, and `__lfOverlayApi()` for overlay geometry); tests
-can't import private source paths.
+sideways scroll, `draft_key` and `stored_draft`
+for drafts, `event_log.read_events` for the log. Read the page through its public
+entries (`window.__lfWidgetApi()`, `__lfCheckApi()`, `__lfClientApi()`, and
+`__lfOverlayApi()` for overlay geometry); tests can't import private source
+paths.
 
 Give a corpus source its own case only when its content is the cause under test. Put a
 probe's independent faults on one composed page beside clean controls and call the gate
@@ -171,10 +175,10 @@ ordinary control follows the browser's focus visibility, while text entry and re
 destinations keep their cues. Test with real clicks and keyboard arrivals, require
 `:focus`, and compare the paint, including when the focused control has no ring. A
 keyboard test reaches its stop with `Tab` or its declared command; `element.focus()`
-doesn't prove that route. `RELEASE_FOCUS` (`render_harness.py`) resets where Tab starts,
-which `blur()` doesn't. Read a ring's paint through `rings_drawn` and `ring_faults`,
-since an ancestor may draw it, and tell which ring it is by the rule the browser says
-drew it (`ring_rules`, `render_cases_layout.py`).
+doesn't prove that route. `RELEASE_FOCUS` (`render_harness.py`) resets where Tab
+starts, which `blur()` doesn't. Read a ring's paint through `rings_drawn` and
+`ring_faults`, since an ancestor may draw it, and tell which ring it is by the rule the
+browser says drew it (`ring_rules`, `render_cases_layout.py`).
 
 ## Fixtures
 
@@ -197,43 +201,45 @@ concurrent suite on the host, so it needs a measured benefit.
 ### One page for the cases that can share it
 
 Opening a page until it is ready takes close to half of a push run's browser time, so
-cases of one test that can share a page run on it as subtests: open the page once, then
-run each case inside `with subtests.test(width=width):`. A failing case is reported by
-its arguments, and the cases after it still run. `suite_profile` judges such a test
-against its budget per case.
+cases of one test that can
+share a page run on it as subtests: open the page once, then run each case inside
+`with subtests.test(width=width):`. A failing case is
+reported by its arguments, and the cases after it still run.
+`suite_profile` judges such a test against its budget per case.
 
 Keep a `parametrize` axis for each difference that needs a page of its own: the browser
 engine, something the whole document declares, such as `dir` or its layout class, or a
-case that writes the page's log, publishes a revision, consumes a sensor's one finding,
-or changes something the page holds once, such as the composer, the panel or a draft.
-Give each shared-page case its own part of the page, such as its own ids or editor, or
-undo what it changed, and order the cases so that none moves content the shift watch
-reads.
+case that writes the page's log, publishes a revision, or changes something the page
+holds once, such as the composer, the panel or a draft. A case that consumes a watch's
+finding needs its own page too, since a watch reports each finding once per page. Give
+each shared-page case its own part of the page, such as its own ids or editor, or undo
+what it changed, and order the cases so that none moves content the shift watch reads.
 
 ### Processes and servers
 
 A process a test starts ends on every exit from the test, and burns no CPU while it
 waits, since many suites share the machine. Take each resource from its owner: a child
-process from `spawn`, a page server from `_no_page_outlives_its_test`, a preview from
-`preview_slot` and `start_preview`, an HTTP server from `running_http_server`, a socket
-directory from `socket_dir`
-(`test_the_resources_a_fixture_owns_are_taken_from_that_fixture`). A test of a
-persistent server stops it explicitly.
+process from `spawn`, a
+page server from `_no_page_outlives_its_test`, a preview from `preview_slot` and
+`start_preview`, an HTTP server from `running_http_server`, a socket directory from
+`socket_dir` (`test_the_resources_a_fixture_owns_are_taken_from_that_fixture`).
+A test of a persistent server stops it explicitly.
 
 A dead worker runs no teardown, so a process that could outlive it watches the worker: a
-page server watches the worker's session claim, and a held process blocks reading a pipe
-the worker holds, as `session_process` does. The test releases it by closing the pipe,
-which also closes when the worker dies; don't make a process wait for a file or poll in
-a loop. End a process by closing its pipe or with SIGTERM, never SIGKILL
-(`test_no_test_ends_a_process_with_sigkill`). To check a new held process, make the test
-fail right after starting it, then confirm with `pgrep -fl <tmp_path>` that nothing it
-started still runs.
+page server watches the worker's session claim, and a held process blocks
+reading a pipe the worker holds, as `session_process` does. The test releases it by
+closing the pipe, which also closes when the worker dies; don't make a process wait
+for a file the test has yet to write, or poll in a loop. End a process by closing its
+pipe or with SIGTERM, never SIGKILL (`test_no_test_ends_a_process_with_sigkill`). To
+check a new held process, make the test fail right after starting it, then confirm with
+`pgrep -fl <tmp_path>` that nothing it started still runs.
 
 ### Browser storage
 
 Panel state and drafts live in `localStorage` and reading position in `sessionStorage`,
-so a reload keeps them; clear both for a first visit. Each `Browser.new_page` is its own
-context, so two tabs of one user share `one_user`.
+so a reload keeps them;
+clear both for a first visit. Each `Browser.new_page` is its own context, so two tabs of
+one user share `one_user`.
 
 ## Driving the browser
 
@@ -249,15 +255,17 @@ because `render_version` reports the page's errors as findings.
 
 ### Browser errors
 
-The `browser` fixture watches every page it makes and fails the test on any problem left
-at the end; don't install a second collector or filter it. Consume an expected problem
-where it happens with `consume_browser_errors`, or `reported_browser_errors` when it
-arrives in parts, naming it by its fields (`leaf/findings.py`) or by a fragment of the
-console message (`render_harness.is_problem`). For a recurring fault, close the page
-first and then consume.
+The `browser` fixture watches every page it makes and fails the test on any problem
+left at the end; don't install a second collector or filter it. Consume an expected
+problem where it happens with
+`consume_browser_errors`, or `reported_browser_errors` when it arrives in parts, naming
+it by its fields (`leaf/findings.py`) or by a
+fragment of the console message (`render_harness.is_problem`). For a recurring fault,
+close the page first and then consume.
 
 The watches below report problems. Fix what they report rather than consuming it; there
-is no per-test allowance list.
+is no per-test
+allowance list.
 
 - `write_watch.js` reports a DOM write that changes nothing. Fix the writer with
   `runtime/keeps.js`. A write that must restate, as a vendored component's does, joins
@@ -272,16 +280,17 @@ is no per-test allowance list.
   hides a shift for half a second after a click, so a test of a news update's stability
   delivers the news after that.
 - `words_watch.js` reports typed words leaving the screen without a key or press
-  (`browser/AGENTS.md`, "Words stay where they were typed"). A test that
-  closes a box does it the way a user does.
+  (`browser/AGENTS.md`, "Words stay where they were typed"). A test that closes a box
+  does it the way a user
+  does.
 
 `input_work_watch.js` tells the shift and words watches which input caused a change. It
 follows timers, frames, promises and Lit updates but not a native `await`, so code that
 commits a visible effect after an `await` loses its input; a fixture that must commit
 after one captures the commit callback with `lfInputWork.capture` first. A private
 channel between documents, such as a live sample's `MessagePort`, carries input only
-where each end sets the port as `lfDocumentPort` on its bootstrap script element
-(`bootstrap.js`, `sample.js`).
+where each end sets the port as `lfDocumentPort` on its bootstrap script element before
+the first message (`bootstrap.js`, `sample.js`).
 
 `test_widget_quality.py` holds Leaf's own widgets to the report `package check --render`
 gives a package's author (`leaf/render_gate/widget_quality.py`).
@@ -316,22 +325,24 @@ Wait for the operation's own completion signal. Elapsed time, matching samples, 
 number of frames and network quiet look the same for an effect that hasn't started as
 for one that has finished, and a sleep doesn't prove that another process took a lock
 (`interact_support.lock_contention` reports that a second taker is waiting). Count
-frames (`one_frame` in `leaf.render_checks`) only where one rendering update is itself
-the claim. A computed style under a transition reports the animated value, so check
-`getAnimations()` where the subject may be moving. `page.evaluate` takes no timeout:
-state readiness in the page and poll it with `wait_for_probe`.
+frames (`one_frame` in `leaf.render_checks`) only where
+one rendering update is itself the claim. A computed style under a transition reports
+the animated value, so check `getAnimations()` where the subject may be moving.
+`page.evaluate` takes no timeout: state readiness in the page and poll it with
+`wait_for_probe`.
 
 Waits take the suite's deadlines: `STATED_TIMEOUT` on the Python side, with
 `interact_support.wait_for` for pure-Python polls, and `SERVED_TIMEOUT_MS`, which
-`render_harness` makes every Playwright wait's default, so a wait names a deadline only
-when it spans a page handover (`HANDOVER_DEADLINE_MS`).
+`render_harness` makes every Playwright wait's default, so a wait
+names a deadline only when it spans a page handover (`HANDOVER_DEADLINE_MS`).
 `test_a_wait_takes_the_suites_deadline` checks both.
 
 ### Transient states
 
 Use `expect(...)` for a state that becomes stable. For a transient one, read once after
 the step that causes it has finished, because an auto-retrying assertion passes on the
-first matching frame even if the gesture goes on to another result. The helpers in
+first
+matching frame even if the gesture goes on to another result. The helpers in
 `render_harness.py`:
 
 - `sending` wraps a gesture whose own event the next read needs;
@@ -358,10 +369,11 @@ scroll started.
 
 If a race appears only under load, order it with `page.route` rather than repeating the
 test. `leaf-dev flake` reproduces it, prints each failing copy's message, and then
-confirms the route holds. Register the route before the gesture it catches, or through
-`primed` or `held_events` for the first navigation; raw and `browser.unwatched` pages
-aren't set up for later routes. Where the driver loses a fact, such as the Page for a
-tab Chromium opened, read the browser's record (`opened_tab`).
+confirms the route holds. Register the
+route before the gesture it catches, or through `primed` or `held_events` for the first
+navigation; raw and `browser.unwatched` pages aren't set up for later routes. Where
+the driver loses a fact, such as the Page for a tab Chromium opened, read the
+browser's record (`opened_tab`).
 
 - A route handler that returns without resolving holds the request before the server.
   Call `holding` before reading the list of held requests, since the ledger counts a
@@ -380,11 +392,11 @@ printed record), since the log's last event may be a `read` an open page appende
 
 ### Test-made noise
 
-Instrumentation adds no noise to the channel a test asserts is quiet; `refuse` uses the
-`aborted` reason for that. Consume a deliberate HTTP error by the browser's diagnostic
-(`http_error_console`), or assert the response's status where the status is under test.
-Wrap a deliberate server restart in `restarting`, asserting any diagnostic inside that
-block.
+Instrumentation adds no noise to the channel a test asserts is quiet; `refuse`
+uses the `aborted` reason for that. Consume a deliberate HTTP error by the browser's
+diagnostic (`http_error_console`), or assert the response's status where the status is
+under test. Wrap a deliberate server restart in `restarting`, asserting any
+diagnostic inside that block.
 
 ## Frames, sequences, and instants
 
@@ -399,8 +411,9 @@ state say nothing about the motion between them.
   page-side observer captures it, and the stamp marks completion.
 
 Measure a node the runtime rebuilds in one page-side call that finds and reads it, since
-a detached node measures as zeros. A movement test covers a press and arriving news,
-with a pixel diff for borders, outlines and shadows.
+a
+detached node measures as zeros. A movement test covers a press and arriving news, with
+a pixel diff for borders, outlines and shadows.
 
 ## Make a green test non-vacuous
 

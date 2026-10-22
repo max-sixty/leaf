@@ -23,8 +23,8 @@ current log.
 
 A progress message (`ephemeral`) is never unread. The thread draws its run as one
 dim line, the working message while its update is in hand, not as a reply, and once
-the next ordinary agent reply supersedes it (`events.progress_completions`) it folds
-behind that reply, which itself needs read evidence, unless the user spoke after it.
+the next ordinary agent reply supersedes it (`events.progress_completions`) it disappears
+from the transcript. The answer itself needs read evidence.
 Neither is something the user reads in order to keep up, so neither pulls them back
 to the thread. An edit to other content
 is a new version needing fresh evidence. An explicit summary

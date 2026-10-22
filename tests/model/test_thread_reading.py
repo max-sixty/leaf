@@ -331,7 +331,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
     }
 
 
-def test_summary_hint_does_not_cross_a_fold_of_ephemeral_updates(page_dir):
+def test_summary_hint_does_not_cross_ephemeral_updates(page_dir):
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
     )
@@ -364,9 +364,9 @@ def test_summary_hint_does_not_cross_a_fold_of_ephemeral_updates(page_dir):
         [event for event in events if event["id"] not in update_ids], [latest], within
     )
     assert unfolded["summary_hint"] == {"from": root["id"], "through": older["id"]}
-    [folded] = thread_context_model.batch_threads(events, [latest], within)
-    assert folded["summaries"][0]["covers"] == [update["id"] for update in updates]
-    assert "summary_hint" not in folded
+    [with_progress] = thread_context_model.batch_threads(events, [latest], within)
+    assert with_progress["summaries"] == []
+    assert "summary_hint" not in with_progress
 
 
 def test_summary_hint_chooses_a_qualifying_run_over_more_short_messages(page_dir):

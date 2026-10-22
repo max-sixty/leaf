@@ -16,10 +16,10 @@
 // starts prints as `{"watching": <its payload>}`. Once a watch has exited and what its exit set
 // going in the module has run as far as it can without waiting on anything
 // outside, `{"watched": <its payload>}` prints. Each redraw the module asks for
-// prints `{"band": <tree>}`, the band above the prompt as its render hook draws
-// it, each element `{tag, props, children}`. The first line printed is
-// `{"pid", "events"}`: the process the module's processes see as their parent,
-// and the events it hooks.
+// prints `{"band": {terminal, desktop}}`, the band above the prompt as its render
+// hook draws it for each surface, each element `{tag, props, children}`. The
+// first line printed is `{"pid", "events"}`: the process the module's processes
+// see as their parent, and the events it hooks.
 import { spawn } from "node:child_process";
 import * as path from "node:path";
 import * as readline from "node:readline";
@@ -148,8 +148,8 @@ const $ = {
   ui: {
     log: (text) => print({ diagnostic: text }),
     // Each element is its name, which `h` records with its props and children.
-    resolve: () => ({ Box: "Box", Text: "Text", Link: "Link" }),
-    // A redraw of the band, printed as `{"band": <its tree, or null>}`.
+    resolve: () => ({ Box: "Box", Text: "Text", Link: "Link", Markdown: "Markdown" }),
+    // A redraw of the band, printed as `{"band": {<surface>: <its tree, or null>}}`.
     invalidate: () => setImmediate(drawBand),
   },
   process: {
@@ -172,14 +172,16 @@ const $ = {
 const hooks = new Map();
 globalThis.h = (tag, props, ...children) => ({ tag, props, children });
 
-/** The band above the prompt, as the module's render hooks draw it over nothing. */
+/** The band above the prompt on each surface that draws one, as the module's
+ * render hooks draw it over nothing. */
 async function drawBand() {
-  const band = { component: "AbovePrompt", props: { hasSurvey: false } };
   const chain = (hooks.get("ui.render") ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
     async () => null,
   );
-  print({ band: await chain(band) });
+  const draw = (surface) =>
+    chain({ component: "AbovePrompt", surface, props: { hasSurvey: false } });
+  print({ band: { terminal: await draw("terminal"), desktop: await draw("desktop") } });
 }
 
 // The driver raises each event it is given, so a matcher selects nothing here.

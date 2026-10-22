@@ -44,6 +44,14 @@
  * prompt (measured at 2.1.306); a negative margin to close it hides the band.
  * `leaf-dev claude-code-session` runs a session that draws it from this tree.
  *
+ * In the terminal one link runs from the word Leaf through the title. The desktop
+ * app draws a `Link` as plain text unless it goes to https or localhost, but links
+ * any http URL in `Markdown`, which takes no color, so there the title alone is a
+ * markdown link (measured at the app's Claude Code 2.1.304). Linking to localhost
+ * instead would open the page at another origin than every other link to it,
+ * with its own cookie jar and drafts, and send the host key's cookie to whatever
+ * else the user serves on localhost.
+ *
  * A follower (`bin/leaf hook --harness claude-code
  * --if-claimed --pages`) prints that list whenever it changes and exits once the
  * session holds no page; the launcher answers it without starting uv in a session
@@ -370,28 +378,19 @@ export const register: Register = (on) => {
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     const beneath = await next(e);
     if (leaves.length === 0 || e.props.hasSurvey) return beneath;
-    const { Box, Text, Link } = $.ui.resolve(e);
+    const { Box, Text, Link, Markdown } = $.ui.resolve(e);
     // What JSX would type; the module stays `.ts` for Node, which runs it in tests.
     const dim = (text: string) => h(Text, { dimColor: true }, text);
     // A line keeps one row, its status cut first; only the counts that aren't zero
     // show, and what waits on the user takes a color.
     const line = ({ url, title, on_user, threads, activity }: Leaf) => {
       const status = statusOf(activity);
-      return h(
+      const leaf = h(
         Text,
-        { wrap: "truncate-end" },
-        // One link from the word Leaf through the title, so either opens the page.
-        h(
-          Link,
-          { href: url },
-          h(
-            Text,
-            { color: TONES[activity.kind] ?? "inactive", weight: "semibold" },
-            "Leaf",
-          ),
-          " ",
-          h(Text, { underline: true }, title),
-        ),
+        { color: TONES[activity.kind] ?? "inactive", weight: "semibold" },
+        "Leaf",
+      );
+      const counts = [
         ...(on_user
           ? [dim(" · "), h(Text, { color: "warning" }, `On me ${on_user}`)]
           : []),
@@ -401,6 +400,26 @@ export const register: Register = (on) => {
           ? [dim(", "), h(Text, { color: "suggestion" }, `${threads.unread} new`)]
           : []),
         ...(status ? [dim(` · ${status}`)] : []),
+      ];
+      if (e.surface === "terminal") {
+        return h(
+          Text,
+          { wrap: "truncate-end" },
+          h(Link, { href: url }, leaf, " ", h(Text, { underline: true }, title)),
+          ...counts,
+        );
+      }
+      // The title keeps its width and the counts are cut, as the terminal's
+      // truncation cuts them.
+      const escaped = title.replace(/[!-/:-@[-`{-~]/g, "\\$&");
+      return h(
+        Box,
+        { flexDirection: "row", overflow: "hidden" },
+        h(Box, { flexShrink: 0 }, h(Text, {}, leaf, " ")),
+        h(Box, { flexShrink: 0 }, h(Markdown, { text: `[${escaped}](${url})` })),
+        ...(counts.length
+          ? [h(Box, { minWidth: 0 }, h(Text, { wrap: "truncate-end" }, ...counts))]
+          : []),
       );
     };
     return h(

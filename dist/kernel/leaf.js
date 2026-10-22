@@ -5951,12 +5951,13 @@ async function approve() {
     return;
   }
   approving = true;
-  presentation?.repaint();
+  const busyPaint = nextRender(paintApproval);
   try {
     await approveVersion();
   } finally {
     approving = false;
-    presentation?.repaint();
+    cancelRender(busyPaint);
+    paintApproval();
   }
 }
 function stateSignoff(next) {

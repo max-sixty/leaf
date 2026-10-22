@@ -229,9 +229,8 @@ line, and keep it working when you reformat it. Quote source verbatim when quoti
 logs and transcripts that aren't source code stay literal and uncoloured.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. It scrolls them sideways only: one given just a
-`max-height` clips what runs past it, so add `overflow-y: auto` to let it scroll down
-too. In a table that scrolls sideways, prose wraps a word per
+to it, so none needs a width. Choose vertical bounds as `page-layout.md`, "Bounds and
+widths", describes. In a table that scrolls sideways, prose wraps a word per
 line, and the render check reports each width from a 360px phone up where that happens.
 Put identifiers in `<code>`, which can break inside a cell, and keep the columns to
 what fits at the narrowest width the page's readers use. Keep a diagram's detail rather

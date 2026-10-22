@@ -5,6 +5,12 @@
 # one block a track holds, it fails a page that writes its own sticking instead.
 # The completed-log and live-stream contrast only guarded in the 2026-10-07
 # scrolling-policy comparison: both wordings passed those choices on both harnesses.
+# The source diagnostic distinguishes adjusting tracks from replacing the outer
+# arrangement: page-layout.md permits track shares, gaps and internal composition,
+# and test_a_sidebar_pages_track_stays_in_view_only_beside_the_body covers those shares.
+# 2026-10-22 fresh-agent trials (3 per case): reuse 1/3 base, 3/3 owner wording;
+# old property ban 0/3 both, scrolling 3/3 each. Source charts failed admission.
+# Separate full-tool trials tied 2/2 at 900x900; no finished-page gain shown.
 description: sidebar-page-at-900px
 metadata:
   purpose:
@@ -25,7 +31,7 @@ variants:
       purpose:
         "A sidebar page read at 900px: the Layout already keeps its track beside the body there
         and keeps the one block it holds in view as the body scrolls, so the page puts the checklist
-        in that block and leaves the Layout's widths and sticking alone."
+        in that block and uses the Layout's wrapping and shared track reading behavior."
       tags:
         - layout
       executor: null
@@ -47,10 +53,12 @@ variants:
         metric: judgment
         value: |
           Read the HTML and its `<style>`. Pass only if all of these hold. `main` has class
-          `layout-sidebar` and the checklist is in its track. The page's own CSS leaves the
-          Layout's widths alone: fail if it sets `flex`, `flex-basis`, `grid-template-columns`
-          or `display` on `main`, the body or the track, or adds a media or container query to
-          keep them side by side. The checklist is in one block, the track's only child
+          `layout-sidebar` and the checklist is in its track. The page uses the Layout's
+          outer arrangement for the body and checklist. Page CSS may adjust track shares,
+          gaps, or the arrangement inside a region. Fail if it replaces the outer body/aside
+          arrangement with a separate grid or flex system, disables the Layout's wrapping,
+          or forces the regions to remain side by side when their content cannot fit.
+          Width tuning alone is not a failure. The checklist is in one block, the track's only child
           element, which the Layout keeps in view as the log scrolls, so the page's CSS leaves
           that alone too: fail if it makes the track or a block inside it `position: sticky`, or
           sets the `top`, `height`, `max-height` or `overflow` of the track or its block.

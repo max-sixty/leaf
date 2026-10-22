@@ -134,3 +134,10 @@ Each boundary shared across modules or runtimes has its reference beside the cod
 
 `../skills/leaf/references/packages.md` owns the public package contract, and
 `../browser/AGENTS.md` the browser's side.
+
+A reference states what code on one side of its boundary may rely on from the other:
+each shared record or event and what it means, who may write it, when a reader stops
+believing it, and the orderings a change elsewhere must keep. How one module provides
+that, such as its functions, constants, retries and the races it closes, goes in that
+module's header, and the failure that taught it goes in the commit message. A change
+that keeps every guarantee leaves the reference as it is.

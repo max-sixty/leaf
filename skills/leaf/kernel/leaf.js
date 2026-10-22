@@ -6819,6 +6819,7 @@ function createFloatingPanel({
   const threadSearchInput = el("input", "lf-fp-search");
   searchSurface.prepend(threadSearchInput);
   threadSearchInput.type = "search";
+  threadSearchInput.name = "thread-search";
   threadSearchInput.placeholder = "Find a thread or message";
   threadSearchInput.setAttribute("aria-label", "Find a thread or message");
   threadSearchInput.addEventListener("input", () => {

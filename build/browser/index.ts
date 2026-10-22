@@ -13,7 +13,7 @@ export { unsafeHTML } from "lit/directives/unsafe-html.js";
 export { batch, computed, effect, signal } from "@preact/signals-core";
 export { SignalWatcher } from "@lit-labs/preact-signals";
 export { createSemanticApplication } from "./application.js";
-export { outsideReading, share, untracked } from "./snapshot.js";
+export { share, untracked } from "./snapshot.js";
 export {
   createPresentationCoordinator,
   createPresentationSchedule,

@@ -1217,22 +1217,6 @@ _TEXT = {
     "predicate-attribute": _declared(
         lambda v: f"{v['key']} names undeclared attribute `{v['attr']}`"
     ),
-    "predicate-not-flag": _declared(
-        lambda v: _predicate(
-            v, f"as {_json(v['value'])}, but that attribute is not a flag"
-        )
-    ),
-    "predicate-flag": _declared(
-        lambda v: (
-            f"{v['key']} tests flag `{v['attr']}` as {_json(v['value'])};"
-            " a flag is there or it isn't"
-        )
-    ),
-    "predicate-enum": _declared(
-        lambda v: _predicate(
-            v, f"at {_json(v['value'])}, which its own enum does not admit"
-        )
-    ),
     "predicate-schema": _declared(
         lambda v: _predicate(
             v,

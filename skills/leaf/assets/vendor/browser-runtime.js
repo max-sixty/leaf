@@ -13,7 +13,7 @@ export { unsafeHTML } from "./lit.js";
 export { batch, computed, effect, signal } from "./browser-runtime/signals-core.js";
 export { SignalWatcher } from "./browser-runtime/signals-core.js";
 export { createSemanticApplication } from "./browser-runtime/application.js";
-export { outsideReading, share, untracked } from "./browser-runtime/snapshot.js";
+export { share, untracked } from "./browser-runtime/snapshot.js";
 export {
   createPresentationCoordinator,
   createPresentationSchedule,

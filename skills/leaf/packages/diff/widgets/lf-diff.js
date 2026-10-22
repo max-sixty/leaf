@@ -1562,7 +1562,7 @@ customElements.define(
       if (error) {
         entry.failed = true;
         paintSummary(entry.details, entry.record, false);
-        entry.details.open = true;
+        if (!entry.details.open) entry.details.open = true;
         entry.disclosureOpen = true;
         // Reopening retries a load; nothing loads a patch this widget refused again.
         entry.refused = !retry;
@@ -1631,7 +1631,7 @@ customElements.define(
       if (this.singleFile) this.selectFile(entry);
       else if (entry.filtered) this.clearFilter();
       if (!entry.details) return null;
-      entry.details.open = true;
+      if (!entry.details.open) entry.details.open = true;
       if (entry.loaded || entry.failed) return null;
       return this.loadEntry(entry);
     }
@@ -1779,7 +1779,7 @@ customElements.define(
     foldAll() {
       const folds = this.shownFolds();
       const open = folds.some((details) => !details.open);
-      for (const details of folds) details.open = open;
+      for (const details of folds) if (details.open !== open) details.open = open;
       this.paintFoldAll();
       announce(`${open ? "Expanded" : "Collapsed"} all files`);
     }
@@ -1864,7 +1864,7 @@ customElements.define(
 
     async openEntry(entry) {
       if (!entry.details) return;
-      entry.details.open = true;
+      if (!entry.details.open) entry.details.open = true;
       await this.loadEntry(entry);
     }
 

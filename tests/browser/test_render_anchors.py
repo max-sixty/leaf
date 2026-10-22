@@ -1358,7 +1358,7 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     )
     expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
     page.locator("#source").hover()
-    page.locator(".lf-chrome .lf-code-copy").first.hover()
+    page.locator(".lf-chrome .lf-code-copy").first.get_by_role("button").hover()
     assert (
         page.locator(".lf-chrome .lf-code-copy").evaluate_all(
             "nodes => nodes.filter(node => getComputedStyle(node).opacity === '1').length"
@@ -1377,7 +1377,7 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator("#source").focus()
     page.keyboard.press("Enter")
-    expect(page.locator(".lf-code-copy[aria-label='Code copied']")).to_have_count(1)
+    expect(page.get_by_role("button", name="Code copied", exact=True)).to_have_count(1)
     assert page.evaluate("navigator.clipboard.readText()") == "See details"
     expect(page.locator("#source")).to_be_focused()
     page.keyboard.press("Tab")
@@ -1505,7 +1505,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
         )
         < 100
     )
-    button = control
+    button = control.get_by_role("button")
     page.locator("#source").hover()
     button.click()
     expect(button).to_have_accessible_name("Code copied")
@@ -2594,14 +2594,14 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     )
     page = open_page(browser, url)
 
-    comparison = page.locator("lf-shot .lf-shotcomparison")
-    handle = comparison.get_by_role("slider")
+    comparison = page.locator("lf-shot wa-comparison")
+    handle = comparison.get_by_role("scrollbar")
     handle.scroll_into_view_if_needed()
     handle.focus()
     page.keyboard.press("ArrowRight")
-    expect(comparison.get_by_role("slider")).to_have_value("51")
+    expect(comparison).to_have_attribute("position", "51")
     page.keyboard.press("End")
-    expect(comparison.get_by_role("slider")).to_have_value("100")
+    expect(comparison).to_have_attribute("position", "100")
 
     summary = page.locator("lf-diff summary").first
     details = page.locator("lf-diff details").first

@@ -492,6 +492,17 @@ customElements.define(
       const entry = () => read().entry;
       const record = () => read().record;
       const run = () => read().run;
+      const threadLink = (thread) =>
+        html`<button
+          type="button"
+          ref=${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
+          onClick=${(event) => {
+            closeNativeLayer(event.currentTarget.closest("[popover]"));
+            threadActions.open(thread().key, { part: "thread", travel: false });
+          }}
+        >
+          ${() => threadSummary(thread()).topic}${() => (thread().resolved ? " · Resolved" : "")}
+        </button>`;
       const link = (label, href) =>
         Show({
           get when() {
@@ -565,25 +576,12 @@ customElements.define(
                       </button>
                     </header>
                     ${For({
-                    get each() {
-                      return read().threads;
-                    },
-                    keyed: (thread) => thread.key,
-                    children: (thread) =>
-                      html` <button
-                        type="button"
-                        ref=${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
-                        onClick=${(event) => {
-                      closeNativeLayer(event.currentTarget.closest("[popover]"));
-                      threadActions.open(thread().key, {
-                        part: "thread",
-                        travel: false,
-                      });
-                    }}
-                      >
-                        ${() => threadSummary(thread()).topic}${() => (thread().resolved ? " · Resolved" : "")}
-                      </button>`,
-                  })}
+                      get each() {
+                        return read().threads;
+                      },
+                      keyed: (thread) => thread.key,
+                      children: threadLink,
+                    })}
                   </div>`,
             })}
           </div>

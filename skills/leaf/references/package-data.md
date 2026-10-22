@@ -340,5 +340,5 @@ thousands of files without loading every patch:
 }
 ```
 
-Browser subscriptions and rendering follow [module-state.md, "Data subscriptions and
-projections"](module-state.md#data-subscriptions-and-projections).
+Browser subscriptions and rendering follow [module-state.md, "Bound data and
+projections"](module-state.md#bound-data-and-projections).

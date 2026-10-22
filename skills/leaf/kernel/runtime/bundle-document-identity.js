@@ -2509,17 +2509,17 @@ function createAnchorTravel({
     const holder = placeHolder(where);
     if (!holder) return null;
     const destination = placeBox(where);
-    const seen = clippedPlace(where, /* @__PURE__ */ new Map(), destination);
-    return seen && { holder, destination, seen };
+    const seen2 = clippedPlace(where, /* @__PURE__ */ new Map(), destination);
+    return seen2 && { holder, destination, seen: seen2 };
   }
   function readableDestination(where) {
     const shown = seenOf(where);
     if (!shown) return false;
-    const { holder, destination, seen } = shown;
+    const { holder, destination, seen: seen2 } = shown;
     const box = scrollingBoxFor(holder);
     const band = box ? landingBand(box) : shownBox(pageScroller);
     const close = (a, b) => Math.abs(a - b) <= 0.5;
-    return destination.top >= band.top - 0.5 && destination.bottom <= band.bottom + 0.5 && close(seen.top, destination.top) && close(seen.right, destination.right) && close(seen.bottom, destination.bottom) && close(seen.left, destination.left);
+    return destination.top >= band.top - 0.5 && destination.bottom <= band.bottom + 0.5 && close(seen2.top, destination.top) && close(seen2.right, destination.right) && close(seen2.bottom, destination.bottom) && close(seen2.left, destination.left);
   }
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = placeHolder(where);
@@ -3338,9 +3338,9 @@ function createVersionController({
       if (!upgraded(element)) continue;
       if (element.id) keys2.set(element, element.id);
       else {
-        const seen = counts.get(element.localName) ?? 0;
-        counts.set(element.localName, seen + 1);
-        keys2.set(element, `${element.localName}#${seen}`);
+        const seen2 = counts.get(element.localName) ?? 0;
+        counts.set(element.localName, seen2 + 1);
+        keys2.set(element, `${element.localName}#${seen2}`);
       }
     }
     return keys2;
@@ -3972,8 +3972,8 @@ function createVersionController({
     const moving = /* @__PURE__ */ new Set();
     let scrolls = 0;
     let resting = false;
-    const rest = (seen) => nextRender(() => {
-      if (seen !== scrolls) return rest(scrolls);
+    const rest = (seen2) => nextRender(() => {
+      if (seen2 !== scrolls) return rest(scrolls);
       resting = false;
       const boxes = [...moving];
       moving.clear();
@@ -4814,8 +4814,8 @@ function createReactionController({
         scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
         showNativeLayer(picker.palette, { source: picker.trigger });
         const opened = reactSurface;
-        const seen = (trigger) => seenRect(trigger, clipsPastSurfaces());
-        reactDeparture = whenNone([picker.trigger], seen, () => {
+        const seen2 = (trigger) => seenRect(trigger, clipsPastSurfaces());
+        reactDeparture = whenNone([picker.trigger], seen2, () => {
           if (reactSurface === opened) setReact(false);
         });
         picker.trigger.setAttribute("aria-expanded", "true");
@@ -5592,7 +5592,25 @@ function gestureWords(event, gesture) {
       return actionWords(event, gesture);
   }
 }
-function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
+function placeOf2(event) {
+  if (["resolve", "unresolve", "reply"].includes(event.kind))
+    return { thread: threadIdNamed(event.parent), nodes: [] };
+  const id = event.kind === "action" ? event.widget : event.anchor?.section;
+  if (!id) return null;
+  const held = messageHolding(id);
+  if (held)
+    return { thread: held.thread, message: held.message, nodes: [held.element] };
+  return { fragment: id, nodes: [elementById(id)] };
+}
+var seen = (where) => Boolean(where && seenRect(placeHolder(where), /* @__PURE__ */ new Map(), placeBox(where)));
+var KEYS_HELD = /* @__PURE__ */ new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "Fn"]);
+function createUndo({
+  post: post2,
+  stateApplying,
+  unaccountedGesture,
+  openThread,
+  threadPlace: threadPlace2
+}) {
   const gestures = /* @__PURE__ */ new Map();
   function retainGesture(attempt, facts) {
     const { effective, unresolved } = readApplication();
@@ -5648,13 +5666,92 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
       });
     return answer;
   }
+  let armed = null;
+  function disarm() {
+    armed?.stop();
+    armed = null;
+  }
+  onUserInput((event) => {
+    if (!armed || event.type === "wheel" || event.type === "blur") return;
+    if (event.type === "keydown" && (event.repeat || KEYS_HELD.has(event.key))) return;
+    if ((event.type === "pointerdown" || event.type === "touchstart") && inChrome(
+      /** @type {Node} */
+      event.composedPath()[0]
+    ))
+      return;
+    armed.inputs.push(inputCount());
+    if (armed.inputs.length > 1) disarm();
+  });
+  const armedFor = (event) => armed?.id === event.id && armed.inputs.every((input) => input === inputCount());
+  const drawingsOf = (id) => [
+    ...[...document.querySelectorAll(THREAD)].filter(
+      (node) => drawnThreadId(
+        /** @type {HTMLElement} */
+        node
+      ) === id
+    ),
+    surfaceFocusTarget(id, { part: "thread" })
+  ];
+  const inView = (place) => [
+    ...place.thread ? [threadPlace2(place.thread), ...drawingsOf(place.thread)] : [],
+    ...place.nodes
+  ].some(seen);
+  function needsShowing(entry) {
+    if (entry.picked_up) return true;
+    if (gestures.get(entry.event.attempt)?.reverse) return false;
+    const place = placeOf2(entry.event);
+    return Boolean(place) && !inView(place);
+  }
+  async function show(event) {
+    const place = placeOf2(event);
+    if (!place) return [];
+    if (place.thread) {
+      const opened = await openThread(place.message ?? place.thread, {
+        part: place.message ? "message" : "thread"
+      });
+      return [opened, ...place.nodes].filter(Boolean);
+    }
+    const url = new URL(window.location.href);
+    url.hash = place.fragment;
+    window.location.assign(url);
+    return place.nodes.filter(Boolean);
+  }
+  function arm(event) {
+    disarm();
+    let stop = () => {
+    };
+    const current = { id: event.id, stop: () => stop(), inputs: [] };
+    armed = current;
+    notice(`Press again to undo: ${takes(event)}`);
+    void show(event).then((nodes) => {
+      if (armed !== current || !nodes.length) return;
+      let landed = false;
+      stop = whenNone(
+        nodes,
+        (node, clips) => {
+          const shown = seenRect(node, clips);
+          landed ||= Boolean(shown);
+          return shown;
+        },
+        () => {
+          if (landed && armed === current) disarm();
+        }
+      );
+    });
+  }
   function undoLast() {
     if (stateApplying() || unaccountedGesture()) {
       raiseError(WAIT);
       return null;
     }
     const event = undoable();
-    return event ? withdraw(event) : null;
+    if (!event) return null;
+    if (!armedFor(event) && needsShowing(runtime.undo[0])) {
+      arm(event);
+      return null;
+    }
+    disarm();
+    return withdraw(event);
   }
   pageCommand({
     id: "history.undo",
@@ -5662,7 +5759,9 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
     keys: ["z"],
     // Said from the list the page holds rather than `undoable`, so a reading being
     // applied leaves the words standing while it holds the press back. The menu's row
-    // cuts long words, so it says the age at its end rather than after them.
+    // cuts long words, so it says the age at its end rather than after them. The words
+    // stand whether the press will show or take: which it does turns on where the user
+    // is reading when they press, which a scroll changes without a repaint.
     description: () => head() ? `Undo: ${takes(head())}` : "Undo the latest update",
     title: "undo",
     touch: () => head() ? `Undo: ${said(head())}` : "Undo",
@@ -7672,7 +7771,9 @@ function mountApplication(dependencies) {
   const undo = createUndo({
     post: post2,
     stateApplying,
-    unaccountedGesture: engagement.unaccountedGesture
+    unaccountedGesture: engagement.unaccountedGesture,
+    openThread: openPageThread,
+    threadPlace: (id) => dependencies.anchorTravel.threadDestination(id)
   });
   const markRead = async (messages) => {
     applicationState.markRead(messages);
@@ -8472,10 +8573,10 @@ function dataReader(element, input, accepted) {
     },
     {
       watched() {
-        let seen = d(selected.read);
+        let seen2 = d(selected.read);
         stopAccepted = selected.subscribe((now) => {
-          if (now === seen) return;
-          seen = now;
+          if (now === seen2) return;
+          seen2 = now;
           accepted();
         });
       },

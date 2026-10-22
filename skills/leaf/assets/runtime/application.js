@@ -184,6 +184,8 @@ export function mountApplication(dependencies) {
     post,
     stateApplying,
     unaccountedGesture: engagement.unaccountedGesture,
+    openThread: openPageThread,
+    threadPlace: (id) => dependencies.anchorTravel.threadDestination(id),
   });
 
   // The one bookkeeping door (delivery.js): the page draws the versions read as it

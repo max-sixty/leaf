@@ -110,6 +110,14 @@ served undo list carries, for its head when that head is an action, what the act
 did in its own document's words (`GestureWords.gesture`); every other kind the
 browser names from what it already holds (`runtime/undo.js`).
 
+The undo key shows before it takes. Where the gesture's place, its thread or the
+element it changed, is out of view, or the agent has picked the gesture up, the
+first press opens that place and says the next press takes it back, and only that
+next press, with no other key or press on the page between, withdraws it. The served
+undo list marks each entry a delivery handed into an agent's turn `picked_up`, the
+opened pickups the workflows read as Delivered (`delivery.opened_input_ids`). The
+door is unchanged: showing writes nothing.
+
 `undo` names the gesture and nothing else; every other field is the target's to
 state. It withdraws rather than deletes: nothing leaves the log, and the folds and
 the thread reading drop the event, so the page is what the revision says plus

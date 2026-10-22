@@ -278,12 +278,15 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     assert answer["widget"] == "second"
     button.click()
     expect(first).to_be_focused()
+    # Next put the answer out of view in its tab, so the first press shows it there
+    # and the second takes it back.
+    page.keyboard.press("z")
+    expect(page.locator("#second")).to_be_focused()
     with sending(page, "undo the second item's answer after Next"):
         page.keyboard.press("z")
     round_trip(page)
     expect(words).to_have_text("2 of 2 to answer")
     assert events_model.read_events(serve.page_dir)[-1]["undoes"] == answer["id"]
-    expect(first).to_be_focused()
     # Leave the next press at the region's start, as on initial arrival.
     page.get_by_role("tab", name="First", exact=True).click()
 

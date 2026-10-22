@@ -13,11 +13,11 @@ structure, then drive, judge, and fix them in the browser.
 
 Open the exact candidate before reading its implementation or the author's verdict,
 and use the page for its stated task at ordinary browser zoom. Before an input, name
-the subject information the reader needs to choose and correct it, then inspect the
-user-controlled intermediate states and judge whether the interaction's controls and
-feedback keep that information available. Vary user-controlled sizes from the
-smallest useful case to the largest, and positions through their useful range,
-alongside viewport dimensions. Record the initial visual problems in the subject,
+the subject information the reader needs to choose and correct it. Inspect the
+user-controlled intermediate states, compare that information with its pre-input view,
+and judge whether the interaction's controls and feedback preserve access to it. Vary
+user-controlled sizes from the smallest useful case to the largest, and positions
+through their useful range, alongside viewport dimensions. Record the initial visual problems in the subject,
 actions, evidence, and supporting information. Give an independent reviewer the task
 and candidate before the author's assessment.
 
@@ -103,10 +103,9 @@ height when the surface claims to fit the viewport.
 ## Observe
 
 Serve pages with `serve` and `open_page` from `tests/render_harness.py`, or a plain
-`uv run leaf-dev preview <example>` in the background, which exercise the real HTTP
-and event-log loop without delivering feedback to the task, and give independent runs
-separate page state. Drive with real input and confirm each intended transition
-occurred.
+`uv run leaf-dev preview <example>` in the background. Both exercise the real HTTP and
+event-log loop without delivering feedback to the task. Give independent runs separate
+page state, drive with real input, and confirm each intended transition occurred.
 
 For each experiment record initial state → input → expected relationship → observed
 result, with the evidence that decides the claim: focus, surface and owner identities
@@ -123,9 +122,10 @@ group and align, text wraps at meaningful boundaries, controls and icons stay le
 and space follows the active task. Capture the full viewport for composition, and
 native-scale details where the full image can't support the judgment. Computed styles
 and geometry explain a visual result but don't establish that it looks coherent. Test
-affected paint in both color schemes and in print. Judge against
-`browser/AGENTS.md`, "Layout and motion", and automate the concrete
-failures visual judgment finds.
+affected paint in both color schemes and in print.
+
+Judge against `browser/AGENTS.md`, "Layout and motion". Visual grammar stays a browser
+judgment; automate only the concrete failures it finds.
 
 ## Reconcile
 

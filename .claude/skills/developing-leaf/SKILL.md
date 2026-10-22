@@ -30,22 +30,25 @@ A fact both runtimes use has one home (`browser/AGENTS.md`, "Facts both
 runtimes know"). When a change adds a parity fixture, or a test that scans one
 language's source for the other's names, ask why the fact isn't generated.
 
-Developer tooling and benchmarks follow `dev/AGENTS.md`, "Tests"; `tests/` holds
-product behavior.
+Before adding tests for developer tooling or benchmarks, or selecting checks for
+them, read `dev/AGENTS.md`, "Tests"; `tests/` holds product behavior.
 
 ## Review a UI change
 
+Record browser API and rendering support gaps in
+[`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
+assessing a gap" section says.
+
 Before handing over a change to browser controls, navigation, focus, motion, forms or
 layout, run `/ui-sweep` (`../ui-sweep/SKILL.md`) on the changed surface and the
-interactions that depend on it. Record a browser API or rendering gap in
-[`notes/browser-support.md`](../../../notes/browser-support.md) as its "Recording and
-assessing a gap" section says.
+interactions that depend on it. Its "External review" section says when to use the
+skills below, and its "Review a design system" section covers theme and shared-control
+changes.
 
 ### External UI skills
 
 These optional skills are installed separately from Leaf; check the harness's
-available skills before invoking one. `/ui-sweep`, "External review", says when to use
-them.
+available skills before invoking one.
 
 - [Impeccable](https://github.com/pbakaus/impeccable#installation):
   `/impeccable critique` for hierarchy, grouping and clarity, `audit` for technical UI
@@ -146,9 +149,10 @@ keyboard-targeted item inside an open surface. Capture the viewport when fixed c
 should appear: a Playwright screenshot of an element taller than the viewport draws
 fixed overlays in the wrong place.
 
-For each ordinary input, state which content and controls the reader needs to keep in
-view or reach next, then check their computed geometry before and after the input in
-the delivered page, embedded views included. Make those relationships hold as content
+Derive the required visual relationships from the reader's task, not from the checks
+that pass. For each ordinary input, state which content and controls the reader needs
+to keep in view or reach next, then check their computed geometry before and after the
+input in the delivered page, embedded views included. Make those relationships hold as content
 and sizes change, through layout constraints or positions derived from one shared
 dimension, and check the constraints in the source too, since a screenshot can hide a
 small misalignment. Re-vendor after a runtime, theme, registry or widget change, then
@@ -186,10 +190,8 @@ edits at one URL; `--source <file>` serves any HTML file. Its module header
 Start one that stays in the foreground as a long-running command (`run_in_background`
 in Claude Code).
 
-A plain preview has no claim, so presses on it reach only the page's log; use it for
-screenshots and browser checks. `--user` claims the page so the user's comments reach
-this session, and every click this session drives there arrives as an unanswered
-update. So drive only plain previews, and start a `--user` preview only from the
+Drive only plain previews, since every click this session drives on a `--user`
+preview arrives as an unanswered update, and start a `--user` preview only from the
 session the user talks to. Don't idle a preview to quiet the loop; `idle` ends the
 agent's side of the page, which the panel shows as Page closed.
 
@@ -218,18 +220,18 @@ is part of the change.
 The suite only stands in for each harness, so run the journey on the harness a change
 touches:
 
-- `claude-code`: after a change to `hooks/hooks.json`, `hooks/claude-code.ts`,
-  `ClaudeCodeHarness`, `hooks.py`, or the watch between turns in `session.py`. Add
-  `--sandbox` after a change to `bridge.py`, the README's "Agent sandboxes" settings,
-  or what a `leaf` command needs from outside its page directory.
-- `codex-app-server` and `codex-queue`, both: after a change to `codex.py`,
-  `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn in
-  `service.py`. Add `--preview` for a change to preview startup or lifetime, and
+- `claude-code` (`journey_claude_code.py`): after a change to `hooks/hooks.json`,
+  `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, or the watch between turns
+  in `session.py`. Add `--sandbox` after a change to `bridge.py`, the README's "Agent
+  sandboxes" settings, or what a `leaf` command needs from outside its page directory.
+- `codex-app-server` and `codex-queue` (`journey_codex.py`), both: after a change to
+  `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn
+  in `service.py`. Add `--preview` for a change to preview startup or lifetime, and
   `--sandbox` for a change to `codex_tool.py`, the MCP server in
   `.codex-plugin/plugin.json`, or what a `leaf` command needs from outside its page
   directory.
-- `pi`: after a change to `hooks/pi.ts`, `PiHarness`, `hooks.py`, or the watch between
-  turns in `session.py`.
+- `pi` (`journey_pi.py`): after a change to `hooks/pi.ts`, `PiHarness`, `hooks.py`, or
+  the watch between turns in `session.py`.
 
 For the website, `tests/AGENTS.md`, "Run what the change needs", says which delivery
 checks CI runs, and `worker/README.md`, "Local development", how to reproduce a Worker
@@ -242,10 +244,10 @@ To benchmark replies, run each harness's journey a few times, with and without
 
 ## Compare checkout versions
 
-`uv run leaf-dev compare <example>` serves the merge-base runtime beside this checkout
-(`--help` lists the flags). Keep the default shared source for a runtime change, pass
-`--authored` when the authored content changed, and pass `--user` only when the URLs go
-to the user.
+`uv run leaf-dev compare <example>` serves the merge-base runtime beside this checkout,
+in the foreground as a preview runs ("Preview a page"); `--help` lists the flags. Keep
+the default shared source for a runtime change, pass `--authored` when the authored
+content changed, and pass `--user` only when the URLs go to the user.
 
 ## Author or revise a page
 
@@ -302,15 +304,9 @@ Choose the eval by what the instruction is for:
   development contract needs the suite's staging, such as a served page or an
   installed arm.
 
-For Leaf's suite, run the merge base beside the working tree:
-
-```bash
-pnpm install --frozen-lockfile
-uv run leaf-dev eval [CASE]... --base --harness claude-code|codex [--repeat N]
-pnpm run eval:view
-```
-
-`evals/README.md` owns selection, arms, the case format and where results go. Score
+For Leaf's suite, run the merge base beside the working tree with `--base`;
+`evals/README.md` owns the commands, selection, arms, the case format and where results
+go. Score
 every case whose `metadata.tags` covers the passage, such as `asks` for decisions,
 counting only runs that opened the changed file (`/improving-instructions`,
 "Confirming each arm loaded what you edited"), and read the outputs as well as the

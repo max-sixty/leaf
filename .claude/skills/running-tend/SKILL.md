@@ -143,7 +143,8 @@ Merge a fix that is correct but incomplete, and open an issue for what it leaves
 ## A red `ci` on main is live
 
 A red `ci` on main affects whoever pulls next, so treat it as live
-(`tests/AGENTS.md`, "Run what the change needs", says what each trigger runs).
+(`tests/AGENTS.md`, "Run what the change needs", says what each trigger runs; every
+`test` job also runs `pnpm run check`).
 Pushes to main hold one suite slot and a newer commit replaces the one waiting,
 which GitHub records as a cancelled run whose `test` job has no runner (`runner_id`
 0); that is not a regression. A `test` that held a runner and still ended cancelled
@@ -212,13 +213,14 @@ or a material tradeoff prevents a bump, report what remains to establish.
 Look for concrete, material opportunities or incompatibilities in Leaf's current
 code or agent workflow, including new capabilities that could simplify Leaf or
 improve its user experience, and check the affected implementation and upstream
-documentation before deciding. A release that mentions hooks, waking agents,
-background work, plugins, MCP, or permissions does not by itself justify an issue.
+documentation before deciding. Releases touch Leaf's harness integration through
+hooks, waking agents, background work, plugins, MCP and permissions, but a release
+that mentions one does not by itself justify an issue.
 Claude Code's `asyncWake` is the calibration example: a harness capability that
 could improve Leaf's comment-to-agent wake loop warrants investigation. Routine
 fixes, cosmetic changes, and speculative relevance do not. Expect a qualifying
-finding on roughly 5% of days; this is a relevance threshold, not a quota, and it
-does not limit model-default bumps.
+finding on roughly 5% of days; this is a relevance threshold, not a quota or a reason
+to withhold an important finding, and it does not limit model-default bumps.
 
 For a qualifying finding, open an issue here rather than implementing it as part of
 the scan. Include the upstream version or date and source link, the affected Leaf

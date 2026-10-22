@@ -63,10 +63,10 @@ ended.
 | Term | Identity criterion |
 |---|---|
 | **Page instance** | One page directory: its source, revisions, selected layer, data, media and event history |
-| **Package** | One composable source directory of declarations and their payload |
+| **Package** | One composable source directory of declarations and their payload. Its code runs in the page document beside every other script, so a package bounds reuse, not reach |
 | **Leaf layer** | One checked, vendored composition of packages |
 | **User session** | One browser tab's temporary interaction with a page instance: its focus, scroll, selection and throwaway exploration |
-| **In force** | An action, report, reaction or decision that no undo took back and no version note retracted; for each widget, unit and action kind, the latest one sets the state (`events.InForce`, `StateProjection.in_force`; the served event field is still called `stands`) |
+| **In force** | An action, report, reaction or decision that no undo took back and no version note retracted; for each widget, unit and action kind, the latest one in force sets the state (`events.InForce`, `StateProjection.in_force`; the served event field is still called `stands`) |
 
 For an authored occurrence say *Leaf element*, never *instance* alone.
 
@@ -96,10 +96,10 @@ or an obligation (it stays ordinary English for a list item or a row of a list),
 | **Page shell** | The body-level box that sizes the page after the chrome takes its space |
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
 | **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: a page Layout on the content frame only, `layout-tiles` on any block |
-| **Frame** | A box whose size comes from outside it, such as `main`, a part, a pane or a cell of a Layout, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
+| **Frame** | A box whose size comes from outside it, such as `main`, a root tab panel, a part, a pane or a cell of a Layout, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
 | **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--wide`, `available` all of it |
 | **Bounded block** | A block that keeps its own height and scrolls inside it (`x-bound`, `data-bound`), which makes it a reading region |
-| **Sidebar page** | A content frame on `layout-sidebar`, with the body beside its `aside` when both fit |
+| **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap, with the body beside its `aside` when both fit |
 | **Margin sidebar** | `aside.sidebar` on a column page: supporting material, usually navigation, in the left margin where it fits and in flow otherwise |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
 | **Part** | One `lf-part` of a page of parts, listed down the window's left edge under the page's title (`page-layout.md`, "A page of parts"). Not a **view**, which is Leaf's panel's |
@@ -195,8 +195,8 @@ Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `o`
 toggles what the page shows without changing what input means. Commands have stable
 dotted ids.
 
-A *binding* is one key a scope's row declares for a command, the word code, the
-register and package authors use. A *shortcut* is the whole key sequence a user
+A *binding* is one key a scope's row declares for a command; code, the register and
+package authors use this word. A *shortcut* is the whole key sequence a user
 presses, prefix included (`g d`), and the only word visible text uses. A *keyboard
 route* is any keyboard path to an action, including Tab to a native control. A row's
 `routes` are its extra keyed meanings, each with its own id and binding.
@@ -210,11 +210,11 @@ shows no other key hints.
 
 These name Leaf concepts no standard term covers:
 
-- **Standing**, not *focus*: a user can be at a target through its margin cluster,
-  thread card or note on the details shelf, while DOM focus is on one node. Where the
-  two coincide, say *focus*. Use *standing* only for where the user is: say *in force*
-  for an event not taken back, *current* for the latest value, *open* for something
-  still owed or on screen.
+- **Standing**, not *focus*: a user can be at a target through the element itself or
+  its margin cluster, thread card or note on the details shelf, while DOM focus is on
+  one node. Where the two coincide, say *focus*. Use *standing* only for where the
+  user is: say *in force* for an event not taken back, *current* for the latest value,
+  *open* for something still owed or on screen.
 - **Trip** and **Journey**, not *navigation*: web navigation always adds or replaces a
   history entry, while a trip decides whether to and a journey shares one.
 - **Landing** and **Floor**, not *focus restoration*, which names neither where a step
@@ -238,7 +238,7 @@ These name Leaf concepts no standard term covers:
 - **Key badge**: it carries hint codes as well as bindings, so *keycap* would misname
   half its uses.
 - **Tally**: a *progress indicator* draws completion as a bar or ring, and a *counter*
-  counts anything; a tally counts a region's open obligations and leads to the next.
+  counts anything; a tally counts a region's open obligations against their total and leads to the next.
 
 **Pin**, **Toolbar** and **Picker** keep their ordinary UI meanings. Qualify **picker**
 (the target picker, the version picker) where the reaction picker could be meant.

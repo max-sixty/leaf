@@ -153,7 +153,7 @@ in `leaf-assets.json` and the README's image URLs.
 ## Journeys
 
 `leaf-dev journey TARGET` runs one user's journey against a real agent;
-`/developing-leaf`, "Run the agent journey", says what it checks and when to run it.
+`/developing-leaf`, "Run the agent journey", says when to run each target.
 `journey.py` owns what the targets share: a throwaway home holding only the host's
 login, evidence under `.tmp/journey/`, the `Terminal` it hears a session through, and
 the `User`. It times each comment on the server's clock, split into delivery, model and

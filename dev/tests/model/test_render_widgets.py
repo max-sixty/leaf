@@ -1,7 +1,8 @@
 """Board, suggestion, ask, and widget composition tests."""
 
-from leaf.structure import SourceDocument
 from leaf_dev.commands import corpus as corpus_model
+
+from leaf.structure import SourceDocument
 
 
 def test_the_composed_corpus_carries_each_examples_head_modules():

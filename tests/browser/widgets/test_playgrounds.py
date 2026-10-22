@@ -6,8 +6,6 @@ import re
 
 import pytest
 from interact_support import refused_on
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -36,6 +34,8 @@ from browser.threads import open_panel_thread
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

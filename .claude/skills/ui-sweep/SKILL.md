@@ -24,7 +24,7 @@ and candidate before the author's assessment.
 ## Derive
 
 For a recurring sweep, start from a user workflow in the examples.
-`skills/leaf/assets/AGENTS.md` holds the UI contracts, render gates, and the
+`browser/AGENTS.md` holds the UI contracts, render gates, and the
 ownership map. Read the source as part of the audit, including when delegating it.
 
 Keep a short working model of the interaction: the user's goal; the source, control,
@@ -124,7 +124,7 @@ and space follows the active task. Capture the full viewport for composition, an
 native-scale details where the full image can't support the judgment. Computed styles
 and geometry explain a visual result but don't establish that it looks coherent. Test
 affected paint in both color schemes and in print. Judge against
-`skills/leaf/assets/AGENTS.md`, "Layout and motion", and automate the concrete
+`browser/AGENTS.md`, "Layout and motion", and automate the concrete
 failures visual judgment finds.
 
 ## Reconcile

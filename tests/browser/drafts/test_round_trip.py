@@ -7,10 +7,6 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, append_command
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import (
@@ -34,6 +30,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import service as service_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

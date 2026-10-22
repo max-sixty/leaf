@@ -20,9 +20,9 @@ from html import escape
 from pathlib import Path
 
 import click
-from leaf.schema import MEDIA_TYPES
 from PIL import Image
 
+from leaf.schema import MEDIA_TYPES
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import observed_sum
 from leaf_dev.commands.eval_pairs import samples, saved_comparison

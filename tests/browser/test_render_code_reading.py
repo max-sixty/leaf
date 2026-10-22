@@ -2,10 +2,11 @@
 
 from html import escape
 
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import PANEL, leaf_page, open_page, scroll_settled, told
+
+from leaf.render_checks import rendered
 
 
 def open_keyboard_shortcuts(page):

@@ -2,42 +2,44 @@
 
 ## Measured facts
 
-Use `lf-num` for a number in a sentence that a repeatable measurement produced: bind it
-to its measurement source and pin the `run` receipt `leaf data set` returns, as the
-`lf-num` entry shows. Use one source id per measurement, and plain HTML for a number
-with no repeatable source. The value stays as you wrote it, and any later write to the
-source, even of the same value, makes `page check` advise that the number needs another
-look.
+Use `lf-num` for a repeatably measured number inside a sentence, as its entry shows.
+
+The value stays as you wrote it. Any later write to the source, even of the same value,
+makes `page check` advise that the number needs another look. Use one source id per
+measurement, and plain HTML for numbers with no repeatable source.
 
 ## Interactive and visual evidence
 
-Use `lf-diagram` for a diagram in Mermaid syntax. It ships in the `diagram` package, so
-create the page with `leaf page init --package diagram <page>`. `page check --render`
-reports syntax errors and empty drawings; look at each rendered diagram to check it
-shows the relationships it should. Without visual access, check the source's labels and
-edges against the claims, state those claims in prose or a table beside it, and report
-the diagram as unchecked (`page-checkpoints.md`, "Pre-handover review").
+Use `lf-diagram` for Mermaid syntax rendered by Pele. It ships in the `diagram`
+package, so create the page with `leaf page init --package diagram <page>`.
+`page check --render` reports
+syntax errors and empty drawings; look at each rendered diagram to check it shows the
+relationships it should. Without visual access, check the source's labels and edges
+against the claims, state those claims in prose or a table beside it, and report the
+diagram as unchecked (`page-checkpoints.md`, "Pre-handover review").
 
 Draw what automatic layout can't place, such as a page layout, a wireframe or a
-thumbnail inside an option, as an `svg.drawing` in a `<figure>` with an `id`, with
-`data-width="wide"` when it needs the room. The figure scales the drawing to its width,
-labels included, so make the `viewBox` close to the width it is shown at: 1600 units in
-a 720px column draw an 11px label at 5px. Keep the drawing schematic: a window is a
+thumbnail inside an option, as the `svg.drawing` idiom in a `<figure>` with an `id`,
+with `data-width="wide"` when it needs the room. The figure scales the drawing to its
+width, labels included, so make the `viewBox` close to the width it is shown at: 1600
+units in a 720px column draw an 11px label at 5px. Keep the drawing schematic: a window is a
 rounded box, a line of text a grey bar, and only the figure's subject takes the accent
 colour. Put compared states side by side in one figure at one scale, drawn alike except
-where they differ, and use the `<figcaption>` for what the drawing can't show. The
-idiom's classes follow the light and dark schemes, which an SVG file added with
-`leaf page media` can't.
+where they differ. The idiom's classes use theme tokens, so the drawing follows light
+and dark schemes; an SVG file added with `leaf page media` can't. Use the
+`<figcaption>` for what the drawing can't show.
 
-Use `lf-chart` for quantities rather than Mermaid's charts. A few numbers the sentence
-can carry belong in prose.
+Use `lf-chart` for quantities, not Mermaid's charts. A few numbers the sentence can
+carry belong in prose.
 
-A user can comment on a whole drawing. To let them comment on one part of an inline
-`<svg>`, put an `id` on each `<g>` holding a shape and its label, named for what the
-part is, since the thread reports it to you. The `lf-diagram` entry says which boxes
-`parts="all"` makes commentable. A comment's mark stays where its part was when the
-mark was drawn, so draw parts that move in a page widget that declares `x-visual` parts
-(`module-annotations.md`, "Visual parts").
+A user can comment on a whole drawing. To let them comment on one part, give the part
+an id: in an inline `<svg>`, put an `id` on each `<g>` holding a shape and its label,
+named for what the part is, since the thread reports it to you. For `lf-diagram`, its
+entry says which boxes `parts="all"` makes commentable.
+
+A comment's mark stays where its part was when the mark was drawn, so a part that moves
+leaves its mark behind. Draw moving parts in a page widget that declares `x-visual`
+parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
 
@@ -45,11 +47,10 @@ Use `lf-text-document` to show a text file the user can comment on without copyi
 into your HTML.
 
 When the user reviews an edit to text, such as code, prose or configuration, show its
-exact patch in `lf-diff` and explain the effect beside it. Consider including the patch
-in updates on current work too. Choose the comparison that covers the work being
-discussed; `wt step diff`, when available, often covers a branch. `lf-diff` ships in
-the `diff` package: create the page with `leaf page init --package diff <page>`. Bind
-each widget to a data source:
+exact patch in `lf-diff` and explain the effect beside it. Choose the comparison that covers the work being
+discussed; `wt step diff`, when available, often covers a branch.
+`lf-diff` ships in the `diff` package: create the page with
+`leaf page init --package diff <page>`. Bind each widget to a data source:
 
 ```html
 <lf-text-document
@@ -62,8 +63,7 @@ each widget to a data source:
 <lf-diff id="review-patch" source="review-patch" collapsed><pre></pre></lf-diff>
 ```
 
-Then set each source to one JSON string, of a whole file, a line range or a diff, and
-run the pipeline again to refresh the open page:
+Then set each source to one JSON string, of a whole file, a line range, or a diff:
 
 ```bash
 jq -Rs . SKILL.md | leaf data set <page> leaf-skill
@@ -71,9 +71,10 @@ sed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill
 wt step diff | jq -Rs . | leaf data set <page> review-patch
 ```
 
-`lf-diff` takes text changes with `@@` hunks and pure renames; describe binary,
-mode-only and copied files in prose and leave them out. For a large patch whose files
-should load only when opened, read the contract's producer instructions:
+Run the pipeline again to refresh the open page. `lf-diff` takes text changes with `@@`
+hunks and pure renames; describe binary, mode-only and copied files in prose and leave
+them out. For a large patch whose files should load only when opened, read the
+contract's producer instructions:
 
 ```bash
 leaf page instructions <page> --contract unified-diff | jq -er '.producer'
@@ -101,8 +102,8 @@ Use a recording for a fixed demo and a live widget where the user should operate
 subject. Show a browser journey recorded with Playwright as a trace in `lf-trace`
 rather than a video, so the user can step through and comment on each action. `lf-trace`
 ships in the `playwright` package; after `leaf page init --package playwright <page>`,
-its author instructions cover comparable journeys and its producer instructions give
-the import command:
+its author instructions own the convention for comparable journeys; its producer
+instructions give the import command:
 
 ```bash
 leaf page instructions <page> --contract playwright-trace | jq -er '.producer'
@@ -115,9 +116,9 @@ recording whole, a third larger, so trim recordings to what the reader needs.
 Put invented examples inside `lf-sample` and make them visibly fictional. Render
 tickets, source locations and URLs as real links.
 
-`lf-shot` shows two captures of an interface, before and after, taken at the same
-viewport. It draws each capture across the column, so a capture of a whole window shows
-well below its real size. For a smaller change, capture the subject in a reading column
+`lf-shot` shows two versions of an interface, before and after, captured at the same
+viewport. It draws each capture across the column (`--col`), so a capture of a whole
+window shows well below its real size. For a smaller change, capture the subject in a reading column
 rather than the whole window and crop both frames to the change, or show the element at
 real size. Before writing the prose and `alt`, open both images and compare them where
 the change should be.
@@ -130,7 +131,8 @@ strip reads "identical", "only slight changes" or "changed throughout". If it re
 shows the change or say that nothing changed. If it reads "only slight changes", name
 the change in the prose, since the reader will hardly see it.
 
-Add `pixels` when the reader must see exactly which pixels changed, such as a shift of a
-few pixels, a subtle recolour or a claim that nothing else changed. It paints the
-removed, added and recoloured pixels over the greyed after image, so build no
-difference image of your own. Leave it off where the change reflows much of the frame.
+Add `pixels` when the reader must see exactly which pixels changed: a shift of a few
+pixels, a subtle recolour, a moved mark, or a claim that nothing else changed. It adds
+a view painting removed pixels red, added pixels blue and recoloured pixels amber over
+the greyed after image, so build no difference image of your own. Leave it off where
+the change reflows much of the frame.

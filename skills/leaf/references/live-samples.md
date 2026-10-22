@@ -4,8 +4,7 @@ Use `lf-sample` with one direct `template[data-sample]` child to let the user op
 complete Leaf page inside the surrounding page. Give both the element and the template
 stable ids, and put the sample page's content and styles directly in the template. The
 sample is a column page unless the template's `class` names another Layout, such as
-`class="layout-workspace density-working"`, and the template takes any page-wide
-setting, such as `data-annotations="page"`:
+`class="layout-workspace density-working"`:
 
 ```html
 <lf-sample id="practice" label="practice release note">
@@ -17,16 +16,19 @@ setting, such as `data-annotations="page"`:
 ```
 
 Put only the demonstrated page inside the template; labels, your own controls and
-instructions for using the sample go outside it. Write the sample's content in the
-template rather than copying rendered controls from the parent.
+instructions for using the sample go outside it.
 
 The sample uses the parent's layer and has its own event log, so its decisions and
-comments never reach the parent's log or On me. When the sample is about the window
-itself, such as Leaf's panel and its views, add the boolean `window` attribute to show
-a whole Leaf window at a fixed height. The user clicks or tabs into the sample to use
-it, Escape returns to the parent, and Reset starts it fresh from the template. A
-sample's history is temporary, so use an ordinary Leaf page when the history must last.
-A page with a live sample can't be exported (`serving-pages.md`, "Exported files").
+comments never reach the parent's log or On me. When the sample is
+about the window itself, such as Leaf's panel and its views, add the boolean `window`
+attribute to show a whole Leaf window at a fixed height. The user can click or Tab into
+the sample and use it fully; Escape returns to the parent, and Reset starts it fresh
+from the template. A sample's
+history is temporary, so use an ordinary Leaf page when the history must last. A page
+with a live sample can't be exported (`serving-pages.md`, "Exported files").
+
+To give the sample a page-wide setting such as `data-annotations="page"`, put it on the
+template.
 
 A thread message's `--markup` can carry a live sample too. It uses the layer of the
 version showing the message and can load only that version's saved files, so keep its
@@ -69,26 +71,28 @@ anchors the events name inside the template, and don't post setup events from a 
 module.
 
 To start the sample with threads from the parent instead, set `data-sample-threads` on
-the template to their space-separated ids. A thread the parent's log doesn't hold yet
-is skipped, and the content the threads anchor to must exist in the sample. A template
-uses either `data-sample-events` or `data-sample-threads`, not both.
+the template to their space-separated ids. A thread the parent's log doesn't hold yet is
+skipped, and the content the threads anchor to must exist in the sample. A template uses either `data-sample-events` or `data-sample-threads`, not
+both.
 
 The sample is a separate, sandboxed document: its styles and scripts apply only to it,
 and neither page can read the other's DOM, storage or functions. A page module drives a
-sample through the element's API rather than by clicking its controls or reading its
-DOM:
+sample through the element's API:
 
-- `await sample.ready` resolves once the sample is usable and rejects if it can't load.
+- `await sample.ready` resolves once the sample is usable, and rejects if it can't load.
   The parent doesn't wait for samples off screen, so await `ready` rather than the
   page's presentation.
 - `await sample.reset()` replaces the sample with a fresh copy.
 - The bubbling `lf-sample-ready` event, with `detail.sample`, fires after every load,
-  Reset and reloads included; reapply there any view your controls chose.
+  including Reset and reloads; reapply any view your controls chose there.
 - `await sample.showThread(id)` shows a thread by its root event id, as its marker
   would; `{surface: "panel"}` shows it in the sample's Leaf panel, or with no id the
   panel's Threads, on its resolved threads with `status: "resolved"`. It returns false
   when a newer selection or Reset replaces it.
 
-An ordinary served Leaf page can also appear in a plain `<iframe src="…">`, keeping its
-own lasting history, but only inside a page of the same origin: the same scheme,
-hostname and port.
+Use these rather than clicking the sample's controls or reading its DOM. Write the
+sample's content in the template rather than copying rendered controls from the parent.
+
+An ordinary served Leaf page can also appear in a plain `<iframe src="…">`, with its own
+lasting history, but only inside a page of the same origin: the same scheme, hostname
+and port.

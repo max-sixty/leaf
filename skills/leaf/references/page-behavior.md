@@ -1,13 +1,13 @@
 # Page behavior
 
 Write page behavior in an inline `<script type="module">` or in modules under `page/`,
-referenced as `/page/…`. A module imports Leaf's helpers from `/runtime/widget-api.js`
-(`module-authoring.md`), and its relative imports stay within `page/`. Load a library
-that ships only as a classic script with `<script defer src>`. For floating placement
-that native layout can't express, import the bundled Floating UI library from
-`/vendor/floating-ui.esm.js`. Leaf saves the local files that scripts and stylesheets
-name by a literal path in the same revision as the markup, so import page files by
-literal URL.
+referenced as `/page/…`. Load a library that ships only as a classic script with
+`<script defer src>`. Relative imports stay within `page/`. A module imports Leaf's helpers
+from `/runtime/widget-api.js`. For floating placement that native layout cannot
+express, import the bundled Floating UI library from `/vendor/floating-ui.esm.js`.
+Leaf saves the local files that scripts and stylesheets name
+by a literal path in the same revision as the markup, so import page files by literal
+URL.
 
 When you change only content and style, the open page updates in place: unchanged
 widgets keep their elements and the user's state, and changed widgets are replaced.
@@ -15,22 +15,25 @@ When you change the registry or JavaScript, the page reloads. Leaf restores read
 position, unsent drafts, and focus and control state for elements that keep their id and
 tag, but module state is lost.
 
-Page modules follow `module-authoring.md`, "What a behavior module owes", so their
-controls keep working after a reconnect and inside quoted threads. A module that shows
-the user's obligations in its own layout reads them from Leaf (`module-reading.md`,
-"Reading obligations and the On lists").
+Page modules follow `module-authoring.md`, "What a behavior module owes", whose rules
+keep page controls working after a reconnect and inside quoted threads.
+
+A page module that shows the obligations in each card or section of its own layout reads them
+from Leaf (`module-reading.md`, "Reading obligations and the On lists").
 
 `leaf page check` opens the page once in the host's browser when it has code of its own,
-or a widget whose module reads data or media, such as a chart or a screenshot pair. It
-fails on an uncaught exception or rejected promise and on a widget that couldn't draw.
-Code that runs only after a gesture or a timer isn't reached, so operate it yourself
-before handover.
+such as a script or a page widget, or places a widget whose module reads what no static
+check opens: a data widget such as a chart, or a screenshot pair's images. It fails on any
+uncaught exception or rejected promise, naming the source location, and on any widget
+that couldn't draw. Code that runs only after a gesture or a timer isn't reached, so
+operate it in your review before handover.
 
 `page/registry.json` adds declarations in the package registry format; an element entry
 there replaces the layer's entry for that tag. `page/widgets/<tag>.js` replaces a
-package's module for that tag, with or without a page declaration. Use a package when
-behavior, styling or vocabulary is reused across pages; a one-page explorer or
-playground keeps its code in `page/`.
+package's module for that tag, with or without a page declaration.
+
+Use a package when behavior, styling or vocabulary is reused across pages; a one-page
+explorer or playground keeps its code in `page/`.
 
 A script, stylesheet, font, image or frame can also come from another server by its
 absolute `http(s)://` URL, and page code can fetch from anywhere, but these load only

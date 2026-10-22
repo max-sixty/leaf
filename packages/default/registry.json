@@ -144,7 +144,7 @@
   },
   "lf-text-document": {
     "description": "A text file from page data with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
-    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate, sandboxed document that inherits no Leaf styles and that comments can't reach, so the user comments on the source. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default. To start it collapsed, put it inside `details`.",
+    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default, however long the text. To start it collapsed, put it inside `details`.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -414,7 +414,7 @@
   },
   "lf-shot": {
     "description": "A before-and-after pair of screenshots under a draggable divider, with optional outlines of what changed and a view of the changed pixels.",
-    "x-instructions": "Use it for two versions of an interface. Set `before` and `after` to the paths `leaf page media` prints, and describe the pair in `alt`. `authoring-evidence.md`, \"Source files and media\", covers the captures and when to add `outlines` or `pixels`. Put explanation in the prose around the pair, not inside the element. When a decision turns on the change, put the pair inside the option that proposes it, or, for an accept-or-reject decision, with the group, where it shows both answers.",
+    "x-instructions": "Use it for two versions of an interface. Set `before` and `after` to the paths `leaf page media` prints, and describe the pair in `alt`. `authoring-evidence.md`, \"Source files and media\", covers making captures, laying out captures that vary along more than one axis in a table, and when to add `outlines` or `pixels`. Put explanation in the prose around the pair, not inside the element. When a decision turns on the change, put the pair inside the option that proposes it, or, for an accept-or-reject decision, with the group, where it shows both answers.",
     "type": "object",
     "properties": {
       "id": {
@@ -571,7 +571,7 @@
   },
   "lf-tab": {
     "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
-    "x-instructions": "In a side-list queue each tab's `summary` shows under its label, and adjacent tabs with the same `group` share one heading; `page-layout.md`, \"A workspace\", says what to write in each. Keep ids distinct across tabs, which share the page's id space.",
+    "x-instructions": "In a side-list queue, write each tab's `summary` and `group` as `page-layout.md`, \"A workspace\", says. Keep ids distinct across tabs, which share the page's id space.",
     "x-name": "label",
     "type": "object",
     "properties": {

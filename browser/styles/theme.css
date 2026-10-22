@@ -271,6 +271,9 @@
      rail below is sized from the same length, so it is named rather than written into
      each. */
   --margin-entry: max(32px, var(--aim-floor));
+  /* A corner mark's disc (controls.css, `.lf-corner-mark`). A surface that keeps room
+     for the marks on its corners reads it, so it is named rather than written there. */
+  --corner-mark: 20px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
      to know where a pin will stand before packing it. */
   --pin-inset: 4px;

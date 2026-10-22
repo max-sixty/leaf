@@ -8,6 +8,8 @@
     --lf-fp-quiet: color-mix(in srgb, var(--ink) 62%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
+    --lf-ground: var(--lf-fp-surface);
+    --lf-ring: var(--lf-fp-ring);
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
     --lf-fp-aim: 32px;
@@ -70,7 +72,7 @@
     flex-shrink: 0;
   }
   @layer lf-base {
-    @scope (.lf-floating-panel) to (.lf-fp-outlet, .lf-fp-response, .lf-composer-media) {
+    @scope (.lf-floating-panel) to (.lf-fp-outlet, .lf-fp-response, .lf-composer-media, .lf-corner-mark) {
       :is(button, input, textarea) {
         font: inherit;
         color: inherit;
@@ -211,8 +213,6 @@
   }
   :is(.lf-fp-field, .lf-fp-response) {
     anchor-name: --lf-fp-field;
-    --lf-media-ground: var(--lf-fp-surface);
-    --lf-media-ring: var(--lf-fp-ring);
   }
   :is(.lf-fp-field, .lf-fp-response) .lf-composer-media:not([hidden]) {
     position: fixed;
@@ -507,19 +507,8 @@
     }
   }
   .lf-fp-minimize {
-    position: absolute;
     top: -9px;
     right: -9px;
-    display: grid;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    min-height: 0;
-    padding: 0;
-    border-radius: 50%;
-    background: var(--lf-fp-surface);
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
-    color: var(--lf-fp-muted);
     opacity: 0;
     visibility: hidden;
     transition: opacity 120ms, visibility 0s 120ms;
@@ -530,14 +519,6 @@
       visibility: visible;
       transition: opacity 120ms;
     }
-  }
-  .lf-fp-minimize:hover {
-    background: var(--lf-fp-surface);
-    color: var(--ink);
-  }
-  .lf-fp-minimize-icon {
-    width: 12px;
-    height: 12px;
   }
   .lf-fp-badge,
   .lf-fp-news-dot {
@@ -604,7 +585,7 @@
     display: none;
   }
   .lf-fp-crumb {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     display: flex;
     align-items: baseline;
@@ -656,19 +637,23 @@
     font-size: 12px;
   }
   .lf-fp-aux {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 2px;
   }
   .lf-fp-filters {
     display: flex;
+    min-width: 0;
+    overflow-x: auto;
     gap: 2px;
   }
   .lf-fp-filters button {
+    flex-shrink: 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
-    min-height: 26px;
+    min-height: max(26px, var(--aim-floor));
   }
   .lf-fp-filters button:hover,
   .lf-fp-filters [aria-pressed=true] {

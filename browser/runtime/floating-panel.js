@@ -391,15 +391,15 @@ export function createFloatingPanel({
   // do from after it in the tree.
   host.append(card, menu, badge, newsDot, peek);
   // The pointer's way to fold, which the user asked for as a minimize shown on hover: a
-  // round button on the box's top-right corner, chosen over one at the row's end on 15
+  // corner mark on the box's top-right corner, chosen over one at the row's end on 15
   // October. It presses the fold command's own row, as the menu's row does; that row and
   // `.` are the keyboard's and a finger's ways, so it takes no Tab stop of its own.
-  const minimize = el("button", "lf-fp-minimize");
+  const minimize = el("button", "lf-corner-mark lf-fp-minimize");
   minimize.type = "button";
   minimize.tabIndex = -1;
   minimize.title = "Fold to the leaf";
   minimize.setAttribute("aria-label", "Fold to the leaf");
-  minimize.append(iconElement("subtract", "lf-fp-minimize-icon"));
+  minimize.append(iconElement("subtract", "lf-corner-mark-icon"));
   minimize.addEventListener("click", () =>
     rows()
       .find((entry) => entry.key === `command:${FOLD}`)

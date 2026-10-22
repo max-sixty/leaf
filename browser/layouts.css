@@ -841,6 +841,13 @@
       [data-lf-reading-role="pane"] > :not(header, footer) {
       padding-block-end: calc(var(--pane-inset) + var(--lf-foot-room));
     }
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body > main.layout-workspace
+      > :not(header, footer, [data-lf-reading-role="pane"]):not(
+        :has([data-lf-reading-role="pane"])
+      ) {
+      padding-block-end: var(--lf-foot-room);
+    }
   }
   /* The header is one row: the title with the page's status beside it, wrapping only
    * where the row runs out. A lede belongs in a pane. */

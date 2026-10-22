@@ -230,11 +230,14 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
             windowBottom: innerHeight,
             endBottom: [...reader.querySelectorAll('p')].at(-1).getBoundingClientRect().bottom,
             panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+            paneBottom: document.querySelector('#queue').getBoundingClientRect().bottom,
+            footerTop: document.querySelector('main > footer').getBoundingClientRect().top,
           };
         }"""
     )
     assert abs(geometry["mainBottom"] - geometry["windowBottom"]) <= 1, geometry
     assert geometry["endBottom"] <= geometry["panelTop"], geometry
+    assert geometry["footerTop"] - geometry["paneBottom"] <= 1, geometry
     assert page.evaluate("document.scrollingElement.scrollHeight <= innerHeight + 1")
     page.locator("body").focus()
     page.keyboard.press(".")
@@ -242,6 +245,34 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
     assert page.locator("main").evaluate(
         "node => Math.abs(node.getBoundingClientRect().bottom - innerHeight) <= 1"
     )
+
+
+def test_a_workspace_body_scroller_clears_the_panel(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Single-body workspace",
+                '<header><h1>Work</h1></header><div id="reader">'
+                '<div style="height:1100px"></div><p>End of work</p></div>',
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1200, 900)
+    geometry = page.evaluate(
+        """() => {
+          const reader = document.querySelector('#reader');
+          reader.scrollTop = reader.scrollHeight;
+          return {
+            scrolls: reader.scrollHeight > reader.clientHeight,
+            endBottom: reader.querySelector('p').getBoundingClientRect().bottom,
+            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert geometry["scrolls"], geometry
+    assert geometry["endBottom"] <= geometry["panelTop"], geometry
 
 
 def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):

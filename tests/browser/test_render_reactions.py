@@ -541,8 +541,11 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     undo_offered(page)
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
-    rows = page.locator(".lf-command-reference").inner_text()
-    assert "Undo: shorten reaction on “The store is capped" in rows, rows
+    expect(
+        page.locator('.lf-command-reference-command[data-lf-command="history.undo"]')
+    ).to_have_attribute(
+        "title", re.compile("^Undo: shorten reaction on “The store is capped.* · ")
+    )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
 

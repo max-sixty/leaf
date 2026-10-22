@@ -596,22 +596,28 @@ def folded_value(e: dict, spec: dict):
 
 
 def obligation_value(
-    owner, verb, spec, byid, spk, registry, projection, *, answered=False
+    owner, verb, spec, byid, spk, registry, projection, *, answered=False, unit=None
 ):
     """Read an obligation's typed value and presence from the canonical state fold.
 
     Widget units use their declared record or custom action detail. Member units
-    form one mapping; positions retain every container, including empty ones.
+    form one mapping, or the exact member when `unit` is supplied; positions retain
+    every container, including empty ones.
     Empty authored values need completion to count as an answer; a value
     action in force counts even while completion is outstanding. Null never holds a value.
     """
     actions = {
         coordinate: held
         for coordinate, held in projection.actions.items()
-        if coordinate[0] == owner and coordinate[2] == verb
+        if coordinate[0] == owner
+        and coordinate[2] == verb
+        and (unit is None or coordinate[1] == unit)
     }
     record = spec.get("record")
-    if spec["unit"] == "widget":
+    if unit is not None:
+        held = actions.get((owner, unit, verb))
+        value = (folded_value(*held) if record else held[0]["detail"]) if held else None
+    elif spec["unit"] == "widget":
         held = actions.get((owner, owner, verb))
         value = (
             (folded_value(*held) if record else held[0]["detail"])

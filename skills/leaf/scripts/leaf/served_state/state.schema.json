@@ -714,6 +714,20 @@
       ],
       "additionalProperties": false
     },
+    "Gesture": {
+      "description": "What an action did, in its record form's terms and its own document's words (`gesture_words.GestureWords.gesture`).",
+      "type": "object",
+      "properties": {
+        "form": { "enum": ["choice", "move", "edit", "add", "verb"] },
+        "chosen": { "type": "array", "items": { "type": "string" } },
+        "unit": { "type": "string" },
+        "to": { "type": "string" },
+        "words": { "type": "string" },
+        "verb": { "type": "string" }
+      },
+      "required": ["form"],
+      "additionalProperties": false
+    },
     "HistoryRow": {
       "description": "One logged event as a history feed reads it (`history.history`). Which of the optional fields a row carries follows its kind.",
       "type": "object",
@@ -764,19 +778,7 @@
         "drawing": { "type": "boolean" },
         "excerpt": { "type": ["string", "null"] },
         "widget": { "type": "string" },
-        "gesture": {
-          "type": "object",
-          "properties": {
-            "form": { "enum": ["choice", "move", "edit", "add", "verb"] },
-            "chosen": { "type": "array", "items": { "type": "string" } },
-            "unit": { "type": "string" },
-            "to": { "type": "string" },
-            "words": { "type": "string" },
-            "verb": { "type": "string" }
-          },
-          "required": ["form"],
-          "additionalProperties": false
-        },
+        "gesture": { "$ref": "#/$defs/Gesture" },
         "value": true,
         "version": { "type": "integer" }
       },
@@ -942,14 +944,15 @@
           }
         },
         "undo": {
-          "description": "The user's gestures this document can take back, newest first (`served_state.document.browser_undo_candidates`); `newest` marks the user's newest gesture.",
+          "description": "The user's gestures this document can take back, newest first (`served_state.document.browser_undo_candidates`); `newest` marks the user's newest gesture, and `gesture` says what that one did when it is an action.",
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
               "event": { "$ref": "#/$defs/Event" },
               "coordinate": { "type": "array", "items": { "type": "string" } },
-              "newest": { "const": true }
+              "newest": { "const": true },
+              "gesture": { "$ref": "#/$defs/Gesture" }
             },
             "required": ["event"],
             "additionalProperties": false
@@ -1078,7 +1081,11 @@
               "properties": {
                 "kind": { "const": "widget" },
                 "id": { "type": "string" },
-                "tag": { "type": "string" }
+                "tag": { "type": "string" },
+                "unit": {
+                  "description": "A data record within the owning widget; its projected datum and action unit share this key.",
+                  "type": "string"
+                }
               },
               "required": ["kind", "id", "tag"],
               "additionalProperties": false

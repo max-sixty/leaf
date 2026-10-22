@@ -7,6 +7,10 @@
       content="Compare scrolling and wrapping code readers in a narrow panel, adjust their spacing, and choose the treatment to keep."
     />
     <style data-controls>
+      #code-comparison-workspace > header {
+        --lf-block-frame: 1;
+      }
+
       code-reader-comparison {
         display: grid;
         gap: var(--sp-3);

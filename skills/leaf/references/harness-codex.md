@@ -32,7 +32,9 @@ adapter either queues a `leaf-delivery` pointer as the task's next user message 
 starts an App Server turn with a `leaf_delivery` tool output, one slice per turn.
 Leaf acknowledges input it queues or starts. A pointer still needs complete reading
 and the confirmation on its last part; inline tool output needs no acknowledgement
-command. Run no `leaf wait` or `leaf wait --ack`.
+command. On the macOS desktop, the adapter also wakes the queued chat in the
+background, avoiding Codex's ten-second check for external queue writes.
+Run no `leaf wait` or `leaf wait --ack`.
 The same delivery id can come back in a later turn after an uncertain queue
 response; its `leaf delivery ack` then says an earlier turn already picked it up and
 names any answer it still owes. Don't redo that turn's work. Input confirmed during a

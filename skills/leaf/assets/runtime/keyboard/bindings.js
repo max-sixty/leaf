@@ -54,7 +54,10 @@
      under a finger, or a function when state chooses them, and `false` where a finger
      reaches the result directly (keyboard/AGENTS.md, "Touch routes"). Every page
      command answers it, and so, with `false`, does every page-scope row with a `run`
-     that is not its stance's `exit`: a scope row takes no words.
+     that is not its stance's `exit`: a scope row takes no words. `touchValue` is a
+     terse reading that row shows at its end, past words the row may cut, such as how
+     long ago the gesture Undo would take back was made; the row's hover reads the
+     description whole.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.

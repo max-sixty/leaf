@@ -552,7 +552,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     if review_mode(document) != "sign-off":
         return Finding("not-sign-off", values=version)
     page = AdmissionReadings(view, events, registry).page(revision)
-    work = WorkReading(events, registry, page)
+    work = WorkReading(events, registry, page, data=view.data(registry))
     unanswered = approval_blocking(
         [*work.document.items["all"], *work.widget_obligations["all"]]
     )

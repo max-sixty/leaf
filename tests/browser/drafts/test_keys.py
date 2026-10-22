@@ -115,7 +115,9 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
     Observe `defaultPrevented` on real key events instead of asserting that Chrome
     happened to scroll: scrolling depends on viewport and focus geometry, while
     canceling the event is the runtime decision under test. `?` is the positive
-    control proving this observer sees a key the dispatcher intentionally consumes."""
+    control proving the capture observer sees a key the dispatcher intentionally
+    consumes. Observe the navigation keys in bubble, after focused content has had
+    a chance to cancel them."""
     page = open_page(browser, serve(KEYS_PAGE))
     keys = [
         " ",
@@ -136,7 +138,10 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
           pageContent.focus();
           window.lfObservedKeys = {};
           document.addEventListener("keydown", event => {
-            if (keys.includes(event.key))
+            if (event.key === "?") window.lfObservedKeys["?"] = event.defaultPrevented;
+          }, {capture: true});
+          document.addEventListener("keydown", event => {
+            if (keys.includes(event.key) && event.key !== "?")
               window.lfObservedKeys[event.key] = event.defaultPrevented;
           });
         }""",

@@ -192,7 +192,7 @@ def probe(
       focus:SEL     focus it
       drive:NAME    a `leaf-dev stills` state's input, e.g. card-by-keyboard
 
-    Focus rings draw whenever a control holds focus, by click or keyboard arrival.
+    Ordinary controls follow browser focus-visible; reading destinations retain a location ring.
     --base takes an optional ref, so put
     SOURCE before it or give it one (--base=REF).
 

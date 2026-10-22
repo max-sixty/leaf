@@ -296,7 +296,7 @@
   }
   /* The caret in the field wears the ring an anchored comment box wears (response.css),
      so a key that moves it there, `c` among them, shows where the words will go. */
-  .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
+  .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: 0;
     border-radius: var(--r);
@@ -392,7 +392,7 @@
   .lf-fp-field .lf-compose-field > leaf-text:state(more-below) {
     --lf-fp-fade-bottom: 16px;
   }
-  .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
+  .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus-visible] {
     outline: none;
   }
   /* The empty field's words read dimmer than anything written in it: the agent's
@@ -985,7 +985,7 @@
   }
   /* A view a pointer opened holds focus so keys act there, and wears no ring: nothing
      in it was chosen yet. */
-  .lf-fp-view:is(:focus, [data-lf-focus]) {
+  .lf-fp-view:is(:focus, [data-lf-focus-visible]) {
     outline: none;
     box-shadow: none;
   }
@@ -1060,6 +1060,16 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* A menu row whose words name what it acts on, such as Undo naming the gesture it
+     would take back, wraps to a second line rather than cutting the name it exists to
+     say; its value keeps the first line's baseline. */
+  .lf-fp-item:not(.lf-fp-menu-back) > .lf-fp-label {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .lf-fp-value {
     color: var(--lf-fp-muted);

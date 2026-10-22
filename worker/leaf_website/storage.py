@@ -268,6 +268,16 @@ def _responses(
     result = {}
     for path in sorted(paths):
         address = urlsplit(f"{root.rstrip('/')}/{path}")
+        request_sent = False
+
+        async def receive():
+            nonlocal request_sent
+            if not request_sent:
+                request_sent = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            # This capture has no client to disconnect while a file streams.
+            await asyncio.Event().wait()
+
         request = Request(
             {
                 "type": "http",
@@ -277,7 +287,8 @@ def _responses(
                 "path": address.path,
                 "query_string": address.query.encode(),
                 "headers": [],
-            }
+            },
+            receive,
         )
         endpoint = WebsitePageEndpoint(
             request,

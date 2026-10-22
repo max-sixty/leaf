@@ -1098,8 +1098,6 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     page.evaluate("() => new Promise(requestAnimationFrame)")
     middle = height()
     assert middle < full
-    if animated:
-        assert middle > 30
     # A painted closing body is already outside focus and Tab access.
     inside.evaluate("b => b.focus()")
     expect(inside).not_to_be_focused()
@@ -1111,7 +1109,10 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     assert height() == pytest.approx(full, abs=1)
     summary.press("Enter")
     assert not details.evaluate("d=>d.open")
-    assert height() < full
+    closed = height()
+    assert closed < full
+    if animated:
+        assert middle > closed + 1
     assert (
         details.evaluate(
             "d => getComputedStyle(d, '::details-content').contentVisibility"

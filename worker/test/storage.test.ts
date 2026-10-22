@@ -99,6 +99,7 @@ describe("durable website page records", () => {
         "immutable module",
       );
     } finally {
+      await new Promise((resolve) => setImmediate(resolve));
       close();
     }
   });
@@ -217,6 +218,7 @@ describe("durable website page records", () => {
         store.saveBlob("a".repeat(64), new Uint8Array([1]).buffer),
       ).rejects.toThrow("digest does not match");
     } finally {
+      await new Promise((resolve) => setImmediate(resolve));
       close();
     }
   });
@@ -253,6 +255,7 @@ describe("durable website page records", () => {
       store.publish(next, manifest);
       expect((await records(store))["/"]).toEqual(successor.record);
     } finally {
+      await new Promise((resolve) => setImmediate(resolve));
       close();
     }
   });
@@ -298,6 +301,7 @@ describe("durable website page records", () => {
         "no staged owner",
       );
     } finally {
+      await new Promise((resolve) => setImmediate(resolve));
       close();
     }
   });
@@ -357,6 +361,7 @@ describe("durable website page records", () => {
       await new Promise((resolve) => setImmediate(resolve));
       expect(store.blob(chunks[2])).toBeNull();
     } finally {
+      await new Promise((resolve) => setImmediate(resolve));
       close();
     }
   });

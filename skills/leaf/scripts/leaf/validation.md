@@ -51,9 +51,9 @@ active revision, including for markup and anchor moves. Detaching a thread still
 checks saved source, and completed successful replies retain the
 source-publication checks below.
 
-The publisher additionally preflights the admitted reply or stamp's complete
-prospective log, so every thread it reopens is covered, and reads candidate
-passages at the candidate revision's cutoff. Required transitions journal the
+The publisher derives anchor moves from the log after admitting the reply or
+stamp, so every thread it reopens is covered, and reads candidate passages at the
+candidate revision's cutoff. Required transitions journal the
 exact staged bundle before its marker appears. Every transaction completes
 interrupted publication from that bundle before it exposes page readings.
 

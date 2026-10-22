@@ -18,6 +18,11 @@ from typing import NamedTuple
 import psutil
 import pytest
 from click.testing import CliRunner
+from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
+from leaf_dev.browser import shell_executable, use_linux_fonts
+from leaf_dev.page_fixtures import package_selection_args
+from playwright.sync_api import Frame, Page, sync_playwright
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
@@ -28,10 +33,6 @@ from leaf import machine as machine_model
 from leaf import state as cleanup_model
 from leaf.registry.schema import schema_error, with_leaf_resources
 from leaf.render_gate import browser as browser_model
-from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import shell_executable, use_linux_fonts
-from leaf_dev.page_fixtures import package_selection_args
-from playwright.sync_api import Frame, Page, sync_playwright
 
 __all__ = ["LEAF_COMMAND"]
 
@@ -256,8 +257,8 @@ def compiled_pages(request, monkeypatch, isolated_session):
         monkeypatch.setattr(layer_model, "KERNEL", request.path.parent / "no-kernel")
         return
     installation = request.getfixturevalue("compiled_installation")
-    monkeypatch.setattr(layer_model, "ASSETS", installation / "skills/leaf/assets")
-    monkeypatch.setattr(layer_model, "KERNEL", installation / "skills/leaf/kernel")
+    monkeypatch.setattr(layer_model, "ASSETS", installation / "browser")
+    monkeypatch.setattr(layer_model, "KERNEL", installation / "dist/kernel")
     monkeypatch.setattr(layer_model, "PLUGIN_ROOT", installation)
     monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(installation / "bin/leaf"))
     original_command = LEAF_COMMAND[:]

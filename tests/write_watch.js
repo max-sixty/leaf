@@ -14,7 +14,7 @@
 // markers while updating real content, so comment-only restoration is not judged.
 // Such a rendered write still costs a style pass and a repaint, of the whole document while
 // a CSS highlight holds a range, so code writes only what changed
-// (skills/leaf/assets/AGENTS.md).
+// (browser/AGENTS.md).
 //
 // Each finding is reported once per document: a writer that fires every frame would
 // otherwise bury the report under its own repetitions.

@@ -3,11 +3,6 @@ focus and session, and the revision a draft aims at."""
 
 import pytest
 from interact_support import append_carried_log_record, append_command
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import revisioning as revisioning_model
-from leaf import vendoring as vendoring_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_cases_navigation import JOURNEY_V1, NOTED_PAGE, _publish
@@ -39,6 +34,11 @@ from browser.drafts import (
     replace_editing_document,
 )
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf import hosting as hosting_model
+from leaf import revisioning as revisioning_model
+from leaf import vendoring as vendoring_model
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

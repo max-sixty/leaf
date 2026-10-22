@@ -8,11 +8,6 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, declare_idle, record_claim
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.served_state import context as served_context
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, live_url
 from render_cases_layout import token_colour
@@ -41,6 +36,11 @@ from browser.margin import (
     leave_card_by_its_target,
 )
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf.served_state import context as served_context
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

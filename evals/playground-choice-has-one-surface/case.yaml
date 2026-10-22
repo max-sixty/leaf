@@ -62,7 +62,7 @@ vars:
 
     Finish the draft for handoff so the user can try the candidates and choose
     which treatment to implement. Use the installed leaf:leaf skill and read
-    packages/playground/instructions/author.md inside its base directory.
+    ../../packages/playground/instructions/author.md relative to its base directory.
     The page directory is not reachable here, so reply with the HTML and any
     page module needed for the choice and implementation request.
 assert:

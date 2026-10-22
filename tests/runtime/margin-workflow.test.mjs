@@ -7,7 +7,7 @@ import {
   contributionReceipts,
   presentContributionHost,
   presentContributionReceipts,
-} from "../../skills/leaf/assets/runtime/contribution-controls.js";
+} from "../../browser/runtime/contribution-controls.js";
 import { servedWorkflow } from "../served.mjs";
 
 const workflow = (stage, condition = null) =>

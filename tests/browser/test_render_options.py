@@ -12,10 +12,6 @@ from interact_support import (
     refused_on,
     working,
 )
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHIP_PAGE,
@@ -66,6 +62,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

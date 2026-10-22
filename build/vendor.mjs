@@ -2,7 +2,7 @@
  * The third-party bundles Leaf ships outside the browser framework.
  *
  * Nothing builds them at install time, so they are tracked. The files under
- * `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
+ * `browser/vendor/` and each package's own `vendor/` are page payload:
  * `page init` copies them into a page directory and a user's browser runs them. A
  * vendored library is payload of the package whose widget draws with it, not of the
  * layer: Pele and Pierre reach a page only when it selects `diagram` or `diff`.
@@ -34,8 +34,8 @@ import { patchTransitions } from "./webawesome/transition-patch.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./browser/shipped.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const assets = "skills/leaf/assets";
-const packageVendor = (name) => `skills/leaf/packages/${name}/vendor`;
+const assets = "browser";
+const packageVendor = (name) => `packages/${name}/vendor`;
 const input = (file) => path.join(root, "build", file);
 
 /** The installed version of a package, which is the one the lock resolved. */

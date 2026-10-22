@@ -17,12 +17,6 @@ from interact_support import (
     declare_work,
     working,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf.render_checks import one_frame, wait_until_ready
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -53,6 +47,12 @@ from render_harness import (
 from render_harness import leaf_page as titled_page
 
 from browser.threads import paste_image
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
+from leaf import service as service_model
+from leaf import thread as thread_model
+from leaf.render_checks import one_frame, wait_until_ready
 
 SIGN_OFF = LONG_PAGE.replace(
     "<title>long</title>",

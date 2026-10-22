@@ -6,11 +6,6 @@ from itertools import pairwise
 
 import pytest
 from interact_support import append_carried_log_record, append_command
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
@@ -42,6 +37,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
+from leaf import thread as thread_model
+from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.schema import ELEMENT_ID
 
 THREAD_READER = r"""
 import {keepsText, watchProjection, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';

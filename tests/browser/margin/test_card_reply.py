@@ -5,7 +5,6 @@ import base64
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_cases_layout import ring_faults, rings_drawn
@@ -39,6 +38,7 @@ from browser.margin import (
     open_long_thread,
     send_anchored_comment,
 )
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

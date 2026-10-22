@@ -6,7 +6,7 @@ contiguous range when a discussion grows long; the agent reads it and writes the
 summary. Users can unfold the original messages, and the agent can replace an
 overlapping summary as the discussion grows. Their contracts live in
 [threads](../skills/leaf/references/threads.md),
-[session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md), and
+[session lifetime](../src/leaf/session-lifetime.md), and
 [the module Thread API](../skills/leaf/references/module-annotations.md#widget-local-thread-placement).
 
 ## Current status

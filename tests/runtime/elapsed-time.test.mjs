@@ -5,8 +5,8 @@ import {
   shortAgo,
   clockValue,
   tickClock,
-} from "../../skills/leaf/assets/runtime/presence.js";
-import { watchProjection } from "../../skills/leaf/assets/runtime/projection-watch.js";
+} from "../../browser/runtime/presence.js";
+import { watchProjection } from "../../browser/runtime/projection-watch.js";
 
 const before = (ms) => new Date(Date.now() - ms).toISOString();
 const MINUTE = 60 * 1000;

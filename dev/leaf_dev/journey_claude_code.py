@@ -71,6 +71,7 @@ from pathlib import Path
 
 import click
 import psutil
+
 from leaf.delivery import DELIVERY, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
@@ -79,7 +80,6 @@ from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
 from leaf.state import session_record
-
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, claude_environment, claude_home, run_leaf
 from leaf_dev.commands.journey import Isolation, Terminal, User, isolated, user_at

@@ -102,6 +102,9 @@ from urllib.parse import urljoin
 
 import click
 import psutil
+from playwright.sync_api import BrowserContext, Locator, Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
 from leaf import thread_titles
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
@@ -114,9 +117,6 @@ from leaf.service import page_claim
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from leaf.todos import start_reading
-from playwright.sync_api import BrowserContext, Locator, Page
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
-
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
 from leaf_dev.browser import DESKTOP, headless_shell

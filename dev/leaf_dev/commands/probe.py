@@ -18,11 +18,11 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import click
+from playwright.sync_api import Error as PlaywrightError
+
 from leaf.findings import Finding
 from leaf.render_checks import PageNotReady
 from leaf.render_gate.scheme import collect_page_exceptions, console_finding
-from playwright.sync_api import Error as PlaywrightError
-
 from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, build_arm, serving_source
 from leaf_dev.browser import (

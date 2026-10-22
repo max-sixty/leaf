@@ -7,15 +7,6 @@ from html import escape
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, record_claim, wait_for
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import passages as passages_model
-from leaf import service as service_model
-from leaf import structure as structure_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -45,6 +36,16 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import anchor_capture as anchor_capture_model
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import passages as passages_model
+from leaf import service as service_model
+from leaf import structure as structure_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

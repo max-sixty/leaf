@@ -11,13 +11,6 @@ from interact_support import (
     append_carried_log_record,
     wait_for,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import user_views as user_views_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.served_state.reading import page_reading, source_readings
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -46,6 +39,14 @@ from render_harness import (
     watched,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import user_views as user_views_model
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.served_state.reading import page_reading, source_readings
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

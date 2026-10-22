@@ -10,8 +10,6 @@ from interact_support import (
     append_command,
     declare_work,
 )
-from leaf import render_checks as render_checks_model
-from leaf.leases import release_lease, take_lease, waiter_lease_path
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -32,6 +30,8 @@ from render_harness import (
 )
 
 from browser.threads import open_threads
+from leaf import render_checks as render_checks_model
+from leaf.leases import release_lease, take_lease, waiter_lease_path
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

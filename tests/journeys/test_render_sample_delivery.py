@@ -7,8 +7,6 @@ from uuid import uuid4
 
 import pytest
 from interact_support import wait_for
-from leaf import interaction_log as interaction_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS
 from playwright.sync_api import expect
 from render_harness import (
     PANEL,
@@ -23,6 +21,9 @@ from render_harness import (
     take_browser_errors,
     write,
 )
+
+from leaf import interaction_log as interaction_model
+from leaf.render_checks import HANDOVER_DEADLINE_MS
 
 
 @pytest.mark.parametrize("surface", ["panel", "page"])

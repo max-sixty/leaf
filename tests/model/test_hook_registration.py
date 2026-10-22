@@ -22,6 +22,7 @@ from interact_support import (
     serving,
     wait_for,
 )
+
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
@@ -439,11 +440,9 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
-    program = project / "skills/leaf/scripts/leaf/state.py"
+    program = project / "src/leaf/state.py"
     program.parent.mkdir(parents=True)
-    program.write_bytes(
-        (PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py").read_bytes()
-    )
+    program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())
     interpreter = project / ".venv/bin/python"
     interpreter.parent.mkdir(parents=True)
     interpreter.symlink_to(sys.executable)
@@ -511,11 +510,9 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
-    program = project / "skills/leaf/scripts/leaf/state.py"
+    program = project / "src/leaf/state.py"
     program.parent.mkdir(parents=True)
-    program.write_bytes(
-        (PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py").read_bytes()
-    )
+    program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())
     tools = tmp_path / "tools"
     tools.mkdir()
     system_python = Path("/usr/bin/python3")

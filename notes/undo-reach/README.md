@@ -25,11 +25,11 @@ something the user didn't realize it would.
 
 `z` takes back the user's newest gesture, however old, or nothing (#1410). The
 server's `browser_undo_candidates`
-(`skills/leaf/scripts/leaf/served_state/document.py`) lists the user's
+(`src/leaf/served_state/document.py`) lists the user's
 undoable gestures newest first and marks the head `newest` only when it is the
 user's newest event that isn't bookkeeping, an undo, or already withdrawn. So a
 reply sent since then ends the walk. `undoable()` in
-`skills/leaf/assets/runtime/undo.js` takes the head only when it
+`browser/runtime/undo.js` takes the head only when it
 carries `newest`. A widget's own Undo control can still withdraw an older gesture
 it names. #1407 puts the view back where a thread settlement moved it when that
 settlement is undone, in the same tab only.
@@ -45,13 +45,13 @@ says its age.
 Undo is one-way. Nothing puts back what an undo took:
 
 - An `undo` event names one gesture in `undoes`; nothing leaves the log
-  (`skills/leaf/scripts/leaf/events.md`, "Undo").
-- `taken_back` (`skills/leaf/scripts/leaf/events.py`) returns the flat set of
+  (`src/leaf/events.md`, "Undo").
+- `taken_back` (`src/leaf/events.py`) returns the flat set of
   every id any undo names, and every Python fold reads it.
 - The append door's `UndoReading.error` (`events.py`) refuses an undo whose
   target isn't an unwithdrawn gesture of the user's own, so an undo can't name an
   undo. The kinds `$events.kinds` marks `undoable`
-  (`skills/leaf/assets/registry.json`) are resolve, unresolve, action, done, and
+  (`browser/registry.json`) are resolve, unresolve, action, done, and
   todo_end; an unanswered reaction is also undoable.
 - `events.md` states "An undo cannot itself be undone."
 
@@ -91,7 +91,7 @@ its age after a reload too ("Undo: resolved ‘Rollout safety’ · 3 weeks ago"
   first reading, and `undoable()` refuses a head among them. Browser only.
 - **Say what `z` takes.** #3271 covers a widget's gesture in the tab that made it.
   The rest: `document.py` adds each candidate's words from
-  `GestureWords.says` (`skills/leaf/scripts/leaf/gesture_words.py`). Today
+  `GestureWords.says` (`src/leaf/gesture_words.py`). Today
   `served_state/browser.py` builds those words only for a page
   that shows history, so every state read would pay for them. `undoSentence` and
   the notice read them in place of the per-kind words.
@@ -111,7 +111,7 @@ its age after a reload too ("Undo: resolved ‘Rollout safety’ · 3 weeks ago"
   (`.claude/skills/developing-leaf/references/glossary.md`) and keyboard and touch
   routes. It is served the `history` reading on demand, which today reaches only a
   page placing `lf-activity`, filtered to the user's own gestures. That reading
-  stops at 50 rows (`LIMIT` in `skills/leaf/scripts/leaf/history.py`), another
+  stops at 50 rows (`LIMIT` in `src/leaf/history.py`), another
   arbitrary limit the panel would need to page past. Its Undo and Redo go through
   the one `withdraw` door.
 
@@ -142,7 +142,7 @@ It has three costs:
 3. **A redo restores an answer obligation.** An undo owes the agent no answer, but
    a redo brings back the restored gesture's obligation, which the stop hook
    enforces. The delivery must carry it, and the undo handling text in
-   `skills/leaf/assets/registry.json` (the Undo handling clause, "Treat the two as
+   `browser/registry.json` (the Undo handling clause, "Treat the two as
    cancelling out") needs a clause for a redo.
 
 The rest of the redo change: `UndoReading.error` admits an undo naming the user's
@@ -150,7 +150,7 @@ own undo in force when folding without it changes the page; `document.py` serves
 redo list; `projection/model.js` lets a local redo override the server's reading
 that the target is withdrawn, as a pending forward action does; `undo.js`
 binds `Z`; `lf-activity.js`'s "undone" label
-(`skills/leaf/packages/default/widgets/lf-activity.js`), `events.md`, and
+(`packages/default/widgets/lf-activity.js`), `events.md`, and
 `skills/leaf/references/event-batches.md` learn the redo.
 
 Vim's undo tree is a different thing: `g-` and `g+` restore any past state,

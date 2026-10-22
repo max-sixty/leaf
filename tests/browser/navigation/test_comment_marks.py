@@ -5,7 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
 from render_cases_layout import page_at_rest
@@ -38,6 +37,7 @@ from render_harness import (
 from browser.navigation import (
     color_cue_markup,
 )
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

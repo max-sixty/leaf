@@ -58,17 +58,6 @@ from interact_support import (
     wait_for,
     write_record,
 )
-from leaf import cli as cli_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
-from leaf import state as cleanup_model
-from leaf import structure as structure_model
-from leaf.findings import Finding, placed
-from leaf.render_checks import one_frame, rendered, wait_until_ready
-from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.browser import scroll_settled
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
@@ -85,6 +74,18 @@ from PIL import Image
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
+
+from leaf import cli as cli_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import leases as leases_model
+from leaf import render_checks as render_checks_model
+from leaf import schema as schema_model
+from leaf import state as cleanup_model
+from leaf import structure as structure_model
+from leaf.findings import Finding, placed
+from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.render_gate import scheme as render_gate_model
 
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
@@ -142,10 +143,10 @@ def shift_watch_source():
             "--input-type=module",
             "--eval",
             (
-                'import { WORKS, PRESSES } from "./skills/leaf/assets/runtime/control-selectors.js";'
-                'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
-                'import { elementAxes, scrollAxes } from "./skills/leaf/assets/runtime/element-frame.js";'
-                'import { shadowHost, upFrom, renderedParent } from "./skills/leaf/assets/runtime/shadow.js";'
+                'import { WORKS, PRESSES } from "./browser/runtime/control-selectors.js";'
+                'import { clippingAxes } from "./browser/runtime/rect.js";'
+                'import { elementAxes, scrollAxes } from "./browser/runtime/element-frame.js";'
+                'import { shadowHost, upFrom, renderedParent } from "./browser/runtime/shadow.js";'
                 "process.stdout.write(JSON.stringify([WORKS,PRESSES,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],

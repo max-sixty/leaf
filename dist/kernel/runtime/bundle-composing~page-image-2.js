@@ -4,12 +4,7 @@ import {
 } from "./bundle-sample-2.js";
 
 // runtime/composing/page-image.js
-var asDataUrl = (blob) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(reader.result);
-  reader.onerror = () => reject(reader.error);
-  reader.readAsDataURL(blob);
-});
+var asDataUrl = async (blob) => `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
 var pageRenderer = () => import("/vendor/snapdom.esm.js");
 async function pageImage(clip, { exclude = [] } = {}) {
   const { snapdom } = await pageRenderer();

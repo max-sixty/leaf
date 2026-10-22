@@ -261,6 +261,12 @@
     // as they update, and restate what their own shadow trees hold.
     (what, node) => what !== "children" && node.localName?.startsWith("wa-"),
     (what, node) => hosts(node).some((host) => host.localName.startsWith("wa-")),
+    // Trees restores native row focus after closing search, restating the focus
+    // marker its row renderer already painted.
+    (what, node) =>
+      what === "data-item-focused" &&
+      is(node, 'button[role="treeitem"]') &&
+      hosts(node)[0]?.localName === "lf-file-tree",
     // Viewer.js reapplies image/canvas classes and magnifier visibility when an
     // inspected image changes. It is an upstream-owned renderer; Leaf's adapter
     // controls remain watched.

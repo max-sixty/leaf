@@ -31,7 +31,7 @@ from .service import (
     read_stream,
     unacknowledged,
 )
-from .state import named_pages, now_iso, state_home, stored_record
+from .state import now_iso, state_home
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -90,8 +90,7 @@ def neighbor_candidates() -> tuple:
     Every server already publishes a row, including pages outside pages/, so its
     publication is the one discovery surface. Atomic replacements move rows/'s
     stamp; readers hold the parsed envelopes until a producer changes them.
-    Server leases are still checked on every observation, independent of files,
-    including those of the pages rows at another format name (`_row_reading`).
+    Server leases are still checked on every observation, independent of files.
     """
     global _candidates, _row_home, _row_files
     home = state_home()
@@ -124,17 +123,12 @@ def neighbor_candidates() -> tuple:
 
 
 def _row_reading(path: Path, kind) -> tuple:
-    """The page a row names and the row, or the page alone for a row at a format
-    this Leaf doesn't read, so `other_leaves` still checks that page's server
-    lease, which means the same to every Leaf, and retires the row once none holds
-    it (`state.named_pages`)."""
+    """The page and current-format row, or neither when no readable row remains."""
     try:
-        if record := kind.read(path):
-            return Path(record["page"]), record
-        pages = named_pages(stored_record(path) or {})
+        record = kind.read(path)
     except (OSError, ValueError):
         return None, None
-    return (pages[0] if pages else None), None
+    return (Path(record["page"]), record) if record else (None, None)
 
 
 def other_leaves(page_dir: Path) -> list:

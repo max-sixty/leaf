@@ -257,7 +257,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     assert "".join(r["text"] for r in repeated if r["kind"] == "delete") == "once"
     assert "".join(r["text"] for r in repeated if r["kind"] == "insert") == "twice"
     assert "Then stop." in "".join(r["text"] for r in repeated if r["kind"] == "same")
-    assert [run["kind"] for run in aligned[-1]] == ["same", "delete", "insert", "same"]
+    assert [run["kind"] for run in aligned[-1]] == ["delete", "insert"]
 
     local = page.evaluate(
         """async () => {

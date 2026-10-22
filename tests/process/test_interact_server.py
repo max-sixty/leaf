@@ -302,7 +302,7 @@ def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     past it, so the write moves it once, at the rename."""
     reading = served_reading.page_reading(page_dir)
 
-    (page_dir / ".0123456789abcdef.tmp").write_text("{}")
+    (page_dir / ".leaf-01234567.tmp").write_text("{}")
 
     assert served_reading.page_reading(page_dir) == reading
 

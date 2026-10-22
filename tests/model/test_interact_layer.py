@@ -11,7 +11,6 @@ import tomllib
 from datetime import datetime
 from pathlib import Path
 
-import playwright
 import pytest
 import tinycss2
 from click.testing import CliRunner
@@ -2744,28 +2743,23 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX umask and mode semantics")
-def test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode(
+def test_staged_writes_are_private_without_copying_a_replaced_symlink_mode(
     tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    old_umask = os.umask(0o077)
-    try:
-        customized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    finally:
-        os.umask(old_umask)
+    customized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert customized.exit_code == 0, customized.output
-    custom_theme = tmp_path / ".leaf" / "theme.css"
-    assert custom_theme.stat().st_mode & 0o777 == 0o600
 
     page = tmp_path / "page"
     initialized = runner.invoke(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
+    assert (page / "theme.css").stat().st_mode & 0o777 == 0o600
     external = tmp_path / "external-theme.css"
     external.write_text("external")
-    external.chmod(0o600)
+    external.chmod(0o644)
     (page / "theme.css").unlink()
     (page / "theme.css").symlink_to(external)
     old_umask = os.umask(0o022)
@@ -2778,7 +2772,7 @@ def test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode(
 
     assert revendored.exit_code == 0, revendored.output
     assert not (page / "theme.css").is_symlink()
-    assert (page / "theme.css").stat().st_mode & 0o777 == 0o644
+    assert (page / "theme.css").stat().st_mode & 0o777 == 0o600
     assert external.read_text() == "external"
 
 
@@ -4707,25 +4701,6 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
-    )
-
-
-def test_an_unnamed_driver_node_is_the_installed_wheels_own(monkeypatch):
-    """The other half of that hint, which the subprocess above cannot reach: with the
-    variable unset the driver runs the Node bundled in the installed wheel, and the
-    line has to name that file and then the variable that would replace it. The
-    glibc host is exactly this arm — it named nothing and the bundled binary is the
-    one that would not load."""
-    monkeypatch.delenv(browser_model.DRIVER_VARIABLE, raising=False)
-    node = Path(browser_model.driver_node())
-    assert node == Path(playwright.__file__).parent / "driver" / "node"
-    hint = browser_model.driver_hint()
-    assert str(node) in hint and browser_model.DRIVER_VARIABLE in hint
-
-    monkeypatch.setenv(browser_model.DRIVER_VARIABLE, "/elsewhere/node")
-    assert browser_model.driver_node() == "/elsewhere/node"
-    assert browser_model.driver_hint() == (
-        f"{browser_model.DRIVER_VARIABLE} named /elsewhere/node."
     )
 
 

@@ -1332,7 +1332,6 @@ def _reachable(frame):
 
 def _judge_frame_watches(frame):
     """Drain a frame while its page owns it; the caller handles native detachment."""
-    page = frame.page
     frame.evaluate(
         """() => {
             const judgement = window.lfWatchJudgement = { complete: false, error: null };
@@ -1343,22 +1342,15 @@ def _judge_frame_watches(frame):
               error => { judgement.error = error; });
         }"""
     )
-    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while True:
-        complete = frame.evaluate(
-            """() => {
-                const judgement = window.lfWatchJudgement;
-                if (judgement.error) throw judgement.error;
-                return judgement.complete;
-            }"""
-        )
-        if complete:
-            break
-        if time.monotonic() >= deadline:
-            raise PlaywrightTimeout(f"health sensors did not drain: {frame.url}")
-        # Judgement usually completes within a frame or two; a 100ms poll cost most
-        # browser tests a tenth of a second.
-        page.wait_for_timeout(10)
+    frame.wait_for_function(
+        """() => {
+            const judgement = window.lfWatchJudgement;
+            if (judgement.error) throw judgement.error;
+            return judgement.complete;
+        }""",
+        polling=10,
+        timeout=render_checks_model.SERVED_TIMEOUT_MS,
+    )
     frame.evaluate("delete window.lfWatchJudgement")
 
 

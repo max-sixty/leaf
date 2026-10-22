@@ -247,6 +247,96 @@
     align-self: stretch;
     align-items: flex-end;
   }
+  /* Search borrows the field's place, not its editor. The scope remains visible
+     after typing; a tint reinforces those words. Match controls stay beside their
+     query on desktop and join the marks below it on a narrow phone. */
+  .lf-fp-search-surface {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    min-width: 0;
+    min-height: var(--lf-fp-line);
+    border-radius: var(--r);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+  .lf-fp-search-surface:focus-within {
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    --lf-wears-ring: 1;
+  }
+  .lf-fp-search-surface > :is(wa-input, input) {
+    flex: 1;
+    min-width: 0;
+  }
+  /* The unified query and scope wear the ring (`--lf-wears-ring`), so the
+     native control's base gives its own focus outline to that surface. */
+  .lf-fp-search-surface wa-input::part(base) {
+    border: 0;
+    outline: none;
+    box-shadow: none;
+    background: none;
+    min-height: var(--lf-fp-line);
+  }
+  .lf-fp-search-surface wa-input::part(input),
+  .lf-fp-search {
+    border: 0;
+    background: none;
+    padding: 5px 6px;
+    font: 14px / 22px var(--sans);
+    color: var(--ink);
+  }
+  .lf-fp-search::placeholder {
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-search:focus-visible {
+    outline: none;
+  }
+  .lf-fp-search-mode {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    margin-inline-end: 4px;
+    border-radius: var(--r);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--ink);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .lf-fp-search-mode .lf-action-icon {
+    width: 12px;
+    height: 12px;
+  }
+  .lf-fp-search-tools {
+    display: flex;
+    flex: none;
+    align-items: center;
+    min-height: var(--lf-fp-line);
+    gap: 2px;
+  }
+  @media (max-width: 600px) {
+    .lf-floating-panel[data-search] .lf-fp-row {
+      display: grid;
+      grid-template-columns: var(--lf-fp-aim) minmax(0, 1fr) auto auto;
+    }
+    .lf-floating-panel[data-search] .lf-fp-field {
+      grid-column: 2 / -1;
+      grid-row: 1;
+    }
+    .lf-floating-panel[data-search] .lf-fp-search-tools {
+      grid-column: 2;
+      grid-row: 2;
+    }
+    .lf-floating-panel[data-search] .lf-fp-quick {
+      grid-column: 3;
+      grid-row: 2;
+    }
+    .lf-floating-panel[data-search] .lf-fp-exit-seat {
+      grid-column: 4;
+      grid-row: 2;
+    }
+  }
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open
      view's head, so it takes no room the panel had not already given it. Pressed, the
@@ -278,6 +368,7 @@
      reader draws in the panel's outlet there (floating-panel.js, `replyOutlet`). Both
      stand alike: the frame, the inset and the focus wash a card gives its reply box are
      the card's, so the panel leaves them out, matching the card's own selectors. */
+  .lf-fp-editors,
   .lf-fp-box,
   .lf-fp-reply,
   .lf-fp-reply > .lf-primary-part,
@@ -337,12 +428,12 @@
     min-width: 0;
     align-self: center;
   }
-  .lf-floating-panel:not([data-open], [data-offers])
+  .lf-floating-panel:not([data-open], [data-offers], [data-search])
     .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
     > .lf-fp-field {
     display: none;
   }
-  .lf-floating-panel:not([data-open], [data-offers])
+  .lf-floating-panel:not([data-open], [data-offers], [data-search])
     .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
     > .lf-fp-response {
     display: block;
@@ -945,20 +1036,6 @@
   .lf-fp-next-unread .lf-action-icon {
     width: 14px;
     height: 14px;
-  }
-  .lf-fp-search {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    background: none;
-    padding: 0;
-    font: 13px / 26px var(--sans);
-  }
-  .lf-fp-search::placeholder {
-    color: var(--lf-fp-muted);
-  }
-  .lf-fp-search:focus-visible {
-    outline: none;
   }
 
   /* The stage holds the view to its cap, and to what the box leaves it under a long

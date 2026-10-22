@@ -53,7 +53,6 @@ import { createAim } from "./runtime/composing/aim.js";
 import {
   createTargetPicker,
   targetPickerHintLayer,
-  pageSearchSurface,
 } from "./runtime/composing/target-picker.js";
 import { createStandingTarget } from "./runtime/composing/standing.js";
 import {
@@ -540,6 +539,7 @@ targets = createTargetPicker({
   pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
   readTargets: () => (designMode.active() ? designMode.targets() : aimTargets()),
   armChanged: () => aim.armChanged(),
+  searchInPanel: floatingPanel.searchPage,
 });
 drawing = createDrawingController({
   anchors: { aimTargetAt, resolveAnchor },
@@ -686,9 +686,6 @@ if (!offlineInteractive) {
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
   });
   floatingPanel.mount(chromeForeground);
-  // Page search's box stands on the panel's top, and an anchor has to be laid out
-  // before the box placed against it (chrome.css, `.lf-page-search`).
-  chromeForeground.append(pageSearchSurface);
   responseSurface.mount();
   holdToRead();
   reactions.mount();

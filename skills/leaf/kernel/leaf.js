@@ -4346,17 +4346,14 @@ targetPickerHintLayer.setAttribute("aria-hidden", "true");
 var hintRoot = el("div", "lf-key-chips");
 var markRoot = el("div", "lf-key-chips");
 targetPickerHintLayer.append(hintRoot, markRoot);
-var pageSearchSurface = el("div", "lf-ui lf-page-search");
-pageSearchSurface.setAttribute("role", "search");
-pageSearchSurface.hidden = true;
 var pageSearchInput = searchField("lf-page-search-box", {
   name: "page-search",
-  label: "Search page text"
+  label: "Search page text",
+  placeholder: "Find text"
 });
 pageSearchInput.maxlength = 160;
 var pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
-pageSearchStatus.slot = "end";
 var pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
 var matchStep = (icon, name2) => {
@@ -4366,7 +4363,6 @@ var matchStep = (icon, name2) => {
   );
   control.type = "button";
   control.tabIndex = -1;
-  control.slot = "end";
   control.append(iconElement(icon, "lf-action-icon"));
   control.setAttribute("aria-label", name2);
   control.title = name2;
@@ -4375,8 +4371,7 @@ var matchStep = (icon, name2) => {
 };
 var previousMatchControl = matchStep("up", "Previous match");
 var nextMatchControl = matchStep("down", "Next match");
-pageSearchInput.append(pageSearchStatus, previousMatchControl, nextMatchControl);
-pageSearchSurface.append(pageSearchInput);
+var pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
 var noMatches = "No matches";
 var searchCount = (position, total) => `${position} of ${total}`;
 function createTargetPicker({
@@ -4387,7 +4382,8 @@ function createTargetPicker({
   fabAnchorAt,
   pointerModeActive,
   readTargets,
-  armChanged
+  armChanged,
+  searchInPanel
 }) {
   const canChoose = () => anchoringIsReady() && !pointerModeActive();
   let pickerOpen = false;
@@ -4434,12 +4430,12 @@ function createTargetPicker({
   function setTargetPicker(on, restore = false, withHints = true) {
     if (on && (!anchoringIsReady() || withHints && !canChoose())) return;
     if (on) {
-      openLayer(pageSearchSurface);
+      openLayer(pageSearchInput);
       paintTargetPicker(on, withHints);
       return;
     }
     const landing2 = restore && pickerOpen;
-    const opener = openerOf(pageSearchSurface);
+    const opener = openerOf(pageSearchInput);
     closeLayer(
       () => paintTargetPicker(on, withHints),
       landing2 && (() => handBack(opener))
@@ -4452,7 +4448,7 @@ function createTargetPicker({
     matches.value = [];
     active = -1;
     pageSearchInput.value = "";
-    keepsHidden(pageSearchSurface, true);
+    presentSearchField();
     if (on && withHints) {
       const found = hints.arm();
       announce(
@@ -4464,9 +4460,16 @@ function createTargetPicker({
     armChanged();
     repaint();
   }
+  function presentSearchField() {
+    searchInPanel({
+      input: pageSearchInput,
+      controls: pageSearchControls,
+      open: pageSearchOpen
+    });
+  }
   function setPageSearch(on) {
     pageSearchOpen = on;
-    keepsHidden(pageSearchSurface, !on);
+    presentSearchField();
     if (on) {
       const maximum = pageText().raw.length;
       keeps(
@@ -4870,6 +4873,7 @@ ${searchCount(maximum, maximum)}`
     chooseMatch();
   }
   function mount() {
+    presentSearchField();
     pageSearchInput.addEventListener("input", search);
     for (const type of ["mousedown", "mouseup", "click"])
       document.addEventListener(type, pressMatch, true);
@@ -6742,6 +6746,7 @@ function createFloatingPanel({
   errorDot.setAttribute("aria-hidden", "true");
   leaf.append(mark, errorDot);
   const field = el("div", "lf-fp-field");
+  const editorSeat = el("div", "lf-fp-editors");
   const expand = el("button", "lf-fp-expand");
   expand.type = "button";
   let expanded = false;
@@ -6761,11 +6766,17 @@ function createFloatingPanel({
   let fieldRests = false;
   const markRoom = () => keeps(host, "data-long", (long || expanded) && !fieldRests ? "" : null);
   lengthWatch.observe(field);
+  const searchSurface = el("div", "lf-fp-search-surface");
+  searchSurface.setAttribute("role", "search");
+  field.append(editorSeat, searchSurface);
+  const searchMode = el("span", "lf-fp-search-mode");
+  searchSurface.append(searchMode);
+  const searchTools = el("div", "lf-fp-search-tools");
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   const exitSeat = el("div", "lf-fp-exit-seat");
   const responseSeat = el("div", "lf-fp-response");
-  row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
+  row.append(leaf, field, responseSeat, searchTools, rowNoticeSeat, quick, exitSeat);
   const CONNECTING = {
     tone: "",
     summary: "Connecting\u2026",
@@ -6804,6 +6815,31 @@ function createFloatingPanel({
   let filter = "open";
   let query = "";
   let searching = false;
+  let pageSearch = null;
+  const threadSearchInput = el("input", "lf-fp-search");
+  searchSurface.prepend(threadSearchInput);
+  threadSearchInput.type = "search";
+  threadSearchInput.placeholder = "Find a thread or message";
+  threadSearchInput.setAttribute("aria-label", "Find a thread or message");
+  threadSearchInput.addEventListener("input", () => {
+    query = threadSearchInput.value;
+    refit();
+    paint();
+  });
+  const threadSearch = { input: threadSearchInput, controls: [] };
+  const activeSearch = () => pageSearch?.open ? pageSearch : searching && trail.value.at(-1)?.view === "threads" ? threadSearch : null;
+  function searchPage(search) {
+    if (pageSearch?.input !== search.input) searchSurface.prepend(search.input);
+    pageSearch = search;
+    paint();
+  }
+  function closeThreadSearch() {
+    searching = false;
+    query = "";
+    refit();
+    paint();
+    focusDestination(shownView(), "return");
+  }
   let writing = false;
   let drafted = false;
   let postureMoved = true;
@@ -6918,7 +6954,7 @@ function createFloatingPanel({
       });
     return replyOptions.get(key);
   };
-  const fieldInput = () => field.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
+  const fieldInput = () => activeSearch() ? null : editorSeat.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
   function retype() {
     postureMoved = true;
     if (Boolean(draftOf(fieldInput())) !== drafted) paint();
@@ -8306,7 +8342,7 @@ function createFloatingPanel({
       refit();
       paint();
     }
-    focusDestination(controls.querySelector(".lf-fp-search"), "move");
+    focusDestination(threadSearchInput, "move");
   }
   const headTemplate = (top) => {
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -8344,10 +8380,7 @@ function createFloatingPanel({
           findThreads();
           return;
         }
-        searching = false;
-        query = "";
-        refit();
-        paint();
+        closeThreadSearch();
       }}
         >
           ${iconTemplate("search", "lf-action-icon")}
@@ -8418,31 +8451,17 @@ function createFloatingPanel({
           ${iconTemplate("check", "lf-action-icon")}
         </button>`;
     }
-    const crumb = top.view === "threads" && searching ? html`<input
-            class="lf-fp-search"
-            type="search"
-            placeholder="Find a thread or message"
-            aria-label="Find a thread or message"
-            .value=${query}
-            @input=${(event) => {
-      query = event.target.value;
-      refit();
-      paint();
-    }}
-          />` : html`${parent ? html`<button
-                  type="button"
-                  class="lf-fp-back"
-                  aria-label=${`Back to ${titleOf2(parent)}`}
-                  @click=${back}
-                >
-                  ${iconTemplate("next", "lf-fp-chevron")}${titleOf2(parent)}
-                </button>` : nothing}
-          ${named}${thread ? html`<span class="lf-fp-facts"
-                  >${keyed(
-      thread.key,
-      html`<span class="lf-fp-news-outlet"></span>`
-    )}</span
-                >` : nothing}`;
+    const crumb = html`${parent ? html`<button
+            type="button"
+            class="lf-fp-back"
+            aria-label=${`Back to ${titleOf2(parent)}`}
+            @click=${back}
+          >
+            ${iconTemplate("next", "lf-fp-chevron")}${titleOf2(parent)}
+          </button>` : nothing}
+    ${named}${thread ? html`<span class="lf-fp-facts"
+            >${keyed(thread.key, html`<span class="lf-fp-news-outlet"></span>`)}</span
+          >` : nothing}`;
     return html`<div class="lf-fp-crumb">${crumb}</div>
       <div class="lf-fp-aux">${aux}</div>
       ${expand}
@@ -8524,7 +8543,9 @@ function createFloatingPanel({
   }
   function paintNow() {
     const top = trail.value.at(-1) ?? null;
-    const folded = prefs().rest === "mark" && !top && !menuOpen.value;
+    const search = activeSearch();
+    const folded = prefs().rest === "mark" && !top && !menuOpen.value && !search;
+    keeps(host, "data-search", search ? pageSearch?.open ? "page" : "threads" : null);
     keeps(host, "data-rest", folded ? "mark" : "row");
     keeps(host, "data-open", top ? top.view : null);
     keeps(host, "data-menu", menuOpen.value ? "" : null);
@@ -8608,13 +8629,31 @@ function createFloatingPanel({
     }
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     const replying = top?.view === "thread";
-    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
-    if (field.firstElementChild !== shown[0]) {
-      const had = standingIn(field);
-      field.replaceChildren(...shown);
-      if (had && !replying) focusDestination(leaf, "return");
+    if (threadSearchInput.value !== query) threadSearchInput.value = query;
+    keepsHidden(threadSearchInput, search !== threadSearch);
+    if (pageSearch) keepsHidden(pageSearch.input, !pageSearch.open);
+    if (search) {
+      const label2 = pageSearch?.open ? "Search page" : "Search threads";
+      keeps(searchSurface, "aria-label", label2);
+      keeps(
+        searchSurface,
+        "class",
+        `lf-fp-search-surface${pageSearch?.open ? " lf-page-search" : ""}`
+      );
+      render(html`${iconTemplate("search", "lf-action-icon")}${label2}`, searchMode);
     }
-    if (caretToField && !replying) {
+    render(search?.controls ?? nothing, searchTools);
+    keepsHidden(searchTools, !search?.controls.length);
+    if (searchSurface.hidden !== !search) postureMoved = true;
+    keepsHidden(editorSeat, Boolean(search));
+    keepsHidden(searchSurface, !search);
+    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
+    if (editorSeat.firstElementChild !== shown[0]) {
+      const had = standingIn(editorSeat);
+      editorSeat.replaceChildren(...shown);
+      if (had && !replying && !search) focusDestination(leaf, "return");
+    }
+    if (caretToField && !replying && !search) {
       caretToField = false;
       focusDestination(pageEditor().input, "move");
     }
@@ -8630,7 +8669,7 @@ function createFloatingPanel({
     keeps(host, "data-drafted", drafted ? "" : null);
     keeps(host, "data-words", words ? "" : null);
     if (!words) expanded = false;
-    fieldRests = resting;
+    fieldRests = resting || Boolean(search);
     markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
     keeps(expand, "aria-pressed", String(expanded));
@@ -8638,7 +8677,7 @@ function createFloatingPanel({
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-offers", reading.says === "selection" ? "" : null);
+    keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
     const notice2 = passing();
@@ -8647,12 +8686,12 @@ function createFloatingPanel({
       contextWords,
       !hidden ? "" : reading.says === "selection" ? reading.words : notice2.visible ? notice2.message : ""
     );
-    keepsHidden(context2, !contextWords.textContent);
+    keepsHidden(context2, Boolean(search) || !contextWords.textContent);
     paintPeek();
-    const standing = rowNotice();
+    const standing = search ? null : rowNotice();
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
-    const exit = rows().find((entry) => entry.exit);
+    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : rows().find((entry) => entry.exit);
     render(
       exit ? html`<button
             type="button"
@@ -8798,11 +8837,7 @@ function createFloatingPanel({
       } : {
         root: host,
         title: "close search",
-        out: () => {
-          focusDestination(shownView(), "return");
-          searching = false;
-          paint();
-        }
+        out: closeThreadSearch
       };
     if (menuOpen.value && menuAt.value)
       return {
@@ -8919,7 +8954,7 @@ function createFloatingPanel({
       }
     }
   );
-  keys(field, "In the comment field", [
+  keys(editorSeat, "In the comment field", [
     {
       id: "panel.floating.leave",
       keys: ["Escape"],
@@ -9118,6 +9153,7 @@ function createFloatingPanel({
     open,
     close,
     pageComment,
+    searchPage,
     doors,
     showForSample,
     captureStanding,
@@ -11778,7 +11814,8 @@ targets = createTargetPicker({
   fabAnchorAt: responseSurface.fabAnchorAt,
   pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
   readTargets: () => designMode.active() ? designMode.targets() : aimTargets(),
-  armChanged: () => aim.armChanged()
+  armChanged: () => aim.armChanged(),
+  searchInPanel: floatingPanel.searchPage
 });
 drawing = createDrawingController({
   anchors: { aimTargetAt, resolveAnchor },
@@ -11911,7 +11948,6 @@ if (!offlineInteractive) {
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp })
   });
   floatingPanel.mount(chromeForeground);
-  chromeForeground.append(pageSearchSurface);
   responseSurface.mount();
   holdToRead();
   reactions.mount();

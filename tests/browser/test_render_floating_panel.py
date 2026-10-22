@@ -40,6 +40,7 @@ from render_harness import (
     holding,
     http_error_console,
     open_page,
+    panel_control,
     resized,
     round_trip,
     select_words,
@@ -886,8 +887,8 @@ def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
 
 
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
-    """Page search's box stands just over the panel's row, where its ✕ stands, rather
-    than at the window's head. The box walks its own matches: its up and down arrows
+    """Page search occupies the panel's main field, with an explicit search mode.
+    Its up and down arrows
     move the count beside them and leave the query's field focused, so the next letter
     still edits it, and the panel's row keeps its counts. A press on the
     marked match selects it."""
@@ -899,16 +900,17 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     expect(page.locator('.lf-fp-exit[aria-label="Close search"]')).to_be_visible()
     box = search.bounding_box()
     row = page.locator(".lf-fp-row").bounding_box()
-    gap = row["y"] - (box["y"] + box["height"])
-    assert 0 <= gap < 24, f"the search box stands {gap:.0f}px over the panel's row"
+    assert row["y"] <= box["y"] < box["y"] + box["height"] <= row["y"] + row["height"]
+    expect(field(page)).to_be_hidden()
+    expect(page.locator(".lf-fp-search-mode")).to_have_text("Search page")
 
-    previous = search.get_by_role("button", name="Previous match")
-    following = search.get_by_role("button", name="Next match")
+    previous = page.get_by_role("button", name="Previous match")
+    following = page.get_by_role("button", name="Next match")
     expect(following).to_have_attribute("aria-disabled", "true")
     # A query that arrives with no key, as a paste or a phone's suggestion does, offers
     # the arrows as soon as it matches.
     search.get_by_role("searchbox").fill("Paragraph 1")
-    count = search.locator(".lf-page-search-status")
+    count = page.locator(".lf-page-search-status")
     expect(count).to_have_text("1 of 11")
     expect(following).not_to_have_attribute("aria-disabled", "true")
     expect(page.locator(".lf-fp-threads")).to_be_visible()
@@ -951,6 +953,61 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     page.mouse.click(*at)
     expect(search).to_be_hidden()
     assert page.evaluate("getSelection().toString()") == "Paragraph 10"
+
+
+@pytest.mark.parametrize("destination", ["page", "reply"])
+def test_search_keeps_the_unfinished_comment_and_its_caret(browser, serve, destination):
+    """Searching borrows the field's seat, never the comment's words or Send action.
+    Returning keeps the same editor and insertion point for page comments and replies.
+    """
+    url = serve(LONG_PAGE)
+    if destination == "reply":
+        panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    if destination == "reply":
+        page.keyboard.press("t")
+    draft = "Keep this unfinished thought"
+    write(field(page), draft)
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    caret = field(page).evaluate("el => el.selectionStart")
+    editor = field(page).element_handle()
+    sent_before = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] in {"comment", "reply"}
+    ]
+    if destination == "reply":
+        page.locator(".lf-fp-view[data-view=thread]").focus()
+        page.keyboard.press("/")
+    else:
+        panel_control(page, "command:page.search.open", at="navigate").click()
+    search = page.get_by_role("searchbox", name="Search page text")
+    search.fill("a phrase absent from the document")
+    expect(page.locator(".lf-page-search-status")).to_have_text("No matches")
+    expect(field(page)).to_be_hidden()
+    expect(
+        page.locator(".lf-fp-row").get_by_role("button", name="Send", exact=True)
+    ).to_be_hidden()
+    page.keyboard.press("Enter")
+    expect(search).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(search).to_be_hidden()
+    expect(field(page)).to_have_js_property("value", draft)
+    assert field(page).evaluate("(el, original) => el === original", editor)
+    assert field(page).evaluate("el => el.selectionStart") == caret
+    for _ in range(12):
+        if field(page).evaluate("el => el.matches(':focus')"):
+            break
+        page.keyboard.press("Tab")
+    expect(field(page)).to_be_focused()
+    page.keyboard.type("!")
+    assert field(page).evaluate("el => el.value") == draft[:caret] + "!" + draft[caret:]
+    assert [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] in {"comment", "reply"}
+    ] == sent_before
 
 
 def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
@@ -1126,9 +1183,17 @@ def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
     page = floating(browser, url)
     rows = threads_rows(page)
     expect(rows).to_have_count(3)
+    write(field(page), "Keep my page comment")
+    editor = field(page).element_handle()
     page.get_by_role("button", name="Find a thread or message").click()
+    expect(page.locator(".lf-fp-search-mode")).to_have_text("Search threads")
+    expect(field(page)).to_be_hidden()
     page.locator("input.lf-fp-search").fill("schedule leaves")
     expect(rows.locator(".lf-fp-label")).to_have_text(["Is lunch provided?"])
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(field(page)).to_have_js_property("value", "Keep my page comment")
+    assert field(page).evaluate("(el, original) => el === original", editor)
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):
@@ -1176,7 +1241,7 @@ def test_escape_from_threads_search_returns_to_threads(browser, serve):
     expect(search).to_have_value("")
     expect(rows).to_have_count(3)
     page.keyboard.press("Escape")
-    expect(search).to_have_count(0)
+    expect(search).to_be_hidden()
     expect(view).to_be_focused()
     page.keyboard.press("Escape")
     expect(view).to_have_count(0)

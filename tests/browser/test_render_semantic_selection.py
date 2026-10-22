@@ -651,22 +651,18 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     search.fill("words absent from this page")
     expect(status).to_have_text("No matches")
     assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
-    # The query and its count share the search's only frame, with no padded card
-    # between the field boundary and the search surface.
+    # Query and feedback stay in the panel, with a persistent mode label even once
+    # typing replaces the placeholder. They may occupy two rows on a phone.
     frame = search.evaluate("""input => {
-      const field = input.getRootNode().querySelector('[part~="base"]') ?? input;
-      const box = field.getBoundingClientRect();
-      const surface = document.querySelector('.lf-page-search').getBoundingClientRect();
+      const box = document.querySelector('.lf-fp-row').getBoundingClientRect();
       const status = document.querySelector('.lf-page-search-status').getBoundingClientRect();
       return {
-        edges: [box.left - surface.left, box.right - surface.right,
-                box.top - surface.top, box.bottom - surface.bottom],
         statusInside: status.left >= box.left && status.right <= box.right &&
           status.top >= box.top && status.bottom <= box.bottom,
       };
     }""")
-    assert frame["edges"] == pytest.approx([0, 0, 0, 0], abs=0.5), frame
     assert frame["statusInside"], frame
+    expect(page.locator(".lf-fp-search-mode")).to_have_text("Search page")
     search_field.get_by_role("button", name="Clear entry").click()
     expect(search).to_have_value("")
     expect(search).to_be_focused()

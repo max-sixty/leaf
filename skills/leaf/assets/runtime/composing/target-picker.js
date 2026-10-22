@@ -44,7 +44,7 @@ import {
   progressStates,
 } from "../keyboard/key-sequence.js";
 import { announce } from "../notifications.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
 import {
@@ -53,26 +53,22 @@ import {
   pageScope,
 } from "../keyboard/register.js";
 
-// The target picker and page search have separate faces. Hints and the active search
-// result are paint only; the search box is a real control, kept beside them so its focus
-// and accessible name are the platform's rather than a keyboard interaction's imitation
-// of one.
+// Hints and the active search result are paint only. The floating panel seats the
+// search's own native field and match controls in its main row, keeping the comment
+// editor intact while search owns the field.
 export const targetPickerHintLayer = el("div", "lf-ui lf-target-picker-hints");
 targetPickerHintLayer.setAttribute("aria-hidden", "true");
 const hintRoot = el("div", "lf-key-chips");
 const markRoot = el("div", "lf-key-chips");
 targetPickerHintLayer.append(hintRoot, markRoot);
-export const pageSearchSurface = el("div", "lf-ui lf-page-search");
-pageSearchSurface.setAttribute("role", "search");
-pageSearchSurface.hidden = true;
 const pageSearchInput = searchField("lf-page-search-box", {
   name: "page-search",
   label: "Search page text",
+  placeholder: "Find text",
 });
 pageSearchInput.maxlength = 160;
 const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
-pageSearchStatus.slot = "end";
 const pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
 // The box walks its own matches, as a browser's find bar does: up and down beside the
@@ -86,7 +82,6 @@ const matchStep = (icon, name) => {
   );
   control.type = "button";
   control.tabIndex = -1;
-  control.slot = "end";
   control.append(iconElement(icon, "lf-action-icon"));
   control.setAttribute("aria-label", name);
   control.title = name;
@@ -95,8 +90,7 @@ const matchStep = (icon, name) => {
 };
 const previousMatchControl = matchStep("up", "Previous match");
 const nextMatchControl = matchStep("down", "Next match");
-pageSearchInput.append(pageSearchStatus, previousMatchControl, nextMatchControl);
-pageSearchSurface.append(pageSearchInput);
+const pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
 const noMatches = "No matches";
 const searchCount = (position, total) => `${position} of ${total}`;
 
@@ -138,6 +132,7 @@ export function createTargetPicker({
   pointerModeActive,
   readTargets,
   armChanged,
+  searchInPanel,
 }) {
   const canChoose = () => anchoringIsReady() && !pointerModeActive();
 
@@ -235,13 +230,13 @@ export function createTargetPicker({
   function setTargetPicker(on, restore = false, withHints = true) {
     if (on && (!anchoringIsReady() || (withHints && !canChoose()))) return;
     if (on) {
-      openLayer(pageSearchSurface);
+      openLayer(pageSearchInput);
       paintTargetPicker(on, withHints);
       return;
     }
     // An opener of nowhere hands back nothing, and `handBack` lets the user go.
     const landing = restore && pickerOpen;
-    const opener = openerOf(pageSearchSurface);
+    const opener = openerOf(pageSearchInput);
     closeLayer(
       () => paintTargetPicker(on, withHints),
       landing && (() => handBack(opener)),
@@ -254,7 +249,7 @@ export function createTargetPicker({
     matches.value = [];
     active = -1;
     pageSearchInput.value = "";
-    keepsHidden(pageSearchSurface, true);
+    presentSearchField();
     if (on && withHints) {
       const found = hints.arm();
       announce(
@@ -269,9 +264,16 @@ export function createTargetPicker({
     repaint();
   }
 
+  function presentSearchField() {
+    searchInPanel({
+      input: pageSearchInput,
+      controls: pageSearchControls,
+      open: pageSearchOpen,
+    });
+  }
   function setPageSearch(on) {
     pageSearchOpen = on;
-    keepsHidden(pageSearchSurface, !on);
+    presentSearchField();
     if (on) {
       // A nonempty query cannot match more often than there are characters. Hold the
       // room of the whole reading's count before editing, so narrowing never resizes
@@ -780,6 +782,9 @@ export function createTargetPicker({
   }
 
   function mount() {
+    // Connect the native input at startup, hidden in the panel, so its first shadow
+    // render is ready before a search gesture asks for focus (including on a phone).
+    presentSearchField();
     pageSearchInput.addEventListener("input", search);
     for (const type of ["mousedown", "mouseup", "click"])
       document.addEventListener(type, pressMatch, true);

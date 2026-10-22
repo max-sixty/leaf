@@ -773,6 +773,7 @@ var LeafEditorView = class extends EditorView {
       ...config,
       state: withNavigation(config.state ?? EditorState.create(config))
     });
+    this.contentDOM.addEventListener("focus", () => this.placeSelection());
   }
   setState(state) {
     super.setState(withNavigation(state));

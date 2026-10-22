@@ -36,6 +36,10 @@
  *   placed against the window has its parts revealed one by one, as a part holding one
  *   is never carried whole.
  *
+ * Translation and clips are animated through registered properties so they paint
+ * together. Direct translate or clip-path animations can advance independently on the
+ * compositor and leave content outside its focus ring despite identical clocks.
+ *
  * Whose change it is decides what travels. The user's own change, a key, a press or
  * typing, owns what it sets going until that rendering settles, and carries what it
  * moved, so the eye follows it. News, such as an answer arriving, moves nothing the
@@ -85,6 +89,10 @@ const shifted = (box, dx, dy) => ({
 });
 const insetOf = ([top, right, bottom, left], radius = 0) =>
   `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
+const clipFrame = (sides, radius = 0) => ({
+  clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
+  "--lf-box-cut": sides.map((side) => `${side}px`).join(" "),
+});
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 const paints = (style) =>
   !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) ||
@@ -272,20 +280,23 @@ export function boxMotion({
     rests = next;
 
     const space = boxOf(room.getBoundingClientRect());
-    const outline = (at, grow, radius) =>
-      insetOf(
-        [
-          at.top - space.top - grow,
-          space.right - at.right - grow,
-          space.bottom - at.bottom - grow,
-          at.left - space.left - grow,
-        ],
-        radius + grow,
-      );
+    const outline = (at, grow, radius) => [
+      [
+        at.top - space.top - grow,
+        space.right - at.right - grow,
+        space.bottom - at.bottom - grow,
+        at.left - space.left - grow,
+      ],
+      radius + grow,
+    ];
     const boxAt = rests.get(box);
     const boxRadius = radiusOf(getComputedStyle(box));
     for (const [layer, reach] of surface())
-      keeps(layer, "style", `clip-path: ${outline(boxAt, reach, boxRadius)}`);
+      keeps(
+        layer,
+        "style",
+        `clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`,
+      );
     if (!was?.has(box)) return;
     const boxFrom = was.get(box);
 
@@ -295,12 +306,12 @@ export function boxMotion({
     const hold = (element, property, value) =>
       start(element, [{ [property]: value }, { [property]: value }]);
     const move = (element, dx, dy) =>
-      start(element, [{ translate: `${dx}px ${dy}px` }, { translate: "0px 0px" }]);
-    const cutFrom = (element, cut, radius = 0) =>
       start(element, [
-        { clipPath: insetOf(cut, radius) },
-        { clipPath: insetOf([0, 0, 0, 0], radius) },
+        { translate: "var(--lf-box-carry)", "--lf-box-carry": `${dx}px ${dy}px` },
+        { translate: "var(--lf-box-carry)", "--lf-box-carry": "0px 0px" },
       ]);
+    const cutFrom = (element, cut, radius = 0) =>
+      start(element, [clipFrame(cut, radius), clipFrame([0, 0, 0, 0], radius)]);
 
     // Moved whole, from where it was drawn.
     function carry(part, from) {
@@ -406,7 +417,7 @@ export function boxMotion({
       }
       if (from.every((inset) => near(inset, 0))) return;
       motions.set(part.element, { from: to, to, revealed: true });
-      start(part.element, [{ clipPath: insetOf(from) }, { clipPath: insetOf(end) }]);
+      start(part.element, [clipFrame(from), clipFrame(end)]);
     }
 
     function place(part, frame, siblings = []) {
@@ -438,8 +449,8 @@ export function boxMotion({
             [ringFill, 0],
           ])
             start(layer, [
-              { clipPath: outline(from, grown, radius) },
-              { clipPath: outline(to, grown, radius) },
+              clipFrame(...outline(from, grown, radius)),
+              clipFrame(...outline(to, grown, radius)),
             ]);
         } else if (!sized && paints(style) && !part.holdsWindow) grow(part, from);
         if (!same(from, to)) motions.set(element, { from, to, frames: true });
@@ -456,8 +467,8 @@ export function boxMotion({
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach] of surface())
       start(layer, [
-        { clipPath: outline(boxFrom, reach, boxRadius) },
-        { clipPath: outline(boxAt, reach, boxRadius) },
+        clipFrame(...outline(boxFrom, reach, boxRadius)),
+        clipFrame(...outline(boxAt, reach, boxRadius)),
       ]);
     // The box stands transparent over the surface's own fill while everything moves,
     // and lets what it carries stand past its rest outline on the way.

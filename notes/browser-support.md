@@ -706,3 +706,21 @@ container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
   past its end; Tab onto each from the control before it and read the scroll
   offset. `test_tab_onto_a_control_partly_past_a_scrollers_edge_brings_it_in`
   reads Leaf's correction, so it passes whatever the engines do.
+
+### Floating content and its focus outline
+
+- **Owner:** `runtime/box-motion.js` and the `--lf-box-carry` / `--lf-box-cut`
+  registrations in `styles/theme.css`.
+- **Observed 2026-10-22:** natural fold/unfold captures in installed Chromium
+  153.0.8010.12 and Firefox 155 showed the leaf separated from its moving focus
+  outline. Animation clocks and held-frame geometry agreed; actual paint did not.
+  In Chromium, changing translation alone to a registered property still left a
+  first frame with the compositor-driven clip ahead of the mark.
+- **Disposition:** both translation and clip insets interpolate registered length
+  properties, so the mark, outline, reveals and surface paint from the same sample.
+  Their `translate` and `clip-path` expressions stay constant. This trades independent
+  compositor advancement for the visual coherence the shared motion requires.
+- **Recheck:** `test_the_leaf_paints_inside_its_moving_focus_ring` compares the mark
+  and outline in natural captured frames in both directions; the neighboring
+  `test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands` covers
+  interruption, both color schemes and reduced motion.

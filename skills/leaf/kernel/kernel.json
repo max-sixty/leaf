@@ -32,7 +32,7 @@
     "runtime/block-controls.js": "a4f27f18f16f7c1651a5bf7a8dbfc30fab73867b1ded42ada184f55ba209b175",
     "runtime/bootstrap.js": "24abb79f4de34d581bb7d8adf0e0fb2730cff878e210795154a615f124b91451",
     "runtime/bounds.js": "c0b8266e40959afe29d90097ce11039a7e6247d9d917148377dd3d61d2f03707",
-    "runtime/box-motion.js": "e9430cd68685dec59c5ddb9ba652ed00fa5a804e2df6fb6084ca2c1eaafa16d3",
+    "runtime/box-motion.js": "83a9da22fced0f31d3d213152e90f10afcda0ab2486b8b6ea26247e41e57f8ec",
     "runtime/carry.js": "00249adb3a85868acfca824d0a97ec21315637ebcc97bee79f9f78b155d1ad20",
     "runtime/check-api.js": "c6994f32f8e5f9649e0e8f9d609d2f6e3bba17b74461f5aa21a86c3e5946c271",
     "runtime/chrome.js": "46b4b4c972f5c9c082d354e60c62aca5bb690e176f05b6210ed79396cf472028",

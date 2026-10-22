@@ -6316,6 +6316,10 @@ var shifted = (box, dx, dy) => ({
   bottom: box.bottom + dy
 });
 var insetOf = ([top, right, bottom, left], radius = 0) => `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
+var clipFrame = (sides, radius = 0) => ({
+  clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
+  "--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
+});
 var radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 var paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || ["Top", "Right", "Bottom", "Left"].some(
   (side) => Number.parseFloat(style[`border${side}Width`]) > 0
@@ -6452,7 +6456,7 @@ function boxMotion({
     motions = /* @__PURE__ */ new Map();
     rests = next;
     const space = boxOf(room.getBoundingClientRect());
-    const outline = (at, grow2, radius) => insetOf(
+    const outline = (at, grow2, radius) => [
       [
         at.top - space.top - grow2,
         space.right - at.right - grow2,
@@ -6460,21 +6464,25 @@ function boxMotion({
         at.left - space.left - grow2
       ],
       radius + grow2
-    );
+    ];
     const boxAt = rests.get(box);
     const boxRadius = radiusOf(getComputedStyle(box));
     for (const [layer, reach2] of surface())
-      keeps(layer, "style", `clip-path: ${outline(boxAt, reach2, boxRadius)}`);
+      keeps(
+        layer,
+        "style",
+        `clip-path: ${insetOf(...outline(boxAt, reach2, boxRadius))}`
+      );
     if (!was?.has(box)) return;
     const boxFrom = was.get(box);
     const rtl = getComputedStyle(box).direction === "rtl";
     const start = (element, keyframes) => running.push(element.animate(keyframes, timing));
     const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
-    const move2 = (element, dx, dy) => start(element, [{ translate: `${dx}px ${dy}px` }, { translate: "0px 0px" }]);
-    const cutFrom = (element, cut, radius = 0) => start(element, [
-      { clipPath: insetOf(cut, radius) },
-      { clipPath: insetOf([0, 0, 0, 0], radius) }
+    const move2 = (element, dx, dy) => start(element, [
+      { translate: "var(--lf-box-carry)", "--lf-box-carry": `${dx}px ${dy}px` },
+      { translate: "var(--lf-box-carry)", "--lf-box-carry": "0px 0px" }
     ]);
+    const cutFrom = (element, cut, radius = 0) => start(element, [clipFrame(cut, radius), clipFrame([0, 0, 0, 0], radius)]);
     function carry(part, from) {
       const dx = from.left - part.box.left;
       const dy = from.top - part.box.top;
@@ -6559,7 +6567,7 @@ function boxMotion({
       }
       if (from.every((inset) => near(inset, 0))) return;
       motions.set(part.element, { from: to, to, revealed: true });
-      start(part.element, [{ clipPath: insetOf(from) }, { clipPath: insetOf(end) }]);
+      start(part.element, [clipFrame(from), clipFrame(end)]);
     }
     function place3(part, frame, siblings = []) {
       const { element, style, box: to } = part;
@@ -6584,8 +6592,8 @@ function boxMotion({
             [ringFill, 0]
           ])
             start(layer, [
-              { clipPath: outline(from, grown, radius) },
-              { clipPath: outline(to, grown, radius) }
+              clipFrame(...outline(from, grown, radius)),
+              clipFrame(...outline(to, grown, radius))
             ]);
         } else if (!sized && paints(style) && !part.holdsWindow) grow(part, from);
         if (!same3(from, to)) motions.set(element, { from, to, frames: true });
@@ -6600,8 +6608,8 @@ function boxMotion({
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach2] of surface())
       start(layer, [
-        { clipPath: outline(boxFrom, reach2, boxRadius) },
-        { clipPath: outline(boxAt, reach2, boxRadius) }
+        clipFrame(...outline(boxFrom, reach2, boxRadius)),
+        clipFrame(...outline(boxAt, reach2, boxRadius))
       ]);
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");

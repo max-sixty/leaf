@@ -384,7 +384,7 @@
   },
   "lf-trace": {
     "description": "A commentable Playwright recording with action phases, native captured frames and saved accessibility elements.",
-    "x-instructions": "Bind `source` to an imported playwright-trace source. The viewer opens at the earliest authored moment it can resolve. A comment on an image pins that image; one on a saved element pins its checkpoint and tree path, which can be at a different time from the image beside it. The package's author instructions say how to caption the recording and record comparable journeys.",
+    "x-instructions": "Bind `source` to an imported playwright-trace source. The viewer opens at the earliest authored moment it can resolve.",
     "type": "object",
     "properties": {
       "id": {
@@ -445,7 +445,7 @@
   },
   "lf-trace-compare": {
     "description": "Several Playwright recordings inspected together, with their results paired by key.",
-    "x-instructions": "Put one `lf-trace` per recording inside it, each with a `label`. Selecting a bookmark finds the bookmark with the same `key` in the other recordings, keeping the image scale, and each recording keeps its original timeline.",
+    "x-instructions": "Put one `lf-trace` per recording inside it, each with a `label`.",
     "type": "object",
     "properties": {
       "id": {

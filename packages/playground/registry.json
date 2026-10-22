@@ -1,7 +1,7 @@
 {
   "lf-playground": {
     "description": "A preview with controls, where the user tunes one configuration and sends it.",
-    "x-instructions": "Holds one `lf-playground-preview` and one `lf-playground-output`. A page module adds structured state, views and an instruction provider through `registerContributor`, `subscribe` and `registerInstructionProvider`, as the playground package's author instructions, \"Stateful previews\", describe.",
+    "x-instructions": "Holds one `lf-playground-preview` and one `lf-playground-output`.",
     "type": "object",
     "properties": {
       "id": {
@@ -218,7 +218,6 @@
   },
   "lf-playground-preview": {
     "description": "The live preview the user operates in a playground, such as the candidates being compared.",
-    "x-instructions": "Page CSS inside it can read the `--playground-NAME` properties and `data-playground-NAME` attributes the `lf-playground` carries.",
     "type": "object",
     "properties": {
       "id": {
@@ -233,7 +232,6 @@
   },
   "lf-playground-output": {
     "description": "The task instruction displayed by a playground and sent with the chosen configuration.",
-    "x-instructions": "Write a self-contained task rather than a value dump. Insert `lf-playground-value` where a scalar selection makes it more precise, and register an instruction provider for prose that depends on structured or conditional values.",
     "type": "object",
     "properties": {
       "id": {

@@ -207,7 +207,7 @@
   },
   "lf-worktree-diffs": {
     "description": "A supplied set of expandable worktree snapshots, with aggregate change totals and independent diff readers.",
-    "x-instructions": "Supply `lf-worktree` members in review order. The collection totals their file and line counts and lists unavailable snapshots separately. The diff package's author instructions give the snapshot contract.",
+    "x-instructions": "Supply `lf-worktree` members in review order; the collection lists unavailable snapshots apart from its totals.",
     "type": "object",
     "properties": {
       "id": {
@@ -225,7 +225,6 @@
   },
   "lf-worktree": {
     "description": "One worktree snapshot and its authored evidence inside lf-worktree-diffs.",
-    "x-instructions": "Wrap the evidence in one native `details` with a stable id; Leaf supplies its summary, and `open` shows it initially. `binary-files` counts binary changes within `files` and outside the line totals. An `unavailable` member explains the missing evidence in its body and supplies no counts.",
     "type": "object",
     "properties": {
       "id": {

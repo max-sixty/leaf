@@ -1,24 +1,25 @@
 Use `lf-worktree-diffs` when the reader needs to inspect a supplied set of worktrees.
-Give it one `lf-worktree` per snapshot, in review order, with no limit on how many.
-Wrap each member's evidence in one native `details` with a stable id; Leaf supplies its
-summary, and `open` on the first useful disclosure shows it initially.
+Give it one `lf-worktree` per snapshot, in review order. There is no limit on how many. Wrap each member’s evidence in one
+native `details` with a stable id. Leaf supplies its summary; set `open` on the first
+useful disclosure.
 
 Each member supplies `label`, `path`, `status`, and the known snapshot's `files`,
-`additions` and `deletions`, plus `branch` when attached and `head` for the full current
-commit hash. The row shows a shortened hash, so put the full hash in the authored
+`additions`, and `deletions`. Use `branch` when attached and `head` for the full current
+commit hash. The row shows a shortened hash; put the full hash in the authored
 snapshot details too, where the reader can select it. Optional `binary-files` counts
-binary changes within `files`, apart from the line totals. The collection totals the
-members' values, so never count an unavailable snapshot as zero: `status="unavailable"`
-omits counts and explains the problem in its body. `status="clean"` describes the
-selected comparison, not necessarily the worktree's uncommitted state.
+binary changes within `files`, separately from text-line totals. The collection
+computes its totals from these member values; never count an unavailable snapshot as
+zero. `status="clean"` has zero counts; `status="unavailable"` omits counts and explains
+the problem in its body. Clean describes the selected comparison, not necessarily
+the worktree's uncommitted state.
 
-Get counts from the same Git comparison as the patch, such as its `--numstat` output,
-keeping Git's distinction between binary and textual changes. Name the comparison and
-its scope: comparing a merge base with HEAD differs from comparing it with the working
-tree, and untracked files need explicit treatment. Snapshots can come from different
-repositories. Label illustrative evidence as such.
+Get counts from the same Git comparison as the patch (for example, its `--numstat`
+output), retaining Git's distinction between binary and textual changes. Name the
+comparison and its inclusion scope: comparing a merge base with HEAD differs from
+comparing it with the working tree, and untracked files need explicit treatment.
+Snapshots can come from different repositories. Label illustrative evidence as such.
 
-Inside each disclosure, write ordinary markup followed by the real `lf-diff`:
+Inside that disclosure, use ordinary authored markup followed by the real `lf-diff`:
 
 ```html
 <lf-worktree-diffs id="worktrees">
@@ -57,12 +58,14 @@ Inside each disclosure, write ordinary markup followed by the real `lf-diff`:
 </lf-worktree-diffs>
 ```
 
-The paragraph holds the commit subject and relevant working-tree state. An optional
-`aside` holds your commentary as ordinary prose the reader can select and comment on;
-omit it when the evidence speaks for itself. The Snapshot details disclosure holds the
-full commit and comparison-base hashes, repository path, scope and capture time, and the
-worktree path too when the reader needs to comment on it.
+Use the paragraph for the commit subject and relevant working-tree state. An optional
+`aside` holds the agent's commentary as normal selectable, commentable prose; omit it
+when the evidence speaks for itself. Put full commit and comparison-base hashes,
+repository path, scope, and capture time in the native Snapshot details disclosure.
+The worktree path itself is supplied by `path` and shown above the body. Include that
+path in the authored details too when the reader needs to comment on it.
 
-Supply each `lf-diff` the exact Git patch inline or through its source contract, and
-describe binary changes in the authored body where there is no textual patch. The widget
-shows only the snapshots you supply; it discovers no directories and runs no Git.
+`lf-diff` remains the patch reader: supply the exact Git patch inline or through its
+existing source contract. Describe binary changes in the authored body when
+there is no textual patch to inspect. This widget displays snapshots supplied
+by the author; it does not discover directories or run Git in the browser.

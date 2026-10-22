@@ -1570,25 +1570,26 @@ addEventListener(
 );
 onStanding((node) => {
   for (let at = node; at; at = upFrom(at)) {
-    const copy = controls.get(at);
+    const copy = controls.get(at)?.copy;
     if (copy) return revealControl(copy, at);
   }
 });
 function prepareCodeBlock(pre, source, noun) {
-  let copy = controls.get(pre);
-  if (!copy) {
-    copy = copyControl("lf-code-copy", {
+  let held = controls.get(pre);
+  if (!held) {
+    const copy = copyControl("lf-code-copy", {
       label: `Copy ${noun}`,
       success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
       error: `Unable to copy ${noun}`
     });
+    held = { copy, source };
     copy.addEventListener(
       "click",
       (event) => {
         if (event.detail && !pressedPath.has(copy)) {
           event.preventDefault();
           event.stopImmediatePropagation();
-        } else copy.value = source();
+        } else copy.value = held.source();
       },
       { capture: true }
     );
@@ -1597,9 +1598,9 @@ function prepareCodeBlock(pre, source, noun) {
         focusDestination(pre, "move");
     });
     pre.addEventListener("pointerenter", () => revealControl(copy, pre));
-    controls.set(pre, copy);
+    controls.set(pre, held);
   }
-  return anchorControl(copy, pre);
+  return anchorControl(held.copy, pre);
 }
 function declareCopy(pre, copy, noun) {
   projectCommandScope(
@@ -1617,6 +1618,7 @@ function declareCopy(pre, copy, noun) {
 }
 function copyBlock(block, source, noun) {
   const copy = aimControl(prepareCodeBlock(block, source, noun));
+  controls.get(block).source = source;
   declareCopy(block, copy, noun);
   return copy;
 }
@@ -1674,7 +1676,7 @@ function watchCodeBlocks() {
     leave(pre) {
       wired.get(pre)?.abort();
       wired.delete(pre);
-      const copy = controls.get(pre);
+      const copy = controls.get(pre)?.copy;
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       if (copy) releaseControl(copy);

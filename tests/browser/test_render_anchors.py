@@ -65,6 +65,7 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     PANEL_THREAD,
+    ROOT,
     SAID_PAGE,
     _traffic,
     compare_with,
@@ -1326,6 +1327,37 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
         "two",
     )
     wait_for_revision(page, 2)
+
+
+def test_a_retained_copy_control_reads_the_latest_source_provider(browser, serve):
+    """A widget can keep its source block and copy control while replacing its data."""
+    page = open_page(browser, serve(ROOT / "examples" / "review-a-plan.html"))
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.evaluate("""async () => {
+      const {copyBlock} = await window.__lfWidgetApi();
+      const block = document.createElement('pre');
+      block.id = 'changing-source';
+      const code = document.createElement('code');
+      code.textContent = 'Source with display annotations';
+      block.append(code);
+      document.querySelector('main').prepend(block);
+      const copy = copyBlock(block, () => 'First source', 'source');
+      copy.id = 'changing-source-copy';
+      block.append(copy);
+      const retained = copyBlock(block, () => 'Updated source', 'source');
+      if (retained !== copy) throw new Error('The copy control was replaced');
+      copy.feedbackDuration = 0;
+      copy.copied = new Promise(resolve => copy.addEventListener('wa-copy', resolve, {once:true}));
+    }""")
+    # Automatic discovery of pre > code must not replace the widget's source.
+    rendered(page)
+    block = page.locator("#changing-source")
+    block.hover()
+    page.get_by_role("button", name="Copy source", exact=True).click()
+    page.locator("#changing-source-copy").evaluate(
+        "copy => copy.copied.then(() => true)"
+    )
+    assert page.evaluate("navigator.clipboard.readText()") == "Updated source"
 
 
 def test_code_copy_enter_leaves_nested_links_usable(browser, serve):

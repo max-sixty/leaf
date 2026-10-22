@@ -2,7 +2,9 @@
    block, and any widget block that asks with `copyBlock`, such as a code listing or a
    draft's Markdown. Document controls stand in chrome so authored sibling selectors
    keep their meaning. Their sources read their current text on activation; widgets
-   supply their source before rendering line numbers, annotations, or other words. CSS
+   supply their source before rendering line numbers, annotations, or other words.
+   Calling `copyBlock` again keeps its control and replaces the source reader;
+   automatic document discovery preserves that explicit source. CSS
    anchors keep the control at the block's right edge (block-controls.js). Widgets
    connect their final styled block before requesting the control.
    Enter on a block the user stands on copies it. That press is a register row
@@ -58,27 +60,28 @@ addEventListener(
 // route must see the control in that same gesture, widgets included.
 onStanding((node) => {
   for (let at = node; at; at = upFrom(at)) {
-    const copy = controls.get(at);
+    const copy = controls.get(at)?.copy;
     if (copy) return revealControl(copy, at);
   }
 });
 
 // `noun` names what the block holds, in the control's label and its result.
 function prepareCodeBlock(pre, source, noun) {
-  let copy = controls.get(pre);
-  if (!copy) {
-    copy = copyControl("lf-code-copy", {
+  let held = controls.get(pre);
+  if (!held) {
+    const copy = copyControl("lf-code-copy", {
       label: `Copy ${noun}`,
       success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
       error: `Unable to copy ${noun}`,
     });
+    held = { copy, source };
     copy.addEventListener(
       "click",
       (event) => {
         if (event.detail && !pressedPath.has(copy)) {
           event.preventDefault();
           event.stopImmediatePropagation();
-        } else copy.value = source();
+        } else copy.value = held.source();
       },
       { capture: true },
     );
@@ -87,9 +90,9 @@ function prepareCodeBlock(pre, source, noun) {
         focusDestination(pre, "move");
     });
     pre.addEventListener("pointerenter", () => revealControl(copy, pre));
-    controls.set(pre, copy);
+    controls.set(pre, held);
   }
-  return anchorControl(copy, pre);
+  return anchorControl(held.copy, pre);
 }
 
 // Declared on each arrival, since leaving withdraws it. A widget renders a new block
@@ -111,6 +114,7 @@ function declareCopy(pre, copy, noun) {
 
 export function copyBlock(block, source, noun) {
   const copy = aimControl(prepareCodeBlock(block, source, noun));
+  controls.get(block).source = source;
   declareCopy(block, copy, noun);
   return copy;
 }
@@ -172,7 +176,7 @@ export function watchCodeBlocks() {
     leave(pre) {
       wired.get(pre)?.abort();
       wired.delete(pre);
-      const copy = controls.get(pre);
+      const copy = controls.get(pre)?.copy;
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       if (copy) releaseControl(copy);

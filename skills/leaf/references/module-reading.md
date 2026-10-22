@@ -107,7 +107,8 @@ Leaf adds a Copy button to each `pre > code` in the page. For other source text 
 draws, such as code in its shadow stage, `copyBlock(block, source, noun)` returns a Copy
 button for the block's top right that copies `source()`; `noun`, such as `"code"`, names
 what it copies. Call it once the block is connected and append the button to the
-widget.
+widget. Calling it again for the same block keeps the control and updates its source
+reader. Automatic discovery of document code blocks preserves this explicit source.
 
 ### Text alignment
 

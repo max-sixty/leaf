@@ -381,6 +381,7 @@ import {
   anchorKey,
   annotationMode,
   applicationPresenter,
+  applicationRegionsPresented,
   applicationState,
   bindQueuedWork,
   createSignal,
@@ -7788,7 +7789,10 @@ function mountApplication(dependencies) {
         annotationInputs();
         renderAnnotations();
       },
-      () => projectionRegionsPresented([])
+      // The inventory joins current thread records with their committed placements
+      // and surface claims. A publication can name a newly admitted thread before
+      // that directory has replaced its pending name; wait for both presentations.
+      () => projectionRegionsPresented([]) && applicationRegionsPresented(["thread"])
     );
     document.addEventListener("lf-comparison", renderAnnotations);
     onPaper.addEventListener("change", () => {

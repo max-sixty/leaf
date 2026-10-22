@@ -11,6 +11,7 @@ import {
   whenWidgetsPresented,
   presentDocument,
   projectionRegionsPresented,
+  applicationRegionsPresented,
   readPart,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
@@ -287,7 +288,10 @@ export function mountApplication(dependencies) {
         annotationInputs();
         renderAnnotations();
       },
-      () => projectionRegionsPresented([]),
+      // The inventory joins current thread records with their committed placements
+      // and surface claims. A publication can name a newly admitted thread before
+      // that directory has replaced its pending name; wait for both presentations.
+      () => projectionRegionsPresented([]) && applicationRegionsPresented(["thread"]),
     );
     document.addEventListener("lf-comparison", renderAnnotations);
     // A paint on paper read no ages, so the return to screen paints through the

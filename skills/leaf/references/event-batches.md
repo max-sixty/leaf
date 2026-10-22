@@ -14,8 +14,8 @@ handled is a retry: do not repeat its repository edits or external actions.
 
 Every transport delivers the same immutable envelope: an `id`, an `acknowledge`
 instruction, and `batches`, one per page, each with its page's events, the threads
-they belong to, and the `handling` clauses they name. `DELIVERY` in
-`scripts/leaf/delivery.py` declares every field. Some harnesses put the envelope in
+they belong to, and the `handling` clauses they name. `DELIVERY` in the plugin's
+`src/leaf/delivery.py` declares every field. Some harnesses put the envelope in
 your context; others give a pointer, which `leaf delivery read <id>` resolves. A
 large envelope reads in numbered parts: each holds a slice of its JSON in `text`,
 which you join in order, and its `next` is the command that reads the following

@@ -116,7 +116,7 @@ Omit `--session` to include server requests and raw event records. The raw
 `<page>/observations.jsonl`, which `tail -F` follows live while you reproduce a
 problem, is in arrival order and still holds retries; browser wall time is in
 `observed_at`, and order alone does not prove cause. The user's decisions are in
-`leaf page events <page>`, and [page-storage.md](../scripts/leaf/page-storage.md)
+`leaf page events <page>`, and [page-storage.md](../../../src/leaf/page-storage.md)
 defines the files.
 
 ## Temporary test servers

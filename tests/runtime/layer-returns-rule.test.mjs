@@ -12,7 +12,7 @@ import { parse } from "acorn";
 import { layerReturnsRule } from "../../eslint.config.mjs";
 
 const filename = fileURLToPath(
-  new URL("../../skills/leaf/assets/runtime/probe.js", import.meta.url),
+  new URL("../../browser/runtime/probe.js", import.meta.url),
 );
 
 // How many times the rule reports on `code`.

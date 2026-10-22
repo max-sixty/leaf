@@ -13,9 +13,6 @@ from interact_support import (
     append_carried_log_record,
     append_command,
 )
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     COMMAND_HUB_EXAMPLE,
@@ -43,6 +40,10 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

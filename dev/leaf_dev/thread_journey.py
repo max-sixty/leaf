@@ -14,10 +14,10 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from leaf.registry.kernel import kinds_declaring
-from leaf.render_checks import rendered, wait_for_probe
 from playwright.sync_api import Locator, Page, expect
 
+from leaf.registry.kernel import kinds_declaring
+from leaf.render_checks import rendered, wait_for_probe
 from leaf_dev.browser import scroll_settled
 
 WORDS = "Keep the reader's words in the thread while this reply is being sent."

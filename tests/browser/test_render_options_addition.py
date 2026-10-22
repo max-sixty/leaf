@@ -4,7 +4,6 @@ import base64
 
 import pytest
 from interact_support import append_carried_log_record, stamp
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
@@ -29,6 +28,8 @@ from render_harness import (
     told,
     write,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

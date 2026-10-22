@@ -153,14 +153,21 @@ import {
   aborted,
   authoredStates,
   commitWidgetDescriptors,
+  descriptorStillMatches,
+  failSoft,
+  failSoftUnreported,
+  once,
   orderChildren,
   patchRetains,
   patchTree,
+  placesFailure,
   quoted,
   rememberAuthoredParents,
+  reportFailure,
   setChildren,
   stageAuthoredStates,
-  stageWidgetDescriptors
+  stageWidgetDescriptors,
+  widgetDescriptor
 } from "./bundle-stylesheets.js";
 import {
   scrollBehavior
@@ -196,7 +203,6 @@ import {
   unmarkedCopy
 } from "./bundle-initial-render.js";
 import {
-  PRESENTATION,
   SCROLL_SLACK,
   activityTransitionDue,
   ago,
@@ -292,6 +298,7 @@ import {
   notice,
   offer,
   paintKeys,
+  paintKeysWithin,
   placeBox,
   placeHolder,
   pointerAt,
@@ -347,6 +354,7 @@ import {
   frameVisibility,
   handBack,
   holdFocus,
+  holdRendering,
   inputCount,
   keeps,
   keepsHidden,
@@ -379,6 +387,8 @@ import {
   annotationMode,
   applicationPresenter,
   applicationState,
+  attachApplicationPresentation,
+  attachWidgetPresentation,
   documentChanged,
   layerRoot,
   offlineData,
@@ -387,7 +397,7 @@ import {
   pageUrl,
   presentDocument,
   projectView,
-  projectionRegionsPresented,
+  queueWidgetUpdate,
   readApplication,
   readPart,
   revisionLabel,
@@ -400,6 +410,7 @@ import {
 } from "./bundle-semantic-state.js";
 import {
   J,
+  LitElement,
   PENDING,
   Z,
   actionForWidget,
@@ -414,7 +425,9 @@ import {
   moved,
   obligationValue,
   projectionOrigins,
+  q,
   reactionsAt,
+  render,
   stateCoordinate,
   threadKey,
   tokenChoices,
@@ -2143,75 +2156,6 @@ function createSelectionComposer({
   };
 }
 
-// runtime/projection-watch.js
-var presentations = Z(0);
-document.addEventListener(PRESENTATION, () => {
-  presentations.value += 1;
-});
-function watchProjection(owner, paint, ready = null) {
-  let key = 0;
-  let queued = false;
-  let following = null;
-  let connected = false;
-  const update = () => {
-    if (queued) return;
-    queued = true;
-    queueMicrotask(() => {
-      queued = false;
-      if (connected && owner.isConnected) draw(key);
-    });
-  };
-  const draw = readingPaint(owner, () => {
-    if (ready !== null && !d(ready)) return draw.forget();
-    following?.();
-    let first = true;
-    let outcome;
-    following = x(() => {
-      if (!first) {
-        key += 1;
-        update();
-        return;
-      }
-      first = false;
-      try {
-        presentations.value;
-        outcome = { value: paint() };
-      } catch (error) {
-        outcome = { error };
-      }
-    });
-    if (!connected) {
-      following();
-      following = null;
-    }
-    if ("error" in outcome) throw outcome.error;
-    return outcome.value;
-  });
-  let stopProof = null;
-  const stopLifetime = watchOwner(owner, {
-    connect() {
-      connected = true;
-      if (ready)
-        stopProof = watchPresentation(() => draw.owes(key) && ready() && update());
-      draw.forget();
-      update();
-    },
-    disconnect() {
-      connected = false;
-      stopProof?.();
-      stopProof = null;
-      following?.();
-      following = null;
-    }
-  });
-  const stop = () => {
-    stopLifetime();
-    draw.stop();
-  };
-  stop.refresh = () => draw.owes(key) && owner.isConnected ? draw(key) : draw.refresh();
-  return stop;
-}
-
 // runtime/keyboard/control-keys.js
 var stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
 var stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boolean);
@@ -2731,16 +2675,10 @@ var VersionPicker = class {
   #activate = null;
   #compare = null;
   #latest = null;
-  #listeners = /* @__PURE__ */ new Set();
   configure({ activate, compare, latest }) {
     this.#activate = activate;
     this.#compare = compare;
     this.#latest = latest;
-  }
-  // Word of each reading it presents, for a presentation that draws the versions.
-  watch(listener) {
-    this.#listeners.add(listener);
-    return () => this.#listeners.delete(listener);
   }
   activate(entry) {
     this.#activate?.(entry);
@@ -2750,9 +2688,6 @@ var VersionPicker = class {
   }
   latest() {
     this.#latest?.();
-  }
-  present(model) {
-    for (const listener of this.#listeners) listener(model);
   }
 };
 var versionPicker = new VersionPicker();
@@ -2885,12 +2820,16 @@ function paintPicker() {
   holdFailedSave(
     model.latest.failed ? "Latest edit not shown: it failed its check (see Versions)" : null
   );
-  versionPicker.present(model);
   repaint();
 }
-var pickerWatch = null;
-var presentPicker = () => pickerWatch?.refresh();
-var versionsReading = () => pickerModel(runtime.state);
+var pickerRevision = Z(0);
+var presentPicker = () => {
+  pickerRevision.value += 1;
+};
+var versionsReading = () => {
+  pickerRevision.value;
+  return pickerModel(runtime.state);
+};
 registerPageControl({
   key: "versions",
   rank: PAGE_CONTROL_RANK.versions,
@@ -2931,7 +2870,7 @@ var diffOpaqueSel = () => [
 ].join(",");
 var diffOn = false;
 var diffBase = null;
-var comparisonGeneration = 0;
+var comparisonGeneration = Z(0);
 var diffPendingBase = null;
 var diffMarked = /* @__PURE__ */ new Set();
 var diffBefore = /* @__PURE__ */ new Map();
@@ -3197,7 +3136,7 @@ function setDiff(on, base, pendingBase = null) {
   announceComparison();
 }
 function announceComparison() {
-  comparisonGeneration += 1;
+  comparisonGeneration.value += 1;
   document.dispatchEvent(new CustomEvent("lf-comparison"));
 }
 async function showComparison(base) {
@@ -3247,12 +3186,13 @@ var pressComparison = (base) => diffOn && base === diffBase || diffPendingBase =
 var comparisonBase = () => diffOn ? diffBase : null;
 var selectedBase = () => diffPendingBase ?? comparisonBase();
 function comparisonChanges(owner = null) {
+  comparisonGeneration.value;
   const changes = diffOn ? [...diffMarked] : [];
   return owner ? changes.filter((block) => block !== owner && under(block, owner)) : changes;
 }
 function watchComparison(owner, callback) {
   const paint = readingPaint(owner, () => callback());
-  const read2 = () => paint(comparisonGeneration);
+  const read2 = () => paint(comparisonGeneration.peek());
   const stop = whileConnected(owner, (signal) => {
     document.addEventListener("lf-comparison", read2, { signal });
     read2();
@@ -3709,14 +3649,14 @@ function createVersionController({
   }
   function restoreView(view, currentIntent) {
     releaseHolds();
-    const regions = new Map(readingRegions().map((region) => [region.id, region]));
-    const active = regions.get(view.activeRegion) ?? containingReadingRegionFor(focusedInView()) ?? readingRegionFor(pageReadingBlock());
+    const regions2 = new Map(readingRegions().map((region) => [region.id, region]));
+    const active = regions2.get(view.activeRegion) ?? containingReadingRegionFor(focusedInView()) ?? readingRegionFor(pageReadingBlock());
     if (active) reveal(active.host, currentIntent);
     const restored = /* @__PURE__ */ new Set();
     const activeReading = active && view.regions?.[active.id];
-    const activeScroller = active && effectiveScroller(regions.get(active.id));
+    const activeScroller = active && effectiveScroller(regions2.get(active.id));
     if (activeReading && (hasLandmark(activeReading) || rawOffsetFits(activeReading, activeScroller) && activeScroller !== pageScroller)) {
-      restorePlace(activeReading, regions.get(active.id), currentIntent);
+      restorePlace(activeReading, regions2.get(active.id), currentIntent);
       restored.add(activeScroller);
     } else {
       restorePlace(view, null, currentIntent);
@@ -3727,7 +3667,7 @@ function createVersionController({
       restored.add(pageScroller);
     }
     for (const [id, reading] of Object.entries(view.regions ?? {})) {
-      const region = regions.get(id);
+      const region = regions2.get(id);
       if (!region || !shownRegionBounds(region)) continue;
       const box = effectiveScroller(region);
       if (restored.has(box)) continue;
@@ -4158,7 +4098,10 @@ function createVersionController({
       compare: pressComparison,
       latest: goActive
     });
-    pickerWatch = watchProjection(document.body, paintPicker);
+    x(() => {
+      pickerRevision.value;
+      paintPicker();
+    });
     presentPicker();
   }
   return {
@@ -5004,11 +4947,13 @@ function createReactionController({
       threads: root.effective.thread.all,
       annotations: annotationSelection(root)
     }));
-    watchProjection(document.body, () => {
+    x(() => {
       margin();
-      if (reactArmed && reactSurface === marginSurface && (!marginTarget?.isConnected || fabTargetAt() !== marginTarget))
-        setReact(false);
-      else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
+      d(() => {
+        if (reactArmed && reactSurface === marginSurface && (!marginTarget?.isConnected || fabTargetAt() !== marginTarget))
+          setReact(false);
+        else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
+      });
     });
   }
   pageScope("reactions", REACT);
@@ -5945,12 +5890,12 @@ function createThreadPresentation({
 }
 
 // runtime/annotation-view.js
-function createAnnotationView(owner, render, inventory, invalidate, retire) {
+function createAnnotationView(owner, render2, inventory, invalidate, retire) {
   if (!(owner instanceof Element))
     throw new TypeError("consumeAnnotations needs an Element owner");
   if (!owner.isConnected)
     throw new TypeError("An annotation view needs a connected owner");
-  if (typeof render !== "function")
+  if (typeof render2 !== "function")
     throw new TypeError("consumeAnnotations needs a synchronous render callback");
   let active = true;
   let places2 = /* @__PURE__ */ new Map();
@@ -5972,7 +5917,7 @@ function createAnnotationView(owner, render, inventory, invalidate, retire) {
         throw new TypeError("Annotation capabilities belong to their current reading");
     };
     try {
-      const result = render(entries, {
+      const result = render2(entries, {
         target: inventory.targetFor,
         activate: inventory.activate,
         items: annotationItems,
@@ -6486,7 +6431,7 @@ function createThreadActions({
 }
 
 // runtime/thread/primary-reader.js
-function createPrimaryReader(owner, render, commands, update, { answersAtOnce = false, onFailure = () => {
+function createPrimaryReader(owner, render2, commands, update, { answersAtOnce = false, onFailure = () => {
 } } = {}) {
   let active = true;
   let failing = false;
@@ -6643,7 +6588,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       };
     };
     try {
-      const rendering = render(
+      const rendering = render2(
         shownCollection,
         Object.freeze({
           signal: abort.signal,
@@ -7772,17 +7717,22 @@ function mountApplication(dependencies) {
   };
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    const watching2 = watchProjection(
-      document.body,
-      () => {
-        annotationInputs();
-        renderAnnotations();
-      },
-      () => projectionRegionsPresented([])
-    );
+    const presentation = applicationPresenter({
+      region: "annotations",
+      order: PRESENTATION_ORDER.annotations,
+      reading: () => annotationInputs(),
+      paint: async (_reading, current, resume) => {
+        const ready = await whenApplicationRegionsPresented(
+          ["projection:chrome"],
+          current
+        );
+        if (ready === "presented" && current()) resume(renderAnnotations)();
+      }
+    });
+    void presentation.present();
     document.addEventListener("lf-comparison", renderAnnotations);
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) watching2.refresh();
+      if (!onPaper.matches) void presentation.present();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();
@@ -7906,7 +7856,7 @@ function mountApplication(dependencies) {
       throw new Error("Page annotation presentation requires data-annotations=page");
   };
   let annotationRegistration = null;
-  const consumeAnnotations2 = (owner, render) => {
+  const consumeAnnotations2 = (owner, render2) => {
     requirePageAnnotations();
     if (annotationRegistration)
       throw new Error("The document already has a page annotation view");
@@ -7916,21 +7866,21 @@ function mountApplication(dependencies) {
       if (annotationRegistration === registration) annotationRegistration = null;
     };
     try {
-      return createAnnotationView(owner, render, annotations, invalidateDom2, retire);
+      return createAnnotationView(owner, render2, annotations, invalidateDom2, retire);
     } catch (error) {
       retire();
       throw error;
     }
   };
   const watchThreadSurfaces2 = () => watchThreadSurfaces(threadSurfaceCommands);
-  const placePageThreads3 = (owner, render) => {
+  const placePageThreads3 = (owner, render2) => {
     requirePageAnnotations();
-    return placePageThreads(owner, render, threadSurfaceCommands);
+    return placePageThreads(owner, render2, threadSurfaceCommands);
   };
-  const attachPresentation = (owner, { render, reveal: reveal3, answersAtOnce = false }, onFailure = void 0) => {
+  const attachPresentation = (owner, { render: render2, reveal: reveal3, answersAtOnce = false }, onFailure = void 0) => {
     const reader = createPrimaryReader(
       owner,
-      render,
+      render2,
       inlineView,
       () => threadPresenter.present(),
       { answersAtOnce, onFailure }
@@ -8229,50 +8179,160 @@ function declareThreadKeys(landIn, threadHere) {
   });
 }
 
-// runtime/queue-title.js
-function queueTitle(item) {
-  const thread = readThreads().threads.find((thread2) => thread2.id === item.thread);
-  const own = elementById(item.subject.id);
-  const topic = thread ? threadName(thread) : "";
-  const title = item.todo?.title ?? item.obligation?.prompt.text;
-  if (title) return title;
-  const reply = item.kind === "update" ? item.obligation?.answer?.event?.id : null;
-  const sent = reply && thread?.msgs.find((message) => message.id === reply);
-  if (sent) return sent.body.text.trim() || topic;
-  if (item.subject.kind === "widget") {
-    const record = own && obligationHolding(readObligations().all, own);
-    return record && addressableLabel(obligationPlace(record).context) || addressableLabel(own) || topic || item.id;
+// runtime/widget-controller.js
+var controllers = /* @__PURE__ */ new WeakMap();
+var ancestorRefreshes = /* @__PURE__ */ new Set();
+var ancestorRefreshQueued = false;
+var selfDrawn = /* @__PURE__ */ new WeakMap();
+var drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
+function widgetMounted(owner, descriptor, parentChanged) {
+  if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
+    refreshAncestors(owner);
+  invalidateDom();
+}
+function refreshAncestors(owner) {
+  for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    const drawing = selfDrawn.get(ancestor);
+    if (drawing) ancestorRefreshes.add(drawing);
   }
-  return topic || item.id;
+  if (!ancestorRefreshes.size || ancestorRefreshQueued) return;
+  ancestorRefreshQueued = true;
+  queueMicrotask(() => {
+    ancestorRefreshQueued = false;
+    const pending = [...ancestorRefreshes];
+    ancestorRefreshes.clear();
+    for (const drawing of pending) drawing.refresh();
+  });
 }
-
-// runtime/obligations/answer.js
-function ownedObligationControl(source, commandSource) {
-  const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
-  return !selector || closestAcross(commandSource, selector) === source;
+var immutable = (value) => {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const child of Object.values(value)) immutable(child);
+    Object.freeze(value);
+  }
+  return value;
+};
+var unavailable = (reading) => immutable({
+  ...structuredClone(reading),
+  actions: Object.fromEntries(
+    Object.entries(reading.actions).map(([verb, entry]) => [
+      verb,
+      { ...entry, available: false, undo: [] }
+    ])
+  )
+});
+function createWidgetController(owner) {
+  const descriptor = widgetDescriptor(owner);
+  if (!descriptor)
+    throw new Error(
+      `leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`
+    );
+  const selected = applicationState.selectWidget(descriptor);
+  let deferred = false;
+  let preparationHandle = null;
+  const pendingPreparations = /* @__PURE__ */ new Map();
+  let preparation = null;
+  let preparationBatch = null;
+  const read2 = () => descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
+  const prepared = () => {
+    if (!preparationHandle && owner.isConnected)
+      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
+    return preparationHandle;
+  };
+  const holdPreparation = (promise) => {
+    if (pendingPreparations.has(promise)) {
+      if (owner.isConnected && !pendingPreparations.get(promise))
+        pendingPreparations.set(promise, holdRendering());
+      return;
+    }
+    pendingPreparations.set(promise, owner.isConnected ? holdRendering() : null);
+    const settled = () => {
+      pendingPreparations.get(promise)?.(owner.isConnected ? "settle" : "cancel");
+      pendingPreparations.delete(promise);
+    };
+    Promise.resolve(promise).then(settled, settled);
+  };
+  const presentPreparation = (handle, { value, completion }) => handle.present(value, (reason) => failSoftUnreported(owner, reason)).resolve(completion);
+  const connect = () => d(() => {
+    if (!owner.isConnected) return;
+    for (const promise of pendingPreparations.keys()) holdPreparation(promise);
+    if (preparation && !preparationHandle) {
+      const handle = prepared();
+      if (handle) presentPreparation(handle, preparation);
+    }
+  });
+  const disconnect = () => {
+    preparationHandle?.disconnect();
+    preparationHandle = null;
+    for (const [promise, release] of pendingPreparations) {
+      release?.("cancel");
+      pendingPreparations.set(promise, null);
+    }
+  };
+  watchOwner(owner, { connect, disconnect });
+  return Object.freeze({
+    read: read2,
+    dispatch(command) {
+      if (!descriptorStillMatches(owner, descriptor)) return null;
+      const delivery = dispatchWidget(descriptor, command);
+      if (!delivery) return null;
+      return immutable({ reading: read2(), delivery });
+    },
+    // Hold the widget's drawing through a gesture that rewrites its nodes; the release
+    // draws the newest reading at once and returns it.
+    defer() {
+      const drawing = selfDrawn.get(owner);
+      if (!drawing)
+        throw new Error(`<${owner.localName}> defers only a LeafElement's drawing`);
+      if (deferred) throw new Error("Widget presentation is already deferred");
+      deferred = true;
+      const release = drawing.hold();
+      let released = false;
+      return () => {
+        if (released) return read2();
+        released = true;
+        deferred = false;
+        release();
+        invalidateDom();
+        return read2();
+      };
+    },
+    present(promise) {
+      const value = read2();
+      if (!preparationBatch || preparationBatch.value !== value) {
+        preparationBatch = { value, promises: [] };
+      }
+      preparationBatch.promises.push(promise);
+      const batch = preparationBatch;
+      const completion = Promise.all(batch.promises);
+      batch.completion = completion;
+      preparation = { value, completion };
+      holdPreparation(promise);
+      const handle = prepared();
+      if (handle) presentPreparation(handle, preparation);
+      const clear = () => {
+        if (preparationBatch?.completion === completion) preparationBatch = null;
+      };
+      completion.then(clear, clear);
+      return promise;
+    }
+  });
 }
-function obligationWord(item) {
-  if (item.source.kind === "approval") return "Approval";
-  const word2 = widgetWord(item.source.tag, elementById(item.source.id));
-  return word2.charAt(0).toUpperCase() + word2.slice(1);
-}
-function answerWords(item) {
-  if (item.answer === null) return "";
-  if (item.source.kind === "approval") return "Approved";
-  if (answeredInWords(item))
-    return item.answer.value.text ?? item.answer.value.token ?? "";
-  const source = elementById(item.source.id);
-  const formatter = (
-    /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */
-    customElements.get(item.source.tag)?.answerWords
-  );
-  return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
-}
-function obligationEnding(item) {
-  if (item.status === "withdrawn") return "Withdrawn";
-  if (item.status === "answered_elsewhere") return "Answered elsewhere";
-  const words2 = answerWords(item);
-  return words2 ? `Answered: ${words2}` : "Answered";
+function widgetController(owner) {
+  let controller = controllers.get(owner);
+  if (!controller) {
+    let implementation = null;
+    const resolve = () => implementation ??= createWidgetController(owner);
+    controller = Object.freeze(
+      Object.fromEntries(
+        ["read", "dispatch", "defer", "present"].map((method) => [
+          method,
+          (...args) => resolve()[method](...args)
+        ])
+      )
+    );
+    controllers.set(owner, controller);
+  }
+  return controller;
 }
 
 // runtime/data.js
@@ -8456,6 +8516,338 @@ async function loadDeferred(manifest, key) {
   return structuredClone(answer.value);
 }
 
+// runtime/leaf-element.js
+var regions = 0;
+var UpdateBoundary = class extends LitElement {
+  signalUpdateFailed(error) {
+    throw error;
+  }
+  performUpdate() {
+    try {
+      super.performUpdate();
+    } catch (error) {
+      this.signalUpdateFailed(error);
+    }
+  }
+};
+var LeafElement = class extends q(UpdateBoundary) {
+  #signalError = null;
+  #stopReadiness = null;
+  signalUpdateFailed(error) {
+    this.#signalError = { error };
+  }
+  requestUpdate(...args) {
+    const wasPending = this.isUpdatePending;
+    const result = super.requestUpdate(...args);
+    if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating))
+      d(() => {
+        if (this.#connected && this.#region && !this.#ticket)
+          this.#ticket = this.#claim();
+      });
+    return result;
+  }
+  /** Finish this render when its presentation prerequisites are ready. Readiness
+   * does not claim another presentation, which would invalidate its own proof. */
+  whenReady(read2) {
+    if (d(read2)) return true;
+    if (!this.#stopReadiness) {
+      this.#stopReadiness = watchPresentation(() => {
+        if (!d(read2)) return;
+        this.#stopReadiness?.();
+        this.#stopReadiness = null;
+        super.requestUpdate();
+      });
+    }
+    return false;
+  }
+  #descriptor = null;
+  #controller = null;
+  #verbs = [];
+  #region = null;
+  #regionName = null;
+  #connected = false;
+  #connectedParent = null;
+  // The open claim the next update that draws settles.
+  #ticket = null;
+  #held = false;
+  // The fail-soft box standing until the next update that draws; a `setup()` that threw
+  // leaves the element broken, drawing nothing.
+  #box = null;
+  #broken = false;
+  // The claim the update under way draws, settled once `updated` has run too.
+  #drawing = null;
+  #updating = false;
+  // The drawing that follows the update under way, which its claim waits for.
+  #work = null;
+  #data = /* @__PURE__ */ new Map();
+  #leaveData = null;
+  #scheduled = null;
+  createRenderRoot() {
+    return this;
+  }
+  scheduleUpdate() {
+    return this.#scheduled ?? this.#queueUpdate();
+  }
+  #queueUpdate() {
+    if (!this.#descriptor) return super.scheduleUpdate();
+    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
+      if (this.#scheduled !== scheduled) return;
+      this.#scheduled = null;
+      return super.scheduleUpdate();
+    });
+    this.#scheduled = scheduled;
+    return scheduled;
+  }
+  connectedCallback() {
+    if (once(this)) this.#setup();
+    super.connectedCallback();
+  }
+  #setup() {
+    this.#descriptor = widgetDescriptor(this);
+    if (this.#descriptor) {
+      this.#controller = widgetController(this);
+      drawsItself(this, {
+        hold: () => this.#hold(),
+        refresh: () => this.#refresh()
+      });
+      this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
+    }
+    this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
+    placesFailure(this, (box) => {
+      const root = this.renderRoot ?? this;
+      if (root === this && this.shadowRoot) return false;
+      if (this.#box?.parentNode === root && this.#box.textContent === box.textContent)
+        return true;
+      this.#box?.remove();
+      this.#box = box;
+      root.append(box);
+      return true;
+    });
+    try {
+      this.setup();
+    } catch (error) {
+      this.#broken = true;
+      failSoft(this, error);
+    }
+    watchOwner(this, {
+      connect: () => d(() => this.#connect()),
+      disconnect: () => this.#disconnect()
+    });
+  }
+  /** The module's one-time build, on the first connection, before the first render. */
+  setup() {
+  }
+  /** The widget's complete reading (`widgetController(this).read()`), collected; null
+   *  for an element the registry does not declare a widget, such as a quoted one. */
+  get reading() {
+    return this.#controller?.read() ?? null;
+  }
+  /** The widget's state, with every admitted and unresolved record folded in. */
+  get state() {
+    return this.reading.state;
+  }
+  /** The widget's controller, for `dispatch` and `present`. */
+  get controller() {
+    return this.#controller;
+  }
+  /** The bound reading of a declared `x-data` input, one copy a delivery (data.js). */
+  data(input) {
+    let read2 = this.#data.get(input);
+    if (!read2)
+      this.#data.set(input, read2 = dataReader(this, input, () => this.#stage()));
+    return read2();
+  }
+  // The controller's `defer` for this widget, which refuses a second hold and releases
+  // once: hold its presentation through a gesture that rewrites its nodes; the release
+  // draws the newest reading at once.
+  #hold() {
+    this.#held = true;
+    return () => {
+      this.#held = false;
+      this.#refresh();
+    };
+  }
+  #complete() {
+    if (!this.#controller) return true;
+    const { state } = this.#controller.read();
+    return this.#verbs.every((verb) => verb in state);
+  }
+  shouldUpdate(changed) {
+    if (!this.#connected || !this.isConnected) {
+      return false;
+    }
+    if (this.#held) return false;
+    this.#drawing = this.#ticket;
+    this.#ticket = null;
+    if (this.#broken) return false;
+    if (!this.#complete()) return false;
+    return super.shouldUpdate(changed);
+  }
+  update(changed) {
+    super.update(changed);
+    this.#box?.remove();
+    this.#box = null;
+  }
+  // An update settles its claim once all of it has run, `updated` included, and one
+  // that failed anywhere, its gate too, reports once and shows its failure; Lit has
+  // marked it done, so the next move draws again. A draw that `updated` asks for at
+  // once, as a module's own paint may, settles its own claim inside this one; with no
+  // claim of its own, its failure is the enclosing claimed update's.
+  performUpdate() {
+    const outer = this.#drawing;
+    const updating = this.#updating;
+    let outerWork = this.#work;
+    this.#drawing = null;
+    this.#work = null;
+    this.#updating = true;
+    try {
+      this.#signalError = null;
+      super.performUpdate();
+      if (this.#signalError) throw this.#signalError.error;
+      const work = this.#work;
+      if (work && !this.#drawing) {
+        if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
+        else if (this.#region) this.#drawing = this.#claim();
+      }
+      this.#drawing?.resolve(work ?? void 0);
+    } catch (error) {
+      if (outer && !this.#drawing) throw error;
+      this.#failed(error, this.#drawing);
+    } finally {
+      this.#drawing = outer;
+      this.#work = outerWork;
+      this.#updating = updating;
+    }
+  }
+  /** Hold the update under way's claim until `work`, drawing that follows the render
+   *  asynchronously, lands: highlighting a document, say. An update no move claimed
+   *  claims the region for it. The widget's presentation, and the data version a
+   *  delivery it draws holds, wait for it. Call it from `render()` or `updated()`. */
+  drawing(work) {
+    const named = Promise.resolve(work).catch((error) => {
+      reportFailure(this, error);
+      throw error;
+    });
+    this.#work = this.#work ? Promise.all([this.#work, named]) : named;
+  }
+  /** The render drawn again at once, outside any claim and Lit's own schedule, with a
+   *  failure thrown rather than shown: the render check's replay
+   *  (render-checks/replay.js), which holds a draw of the same reading to change
+   *  nothing. `updated()` does not run, since what follows a draw may start
+   *  preparation that would claim the widget's presentation and land after the check
+   *  reads the page. An update Lit has queued stays queued, with its claim. */
+  redraw() {
+    render(this.render(), this.renderRoot, this.renderOptions);
+  }
+  updated(changed) {
+    super.updated(changed);
+    d(() => paintKeysWithin(this));
+  }
+  // Every failure is reported here, naming the widget; a claim's rejection then shows
+  // the box through the coordinator's fallback, which reports nothing again.
+  #failed(error, ticket) {
+    if (!ticket) return failSoft(this, error);
+    reportFailure(this, error);
+    ticket.reject(error);
+  }
+  // A claim on the region for the reading as it stands, which a failure settles with
+  // the fail-soft box.
+  #claim() {
+    return this.#region.present(
+      d(() => this.#controller?.read() ?? {}),
+      (reason) => failSoftUnreported(this, reason)
+    );
+  }
+  // Claim the region for a reading that draws later, leaving the claim open.
+  #stage() {
+    if (!this.#connected || this.#ticket || !this.#region) return;
+    this.#ticket = this.#claim();
+  }
+  // Claim the region for the reading as it stands, and draw it on the next update; a
+  // claim the next update cannot draw stays open until one does.
+  #present({ now = false } = {}) {
+    if (!this.#region) return;
+    this.#ticket = this.#claim();
+    if (this.#held) return;
+    this.requestUpdate();
+    if (now) {
+      this.#scheduled = null;
+      this.performUpdate();
+    } else if (this.#descriptor) this.#queueUpdate();
+  }
+  #refresh() {
+    if (this.#connected) this.#present({ now: true });
+  }
+  #connect() {
+    this.#connected = true;
+    this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render", this) : attachApplicationPresentation(this.#regionName, this);
+    const parentChanged = this.#connectedParent !== this.parentElement;
+    this.#connectedParent = this.parentElement;
+    if (registry[this.localName]?.["x-data"])
+      this.#leaveData = joinDataDelivery(
+        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName
+      );
+    this.#present();
+    if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
+  }
+  #disconnect() {
+    this.#connected = false;
+    this.#stopReadiness?.();
+    this.#stopReadiness = null;
+    this.#leaveData?.();
+    this.#leaveData = null;
+    this.#ticket = null;
+    this.#region?.disconnect();
+    this.#region = null;
+  }
+};
+
+// runtime/queue-title.js
+function queueTitle(item) {
+  const thread = readThreads().threads.find((thread2) => thread2.id === item.thread);
+  const own = elementById(item.subject.id);
+  const topic = thread ? threadName(thread) : "";
+  const title = item.todo?.title ?? item.obligation?.prompt.text;
+  if (title) return title;
+  const reply = item.kind === "update" ? item.obligation?.answer?.event?.id : null;
+  const sent = reply && thread?.msgs.find((message) => message.id === reply);
+  if (sent) return sent.body.text.trim() || topic;
+  if (item.subject.kind === "widget") {
+    const record = own && obligationHolding(readObligations().all, own);
+    return record && addressableLabel(obligationPlace(record).context) || addressableLabel(own) || topic || item.id;
+  }
+  return topic || item.id;
+}
+
+// runtime/obligations/answer.js
+function ownedObligationControl(source, commandSource) {
+  const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
+  return !selector || closestAcross(commandSource, selector) === source;
+}
+function obligationWord(item) {
+  if (item.source.kind === "approval") return "Approval";
+  const word2 = widgetWord(item.source.tag, elementById(item.source.id));
+  return word2.charAt(0).toUpperCase() + word2.slice(1);
+}
+function answerWords(item) {
+  if (item.answer === null) return "";
+  if (item.source.kind === "approval") return "Approved";
+  if (answeredInWords(item))
+    return item.answer.value.text ?? item.answer.value.token ?? "";
+  const source = elementById(item.source.id);
+  const formatter = (
+    /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */
+    customElements.get(item.source.tag)?.answerWords
+  );
+  return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
+}
+function obligationEnding(item) {
+  if (item.status === "withdrawn") return "Withdrawn";
+  if (item.status === "answered_elsewhere") return "Answered elsewhere";
+  const words2 = answerWords(item);
+  return words2 ? `Answered: ${words2}` : "Answered";
+}
+
 export {
   initializeServedDocument,
   readPlace,
@@ -8480,7 +8872,6 @@ export {
   pendingDrawing,
   composerOpen,
   createSelectionComposer,
-  watchProjection,
   currentProjection,
   inPageOrder,
   commandSteps,
@@ -8504,8 +8895,6 @@ export {
   beginRead,
   mountApplication,
   threadBox2 as threadBox,
-  dispatchWidget,
-  invalidateDom,
   landInThread,
   navigateToDatum,
   projectData,
@@ -8521,15 +8910,15 @@ export {
   leavesBox,
   createThreadLanding,
   declareThreadKeys,
+  widgetController,
+  acceptData,
+  notifyDataSubscribers,
+  publishOutput,
+  loadDeferred,
+  LeafElement,
   queueTitle,
   ownedObligationControl,
   obligationWord,
   answerWords,
-  obligationEnding,
-  acceptData,
-  notifyDataSubscribers,
-  publishOutput,
-  dataReader,
-  joinDataDelivery,
-  loadDeferred
+  obligationEnding
 };

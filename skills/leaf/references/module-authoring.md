@@ -109,7 +109,7 @@ may hold, such as `registerReadingRegion`, passes to the replacement.
 
 A `LeafElement` draws nothing while it is away. On return, Lit updates it once to
 reconnect its dependencies and draw the current reading, keeping unchanged template
-nodes. `watchProjection` likewise pauses its dependencies while away and paints once
+nodes. `LeafElement` pauses its dependencies while away and paints once
 on return. Data and comparison callbacks instead run again only if their reading
 changed, or if their returned promise had not settled when the element left. A callback
 that throws or rejects is reported once and stays subscribed. So return the promise of
@@ -301,7 +301,9 @@ they apply to generated controls too.
 
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable span
-for which the widget supplies the keyboard behavior. `el(tag, className, text)` makes a
+for which the widget supplies the keyboard behavior. In a template, use
+`<span ${selectableOffered(role, className)}>${label}</span>`; its owner supplies the
+keyboard behavior and selected tab stop. `el(tag, className, text)` makes a
 plain element for structure that isn't injected UI. Printing drops every offer, in a
 shadow stage too, so build a box holding what the widget shows, such as an editor's
 file, with `el`.

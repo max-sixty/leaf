@@ -5,12 +5,12 @@ import {
   commands,
   comparisonChanges,
   keeps,
-  keepsText,
-  iconElement,
-  relabel,
+  html,
+  iconTemplate,
+  nothing,
+  render,
   selectableOffer,
   tabStore,
-  watchComparison,
 } from "/runtime/widget-api.js";
 
 const SETTLED_KEY = "lf-settled:";
@@ -19,8 +19,6 @@ export class SettledOptions {
   #host;
   #label;
   #row = null;
-  #title = null;
-  #count = null;
   #isOpen = false;
 
   constructor(host, { label }) {
@@ -31,19 +29,10 @@ export class SettledOptions {
   connect() {
     if (this.#row) return;
     this.#build();
-    watchComparison(this.#host, () => this.#delta());
   }
 
   #build() {
     this.#row = selectableOffer("button", "lf-settled");
-    this.#title = document.createElement("span");
-    this.#count = document.createElement("span");
-    this.#count.className = "lf-settled-count";
-    this.#row.append(
-      iconElement("down", "lf-disclosure-icon"),
-      this.#title,
-      this.#count,
-    );
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
     commands(this.#row, "In settled options", [
@@ -70,10 +59,6 @@ export class SettledOptions {
 
   sync() {
     const options = [...this.#host.querySelectorAll(":scope > lf-option")];
-    keepsText(
-      this.#count,
-      `${options.length} option${options.length === 1 ? "" : "s"}`,
-    );
     keeps(this.#row, "aria-controls", options.map((option) => option.id).join(" "));
     for (const el of [
       ...options,
@@ -85,20 +70,16 @@ export class SettledOptions {
       .filter((option) => option.hasAttribute("chosen"))
       .map(this.#label)
       .filter(Boolean);
-    relabel(this.#title, names.length ? `Settled: ${names.join(", ")}` : "Settled", {
-      says: true,
-    });
-  }
-
-  #delta() {
-    let chip = this.#row.querySelector(".lf-settled-diff");
-    const n = comparisonChanges(this.#host).length;
-    if (!n) return chip?.remove();
-    if (!chip) {
-      chip = document.createElement("span");
-      chip.className = "lf-settled-diff";
-      this.#row.append(chip);
-    }
-    keepsText(chip, `Δ${n}`);
+    const changes = comparisonChanges(this.#host).length;
+    render(
+      html`${iconTemplate("down", "lf-disclosure-icon")}<span
+          data-lf-gen="1"
+          data-lf-said
+          >${names.length ? `Settled: ${names.join(", ")}` : "Settled"}</span
+        ><span class="lf-settled-count"
+          >${options.length} option${options.length === 1 ? "" : "s"}</span
+        >${changes ? html`<span class="lf-settled-diff">Δ${changes}</span>` : nothing}`,
+      this.#row,
+    );
   }
 }

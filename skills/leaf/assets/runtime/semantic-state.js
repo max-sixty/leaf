@@ -40,7 +40,7 @@ export const applicationState = createSemanticApplication({
 export const readApplication = applicationState.read;
 // A reader of one part of the root, through its own selection. A key or button
 // reflection tracks what it reads (keyboard/scopes.js), and a watcher's or a region's
-// paint follows it (projection-watch.js, `applicationPresenter`), so each reads again
+// paint follows it (`LeafElement`, `applicationPresenter`), so each reads again
 // only when that part moves. An accessor that reads the whole root would make every
 // reflection read again on every publication.
 /**
@@ -100,6 +100,7 @@ export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
   obligations: 2,
+  annotations: 3,
 });
 
 // The document-wide presenters, in registration order. `presentDocument` is what a
@@ -248,8 +249,7 @@ export const applicationPresenter = ({
 
 // How many times a caller has said the document changed under every region. A reading
 // derived from the page's own nodes, rather than from the root, keys on it. It is an
-// outside reading, so a paint that reads one follows it: a watched paint
-// (`watchProjection`), which `presentDocument` does not call, repaints when the nodes it
+// outside reading, so a Lit render that reads one follows it and repaints when the nodes it
 // drew from change, as the floating panel's quote does when a datum's label does. The
 // regions it calls hear it after they have claimed, which owes them nothing more.
 const documentChanges = signal(0);

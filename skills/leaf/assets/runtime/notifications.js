@@ -10,7 +10,7 @@
    nothing floats in a corner to become a stale pointer target. A failure is no news:
    it goes through errors.js, which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";
-import { afterScript } from "./rendering.js";
+import { signal } from "/vendor/browser-runtime.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -27,31 +27,15 @@ let userContext = false;
 let userHoldTimer = 0;
 // What the seat says and whether it shows. Errors are no notices: they go through
 // errors.js, which keeps them until they are dealt with.
-/** @type {Readonly<{message: string, visible: boolean}>} */
-let noticePresentation = Object.freeze({ message: "", visible: false });
-const noticePresenters = new Set();
+const noticePresentation = signal(Object.freeze({ message: "", visible: false }));
 
-export const noticeReading = () => noticePresentation;
-const noticeVisible = () => noticePresentation.visible;
+export const noticeReading = () => noticePresentation.value;
+const noticeVisible = () => noticePresentation.peek().visible;
 
-// The seat that draws the notice registers one synchronous invalidation door. A notice
-// acknowledges a gesture before its caller returns; routing this
-// through the shared frame repaint would turn that same-turn contract into eventual
-// feedback. Taking a notice down acknowledges nothing, so it is drawn at the end of the
-// turn's script, still before paint: a gesture that takes one notice down and puts the
-// next up (a walk beginning, then its acknowledgement) writes the notice once, to the
-// one it put up.
-export function registerNoticePresentation(invalidate) {
-  noticePresenters.add(invalidate);
-}
-
-const presentAll = () => {
-  for (const invalidate of noticePresenters) invalidate();
-};
+// The reading changes in the gesture's task. Its seat paints visible news immediately
+// and coalesces a withdrawal until the script ends, so replacing a notice paints once.
 const presentNotice = (message, visible) => {
-  noticePresentation = Object.freeze({ message, visible });
-  if (visible) presentAll();
-  else afterScript(presentAll);
+  noticePresentation.value = Object.freeze({ message, visible });
 };
 
 export function announce(msg) {
@@ -75,7 +59,7 @@ function showNotice(msg, background = null) {
   noticeTimer = setTimeout(() => {
     if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift()))
       return;
-    presentNotice(noticePresentation.message, false);
+    presentNotice(noticePresentation.peek().message, false);
     showingBackground = null;
   }, NOTICE_MS);
 }
@@ -144,7 +128,7 @@ export function notice(
 function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);
   clearTimeout(noticeTimer);
-  presentNotice(noticePresentation.message, false);
+  presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }
 

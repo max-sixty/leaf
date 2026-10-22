@@ -15,6 +15,7 @@ import {
 } from "./runtime/bundle-color-scheme.js";
 import {
   DRAWING_COORDINATE_LIMIT,
+  LeafElement,
   MAX_DRAWING_FRAME_DEPTH,
   MAX_DRAWING_POINTS,
   MAX_DRAWING_SAYS_LENGTH,
@@ -60,8 +61,7 @@ import {
   textField,
   threadInput,
   versionPicker,
-  versionsReading,
-  watchProjection
+  versionsReading
 } from "./runtime/bundle-document-identity.js";
 import "./runtime/bundle-dress.js";
 import {
@@ -213,8 +213,7 @@ import {
   railStands,
   registerPageControl,
   scheduleResidency,
-  visibleTargetParts,
-  watchPageControls
+  visibleTargetParts
 } from "./runtime/bundle-page-controls.js";
 import {
   ADDRESSABLE,
@@ -387,8 +386,6 @@ import {
   raiseError,
   reflectFirstScopes,
   reflectKeys,
-  registerErrorPresentation,
-  registerNoticePresentation,
   registry,
   repaint,
   repaintPage,
@@ -438,6 +435,7 @@ import {
   TEXT_BOX,
   TEXT_FIELD,
   WORKS,
+  afterScript,
   afterSettling,
   byRenderedOrder,
   cancelRender,
@@ -501,11 +499,13 @@ import {
   bareReaction,
   bindQueuedWork,
   carriesObligation,
+  d,
   hasUnread,
   html,
   itemNoun,
   itemOutcome,
   keyed,
+  noChange,
   nothing,
   observeQueuedWork,
   ref,
@@ -514,7 +514,8 @@ import {
   sameAnchor,
   threadCounts,
   threadKey,
-  threadNames
+  threadNames,
+  x
 } from "./runtime/bundle-queued-work.js";
 import "./runtime/bundle-__export.js";
 
@@ -565,8 +566,8 @@ function drawingGeometry(drawing2, target) {
   if (!frame) return null;
   const { box, matrix } = frame;
   const strokes = drawing2.strokes.map(
-    (stroke) => stroke.map(([x, y]) => {
-      const point = matrix.transformPoint({ x, y });
+    (stroke) => stroke.map(([x2, y]) => {
+      const point = matrix.transformPoint({ x: x2, y });
       return [point.x - box.left, point.y - box.top];
     })
   );
@@ -581,9 +582,9 @@ function readPicture(drawing2, target) {
   const geometry = target && drawingGeometry(drawing2, target);
   const strokes = geometry?.strokes ?? drawing2.strokes;
   const points = strokes.flat();
-  const left = Math.min(...points.map(([x]) => x)) - CONTEXT_PAD;
+  const left = Math.min(...points.map(([x2]) => x2)) - CONTEXT_PAD;
   const top = Math.min(...points.map(([, y]) => y)) - CONTEXT_PAD;
-  const width2 = Math.max(...points.map(([x]) => x)) - left + CONTEXT_PAD;
+  const width2 = Math.max(...points.map(([x2]) => x2)) - left + CONTEXT_PAD;
   const height2 = Math.max(...points.map(([, y]) => y)) - top + CONTEXT_PAD;
   const scale = Math.min(1, PREVIEW_WIDTH / width2, PREVIEW_HEIGHT / height2);
   return {
@@ -622,7 +623,7 @@ function drawingThumbnail(drawing2, target) {
     ctx.lineJoin = "round";
     ctx.beginPath();
     for (const stroke of strokes) {
-      stroke.forEach(([x, y], index) => index ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+      stroke.forEach(([x2, y], index) => index ? ctx.lineTo(x2, y) : ctx.moveTo(x2, y));
     }
     ctx.stroke();
     ctx.restore();
@@ -814,12 +815,13 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     for (const { target } of entries)
       if (!target.isConnected || !target.checkVisibility()) passErrorsAt(target);
   });
-  let errorsPainted = errorsReading();
-  registerErrorPresentation(() => {
-    for (const { subject } of [...errorsPainted, ...errorsReading()])
+  let errorsPainted = [];
+  x(() => {
+    const errors = errorsReading();
+    for (const { subject } of [...errorsPainted, ...errors])
       if (inputPaints.has(subject)) stale.add(subject);
-    errorsPainted = errorsReading();
-    repaint();
+    errorsPainted = errors;
+    d(repaint);
   });
   function wireInput(ta, {
     hint,
@@ -2944,7 +2946,7 @@ function wordsOf(data) {
 }
 var UNDERLINE_REACH = 8;
 function wordsUnder(ink) {
-  const xs = ink.map(([x]) => x);
+  const xs = ink.map(([x2]) => x2);
   const ys = ink.map(([, y]) => y);
   const extent = {
     left: Math.min(...xs),
@@ -3039,11 +3041,11 @@ function createDrawingController({
     paintDrawings();
     repaint2();
   }
-  function targetNearest({ x, y }) {
+  function targetNearest({ x: x2, y }) {
     const near2 = visibleTargets().filter(({ rect: rect2 }) => rect2?.width && rect2?.height).map((target) => ({
       target,
       distance: Math.hypot(
-        Math.max(target.rect.left - x, 0, x - target.rect.right),
+        Math.max(target.rect.left - x2, 0, x2 - target.rect.right),
         Math.max(target.rect.top - y, 0, y - target.rect.bottom)
       )
     }));
@@ -3102,8 +3104,8 @@ function createDrawingController({
       }
     };
     const said = wordsUnder(
-      drawing2.strokes.flat().map(([x, y]) => {
-        const point = frame.matrix.transformPoint({ x, y });
+      drawing2.strokes.flat().map(([x2, y]) => {
+        const point = frame.matrix.transformPoint({ x: x2, y });
         return [point.x, point.y];
       })
     );
@@ -3111,7 +3113,7 @@ function createDrawingController({
     const says2 = excerptWords(said, MAX_DRAWING_SAYS_LENGTH);
     return { ...drawing2, says: says2 };
   }
-  function rememberPoint(x, y) {
+  function rememberPoint(x2, y) {
     if (!stroke || stroke.invalid) return false;
     const target = targetOf(stroke.anchor);
     const source = target && resolveDrawingFrame(target, stroke.frameReference);
@@ -3123,15 +3125,15 @@ function createDrawingController({
     }
     stroke.target = target;
     stroke.frame = frame;
-    const screen = { x, y };
+    const screen = { x: x2, y };
     const prior = stroke.lastScreen;
     if (prior) {
-      const distance = Math.hypot(x - prior.x, y - prior.y);
+      const distance = Math.hypot(x2 - prior.x, y - prior.y);
       if (distance < MIN_DISTANCE) return false;
       stroke.distance += distance;
     }
     stroke.lastScreen = screen;
-    const local = frame.matrix.inverse().transformPoint({ x, y });
+    const local = frame.matrix.inverse().transformPoint({ x: x2, y });
     stroke.points.push([
       rounded(clamp(local.x, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT)),
       rounded(clamp(local.y, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT))
@@ -3302,8 +3304,8 @@ function createDrawingController({
       detached.set(held, {
         ...unframed,
         strokes: held.strokes.map(
-          (points) => points.map(([x, y]) => {
-            const point = matrix.transformPoint({ x, y });
+          (points) => points.map(([x2, y]) => {
+            const point = matrix.transformPoint({ x: x2, y });
             return [point.x, point.y];
           })
         )
@@ -3556,7 +3558,7 @@ var SVG_NS = "http://www.w3.org/2000/svg";
 var FRAME_MIN = 1;
 function drawingFrame(strokes) {
   const points = strokes.flat();
-  const xs = points.map(([x]) => x);
+  const xs = points.map(([x2]) => x2);
   const ys = points.map(([, y]) => y);
   const left = Math.min(...xs);
   const right = Math.max(...xs);
@@ -3573,7 +3575,7 @@ function drawingFrame(strokes) {
 }
 var pathData = (strokes) => strokes.flatMap(
   (stroke) => stroke.map(
-    ([x, y], index) => `${index ? "L" : "M"} ${x.toFixed(4)} ${y.toFixed(4)}`
+    ([x2, y], index) => `${index ? "L" : "M"} ${x2.toFixed(4)} ${y.toFixed(4)}`
   )
 ).join(" ");
 function pathFor(data) {
@@ -4284,8 +4286,8 @@ function keyBadgePlacement() {
       [box.right - inset, box.top + inset],
       [box.left + inset, box.bottom - inset],
       [box.right - inset, box.bottom - inset]
-    ].some(([x, y]) => {
-      const press = closestAcross(elementFromPointAcross(x, y), PRESSES);
+    ].some(([x2, y]) => {
+      const press = closestAcross(elementFromPointAcross(x2, y), PRESSES);
       return press && !renderedUnder(press, owner) && !renderedUnder(owner, press);
     });
   }
@@ -4305,8 +4307,8 @@ function keyBadgePlacement() {
         [corner.right, corner.top],
         [corner.left, corner.bottom],
         [corner.right, corner.bottom]
-      ].map(([x, y]) => {
-        const left = start.left + x - corner.left;
+      ].map(([x2, y]) => {
+        const left = start.left + x2 - corner.left;
         const top = start.top + y - corner.top;
         const place3 = new DOMRect(
           clamp(left, 0, right - start.width),
@@ -4851,9 +4853,9 @@ ${searchCount(maximum, maximum)}`
     refreshMatches();
     const segments = matches.value[active];
     if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
-    const { clientX: x, clientY: y } = ev;
+    const { clientX: x2, clientY: y } = ev;
     return [...rangeOf(segments).getClientRects()].some(
-      (rect2) => x >= rect2.left && x <= rect2.right && y >= rect2.top && y <= rect2.bottom
+      (rect2) => x2 >= rect2.left && x2 <= rect2.right && y >= rect2.top && y <= rect2.bottom
     );
   }
   function pressMatch(ev) {
@@ -5829,10 +5831,10 @@ var LOADING = Object.freeze({
 });
 var reach = readPart((root) => root.reach);
 var fault = readPart((root) => root.fault);
-var upgraded = false;
+var upgraded = Z(false);
 function currentStatus() {
   const answer = reach();
-  if (answer === "waiting" && !upgraded) return null;
+  if (answer === "waiting" && !upgraded.value) return null;
   const status = answer === "waiting" ? LOADING : pageStatus(runtime.state, { reach: answer, fault: fault() });
   return { status, model: statusModel(status, readQueues(), agentName()) };
 }
@@ -5884,8 +5886,7 @@ function paintTab() {
 var saidKind;
 var saidActionableWork;
 var holdBlocked = holdingError({ announce: false });
-function paintStatus() {
-  const current = currentStatus();
+function paintStatus(current) {
   holdBlocked(
     ["refused", "broken"].includes(current?.status.kind) ? current.status.summary : null
   );
@@ -5962,12 +5963,14 @@ function mountPageStatus({ approveVersion: post }) {
   approveVersion = post;
   signoff = isSignoffDeclared();
   chromeRoot.append(toneProbe);
-  const statusWatch = watchProjection(document.body, paintStatus);
+  x(() => {
+    const current = currentStatus();
+    d(() => paintStatus(current));
+  });
   document.addEventListener(
     UPGRADE,
     () => {
-      upgraded = true;
-      statusWatch.refresh();
+      upgraded.value = true;
     },
     { once: true }
   );
@@ -6174,11 +6177,11 @@ function createQueueWalk({
   let wasDoneable = "";
   let watching = null;
   function mount() {
-    watching ??= watchProjection(document.body, () => {
+    watching ??= x(() => {
       if (offered() === wasOffered && doneable() === wasDoneable) return;
       wasOffered = offered();
       wasDoneable = doneable();
-      paintKeys();
+      d(paintKeys);
     });
   }
   pageCommand({
@@ -6259,13 +6262,9 @@ function createQueueWalk({
 
 // runtime/keyboard/status-context.js
 var EMPTY = Object.freeze({ goTo: null, walk: null, stance: null });
-var context = EMPTY;
+var context = Z(EMPTY);
 var lastWalk = null;
-var presenters = /* @__PURE__ */ new Set();
-var statusContextReading = () => context;
-function registerStatusContextPresentation(invalidate) {
-  presenters.add(invalidate);
-}
+var statusContextReading = () => context.value;
 var shownWalk = ({ walk }) => walk?.shown ? walk : null;
 var same2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
 function paintStatusContext(goToStatus) {
@@ -6278,14 +6277,13 @@ function paintStatusContext(goToStatus) {
       text: position.text,
       boundary: position.boundary
     });
-  const before = context;
-  context = Object.freeze({
+  const next = Object.freeze({
     goTo,
     walk: lastWalk ? Object.freeze({ ...lastWalk, shown: Boolean(position) }) : null,
     stance: word(innermostStance()?.scope.title) ?? null
   });
   setNoticeContext(Boolean(goTo));
-  if (!same2(context, before)) for (const invalidate of presenters) invalidate();
+  if (!same2(next, context.peek())) context.value = next;
 }
 
 // runtime/box-motion.js
@@ -6351,8 +6349,8 @@ function boxMotion({
       let dy = 0;
       for (let up = element; up && up !== root; up = up.parentElement)
         if (motions.get(up)?.carries) {
-          const [x, y] = offset(up);
-          dx += x;
+          const [x2, y] = offset(up);
+          dx += x2;
           dy += y;
         }
       return [dx, dy];
@@ -6374,7 +6372,7 @@ function boxMotion({
       parts: []
     };
     part.scrolls = /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`);
-    part.whole = element.localName.includes("-") || element instanceof SVGElement || part.scrolls || element.childElementCount === 0 || [...element.childNodes].some(
+    part.whole = element !== root && element.localName.includes("-") || element instanceof SVGElement || part.scrolls || element.childElementCount === 0 || [...element.childNodes].some(
       (node) => node.nodeType === Node.TEXT_NODE && node.data.trim()
     );
     if (!part.whole)
@@ -6646,6 +6644,15 @@ var WORKING = ".lf-thread-working";
 var FACE = "face:";
 var isFace = (key) => key.startsWith(FACE);
 var clock = (at) => new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+var FloatingPanel = class extends LeafElement {
+  draw = () => {
+  };
+  render() {
+    this.draw();
+    return noChange;
+  }
+};
+customElements.define("leaf-floating-panel", FloatingPanel);
 function createFloatingPanel({
   wireInput,
   threadActions,
@@ -6662,7 +6669,9 @@ function createFloatingPanel({
   placedAt,
   openThreadSubject
 }) {
-  const host = el("section", "lf-ui lf-floating-panel");
+  const host = new FloatingPanel();
+  host.className = "lf-ui lf-floating-panel";
+  host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
   const ground = el("div", "lf-ui lf-fp-ground");
   ground.setAttribute("aria-hidden", "true");
@@ -8465,11 +8474,12 @@ function createFloatingPanel({
   }
   let painting = false;
   let again = false;
-  let watching = null;
   function paint() {
     if (painting) again = true;
-    else if (watching) watching.refresh();
-    else paintPanel();
+    else {
+      host.requestUpdate();
+      host.performUpdate();
+    }
   }
   function paintPanel() {
     painting = true;
@@ -9044,6 +9054,7 @@ function createFloatingPanel({
     }
   });
   function mount(parent) {
+    host.draw = paintPanel;
     parent.append(ground, host);
     follow.observe(card);
     presentation2 = registerChromeThreadPresentation(host, {
@@ -9092,20 +9103,26 @@ function createFloatingPanel({
       arrive: arriveAtApproval,
       repaint: () => paint()
     });
-    registerNoticePresentation(() => paint());
-    registerErrorPresentation(() => {
-      if (menuOpen.value && menuAt.value?.view === "errors") seeErrors();
-      paint();
+    x(() => {
+      const { visible } = noticeReading();
+      d(() => visible ? paint() : afterScript(paint));
     });
-    registerStatusContextPresentation(() => paint());
-    watchPageControls(() => paint());
-    versionPicker.watch(() => paint());
+    x(() => {
+      errorsReading();
+      d(() => {
+        if (menuOpen.value && menuAt.value?.view === "errors") seeErrors();
+        paint();
+      });
+    });
+    x(() => {
+      statusContextReading();
+      d(paint);
+    });
     document.addEventListener("lf-chrome-preference", () => paint());
     onReadingInterrupted(() => {
       peekReading = null;
       paintPeek();
     });
-    watching = watchProjection(host, paintPanel);
     paint();
   }
   return {
@@ -9912,7 +9929,7 @@ function createCommandHints({ presentedControl }) {
       (edge) => Math.abs(whole[edge] - visible[edge]) > 0.5
     ))
       return false;
-    const x = (visible.left + visible.right) / 2;
+    const x2 = (visible.left + visible.right) / 2;
     const y = (visible.top + visible.bottom) / 2;
     const inset = Math.min(
       3,
@@ -9921,9 +9938,9 @@ function createCommandHints({ presentedControl }) {
     );
     const root = bindingBadge.getRootNode();
     return [
-      [x, y],
-      [x, visible.top + inset],
-      [x, visible.bottom - inset],
+      [x2, y],
+      [x2, visible.top + inset],
+      [x2, visible.bottom - inset],
       [visible.left + inset, y],
       [visible.right - inset, y]
     ].every(([atX, atY]) => {

@@ -337,17 +337,27 @@ export const offered = elementDirective("offered", offerElement);
 // few controls deliberately remain spans and their owning widget supplies the complete
 // key contract. Keeping this constructor separate makes selectable control text a visible
 // design decision instead of the behavior of every injected control.
+function selectableOfferElement(node, role, cls) {
+  keeps(node, "role", role);
+  keeps(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
+  keeps(node, "data-lf-gen", "1");
+  keeps(node, "data-lf-offer", role);
+  keeps(node, "data-lf-selectable-offer", "");
+}
+
 export function selectableOffer(role, cls, label) {
   const node = document.createElement("span");
-  node.setAttribute("role", role);
+  selectableOfferElement(node, role, cls);
   node.tabIndex = 0;
-  node.className = cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face";
-  node.dataset.lfGen = "1";
-  node.dataset.lfOffer = role;
-  node.dataset.lfSelectableOffer = "";
   if (label !== undefined) node.textContent = label;
   return node;
 }
+
+// The selectable offer's template form; Lit owns its label and tab stop.
+export const selectableOffered = elementDirective(
+  "selectableOffered",
+  selectableOfferElement,
+);
 
 // What the value above names as a press: the tag for a button, the type for a native
 // choice, or the role for a selectable offer, against the empty string the rest of a

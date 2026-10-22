@@ -83,7 +83,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     reader = page.locator("#reader")
     expect(reader).to_contain_text("Decision")
     record = reader.evaluate("""node => {
-      const reading = node.reading;
+      const reading = node.collection;
       const cloned = structuredClone(reading);
       const allFrozen = value => !value || typeof value !== 'object' ||
         (Object.isFrozen(value) && Object.values(value).every(allFrozen));
@@ -113,7 +113,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
         page.locator("#direction").evaluate("node => node.getBoundingClientRect().top")
         == message_top
     )
-    assert reader.evaluate("""node => node.reading.threads[0].msgs[1].body.units
+    assert reader.evaluate("""node => node.collection.threads[0].msgs[1].body.units
       .find(unit => unit.id === 'direction').state.choose.value""") == ["north"]
 
     held = []
@@ -125,14 +125,14 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     holding(page, held, 1, "the shared collection's pending root")
     expect(reader).to_contain_text("Pending words")
     pending = reader.evaluate(
-        "node => node.reading.threads.find(thread => thread.root.pending)"
+        "node => node.collection.threads.find(thread => thread.root.pending)"
     )
     # The send opens the pending thread's view in the panel.
     expect(page.locator(PANEL_THREAD)).to_contain_text("Pending words")
     held.pop().continue_()
     round_trip(page)
     admitted = reader.evaluate(
-        "(node, key) => node.reading.threads.find(thread => thread.key === key)",
+        "(node, key) => node.collection.threads.find(thread => thread.key === key)",
         pending["key"],
     )
     assert admitted["id"] != pending["id"]
@@ -228,7 +228,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     for widget, count in zip((first, second), before):
         assert widget.evaluate("node => node.updates") > count
         assert widget.evaluate(
-            "node => node.reading.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
+            "node => node.collection.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
         )
 
     # Clear the user's filter before this lifecycle test removes its widget.
@@ -247,7 +247,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     assert removed.evaluate("node => node.updates") == stopped_at
 
     thread_id = first.evaluate(
-        "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
+        "node => node.collection.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
     )
     # The widget's route through core opens the thread's view in the panel.
     first.locator("button", has_text="Delta").click()

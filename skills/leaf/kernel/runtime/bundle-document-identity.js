@@ -1953,7 +1953,7 @@ function createSelectionComposer({
   }
   registerWritingDestination(COMPOSER_KEY, (ctx) => {
     const record = composerRecord(ctx);
-    if (!record) return null;
+    if (!record?.text && !record?.drawing) return null;
     return {
       // A detached draft's destination is its native editor, not a guessed passage.
       // Arrival clears covering surfaces before this same field is materialized.

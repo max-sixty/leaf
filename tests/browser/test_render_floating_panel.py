@@ -2867,8 +2867,8 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
 def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser, serve):
     """While the agent's plan gives the user a step, On me groups by it until the user
     picks another grouping: under each goal the items its steps name, in step order,
-    and those no goal names last, each heading counting its lines, each line saying
-    what the item is and the part of the page it stands in. On Claude, which replaced
+    and those no goal names last; a goal holding one item has no heading, its line
+    saying what the item is and ending with the goal's name. On Claude, which replaced
     the Plan tab, is headed at its foot by the plan's progress, which discloses the
     goal and its steps over the list; a step waiting on the user turns the view to On
     me, and focus with it."""
@@ -2888,15 +2888,14 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     page.locator(".lf-fp-on-user").click()
     view = page.locator(".lf-fp-view[data-view=queue]")
     expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
-    expect(view.locator(".lf-fp-on-group")).to_have_text(
-        [
-            re.compile(r"^\s*Ship the migration\s*1\s*$"),
-            re.compile(r"^\s*Not in the plan\s*1\s*$"),
-        ]
-    )
+    # Each goal holds one item, so neither stands under a heading: each line ends
+    # with its group's name where its place would be.
+    expect(view.locator(".lf-fp-on-group")).to_have_count(0)
     lines = view.locator(".lf-fp-on-line")
     expect(lines.locator(".lf-fp-on-kind")).to_have_text(["Options", "Options"])
-    expect(lines.locator(".lf-fp-on-where")).to_have_text(["Ask", "Ask"])
+    expect(lines.locator(".lf-fp-on-where")).to_have_text(
+        ["Ship the migration", "Not in the plan"]
+    )
 
     tabs = page.locator(".lf-fp-filters button")
     expect(tabs).to_have_text(["On me 2", "On Claude 0"])

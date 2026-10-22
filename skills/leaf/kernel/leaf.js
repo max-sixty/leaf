@@ -8249,7 +8249,7 @@ function createFloatingPanel({
     }
     if (card2) scrollIntoView(card2, { block: "nearest", within: view });
   }
-  function onItemCard(item, list, says2 = null, leads = true) {
+  function onItemCard(item, list, { says: says2 = null, group = null, leads = true } = {}) {
     const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     const inWords = record !== null && answeredInWords(record);
@@ -8353,9 +8353,9 @@ function createFloatingPanel({
       >`;
     else if (answered && !opened2)
       end = html`<span class="lf-fp-said">${obligationEnding(record)}</span>`;
-    else if (says2 !== "place") {
-      const place3 = onMe.place(item);
-      if (place3) end = html`<span class="lf-fp-on-where">${place3}</span>`;
+    else {
+      const where = group ?? (says2 === "place" ? "" : onMe.place(item));
+      if (where) end = html`<span class="lf-fp-on-where">${where}</span>`;
     }
     const name2 = heading || (thread ? threadHeading(thread) : queueTitle(item));
     return html`<section
@@ -8390,21 +8390,31 @@ function createFloatingPanel({
             </div>` : nothing}
     </section>`;
   }
-  const groupedLines = (groups, line) => html`<div class="lf-fp-on-list">
+  function groupedLines(groups, line) {
+    const rows2 = [];
+    let running = false;
+    for (const group of groups) {
+      const headed = group.headed !== false;
+      if (rows2.length && (headed || !running))
+        rows2.push({ key: `rule:${queueItemKey(group.items[0])}`, rule: true });
+      running = !headed;
+      if (headed) rows2.push({ key: group.key, group });
+      for (const item of group.items)
+        rows2.push({ key: queueItemKey(item), item, group });
+    }
+    return html`<div class="lf-fp-on-list">
       ${repeat(
-    groups.flatMap((group) => [
-      { key: group.key, group },
-      ...group.items.map((item) => ({ key: queueItemKey(item), item, group }))
-    ]),
-    (row2) => row2.key,
-    (row2) => row2.item ? line(row2.item, row2.group) : html`<h3 class="lf-fp-on-group">
-                <span class="lf-fp-on-group-name">${row2.group.title}</span
-                ><span class="lf-fp-on-count"
-                  >${row2.group.count ?? row2.group.items.length}</span
-                >
-              </h3>`
-  )}
+      rows2,
+      (row2) => row2.key,
+      (row2) => row2.rule ? html`<hr class="lf-fp-on-rule" />` : row2.item ? line(row2.item, row2.group) : html`<h3 class="lf-fp-on-group">
+                  <span class="lf-fp-on-group-name">${row2.group.title}</span
+                  ><span class="lf-fp-on-count"
+                    >${row2.group.count ?? row2.group.items.length}</span
+                  >
+                </h3>`
+    )}
     </div>`;
+  }
   declareSide(
     (node) => {
       const part = [openView(), controls, replyOutlet].find(
@@ -8456,7 +8466,11 @@ function createFloatingPanel({
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
     forgetOpened([...items2, ...finished]);
     const waits = (item) => lists.you.includes(item);
-    const groups = onMe.groups(items2).map((group) => ({ ...group, count: group.items.filter(waits).length }));
+    const groups = onMe.groups(items2).map((group) => ({
+      ...group,
+      headed: group.items.length > 1,
+      count: group.items.filter(waits).length
+    }));
     const stops = /* @__PURE__ */ new Set();
     const leading = /* @__PURE__ */ new Set();
     for (const item of groups.flatMap((group) => group.items))
@@ -8464,12 +8478,19 @@ function createFloatingPanel({
         stops.add(queueStop(item).key);
         leading.add(item);
       }
-    return html`${items2.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${groupedLines(
-      [
-        ...groups,
-        ...finished.length ? [{ key: "done", title: "Done", items: finished }] : []
-      ],
-      (item, group) => group.key === "done" ? onItemCard(item, "done") : onItemCard(item, listOf(item), says2, leading.has(item))
+    return html`${items2.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${keyed(
+      grouping,
+      groupedLines(
+        [
+          ...groups,
+          ...finished.length ? [{ key: "done", title: "Done", items: finished }] : []
+        ],
+        (item, group) => group.key === "done" ? onItemCard(item, "done") : onItemCard(item, listOf(item), {
+          says: group.headed ? says2 : null,
+          group: group.headed || grouping === "kind" ? null : group.title,
+          leads: leading.has(item)
+        })
+      )
     )}`;
   }
   function workView(lists) {

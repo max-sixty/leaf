@@ -1371,9 +1371,11 @@
     text-transform: uppercase;
     color: var(--lf-fp-quiet);
   }
-  .lf-fp-on-group:first-child {
+  .lf-fp-on-group:first-child,
+  .lf-fp-on-rule + .lf-fp-on-group {
     padding-top: 2px;
   }
+
   .lf-fp-on-group-name {
     min-width: 0;
     overflow: hidden;

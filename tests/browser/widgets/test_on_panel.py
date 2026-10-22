@@ -557,10 +557,9 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     view = open_on_me(page)
     chooser = page.get_by_role("combobox", name="Group On me")
     expect(chooser).to_have_value("place")
+    # A group of two has a heading; the line alone in its group ends with its name.
     groups = view.locator(".lf-fp-on-group")
-    expect(groups).to_have_text(
-        [re.compile(r"^\s*Implementation\s*2\s*$"), re.compile(r"^\s*Rollout\s*1\s*$")]
-    )
+    expect(groups).to_have_text([re.compile(r"^\s*Implementation\s*2\s*$")])
     lines = view.locator(".lf-fp-on-line")
     expect(lines.locator(".lf-fp-on-title")).to_have_text(
         [
@@ -572,12 +571,10 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     expect(lines.locator(".lf-fp-on-kind")).to_have_text(
         ["Options", "To-do", "Options"]
     )
-    expect(view.locator(".lf-fp-on-where")).to_have_count(0)
+    expect(view.locator(".lf-fp-on-where")).to_have_text(["Rollout"])
 
     chooser.select_option("kind")
-    expect(groups).to_have_text(
-        [re.compile(r"^\s*Options\s*2\s*$"), re.compile(r"^\s*To-do\s*1\s*$")]
-    )
+    expect(groups).to_have_text([re.compile(r"^\s*Options\s*2\s*$")])
     page.reload()
     wait_until_ready(page)
     view = open_on_me(page)
@@ -590,7 +587,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
             "Try the sandboxed run on a fork",
         ]
     )
-    expect(cards.locator(".lf-fp-on-kind")).to_have_text(["", "", ""])
+    expect(cards.locator(".lf-fp-on-kind")).to_have_text(["", "", "To-do"])
     expect(cards.locator(".lf-fp-on-where")).to_have_text(
         ["Implementation", "Rollout", "Implementation"]
     )
@@ -634,11 +631,8 @@ def test_on_me_places_an_item_by_its_tab_s_title_or_label(browser, serve):
     page = open_page(browser, serve(TABBED_PAGE))
     resized(page, 1440, 900)
     view = open_on_me(page)
-    expect(view.locator(".lf-fp-on-group")).to_have_text(
-        [
-            re.compile(r"^\s*Move the runs into one sandbox\s*1\s*$"),
-            re.compile(r"^\s*Second plan\s*1\s*$"),
-        ]
+    expect(view.locator(".lf-fp-on-where")).to_have_text(
+        ["Move the runs into one sandbox", "Second plan"]
     )
 
 
@@ -649,7 +643,7 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     from everything On me has held rather than from what remains, so the list and the
     `m` walk, which steps over the answered item, still agree. Grouped by kind, the
     first question answered leaves Options above To-do, as the walk goes; its group
-    counts what still waits."""
+    keeps its heading, two lines still under it, and counts what still waits."""
     url = serve(GROUPED_PAGE)
     append_carried_log_record(
         serve.page_dir,
@@ -672,9 +666,7 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     round_trip(page)
     expect(exit_code.locator(".lf-fp-said")).to_contain_text("Answered: 75")
     groups = view.locator(".lf-fp-on-group")
-    expect(groups).to_have_text(
-        [re.compile(r"^\s*Options\s*1\s*$"), re.compile(r"^\s*To-do\s*1\s*$")]
-    )
+    expect(groups).to_have_text([re.compile(r"^\s*Options\s*1\s*$")])
     runners = on_card(page, "widget:runners")
     # Where the first `m` lands depends on the reading position, so it may take a
     # second; read the ring only once the press's repaint has landed.

@@ -2628,9 +2628,10 @@ export function createFloatingPanel({
 
   // One item's line, opened into its card while it is the open item. `says` names what
   // the group's heading already says of it, its `place` or its `kind`, which the line
-  // leaves out; `leads` whether it is the first line of the walk's stop it stands at,
-  // which alone wears the walk's ring.
-  function onItemCard(item, list, says = null, leads = true) {
+  // leaves out; `group` the name of the group it stands alone in, with no heading over
+  // it, which the line ends with in its place's seat; `leads` whether it is the first
+  // line of the walk's stop it stands at, which alone wears the walk's ring.
+  function onItemCard(item, list, { says = null, group = null, leads = true } = {}) {
     const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     // A question asked in words is a message in its thread, and reads as that message,
@@ -2787,9 +2788,9 @@ export function createFloatingPanel({
       >`;
     else if (answered && !opened)
       end = html`<span class="lf-fp-said">${obligationEnding(record)}</span>`;
-    else if (says !== "place") {
-      const place = onMe.place(item);
-      if (place) end = html`<span class="lf-fp-on-where">${place}</span>`;
+    else {
+      const where = group ?? (says === "place" ? "" : onMe.place(item));
+      if (where) end = html`<span class="lf-fp-on-where">${where}</span>`;
     }
     const name = heading || (thread ? threadHeading(thread) : queueTitle(item));
     return html`<section
@@ -2837,29 +2838,42 @@ export function createFloatingPanel({
     </section>`;
   }
   // Groups of lines, each under its heading, which counts them (`count`, else all of
-  // them): one keyed list of
-  // headings and lines, so an item that moves to another group, as one whose place
-  // leaves the page does, keeps its node, and the focus and drawing in it. `line`
-  // draws an item's line, given the group it stands in.
-  const groupedLines = (groups, line) =>
-    html`<div class="lf-fp-on-list">
+  // them), unless the group says `headed: false`: its lines then stand on their own,
+  // and a run of such groups reads as one. A rule parts each headed group, and each
+  // run, from what stands before it. One keyed list of rules, headings and lines, so an
+  // item that moves to another group, as one whose place leaves the page does, keeps
+  // its node, and the focus and drawing in it. `line` draws an item's line, given the
+  // group it stands in.
+  function groupedLines(groups, line) {
+    const rows = [];
+    let running = false;
+    for (const group of groups) {
+      const headed = group.headed !== false;
+      if (rows.length && (headed || !running))
+        rows.push({ key: `rule:${queueItemKey(group.items[0])}`, rule: true });
+      running = !headed;
+      if (headed) rows.push({ key: group.key, group });
+      for (const item of group.items)
+        rows.push({ key: queueItemKey(item), item, group });
+    }
+    return html`<div class="lf-fp-on-list">
       ${repeat(
-        groups.flatMap((group) => [
-          { key: group.key, group },
-          ...group.items.map((item) => ({ key: queueItemKey(item), item, group })),
-        ]),
+        rows,
         (row) => row.key,
         (row) =>
-          row.item
-            ? line(row.item, row.group)
-            : html`<h3 class="lf-fp-on-group">
-                <span class="lf-fp-on-group-name">${row.group.title}</span
-                ><span class="lf-fp-on-count"
-                  >${row.group.count ?? row.group.items.length}</span
-                >
-              </h3>`,
+          row.rule
+            ? html`<hr class="lf-fp-on-rule" />`
+            : row.item
+              ? line(row.item, row.group)
+              : html`<h3 class="lf-fp-on-group">
+                  <span class="lf-fp-on-group-name">${row.group.title}</span
+                  ><span class="lf-fp-on-count"
+                    >${row.group.count ?? row.group.items.length}</span
+                  >
+                </h3>`,
       )}
     </div>`;
+  }
 
   // A thread's view, its head and its reply stand at what the thread is about, and an On
   // card at the obligation it shows (standing-target.js, `declareSide`), as the side
@@ -2938,11 +2952,19 @@ export function createFloatingPanel({
     const says = grouping === "plan" ? null : grouping;
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
     forgetOpened([...items, ...finished]);
-    // A group counts what still waits in it; the lines answered here keep their seats.
+    // A group counts what still waits in it; the lines answered here keep their seats,
+    // so a group keeps its heading, or its want of one, while the view stands. Only a
+    // group of two or more lines has a heading: a line alone in its group stands in its
+    // place in the order with the group's name at its end, where its place would be, or
+    // its kind word already leading it. The user chose that on 22 October 2026, finding
+    // a heading over every line, as the corpus's parts each holding one item gave,
+    // spent the room the lines need and grouped nothing.
     const waits = (item) => lists.you.includes(item);
-    const groups = onMe
-      .groups(items)
-      .map((group) => ({ ...group, count: group.items.filter(waits).length }));
+    const groups = onMe.groups(items).map((group) => ({
+      ...group,
+      headed: group.items.length > 1,
+      count: group.items.filter(waits).length,
+    }));
     // Lines arrived at in one place are one stop of the walk, which rings the first.
     const stops = new Set();
     const leading = new Set();
@@ -2951,21 +2973,32 @@ export function createFloatingPanel({
         stops.add(queueStop(item).key);
         leading.add(item);
       }
+    // Another grouping draws the list afresh: every line moves, and moving each keyed
+    // node in turn would stand some back where they were.
     return html`${
       items.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`
-    }${groupedLines(
-      [
-        ...groups,
-        ...(finished.length ? [{ key: "done", title: "Done", items: finished }] : []),
-      ],
-      (item, group) =>
-        group.key === "done"
-          ? onItemCard(item, "done")
-          : onItemCard(item, listOf(item), says, leading.has(item)),
+    }${keyedBy(
+      grouping,
+      groupedLines(
+        [
+          ...groups,
+          ...(finished.length ? [{ key: "done", title: "Done", items: finished }] : []),
+        ],
+        (item, group) =>
+          group.key === "done"
+            ? onItemCard(item, "done")
+            : onItemCard(item, listOf(item), {
+                says: group.headed ? says : null,
+                group: group.headed || grouping === "kind" ? null : group.title,
+                leads: leading.has(item),
+              }),
+      ),
     )}`;
   }
   // On <agent>: the plan's steps while its head discloses them, then the work as the
   // user chose to see it, a list or a summary.
+  // Its groups are states, not places: a line does not say whether the agent has it in
+  // hand or queued, so each keeps its heading, one line under it or many.
   function workView(lists) {
     const inHand = lists.agent.filter((item) => item.live);
     const queued = lists.agent.filter((item) => !item.live);

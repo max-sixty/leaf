@@ -163,6 +163,7 @@ def browser_state(
         todo for todo in todos if todo["owner"] == "agent" and todo["state"] == "open"
     ]
 
+    words = GestureWords(events, active_registry, revisions or readings.__getitem__)
     views = {}
     documents = {}
     for revision in sorted(view_revisions):
@@ -231,6 +232,7 @@ def browser_state(
                 thread_reading.projection,
                 undo_reading=undo_reading,
                 stamp=stamp,
+                words=words,
             ),
             "coverage": coverage,
             "published_at": published_at,
@@ -238,7 +240,6 @@ def browser_state(
             "approval_blocking": [item["id"] for item in approval_blocking(items)],
         }
     if wants_history(readings[revision] for revision in view_revisions):
-        words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {
             "history": history(
                 events,

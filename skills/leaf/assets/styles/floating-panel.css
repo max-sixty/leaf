@@ -1061,6 +1061,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* A menu row whose words name what it acts on, such as Undo naming the gesture it
+     would take back, wraps to a second line rather than cutting the name it exists to
+     say; its value keeps the first line's baseline. */
+  .lf-fp-item:not(.lf-fp-menu-back) > .lf-fp-label {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .lf-fp-value {
     color: var(--lf-fp-muted);
     font-size: 12px;

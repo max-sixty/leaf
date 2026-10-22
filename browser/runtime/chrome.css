@@ -236,6 +236,10 @@
   }
   .lf-fp-resolved {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     margin: 0;
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     color: var(--lf-fp-quiet);

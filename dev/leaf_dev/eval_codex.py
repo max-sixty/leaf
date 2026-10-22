@@ -323,7 +323,7 @@ class CodexChild:
                         env=self.env,
                         output=output,
                     )
-            self.task = Task(self.resources.enter_context(self.server), self._hear)
+            self.task = Task(self.resources.enter_context(self.server)[0], self._hear)
             self.resources.callback(self.task.socket.close)
             if payload:
                 trust_plugin_hooks(self.task, self.cwd)

@@ -329,7 +329,7 @@ RING_CASES = (
             "heat-loss": ((".lf-visual-action", ".lf-visual-action"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
-                (".lf-playground-radio", ".lf-playground-choice-face"),
+                ("lf-playground input[type=radio]", ".choice:has"),
             ),
             "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
             "pr-walkthrough": (

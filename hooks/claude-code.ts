@@ -1,12 +1,13 @@
 /**
- * Leaf's Claude Code hooks module: the session's watch between turns, and the band
- * above the prompt that shows the session's pages. Claude Code loads it from the
- * installed plugin (measured at 2.1.305); a Claude Code that loads no hooks module
- * keeps no watch, and input reaches its session only through the message Leaf
- * sends a session nothing watches (`presence.nudge_unwatched`).
+ * Leaf's Claude Code hooks module: the band above the prompt that shows the
+ * session's pages and, while the plugin's `hooks_module` option is on, the
+ * session's watch between turns. Claude Code loads it from the installed plugin
+ * (measured at 2.1.305). With the option off, `hooks.json`'s background Stop
+ * registration keeps the watch (`hooks/scripts/background-watch.py`), which stands
+ * down while the option is on.
  *
- * It keeps the watch as `hooks/pi.ts` does for a Pi session (`ClaudeCodeHarness`
- * in `skills/leaf/scripts/leaf/harness.py`):
+ * With the option on, it keeps the watch as `hooks/pi.ts` does for a Pi session
+ * (`ClaudeCodeHarness` in `skills/leaf/scripts/leaf/harness.py`):
  *
  * - the session's start and each main-loop turn's end start the watch (`bin/leaf
  *   hook --harness claude-code --if-claimed --watch`), which prints a line and
@@ -21,8 +22,8 @@
  *   module sends Leaf a WakeRefused payload, and Leaf nudges the session through
  *   that message, as admission does for a session nothing watches. A watch that
  *   wakes during a turn leaves pending input to the native PostToolBatch
- *   registration. A wake while Stop hooks run waits for their decision before
- *   starting an idle turn. The module never makes a second mid-turn delivery.
+ *   registration. A wake while Stop hooks run leaves its input to the watch
+ *   started at turn completion. The module never makes a second mid-turn delivery.
  *
  * The prompt, tool-batch, Stop, SessionStart and SessionEnd registrations in
  * `hooks.json` carry and confirm input; the module only watches and wakes. A
@@ -64,10 +65,8 @@ type Payload = { hook_event_name: string; session_id: string; ended_at?: number 
 // Claude Code's process, read once by `sessionOf`.
 let claudePid = "";
 let watch = new WatchOwner();
-// Whether a main-loop turn is going, from its start until its Stop hooks let it end.
+// Whether a main-loop turn is going, from its start until turn.complete.
 let running = false;
-// The Stop hooks of a turn now ending, while they run.
-let stopping: Promise<unknown> | undefined;
 
 // A live page the session holds, as the follower prints it (`hooks.cmd_pages`).
 type Leaf = {
@@ -216,14 +215,6 @@ async function ensureWatch($: EngineInterface, session: string, interrupted: boo
     });
 }
 
-/** Whether the turn goes on, once any Stop hooks now running have returned. They
- * decide whether the turn goes on, so a wake waits for them rather than starting
- * a turn beside one they continue. */
-async function turnGoesOn() {
-  while (stopping) await stopping.catch(() => undefined);
-  return running;
-}
-
 async function wake(
   $: EngineInterface,
   session: string,
@@ -235,8 +226,7 @@ async function wake(
     // Claude Code refuses a plugin's prompt that starts with `/`, as the watch's
     // line, a page's path, does.
     const prompt = `Leaf: ${woke}`;
-    const ongoing = await turnGoesOn();
-    if (!live() || ongoing) return;
+    if (!live() || running) return;
     // Claude Code drops a plugin's prompt from an Escape until the user next types,
     // and drops one queued when they press it; Claude Code's debug log says why.
     const submitted = await $.prompt.submit({ text: prompt });
@@ -312,12 +302,14 @@ function follow($: EngineInterface, session: string) {
   })();
 }
 
-export const register: Register = (on) => {
+export const register: Register = (on, options) => {
+  const watching = options.hooks_module === true;
+
   on("session.start", async ($, e, next) => {
     const started = await next(e);
     const session = await sessionOf($);
     follow($, session);
-    void ensureWatch($, session, false);
+    if (watching) void ensureWatch($, session, false);
     return started;
   });
 
@@ -335,25 +327,10 @@ export const register: Register = (on) => {
 
   // A resumed or cleared session raises no session.start, so its first turn follows.
   on("turn.start", ($, e, next) => {
+    if (e.agentId !== undefined) return next(e);
     running = true;
     void sessionOf($).then((session) => follow($, session));
     return next(e);
-  });
-
-  on("classic.Stop", ($, e, next) => {
-    const ending = (async () => {
-      const result = await next(e);
-      // A Stop hook's context keeps the turn going.
-      running =
-        (result.additionalContext ?? []).length > 0 || result.block !== undefined;
-      return result;
-    })();
-    stopping = ending;
-    const settled = () => {
-      if (stopping === ending) stopping = undefined;
-    };
-    ending.then(settled, settled);
-    return ending;
   });
 
   on("turn.complete", async ($, e, next) => {
@@ -362,7 +339,7 @@ export const register: Register = (on) => {
     running = false;
     const session = await sessionOf($);
     follow($, session);
-    void ensureWatch($, session, e.isAborted);
+    if (watching) void ensureWatch($, session, e.isAborted);
     return completed;
   });
 

@@ -305,9 +305,16 @@ def floating_thread_retitled(page: Page) -> None:
 def playground_choice(page: Page) -> None:
     """Keyboard focus on the choice's whole labelled hit target."""
     page.keyboard.press("Tab")
-    radio = page.locator(".lf-playground-radio").first
+    radio = page.locator("lf-playground input[type=radio]").first
     radio.scroll_into_view_if_needed()
     radio.focus()
+
+
+def motion_controls(page: Page) -> None:
+    """Focus the motion's native speed field beside its playback controls."""
+    select = page.locator(".lf-motion-speed select").first
+    select.scroll_into_view_if_needed()
+    select.focus()
 
 
 def card_by_pointer(page: Page) -> None:
@@ -1240,7 +1247,7 @@ STATES = (
         "playground-choice",
         "notification-playground",
         playground_choice,
-        region=".lf-playground-choice-face:has(> input:focus)",
+        region="lf-playground label:has(> input:focus)",
     ),
     State(
         "playground-choice-phone-dark",
@@ -1249,7 +1256,7 @@ STATES = (
         viewport=(390, 844),
         scheme="dark",
         touch=True,
-        region=".lf-playground-choice-face:has(> input:focus)",
+        region="lf-playground label:has(> input:focus)",
     ),
     State(
         "trace-transport-icons",
@@ -1417,6 +1424,18 @@ STATES = (
         scheme="dark",
     ),
     State("trace-controls", "developer/playwright-trace-gallery", trace_controls),
+    State(
+        "trace-pace",
+        "developer/playwright-trace-gallery",
+        trace_controls,
+        region=".lf-trace-pace",
+    ),
+    State(
+        "motion-controls",
+        "developer/motion",
+        motion_controls,
+        region="#fold-motion .lf-motion-controls",
+    ),
     State(
         "trace-timeline-keyboard",
         "developer/playwright-trace-gallery",

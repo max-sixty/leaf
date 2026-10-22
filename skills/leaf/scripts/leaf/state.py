@@ -67,10 +67,8 @@ def hold_mode(path: Path, mode: int) -> None:
 
 # A session's hook capability observation, which ends with its instance.
 HOOKS_SUFFIX = "hooks"
-# Its lifecycle, and the pages it has been told to reconnect (`reconnect.NOTICES`),
-# which outlive it (`_retire`).
+# Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
-RECONNECT_SUFFIX = "reconnect"
 
 
 def session_file(session_id: str, suffix: str) -> Path:
@@ -689,10 +687,9 @@ def _retire(session_id: str) -> None:
     """Remove what an ended session no longer needs, under its lock.
 
     While a claim names the session, the records that claim reads stay: its page
-    shows the session's turn from the lifecycle, and a resumed session's hooks read
-    its reconnect notices (`session-lifetime.md`, "Reconnect notices"); only the
-    observations that end with it go. Once none does, every file goes that no
-    other process holds a lock on, such as a wait lease of a watch still running:
+    shows the session's turn from the lifecycle; only the observations that end
+    with it go. Once none does, every unlocked file goes. A wait lease stays while
+    its watch is still running:
     a lease taker checks the name it locked (`leases.take_lease`), so none starts on
     a file removed under it, and a taker of the session lock held here does the same
     (`flocked`). A failed takeover that restores a claim naming the session after

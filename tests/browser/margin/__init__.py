@@ -2,8 +2,6 @@
 modules share."""
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE
 from render_harness import (
@@ -17,6 +15,9 @@ from render_harness import (
     suggestion_control,
     write,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 COMMENT_ON_OBLIGATION = {
     "kind": "comment",

@@ -8,14 +8,14 @@ import { parse } from "acorn";
 import { standingReadsRule } from "../../eslint.config.mjs";
 
 const runtime = (name) =>
-  fileURLToPath(new URL(`../../skills/leaf/assets/runtime/${name}`, import.meta.url));
+  fileURLToPath(new URL(`../../browser/runtime/${name}`, import.meta.url));
 
 // How many times the rule reports on `code` in `file`.
 function reports(code, file = runtime("probe.js")) {
   let count = 0;
   const visitors = standingReadsRule.create({
     filename: file,
-    options: [["skills/leaf/assets/runtime/focus.js"]],
+    options: [["browser/runtime/focus.js"]],
     report: () => (count += 1),
   });
   const walk = (node) => {

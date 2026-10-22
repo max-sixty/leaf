@@ -2,9 +2,10 @@
 when detached. Playback and seeking remain local presentation state."""
 
 import pytest
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
+
+from leaf.render_checks import wait_until_ready
 
 
 def test_motion_views_seek_together_and_play_only_while_requested(browser, serve):

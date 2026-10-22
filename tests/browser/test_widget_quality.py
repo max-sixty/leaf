@@ -8,15 +8,16 @@ import re
 
 import pytest
 from click.testing import CliRunner
-from interact_support import SKILL_ROOT
-from leaf import cli as cli_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
-from leaf.revision_delivery import json_script
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import ROOT, consume_browser_errors, displayed
+
+from leaf import cli as cli_model
+from leaf import exporting as exporting_model
+from leaf import schema as schema_model
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
+from leaf.revision_delivery import json_script
 
 
 def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
@@ -166,7 +167,7 @@ def test_a_tab_set_first_paints_the_panel_it_opens_on(browser, serve):
 
 
 DIFF_EXAMPLE = json.loads(
-    (SKILL_ROOT / "packages" / "diff" / "registry.json").read_text()
+    (schema_model.BUNDLED_PACKAGES / "diff" / "registry.json").read_text()
 )["lf-diff"]["x-example"]
 
 # Each case's markup and the window width it is read at. A draft indented as the HTML

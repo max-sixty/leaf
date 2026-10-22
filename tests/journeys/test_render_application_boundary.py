@@ -17,8 +17,6 @@ from browser.test_render_application_boundary import (
 )
 from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
@@ -45,6 +43,9 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 
 @pytest.mark.parametrize("while_pending", ["stay", "choose-earlier"])

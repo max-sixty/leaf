@@ -66,7 +66,7 @@ has tried; settle that before building it.
   public home page's prompt.
 - **#28 — Finish the floating panel.** The floating panel, rebuilt on 12 October to
   the sketch the user configured (the header of
-  `skills/leaf/assets/runtime/floating-panel.js` holds its contract), is Leaf's only
+  `browser/runtime/floating-panel.js` holds its contract), is Leaf's only
   chrome since 16 October, when the banner, the bottom bar and the switch between them
   went. Every follow-up the user named has landed, so the item waits on the user's
   review of the desktop design. The phone waits until the desktop design is firm, and
@@ -205,7 +205,7 @@ has tried; settle that before building it.
   gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
   and zoom, and an `lf-draft` has no close that keeps the edit.
 - **Reconsider thread navigation.** Decide how Threads should change before
-  refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
+  refining it (`browser/AGENTS.md`, "Space and scrolling"). The
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
   closes or changes an open panel, and focus never lands on content a panel covers.
@@ -226,7 +226,7 @@ has tried; settle that before building it.
 ### Layout
 
 The page arranges itself in CSS, starting from the Layout classes
-(`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
+(`browser/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
 - **Show returning threads without moving the current reading.** A thread returning
@@ -307,7 +307,7 @@ and its chrome coordinate.
 ### Layout stability
 
 Boxes that still move without input, which the "Stability" rule in
-`skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
+`browser/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
 - **Draw a text document's listing once its text has arrived.** Every
@@ -382,6 +382,21 @@ on 2026-10-07.
 
 ### The agent's text interface
 
+- **Stop delivering a comment twice after an interrupted tool boundary.** #3591
+  offers a Claude Code handover again once its turn ends with no later hook. That
+  is right for the prompt hook: Escape during it drops the prompt and Leaf's
+  context with it. At a tool boundary it isn't. On Claude Code 2.1.308, Escape
+  during PostToolBatch's hooks keeps Leaf's context in the conversation, so the
+  re-offer delivers the comment a second time. In one `leaf-dev journey
+claude-code` run (its `boundary` step), the transcript held the comment in both
+  the PostToolBatch context and the nudged turn's prompt context. The agent
+  answered it once and wrote that "the timezone question came in twice". A turn
+  interrupted after the model read a prompt's delivery but before any confirming
+  hook ran also gets that delivery twice, since PreToolUse runs only before `leaf`
+  commands. The finer fix is to offer an update again only when its handover came
+  from a prompt hook, and after an interrupted tool boundary to remind the agent
+  of what it owes instead, as `session.left_owed` does after Stop. That needs the
+  pickup to say which hook handed it over.
 - **Decide the Leaf-owned defects the bad-pages eval left open.**
   [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)
   lists three that follow from recorded choices: an open thread card covers the text

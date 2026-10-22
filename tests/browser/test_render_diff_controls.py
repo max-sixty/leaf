@@ -4,10 +4,9 @@ import re
 from html import escape
 
 import pytest
-from leaf import data as data_model
-from leaf.render_checks import one_frame, rendered
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
+from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
     holding,
@@ -17,7 +16,135 @@ from render_harness import (
     resized,
     scroll_settled,
     sending,
+    told,
 )
+
+from leaf import data as data_model
+from leaf.render_checks import one_frame, rendered
+
+
+def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
+    browser, serve
+):
+    """Several worktrees stay open independently, retaining each nested reader.
+
+    Missing evidence remains visibly unknown beside known totals; neither an empty
+    collection nor a fifth member needs a different browsing surface.
+    """
+    head = "1234567890abcdef1234567890abcdef12345678"
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for path in ("app.py", "tests.py")
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Review worktrees",
+                    '<h1>Review worktrees</h1><lf-worktree-diffs id="trees">'
+                    '<lf-worktree id="drafts" label="retain-drafts" '
+                    'branch="codex/retain-drafts" path="/workspace/leaf.retain-drafts" '
+                    f'head="{head}" status="changed" files="2" additions="2" deletions="2"><details id="drafts-body" open>'
+                    "<p>Keep reply drafts keyed by thread</p>"
+                    "<aside>Drafts survive changing the selected thread.</aside>"
+                    "<details><summary>Snapshot details</summary>"
+                    f"<p>Current commit <code>{head}</code></p></details>"
+                    f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
+                    '</details></lf-worktree><lf-worktree id="missing" label="missing checkout" '
+                    'path="/workspace/missing" status="unavailable"><details id="missing-body">'
+                    "<p>The supplied checkout could not be read.</p></details></lf-worktree>"
+                    + "".join(
+                        f'<lf-worktree id="clean-{index}" label="clean {index}" '
+                        f'path="/workspace/clean-{index}" status="clean" files="0" '
+                        f'additions="0" deletions="0"><details id="clean-body-{index}">'
+                        "<p>No changes.</p></details></lf-worktree>"
+                        for index in range(3)
+                    )
+                    + '</lf-worktree-diffs><lf-worktree-diffs id="empty"></lf-worktree-diffs>'
+                    '<lf-file-tree id="files" for="patch"></lf-file-tree>',
+                ),
+                packages=("diff", "file-tree"),
+            )
+        ),
+    )
+    overview = page.locator("#trees > .lf-worktree-overview")
+    expect(overview).to_contain_text("5 worktrees")
+    expect(overview).to_contain_text("2 files")
+    expect(overview).to_contain_text("+2")
+    expect(overview).to_contain_text("−2")
+    expect(overview).to_contain_text("1 unavailable")
+    expect(page.locator("#empty").get_by_text("No worktrees supplied")).to_be_visible()
+    expect(
+        page.locator("#empty").get_by_text("0 files", exact=True)
+    ).not_to_be_visible()
+
+    row = page.locator("#drafts > details")
+    summary = row.locator(":scope > summary")
+    expect(row).to_contain_text("/workspace/leaf.retain-drafts")
+    expect(summary).to_contain_text(head[:8])
+    snapshot = row.locator(
+        "details", has=page.get_by_text("Snapshot details", exact=True)
+    )
+    snapshot.locator("summary").click()
+    expect(snapshot.locator("code")).to_have_text(head)
+    diff = page.locator("#patch")
+    search = diff.get_by_label("Filter diff files")
+    search.fill("app.py")
+    file_summary = diff.locator("summary").filter(has_text="app.py")
+    file_summary.click()
+    expect(file_summary.locator("..")).not_to_have_attribute("open")
+
+    summary.click()
+    expect(search).not_to_be_visible()
+    # Tab reaches the next worktree; Enter opens it independently of the first.
+    page.keyboard.press("Tab")
+    missing_summary = page.locator("#missing > details > summary")
+    expect(missing_summary).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
+    expect(missing_summary).to_contain_text("Unavailable")
+    expect(missing_summary).not_to_contain_text("0 files")
+    expect(missing_summary).not_to_contain_text("+0")
+
+    summary.click()
+    expect(search).to_have_value("app.py")
+    expect(file_summary.locator("..")).not_to_have_attribute("open")
+    expect(snapshot.locator("code")).to_be_visible()
+    expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
+    # Editing both the active row and its sibling retains nested reading state.
+    source = serve.page_dir / "index.html"
+    source.write_text(
+        source.read_text()
+        .replace(
+            "The supplied checkout could not be read.",
+            "The supplied checkout is temporarily unavailable.",
+        )
+        .replace(
+            "Keep reply drafts keyed by thread",
+            "Keep reply drafts safely keyed by thread",
+        )
+    )
+    told(page)
+    expect(
+        page.get_by_text("The supplied checkout is temporarily unavailable.")
+    ).to_be_visible()
+    expect(page.get_by_text("Keep reply drafts safely keyed by thread")).to_be_visible()
+    expect(search).to_have_value("app.py")
+    expect(file_summary.locator("..")).not_to_have_attribute("open")
+    expect(snapshot.locator("code")).to_be_visible()
+    file_summary.click()
+    expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
+    fifth_summary = page.locator("#clean-2 > details > summary")
+    fifth_summary.click()
+    expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
+    # A related navigator must reveal the worktree around its destination too.
+    summary.click()
+    expect(row).not_to_have_attribute("open")
+    page.locator("#files").get_by_role("treeitem", name="app.py", exact=True).click()
+    expect(row).to_have_attribute("open", "")
+    expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
 
 
 def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):

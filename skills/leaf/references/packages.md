@@ -177,7 +177,7 @@ alternatives, goes in the instructions that own that workflow, and the entry poi
 them: an author revising a page re-reads those instructions, not the entry.
 
 A `boolean` attribute works as in HTML. Name it for what its presence means and make
-absence the default, as in `lf-diff collapsed` or `lf-shot outlines`.
+absence the default, as in `lf-diff collapsed`.
 
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:

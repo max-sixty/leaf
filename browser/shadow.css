@@ -1859,7 +1859,7 @@ leaf-text.lf-fab-input {
   max-height: min(60vh, 480px);
   border-radius: var(--r);
 }
-:is(.lf-btn, .button)[aria-pressed=true] {
+:is(.lf-btn, .button):is([aria-pressed=true], [aria-checked=true]) {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);

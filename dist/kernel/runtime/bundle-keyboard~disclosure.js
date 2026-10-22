@@ -13,7 +13,9 @@ import {
   PAGE_PAINT_ATTRIBUTE,
   PRESS,
   SHADOW_LEADING_CSS,
+  annotationMarkSheets,
   elementDeclarations,
+  marksSheet,
   paintKeysWithin,
   recordedWidgetSelector,
   reportPageError,
@@ -36,37 +38,6 @@ import {
   isElementName,
   render
 } from "./bundle-queued-work.js";
-
-// runtime/stylesheets.js
-var sheets = JSON.parse(
-  document.querySelector(
-    'script[type="application/json"][data-lf-runtime][data-lf-sheets]'
-  ).textContent
-);
-var inBaseLayer = (text) => `@layer lf-base {
-${text}
-}`;
-function constructSheet(text) {
-  const sheet = new CSSStyleSheet();
-  sheet.replaceSync(text);
-  return sheet;
-}
-var chromeSheet = constructSheet(sheets.chrome);
-var chromeSharedClasses = Object.freeze([
-  "lf-aiming",
-  "lf-btn",
-  "lf-ins-block",
-  "lf-over-item",
-  "lf-react-mark",
-  "lf-mark-note",
-  "lf-ui",
-  "lf-version-inline",
-  "lf-version-inline-deletion",
-  "lf-visual-action"
-]);
-var marksSheet = constructSheet(sheets.marks);
-var annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];
-var annotationSheets = sheets.annotations ? [constructSheet(sheets.annotations.chrome), ...annotationMarkSheets] : [];
 
 // runtime/keyboard/disclosure.js
 var disclosureWatch = new MutationObserver((records) => {
@@ -604,12 +575,6 @@ var aborted = (signal) => {
 };
 
 export {
-  inBaseLayer,
-  chromeSheet,
-  chromeSharedClasses,
-  marksSheet,
-  annotationMarkSheets,
-  annotationSheets,
   watchDisclosures,
   DISCLOSE,
   DISCLOSURE_SELECTOR,

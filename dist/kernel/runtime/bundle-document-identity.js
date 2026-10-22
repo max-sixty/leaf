@@ -1076,7 +1076,9 @@ function decorate(state, placed) {
         items.set(each.from, { depth, continued: true });
       });
       const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
-      const shown = touches(state, start, end);
+      const shown = state.selection.ranges.some(
+        (range) => range.from < end && range.to >= start
+      );
       items.set(head.from, { depth, kind: shown ? null : kind, number: list.next });
       if (list.next !== null) list.next++;
       add(start, end, shown ? shownMarker : marker);

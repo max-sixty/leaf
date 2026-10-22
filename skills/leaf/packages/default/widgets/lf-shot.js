@@ -1,12 +1,13 @@
 /* lf-shot owns screenshot inspection: paired frames, slider, pixel difference,
  * outlines, scale, crop and scrolling. A containing package supplies only capture
  * metadata through inspect({pixelRatio, captureWidth, focus, labels}) and allocates
- * its box. In ordinary flow the pair grows; in a bounded box its stage scrolls and
- * chains to the document at its edges. Both frames always share one source scale.
+ * its box. Fit keeps both frames in the allocated box. Actual size pans their
+ * images together inside those same windows, keeping both labels and views visible.
+ * Both frames always share one source scale.
  *
- * The paired view stacks when the available width is narrower than one captured
- * frame: squeezing two full-width captures below half scale hides the detail a
- * review is for. Fit recalculates for that layout; 100% retains the captured CSS
+ * A bounded pair chooses the orientation that gives the images the larger scale;
+ * in ordinary flow, wide frames stack instead of shrinking below half scale.
+ * Fit recalculates for that layout; 100% retains the captured CSS
  * scale, or bitmap pixels when no capture ratio is supplied. Inspection choices
  * belong to this element's lifetime, not the document's application state.
  *
@@ -31,7 +32,9 @@ import {
   offer,
   failSoft,
   focusDestination,
-  focused,
+  showNativeLayer,
+  closeNativeLayer,
+  isNativeLayer,
   iconElement,
   initialRender,
   nextFrame,
@@ -42,8 +45,6 @@ import {
   paintKeys,
   plainPress,
   relabel,
-  rove,
-  rowArrows,
   scopedMediaUrl,
   widgetController,
   move,
@@ -82,9 +83,12 @@ customElements.define(
     #outlinesInput;
     #fullInput;
     #fullLabel;
+    #viewInput;
+    #scaleInput;
     #viewOptions = new Map();
     #scaleOptions = new Map();
     #frames = [];
+    #viewports = [];
     #shots = [];
     #captions = new Map();
     #openers = new Map();
@@ -109,48 +113,14 @@ customElements.define(
       this.#paintAlt();
     }
 
-    #wireGroup({ group, buttons, options }, label, choose) {
-      const neighbour = (key) => {
-        const [, ahead] = rowArrows(group);
-        const values = [...buttons.values()].filter((button) => !button.disabled);
-        const step = [ahead, "ArrowDown"].includes(key) ? 1 : -1;
-        const next =
-          values[(values.indexOf(focused()) + step + values.length) % values.length];
-        focusDestination(next, "move");
-        next.click();
-      };
-      for (const [value, button] of buttons) {
-        button.addEventListener("click", () => choose(value));
-        commands(button, "On a screenshot", [
-          {
-            id: `screenshot.${label === "Image scale" ? "scale" : "view"}.${value}`,
-            keys: PRESS,
-            title: `show ${options[value].toLowerCase()}`,
-            run: () => button.click(),
-          },
-          {
-            id: `screenshot.${label === "Image scale" ? "scale" : "view"}`,
-            keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-            title: `choose the ${label.toLowerCase()}`,
-            run: neighbour,
-          },
-        ]);
-      }
-    }
-
-    #select(buttons, selected) {
-      for (const [value, button] of buttons) {
-        keeps(button, "aria-checked", value === selected);
-      }
-      rove(buttons.values(), buttons.get(selected));
-    }
-
     connectedCallback() {
       if (!once(this)) return;
       const drawing = initialRender(this);
       this.#toolbar = drawing.toolbar;
-      this.#viewOptions = drawing.views.buttons;
-      this.#scaleOptions = drawing.scale.buttons;
+      this.#viewInput = drawing.views.input;
+      this.#scaleInput = drawing.scale.input;
+      this.#viewOptions = drawing.views.options;
+      this.#scaleOptions = drawing.scale.options;
       this.#outlinesInput = drawing.outlines.input;
       this.#fullInput = drawing.full.input;
       this.#fullLabel = drawing.full.label;
@@ -159,18 +129,36 @@ customElements.define(
       this.#canvas = drawing.canvas;
       this.#rail = drawing.rail;
       this.#frames = drawing.frames;
+      this.#viewports = drawing.viewports;
       this.#shots = drawing.shots;
       this.#captions = drawing.captions;
       this.#openers = drawing.openers;
       this.#delta = drawing.delta;
       this.#legend = drawing.legend;
-      this.#wireGroup(drawing.views, "Comparison view", (view) =>
-        this.#chooseView(view),
+      this.#viewInput.addEventListener("change", () =>
+        this.#chooseView(this.#viewInput.value),
       );
-      this.#wireGroup(drawing.scale, "Image scale", (value) => {
-        this.#actual = value === "actual";
+      this.#scaleInput.addEventListener("change", () => {
+        this.#actual = this.#scaleInput.value === "actual";
         this.#fit();
         this.#paint();
+      });
+      drawing.more.append(iconElement("more", "lf-action-icon"));
+      drawing.more.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (isNativeLayer(drawing.options)) closeNativeLayer(drawing.options);
+        else {
+          focusDestination(drawing.more, "press");
+          showNativeLayer(drawing.options, { source: drawing.more });
+          const first = drawing.options.querySelector(
+            "label:not([hidden]) input:not(:disabled)",
+          );
+          if (first) focusDestination(first, "move");
+        }
+      });
+      drawing.options.addEventListener("toggle", () => {
+        keeps(drawing.more, "aria-expanded", isNativeLayer(drawing.options));
+        paintKeys();
       });
       this.#outlinesInput.addEventListener("change", () => {
         this.#outlines = this.#outlinesInput.checked;
@@ -182,6 +170,24 @@ customElements.define(
         this.#paint();
       });
       for (const [index, state] of ["before", "after"].entries()) {
+        const viewport = this.#viewports[index];
+        viewport.addEventListener(
+          "scroll",
+          () => {
+            if (this.#view !== "compare" || !this.#actual) return;
+            const peer = this.#viewports[1 - index];
+            if (
+              peer.scrollLeft !== viewport.scrollLeft ||
+              peer.scrollTop !== viewport.scrollTop
+            )
+              peer.scrollTo({
+                left: viewport.scrollLeft,
+                top: viewport.scrollTop,
+                behavior: "instant",
+              });
+          },
+          { passive: true },
+        );
         const caption = this.#captions.get(state);
         caption.addEventListener("click", () => this.#show(state));
         commands(caption, "On a screenshot", [
@@ -206,14 +212,23 @@ customElements.define(
       whileConnected(this, () => {
         const observer = sizeObserver(() => this.#fit());
         observer.observe(this.#stage);
-        const unregister = registerReadingRegion({
-          id: compoundReadingRegionId(this, "capture"),
-          host: this,
-          body: this.#stage,
-        });
+        const unregister = [
+          registerReadingRegion({
+            id: compoundReadingRegionId(this, "capture"),
+            host: this,
+            body: this.#stage,
+          }),
+          ...this.#viewports.map((body, index) =>
+            registerReadingRegion({
+              id: compoundReadingRegionId(this, index === 0 ? "before" : "after"),
+              host: this.#frames[index],
+              body,
+            }),
+          ),
+        ];
         return () => {
           observer.disconnect();
-          unregister();
+          for (const release of unregister) release();
         };
       });
       const present =
@@ -244,6 +259,7 @@ customElements.define(
         relabel(this.#captions.get(state), labels[state], { says: true });
         keeps(this.#captions.get(state), "aria-label", `${labels[state]} — ${alt}`);
         keeps(this.#shots[index], "alt", `${state}: ${alt}`);
+        keeps(this.#viewports[index], "aria-label", `${labels[state]} — ${alt}`);
         const open = this.#openers.get(state);
         keeps(open, "data-lf-media-alt", `${state}: ${alt}`);
         keeps(open, "data-lf-media-caption", `${state}: ${alt}`);
@@ -300,6 +316,16 @@ customElements.define(
       }
       const geometry = fitShotGeometry({
         available,
+        availableHeight:
+          getComputedStyle(this).getPropertyValue("--lf-holds-height").trim() === "1"
+            ? this.#stage.clientHeight
+            : undefined,
+        labelHeight: parseFloat(
+          getComputedStyle(
+            this.#frames[0].querySelector(".lf-shot-frame-label") ??
+              this.#rail.firstElementChild,
+          ).blockSize,
+        ),
         sourceWidth,
         sourceHeight,
         focus,
@@ -310,14 +336,11 @@ customElements.define(
       });
       if (!geometry) return;
       applyShotGeometry(this, geometry, keeps);
-      const { scale, layout } = geometry;
       this.#fullLabel.toggleAttribute("hidden", !focus);
       this.#fullInput.checked = this.#full;
-      relabel(
-        this.#scaleReading,
-        `${Math.round(scale * 100)}% · ${this.#metadata.pixelRatio ? "CSS px" : "image px"}${this.#view === "compare" && layout === "stack" ? " · stacked" : ""}`,
-        { says: false },
-      );
+      relabel(this.#scaleReading, `Fit · ${Math.round(geometry.fitScale * 100)}%`, {
+        says: false,
+      });
       keeps(
         this.#scaleOptions.get("actual"),
         "title",
@@ -462,8 +485,8 @@ customElements.define(
       );
       keeps(this, "data-lf-shot-outlines", this.#outlines);
       this.#viewOptions.get("pixels").toggleAttribute("disabled", !this.#reading);
-      this.#select(this.#viewOptions, this.#view);
-      this.#select(this.#scaleOptions, this.#actual ? "actual" : "fit");
+      this.#viewInput.value = this.#view;
+      this.#scaleInput.value = this.#actual ? "actual" : "fit";
       this.#outlinesInput.checked = this.#outlines;
       this.#outlinesInput.toggleAttribute(
         "disabled",

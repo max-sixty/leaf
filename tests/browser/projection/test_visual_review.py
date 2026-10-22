@@ -307,7 +307,12 @@ def test_visual_review_preserves_capture_reading_when_returning_to_a_case(
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 700)
     widget = page.locator("#visual-review-run")
-    capture = widget.locator(SELECTED).locator(".lf-vr-capture")
+    case = widget.locator(SELECTED)
+    case.get_by_role("button", name="Image options").click()
+    case.get_by_role("checkbox", name="Full frame").check()
+    page.keyboard.press("Escape")
+    case.get_by_role("combobox", name="Image scale").select_option("actual")
+    capture = case.locator(".lf-shotviewport").first
     assert capture.evaluate("node => node.scrollHeight > node.clientHeight")
     capture.hover()
     page.mouse.wheel(0, 180)

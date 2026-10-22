@@ -1,4 +1,4 @@
-/* The shot owns a toolbar and one scroll viewport. Its source-coordinate planes
+/* The shot owns its allocation and paired image viewports. Its source-coordinate planes
  * share the frame scale and crop translation; neither package consumers nor the
  * pixel/outline renderers reinterpret that geometry. Shared Leaf controls own
  * button faces, targets, focus, disabled and pressed states. */
@@ -14,31 +14,69 @@
 }
 .lf-shot-toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-2) var(--sp-3);
+  gap: var(--sp-2);
   padding-block: var(--sp-2);
   flex: none;
+  anchor-scope: --lf-shot-options;
   font: var(--t-working-label)/1.4 var(--sans);
 }
-.lf-shotchoices {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px;
-}
-.lf-shotchoices:first-child {
-  flex-basis: 100%;
-}
-.lf-shotchoice {
+.lf-shotselect {
+  min-inline-size: 0;
   font: inherit;
 }
-.lf-shotscale {
+.lf-shot-scale {
+  /* A changing fit percentage never moves the neighbouring controls. */
+  inline-size: calc(
+    9ch + 2 * (var(--lf-field-pad-inline) + var(--lf-select-arrow-wing))
+  );
+  flex: none;
+}
+.lf-shotmore {
+  inline-size: max(var(--aim-floor), var(--lf-control-compact));
+  padding: 0;
   margin-inline-start: auto;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
+  flex: none;
+  anchor-name: --lf-shot-options;
+}
+.lf-shotoptions {
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  inline-size: max-content;
+  max-inline-size: calc(100vw - 32px);
+  padding: var(--sp-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--raise-2);
+  font: var(--t-working-label)/1.4 var(--sans);
+}
+@supports (position-area: bottom) {
+  .lf-shotoptions {
+    position-anchor: --lf-shot-options;
+    position-area: bottom span-left;
+    inset: auto;
+    margin: var(--sp-2) 0;
+    position-try-fallbacks: flip-block;
+  }
+}
+.lf-shotoptions::backdrop {
+  background: transparent;
+}
+.lf-shotchoice {
+  display: flex;
+  font: inherit;
+}
+.lf-shotchoice[hidden] {
+  display: none;
 }
 .lf-shotstage {
+  /* Grow into a bounded host's allocation; in flow the auto basis keeps the
+     evidence's intrinsic height. The host consumes the parent's height token. */
+  flex: 1 1 auto;
   min-inline-size: 0;
   min-block-size: 0;
   overflow: auto;
@@ -47,6 +85,10 @@
   overscroll-behavior: auto;
   --lf-top: 0px;
   scrollbar-gutter: stable;
+}
+:scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotstage {
+  overflow: clip;
+  scrollbar-gutter: auto;
 }
 .lf-shotcanvas {
   display: grid;
@@ -62,6 +104,19 @@
   background: var(--card);
   border-radius: var(--r);
   overflow: clip;
+}
+:scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotframe {
+  inline-size: calc(var(--lf-shot-viewport-width) + 2px);
+}
+.lf-shotviewport {
+  inline-size: var(--lf-shot-frame-width);
+  block-size: var(--lf-shot-frame-height);
+}
+:scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotviewport {
+  inline-size: var(--lf-shot-viewport-width);
+  block-size: var(--lf-shot-viewport-height);
+  overflow: auto;
+  overscroll-behavior: auto;
 }
 .lf-shot-frame-label {
   box-sizing: border-box;
@@ -143,11 +198,11 @@
 }
 :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="side"]
   .lf-shotcanvas {
-  grid-template-columns: repeat(2, calc(var(--lf-shot-frame-width) + 2px));
+  grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
 :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   .lf-shotcanvas {
-  grid-template-columns: calc(var(--lf-shot-frame-width) + 2px);
+  grid-template-columns: calc(var(--lf-shot-viewport-width) + 2px);
 }
 :scope:is(lf-shot):not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-frame-width) + 2px);
@@ -303,9 +358,6 @@
     block-size: 100%;
     overflow: clip;
   }
-  .lf-shotstage {
-    flex: 1 1 0;
-  }
 }
 @media print {
   :scope:is(lf-shot) {
@@ -325,11 +377,13 @@
   }
   .lf-shotcanvas,
   .lf-shotcomparison,
-  .lf-shotframe {
+  .lf-shotframe,
+  .lf-shotviewport {
     display: block !important;
     inline-size: 100% !important;
     block-size: auto !important;
     visibility: visible !important;
+    overflow: visible !important;
   }
   .lf-shotcomparison::part(after),
   .lf-shotcomparison::part(before) {

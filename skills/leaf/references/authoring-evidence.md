@@ -155,11 +155,12 @@ the change should be. For a small change, crop both frames to the subject rather
 making the reader search a whole window.
 
 Every pair offers **Before & after**, **Slider** and **Pixel difference**. Before &
-after keeps the captures at the same scale, side by side when there is room and stacked
-for wide captures. Fit fits the current view to the available width; 100% shows CSS
-pixels when capture metadata supplies the pixel ratio, or bitmap pixels otherwise.
-The reader can scroll to inspect an image larger than its view. A pair with focus
-metadata starts at that region and offers Full frame to inspect the rest.
+after keeps the captures at the same scale. Fit keeps both frames visible in a bounded
+comparison, placing them beside one another or stacking them to make best use of the
+available space. At 100%, both panes stay visible and scrolling either image moves
+the other to the same location. This scale uses CSS pixels when capture metadata
+supplies the pixel ratio, or bitmap pixels otherwise. Image options contains Outline
+changes and, for a pair with focus metadata, Full frame to inspect beyond that region.
 
 **Outline changes** independently marks changed regions and uses the accent color for
 content that only moved. **Pixel difference** paints removed pixels red, added pixels

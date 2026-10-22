@@ -207,7 +207,7 @@
   },
   "lf-worktree-diffs": {
     "description": "A supplied set of expandable worktree snapshots, with aggregate change totals and independent diff readers.",
-    "x-instructions": "Supply lf-worktree members in review order, with open on the native details of the one to inspect first. The collection totals their supplied file and line counts and lists unavailable snapshots separately. Each member holds ordinary metadata, optional agent commentary, and its own lf-diff. There is no worktree count limit. Read the diff package author instructions for the snapshot contract.",
+    "x-instructions": "Supply `lf-worktree` members in review order. The collection totals their file and line counts and lists unavailable snapshots separately. The diff package's author instructions give the snapshot contract.",
     "type": "object",
     "properties": {
       "id": {
@@ -225,7 +225,7 @@
   },
   "lf-worktree": {
     "description": "One worktree snapshot and its authored evidence inside lf-worktree-diffs.",
-    "x-instructions": "Use label for the worktree name, path for its full filesystem path, branch when attached, and head for the full current commit hash when known. Wrap the evidence in one native details element with a stable id; put open on that details to show it initially. Leaf supplies its summary. Status is changed, clean, or unavailable; known snapshots supply files/additions/deletions from the exact comparison shown by their lf-diff, with optional binary-files included in files but excluded from line totals. Put the commit subject, provenance, and optional agent commentary in ordinary authored markup. Snapshot provenance should identify repository, full HEAD and comparison-base hashes, scope, and capture time. An unavailable row explains the missing evidence in its body and supplies no invented zero totals.",
+    "x-instructions": "Wrap the evidence in one native `details` with a stable id; Leaf supplies its summary, and `open` shows it initially. `binary-files` counts binary changes within `files` and outside the line totals. An `unavailable` member explains the missing evidence in its body and supplies no counts.",
     "type": "object",
     "properties": {
       "id": {

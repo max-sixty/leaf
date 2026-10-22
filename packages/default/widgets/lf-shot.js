@@ -365,6 +365,10 @@ customElements.define(
 
     #fit() {
       if (!this.#stage || !this.#frames.length) return;
+      // The mode sets the stage's overflow and classic-scrollbar gutter. Apply it
+      // before measuring; fitting the previous mode would resize this observed
+      // stage again during ResizeObserver delivery.
+      keeps(this, "data-lf-shot-mode", this.#shownView);
       const available = this.#stage.clientWidth;
       if (!available) return; // Hidden cases retain their last inspection until shown.
       const ratio = this.#metadata.pixelRatio ?? 1;
@@ -525,7 +529,6 @@ customElements.define(
 
     #paint() {
       if (!this.#toolbar) return;
-      keeps(this, "data-lf-shot-mode", this.#shownView);
       keeps(this, "data-lf-shot-outlines", this.#outlines);
       this.#viewButtons.get("pixels").toggleAttribute("disabled", !this.#reading);
       for (const [view, button] of this.#viewButtons)

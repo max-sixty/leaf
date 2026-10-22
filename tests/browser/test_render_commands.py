@@ -99,9 +99,10 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 
 @pytest.mark.parametrize("touch", [False, True])
 def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
-    browser, serve, touch
+    scrollbar_browser, serve, touch
 ):
     """Controls and image taps work on touch; source labels stay passive."""
+    browser = scrollbar_browser
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=touch
     )
@@ -109,9 +110,23 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         browser,
         serve(SHOT_PAGE, media={SHOT_SRC[n]: d for n, d in SHOTS.items()}),
         context=context,
+        # A classic track changes the stage's available width when its view changes.
+        # This sheet models the platform outside Leaf's authored-CSS isolation.
+        init_script="""(() => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('.lf-shotstage::-webkit-scrollbar { width: 15px; height: 15px; }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        })()""",
     )
     shot = page.locator("lf-shot")
     shot.get_by_role("button", name="Slider", exact=True).click()
+    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
+    assert (
+        shot.locator(".lf-shotstage").evaluate(
+            "node => node.offsetWidth - node.clientWidth"
+        )
+        == 15
+    )
     toolbar = shot.locator(".lf-shot-toolbar")
     toolbar.scroll_into_view_if_needed()
     controls = toolbar.get_by_role("button").all()
@@ -182,6 +197,22 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     expect(shot.get_by_role("button", name="Pair", exact=True)).to_have_attribute(
         "aria-pressed", "true"
     )
+    for view in ("Slider", "Pixels", "Pair"):
+        geometry = shot.evaluate(
+            """async (node, view) => {
+              const boxes = () => [...node.querySelectorAll(
+                '.lf-shot-toolbar, .lf-shotstage, .lf-shotcanvas'
+              )].map(box => box.getBoundingClientRect().toJSON());
+              [...node.querySelectorAll('.lf-shot-views button')]
+                .find(button => button.textContent === view).click();
+              const immediate = boxes();
+              await new Promise(requestAnimationFrame);
+              await new Promise(requestAnimationFrame);
+              return {immediate, painted: boxes()};
+            }""",
+            view,
+        )
+        assert geometry["painted"] == geometry["immediate"], (view, geometry)
 
 
 @pytest.mark.parametrize("touch", [False, True])

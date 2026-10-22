@@ -317,7 +317,7 @@ RING_CASES = (
             "pr-walkthrough": (
                 (
                     "#pr-flow-tab",
-                    ".lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus])::after",
+                    ".lf-rendered:has(> :is(lf-tab, lf-part)",
                 ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),

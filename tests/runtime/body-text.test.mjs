@@ -149,7 +149,10 @@ test("bare file names in Markdown stay text while explicit links remain links", 
     const body = document.createElement("div");
     body.innerHTML = html;
     assert.deepEqual(
-      [...body.querySelectorAll("a")].map((link) => [link.textContent, link.getAttribute("href")]),
+      [...body.querySelectorAll("a")].map((link) => [
+        link.textContent,
+        link.getAttribute("href"),
+      ]),
       [
         ["https://example.com", "https://example.com"],
         ["https://example.org", "https://example.org"],
@@ -198,18 +201,13 @@ test("editor tokens retain native constructs and exact source syntax after parse
     );
     assert.equal(link.to, automatic.length);
   }
-  for (const automatic of [
-    "**one** and reader@example.com foo@example.com",
-  ]) {
+  for (const automatic of ["**one** and reader@example.com foo@example.com"]) {
     const links = placedMarkdownTokens(automatic).filter(
       ({ token }) => token.type === "link_open",
     );
     for (const link of links) {
       const words = automatic.slice(link.contentFrom, link.contentTo);
-      assert.match(
-        words,
-        /^(?:reader@example\.com|foo@example\.com)$/,
-      );
+      assert.match(words, /^(?:reader@example\.com|foo@example\.com)$/);
       assert.equal(link.contentFrom, automatic.indexOf(words));
       assert.equal(link.contentTo, link.contentFrom + words.length);
     }

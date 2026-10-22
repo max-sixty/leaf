@@ -16,9 +16,12 @@ from render_harness import (
 )
 
 
-@pytest.mark.parametrize("saved_before_disconnect", [False, True])
-def test_file_editor_retry_checks_disk_after_the_failed_edit_is_undone(
-    browser, serve, tmp_path, saved_before_disconnect
+@pytest.mark.parametrize(
+    ("saved_before_disconnect", "recovery"),
+    [(False, "retry"), (True, "retry"), (True, "reload")],
+)
+def test_file_editor_recovers_after_a_failed_edit_is_undone(
+    browser, serve, tmp_path, saved_before_disconnect, recovery
 ):
     file = tmp_path / "notes.md"
     file.write_text("Original.")
@@ -53,7 +56,26 @@ def test_file_editor_retry_checks_disk_after_the_failed_edit_is_undone(
     expect(retry).to_be_visible()
     editor.fill("Original.")
     page.unroute("**/api/files/notes", fail_write)
-    retry.tap() if saved_before_disconnect else retry.press("Enter")
+    if recovery == "reload":
+        dialogs = []
+
+        def leave(dialog):
+            dialogs.append(dialog.type)
+            dialog.accept()
+
+        page.on("dialog", leave)
+        # A failed read must not settle the restored draft's uncertain disk state.
+        page.route("**/api/files/notes", lambda route: route.abort())
+        page.reload()
+        expect(retry).to_be_visible()
+        expect(editor).to_have_text("Original.")
+        page.unroute("**/api/files/notes")
+        editor.click()
+        page.reload()
+        expect(editor).to_have_text("Original.")
+        assert dialogs == ["beforeunload", "beforeunload"]
+    else:
+        retry.tap() if saved_before_disconnect else retry.press("Enter")
     if saved_before_disconnect:
         expect(
             widget.get_by_role("button", name="Changed on disk", exact=True)
@@ -62,7 +84,8 @@ def test_file_editor_retry_checks_disk_after_the_failed_edit_is_undone(
     else:
         expect(status).to_have_text("", use_inner_text=True)
         assert file.read_text() == "Original."
-    expect(editor).to_be_focused()
+    if recovery == "retry":
+        expect(editor).to_be_focused()
     expect(editor).to_have_text("Original.")
     consume_browser_errors(
         page,

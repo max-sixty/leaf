@@ -13,6 +13,7 @@
  * CodeMirror transactions; a dirty one retains both versions for explicit review.
  * Retrying a failed save checks the disk even when edits returned to the last
  * acknowledged text: a missing receipt does not establish what the disk now holds.
+ * That uncertainty also keeps the draft through a reload until a read or save settles it.
  * The editor reads the file when it connects, when the tab is shown again, and when
  * the page's state stamps the binding anew (`boundFile().watch`). A read asked for
  * while another request is in flight, or while a failure or conflict holds the
@@ -221,7 +222,8 @@ customElements.define(
         editor.revealCaret();
       };
       const dirty = () => base !== null && editor.value !== base.text;
-      const unsettled = () => dirty() || latest !== null;
+      const unsettled = () =>
+        recovering || dirty() || latest !== null || failure?.kind === "save";
       function remember() {
         tabStore.set(
           recoveryKey,
@@ -446,7 +448,7 @@ customElements.define(
         const seenGeneration = generation;
         try {
           const current = await api.read();
-          if (!base || (!recovering && !unsettled() && seenGeneration === generation)) {
+          if (!base || (!unsettled() && seenGeneration === generation)) {
             base = current;
             latest = null;
             editor.value = current.text;

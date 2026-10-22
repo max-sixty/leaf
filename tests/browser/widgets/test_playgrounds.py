@@ -416,9 +416,10 @@ def test_a_playground_reports_a_contributor_view_that_cannot_draw_its_edit(
     consume_browser_errors(page, report)
 
 
-def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_short_workspace(
-    browser, serve
-):
+def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, serve):
+    """With its controls on the stage, a playground in a short workspace keeps at least
+    half the window for the stage, and the workspace scrolls to the whole instruction
+    and its actions below it rather than either scrolling inside a squeezed box."""
     source = leaf_page(
         "Short alert workspace",
         '<lf-ask id="short-ask"><h1>Tune alert policies</h1>'
@@ -442,11 +443,14 @@ def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_sh
     expect(playground.locator(".lf-playground-controls-region")).to_have_count(0)
     split = playground.locator(".lf-playground-split").bounding_box()
     assert preview.bounding_box()["width"] == pytest.approx(split["width"], abs=1)
-    assert instruction.evaluate("node => node.scrollHeight > node.clientHeight")
-    instruction.evaluate("node => { node.scrollTop = node.scrollHeight; }")
-    body = instruction.bounding_box()
-    last = page.locator("#instruction-end").bounding_box()
-    assert body["y"] <= last["y"] < body["y"] + body["height"]
+    stage = playground.locator(".lf-playground-preview-region").bounding_box()
+    assert stage["height"] >= 500 / 2 - 0.5
+    assert instruction.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
+    workspace = page.locator("#short-ask")
+    assert workspace.evaluate("node => node.scrollHeight > node.clientHeight + 1")
+    end = page.locator("#instruction-end")
+    end.scroll_into_view_if_needed()
+    expect(end).to_be_in_viewport()
     slider = playground.get_by_role("slider", name="Latency window")
     slider.press("ArrowRight")
     expect(slider).to_have_value("6")

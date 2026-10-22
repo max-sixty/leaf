@@ -63,6 +63,30 @@ WORKSPACE_PAGE = leaf_page(
 )
 
 
+def test_workspace_root_scrollbar_appears_only_when_page_overflows(
+    scrollbar_browser, serve
+):
+    page = open_page(scrollbar_browser, serve(WORKSPACE_PAGE))
+    resized(page, 1200, 900)
+    assert page.evaluate(
+        """() => {
+          const root = document.documentElement;
+          return root.scrollHeight === root.clientHeight &&
+            root.clientWidth === window.innerWidth;
+        }"""
+    )
+
+    resized(page, 1200, 420)
+    assert page.evaluate(
+        """() => {
+          const root = document.documentElement;
+          root.scrollTop = root.scrollHeight;
+          return root.scrollHeight > root.clientHeight &&
+            root.clientWidth < window.innerWidth && root.scrollTop > 0;
+        }"""
+    )
+
+
 @pytest.mark.parametrize("captured", [False, True], ids=["block", "text-document"])
 def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, captured):
     """A bound inside a document keeps its own reading position but lets the user

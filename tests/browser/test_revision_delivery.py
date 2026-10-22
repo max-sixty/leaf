@@ -4,11 +4,12 @@ import struct
 from urllib.parse import quote
 
 import pytest
+from playwright.sync_api import expect
+from render_harness import leaf_page, open_page
+
 from leaf.revision_delivery import (
     media_size,
 )
-from playwright.sync_api import expect
-from render_harness import leaf_page, open_page
 
 
 @pytest.mark.parametrize(

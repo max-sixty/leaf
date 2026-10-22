@@ -11,6 +11,8 @@
  * Autosave serializes snapshots, retaining later typing while each receipt adopts
  * exactly the submitted snapshot. A clean editor follows external revisions through
  * CodeMirror transactions; a dirty one retains both versions for explicit review.
+ * Retrying a failed save checks the disk even when edits returned to the last
+ * acknowledged text: a missing receipt does not establish what the disk now holds.
  * The editor reads the file when it connects, when the tab is shown again, and when
  * the page's state stamps the binding anew (`boundFile().watch`). A read asked for
  * while another request is in flight, or while a failure or conflict holds the
@@ -388,7 +390,7 @@ customElements.define(
           !base ||
           (failure && !returnFrom) ||
           (latest && !replace) ||
-          (!dirty() && !(replace && latest))
+          (!dirty() && !failure && !(replace && latest))
         )
           return;
         const against = replace ? latest : base;

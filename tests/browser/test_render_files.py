@@ -2,15 +2,73 @@
 
 import io
 
+import pytest
 from leaf.file_bindings import bind_file
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    consume_browser_errors,
+    http_error_console,
     leaf_page,
     open_page,
     rendered,
 )
+
+
+@pytest.mark.parametrize("saved_before_disconnect", [False, True])
+def test_file_editor_retry_checks_disk_after_the_failed_edit_is_undone(
+    browser, serve, tmp_path, saved_before_disconnect
+):
+    file = tmp_path / "notes.md"
+    file.write_text("Original.")
+    url = serve(
+        leaf_page(
+            "Notes",
+            '<h1>Notes</h1><lf-file-editor id="notes-file" binding="notes"></lf-file-editor>',
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    context = browser.new_context(
+        viewport={"width": 390 if saved_before_disconnect else 1280, "height": 844},
+        has_touch=saved_before_disconnect,
+    )
+    page = open_page(browser, live_url(url), context=context)
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    status = widget.locator(".lf-file-editor-status")
+
+    def fail_write(route):
+        if route.request.method == "POST":
+            if saved_before_disconnect:
+                route.fetch()
+            route.abort()
+        else:
+            route.continue_()
+
+    page.route("**/api/files/notes", fail_write)
+    editor.fill("Changed.")
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(retry).to_be_visible()
+    editor.fill("Original.")
+    page.unroute("**/api/files/notes", fail_write)
+    retry.tap() if saved_before_disconnect else retry.press("Enter")
+    if saved_before_disconnect:
+        expect(
+            widget.get_by_role("button", name="Changed on disk", exact=True)
+        ).to_be_visible()
+        assert file.read_text() == "Changed."
+    else:
+        expect(status).to_have_text("", use_inner_text=True)
+        assert file.read_text() == "Original."
+    expect(editor).to_be_focused()
+    expect(editor).to_have_text("Original.")
+    consume_browser_errors(
+        page,
+        "Failed to load resource: net::ERR_FAILED",
+        *([http_error_console(409)] if saved_before_disconnect else []),
+    )
 
 
 def test_file_editor_page_navigation_preserves_the_caret_position(

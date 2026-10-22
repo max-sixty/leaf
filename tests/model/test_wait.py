@@ -875,6 +875,83 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     assert hooks_model.cmd_watch("claude-code", stop) is None
 
 
+@pytest.mark.parametrize("ending", ["Stop", "Escape"])
+def test_a_watch_leaves_input_to_a_later_turn_while_it_runs(
+    claimed, monkeypatch, ending
+):
+    """The watch from a turn's end goes on running into the user's next turn,
+    which takes input at its next tool boundary or Stop hook. So while Claude Code
+    says that later turn runs, input wakes nothing: a wake would only show the user
+    a second notice of input the turn is about to read. The Stop hook that closes
+    the turn starts the watch that takes over and wakes for what the turn left, so
+    the earlier one still wakes nothing and gives way to it. Escape runs no Stop
+    hook and leaves the turn's record open, so once Claude Code reads idle, the
+    earlier watch wakes."""
+    leases_model.mark_hooks("s1")
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed, "")
+    cleanup_model.close_session_turn("s1")
+    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    # The watch asks Claude Code only of pending input in a turn opened after it.
+    asked = threading.Event()
+
+    def live_turn(_):
+        asked.set()
+        return live
+
+    monkeypatch.setattr(harness_model.ClaudeCodeHarness, "live_turn", live_turn)
+    passed = threading.Event()
+    await_news = session_model.Watch.await_news
+
+    def after_a_pass(watch, mark, *args, **kwargs):
+        passed.set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
+    outcome = []
+    watch = threading.Thread(
+        target=lambda: outcome.append(
+            hooks_model.cmd_watch(
+                "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
+            )
+        )
+    )
+    watch.start()
+    assert passed.wait(STATED_TIMEOUT), "the watch never made a pass"
+    cleanup_model.prompt_turn("s1")
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "during"}
+    )
+    assert asked.wait(STATED_TIMEOUT), "the watch never read the comment"
+    passed.clear()
+    assert passed.wait(STATED_TIMEOUT), (
+        f"the watch never went back to waiting: {outcome}"
+    )
+    assert outcome == []
+    if ending == "Stop":
+        cleanup_model.close_session_turn("s1")
+        passed.clear()
+        assert passed.wait(STATED_TIMEOUT), "the watch never read the closed turn"
+        assert outcome == []
+        successor = hooks_model.cmd_watch(
+            "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
+        )
+        assert successor.startswith(f"{claimed} has new input")
+        watch.join(timeout=STATED_TIMEOUT)
+        assert outcome == [None]
+        return
+    live["state"] = "idle"
+    # Claude Code's own record changes no file the watch follows; the next comment,
+    # or the watch's revival check, makes it look again.
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "after"}
+    )
+    watch.join(timeout=STATED_TIMEOUT)
+    assert not watch.is_alive(), "the watch never woke after Escape"
+    [woke] = outcome
+    assert woke.startswith(f"{claimed} has new input")
+
+
 def test_the_newest_watch_takes_the_session_over(claimed, monkeypatch, capsys):
     """Claude Code starts a watch at every turn's end and leaves the earlier one
     running, so the newest takes the session's lease, and the watch it displaces

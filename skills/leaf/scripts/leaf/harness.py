@@ -78,12 +78,9 @@ class Harness:
       the turn's context and confirm it (`hook_delivers`); the other Stop hook
       does only under plain `--print`, where no watch follows the turn
       (`hook_transport`). A turn that ends without its Stop hooks, as an
-      interrupt does, leaves nothing watching while the session lives on, which
-      is why this is the harness with a `nudge`. With its `hooks_module` option
-      on, Leaf's hooks module (`hooks/claude-code.ts`) keeps the watch in place
-      of that Stop hook, as Pi's extension does: it watches after an interrupted
-      turn too and wakes the session with a prompt, which Claude Code drops
-      after an Escape.
+      interrupt does, starts no watch, so where no watch from before it runs,
+      nothing watches while the session lives on, which is why this is the
+      harness with a `nudge`.
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -197,7 +194,7 @@ class Harness:
 
     def watches_between_turns(self) -> bool:
         """Whether this session's harness starts Leaf's watch as each turn ends, from
-        a hook, extension or hooks module, which wakes the session when input arrives
+        a hook or extension, which wakes the session when input arrives
         (`session.watch_between_turns`); the model then starts no `leaf wait`."""
         return False
 
@@ -381,9 +378,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         (measured at 2.1.286). A print session fed `--input-format stream-json`
         backgrounds it like an interactive one; `--output-format stream-json`
         alone does not. Only the process's own argv tells the two apart: the
-        hook's input and environment are the same. Leaf's hooks module, where its
-        option keeps the watch, states CLAUDE_PID to the watch it starts, so the
-        same reading holds there."""
+        hook's input and environment are the same."""
         argv = process_argv(int(os.environ["CLAUDE_PID"])) or []
         printing = "-p" in argv or "--print" in argv
         streaming = "--input-format=stream-json" in argv or (

@@ -222,32 +222,12 @@
   }
   .lf-fp-search-tools {
     display: flex;
+    justify-content: flex-end;
+    padding: 0 var(--lf-fp-row-pad);
     flex: none;
     align-items: center;
     min-height: var(--lf-fp-line);
     gap: 2px;
-  }
-  @media (max-width: 600px) {
-    .lf-floating-panel[data-search] .lf-fp-row {
-      display: grid;
-      grid-template-columns: var(--lf-fp-aim) minmax(0, 1fr) auto auto;
-    }
-    .lf-floating-panel[data-search] .lf-fp-field {
-      grid-column: 2 / -1;
-      grid-row: 1;
-    }
-    .lf-floating-panel[data-search] .lf-fp-search-tools {
-      grid-column: 2;
-      grid-row: 2;
-    }
-    .lf-floating-panel[data-search] .lf-fp-quick {
-      grid-column: 3;
-      grid-row: 2;
-    }
-    .lf-floating-panel[data-search] .lf-fp-exit-seat {
-      grid-column: 4;
-      grid-row: 2;
-    }
   }
   .lf-fp-expand {
     flex: none;
@@ -433,7 +413,7 @@
   .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-field .lf-compose-submit {
     display: grid;
   }
-  .lf-floating-panel[data-drafted] .lf-fp-quick {
+  .lf-floating-panel:is([data-drafted], [data-search]) .lf-fp-quick {
     display: none;
   }
   .lf-fp-field .lf-compose-dictate {

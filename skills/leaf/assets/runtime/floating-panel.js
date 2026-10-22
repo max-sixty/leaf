@@ -118,7 +118,8 @@
  * words never move between editors. Page and Threads search take this same field
  * with their own native inputs: a right-hand scope chip and a faint tint name the
  * mode after its placeholder is gone. Search never borrows an editor or its send,
- * attachments or dictation. Its controls wrap below the query on narrow screens.
+ * attachments or dictation. Every mode keeps its field on the bottom row, with
+ * its extra controls above it, including search navigation and response choices.
  *
  * Nothing moves under the pointer: a view's controls stand at its foot, the leaf's
  * menu holds what it showed while it stands, and a control the user pressed in a
@@ -493,6 +494,8 @@ export function createFloatingPanel({
   const searchMode = el("span", "lf-fp-search-mode");
   searchSurface.append(searchMode);
   const searchTools = el("div", "lf-fp-search-tools");
+  row.before(searchTools);
+  declareOccluder(searchTools);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   // The way out of the stance the user stands in, at the row's end beside the counts,
@@ -510,7 +513,7 @@ export function createFloatingPanel({
   // away, moves nothing here. Rejected: a view of its own above the row, which stood a
   // second field over the panel's own.
   const responseSeat = el("div", "lf-fp-response");
-  row.append(leaf, field, responseSeat, searchTools, rowNoticeSeat, quick, exitSeat);
+  row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
 
   const CONNECTING = {
     tone: "",

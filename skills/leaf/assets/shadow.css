@@ -1819,6 +1819,7 @@ leaf-text.lf-fab-input {
 }
 .lf-fab-bar[data-lf-presentation=inline].lf-response-open > .lf-response-options {
   flex-basis: 100%;
+  order: -1;
 }
 .lf-fab-bar[data-lf-presentation=inline] > .lf-surface-grip {
   display: none;

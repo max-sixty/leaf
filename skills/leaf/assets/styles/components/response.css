@@ -669,6 +669,9 @@ leaf-text.lf-fab-input {
 }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open > .lf-response-options {
   flex-basis: 100%;
+  /* Additional actions grow above the field, keeping its last line at the foot of
+     the panel when the same composer occupies its inline seat there. */
+  order: -1;
 }
 /* Only a floating box is carried (surface-grip.js), so a seated one shows no grip. */
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-surface-grip {

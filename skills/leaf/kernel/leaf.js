@@ -6772,11 +6772,13 @@ function createFloatingPanel({
   const searchMode = el("span", "lf-fp-search-mode");
   searchSurface.append(searchMode);
   const searchTools = el("div", "lf-fp-search-tools");
+  row.before(searchTools);
+  declareOccluder(searchTools);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   const exitSeat = el("div", "lf-fp-exit-seat");
   const responseSeat = el("div", "lf-fp-response");
-  row.append(leaf, field, responseSeat, searchTools, rowNoticeSeat, quick, exitSeat);
+  row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
   const CONNECTING = {
     tone: "",
     summary: "Connecting\u2026",

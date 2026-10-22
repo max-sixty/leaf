@@ -13,7 +13,8 @@ from browser.test_render_reactions import select_paragraph
 
 @pytest.mark.parametrize("touch,width", [(False, 1280), (True, 390)])
 @pytest.mark.parametrize(
-    "seat,reactions", [("floating", True), ("inline", True), ("inline", False)]
+    "seat,reactions",
+    [("floating", True), ("panel", True), ("inline", True), ("inline", False)],
 )
 def test_comment_has_one_action_and_keys_preserve_its_other_responses(
     browser, serve, touch, width, seat, reactions
@@ -21,11 +22,18 @@ def test_comment_has_one_action_and_keys_preserve_its_other_responses(
     context = browser.new_context(
         has_touch=touch, viewport={"width": width, "height": 900}
     )
-    if seat == "floating":
-        page = open_page(browser, serve(PANEL_PAGE), context=context)
+    if seat in {"floating", "panel"}:
+        source = (
+            PANEL_PAGE.replace("<body>", '<body data-annotations="page">', 1)
+            if seat == "panel"
+            else PANEL_PAGE
+        )
+        page = open_page(browser, serve(source), context=context)
         select_paragraph(page, "#how-cap")
         if touch:
             selection_field(page).tap()
+        elif seat == "panel":
+            selection_field(page).click()
     else:
         registry = json.loads(
             (ROOT / "skills/leaf/packages/default/registry.json").read_text()
@@ -78,6 +86,13 @@ def test_comment_has_one_action_and_keys_preserve_its_other_responses(
     expect(field).to_have_js_property("value", "Keep this draft")
     after = field.bounding_box()
     assert abs(after["width"] - before["width"]) <= 1, (before, after)
+    if seat == "panel":
+        assert (
+            abs(after["y"] + after["height"] - before["y"] - before["height"]) <= 1
+        ), (
+            before,
+            after,
+        )
     if seat == "floating":
         expect(bar.get_by_role("button", name="Suggest", exact=True)).to_be_visible()
     expect(bar.get_by_role("button", name="keep", exact=True)).to_be_visible()

@@ -890,7 +890,7 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     """Page search occupies the panel's main field, with an explicit search mode.
     Its up and down arrows
     move the count beside them and leave the query's field focused, so the next letter
-    still edits it, and the panel's row keeps its counts. A press on the
+    still edits it, and the query stays on the panel's bottom row at every width. A press on the
     marked match selects it."""
     page = floating(browser, serve(LONG_PAGE))
     page.locator("body").focus()
@@ -913,7 +913,14 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     count = page.locator(".lf-page-search-status")
     expect(count).to_have_text("1 of 11")
     expect(following).not_to_have_attribute("aria-disabled", "true")
-    expect(page.locator(".lf-fp-threads")).to_be_visible()
+    expect(page.locator(".lf-fp-threads")).to_be_hidden()
+    for width in (390, 540, 1280):
+        page.set_viewport_size({"width": width, "height": 800})
+        settled(page)
+        query = search.bounding_box()
+        close = page.locator('.lf-fp-exit[aria-label="Close search"]').bounding_box()
+        assert abs(query["y"] + query["height"] - close["y"] - close["height"]) < 1
+        assert search.get_by_role("searchbox").bounding_box()["width"] >= 60
     following.click()
     expect(count).to_have_text("2 of 11")
     previous.click()

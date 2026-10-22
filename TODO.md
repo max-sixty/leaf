@@ -85,13 +85,6 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
-- **Decide whether `page check` should still refuse an `lf-ask` without a leading
-  heading.** The heading is the question's title in On me and the `m`
-  announcement, which all show an empty title without one, and the
-  `lf-ask` instructions already ask for it. Wait until the other narrow checks
-  removed in October 2026 have been gone a while; if pages written since still
-  carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
-  user pages, between 2026-07-22 and 2026-10-11.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -284,9 +277,10 @@ and its chrome coordinate.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
-- **Decide whether a sidebar built from several blocks sticks.** A sidebar panel
-  sticks only when it is a single block, so existing multi-panel pages keep
-  flowing; dropping that condition makes every sidebar page's panel stick.
+- **Make a sidebar built from several blocks stick.** A sidebar's track sticks only
+  when it holds one block (`:only-child` in `layouts.css`), so multi-block asides
+  flow. The user decided (2026-10-21) to drop the condition: a multi-block aside
+  sticks as a whole, scrolling within the window like a one-block track.
 - **Decide whether a too-narrow table fails a page at the fixed widths.** It is
   advice at every width, the two fixed viewports included, where it once refused
   the page.
@@ -458,14 +452,14 @@ on 2026-10-07.
   past that (`tests/AGENTS.md`, "Selecting checks"). Once main stays green
   between merges, make `test` required again in `main`'s branch protection and drop
   that paragraph's exception.
-- **Resume the thread appearance gate.** Since 2026-10-12 the message-delivery
-  journey and acceptance tests in `tests/*/test_render_thread_snapshots.py` are
-  skipped to save test time while development moves fast; the references had already
-  drifted twice unnoticed, since only a manual macOS run compares them. Once
-  development slows, remove the skips, then capture, review and accept current images
-  (`leaf-dev thread-snapshots`), and have landing run the comparison so it cannot
-  drift again, such as `wt merge`'s macOS pre-merge when the thread runtime or theme
-  changes.
+- **Resume the thread appearance gate.** The user wants it working again at some point
+  (2026-10-21). Since 2026-10-12 the message-delivery journey and acceptance tests in
+  `tests/*/test_render_thread_snapshots.py` are skipped to save test time while
+  development moves fast; the references had already drifted twice unnoticed, since
+  only a manual macOS run compares them. Once development slows, remove the skips,
+  then capture, review and accept current images (`leaf-dev thread-snapshots`), and
+  have landing run the comparison so it cannot drift again, such as `wt merge`'s macOS
+  pre-merge when the thread runtime or theme changes.
 - **Guard thread appearance on CI again.** The thread snapshot gate compares images
   on macOS only (`dev/leaf_dev/commands/thread_snapshots.py`), so a pull request's Linux CI
   checks the delivery journey but not how it looks. Fonts and antialiasing differ by
@@ -637,11 +631,14 @@ export` writes a file that boots the page's own runtime offline, and that file
   rather than one region, a border that changed length draws a thin outline, and a
   changed 1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which
   a worker would take off it.
-- **Reduce plugin-update downloads by cleaning Git history.** Remove historical
-  images and obsolete large JavaScript bundles while preserving current files.
-  A disposable full-history rewrite saved about 27 MiB. Coordinate the rewrite
-  across remote refs and local worktrees, retaining the commit mapping and testing
-  that updates preserve active work without restoring the removed history.
+- **Reduce plugin-update downloads by cleaning Git history.** Trigger: Leaf
+  publishes releases, which will likely build the kernel another way than
+  committing it, the source of most history growth (an estimated 5–13 MB a month).
+  Then remove historical images and obsolete large JavaScript bundles while
+  preserving current files. A disposable full-history rewrite saved about 27 MiB.
+  Coordinate the rewrite across remote refs and local worktrees, retaining the
+  commit mapping and testing that updates preserve active work without restoring
+  the removed history.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

@@ -36,6 +36,7 @@ vi.mock("@cloudflare/containers", () => ({
 
 import { getContainer } from "@cloudflare/containers";
 import worker, { LeafWebsiteSession, type Env } from "../src/index";
+import { activeCookie } from "../src/routing";
 
 const RELEASE = "a".repeat(64);
 const LAYER = "edge-layer";
@@ -145,10 +146,8 @@ const startupReport = (overrides: Record<string, unknown> = {}) => ({
   presentedMs: 310,
   ...overrides,
 });
-const cookieKey = (root: string) =>
-  root === "/" ? "root" : `page-${root.slice(1).replaceAll("/", "_")}`;
 const activeMarker = (root: string, release = RELEASE) =>
-  `__Host-leaf-active-${cookieKey(root)}=${release}`;
+  activeCookie(true, root, release).split(";", 1)[0];
 const containerId = (sessionId: string) => `${RELEASE}:${sessionId}`;
 
 function environment(overrides: Partial<Env> = {}): Env {
@@ -391,7 +390,10 @@ describe("product-site delivery", () => {
             Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
             "Content-Type": "text/plain;charset=UTF-8",
           },
-          body: JSON.stringify(startupReport()),
+          // Widgets can upgrade while the first state response remains pending.
+          body: JSON.stringify(
+            startupReport({ firstStateResponseMs: 300_001, presentedMs: 300_031 }),
+          ),
         }),
         environment(),
       );
@@ -405,10 +407,10 @@ describe("product-site delivery", () => {
         reference: "318445474579",
         route: "/examples/triage-board",
         currentRelease: RELEASE,
-        presentedMs: 310,
+        presentedMs: 300_031,
         firstContentfulPaintMs: 115,
         upgradedMs: 180,
-        firstStateResponseMs: 280,
+        firstStateResponseMs: 300_001,
       });
     } finally {
       logged.mockRestore();
@@ -1096,11 +1098,11 @@ describe("product-site delivery", () => {
     }
   });
 
-  it("requires bounded nullable upgrade and first-state response timings", async () => {
+  it("requires nullable nonnegative integer upgrade and first-state response timings", async () => {
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {
       for (const field of ["upgradedMs", "firstStateResponseMs"]) {
-        for (const value of [undefined, -1, 1.5, 300_001, "310"]) {
+        for (const value of [undefined, -1, 1.5, "310"]) {
           const response = await worker.fetch(
             new Request("https://leaf.page/api/performance", {
               method: "POST",
@@ -1178,7 +1180,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("passive");
     expect(await response.json()).toMatchObject({ reading: "published" });
     expect(response.headers.get("Set-Cookie")).toBe(
-      `__Host-leaf-active-${cookieKey("/examples/triage-board")}=; Path=/; Secure; ` +
+      "__Host-leaf-active-page-examples%2Ftriage-board=; Path=/; Secure; " +
         "HttpOnly; SameSite=Lax; Max-Age=0",
     );
   });
@@ -1695,7 +1697,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
     expect(response.headers.get("Leaf-Session-Reference")).toBe("610422516507");
     expect(response.headers.get("Set-Cookie")).toBe(
-      `__Host-leaf-active-page-examples_triage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+      `__Host-leaf-active-page-examples%2Ftriage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
   });
 
@@ -1742,7 +1744,7 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).toBe("active");
       expect(response.headers.get("Leaf-Session-Reference")).toBe(reference);
       expect(response.headers.get("Set-Cookie")).toBe(
-        `__Host-leaf-active-page-examples_triage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+        `__Host-leaf-active-page-examples%2Ftriage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
       );
     }
   });

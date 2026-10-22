@@ -7,10 +7,10 @@ conversation and actions outside the page.
 
 Make each decision understandable and answerable where On me takes the user, without
 reading earlier content. Pressing `m` brings that decision to the top of the window,
-leaving preceding prose out of view. Put the question, the current
-state, the evidence that bears on the answer and the answering control inside the
-answering widget or an enclosing `lf-ask`. Compose the explanation there first;
-backing detail goes after it.
+leaving preceding prose out of view. So the decision opens with a heading that asks
+its question, and holds the current state, the evidence that bears on the answer and
+the answering control, inside the answering widget or an enclosing `lf-ask`. Compose
+the explanation there first; backing detail goes after it.
 
 On a quick-answer page, open with the decision and put its backing in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
@@ -18,33 +18,26 @@ a record or system page, put each decision in the part of the page it decides: a
 decision about one entry goes with that entry, and one that turns on a claim contains
 the claim and its evidence. Only a decision about the whole record comes last.
 
-An `lf-ask` keeps the prose's width. When it frames a figure above its options, or its
-options hold pictures of their own, the options sit side by side, so question, evidence
-and options share the window. Each card takes its share of that width, so where the
-pictures need more to be read, give the `lf-options` a `data-width`. Give a table,
-chart, playground or other wide surface inside an `lf-ask` its own `data-width`, such
-as `data-width="available"` for a playground that uses every column it gets
-(`page-layout.md`, "Bounds and widths"). A page whose subject is that
-surface is a workspace instead (`page-authoring.md`, "Composing a page").
+Keep the question, its evidence and the options on screen together. Where a table,
+chart or playground inside the decision, or the pictures in its options, can't be read
+at the prose's width, widen them as the `lf-ask` entry says. A page whose subject is
+that surface is a workspace instead (`page-authoring.md`, "Composing a page").
 
 Write decisions the user can answer independently in page order. If a later one depends
 on an earlier answer, pose it in the next turn rather than writing every branch.
 
-The answering widget holds the obligation's answer and status. A choice can record a partial
-answer before the user presses Done, and an empty selection can be a complete answer. A
-decision widget on its own puts an obligation on On me; an `lf-ask` around it adds context,
-not a second obligation. An `lf-ask` holding no widget is a question the user answers in
-words: on the page, by commenting on it; in a thread message, by their next message
-there. Use it for an open question no widget can record, and a widget wherever the
-answer is a choice or an edit.
+Let the user answer in the form the answer takes: a widget wherever it is a choice or
+an edit, and an `lf-ask` holding no widget for an open question they answer in words.
+Each widget puts one obligation on On me and records its answer. A choice can hold a
+partial answer before the user presses Done, and an empty selection can be a complete
+answer.
 
-Retire decisions and questions you introduced when they stop mattering. Keep unanswered
-user requests distinct from settled decisions. A request remains open until answered or
-withdrawn, or until you explicitly retire it and explain why changed circumstances make
-it unnecessary. Applying an independent decision does not itself answer or retire the
-request. Retire one by removing its widget in a new version or marking it `restated`
-(`authoring-revisions.md`). A to-do you put on the user is work for them to do, such as
-trying a build, not a question.
+On me lists only what still needs the user. Retire a decision or question you
+introduced once it stops mattering, by removing its widget in a new version or marking
+it `restated` (`authoring-revisions.md`). A request the user made stays open until you
+answer it or they withdraw it; deciding something else, however related, doesn't
+answer it. To retire one yourself, say what changed to make it unnecessary. A to-do you
+put on the user is work for them to do, such as trying a build, not a question.
 
 Each option is a result the user can pick, so its title says what choosing it does to
 the subject, keeping today's behavior included: “Generate shared types” and “Keep

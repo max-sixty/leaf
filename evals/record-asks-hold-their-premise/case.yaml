@@ -1,6 +1,9 @@
 # From a findings page that put each section's claim, figure and demo above a bare
 # question (#1322). Base at 64186bcb9 put them all above the Ask (0 of 3); the change
 # put the figure inside it and the demo after it (3 of 3).
+# Its prompts no longer tell the agent to read the registry entries: without them,
+# base ee04a60be opened the Ask with a paragraph rather than a heading (0 of 3), and
+# stating the heading in authoring-decisions.md fixed it (3 of 3).
 description: record-asks-hold-their-premise
 metadata:
   purpose:
@@ -70,7 +73,6 @@ variants:
           headed "Ship the reconnect fix, step 3 of 5" and "step 4 of 5".
 
         The page directory is not reachable here, so reply with the section's HTML.
-        Read the lf-ask, lf-options and lf-option registry entries before writing it.
     assert:
       - type: llm-rubric
         metric: captures-in-options
@@ -98,7 +100,6 @@ variants:
         Every capture contains the same fields and has the same access controls;
         only the automatic deletion time differs. The choice is still open. The
         page directory is not reachable here, so reply with the section's HTML.
-        Read the lf-options and lf-option registry entries before writing it.
     assert:
       - type: llm-rubric
         metric: compact-values
@@ -162,7 +163,6 @@ variants:
 
         Write the page from this material. No code has changed. The page directory
         is not reachable here, so reply with the complete main element's HTML.
-        Read the lf-ask, lf-options and lf-option registry entries before writing it.
     assert:
       - type: llm-rubric
         metric: arrival-context
@@ -237,7 +237,6 @@ variants:
 
         The page will hold about twenty decisions; write these two now. The
         repository isn't reachable from here, so reply with the two sections' HTML.
-        Read the lf-ask, lf-options and lf-option registry entries before writing them.
     assert:
       - type: llm-rubric
         metric: names-the-user-knows

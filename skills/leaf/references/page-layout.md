@@ -177,9 +177,10 @@ grouping and counting.
 
 ## Bounds and widths
 
-Prefer one page scroll: let content grow in place, with supporting detail in
-disclosures. Bound a region's height only when the reader keeps it in view while its
-content changes, as in a workspace or a live stream. Length alone is no reason.
+Keep related content easy to read and compare without managing several scroll
+positions. A shared page scroll lets content grow together; separate regions help
+when the task needs independent positions kept in view. Live updates should preserve
+the reader's place and input as content grows.
 
 For a live stream, set `data-bound` to the end where new entries arrive:
 `data-bound="end"` for a list that grows downward, which follows the last line while

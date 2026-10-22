@@ -160,7 +160,7 @@ wherever the page draws its thread, such as a margin card.
 with `parts.thread(thread.key, outlet)`, or its parts with
 `parts.message(thread.key, message.key, outlet)` for each of its `threadTurns` and
 `parts.reply(thread.key, outlet)`. `parts.transcript(thread.key, outlet)` draws all of
-its turns as a whole conversation does, with progress folded and work under way as one
+its turns as a whole conversation does, with completed progress hidden and work under way as one
 dim line, for a widget that draws the conversation's head itself; it takes the place of
 message parts. A reaction a thread opens on is its root turn; any
 later reaction is drawn as the chip on the message it answers, so naming one as a

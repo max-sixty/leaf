@@ -170,8 +170,9 @@ thread that owes no reply, use `leaf thread reply --ephemeral`.
 
 The thread shows the latest progress as one dim working message where you posted it,
 with its author and posting time, so a message the user sends after it follows it.
-Progress never counts as unread. Your next ordinary reply folds the progress just
-before it behind its head; progress the user replied after stays where it was, still.
+Progress never counts as unread. Your next ordinary reply replaces the preceding
+progress, including progress the user replied after. It disappears when the answer
+shows, including while the answer streams, with no disclosure to reopen it.
 Progress carries only text;
 questions, to-dos, markup, anchor moves and failure receipts each need a reply of
 their own.

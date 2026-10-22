@@ -71,16 +71,16 @@ class Harness:
     envelope states what the transport decides (`../../references/event-batches.md`).
     The methods below answer for each harness's watcher and transports:
 
-    - Claude Code runs Leaf's hooks module (`hooks/claude-code.ts`), which
-      watches the session's pages as each turn ends, an interrupted one included,
-      and wakes the session with a prompt when input arrives
-      (`watches_between_turns`), as Pi's extension does. The prompt hook, which
-      runs as the turn the wake opens begins, and the tool-batch hook within a
-      turn put the input in the turn's context and confirm it (`hook_delivers`);
-      the Stop hook does only under plain `--print`, where no watch follows the
-      turn (`hook_transport`). Claude Code drops a plugin's prompt after an
-      Escape, and a Claude Code that loads no hooks module keeps no watch, which
-      is why this is the harness with a `nudge`.
+    - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
+      session's pages in the background and wakes the session when input arrives
+      (`watches_between_turns`), and the prompt hook, which runs as the turn the
+      wake opens begins, and the tool-batch hook within a turn put the input in
+      the turn's context and confirm it (`hook_delivers`); the other Stop hook
+      does only under plain `--print`, where no watch follows the turn
+      (`hook_transport`). A turn that ends without its Stop hooks, as an
+      interrupt does, starts no watch, so where no watch from before it runs,
+      nothing watches while the session lives on, which is why this is the
+      harness with a `nudge`.
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -194,7 +194,7 @@ class Harness:
 
     def watches_between_turns(self) -> bool:
         """Whether this session's harness starts Leaf's watch as each turn ends, from
-        Leaf's extension or hooks module, which wakes the session when input arrives
+        a hook or extension, which wakes the session when input arrives
         (`session.watch_between_turns`); the model then starts no `leaf wait`."""
         return False
 
@@ -310,7 +310,7 @@ class EnvironmentHarness(Harness):
 
 @dataclass(frozen=True)
 class ClaudeCodeHarness(EnvironmentHarness):
-    """Claude Code: a hooks module that watches between turns and wakes the session,
+    """Claude Code: a Stop hook that watches between turns and wakes the session,
     hooks that carry input into the turn, and a socket to reach it with.
 
     `job` is the background job directory a claim rests on (`lifetime`), which
@@ -372,12 +372,13 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return cls(session=claim["id"], agent=claim["agent"], job=claim.get("job"))
 
     def watches_between_turns(self) -> bool:
-        """Leaf's hooks module watches between turns and wakes the session with a
-        prompt, except under plain `--print`, which ends with its one turn. A
-        print session fed `--input-format stream-json` takes further prompts like
-        an interactive one; `--output-format stream-json` alone does not. Only
-        the process's own argv tells the two apart, which the module states as
-        CLAUDE_PID."""
+        """Claude Code keeps an `asyncRewake` hook in the background and wakes the
+        session when it exits 2, except under plain `--print`, where it waits on
+        the hook as on any other and the turn would hold until input came
+        (measured at 2.1.286). A print session fed `--input-format stream-json`
+        backgrounds it like an interactive one; `--output-format stream-json`
+        alone does not. Only the process's own argv tells the two apart: the
+        hook's input and environment are the same."""
         argv = process_argv(int(os.environ["CLAUDE_PID"])) or []
         printing = "-p" in argv or "--print" in argv
         streaming = "--input-format=stream-json" in argv or (

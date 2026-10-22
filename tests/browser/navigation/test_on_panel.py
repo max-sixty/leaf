@@ -8,7 +8,7 @@ from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import live_url
+from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import toggle_queue
 from render_harness import (
     PANEL,
@@ -224,7 +224,8 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     and the walk announces its place among the region's obligations. Reached by Shift+Tab from
     an obligation, through the queue's own rows, Enter counts from that obligation, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
-    tally says so and Next on me is disabled."""
+    tally says so and Next on me is disabled. One the user commented on is the agent's
+    turn, which the tally names instead of calling it the user's to answer."""
 
     def item(key, label):
         return (
@@ -323,6 +324,14 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     round_trip(page)
     expect(words).to_have_text("1 of 2 to answer")
     expect(button).to_be_enabled()
+    expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
+    # A comment on the open obligation hands it to the agent until a reply: the tally and
+    # the item's row say so rather than calling it the user's to answer, beside a
+    # disabled Next on me.
+    panel_comment(serve.page_dir, "Why Alpha?", {"section": "first-decision"})
+    expect(words).to_have_text("1 of 2 on Claude")
+    expect(page.locator("#queue .lf-tab-answer").first).to_have_text("On Claude")
+    expect(button).to_be_disabled()
     expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
     assert page.locator("#left").bounding_box() == box
 

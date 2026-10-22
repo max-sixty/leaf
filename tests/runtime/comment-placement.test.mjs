@@ -33,6 +33,20 @@ const scroller = (scrollTop, height = 3000) => {
   box.ownerDocument = { scrollingElement: box };
   return box;
 };
+// Floating UI's platform for a surface of `dimensions()` in the window, unscaled.
+const windowPlatform = (dimensions) => ({
+  getElementRects: ({ reference }) => ({
+    reference: reference.getBoundingClientRect(),
+    floating: { x: 0, y: 0, ...dimensions() },
+  }),
+  getOffsetParent: () => window,
+  getDimensions: dimensions,
+  getClippingRect: () => boundary,
+  convertOffsetParentRelativeRectToViewportRelativeRect: ({ rect }) => rect,
+  isElement: () => false,
+  getDocumentElement: () => document.documentElement,
+  isRTL: () => false,
+});
 const side = (clear, { scrolled = 1000, document = 3000, coarse = false } = {}) =>
   commentSide({
     clear,
@@ -389,19 +403,7 @@ test("zoom clearance reaches the solver through the floating driver", async () =
 test("a carried surface stands where it was dropped, past the attachment limit", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const dimensions = () => ({ width: 320, height: 100 });
-  const platform = {
-    getElementRects: ({ reference }) => ({
-      reference: reference.getBoundingClientRect(),
-      floating: { x: 0, y: 0, ...dimensions() },
-    }),
-    getOffsetParent: () => window,
-    getDimensions: dimensions,
-    getClippingRect: () => boundary,
-    convertOffsetParentRelativeRectToViewportRelativeRect: ({ rect }) => rect,
-    isElement: () => false,
-    getDocumentElement: () => document.documentElement,
-    isRTL: () => false,
-  };
+  const platform = windowPlatform(dimensions);
   // One line of words with the whole room right of it, which the surface stands beside,
   // and one across the window, which it stands under; each dropped well away from it.
   for (const { clear, dropped, side } of [
@@ -449,19 +451,7 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   const ui = await import("/vendor/floating-ui.esm.js");
   let height = 300;
   const dimensions = () => ({ width: 320, height });
-  const platform = {
-    getElementRects: ({ reference }) => ({
-      reference: reference.getBoundingClientRect(),
-      floating: { x: 0, y: 0, ...dimensions() },
-    }),
-    getOffsetParent: () => window,
-    getDimensions: dimensions,
-    getClippingRect: () => boundary,
-    convertOffsetParentRelativeRectToViewportRelativeRect: ({ rect }) => rect,
-    isElement: () => false,
-    getDocumentElement: () => document.documentElement,
-    isRTL: () => false,
-  };
+  const platform = windowPlatform(dimensions);
   // floating.js's own middleware, reduced to the height the landing reads.
   const held = { name: "held", fn: ({ rects }) => ({ data: rects.floating }) };
   const card = commentPlacement();
@@ -511,4 +501,62 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   assert.equal(stood, 300);
   await place(10);
   assert.equal(stood, 150);
+});
+
+test("a draft against the window's foot grows the card up from it", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  let height = 120;
+  const platform = windowPlatform(() => ({ width: 320, height }));
+  const held = { name: "held", fn: ({ rects }) => ({ data: rects.floating }) };
+  const card = commentPlacement();
+  // The height the last fit offered the card.
+  let room = null;
+  // An element 700px down, with 155px of room under the card's line.
+  const clear = block(300, 300, 700, 730);
+  const place = async (drafting) => {
+    const { fresh, hold } = card.choose({
+      clear,
+      boundary,
+      scroller: scroller(1000),
+      coarse: false,
+    });
+    const edge = card.holding({
+      fresh,
+      hold,
+      transcript: 100,
+      drafting,
+      draftText: drafting ? String(height) : "",
+    });
+    const { reference, placement, middleware } = card.options(ui, {
+      clear,
+      row: clear.top,
+      lastRow: clear.bottom,
+      boundary,
+      fit(offered) {
+        room = offered.height;
+      },
+      hold: () => card.heldAt(edge),
+    });
+    const answer = await ui.computePosition(
+      { getBoundingClientRect: () => reference },
+      document.body,
+      { placement, middleware: [...middleware, held], platform, strategy: "fixed" },
+    );
+    card.landed(answer);
+    return { edge, top: answer.y };
+  };
+  await place(false);
+  // A draft with room below grows the card down from its top.
+  height = 150;
+  assert.deepEqual(await place(true), { edge: "top", top: 692 });
+  assert.equal(room, boundary.bottom - 692);
+  // Once it reaches the window's foot, the next line grows it up from there, into all
+  // the room above.
+  height = 200;
+  assert.deepEqual(await place(true), { edge: "top", top: boundary.bottom - 200 });
+  height = 260;
+  assert.deepEqual(await place(true), { edge: "foot", top: boundary.bottom - 260 });
+  assert.equal(room, boundary.height);
+  // Read rather than drafted, it holds its top again.
+  assert.equal((await place(false)).edge, "top");
 });

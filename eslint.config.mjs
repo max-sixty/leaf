@@ -1604,6 +1604,8 @@ export default [
         [
           // The one mover.
           "skills/leaf/assets/runtime/dom-move.js",
+          // Its parser-time hook inserts the first drawing before modules run.
+          "skills/leaf/assets/runtime/prepaint.js",
         ],
       ],
     },

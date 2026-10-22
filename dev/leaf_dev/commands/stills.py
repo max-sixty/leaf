@@ -532,6 +532,12 @@ def screenshot_comparison(page: Page) -> None:
     page.locator("#bg-shot-guide").scroll_into_view_if_needed()
 
 
+def image_in_page(page: Page) -> None:
+    """An authored image in the reading flow, before its viewer opens."""
+    page.get_by_role("tab", name="Threads", exact=True).click()
+    page.locator("#bg-image-preview").scroll_into_view_if_needed()
+
+
 def image_preview(page: Page) -> None:
     """Inspect the gallery's pasted screenshot through the shared image viewer."""
     open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
@@ -725,6 +731,27 @@ def card_grabbed(page: Page) -> None:
     page.locator("#card-tz > .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowLeft")
+
+
+def activity_feed(page: Page) -> None:
+    """A committed board move beside the published revision in the opened feed."""
+    card_grabbed(page)
+    page.keyboard.press("Enter")
+    expect(page.locator("#col-blocking #card-tz")).to_be_visible()
+    notice = page.locator("#triage-activity .lf-activity-news")
+    expect(notice).to_contain_text("new")
+    notice.click()
+    expect(
+        page.locator("#triage-activity .lf-activity-row").filter(has_text="moved")
+    ).to_be_visible()
+    page.locator("#triage-moves").scroll_into_view_if_needed()
+
+
+def settled_option_hover(page: Page) -> None:
+    """An expanded decision answers hover without lifting the card."""
+    page.locator("#bg-outcome .lf-settled").click()
+    page.locator("#bg-outcome-door").hover()
+    settle(page)
 
 
 def into_the_body(page: Page) -> None:
@@ -1404,6 +1431,12 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State(
+        "image-in-page",
+        "developer/feature-gallery",
+        image_in_page,
+        region="#bg-image-preview",
+    ),
     State("image-preview", "developer/feature-gallery", image_preview),
     State(
         "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"
@@ -1439,7 +1472,21 @@ STATES = (
         visual_review_menu,
         scheme="dark",
     ),
+    State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
+    State(
+        "settled-option-hover",
+        "developer/feature-gallery",
+        settled_option_hover,
+        region="#bg-outcome",
+    ),
     State("trace-controls", "developer/playwright-trace-gallery", trace_controls),
+    State(
+        "trace-actions",
+        "developer/playwright-trace-gallery",
+        trace_controls,
+        viewport=(800, 900),
+        region=".lf-trace-toolbar",
+    ),
     State(
         "trace-pace",
         "developer/playwright-trace-gallery",

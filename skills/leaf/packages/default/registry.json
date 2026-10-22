@@ -542,7 +542,7 @@
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tally": {
-    "description": "A count of the open obligations in one region, such as the decisions left in a queue, with an optional control that goes to the next one.",
+    "description": "A count of the open obligations in one region, such as the decisions left in a queue, split into those waiting on the user and those waiting on the agent, with an optional control that goes to the next one waiting on the user.",
     "x-instructions": "Write it empty with a stable id, and set `for` to the region whose obligations it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the obligations waiting on the user. Don't also state the count in prose or chips; the tally keeps it current.",
     "type": "object",
     "properties": {
@@ -562,7 +562,7 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-inline": true,
-    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer</span><span class=\"lf-tally-room\">Nothing to answer</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next on me</button></span>",
+    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer · 00 on the agent</span><span class=\"lf-tally-room\">00 of 00 to answer · 00 on the agent</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next on me</button></span>",
     "x-refers": {
       "for": {}
     },

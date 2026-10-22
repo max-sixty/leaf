@@ -228,25 +228,26 @@ name and asks it what proves the watcher live and what to say when it is not, ra
 than comparing the name itself. A watcher is a hook watch, a model wait, the adapter,
 or the host:
 
-- A hook watch under Claude Code: the watch Leaf's hooks module
-  (`hooks/claude-code.ts`) starts as the session starts and as each main-loop turn
-  ends (`Harness.watches_between_turns`), and the model starts no watcher. It holds
-  the session's wait lease until a page has input and then exits with a line, which
-  the module submits as a prompt to an idle session; the prompt hook of the turn
-  that prompt opens puts the batch in that turn's context, and its reader
-  acknowledges the complete envelope before work. A watch that wakes during a turn
-  leaves pending input to the native PostToolBatch boundary. Input that was already
-  pending as the turn ended waits until the Stop hook closes the turn, since that
-  hook may still continue it over what it owes, and then gets a turn of its own.
-  From an Escape until the user next types, Claude Code drops a plugin's prompt
-  (measured at 2.1.300), so for a dropped one the module sends a WakeRefused payload
-  and Leaf nudges the session as admission would (`session.nudge_pending`). An
-  interrupted turn runs no Stop hook, but the module still sees it end, so it starts
-  the watch with the Interrupt payload, as Pi's extension does. A new watch takes
-  the lease from the one before it (`leases.supersede_lease`), and the one it
-  displaces ends without waking the session. Plain `--print` runs no watch, since
-  nothing would start the turn its wake asks for. A Claude Code that loads no hooks
-  module keeps no watch, and its input waits on admission's nudge.
+- A hook watch under Claude Code: Leaf's own Stop hook. Claude Code starts it in the
+  background as each turn ends and wakes the session when it exits 2
+  (`Harness.watches_between_turns`), and the model starts no watcher. It holds the
+  session's wait lease until a page has input, exits 2 to wake the session, and the
+  prompt hook of the turn the wake opens or reaches puts the batch in that turn's
+  context; its reader acknowledges the complete envelope before work. Input that was
+  already pending as the turn ended waits until the other Stop hook closes the turn,
+  since that hook may still continue it over what it owes, and then gets a turn of
+  its own. Claude Code leaves an earlier turn's watch running when it starts the
+  next, so the newest takes the lease from it (`leases.supersede_lease`), and the one
+  it displaces ends without waking the session. Claude Code bounds a background
+  command at two hours and a hook only at its own `timeout`, which is why the watch
+  is a hook. Plain `--print` runs the hook in the foreground, holding the turn, so
+  there it watches nothing. The watch goes on running into the user's next turn,
+  but wakes for nothing that turn could take: it takes input at its next tool
+  boundary or Stop hook, and the Stop hook that closes it starts the watch that
+  takes over (`watch_between_turns`). An interrupted turn runs no Stop hook and
+  leaves its record open; once Claude Code reads idle, that watch wakes for what
+  the turn left. A turn a wake opened has no watch from before, so input after its
+  interruption waits on admission's nudge.
 - A hook watch under Pi: the same watch, which Leaf's extension (`hooks/pi.ts`) starts
   as the session starts and as each run settles. When the watch exits with input and
   no run is going, the extension sends an unreceived notification to start one. The
@@ -290,8 +291,7 @@ session's pages unwatched or a delivered update unanswered and unstarted. It is
 registered on SessionStart/resume, Stop, UserPromptSubmit, SessionEnd,
 Claude Code's PostToolBatch, and Codex's PostToolUse and Interrupt, and Leaf's Pi extension (`hooks/pi.ts`) calls it at the
 accepted run boundaries. An unwatched page is one whose watcher is a process of its
-own; Claude Code's watch is the one its hooks module starts as the turn ends. The
-hook also stamps that turn's
+own; Claude Code's watch is its next Stop hook. The hook also stamps that turn's
 ending and the next one's opening, surfaces unacknowledged user events at the next
 prompt, ends process-backed ownership when the session exits, and retains a
 desktop chat's or background job's ownership when its instance ends.
@@ -317,11 +317,12 @@ continues it again.
 Each harness has its own registrations, which pass its name
 (`hook --harness <name>`); the hook takes the session from its payload and infers
 neither from its environment (`harness.hook_harness`). A server the hook's watch
-revives is handed that harness too (`harness.harness_argument`). Claude Code's
-watch between turns (`--watch`, `session.watch_between_turns`) runs from Leaf's hooks
-module (`hooks/claude-code.ts`) rather than a registration; the native PostToolBatch
-hook owns mid-turn delivery, and a module wake during a turn leaves its input there
-rather than capturing a second delivery.
+revives is handed that harness too (`harness.harness_argument`). A second Claude Code
+Stop registration runs the watch (`--watch`), which Claude Code keeps in the
+background (`asyncRewake`) as the session's watch between turns
+(`session.watch_between_turns`): its exit 2 wakes the session with its stderr, and
+startup or application failures retain stderr and return nonblocking exit 1.
+Cancellation stays quiet. The native PostToolBatch hook owns mid-turn delivery.
 Claude Code's worker tool batches name their parent session with a native
 `agent_id`, and the hook leaves that session's input to the parent. Pi opens its
 lifecycle with `TurnStart` only after the SDK accepts the run. That hook reads no page
@@ -387,7 +388,9 @@ discovery, page locks or claim rewrites, including for claims made by another ch
 when this plugin has no uv environment. Managed Leaf delegates SessionEnd to the same
 owner. Registrations retain stderr and return nonblocking exit 1 when the application
 cannot answer, including when uv uses exit 2 for its own startup failure. The harness
-owns their deadlines.
+owns their deadlines. `hooks/scripts/background-watch.py` supervises the background
+watch, calling the launcher and converting its successful result into Claude Code's
+exit-2 wake.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes over a
 page carrying `preview.json`, which only a checkout's `leaf-dev preview` writes;
@@ -415,9 +418,9 @@ hook does not continue a turn to deliver a reconnect notice.
 
 When a watcher stops while its session lives on, browser-event admission asks the
 claimant's harness to nudge the session. Only a watcher the session's own turns start
-can stop that way: a Claude Code that loads no hooks module keeps no watch, a watch
-fails, the hooks module's watch wakes the session with a prompt Claude Code drops, or
-a model-run wait is stopped after the turn ends. Input that reaches the page after that
+can stop that way: a turn interrupted without its Stop hooks starts no watch, a
+watch fails or reaches its hook's timeout, or a model-run wait is stopped after the
+turn ends. Input that reaches the page after that
 has no watcher, and a nudge is the one way to reach such a session, which only some
 harnesses offer. Claude Code's is the Unix socket it binds for each session, found by
 session id in Claude Code's session registry (`message_claude_code_session`).

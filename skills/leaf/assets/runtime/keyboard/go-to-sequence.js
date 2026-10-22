@@ -654,7 +654,7 @@ export function createGoToSequence({
     id: "navigation.go-to.open",
     touch: false,
     keys: ["g"],
-    description: "Show hints for targets, panels, and page edges",
+    description: "Show hints for targets, panels and page edges",
     title: "go to",
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setGoToSequence(true),

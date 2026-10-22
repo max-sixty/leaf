@@ -530,8 +530,9 @@ function makeMarkdown(module, breaks) {
     module.taskLists,
     { enabled: false },
   );
-  // Linkify 6 leaves bare domains unlinked by default; page prose keeps them clickable.
-  markdown.linkify.set({ fuzzyLink: true });
+  // A bare domain is indistinguishable from a file name such as setup.py. Require
+  // an explicit URL or Markdown link instead of inventing an external destination.
+  markdown.linkify.set({ fuzzyLink: false });
   // Each block says how many blank lines stand before it in the source, a quote's `>`
   // aside, so a message can space its blocks as the draft it was typed in showed them
   // (reading.css, `data-lf-gap`). Three stand for any more.

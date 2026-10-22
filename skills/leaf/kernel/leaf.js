@@ -1393,13 +1393,13 @@ var commandReferenceSearch = searchField("lf-command-reference-search", {
   placeholder: "Find a key or action"
 });
 commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
-commandReferenceDialog.append(commandReferenceSearch);
 var commandReferenceClose = closeControl({
   name: "Close the command reference",
   className: "lf-command-reference-close"
 });
 commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
 commandReferenceClose.setAttribute("aria-label", "Close the command reference");
+commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
 function declaredStack(origin) {
   pruneScopedElements();
   const sections = /* @__PURE__ */ new Map();
@@ -1458,7 +1458,8 @@ var commandReferenceInvoke = null;
 var EMPTY_CATALOG = Object.freeze({
   total: 0,
   entries: Object.freeze([]),
-  sections: Object.freeze([])
+  sections: Object.freeze([]),
+  describedMeta: Object.freeze([])
 });
 var commandReferenceCatalog = EMPTY_CATALOG;
 var commandReferenceState = {
@@ -1626,9 +1627,13 @@ function captureCommandReferenceCatalog() {
   return Object.freeze({
     total: entries.length,
     entries: Object.freeze(entries),
-    sections: Object.freeze(sections)
+    sections: Object.freeze(sections),
+    describedMeta: Object.freeze(
+      entries.filter((entry) => entry.actionable && entry.description).map(selectionMeta)
+    )
   });
 }
+var selectionMeta = (entry) => [entry.description || entry.title, entry.steps[0], "\u23CE activate"].filter(Boolean).join(" \xB7 ");
 function projectCommandReference(catalog, state) {
   const query = commandReferenceWords(state.query);
   const bindingQuery = commandReferenceBinding(state.query);
@@ -1755,7 +1760,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     entry.keySequence ? entry.keyId : null,
     entry.description ? entry.descriptionId : null
   ].filter(Boolean).join(" ")}
-        title=${entry.available ? "Run command" : entry.unavailableMessage}
+        title=${[entry.description, entry.available ? "" : entry.unavailableMessage].filter(Boolean).join("\n") || nothing}
         @click=${() => activateCommandEntry(entry)}
         .textContent=${entry.title}
       ></button>` : entry.title;
@@ -1878,11 +1883,16 @@ function commandReferenceTemplate() {
       >
     </label>
     ${commandReferenceSearch}
-    <div
-      class="lf-command-reference-meta"
-      aria-live="polite"
-      .textContent=${commandReferenceView.metadata}
-    ></div>
+    <div class="lf-command-reference-meta-box">
+      ${commandReferenceCatalog.describedMeta.map(
+    (text) => html`<span aria-hidden="true">${text}</span>`
+  )}
+      <div
+        class="lf-command-reference-meta"
+        aria-live="polite"
+        .textContent=${commandReferenceView.metadata}
+      ></div>
+    </div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
@@ -2021,7 +2031,7 @@ function moveCommandReferenceSelection(dir) {
   commandReferenceState = {
     ...commandReferenceState,
     selectedCommandId: nextId,
-    metaOverride: `${nextRecord.entry.title} \xB7 ${nextRecord.entry.steps[0]} \xB7 \u23CE activate`
+    metaOverride: selectionMeta(nextRecord.entry)
   };
   presentCommandReference();
   const next = commandButton(nextId);
@@ -4353,7 +4363,10 @@ pageSearchStatus.slot = "end";
 var pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
 var matchStep = (icon, name2) => {
-  const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
+  const control = el(
+    "button",
+    "lf-btn lf-icon-action lf-quiet-action lf-page-search-step"
+  );
   control.type = "button";
   control.tabIndex = -1;
   control.slot = "end";
@@ -7089,7 +7102,7 @@ function createFloatingPanel({
   function clearRow() {
     const before = trail.value.at(-1);
     if (prefs().rest === "mark") prefs().setRest("row");
-    trail.value = [];
+    if (trail.value.length) trail.value = [];
     setMenu(false);
     transition(before, { focus: false });
   }
@@ -10532,7 +10545,7 @@ function createDesignMode({
         keys: [],
         label: "click",
         title: "Comment on appearance",
-        description: "Click a widget, control, or picture; prose still selects"
+        description: "Click a widget, control or picture. Text still selects as usual"
       },
       {
         id: "design.mode.exit",
@@ -10553,7 +10566,7 @@ function createDesignMode({
   pageCommand({
     id: "design.mode.enter",
     keys: ["l"],
-    description: "Comment on how the page looks and works, rather than its words",
+    description: "Comment on how the page looks and works",
     title: "design mode",
     touch: "Design mode",
     menu: "annotate",
@@ -11192,7 +11205,7 @@ function createGoToSequence({
     id: "navigation.go-to.open",
     touch: false,
     keys: ["g"],
-    description: "Show hints for targets, panels, and page edges",
+    description: "Show hints for targets, panels and page edges",
     title: "go to",
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setGoToSequence(true)

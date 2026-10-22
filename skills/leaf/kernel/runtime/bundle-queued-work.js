@@ -807,29 +807,6 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
 }
 
 // vendor/browser-runtime/snapshot.js
-function outsideReading(read, heard) {
-  let stop;
-  const value = Z(d(read), {
-    watched() {
-      value.value = d(read);
-      stop = heard(() => {
-        value.value = d(read);
-      });
-    },
-    unwatched() {
-      stop?.();
-      stop = void 0;
-    }
-  });
-  const reading = Object.freeze({
-    read: () => {
-      value.value = d(read);
-      return value.value;
-    },
-    subscribe: (listener) => value.subscribe((value2) => d(() => listener(value2)))
-  });
-  return reading;
-}
 var secured = /* @__PURE__ */ new WeakSet();
 function immutable(value) {
   if (value !== null && typeof value === "object" && !secured.has(value)) {
@@ -2286,7 +2263,7 @@ function createSemanticApplication({
     },
     markRead(items) {
       return publish({
-        markingRead: [...publisher.peek().markingRead, ...structuredClone(items)]
+        markingRead: [...publisher.peek().markingRead, ...items]
       });
     },
     settleMarkRead(items) {
@@ -2300,13 +2277,7 @@ function createSemanticApplication({
     captureDocument(document) {
       if (publisher.peek().authoritative)
         throw new Error("an admitted document changes only through adopt");
-      return publish({
-        document: {
-          ...structuredClone(document),
-          authored: new Map(structuredClone(document.authored)),
-          descriptors: new Map(structuredClone(document.descriptors))
-        }
-      });
+      return publish({ document });
     },
     setPhase(phase) {
       return publish({ phase });
@@ -2320,7 +2291,7 @@ function createSemanticApplication({
       const prior = publisher.peek();
       const values = { ...prior.outputs[widget] };
       if (reading === null) delete values[output];
-      else values[output] = structuredClone(reading);
+      else values[output] = reading;
       const outputs = { ...prior.outputs };
       if (Object.keys(values).length) outputs[widget] = values;
       else delete outputs[widget];
@@ -2334,7 +2305,7 @@ function createSemanticApplication({
       if (taken < dataTaken) return false;
       dataTaken = taken;
       if (data.version === publisher.peek().data.version) return false;
-      publish({ data: structuredClone(data) });
+      publish({ data });
       return true;
     },
     // Whether this answer could be adopted with `revision` showing, asked without
@@ -2359,7 +2330,7 @@ function createSemanticApplication({
     adopt(state, document = null) {
       const prior = publisher.peek();
       if (!adoptable(state, document)) return false;
-      const authoritative = structuredClone(state);
+      const authoritative = state;
       const { unresolved, left } = transition(
         "log",
         byAttempt(authoritative.browser.receipts)
@@ -2371,20 +2342,8 @@ function createSemanticApplication({
       for (const attempt of drawn)
         if (!unresolved.some((item) => item.event.attempt === attempt))
           drawn.delete(attempt);
-      const capture = (value, previous) => value === previous ? value : structuredClone(value);
       publish({
-        document: document ? {
-          ...document,
-          registry: capture(document.registry, prior.document.registry),
-          authored: capture(document.authored, prior.document.authored),
-          descriptors: capture(document.descriptors, prior.document.descriptors),
-          ...document.messageBodies ? {
-            messageBodies: capture(
-              document.messageBodies,
-              prior.document.messageBodies
-            )
-          } : {}
-        } : prior.document,
+        document: document ?? prior.document,
         authoritative,
         unresolved,
         settled,
@@ -2421,9 +2380,7 @@ function createSemanticApplication({
           ...event,
           id: localId,
           meaning: {
-            state: structuredClone(
-              before.document.registry.$states[widget.tag]?.[event.action]?.definition
-            )
+            state: before.document.registry.$states[widget.tag]?.[event.action]?.definition
           }
         },
         value: spec.record ? foldedValue(event, spec.record) : event.action
@@ -2542,7 +2499,6 @@ export {
   J,
   x,
   q,
-  outsideReading,
   share,
   stateCoordinate,
   projectionOrigins,

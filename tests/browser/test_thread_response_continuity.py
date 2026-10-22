@@ -1,11 +1,11 @@
 """A thread's reply box through a send still under way."""
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_harness import holding, leaf_page, open_page, panel_field, round_trip
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 
 def test_a_draft_typed_during_a_reply_s_send_outlives_its_admission(browser, serve):

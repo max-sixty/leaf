@@ -23,6 +23,8 @@ from interact_support import (
     yaml_block,
     yaml_document,
 )
+from leaf_dev.page_fixtures import package_selection_args
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import delivery as delivery_model
@@ -37,7 +39,6 @@ from leaf.findings import Finding
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
-from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
@@ -308,7 +309,7 @@ What this file records
 ----------------------
 
 Step 3, for one example of every case, using the clauses in
-skills/leaf/assets/registry.json (the file `leaf page init` copies into a page).
+browser/registry.json (the file `leaf page init` copies into a page).
 Each top-level key below names a case and holds:
 
   event:  the input: a log line's `kind`, the kind of answer its delivery

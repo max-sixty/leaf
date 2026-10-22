@@ -9,6 +9,7 @@ from threading import Event
 import pytest
 from click.testing import CliRunner
 from interact_support import STATED_TIMEOUT, record_claim
+
 from leaf import cli as cli_model
 from leaf import service, state
 from leaf.service import claim_path, claim_records, page_claim

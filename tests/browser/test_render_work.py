@@ -2,7 +2,6 @@
 
 import pytest
 from click.testing import CliRunner
-from leaf import cli as cli_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -10,6 +9,8 @@ from render_harness import (
     open_page,
     told,
 )
+
+from leaf import cli as cli_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

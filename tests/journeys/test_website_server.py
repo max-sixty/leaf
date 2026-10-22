@@ -5,11 +5,6 @@ import os
 import leaf_website as website_server
 import pytest
 from browser.threads import open_panel_thread
-from leaf.delivery import current_responses
-from leaf.event_log import read_events
-from leaf.leases import take_lease, waiter_lease_path
-from leaf.render_checks import rendered
-from leaf.thread import ProviderFinal, cmd_resolve, post_reply
 from leaf_dev.commands import verify_site
 from playwright.sync_api import expect
 from process.website_server import (
@@ -25,6 +20,12 @@ from render_harness import (
     told,
     write,
 )
+
+from leaf.delivery import current_responses
+from leaf.event_log import read_events
+from leaf.leases import take_lease, waiter_lease_path
+from leaf.render_checks import rendered
+from leaf.thread import ProviderFinal, cmd_resolve, post_reply
 
 
 @pytest.mark.parametrize("read_elsewhere", [False, True], ids=["here", "elsewhere"])

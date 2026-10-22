@@ -33,8 +33,8 @@ from pathlib import Path
 
 import click
 import yaml
-from leaf.harness import ClaudeCodeHarness
 
+from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,

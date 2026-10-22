@@ -4,11 +4,6 @@ import json
 import shutil
 
 import pytest
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf import hosting as hosting_model
-from leaf import media as media_model
 from playwright.sync_api import expect
 from render_cases_navigation import source_revision
 from render_harness import (
@@ -24,6 +19,12 @@ from render_harness import (
     told,
     undo,
 )
+
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import exporting as exporting_model
+from leaf import hosting as hosting_model
+from leaf import media as media_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

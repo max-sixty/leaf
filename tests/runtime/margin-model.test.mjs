@@ -6,7 +6,7 @@ import {
   KINDS,
   contributionEntry,
   normalizeContributionReading,
-} from "../../skills/leaf/assets/runtime/contribution-model.js";
+} from "../../browser/runtime/contribution-model.js";
 import {
   canFold,
   clusterProjection,
@@ -18,8 +18,8 @@ import {
   choosePrimary,
   entryHasMarginHost,
   awaitingUser,
-} from "../../skills/leaf/assets/runtime/margin-model.js";
-import { marginMapGroups } from "../../skills/leaf/assets/runtime/margin-map-model.js";
+} from "../../browser/runtime/margin-model.js";
+import { marginMapGroups } from "../../browser/runtime/margin-map-model.js";
 
 const control = (key, options = {}) =>
   contributionEntry({ key, glyph: "+", label: key, ...options });

@@ -50,9 +50,9 @@ The steps, in order:
   after a turn a wake opened, so the page's server nudges the session, and a turn
   answers both comments;
 - `deferred`: the user's own turn, told to leave Leaf's comments for later, is
-  handed a comment at a tool boundary and ends on its answer, with no Stop hook
-  continuing it over the comment. The watch wakes a turn of its own that names
-  the owed answer, and that turn answers it;
+  handed a comment at a tool boundary and ends on its answer with the comment
+  unanswered, and no Stop hook continues it over the comment. The watch wakes a
+  turn of its own whose prompt names the owed answer, and that turn answers it;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
@@ -543,20 +543,35 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     started = time.monotonic()
     cc.work(DEFERRING_TURN)
-    user.comment("deferred")
+    turn = page_claim(page)["turn"]
+    deferred = user.comment("deferred")
+    cc.until(lambda: closed(turn), "deferred: the user's turn did not end")
+    require(
+        not user.answered("deferred"),
+        "deferred: the user's turn answered the comment it was told to leave",
+    )
     cc.until(
         answered("deferred"), "deferred: the comment the turn left was not answered"
     )
-    require(
-        not any(
-            (attachment := record.get("attachment", {})).get("hookEvent") == "Stop"
-            and any(
-                "with no answer" in content
-                for content in attachment.get("content") or []
-            )
+
+    def hook_contexts(event: str) -> list[str]:
+        return [
+            content
             for record in native_records(cc.home, cc.session)
-        ),
+            if (attachment := record.get("attachment", {})).get("hookEvent") == event
+            for content in attachment.get("content") or []
+        ]
+
+    require(
+        not any(ATTENTION_OPENING in content for content in hook_contexts("Stop")),
         "deferred: a Stop hook continued the user's turn over the owed comment",
+    )
+    require(
+        any(
+            ATTENTION_OPENING in content and deferred in content
+            for content in hook_contexts("UserPromptSubmit")
+        ),
+        "deferred: no prompt of a later turn named the owed comment",
     )
     step("deferred", started, "deferred")
 

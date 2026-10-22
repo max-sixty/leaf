@@ -724,10 +724,10 @@ export function createFloatingPanel({
   // to the user's last message, the draft's editing session and Send work as in a card.
   // The panel says what the empty box reads, and a send keeps the user in the field for
   // the next turn, landing the view at its end. A resolved thread shows no reply box,
-  // and the field says how to reopen it instead.
+  // and the field's line says how to reopen it instead, or a passing notice, such as
+  // the one `z` leaves when it shows the resolve it takes back next (undo.js).
   const replyOutlet = el("div", "lf-fp-reply");
   const resolvedLine = el("p", "lf-fp-resolved");
-  resolvedLine.textContent = "Resolved · reopen to reply";
   const replyInput = () => replyOutlet.querySelector(`.lf-thread-reply ${TEXT_FIELD}`);
   const replyOptions = new Map();
   const replyOptionsFor = (key) => {
@@ -3305,6 +3305,10 @@ export function createFloatingPanel({
     // such as to nudge the agent in its terminal, which it says in its tone's ink
     // (`pageStatus`, `asks`). The menu holds the full status and the Errors list.
     const reading = fieldReading(replying ? top.thread : null, input);
+    keepsText(
+      resolvedLine,
+      reading.says === "notice" ? reading.words : "Resolved · reopen to reply",
+    );
     // The field quoting selected words stands in an open comment box's place
     // (floating-panel.css, `data-offers`).
     keeps(host, "data-offers", reading.says === "selection" ? "" : null);

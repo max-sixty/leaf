@@ -2522,6 +2522,52 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
     assert walk([e for e in events if e["id"] != "c2"]) == [("r1", True)]
 
 
+def test_undo_candidates_say_which_gestures_the_agent_picked_up():
+    """An entry a delivery handed into an agent's turn says so, which is what makes
+    `z` show it before taking it back. A queued delivery has reached no turn yet."""
+    events = [
+        {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
+        {"id": "c2", "kind": "comment", "author": "user", "text": "another"},
+        {"id": "r1", "kind": "resolve", "author": "user", "parent": "c1"},
+        {"id": "r2", "kind": "resolve", "author": "user", "parent": "c2"},
+        {
+            "id": "p1",
+            "kind": "pickup",
+            "author": "page",
+            "events": ["r1"],
+            "phase": "opened",
+            "session": "s",
+            "turn": "t",
+        },
+        {
+            "id": "p2",
+            "kind": "pickup",
+            "author": "page",
+            "events": ["r2"],
+            "phase": "queued",
+            "session": "s",
+            "turn": None,
+        },
+    ]
+    empty = projection_model.StateProjection(
+        {}, {}, {}, {}, {}, frozenset(), frozenset()
+    )
+    document = document_reading_model.DocumentReading(None, empty, {}, None, {}, {}, {})
+    candidates = served_document.browser_undo_candidates(
+        events,
+        document,
+        empty,
+        undo_reading=event_folds_model.UndoReading(
+            events, within={}, absorbed=frozenset()
+        ),
+        stamp=None,
+        words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
+    )
+    assert [
+        (item["event"]["id"], item.get("picked_up", False)) for item in candidates
+    ] == [("r2", False), ("r1", True)]
+
+
 def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     """The view's undo list is final: `z` takes its head and a widget filters it.
 

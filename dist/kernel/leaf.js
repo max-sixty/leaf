@@ -6950,7 +6950,6 @@ function createFloatingPanel({
   }
   const replyOutlet = el("div", "lf-fp-reply");
   const resolvedLine = el("p", "lf-fp-resolved");
-  resolvedLine.textContent = "Resolved \xB7 reopen to reply";
   const replyInput = () => replyOutlet.querySelector(`.lf-thread-reply ${TEXT_FIELD}`);
   const replyOptions = /* @__PURE__ */ new Map();
   const replyOptionsFor = (key) => {
@@ -8716,6 +8715,10 @@ function createFloatingPanel({
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
+    keepsText(
+      resolvedLine,
+      reading.says === "notice" ? reading.words : "Resolved \xB7 reopen to reply"
+    );
     keeps(host, "data-offers", reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);

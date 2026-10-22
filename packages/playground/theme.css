@@ -66,10 +66,14 @@
 }
 
 /* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
- * the playground, its split and its rail take that height, the controls give up height
- * and scroll while the instruction and its actions stay whole under them, down to the
- * controls' floor; below it the instruction takes its track rather than its content's
- * height, and its body scrolls instead of running past the window. */
+ * the playground, its split and its rail take that height. In the rail, the controls give
+ * up height and scroll while the instruction and its actions stay whole under them. With
+ * all controls inline, the stage is what the reader came to set, so it keeps at least
+ * half the window and the instruction keeps its whole height below it: where both don't
+ * fit, the workspace scrolls to the instruction and its actions rather than squeezing
+ * the stage. That reverses an earlier 12rem stage floor, which kept the actions in view
+ * down to a 500px window but left a 192px stage at 900x700 (the user's decision,
+ * 2026-10-22). */
 @media screen {
   @container style(--lf-full-height: 1) {
     /* Each box passes the height on, so the panes in the split are told they have one
@@ -85,23 +89,22 @@
       --lf-full-height: inherit;
     }
 
-    /* Below the combined floors, the ancestor scrolls both the inline evidence
-     * and the instruction rather than hiding either one. */
+    /* The instruction takes its content's height (`max-content`), since a box that
+     * scrolled inside the scrolling workspace would hide its end behind two scrolls. */
     .lf-playground-split:not(
       :has(
         > .lf-playground-controls-region,
         > .lf-playground-rail > .lf-playground-controls-region
       )
     ) {
-      grid-template-rows: minmax(12rem, 1fr) minmax(9rem, auto);
+      grid-template-rows: minmax(max(12rem, 50dvh), 1fr) max-content;
     }
 
     /* A presets pane with no controls beside it heads the stage. */
     .lf-playground-split:has(> .lf-playground-controls-region) {
-      grid-template-rows: minmax(min-content, auto) minmax(12rem, 1fr) minmax(
-          9rem,
-          auto
-        );
+      grid-template-rows:
+        minmax(min-content, auto) minmax(max(12rem, 50dvh), 1fr)
+        max-content;
     }
 
     @container (min-width: 43.5rem) {

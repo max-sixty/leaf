@@ -5,8 +5,10 @@
  * message will read: inline code in code type, emphasis and strong in their weights,
  * a link as a link, a heading in bold, a list item at the message's inset under the
  * message's own marker. The syntax that produces each (backticks, asterisks, brackets,
- * hashes, list markers) is hidden unless the selection touches the construct, so
- * the user sees their words rendered and can still reach every character they typed.
+ * hashes, list markers) is hidden unless the selection touches the construct. List
+ * markers reveal their source only inside the marker: the caret after its trailing
+ * space is ready to type content, so even an empty new item already shows its bullet
+ * or number. The user can move back into the marker to edit every source character.
  * Nothing is converted: the value is always the source the user typed, which is what
  * the agent reads. The constructs come from the renderer that sends the message
  * (`markdownTokens`), never from a second grammar, so the preview and the message agree
@@ -370,7 +372,9 @@ function decorate(state, placed) {
         list.next === null
           ? BULLETS[Math.min(depth, BULLETS.length) - 1]
           : "lf-md-number";
-      const shown = touches(state, start, end);
+      const shown = state.selection.ranges.some(
+        (range) => range.from < end && range.to >= start,
+      );
       items.set(head.from, { depth, kind: shown ? null : kind, number: list.next });
       if (list.next !== null) list.next++;
       add(start, end, shown ? shownMarker : marker);

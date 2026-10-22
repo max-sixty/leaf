@@ -159,10 +159,13 @@ small misalignment. Re-vendor after a runtime, theme, registry or widget change,
 judge the composed page.
 
 To ask a page where an element sits, what style it computes, or what holds focus after
-a key, run `uv run leaf-dev probe` (`dev/AGENTS.md`) rather than writing a Playwright
-script. When an interaction depends on a sequence of inputs or changes over time,
-record it with `leaf-dev probe --record .tmp/recordings/NAME` (its `--help` covers
-journeys and serving the trace), review the frames at their recorded times, and show
+a key, run `uv run leaf-dev probe` rather than writing a Playwright script. It builds
+the page from this working tree, runs your input steps, and prints what a JavaScript
+expression returns, with `--base` for the merge base beside it (`dev/AGENTS.md`).
+
+When an interaction depends on a sequence of inputs or changes over time, record it
+with `leaf-dev probe --record .tmp/recordings/NAME` (its `--help` covers journeys and
+serving the trace), review the frames at their recorded times, and show
 the trace on the Leaf page in `lf-trace` (`skills/leaf/references/authoring-evidence.md`,
 "Source files and media"). For an important result, assert the outcome from the user's
 task with a Playwright expectation: disclosure and focus prove only themselves, and

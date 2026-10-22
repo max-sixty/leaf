@@ -2,7 +2,6 @@ import {
   CARET_KEYS,
   TEXT_BOX,
   WORKS,
-  afterScript,
   canPlaceFocus,
   cancelRender,
   closeLayer,
@@ -2864,17 +2863,24 @@ function elementDirective(name, write) {
   );
 }
 var offered = elementDirective("offered", offerElement);
+function selectableOfferElement(node, role, cls) {
+  keeps(node, "role", role);
+  keeps(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
+  keeps(node, "data-lf-gen", "1");
+  keeps(node, "data-lf-offer", role);
+  keeps(node, "data-lf-selectable-offer", "");
+}
 function selectableOffer(role, cls, label) {
   const node = document.createElement("span");
-  node.setAttribute("role", role);
+  selectableOfferElement(node, role, cls);
   node.tabIndex = 0;
-  node.className = cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face";
-  node.dataset.lfGen = "1";
-  node.dataset.lfOffer = role;
-  node.dataset.lfSelectableOffer = "";
   if (label !== void 0) node.textContent = label;
   return node;
 }
+var selectableOffered = elementDirective(
+  "selectableOffered",
+  selectableOfferElement
+);
 var PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 function reachedForWords(el2) {
   const sel = getSelection();
@@ -2954,20 +2960,11 @@ var showingBackground = null;
 var waitingBackground = [];
 var userContext = false;
 var userHoldTimer = 0;
-var noticePresentation = Object.freeze({ message: "", visible: false });
-var noticePresenters = /* @__PURE__ */ new Set();
-var noticeReading = () => noticePresentation;
-var noticeVisible = () => noticePresentation.visible;
-function registerNoticePresentation(invalidate) {
-  noticePresenters.add(invalidate);
-}
-var presentAll = () => {
-  for (const invalidate of noticePresenters) invalidate();
-};
+var noticePresentation = Z(Object.freeze({ message: "", visible: false }));
+var noticeReading = () => noticePresentation.value;
+var noticeVisible = () => noticePresentation.peek().visible;
 var presentNotice = (message, visible) => {
-  noticePresentation = Object.freeze({ message, visible });
-  if (visible) presentAll();
-  else afterScript(presentAll);
+  noticePresentation.value = Object.freeze({ message, visible });
 };
 function announce(msg) {
   if (liveEl.firstChild) liveEl.replaceChildren();
@@ -2983,7 +2980,7 @@ function showNotice(msg, background = null) {
   noticeTimer = setTimeout(() => {
     if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift()))
       return;
-    presentNotice(noticePresentation.message, false);
+    presentNotice(noticePresentation.peek().message, false);
     showingBackground = null;
   }, NOTICE_MS);
 }
@@ -3029,7 +3026,7 @@ function notice(msg, { background = false, announce: speak = true, group = null 
 function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);
   clearTimeout(noticeTimer);
-  presentNotice(noticePresentation.message, false);
+  presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }
 function holdStatus(ms) {
@@ -3053,16 +3050,14 @@ function setNoticeContext(active) {
 var KEPT = 20;
 var raised = 0;
 var unsaid = [];
-var errors = Object.freeze([]);
-var presenters = /* @__PURE__ */ new Set();
+var errors = Z(
+  /** @type {readonly RaisedError[]} */
+  Object.freeze([])
+);
 var publish = (next) => {
-  errors = Object.freeze(next.slice(0, KEPT));
-  for (const present of presenters) present();
+  errors.value = Object.freeze(next.slice(0, KEPT));
 };
-var errorsReading = () => errors;
-function registerErrorPresentation(present) {
-  presenters.add(present);
-}
+var errorsReading = () => errors.value;
 function raiseError(message, { subject = null, announce: speak = true } = {}) {
   return raise(message, subject, speak, null);
 }
@@ -3076,34 +3071,32 @@ function raise(message, subject, speak, replaced) {
   if (speak) unsaid.push(message);
   publish([
     Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
-    ...errors.filter((entry) => entry.id !== replaced)
+    ...errors.peek().filter((entry) => entry.id !== replaced)
   ]);
   return Object.freeze({ id, clear: () => dismissError(id) });
 }
 function passErrors(ids) {
-  if (errors.some((entry) => ids.includes(entry.id) && !entry.passed))
+  if (errors.peek().some((entry) => ids.includes(entry.id) && !entry.passed))
     publish(
-      errors.map(
+      errors.peek().map(
         (entry) => ids.includes(entry.id) && !entry.passed ? Object.freeze({ ...entry, passed: true }) : entry
       )
     );
 }
 function passErrorsAt(subject) {
   passErrors(
-    errors.filter((entry) => entry.subject === subject).map((entry) => entry.id)
+    errors.peek().filter((entry) => entry.subject === subject).map((entry) => entry.id)
   );
 }
 function seeErrors() {
-  if (errors.some((entry) => !entry.seen))
+  if (errors.peek().some((entry) => !entry.seen))
     publish(
-      errors.map(
-        (entry) => entry.seen ? entry : Object.freeze({ ...entry, seen: true })
-      )
+      errors.peek().map((entry) => entry.seen ? entry : Object.freeze({ ...entry, seen: true }))
     );
 }
 function dismissError(id) {
-  if (errors.some((entry) => entry.id === id))
-    publish(errors.filter((entry) => entry.id !== id));
+  if (errors.peek().some((entry) => entry.id === id))
+    publish(errors.peek().filter((entry) => entry.id !== id));
 }
 function holdingError({ announce: speak = true } = {}) {
   let held = null;
@@ -3119,7 +3112,7 @@ function holdingError({ announce: speak = true } = {}) {
   };
 }
 function dismissErrors() {
-  if (errors.length) publish([]);
+  if (errors.peek().length) publish([]);
 }
 
 // runtime/layer-client.js
@@ -3565,6 +3558,7 @@ export {
   elementDirective,
   offered,
   selectableOffer,
+  selectableOffered,
   PRESSABLE,
   reachedForWords,
   relabel,
@@ -3573,13 +3567,11 @@ export {
   motionPreview,
   liveEl,
   noticeReading,
-  registerNoticePresentation,
   announce,
   notice,
   holdStatus,
   setNoticeContext,
   errorsReading,
-  registerErrorPresentation,
   raiseError,
   passErrors,
   passErrorsAt,

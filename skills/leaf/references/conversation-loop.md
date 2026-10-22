@@ -15,7 +15,7 @@ The user follows your work on the page:
 | Page                      | the revised content in place, and a stamp's changelog                                                                                                                   | saving `index.html`, `leaf page stamp`                                    |
 
 Leaf's panel floats at the foot of the window. Leaf marks each update **Sent**,
-**Queued**, and **Picked up** by itself. Your harness may add its current step to the
+**Queued**, and **Delivered** by itself. Your harness may add its current step to the
 status, which the user reads in full in the leaf's menu, or by pointing at the leaf
 when the panel is folded.
 

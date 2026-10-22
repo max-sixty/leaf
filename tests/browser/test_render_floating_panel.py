@@ -2433,7 +2433,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     page = floating(browser, url)
     raise_error = """async ([text, onField]) => {
       const subject = onField ? document.querySelector('.lf-fp-field leaf-text') : null;
-      (await window.__lfWidgetApi()).raiseError(text, { subject });
+      window.latestError = (await window.__lfWidgetApi()).raiseError(text, { subject });
     }"""
     panel = page.locator(".lf-floating-panel")
     cover = page.locator(".lf-fp-field .lf-compose-error")
@@ -2467,6 +2467,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     assert field(page).evaluate(value) == "Could it"
     # A caret key uncovers them too, moving the caret as it would.
     page.evaluate(raise_error, ["Could not add image — disk full", True])
+    page.evaluate("() => { window.fieldError = window.latestError; }")
     expect(cover).to_be_visible()
     page.keyboard.press("ArrowLeft")
     expect(cover).to_be_hidden()
@@ -2488,8 +2489,44 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     listed.first.get_by_role("menuitem").click()
     expect(listed).to_have_count(4)
     expect(listed.first.get_by_role("menuitem")).to_be_focused()
+    # News waits until the list is opened again, leaving the error being read and
+    # its focused Dismiss in place. Only errors actually shown lose their dot.
+    settled(page)
+    reading = listed.first.get_by_role("menuitem").element_handle()
+    before = reading.bounding_box()
+    one_frame(page)
+    page.evaluate(raise_error, ["Another image could not be attached", False])
+    one_frame(page)
+    assert reading.bounding_box() == before
+    assert reading.evaluate("node => node === document.activeElement")
+    expect(listed).to_have_count(4)
+    expect(dot).to_be_visible()
+    page.keyboard.press("Escape")
+    page.locator('.lf-fp-menu [data-row="errors"]').click()
+    expect(listed).to_have_count(5)
+    expect(listed.first).to_contain_text("Another image could not be attached")
+    expect(dot).to_be_hidden()
+
+    # A condition that ends clears its words immediately but keeps their space,
+    # so the next error's Dismiss does not move under the reader.
+    settled(page)
+    reading = listed.nth(1).get_by_role("menuitem").element_handle()
+    reading.focus()
+    before = reading.bounding_box()
+    page.evaluate("() => window.latestError.clear()")
+    one_frame(page)
+    expect(listed.first).to_be_hidden()
+    assert reading.bounding_box() == before
+    assert reading.evaluate("node => node === document.activeElement")
+    # Clearing the focused error also hands focus to the next live Dismiss.
+    page.evaluate("() => window.fieldError.clear()")
+    expect(listed.nth(1)).to_be_hidden()
+    expect(listed.nth(2).get_by_role("menuitem")).to_be_focused()
+    listed.nth(2).get_by_role("menuitem").click()
+    expect(listed.nth(2).get_by_role("menuitem")).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
+    expect(dot).to_be_hidden()
 
     # Folded, the panel says no error; the leaf's dot marks one raised there.
     page.locator("body").focus()
@@ -2630,6 +2667,11 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     expect(shelf).to_have_count(1)
     page.keyboard.press("Escape")
     settled(page)
+    # The panel's surface must expose its measured box before the first motion;
+    # an opaque motion root leaves the ground clipped away behind the controls.
+    expect(page.locator(".lf-fp-ground > .lf-fp-fill").first).not_to_have_css(
+        "clip-path", "inset(50%)"
+    )
     page.evaluate("() => {" + HOLD_MOTION + "}")
     panel = page.locator(".lf-floating-panel")
     leaf = page.locator(".lf-fp-leaf")

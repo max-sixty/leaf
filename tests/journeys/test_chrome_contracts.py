@@ -314,8 +314,12 @@ def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
         before = after
     else:
         pytest.fail("no last line filled the field before its room")
+    # A newly grown line carries the existing words with the panel edge; compare
+    # the resulting places after that ride finishes.
+    panel_settled(page)
     full = reading()
     page.keyboard.press("Shift+Enter")
+    panel_settled(page)
     opened = reading()
     page.keyboard.type("S")
     typed = reading()

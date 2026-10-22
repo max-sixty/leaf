@@ -363,10 +363,20 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )5($| )")
     )
+    # A change to selection retains the added row, its parsed words and focus.
+    added.evaluate("""option => {
+        window.addedOption = option;
+        window.addedWords = [...option.querySelector('.lf-option-words').childNodes];
+    }""")
+    added.locator(".lf-pick").focus()
     # Add-and-select records add then choose: undo the pick before its addition.
     page.keyboard.press("z")
     round_trip(page)
     expect(added).not_to_have_attribute("chosen", "")
+    expect(added.locator(".lf-pick")).to_be_focused()
+    assert added.evaluate("""option => option === window.addedOption &&
+        [...option.querySelector('.lf-option-words').childNodes].every(
+            (node, index) => node === window.addedWords[index])""")
     page.keyboard.press("z")
     round_trip(page)
     expect(added).to_have_count(0)
@@ -2389,7 +2399,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)
-    expect(status).to_have_text("Picked up")
+    expect(status).to_have_text("Delivered")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
 
 

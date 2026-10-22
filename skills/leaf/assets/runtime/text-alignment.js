@@ -6,9 +6,9 @@ import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 // One lossless text alignment for every widget that needs to explain a sequence of
 // whole-text states. Segmenter keeps the language-aware units this runtime already
-// assumes; jsdiff supplies the ordered shared spine. Its edit walk is capped after
-// stripping a common prefix and suffix: a very large divergent middle is one
-// replacement instead of a page-freezing attempt at fine-grained alignment. Joining
+// assumes; jsdiff supplies the ordered shared spine. Its edit walk is capped: a very
+// large rewrite is one replacement instead of a page-freezing attempt at fine-grained
+// alignment. Joining
 // same+delete reconstructs `before`, and joining same+insert reconstructs `after`,
 // exactly.
 //
@@ -34,48 +34,18 @@ export function alignText(
 ) {
   const left = [...units.segment(before)].map((part) => part.segment);
   const right = [...units.segment(after)].map((part) => part.segment);
-  const runs = [];
-  const push = (kind, text) => {
-    if (!text) return;
-    const last = runs.at(-1);
-    if (last?.kind === kind) last.text += text;
-    else runs.push({ kind, text });
-  };
-
-  let prefix = 0;
-  while (
-    prefix < left.length &&
-    prefix < right.length &&
-    left[prefix] === right[prefix]
-  )
-    prefix++;
-  let suffix = 0;
-  while (
-    prefix + suffix < left.length &&
-    prefix + suffix < right.length &&
-    left[left.length - suffix - 1] === right[right.length - suffix - 1]
-  )
-    suffix++;
-
-  push("same", left.slice(0, prefix).join(""));
-  const leftEnd = left.length - suffix;
-  const rightEnd = right.length - suffix;
-  const changes = diffArrays(
-    left.slice(prefix, leftEnd),
-    right.slice(prefix, rightEnd),
-    { maxEditLength },
-  );
-  if (changes) {
-    for (const change of changes) {
-      const kind = change.added ? "insert" : change.removed ? "delete" : "same";
-      push(kind, change.value.join(""));
-    }
-  } else {
-    push("delete", left.slice(prefix, leftEnd).join(""));
-    push("insert", right.slice(prefix, rightEnd).join(""));
-  }
-  push("same", left.slice(leftEnd).join(""));
-  return runs;
+  const changes = diffArrays(left, right, { maxEditLength });
+  if (!changes)
+    return [
+      { kind: "delete", text: before },
+      { kind: "insert", text: after },
+    ].filter((run) => run.text);
+  return changes
+    .map((change) => ({
+      kind: change.added ? "insert" : change.removed ? "delete" : "same",
+      text: change.value.join(""),
+    }))
+    .filter((run) => run.text);
 }
 
 // A version comparison starts at sentences so a rewritten paragraph stays readable,

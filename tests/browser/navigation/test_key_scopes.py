@@ -193,6 +193,9 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     marker.click()
     expect(preview).to_be_visible()
     expect(threads[0]).to_be_focused()
+    rendered(page)
+    # A pointer route to a reading destination still names where it landed.
+    assert preview.evaluate("node => getComputedStyle(node).outlineStyle") == "solid"
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     out_through("#p2")
@@ -1388,7 +1391,6 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     }; }"""
     first_ring = first.evaluate(focus_paint)
     assert first_ring["style"] == "solid", first_ring
-    assert ring_rule(first) == ":where([data-lf-focus])"
 
     bounds = words.bounding_box()
     assert bounds is not None
@@ -1408,11 +1410,10 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     expect(held_obligation).to_have_count(1)
     assert "[data-lf-obligation]" in ring_rule(held_obligation)
     # Native label activation temporarily blurs the radio. Its logical input
-    # destination, and therefore the fallback ring on this plain authored control,
-    # remain in place until the label's click transfers focus.
+    # destination remains in place until the label's click transfers focus. The
+    # pointer press removes its keyboard cue without moving that standing.
     assert not first.evaluate("control => control.matches(':focus')")
-    assert first.evaluate(focus_paint) == first_ring
-    assert ring_rule(first) == ":where([data-lf-focus])"
+    assert first.evaluate(focus_paint)["style"] == "none"
     assert not ring_faults(rings_drawn(page), "while the label press holds focus")
     intermediate = page.locator("#label-thread")
     expect(intermediate).to_be_focused()
@@ -1424,7 +1425,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     assert intermediate.evaluate(thread_paint) == ["none", "none"]
     page.emulate_media(forced_colors="active")
     assert intermediate.evaluate(thread_paint) == ["none", "none"]
-    assert first.evaluate(focus_paint)["style"] == "solid"
+    assert first.evaluate(focus_paint)["style"] == "none"
     page.emulate_media(forced_colors="none")
     page.mouse.up()
     expect(control).to_be_checked()

@@ -70,7 +70,7 @@ import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads, readThreads } from "./thread/state.js";
-import { watchProjection } from "./projection-watch.js";
+import { effect, untracked } from "/vendor/browser-runtime.js";
 import { annotationSelection } from "./annotation-inventory.js";
 import { readPart } from "./semantic-state.js";
 import { raiseError } from "./errors.js";
@@ -569,15 +569,17 @@ export function createReactionController({
       threads: root.effective.thread.all,
       annotations: annotationSelection(root),
     }));
-    watchProjection(document.body, () => {
+    effect(() => {
       margin();
-      if (
-        reactArmed &&
-        reactSurface === marginSurface &&
-        (!marginTarget?.isConnected || fabTargetAt() !== marginTarget)
-      )
-        setReact(false);
-      else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
+      untracked(() => {
+        if (
+          reactArmed &&
+          reactSurface === marginSurface &&
+          (!marginTarget?.isConnected || fabTargetAt() !== marginTarget)
+        )
+          setReact(false);
+        else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
+      });
     });
   }
   pageScope("reactions", REACT);
@@ -627,14 +629,9 @@ export async function sendReaction(event, where, postReaction) {
   if (sent) announce(`${event.token} on ${where}`);
   return sent;
 }
-function reactionPlace(event) {
+// Where a reaction stands, as Threads names its anchor.
+export function reactionPlace(event) {
   if (event.kind === "reply") return "the reply";
   if (!event.anchor) return "the page";
   return anchorLabel(event.anchor, event.about);
 }
-export const undoSentence = (undoable) => {
-  const event = undoable();
-  return event?.token
-    ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
-    : "Undo the latest update";
-};

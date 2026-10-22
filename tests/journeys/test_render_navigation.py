@@ -1958,13 +1958,13 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "thread",
         "more",
         "sent",
-        "waiting for pickup",
+        "waiting for delivery",
         "queued",
         "update stale",
         "turn ended",
         "glyph face",
         "count badge",
-        "picked up",
+        "delivered",
         "working",
         "working · fallback",
         "resting",
@@ -2006,7 +2006,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     page.mouse.move(0, 0)
 
     resting = sample("resting")
-    picked_up = sample("picked up")
+    picked_up = sample("delivered")
     working = sample("working")
     stale = sample("update stale")
     fallback = sample("working · fallback")
@@ -2049,7 +2049,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     )
     for name, icon in (
         ("sent", "sent"),
-        ("waiting for pickup", "waiting"),
+        ("waiting for delivery", "waiting"),
         ("queued", "pickup"),
         ("turn ended", "waiting"),
     ):
@@ -2151,7 +2151,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     sample = page.locator("#bg-margin-layer-status")
     sample.scroll_into_view_if_needed()
     child = sample.frame_locator("iframe")
-    # The receipt reads Sent, and Waiting for pickup two minutes after the gallery
+    # The receipt reads Sent, and Waiting for delivery two minutes after the gallery
     # opened, which a slow runner can reach by now; either pins the same way.
     status = child.locator(
         '.lf-margin-entry:is([data-lf-kinds="sent"], [data-lf-kinds="waiting"])'

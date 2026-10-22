@@ -23,7 +23,7 @@ settled, and emits two readings of them, each the one home of its facts:
   an owed update holds the agent's turn.
 
 - A **workflow** for each unsettled update: its delivery. `stage` says how far it has
-  reached the agent (Sent, Queued, Picked up, Working, Replying), which the margin, the
+  reached the agent (Sent, Queued, Delivered, Working, Replying), which the margin, the
   Page Map and a thread's receipt show. `obligation` names the record it serves, or is
   null for an update that owes nothing. `receipt_refs` maps each claim the update was
   delivered under to the newest `answer.ref` a pickup recorded for it
@@ -261,7 +261,7 @@ def handed_over(
 
     This is one interaction-scoped projection over the document and log: append
     means Sent, queue acceptance means Queued, entry into an exact agent turn
-    means Picked up, and a `start` naming the update means Working
+    means Delivered (stage `picked_up`), and a `start` naming the update means Working
     (`todos.item_starts`). Replies
     and authored state settle the source update, so the workflow disappears instead
     of becoming a second outcome surface; a failed response instead keeps an

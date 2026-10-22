@@ -444,10 +444,17 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          window.__proofWatching = api.watchProjection(owner, () => {
-            clockValue(() => window.__proofClock);
-            window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
-          }, () => api.reportsPresented(owner));
+          customElements.define('lf-report-proof', class extends api.LeafElement {
+            render() {
+              if (!this.whenReady(() => api.reportsPresented(owner))) return api.noChange;
+              clockValue(() => window.__proofClock);
+              window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
+              return api.noChange;
+            }
+          });
+          window.__proofWatching = document.createElement('lf-report-proof');
+          document.body.append(window.__proofWatching);
+          await window.__proofWatching.updateComplete;
           window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
@@ -476,7 +483,9 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
         # A same-epoch reopen has no semantic notification. The next clock paint
         # must still check proof rather than bypassing its readiness guard.
         reads = page.evaluate("window.__proofReads.length")
-        page.evaluate("window.__proofWatching.refresh()")
+        page.evaluate(
+            "window.__proofWatching.requestUpdate(); window.__proofWatching.performUpdate()"
+        )
         assert page.evaluate("window.__proofReads.length") == reads
         page.evaluate("window.__proofTick()")
         ticked(page)

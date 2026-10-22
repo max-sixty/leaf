@@ -5553,9 +5553,9 @@ var WORK_WORDS = {
 var countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
 var COUNT_PHRASES = {
   active: "being worked on",
-  handling: "owed on picked-up updates",
+  handling: "owed on delivered updates",
   queued: "owed on queued updates",
-  picked_up: "owed on picked-up updates; no current turn observed",
+  picked_up: "owed on delivered updates; no current turn observed",
   pending: "owed on updates awaiting delivery"
 };
 var phrased = (counts, kinds) => kinds.filter((kind) => counts[kind]).map((kind) => `${countResponses(counts[kind])} ${COUNT_PHRASES[kind]}`);
@@ -5579,7 +5579,7 @@ var publicationWords = (published) => [
   `${published.kind === "example" ? "This is an example on the Leaf website" : "This website is a Leaf page"}, and this copy is private to this browser. `,
   "Install Leaf"
 ];
-function pickedUpWords({ comments, answers }) {
+function deliveredWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "the comment" : "the answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   return [
@@ -5614,12 +5614,12 @@ function statusWords({
     return ["No session", `No session holds this page. ${meanwhile}`, meanwhile];
   }
   if (kind === "working") {
-    const picked = pickedUpWords(handling);
-    const said = detail ? [" \u2014 ", { text: detail, source: detailSource }] : picked ? [" \u2014 picked up " + picked] : [];
+    const delivered = deliveredWords(handling);
+    const said = detail ? [" \u2014 ", { text: detail, source: detailSource }] : delivered ? [" \u2014 has " + delivered] : [];
     return [
       [`${agent} ${work}${age && age !== JUST_NOW ? " \xB7 " + age : ""}`, ...said],
-      detail || !picked ? [`${agent} is ${work}`, ...said] : `${agent} picked up ${picked} and hasn't said what it's doing yet`,
-      detail || !picked ? "" : "It hasn't said what it's doing yet."
+      detail || !delivered ? [`${agent} is ${work}`, ...said] : `${agent} has ${delivered} and hasn't said what it's doing yet`,
+      detail || !delivered ? "" : "It hasn't said what it's doing yet."
     ];
   }
   if (kind === "listening") {

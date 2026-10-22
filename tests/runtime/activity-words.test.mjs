@@ -98,11 +98,11 @@ test("working with no sentence of the agent's names what its turn picked up", ()
       counts: { handling, handling_comments },
     });
   assert.deepEqual(picked(1, 1), [
-    "Claude working — picked up the comment",
-    "Claude picked up the comment and hasn't said what it's doing yet (just now)",
+    "Claude working — has the comment",
+    "Claude has the comment and hasn't said what it's doing yet (just now)",
   ]);
-  assert.equal(picked(1, 0)[0], "Claude working — picked up the answer");
-  assert.equal(picked(3, 2)[0], "Claude working — picked up 2 comments and 1 answer");
+  assert.equal(picked(1, 0)[0], "Claude working — has the answer");
+  assert.equal(picked(3, 2)[0], "Claude working — has 2 comments and 1 answer");
   // Nothing picked up and nothing said is plain work.
   assert.deepEqual(picked(0, 0), ["Claude working", "Claude is working (just now)"]);
 });
@@ -453,8 +453,8 @@ test("the facts both seats share count what the agent owes apart from what waits
   ]);
   assert.deepEqual(facts.owed, [
     "1 response being worked on",
-    "2 responses owed on picked-up updates",
-    "1 response owed on picked-up updates; no current turn observed",
+    "2 responses owed on delivered updates",
+    "1 response owed on delivered updates; no current turn observed",
   ]);
   assert.equal(facts.listening, true);
   assert.equal(activityFacts(state({})).listening, false);

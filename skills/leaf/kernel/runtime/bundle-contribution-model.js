@@ -119,7 +119,7 @@ var KINDS = Object.freeze(
         indication: true
       },
       pickup: {
-        label: "Picked up",
+        label: "Delivered",
         icon: "pickup",
         priority: 3,
         indication: true

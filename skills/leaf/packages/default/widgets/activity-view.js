@@ -77,8 +77,9 @@ export function initialActivity(host, { offerElement, tabStore, keeps }) {
   const rowTemplate = (row) =>
     html`<li class="lf-activity-row" data-lf-undone=${() => (row().undone ? "" : null)}>
       <p class="lf-activity-line">
-        <strong class="lf-activity-actor">${() => row().actor}</strong>
-        <span class="lf-activity-what">${() => row().what}</span> ${target(row)}
+        <strong class="lf-activity-actor">${() => row().actor}</strong>${" "}
+        <span class="lf-activity-what">${() => row().what}</span
+        >${" "}${target(row)}${" "}
         <time
           class="lf-activity-time"
           datetime=${() => row().ts}
@@ -89,7 +90,8 @@ export function initialActivity(host, { offerElement, tabStore, keeps }) {
           get when() {
             return row().undone;
           },
-          children: (_visible) => html` <span class="lf-activity-undone">undone</span>`,
+          children: (_visible) =>
+            html`${" "}<span class="lf-activity-undone">undone</span>`,
         })}
       </p>
       ${Show({

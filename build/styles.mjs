@@ -11,8 +11,8 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const assets = "skills/leaf/assets";
-const packages = "skills/leaf/packages";
+const assets = "browser";
+const packages = "packages";
 
 /** Source and output pairs, readable without build dependencies by the trusted
  * dependency publisher as well as the compiler. */

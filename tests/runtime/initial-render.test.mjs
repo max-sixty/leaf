@@ -201,7 +201,7 @@ test("member state owns each physical slot independently across a hierarchy", ()
 });
 
 test("the contents drawing keeps its early parts through upgrade and keyed revisions", async () => {
-  await import("../../skills/leaf/packages/default/initial/lf-toc.js");
+  await import("../../packages/default/initial/lf-toc.js");
   document.body.innerHTML =
     '<main><h1>Field guide</h1><lf-toc id="contents"></lf-toc>' +
     '<h2 id="first">Take inventory</h2><h3>Save a snapshot</h3></main>';

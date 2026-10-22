@@ -14,9 +14,9 @@ import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 import { capture, publish } from "./dependency-bundles.mjs";
 
-const path = "skills/leaf/assets/vendor/test.js";
-const theme = "skills/leaf/assets/theme.css";
-const packageTheme = "skills/leaf/packages/default/theme.css";
+const path = "browser/vendor/test.js";
+const theme = "browser/theme.css";
+const packageTheme = "packages/default/theme.css";
 const head = "original-head";
 const repo = "owner/leaf";
 const run = {
@@ -36,7 +36,7 @@ const artifact = {
 test("the trusted publisher loads its build declaration without installed dependencies", () => {
   const directory = mkdtempSync(join(tmpdir(), "dependency-publisher-"));
   try {
-    for (const name of [".github/scripts", "build", "skills/leaf/packages"])
+    for (const name of [".github/scripts", "build", "packages"])
       mkdirSync(join(directory, name), { recursive: true });
     for (const name of [".github/scripts/dependency-bundles.mjs", "build/styles.mjs"])
       copyFileSync(new URL(`../../${name}`, import.meta.url), join(directory, name));
@@ -57,7 +57,7 @@ test("capture includes changed, new and deleted generated files, but rejects sou
     process.chdir(directory);
     const git = (...args) => execFileSync("git", args, { stdio: "ignore" });
     git("init", "-q");
-    mkdirSync("skills/leaf/assets/vendor", { recursive: true });
+    mkdirSync("browser/vendor", { recursive: true });
     writeFileSync(path, "old");
     writeFileSync(theme, "old theme");
     writeFileSync("package.json", "{}");
@@ -73,19 +73,19 @@ test("capture includes changed, new and deleted generated files, but rejects sou
     );
     rmSync(path);
     writeFileSync(theme, "new theme");
-    writeFileSync("skills/leaf/assets/vendor/chunk.js", "chunk");
+    writeFileSync("browser/vendor/chunk.js", "chunk");
     // The kernel compiles from the bundles, so a bump rebuilds it too.
-    mkdirSync("skills/leaf/kernel/runtime", { recursive: true });
-    writeFileSync("skills/leaf/kernel/kernel.json", "{}");
-    writeFileSync("skills/leaf/kernel/runtime/bundle-state.js", "state");
+    mkdirSync("dist/kernel/runtime", { recursive: true });
+    writeFileSync("dist/kernel/kernel.json", "{}");
+    writeFileSync("dist/kernel/runtime/bundle-state.js", "state");
     assert.deepEqual(capture().files, [
       { path: theme, content: "new theme" },
       { path, content: null },
-      { path: "skills/leaf/assets/vendor/chunk.js", content: "chunk" },
-      { path: "skills/leaf/kernel/kernel.json", content: "{}" },
-      { path: "skills/leaf/kernel/runtime/bundle-state.js", content: "state" },
+      { path: "browser/vendor/chunk.js", content: "chunk" },
+      { path: "dist/kernel/kernel.json", content: "{}" },
+      { path: "dist/kernel/runtime/bundle-state.js", content: "state" },
     ]);
-    rmSync("skills/leaf/kernel", { recursive: true });
+    rmSync("dist/kernel", { recursive: true });
     symlinkSync("missing.js", path);
     assert.throws(capture, /not a regular file/);
     rmSync(path);
@@ -158,11 +158,11 @@ test("publisher changes only bundles on the exact Dependabot branch and preserve
 test("publisher refuses untrusted paths, foreign builds and non-dependency source changes before writing", async () => {
   for (const bad of [
     ".github/workflows/ci.yaml",
-    "skills/leaf/assets/vendor/../runtime/evil.js",
-    "skills/leaf/assets/vendor/.hidden.js",
-    "skills/leaf/assets/styles/theme.css",
-    "skills/leaf/assets/runtime/authored.css",
-    "skills/leaf/packages/playground/theme.css",
+    "browser/vendor/../runtime/evil.js",
+    "browser/vendor/.hidden.js",
+    "browser/styles/theme.css",
+    "browser/runtime/authored.css",
+    "packages/playground/theme.css",
   ]) {
     const { api, calls } = endpoint();
     await assert.rejects(

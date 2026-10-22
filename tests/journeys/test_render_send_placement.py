@@ -32,7 +32,6 @@ the diff beside those pictures:
 import pytest
 from browser.test_render_send_placement import CASES, RECT, sent
 from interact_support import yaml_document
-from leaf.render_checks import rendered, wait_until_ready
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import (
@@ -42,6 +41,8 @@ from render_harness import (
     select,
     write,
 )
+
+from leaf.render_checks import rendered, wait_until_ready
 
 
 def test_where_a_comment_stands_before_and_after_send(

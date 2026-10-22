@@ -24,7 +24,6 @@ from leaf.revision_artifact import Resource, capture_artifact, capture_local_res
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
-
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
     data_operations,

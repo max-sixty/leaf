@@ -218,16 +218,110 @@ answer. Reproduced on a three-item queue, the tally now splits the open ones by 
 actor ("1 of 3 on Claude"), and
 `test_a_tally_counts_its_regions_obligations_and_walks_them` holds it.
 
+At 900×700 the judge found a workspace playground's stage too short on 4 of 9
+configuration pages: it kept 12rem (192px) so the instruction and Send stayed in
+view. The stage now keeps at least half the window and the workspace scrolls to
+Send; on the study's alert page at 900×700 it grew from 192 to 350px, with 2 of
+12 controls in view rather than none.
+`test_inline_playground_keeps_half_a_short_workspace_for_its_stage` holds it.
+
 The other recurring Leaf-owned defects follow from recorded choices, and are open
 decisions rather than fixes:
 
 - A thread card opens over the text near its passage, which Escape uncovers (root
   `AGENTS.md`, "Working on the repository"); the judge counted it on 14 pages.
 - On a phone a thread's pin stands over the end of the line it marks (5 pages).
-- A playground in a workspace keeps its stage bounded down to 500px tall, which
-  `test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_short_workspace`
-  pins; at 900×700 the judge found the stage too short on 4 of 9 configuration
-  pages.
+
+## Current configuration anchor, 2026-10-21
+
+One bounded block used four fresh Codex authors, in Leaf, HTML, HTML, Leaf order,
+at `0cc2760636d14b9fc8873f3be69337486ecb723c`. All used `gpt-6.1-sol` with medium
+reasoning and the same configuration task at 1600×1000. All four saved
+`comparison.json` inputs match, as do the 639 non-cache files in each saved
+`skills/leaf` tree. The working-tree changes during authoring were maintainer
+instructions, outside that shipped tree.
+
+| Round | Condition | Native author minutes | Initial turn minutes | Final record      |
+| ----- | --------- | --------------------- | -------------------- | ----------------- |
+| 1     | Leaf      | 9.5                   | 4.7                  | All six decisions |
+| 2     | HTML      | 5.0                   | 2.1                  | All six decisions |
+| 3     | HTML      | 6.0                   | 3.0                  | All six decisions |
+| 4     | Leaf      | 11.1                  | 4.8                  | All six decisions |
+
+Leaf averaged 10.3 author minutes and HTML 5.5, across four turns each. These are
+native author durations, excluding browser users, live judges and command elapsed
+time. Dollar cost and first usable handoff time remain unmeasured. The older
+comparison used a different harness revision; these figures do not measure a
+causal before/after gain.
+
+Both Leaf decision journeys used its event log; both HTML journeys copied the
+page's settings without typed fallback. All final records retained Finance
+ownership, separate finance-ops paging and the remaining noisy payments page,
+without claiming a live alert configuration change. Execution and page checks
+completed for all four. The first HTML's final judge reported a threshold-keyboard
+defect; the other three final judges passed. Replaying the same keys on the first
+HTML and on a bare, script-free native select produced the same non-response in
+headless Chromium and Firefox. That test does not isolate an authored defect, so
+the attribution remains unconfirmed. The original verdict is retained; the browser
+users and pair judges completed the offered selection and copying routes.
+
+Both paired Sol judgments preferred HTML in both presentation orders: slight/clear
+for the first pair and slight/slight for the second. HTML kept six settings visible
+beside navigable evidence. Leaf's first page required tab switching; the second's
+header and instruction area left a short scrolling preview. Evidence favored Leaf
+in three judgments and tied in one; comments and applied decisions tied in all
+four. These are local composition trade-offs, not a general product ranking.
+
+A separate 1600×1000 chrome journey on the first Leaf's saved phase 3 typed a
+draft, retained it through Escape/reopen, sent a visible comment that persisted in
+the log, and reached another alert through Escape and its tab. It reported no
+console findings or horizontal overflow. It does not cover other chrome journeys
+or mobile.
+
+A fresh `gpt-6-astra` judge independently operated the first pair's saved phase 3
+and phase 4 pages in both presentation orders, without prior verdicts in its
+prompt. Both judgments preferred HTML slightly for its overview, while favoring
+Leaf's historical evidence and noting its direct-send route. The second pair has
+Sol judging only. The exact README copied-index recipe completed successfully;
+both native `thread/started` notifications confirm Astra, and hashes establish
+that all four original result indexes and the main verdict file stayed unchanged.
+Audit evidence is `.tmp/eval/audit-yci6yzij/0/`, with its provenance recorded in
+`.tmp/ui-grinding/cycle/astra-audit.json`. Opus reviewed the proposed skill and
+audit recipe; this block did not run fresh Opus authors.
+
+Visual review found provider identifiers crowding the comparison viewer on phones.
+The report producer now derives short labels from recorded conditions, keeps
+same-condition columns distinct and exposes full identifiers in metadata. The
+regenerated viewer passed render and independent visual review, plus live checks
+of image zoom, matched capture widths, disclosures and phone overflow.
+
+The four runs are under `.tmp/eval/` in this checkout:
+
+- `20261021-135550-9h8_k04r` — Leaf, `configuration-ocar5rb0`.
+- `20261021-141858-mlmwdqua` — HTML, `configuration-dmgg6mb1`.
+- `20261021-142853-coaxw4ab` — HTML, `configuration-jskgsnus`.
+- `20261021-143958-54gvyi2w` — Leaf, `configuration-b7p94ayd`.
+
+`.tmp/ui-grinding/cycle/provenance-checked.json` retains runtime hashes, native
+model fields and phase paths. `eval-report` on those four runs regenerates the
+comparison; use the README's isolated copied-index recipe for rejudging without
+overwriting the original verdicts. The maintainer's `/grinding-ui` skill owns the
+improvement loop and experiment design, with command mechanics kept in the README.
+The keyboard and chrome replays use disposable original-runtime copies:
+
+```sh
+uv run python .tmp/ui-grinding/replay_saved.py html 20261021-141858-mlmwdqua .tmp/ui-grinding/keyboard_journey.py
+uv run python .tmp/ui-grinding/replay_saved.py html 20261021-141858-mlmwdqua .tmp/ui-grinding/keyboard_journey.py --firefox
+uv run python .tmp/ui-grinding/replay_saved.py leaf 20261021-135550-9h8_k04r .tmp/ui-grinding/chrome_journey.py
+```
+
+The original October 12 brief and refinements were recovered from Claude session
+`0cc26736-55c9-40c3-80bf-c13a77d209db` (lines 6, 1685, 2335–2337, 2427 and 3892),
+and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e`
+(line 13). The original nine-pair Claude report survives at
+`~/.local/state/leaf/pages/eval-plain-html/`, with its raw runs at
+`~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
+twelve-author Codex comparison above. The continuing brief is TODO #20.
 
 ## Remaining evaluation gaps
 
@@ -244,3 +338,46 @@ decisions rather than fixes:
 When a real failure supplies a case, state its expected answer
 and edit owner before running it, and classify a miss as missing information,
 inaccessible information, or information misread.
+
+## Grinding playbook research, 2026-10-21
+
+The first grinding skill coordinated tools but left task selection, sampling and
+held-out confirmation in other documents or unspecified. The complete method now
+lives in `.claude/skills/grinding-ui/SKILL.md`; `evals/README.md` retains individual
+command mechanics.
+
+The desktop emphasis comes directly from the user's October 15 session,
+`01a142c3-d3fc-77d2-9fb8-55cc914836b2`, archived at
+`~/.codex/archived_sessions/rollout-2026-10-15T20-31-32-01a142c3-d3fc-77d2-9fb8-55cc914836b2.jsonl`:
+line 154 names fullscreen work; line 187 asks for desktop-focused comparisons with
+variation in resolutions, cases and inputs. Exact dimensions remain owned by
+`evals/workflows/eval.yaml`. No earlier exact model-allocation instruction was
+recovered; Sol/Astra/Opus roles reflect the current request.
+
+The research synthesis drew most directly on
+[GEPA](https://arxiv.org/abs/2507.19457) for learning from execution traces,
+[UXBench](https://arxiv.org/html/2606.16262) for testing a critique through the
+resulting repair, and [WebCraftBench](https://arxiv.org/html/2609.15387) for gathering
+interaction evidence before scoring. Those studies do not demonstrate the combined
+method on Leaf. [Parallel prototyping](https://hci.stanford.edu/publications/2010/parallel-prototyping/ParallelPrototyping2010-final.pdf)
+supports exploring alternatives, with human ad-design evidence rather than agent
+UI evidence. [Adaptive holdout research](https://research.ibm.com/publications/the-reusable-holdout-preserving-validity-in-adaptive-data-analysis)
+and [UI-judge research](https://arxiv.org/html/2510.08783) inform the limits of repeated
+selection on model preferences. The full survey and qualifications are on the
+session's Leaf report at `~/.tmp/leaf/ui-grinding-20261021-cd4b/`.
+
+Independent Sol planning probes applied the old and new skill to the same three
+scenarios, with one response per arm rather than a statistical evaluation. The old
+skill left task selection, sampling and holdouts unresolved; the new skill supplied
+concrete choices. A follow-up exposed and corrected confusion between a short page
+and a short viewport. Astra independently reviewed the playbook and formed a bounded
+campaign plan. These checks establish clearer operational guidance, not improved
+page quality; no new UI authors were run for this rewrite.
+
+Review also found that `eval-pairs` writes into its first input run, so repeated
+comparisons can replace earlier evidence. The README recipe now isolates output
+indexes and links the original screenshots/discovery directories. Its setup and
+actual report generation were exercised against the four saved configuration runs,
+reusing their existing verdicts: all eight images remained and no missing-screen
+placeholder appeared. Evidence is in `.tmp/ui-grinding/research/recipe-check.json`;
+no new judge result was generated by that check.

@@ -25,7 +25,7 @@ the author's assessment.
 ## Derive
 
 For a recurring sweep, start from a user workflow in the examples. Use
-`skills/leaf/assets/AGENTS.md` for UI contracts, render gates, and the
+`browser/AGENTS.md` for UI contracts, render gates, and the
 ownership map.
 Source access belongs in this audit, including when delegating it.
 
@@ -142,7 +142,7 @@ support that judgment. Computed styles and geometry explain a visual result; the
 establish that it looks coherent. Test affected paint in both color schemes and in
 print.
 
-Judge against `skills/leaf/assets/AGENTS.md`, "Layout and motion". Keep visual
+Judge against `browser/AGENTS.md`, "Layout and motion". Keep visual
 grammar in browser judgment; automate the concrete failures it causes.
 
 ## Reconcile

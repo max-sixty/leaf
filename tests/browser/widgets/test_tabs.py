@@ -4,8 +4,6 @@ history, the stuck strip and the headers stacked under it, and queue rows and gr
 import re
 
 import pytest
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
 from render_harness import (
@@ -24,6 +22,9 @@ from render_harness import (
     undo,
     wait_for_revision,
 )
+
+from leaf import render_checks as render_checks_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -978,7 +979,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
     expect(answer).to_have_text("Fix")
     # The undo is announced by the name the gesture's own acknowledgement used.
     expect(page.locator(".lf-live")).to_have_text(
-        "Undid: Chose “Escalate to engineering” — sent"
+        "Undid: Chose “Escalate to engineering” · just now — sent"
     )
     assert row.bounding_box() == before
     page.locator("#o-a-long").get_by_role("checkbox").click()

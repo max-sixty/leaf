@@ -30,6 +30,7 @@ from interact_support import (
     thread_records,
     woken,
 )
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import delivery as delivery_model
@@ -1105,6 +1106,7 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
     that envelope, so a change to `DELIVERY` fails here until the case is frozen
     again with `freeze_delivery`."""
     import yaml
+
     from leaf.registry.schema import schema_error, with_leaf_resources
 
     def strings(value):

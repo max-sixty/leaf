@@ -5,10 +5,6 @@ import re
 
 import pytest
 from click.testing import CliRunner
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
@@ -35,6 +31,11 @@ from render_harness import (
     told,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -173,7 +174,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # of the following to get there. A composer the user opened is one of the gestures
     # a revision install defers to and does not end when focus moves; words in a box the
     # user merely has focus in do, and the draft store rather than a hold is what
-    # carries those across the install (`skills/leaf/assets/AGENTS.md`, "Runtime
+    # carries those across the install (`browser/AGENTS.md`, "Runtime
     # ownership").
     page.locator("#live-reading").click(click_count=3)
     page.locator(".lf-fab-input").click()

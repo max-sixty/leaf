@@ -29,19 +29,6 @@ import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
 from interact_support import declared, running_http_server
-from leaf import data as data_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import schema as schema_model
-from leaf.event_log import _parse_events, read_events
-from leaf.events import bare_reaction, build_threads
-from leaf.passages import enclosing_ids
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.revision_artifact import read_artifact
-from leaf.service import acknowledged
-from leaf.structure import SourceDocument
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
@@ -72,6 +59,19 @@ from render_harness import (
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "Waits".
 from journeys import expect_showing
+from leaf import data as data_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import layer as layer_model
+from leaf import schema as schema_model
+from leaf.event_log import _parse_events, read_events
+from leaf.events import bare_reaction, build_threads
+from leaf.passages import enclosing_ids
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.revision_artifact import read_artifact
+from leaf.service import acknowledged
+from leaf.structure import SourceDocument
 
 ROOT = Path(__file__).parents[2]
 DOCS = ROOT / "docs"
@@ -367,13 +367,9 @@ def test_product_pages_are_published_as_complete_page_records(site):
             "events.jsonl",
         ):
             assert (page / name).is_file(), f"{source.name}: no {name}"
-        for name in (
-            "instructions",
-            "revisions",
-            "runtime",
-            "vendor",
-            "widgets",
-        ):
+        # The runtime is the serving Leaf's, which the release publishes beside each
+        # revision rather than the page vendoring it (`runtime_selection`).
+        for name in ("instructions", "revisions", "vendor", "widgets"):
             assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
         artifact = read_artifact(page, files_model.latest_revision(page))
         for path, resource in artifact.resources.items():
@@ -610,19 +606,13 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         for name in (
             "events.jsonl",
             "icon.svg",
-            "leaf.js",
             "registry.json",
             "theme.css",
         ):
             assert (page_dir / name).is_file(), f"{source.name}: no {name}"
-        for sub in (
-            "instructions",
-            "media",
-            "revisions",
-            "runtime",
-            "vendor",
-            "widgets",
-        ):
+        # The runtime is the serving Leaf's, which the release publishes beside each
+        # revision rather than the page vendoring it (`runtime_selection`).
+        for sub in ("instructions", "media", "revisions", "vendor", "widgets"):
             assert list((page_dir / sub).iterdir()), f"{source.name}: {sub}/ is empty"
         assert declared(page_dir)["state"] == "idle"
         assert not (page_dir / "service.json").exists()

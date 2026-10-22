@@ -1,7 +1,8 @@
 """A stamped version as one HTML file that opens offline.
 
-The export packages the captured revision, its resources, and the page's authoritative
-state reading into one file. Neighboring live pages are omitted: their access URLs
+The export packages the captured revision, its resources, the exporting Leaf's
+runtime (`runtime_selection`), and the page's authoritative state reading, which that
+runtime reads, into one file. Neighboring live pages are omitted: their access URLs
 grant machine-wide server access and have no place in an offline record.
 Its resource owner allocates one object URL per embedded body before handing the
 composed document to the native HTML parser; Leaf's normal
@@ -45,6 +46,7 @@ from leaf.revision_delivery import (
     json_script,
     rebase_css,
 )
+from leaf.runtime_selection import executing
 from leaf.served_state.service import PageStateService
 from leaf.structure import UTF8_BOM, SourceDocument
 from leaf.thread_context import logged_fragment
@@ -339,8 +341,12 @@ def export_document(
                     f"leaf:{path}": url for path, url in sorted(modules.items())
                 }
             },
+            # The generation the revision was captured at, which the runtime holds
+            # the embedded registry and reading to (`layer-client.js`), as it holds a
+            # served document's.
             runtime=(
                 '<script type="application/json" data-lf-runtime data-lf-offline '
+                f'data-lf-layer="{artifact.registry["$layer"]["generation"]}" '
                 'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
                 f"{payload}</script>"
             ),
@@ -419,7 +425,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> dict:
             "Live samples need a server, so a page that declares one "
             "cannot be exported."
         )
-    artifact = read_artifact(page_dir, revision)
+    artifact = executing(read_artifact(page_dir, revision))
     snapshot = capture_page_snapshot(
         page_dir, document, revision, url=f"/versions/{name}", artifact=artifact
     )

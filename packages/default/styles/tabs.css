@@ -173,8 +173,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
 }
 /* One panel at a time is the whole of what the strip's handler does, so it is
  * offered only in the live page and the rest is what the markup already says.
- * A control whose state the browser owns needs no such block and has none;
- * that is the whole difference between this widget and lf-shot's checkbox. */
+ * A control whose state the browser owns needs no such block. */
 @media screen {
   /* :where keeps the frame face below the generic edge trim's specificity. A set the
    * runtime has yet to upgrade wears each face it will have from the first paint: each

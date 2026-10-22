@@ -144,6 +144,12 @@ export class LeafEditorView extends EditorView {
       ...config,
       state: withNavigation(config.state ?? EditorState.create(config)),
     });
+    // Native Tab and shadow-root delegation bypass focus(). A hidden retained
+    // editor may have lost its DOM selection while its state kept the caret.
+    // Restore that caret in the arrival task, before the next key can edit at the
+    // browser's collapsed position. Pointer selection follows focus and still places
+    // the caret at the words the user pressed.
+    this.contentDOM.addEventListener("focus", () => this.placeSelection());
   }
 
   setState(state) {

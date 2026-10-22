@@ -13,6 +13,7 @@ import {
 import "./bundle-passage-facts.js";
 import {
   coarsePointer,
+  layerHeaders,
   layoutWindow,
   randomId,
   seenRect,
@@ -76,7 +77,9 @@ function observeUserView() {
   function send(view, keepalive = false) {
     void fetch(pageUrl("api/user-view"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // The runtime it names keeps a tab from before an update from describing the
+      // page a newer runtime draws (`_runtime_gate`).
+      headers: layerHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ ...view, checks }),
       keepalive,
       signal: keepalive ? void 0 : globalThis.AbortSignal.timeout(REPORT_MS)

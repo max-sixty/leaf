@@ -41,6 +41,7 @@ import { pageSelection } from "./capture.js";
 import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
+import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS, rowArrows, savedReadingSettled } from "../keyboard/bindings.js";
 import {
@@ -64,17 +65,12 @@ import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 import { raiseError } from "../errors.js";
+import { isNativeLayer } from "../shadow-tree.js";
 
-// The floating field immediately accepts a comment on the target the user named.
-// Tab from the field, or `e` while it stands unfocused, unfolds every other response
-// the target offers. The field is the group's stable primary control; reaction
-// vocabulary changes the choices, not the disclosure or the field's place.
-// The comment field deliberately has one primary action: Dictate when available while empty,
-// Send with words, including on phones. Suggest and
-// reactions retain keyboard routes; reconsidering a pointer or touch disclosure is
-// a product decision ("Touch routes" in keyboard/AGENTS.md).
-// One affordance, raised only where the user has already pointed: a native text
-// selection or an explicit Comment target gesture on an item or visual part.
+// The comment field keeps Send or Dictate as its primary action. Other responses
+// open in one anchored picker from the adjacent button, Tab, or e. The same picker
+// follows the composer between the floating panel, a passage, and a widget outlet;
+// opening it never changes the field's size or position.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (passages.js, leafSurface)
 fabBar.setAttribute("role", "group");
@@ -93,6 +89,7 @@ fab.id = "lf-comment-button";
 fab.title = "Comment";
 export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
+fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
@@ -101,7 +98,19 @@ const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   collapse: true,
 });
 fabOptions.append(fabSuggest);
-fabBar.append(fab, fabOptions);
+export const fabOptionsTrigger = responseAction(
+  el("button", "lf-ui lf-response-trigger"),
+  {
+    icon: "more",
+    label: "Other responses",
+    collapse: true,
+    behavior: "disclosure",
+  },
+);
+fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
+fabOptionsTrigger.setAttribute("aria-expanded", "false");
+fabOptionsTrigger.popoverTargetElement = fabOptions;
+fabBar.append(fab, fabOptionsTrigger, fabOptions);
 
 const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
@@ -349,10 +358,6 @@ export function createSelectionComposer({
     );
   }
 
-  // The other responses have the same contract as a target's margin disclosure: unfold
-  // the remaining local actions and keep the group's primary control in place.
-  // The composer supplies a field instead of a primary margin entry, so it owns this layout
-  // adapter rather than borrowing the margin's target aggregation and spill machinery.
   const focusResponseOption = (focus) => {
     // The bar may place a frame or more later; a newer input meanwhile keeps the user
     // where it put them.
@@ -369,7 +374,7 @@ export function createSelectionComposer({
     });
   };
 
-  function setResponseOptions(open, { focus = null, place = true } = {}) {
+  function setResponseOptions(open, { focus = null } = {}) {
     const next = Boolean(open && fabAnchorAt() && responseOptionsAvailable());
     if (next === responseOptionsOpen) {
       if (next && focus) focusResponseOption(focus);
@@ -377,8 +382,9 @@ export function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
-    fabBar.classList.toggle("lf-response-open", next);
-    if (place && fabAnchorAt()) showFab(fabAnchorAt());
+    keeps(fabOptionsTrigger, "aria-expanded", String(next));
+    if (next) showNativeLayer(fabOptions, { source: fabOptionsTrigger });
+    else closeNativeLayer(fabOptions);
     if (next && focus) focusResponseOption(focus);
     paintKeys();
     return next;
@@ -393,12 +399,12 @@ export function createSelectionComposer({
         (!composerOpen || (!pendingAbout && !pendingDrawing))
       ),
     );
-    if (responseOptionsOpen && !responseOptionsAvailable())
-      setResponseOptions(false, { place: false });
+    keepsHidden(fabOptionsTrigger, !responseOptionsAvailable());
+    if (responseOptionsOpen && !responseOptionsAvailable()) setResponseOptions(false);
   }
 
   function resetResponseOptions() {
-    setResponseOptions(false, { place: false });
+    setResponseOptions(false);
   }
 
   // Whether the composer is up, and the only thing that decides it. The stylesheet renders
@@ -769,7 +775,13 @@ export function createSelectionComposer({
         }
       },
     });
-    fabSuggest.onclick = () => setSuggestionMode(!suggestionMode);
+    fabSuggest.onclick = () => {
+      setResponseOptions(false);
+      setSuggestionMode(!suggestionMode);
+    };
+    fabOptions.addEventListener("toggle", () => {
+      if (!isNativeLayer(fabOptions)) setResponseOptions(false);
+    });
     onStanding((node) => {
       if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);

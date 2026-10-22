@@ -510,7 +510,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(
         first.locator(f'.lf-page-thread[data-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
-    first.get_by_role("button", name="More inspection").click()
+    first.get_by_role("button", name="Capture details").click()
     for label, href in (
         ("Open before page", "https://base.example/rev/runs?owner=max"),
         ("Open after page", "https://candidate.example/rev/runs?owner=max"),
@@ -521,9 +521,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first.locator(".lf-vr-provenance")).to_contain_text(
         "120, 80 · 640 × 220 CSS px"
     )
-    first.get_by_role("checkbox", name="Full frame").check()
-    first.get_by_role("checkbox", name="Actual size").check()
     page.keyboard.press("Escape")
+    first.get_by_role("button", name="Image scale and originals").click()
+    first.get_by_role("checkbox", name="Full frame").check()
+    first.get_by_role("button", name="100%", exact=True).click()
     rendered(page)
     width = first.locator("lf-shot img").first.evaluate(
         "node => node.getBoundingClientRect().width"
@@ -571,7 +572,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
             has_text=record["cases"][1]["result"]
         )
     ).to_have_count(1)
-    second.get_by_role("button", name="More inspection").click()
+    second.get_by_role("button", name="Capture details").click()
     expect(second.locator(".lf-vr-provenance")).to_contain_text(
         "2026-10-08T10:00:00-07:00"
     )

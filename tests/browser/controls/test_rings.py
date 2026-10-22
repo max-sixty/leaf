@@ -434,7 +434,7 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
       box.classList.toggle('probe-target', true);
       for (const name of ['lf-mark-el', 'lf-mark-hover'])
         box.classList.toggle(name, false);
-      box.toggleAttribute('data-lf-focus', how === 'focused mark');
+      box.toggleAttribute('data-lf-focus-visible', how === 'focused mark');
       box.style.outline = '';
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
       if (how === 'focused mark') box.classList.add('lf-mark-el');

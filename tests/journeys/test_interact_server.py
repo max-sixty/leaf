@@ -49,6 +49,7 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
+from leaf.runtime_selection import serving_runtime
 
 
 def test_authored_recordings_are_served_with_seekable_captured_bytes(
@@ -76,7 +77,10 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
     markup = "".join(f'<audio controls src="{path}"></audio>' for path, _ in paths)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
     publish(page_dir)
-    captured = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    captured = (
+        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
+        f"/{serving_runtime().identity}"
+    )
     for path, mime in paths:
         for route in (path, captured + path):
             conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
@@ -170,7 +174,10 @@ def test_server_round_trip(server, page_dir):
         f'<meta name="lf-widgets" data-lf-runtime content="{widgets}">'
         '<meta name="lf-version" data-lf-runtime content="1">'
     ).encode()
-    artifact_root = f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
+    artifact_root = (
+        f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
+        f"/{serving_runtime().identity}"
+    )
     entry = (
         f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
     ).encode()
@@ -183,9 +190,9 @@ def test_server_round_trip(server, page_dir):
         assert response.headers["Content-Security-Policy"] == "frame-ancestors 'self'"
     assert b"lf-board" in pinned and marker in pinned
     assert not (page_dir / "versions").exists()
-    # Vendored files serve; the log and directory paths don't.
+    # Vendored files and the runtime's probes serve; the log and directory paths
+    # don't.
     for path in [
-        "/leaf.js",
         "/theme.css",
         "/registry.json",
         "/widgets/lf-tabs.js",
@@ -600,7 +607,10 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     assert "Backfill plan\u2028Q3" in body
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
-    artifact_root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    artifact_root = (
+        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
+        f"/{serving_runtime().identity}"
+    )
     theme = structure_model.SourceDocument(body).tree.find(
         "link", attrs={"href": f"{artifact_root}/theme.css"}
     )

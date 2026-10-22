@@ -1,8 +1,11 @@
 """Materialize the immutable HTTP half of a live Leaf page.
 
-Every document selects its captured registry, bootstrap, layer, and authored
-resources. Revision resource trees share the same logical URLs as HTTP delivery,
-including widget aliases resolved through implementation provenance. Mutable
+Every document selects its captured registry, layer, and authored resources, and
+runs the publishing Leaf's runtime (`runtime_selection`), which each revision's
+tree holds beside them: a release names the runtime it was built with, so its
+addresses never need the runtime's identity. Revision resource trees share the same
+logical URLs as HTTP delivery, including widget aliases resolved through
+implementation provenance. Mutable
 candidate inputs never participate in publishing. Content-addressed media is written
 at the page root, where every document, message, and card addresses it.
 """
@@ -21,6 +24,7 @@ from .files import (
 from .http import page_delivery
 from .revision_artifact import read_artifact
 from .revision_delivery import DeliveryAddress, compose_document, delivered_resource
+from .runtime_selection import executing
 from .schema import MEDIA_DIR, SERVED_PATH
 
 
@@ -58,7 +62,7 @@ def write_live_shell(
 
     documents = {}
     for revision in list_revisions(page_dir):
-        artifact = read_artifact(page_dir, revision)
+        artifact = executing(read_artifact(page_dir, revision))
         relative_root = Path("revisions") / revision_path(page_dir, revision).stem
         root = asset_root if asset_root is not None else page_root
         revision_root = root.rstrip("/") + "/" + relative_root.as_posix()

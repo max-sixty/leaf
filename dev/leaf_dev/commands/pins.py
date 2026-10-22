@@ -14,7 +14,7 @@ The command builds that page from this working tree, and with `--base` from the 
 base with `main` (or REF) too, and writes a Leaf page at `.tmp/pins/report/pins.html`
 that shows each case's crop at every viewport, its targets outlined in blue, beside the
 faults read there. With `--base` each crop is an `lf-shot` pair whose
-Pixel difference view marks where the base drew a pin in red and this tree in blue. Both
+Pixels view marks where the base drew a pin in red and this tree in blue. Both
 arms' crops of a case cover the same rectangle, so the pair lines up. Each run rewrites
 that one page, so a running `--user` preview of it shows the new run as a revision, with
 the threads left on it where they were. It prints the command that starts that preview.
@@ -606,7 +606,7 @@ def _fault_list(case: Case, viewport: str, found: list[tuple[str, str]]) -> str:
 
 
 PAIRS = (
-    " Choose Pixel difference for changed pixels: red where the base drew something, such as"
+    " Choose Pixels for changed pixels: red where the base drew something, such as"
     " a pin it has moved, and blue where this tree draws it. Slider shows the two"
     " images under a divider."
 )

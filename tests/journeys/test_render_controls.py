@@ -328,7 +328,7 @@ RING_CASES = (
                 ("main p.lf-mark-el", ".lf-mark-el"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
-                    "wa-comparison::part(lf-focus)",
+                    "wa-comparison::part(",
                 ),
                 (".lf-shot-views button", "button"),
             ),

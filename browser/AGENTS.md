@@ -188,7 +188,9 @@ representative desktop viewport.
 - **Nothing the user must read, press, or decide waits on a clock.** Motion the user
   waits on stays under 300ms. A delay may hide a flicker but never adds a minimum
   spinner time or a staged reveal. `runtime/motion.js` owns the shared motion gate,
-  easing and reduced-motion check, and the theme's `--lf-motion-*` properties set durations.
+  easing and reduced-motion check, and `--lf-motion-*` properties set durations and
+  curves: the theme's for the document, and a runtime surface's own sheet for that
+  surface, as `floating-panel.css` does for the panel.
 
 ## Runtime ownership
 

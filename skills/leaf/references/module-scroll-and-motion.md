@@ -191,9 +191,10 @@ the focus and scroll Leaf recorded.
 
 ## Motion
 
-Animate with `motion(element, keyframes, ms, pseudoElement?)`, not `element.animate`.
-The optional native pseudo-element target lets a disclosure animate its
-`::details-content` without adding a layout wrapper. The stylesheet's
+Animate with `motion(element, keyframes, ms, {pseudoElement, delay})`, not
+`element.animate`. The optional native pseudo-element target lets a disclosure animate
+its `::details-content` without adding a layout wrapper, and a `delay` holds the first
+frame until the motion starts. The stylesheet's
 reduced-motion rule doesn't reach Web Animations, so `motion` returns `null` for a user
 who asked for less motion, and before `body[data-lf-presented]`; treat that as a
 finished animation. `reducedMotion()`, `scrollBehavior()` and

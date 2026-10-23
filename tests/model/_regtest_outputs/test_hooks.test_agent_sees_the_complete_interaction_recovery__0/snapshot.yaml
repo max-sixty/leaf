@@ -59,9 +59,9 @@ delivered at prompt:
             use the active revision. If the revision removes the thread's anchor,
             move the thread in the same reply with `--section <id>` (narrowed by
             `--quote` or `--part`), or `--detach` it if its subject left the page.
-            Each answer takes `--done` when it delivers what was asked, or `--todo
-            "<what you owe>"` when it promises work beyond this turn, which stays
-            on you until `leaf task end` (`references/conversation-loop.md`, "Long-running
+            Use `--done` when the answer delivers what was asked, or `--todo "<what
+            you owe>"` when it promises work beyond this turn, which stays on you
+            until `leaf task end` (`references/conversation-loop.md`, "Long-running
             work"). When your reply needs the user's answer, decision, permission
             or review, add `--obligation` to put the message on On me until they
             answer. Omit it for progress or information that needs no response.

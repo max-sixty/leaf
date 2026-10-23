@@ -31,8 +31,8 @@ class RateLimited(RuntimeError):
     """The provider refused the request for rate limits (HTTP 429)."""
 
 
-# No tools, plugins, hooks or project instructions: a structured inference request
-# must not act on the supplied text. Luna accepts `none` effort but not `minimal`
+# Disable tools, plugins, hooks and project instructions. Codex can still load
+# its home AGENTS.md (thread_titles documents that host context). Luna accepts `none` effort but not `minimal`
 # (codex-cli 0.160); an unavailable host model fails the request.
 CODEX_MODEL = "gpt-6-luna"
 APP_SERVER_EFFORT = "none"

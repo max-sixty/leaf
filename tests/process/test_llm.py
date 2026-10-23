@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 
 import pytest
@@ -115,17 +116,24 @@ def test_llm_rejects_untrusted_requests_before_inference(
     assert not fake_claude.exists()
 
 
-def test_llm_failures_do_not_retry(server, claimed, monkeypatch):
+@pytest.mark.parametrize(
+    "failure",
+    [
+        RuntimeError("The login needs refreshing"),
+        subprocess.TimeoutExpired("claude", 60),
+    ],
+)
+def test_llm_failures_do_not_retry(server, claimed, monkeypatch, failure):
     calls = []
 
     def fail(*args, **kwargs):
         calls.append((args, kwargs))
-        raise RuntimeError("The login needs refreshing")
+        raise failure
 
     monkeypatch.setattr(inference, "claude_code_generate", fail)
     status, answer = infer(server)
     assert status == 502, answer
-    assert "login needs refreshing" in answer["error"]
+    assert str(failure) in answer["error"]
     assert len(calls) == 1
 
 

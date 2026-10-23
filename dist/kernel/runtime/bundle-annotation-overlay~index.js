@@ -435,7 +435,7 @@ function createThreadPreview({
           let edge = 0;
           let height = above ? 12 : 0;
           if (above) {
-            const top = transcript.getBoundingClientRect().top + transcript.clientTop;
+            const top = transcript.getBoundingClientRect().top + transcript.clientTop + parseFloat(getComputedStyle(transcript).paddingTop);
             for (const head of transcript.querySelectorAll(".lf-msg-head")) {
               const box = head.getBoundingClientRect();
               if (!box.height || box.bottom <= top) continue;

@@ -97,6 +97,11 @@ not eliminate application coordination: semantic proof, asynchronous preparation
 generation checks, cancellation and retained editor ownership remain necessary.
 Those are Leaf responsibilities, and deleting them would weaken correctness.
 
+Replacing the public Lit widget API requires protocol 18. A layer vendored under
+main’s protocol 17 is refused and re-vendored before serving; no runtime shim keeps
+its removed imports alive. The composer draft remains at its own unchanged `since`
+17, independently of this API-only bump.
+
 Useful work to carry onto Lit main:
 
 - Express which committed DOM a dependent owner requires, using native reactive

@@ -6,8 +6,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record, element_declaration
-from leaf import data as data_model
-from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import (
@@ -32,6 +30,8 @@ from render_harness import (
 from browser.controls import (
     RING_NEW_STOP,
 )
+from leaf import data as data_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -119,8 +119,10 @@ def test_an_open_part_wears_a_tab_panels_ring_on_its_own_edge(browser, serve):
     assert any("left edge is under" in cover for cover in covered["covers"]), covered
 
 
-def test_controls_share_pointer_and_keyboard_focus_rings(browser, serve):
-    """Focus has one ring for native controls, linked carriers, and shadow controls."""
+def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
+    browser, serve
+):
+    """Clicks retain standing; keyboard arrivals show one ring, including carriers."""
     declaration = element_declaration("lf-shadow-focus", upgrade=True)
     declaration["x-shadow"] = True
     page = open_page(
@@ -188,10 +190,10 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         expect(control).to_be_focused()
         rendered(page)
         pointer = carrier.evaluate(paint)
-        assert pointer["style"] == "solid", pointer
+        assert pointer["style"] == "none", pointer
         drawn = rings_drawn(page)
         samples = [ring for ring in drawn if ring["sample"]]
-        assert len(samples) == 1 and samples[0]["rule"], drawn
+        assert not samples, drawn
         assert not ring_faults(drawn, "after pointer arrival")
 
         # Return by sequential navigation to cover the tab list's roving stop and
@@ -200,11 +202,9 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         page.keyboard.press("Tab")
         expect(control).to_be_focused()
         rendered(page)
-        assert carrier.evaluate(paint) == pointer
+        assert carrier.evaluate(paint)["style"] == "solid"
         drawn = rings_drawn(page)
-        assert [ring["rule"] for ring in drawn if ring["sample"]] == [
-            samples[0]["rule"]
-        ], drawn
+        assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
         assert not ring_faults(drawn, "after keyboard arrival")
 
     assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
@@ -244,10 +244,54 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     expect(select).to_have_js_property("value", None)
     one_select_ring(combobox, "after clearing the select")
     shadow_button.click()
-    one_select_ring(shadow_button, "after leaving the select")
+    expect(shadow_button).to_be_focused()
+    rendered(page)
+    assert not rings_drawn(page)
     assert not select.locator('[part~="combobox"]').evaluate(
         "el => el.part.contains('lf-focus-within')"
     ), "the field retained its public focus part after focus left"
+
+
+def test_choice_rings_fit_clipped_edges_and_follow_native_visibility(browser, serve):
+    """A whole-label cue survives clipping without turning every click into a cue."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Choices",
+                """
+<h1>Choices</h1>
+<div style="overflow:clip;display:flex;gap:16px">
+<label class="choice"><input id="check" type="checkbox">Outline changes</label>
+<label class="choice"><input id="radio" type="radio" name="view">Full frame</label>
+</div>
+<p><button>Next</button></p>
+""",
+            )
+        ),
+    )
+    for ident in ("check", "radio"):
+        page.get_by_role("button", name="Next", exact=True).click()
+        control = page.locator(f"#{ident}")
+        label = control.locator("..")
+        control.click()
+        expect(control).to_be_focused()
+        rendered(page)
+        assert label.evaluate("n => getComputedStyle(n).outlineStyle") == "none"
+        # A key changes visibility even when focus stays on the same control.
+        page.keyboard.press("Space")
+        rendered(page)
+        assert label.evaluate("n => getComputedStyle(n).outlineStyle") == "solid"
+        assert not ring_faults(rings_drawn(page), "choice inside a clipped toolbar")
+        geometry = label.evaluate("""n => {
+          const r=n.getBoundingClientRect(), c=n.querySelector('input').getBoundingClientRect();
+          const s=getComputedStyle(n);
+          return {offset:parseFloat(s.outlineOffset), width:parseFloat(s.outlineWidth),
+                  room:c.left-r.left};
+        }""")
+        assert geometry["offset"] + geometry["width"] <= 0, geometry
+        assert geometry["room"] > geometry["width"], geometry
+        page.keyboard.press("Tab")
 
 
 def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, serve):
@@ -390,7 +434,7 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
       box.classList.toggle('probe-target', true);
       for (const name of ['lf-mark-el', 'lf-mark-hover'])
         box.classList.toggle(name, false);
-      box.toggleAttribute('data-lf-focus', how === 'focused mark');
+      box.toggleAttribute('data-lf-focus-visible', how === 'focused mark');
       box.style.outline = '';
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
       if (how === 'focused mark') box.classList.add('lf-mark-el');

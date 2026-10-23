@@ -6,10 +6,6 @@ import re
 from itertools import pairwise
 
 import pytest
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf import media as media_model
-from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
@@ -34,6 +30,10 @@ from browser.threads import (
     open_capture_area,
     paste_image,
 )
+from leaf import event_log as events_model
+from leaf import exporting as exporting_model
+from leaf import media as media_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -507,8 +507,10 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
     assert image.size == (360, 260)
     page.get_by_role("button", name="Remove attached image 1", exact=True).tap()
-    expect(attachment).to_have_count(0)
+    # The next press began while drag timers were held; let its native activation
+    # finish before reading the result.
     page.clock.resume()
+    expect(attachment).to_have_count(0)
     assert events_model.read_events(serve.page_dir) == before
     assert page.evaluate("!captureTouchStarts.at(-1).defaultPrevented")
     touch.detach()

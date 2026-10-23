@@ -9,8 +9,6 @@ from browser.test_chrome_contracts import (
 )
 from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     panel_comment,
@@ -35,6 +33,8 @@ from render_harness import (
 )
 
 from journeys import expect_panel_says
+from leaf import data as data_model
+from leaf import event_log as events_model
 
 
 def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
@@ -314,8 +314,12 @@ def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
         before = after
     else:
         pytest.fail("no last line filled the field before its room")
+    # A newly grown line carries the existing words with the panel edge; compare
+    # the resulting places after that ride finishes.
+    panel_settled(page)
     full = reading()
     page.keyboard.press("Shift+Enter")
+    panel_settled(page)
     opened = reading()
     page.keyboard.type("S")
     typed = reading()

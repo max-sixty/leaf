@@ -1,6 +1,6 @@
 # What the shift watch costs, and the cheaper gate we didn't land
 
-`tests/shift_watch.js` enforces the Stability rule (`skills/leaf/assets/AGENTS.md`,
+`tests/shift_watch.js` enforces the Stability rule (`browser/AGENTS.md`,
 "Stability") by keeping a ledger of where everything on the page stands and re-reading
 it after each change. This note records what that costs, an alternative that was built,
 measured and dropped in October 2026, and what would make it worth revisiting.

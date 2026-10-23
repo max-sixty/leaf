@@ -70,6 +70,13 @@ Write for what the user has seen: this conversation and the page so far. Introdu
 names a decision depends on, show evidence for any claim they could doubt, and drop the
 story of how you got there.
 
+The user knows the facts they gave you and reads the page against them, so one figure
+that differs from theirs makes them doubt the rest. Keep each supplied fact as given,
+with the measure it belongs to. A number, trend, count or consequence you work out from
+them is your claim: check it against the figures it rests on, and keep those figures
+beside it. Where your working contradicts a supplied fact, show both and say which the
+page uses, rather than correcting theirs in place.
+
 Use `lf-gloss` for a local term, acronym or premise the reader can open beside a
 phrase. Keep citations as links and keep visible any qualification the argument rests
 on.

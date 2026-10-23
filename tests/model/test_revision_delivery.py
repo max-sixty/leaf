@@ -7,6 +7,7 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
+
 from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner, ReadableAssets
 from leaf.files import revision_path
@@ -27,6 +28,8 @@ from leaf.revision_delivery import (
     mark_declared,
     rebase_document,
 )
+from leaf.runtime_selection import executing
+from leaf.schema import ASSETS
 from leaf.structure import SourceDocument
 
 PAGE_ROOT = "/p/user"
@@ -484,8 +487,9 @@ const plain = "../helper.js";
     )
 
 
-def test_authored_lazy_positioning_import_uses_the_captured_public_provider(page_dir):
-    """Authored imports keep the provider vendored with their immutable revision."""
+def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page_dir):
+    """An authored import names the public provider, which the revision does not
+    capture: the Leaf delivering it supplies the provider with its runtime."""
     provider = "/vendor/floating-ui.esm.js"
     module = f'export const position = () => import("{provider}");'
     (page_dir / "page" / "position.js").write_text(module)
@@ -500,10 +504,59 @@ def test_authored_lazy_positioning_import_uses_the_captured_public_provider(page
     artifact = read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/position.js"]
     assert provider in json.loads(artifact.manifest)["public_modules"]
-    assert artifact.resources[provider].data == (page_dir / provider[1:]).read_bytes()
+    assert provider not in artifact.resources
+    assert (
+        executing(artifact).resources[provider].data
+        == (ASSETS / provider[1:]).read_bytes()
+    )
     assert deliver_resource(
         resource, "/page/position.js", ADDRESS
     ).data.decode() == module.replace(provider, ROOT + provider)
+
+
+def test_a_vendored_replacement_of_a_public_provider_is_captured_and_served(page_dir):
+    """A package may replace a public vendor module, and the page then runs its own:
+    the revision captures the vendored file, which wins over the runtime's."""
+    provider = "/vendor/floating-ui.esm.js"
+    own = b"export const computePosition = () => 'the package\\'s own';"
+    (page_dir / provider[1:]).write_bytes(own)
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None, activated.error
+    artifact = read_artifact(page_dir, activated.revision)
+    assert artifact.resources[provider].data == own
+    assert executing(artifact).resources[provider].data == own
+
+
+def test_an_export_runs_the_exporters_runtime(page_dir, monkeypatch):
+    """An export pairs the state the exporting Leaf reads with that Leaf's runtime,
+    whichever Leaf captured the version, since only that runtime reads that state."""
+    from click.testing import CliRunner
+
+    from leaf import cli as cli_model
+    from leaf import runtime_selection
+    from leaf.exporting import cmd_export
+
+    stamped = CliRunner().invoke(
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "Exported"]
+    )
+    assert stamped.exit_code == 0, stamped.output
+    current = runtime_selection.read_runtime()
+    marker = b"/* the exporting Leaf's runtime */"
+    exporter = runtime_selection.ServingRuntime(
+        {
+            **current.source,
+            "/runtime/prepaint.js": current.source["/runtime/prepaint.js"] + marker,
+        },
+        None,
+        frozenset(),
+        current.probes,
+    )
+    monkeypatch.setattr(runtime_selection, "serving_runtime", lambda: exporter)
+
+    out = page_dir.parent / "export.html"
+    cmd_export(page_dir, out, 1)
+
+    assert marker.decode() in out.read_text()
 
 
 def test_media_has_one_address_wherever_a_page_names_it(tmp_path):

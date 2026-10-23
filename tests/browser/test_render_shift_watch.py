@@ -6,7 +6,6 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_harness import (
     INPUT_WORK_WATCH_SOURCE,
@@ -19,6 +18,8 @@ from render_harness import (
     open_page,
     take_browser_errors,
 )
+
+from leaf.render_checks import rendered
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.
@@ -3365,6 +3366,35 @@ grow.addEventListener('click',()=>room.style.height='40px')</script>""")
         consume_browser_errors(page, moved_within("div#menu"))
 
 
+def test_registered_property_translation_credits_the_box_it_carries(browser):
+    """A native animation can move translate through a registered property."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --slide { syntax: '<length>'; inherits: false; initial-value: 0px; }
+</style><body style="margin:0">
+<button id="start">Start</button>
+<div id="panel" style="translate:var(--slide) 0px"><p>Reading</p></div>
+<div id="room"></div><p id="below">Below</p>
+<script>start.onclick=()=>{
+  window.motion=panel.animate([{'--slide':'200px'},{'--slide':'0px'}], {duration:3000});
+}</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    page.wait_for_function("panel.getBoundingClientRect().left < 180")
+    assert page.evaluate("motion.playState") == "running"
+    before = page.locator("#panel").bounding_box()["x"]
+    page.evaluate("() => { room.style.height = '40px'; }")
+    paint(page)
+    assert before - page.locator("#panel").bounding_box()["x"] > 1
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert not names_move(errors, "div#panel"), errors
+    assert names_move(errors, "p#below"), errors
+
+
 @pytest.mark.parametrize("mode", ["static", "fallback"])
 def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
     page = browser.new_page()
@@ -4030,6 +4060,55 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
                 for comparison in evidence["comparisons"]
             ), evidence
         assert {error.code for error in errors} == {"moved-without-input"}, errors
+    else:
+        assert not errors, errors
+
+
+@pytest.mark.parametrize(
+    "property,fault",
+    [("marginLeft", False), ("marginLeft", True), ("translate", False)],
+    ids=["layout-native", "layout-authored", "translate-native"],
+)
+def test_cancelled_native_translation_credits_its_return_to_layout(
+    browser, property, fault
+):
+    """Cancelling a no-fill effect returns its subject to the underlying layout."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="start">Start</button>
+<div id="panel" style="margin-left:350px"><p>Retained words</p></div>
+<script>start.onclick=()=>{
+  const keyframes = window.effectProperty === 'translate'
+    ? [{translate:'200px 0px'},{translate:'0px 0px'}]
+    : [{marginLeft:'550px'},{marginLeft:'350px'}];
+  window.motion=panel.animate(keyframes, {duration:1000});
+  motion.playbackRate=0;
+  motion.currentTime=500;
+}</script></body>""")
+    )
+    paint(page)
+    page.evaluate("property => window.effectProperty = property", property)
+    page.locator("#start").click()
+    paint(page)
+    before = page.locator("#panel p").bounding_box()
+    assert before["x"] > 400
+    page.evaluate(
+        """fault => {
+          if (fault) panel.style[window.effectProperty] =
+            window.effectProperty === 'translate' ? '80px 0px' : '430px';
+          motion.cancel();
+        }""",
+        fault,
+    )
+    paint(page)
+    after = page.locator("#panel p").bounding_box()
+    assert after["x"] == (430 if fault else 350)
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert names_move(errors, "div#panel"), errors
     else:
         assert not errors, errors
 

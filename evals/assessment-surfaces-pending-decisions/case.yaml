@@ -334,6 +334,9 @@ variants:
   # Across #2506's rename, paired on Claude Code: the case and instructions at
   # 0cc6805bf passed 2/3, at 3fe3eb0af 3/3; the miss was the judge faulting an
   # unrun plan the prompt asks for. Both registered two separate asks.
+  # At 838ad41c7 on Codex, 1/2 interpreted "files unreachable" as forbidding
+  # reading Leaf references. Clarifying reference access passed 2/2 with the
+  # same shipped instructions; this was a probe ambiguity, not a guidance gain.
   prose-review-handoff:
     metadata:
       purpose: "On me: a prose review handoff reconciles an empty queue with the decisions it still needs."
@@ -362,8 +365,9 @@ variants:
         > All checks pass. Other rewrites remain proposals.
         You were about to run `leaf status ~/.local/state/leaf/pages/prose-audit waiting`.
 
-        Finish this turn. Files and services are unreachable here, so write the
-        commands and any HTML edits you would use, followed by the short final reply.
+        Finish this turn. You can read the installed Leaf instructions, but the
+        review page and its services are unreachable here. Write the commands and
+        any HTML edits you would use, followed by the short final reply.
     assert:
       - type: llm-rubric
         metric: reconciled-decisions

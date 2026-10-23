@@ -157,8 +157,12 @@ export function activeFromCookie(
 }
 
 function pageCookieName(prefix: string, pageRoot: string): string {
-  const suffix =
-    pageRoot === "/" ? "root" : `page-${pageRoot.slice(1).replaceAll("/", "_")}`;
+  // URI encoding preserves path identity. Parentheses are URI-safe but cookie-name
+  // separators, so encode those too.
+  const path = encodeURIComponent(pageRoot.slice(1))
+    .replaceAll("(", "%28")
+    .replaceAll(")", "%29");
+  const suffix = pageRoot === "/" ? "root" : `page-${path}`;
   return `${prefix}-${suffix}`;
 }
 

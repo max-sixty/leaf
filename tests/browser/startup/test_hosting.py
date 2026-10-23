@@ -5,8 +5,6 @@ import re
 from urllib.parse import urlparse
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import SHORT_SUGGESTION, live_url
 from render_harness import (
@@ -22,6 +20,9 @@ from render_harness import (
     refuse,
     watched,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

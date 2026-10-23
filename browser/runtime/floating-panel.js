@@ -369,7 +369,7 @@ export function createFloatingPanel({
   const controls = el("div", "lf-fp-controls");
   opened.append(head, stage, controls);
   const row = el("div", "lf-fp-row");
-  const menu = el("div", "lf-fp-menu");
+  const menu = el("div", "lf-fp-menu scroll");
   menu.id = "lf-fp-menu";
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", "Page");
@@ -1979,7 +1979,7 @@ export function createFloatingPanel({
         latest.failed
           ? html`<div class="lf-fp-failed" role="none">
               <b>${latest.label}</b>
-              <p class="lf-fp-failed-error">${latest.error}</p>
+              <p class="lf-fp-failed-error scroll">${latest.error}</p>
             </div>`
           : nothing
       }
@@ -2834,7 +2834,7 @@ export function createFloatingPanel({
   // centred in a room wider on both sides, which stood it off centre once it had a
   // count, as On me nearly always does.
   const tabs = (names, current, label, choose, count) =>
-    html`<div class="lf-fp-filters" role="group" aria-label="Show">
+    html`<div class="lf-fp-filters scroll" role="group" aria-label="Show">
       ${names.map((name) => {
         const counted = count(name);
         return html`<button

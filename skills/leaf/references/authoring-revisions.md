@@ -101,5 +101,9 @@ as a new decision with new ids. Use `$restated` to withdraw the decision and ask
 Don't mark a decision `settled` until you have finished applying it, and keep a section
 open while the user is still commenting there.
 
+The user reads threads to learn where their input stands. When a revision settles or
+lands what an open thread discusses, reply in that thread with what happened and where
+the page shows it, so the thread is not left looking unanswered.
+
 Before handing the page back, check that its status, open to-dos and outstanding work
 agree with what you tell the user.

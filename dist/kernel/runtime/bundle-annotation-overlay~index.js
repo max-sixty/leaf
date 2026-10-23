@@ -1473,24 +1473,18 @@ function createMarginProjection({
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
     const direction = binding === rowArrows(active)[1] ? 1 : -1;
-    const { row, wrapped } = cycledRow(buttons, active, direction);
-    focusDestination(row, "move");
-    beginWalk(
-      "margin-entry",
-      "Action",
-      () => {
-        const currentLocation = focused();
-        const currentLocationHost2 = closestAcross(
-          currentLocation,
-          "[data-lf-margin-for]"
-        );
-        return listWalkPosition(
-          clusterMarginEntries(currentLocationHost2),
-          currentLocation
-        );
-      },
-      wrapped
-    );
+    focusDestination(cycledRow(buttons, active, direction), "move");
+    beginWalk("margin-entry", "Action", () => {
+      const currentLocation = focused();
+      const currentLocationHost2 = closestAcross(
+        currentLocation,
+        "[data-lf-margin-for]"
+      );
+      return listWalkPosition(
+        clusterMarginEntries(currentLocationHost2),
+        currentLocation
+      );
+    });
   }
   const landOnToggle = (entry) => layerLanding(() => handBack(hosts.get(entry.key)?.more));
   function setOptionsOpen(entry, open, { land = null, focusOption = null, owner = null, preservePreview = false } = {}) {

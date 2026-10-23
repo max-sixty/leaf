@@ -4,21 +4,18 @@
    reading current from the source's invalidation signal — directly on paint for cheap
    lists, or through a refreshed cache for an expensive source such as the page-text
    index — so a resolved thread, answered obligation, disappearing leaf, or replaced version
-   cannot leave a stale denominator behind. An end of the list is news, so a landing
-   briefly gives its ordinal an accent face where the walk met one: a clamped walk that
-   reached the same destination twice could not move, and a cyclic walk that came round
-   says so, since "1 of 5" reads the same after 5 as after nothing. Native focus traversal
-   and gestures that rearrange state are not walks through a named list. */
+   cannot leave a stale denominator behind. Native focus traversal and gestures that
+   rearrange state are not walks through a named list. */
 import { scrollIntoView } from "./landing-scroll.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { holdStatus } from "./notifications.js";
 import { repaint } from "./repaint.js";
 import { focusDestination, focused } from "./focus.js";
 
-const BOUNDARY_MS = 900;
+// How long a step's position holds the status line against arriving news.
+const HOLD_MS = 900;
 
-let walking = null; // {key, noun, read, target, boundary}; never a list snapshot
-let boundaryTimer = 0;
+let walking = null; // {key, noun, read, target}; never a list snapshot
 
 // "Thread 2 of 5", or, for a walk over several kinds that names its list in the
 // qualifier, "2 of 5 waiting on me · Thread" with the kind given there instead.
@@ -45,13 +42,10 @@ export function walkPosition() {
   if (!walking) return null;
   const position = walking.read();
   if (!position || position.target !== walking.target) {
-    clearTimeout(boundaryTimer);
-    boundaryTimer = 0;
     walking = null;
     return null;
   }
   return {
-    boundary: walking.boundary,
     kind: walking.key,
     target: position.target,
     text: walkPositionLabel(
@@ -78,8 +72,7 @@ export function walkPosition() {
 // holds the page still for a list read off what is in view, such as the Page Map's
 // visible markers, where scrolling to the landed row would change the list the walk
 // is over. A walk that comes round at its ends steps with `cycledRow`
-// (keyboard/bindings.js) and passes its `wrapped` to `beginWalk`; the page's queue walk
-// steps by document position.
+// (keyboard/bindings.js); the page's queue walk steps by document position.
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 /** @param {{
@@ -140,37 +133,16 @@ export function rowWalk({
 }
 
 // A keyboard walk has arrived. The caller still owns and announces the motion; this
-// records the owner's live reading so every such walk gets one boundary treatment.
-// `wrapped` is a cyclic walk's word that this step came round an end.
-export function beginWalk(key, noun, read, wrapped = false) {
+// records the owner's live reading so every such walk says its position the same way.
+export function beginWalk(key, noun, read) {
   const position = read();
   if (!position) {
-    clearTimeout(boundaryTimer);
-    boundaryTimer = 0;
     walking = null;
     return null;
   }
   walkPositionLabel(noun, position.position, position.total, position.qualifier);
-  const boundary =
-    wrapped || (walking?.key === key && walking.target === position.target);
-  clearTimeout(boundaryTimer);
-  const arrived = {
-    boundary,
-    key,
-    noun,
-    read,
-    target: position.target,
-  };
-  walking = arrived;
-  holdStatus(BOUNDARY_MS);
-  boundaryTimer = boundary
-    ? setTimeout(() => {
-        if (walking !== arrived) return;
-        arrived.boundary = false;
-        boundaryTimer = 0;
-        repaint();
-      }, BOUNDARY_MS)
-    : 0;
+  walking = { key, noun, read, target: position.target };
+  holdStatus(HOLD_MS);
   const shown = walkPosition();
   repaint();
   return shown?.text ?? null;

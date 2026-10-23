@@ -214,14 +214,8 @@ customElements.define(
     // landing stands among them as every walk does.
     #step(delta) {
       const ids = () => this.#snapshot.value.cases.map((record) => record.id);
-      const { row, wrapped } = cycledRow(ids(), this.#selected, delta);
-      this.#select(row, true);
-      beginWalk(
-        "visual-case",
-        "Case",
-        () => listWalkPosition(ids(), this.#selected),
-        wrapped,
-      );
+      this.#select(cycledRow(ids(), this.#selected, delta), true);
+      beginWalk("visual-case", "Case", () => listWalkPosition(ids(), this.#selected));
     }
     #inspection() {
       const article = this.#entries.get(this.#selected)?.article;

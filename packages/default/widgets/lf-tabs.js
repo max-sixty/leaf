@@ -233,16 +233,16 @@ export class TabSet extends LeafElement {
     // tracked render; its unchanged Lit parts retain these exact nodes.
     render(this.render(), strip);
     // Roving focus per the ARIA tabs pattern: arrows move and activate, and come round
-    // at the ends as every cyclic walk does (`cycledRow`), so a step that came round
-    // shows it did. The strip takes no tab stop of its own, so focus inside it, which
-    // is the whole of when this scope holds, is always one of these buttons.
+    // at the ends as every cyclic walk does (`cycledRow`). The strip takes no tab stop
+    // of its own, so focus inside it, which is the whole of when this scope holds, is
+    // always one of these buttons.
     const tabs = () => [...this.#buttons.values()];
-    const walk = (next, wrapped = false) => {
+    const walk = (next) => {
       // The strip is always on screen; focus scrolling a stuck tab back to its place
       // in flow would move the view being left before the switch records it.
       focusDestination(next, "move");
       next.click();
-      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()), wrapped);
+      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()));
     };
     // Across the row, back is the way the names run from.
     const [back, ahead] = rowArrows(this);
@@ -277,8 +277,7 @@ export class TabSet extends LeafElement {
         repeat: true,
         run: (binding) => {
           const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
-          const { row, wrapped } = cycledRow(tabs(), focused(), step);
-          walk(row, wrapped);
+          walk(cycledRow(tabs(), focused(), step));
         },
       },
       {

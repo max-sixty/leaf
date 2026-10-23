@@ -734,14 +734,11 @@ export const clampedRow = (
 
 // The cyclic list policy, the one step of every walk that comes round at its ends, from
 // the page walks (`t`, `m`, `n`) to a tab strip. A step past either end comes round to
-// the other. `wrapped` says it came round, which the landing's ordinal alone does
-// not, so the walk passes it to `beginWalk` (walk-position.js) to mark it. Entry from
-// off the list takes the end the step faces and comes round nothing. A walk kept by
-// index passes the row at its index, or none, and reads the landing's index back.
+// the other. Entry from off the list takes the end the step faces. A walk kept by index
+// passes the row at its index, or none, and reads the landing's index back.
 export const cycledRow = (rows, current, dir) => {
-  if (!rows.length) return { row: undefined, wrapped: false };
+  if (!rows.length) return undefined;
   const at = rows.indexOf(current);
   const next = at < 0 ? (dir > 0 ? 0 : rows.length - 1) : at + dir;
-  const wrapped = next < 0 || next >= rows.length;
-  return { row: rows[(next + rows.length) % rows.length], wrapped };
+  return rows[(next + rows.length) % rows.length];
 };

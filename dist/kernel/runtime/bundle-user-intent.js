@@ -1136,8 +1136,7 @@ function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
     if (!place2) return dir > 0;
     return renderedUnder(here, place2) || Math.sign(renderedOrder(here, place2)) === -dir;
   });
-  const row = dir > 0 ? reach[0] : reach.at(-1);
-  return row ? { row, wrapped: false } : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
+  return (dir > 0 ? reach[0] : reach.at(-1)) ?? (dir > 0 ? list[0] : list.at(-1));
 }
 function heldObligation(node = focused()) {
   const item = obligationHolding(readObligations().all, placeOf(node));
@@ -4539,9 +4538,8 @@ function snapSelection() {
 }
 
 // runtime/walk-position.js
-var BOUNDARY_MS = 900;
+var HOLD_MS = 900;
 var walking = null;
-var boundaryTimer = 0;
 function walkPositionLabel(noun, position, total, qualifier = "") {
   if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
   return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");
@@ -4557,13 +4555,10 @@ function walkPosition() {
   if (!walking) return null;
   const position = walking.read();
   if (!position || position.target !== walking.target) {
-    clearTimeout(boundaryTimer);
-    boundaryTimer = 0;
     walking = null;
     return null;
   }
   return {
-    boundary: walking.boundary,
     kind: walking.key,
     target: position.target,
     text: walkPositionLabel(
@@ -4621,32 +4616,15 @@ function rowWalk({
     }
   ];
 }
-function beginWalk(key, noun, read, wrapped = false) {
+function beginWalk(key, noun, read) {
   const position = read();
   if (!position) {
-    clearTimeout(boundaryTimer);
-    boundaryTimer = 0;
     walking = null;
     return null;
   }
   walkPositionLabel(noun, position.position, position.total, position.qualifier);
-  const boundary = wrapped || walking?.key === key && walking.target === position.target;
-  clearTimeout(boundaryTimer);
-  const arrived = {
-    boundary,
-    key,
-    noun,
-    read,
-    target: position.target
-  };
-  walking = arrived;
-  holdStatus(BOUNDARY_MS);
-  boundaryTimer = boundary ? setTimeout(() => {
-    if (walking !== arrived) return;
-    arrived.boundary = false;
-    boundaryTimer = 0;
-    repaint();
-  }, BOUNDARY_MS) : 0;
+  walking = { key, noun, read, target: position.target };
+  holdStatus(HOLD_MS);
   const shown2 = walkPosition();
   repaint();
   return shown2?.text ?? null;

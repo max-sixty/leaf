@@ -467,13 +467,9 @@ export function createReactionController({
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding,
     );
-    const { row, wrapped } = cycledRow(choices, focused(), backward ? -1 : 1);
-    focusDestination(row, "move");
-    beginWalk(
-      "reaction",
-      "Reaction",
-      () => listWalkPosition(responseChoices(reactSurface), focused()),
-      wrapped,
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
+    beginWalk("reaction", "Reaction", () =>
+      listWalkPosition(responseChoices(reactSurface), focused()),
     );
   }
 

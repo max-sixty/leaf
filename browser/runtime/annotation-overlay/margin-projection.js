@@ -452,24 +452,18 @@ export function createMarginProjection({
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
     const direction = binding === rowArrows(active)[1] ? 1 : -1;
-    const { row, wrapped } = cycledRow(buttons, active, direction);
-    focusDestination(row, "move");
-    beginWalk(
-      "margin-entry",
-      "Action",
-      () => {
-        const currentLocation = focused();
-        const currentLocationHost = closestAcross(
-          currentLocation,
-          "[data-lf-margin-for]",
-        );
-        return listWalkPosition(
-          clusterMarginEntries(currentLocationHost),
-          currentLocation,
-        );
-      },
-      wrapped,
-    );
+    focusDestination(cycledRow(buttons, active, direction), "move");
+    beginWalk("margin-entry", "Action", () => {
+      const currentLocation = focused();
+      const currentLocationHost = closestAcross(
+        currentLocation,
+        "[data-lf-margin-for]",
+      );
+      return listWalkPosition(
+        clusterMarginEntries(currentLocationHost),
+        currentLocation,
+      );
+    });
   }
 
   // Folding a cluster the user was in hands them back to its toggle.

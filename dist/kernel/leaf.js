@@ -4082,13 +4082,12 @@ function createHintSession({
   function walk(direction) {
     const targets2 = hinted();
     if (!targets2.length) return;
-    const { row: target, wrapped } = cycledRow(targets2, targets2[at], direction);
+    const target = cycledRow(targets2, targets2[at], direction);
     at = targets2.indexOf(target);
     beginWalk(
       walkKey,
       "Target",
-      () => listWalkPosition(hinted(), hinted()[at], { identity }),
-      wrapped
+      () => listWalkPosition(hinted(), hinted()[at], { identity })
     );
     const said = words.describe(target);
     const stop = /[.!?]$/.test(said) ? "" : ".";
@@ -4609,12 +4608,13 @@ function createTargetPicker({
   function moveMatch(direction) {
     refreshMatches();
     if (!matches.value.length) return presentSearchStatus();
-    const { row, wrapped } = cycledRow(matches.value, matches.value[active], direction);
-    active = matches.value.indexOf(row);
+    active = matches.value.indexOf(
+      cycledRow(matches.value, matches.value[active], direction)
+    );
     presentSearchStatus();
     showMatch();
     const query = pageSearchInput.value.trim();
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    beginWalk("page-search", "Match", () => matchWalkPosition(query));
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`
     );
@@ -4644,7 +4644,7 @@ function createTargetPicker({
       `Selected match: ${quote}. ${coarsePointer.matches || !bindingEnabled("c") ? "A press on the comment field comments on it." : "Press n for next, Shift+n for previous, or c to comment."}`
     );
   }
-  function landOnMatch(wrapped = false) {
+  function landOnMatch() {
     releaseFocus();
     const range = rangeOf(matches.value[active]);
     selectEnds(
@@ -4653,7 +4653,7 @@ function createTargetPicker({
     );
     updateFab();
     const query = repeatedSearch.query;
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    beginWalk("page-search", "Match", () => matchWalkPosition(query));
   }
   function repeatSearch(direction) {
     matches.value = find(repeatedSearch.query);
@@ -4664,11 +4664,12 @@ function createTargetPicker({
       return repaint();
     }
     const from = Math.min(repeatedSearch.index, matches.value.length - 1);
-    const { row, wrapped } = cycledRow(matches.value, matches.value[from], direction);
-    active = matches.value.indexOf(row);
+    active = matches.value.indexOf(
+      cycledRow(matches.value, matches.value[from], direction)
+    );
     repeatedSearch.index = active;
     showMatch();
-    landOnMatch(wrapped);
+    landOnMatch();
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`
     );
@@ -6116,11 +6117,11 @@ function createQueueWalk({
   function walk(dir, region = null, origin = walkOrigin()) {
     const list = stopsOf(region);
     if (!list.length) return Promise.resolve(false);
-    const { row: next, wrapped } = step(list, dir, region, origin);
+    const next = step(list, dir, region, origin);
     const ready = arriveAt(next).then((arrived) => {
       if (!arrived) return false;
       announce2(
-        beginWalk("queue", null, () => position(region), wrapped) ?? walkPositionLabel(
+        beginWalk("queue", null, () => position(region)) ?? walkPositionLabel(
           null,
           list.indexOf(next) + 1,
           list.length,
@@ -6235,7 +6236,7 @@ var context = Z(EMPTY);
 var lastWalk = null;
 var statusContextReading = () => context.value;
 var shownWalk = ({ walk }) => walk?.shown ? walk : null;
-var same2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
+var same2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target;
 function paintStatusContext(goToStatus) {
   const position = walkPosition();
   const goTo = goToStatus();
@@ -6243,8 +6244,7 @@ function paintStatusContext(goToStatus) {
     lastWalk = Object.freeze({
       kind: position.kind,
       target: position.target,
-      text: position.text,
-      boundary: position.boundary
+      text: position.text
     });
   const next = Object.freeze({
     goTo,
@@ -11298,18 +11298,13 @@ function stepThread(dir, destinations, placedAt) {
   const current = currentThread(threads, threadHere);
   const targetId = !current && origin.kind === "current-location" && threadAtCurrentLocation();
   const atTarget = targetId && threads.includes(targetId) ? targetId : null;
-  const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : stepFrom(threads, origin, dir, threadPlace);
+  const next = current ? cycledRow(threads, current, dir) : atTarget ?? stepFrom(threads, origin, dir, threadPlace);
   if (!next) return;
   const ready = arriveAtThread(next, destinations, retainUserIntent()).then(
     (arrived) => {
       if (!arrived) return;
       announce(
-        beginWalk(
-          "thread",
-          "Thread",
-          () => threadPosition(threadHere, placedAt),
-          wrapped
-        ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length)
+        beginWalk("thread", "Thread", () => threadPosition(threadHere, placedAt)) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length)
       );
     }
   );

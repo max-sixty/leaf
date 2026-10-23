@@ -358,13 +358,10 @@ export function createHintSession({
     const targets = hinted();
     if (!targets.length) return;
     // Nothing heard yet, the walk starts at whichever end it walks from.
-    const { row: target, wrapped } = cycledRow(targets, targets[at], direction);
+    const target = cycledRow(targets, targets[at], direction);
     at = targets.indexOf(target);
-    beginWalk(
-      walkKey,
-      "Target",
-      () => listWalkPosition(hinted(), hinted()[at], { identity }),
-      wrapped,
+    beginWalk(walkKey, "Target", () =>
+      listWalkPosition(hinted(), hinted()[at], { identity }),
     );
     const said = words.describe(target);
     const stop = /[.!?]$/.test(said) ? "" : ".";

@@ -455,12 +455,13 @@ export function createTargetPicker({
   function moveMatch(direction) {
     refreshMatches();
     if (!matches.value.length) return presentSearchStatus();
-    const { row, wrapped } = cycledRow(matches.value, matches.value[active], direction);
-    active = matches.value.indexOf(row);
+    active = matches.value.indexOf(
+      cycledRow(matches.value, matches.value[active], direction),
+    );
     presentSearchStatus();
     showMatch();
     const query = pageSearchInput.value.trim();
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    beginWalk("page-search", "Match", () => matchWalkPosition(query));
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`,
     );
@@ -500,7 +501,7 @@ export function createTargetPicker({
     );
   }
 
-  function landOnMatch(wrapped = false) {
+  function landOnMatch() {
     releaseFocus();
     const range = rangeOf(matches.value[active]);
     selectEnds(
@@ -509,7 +510,7 @@ export function createTargetPicker({
     );
     updateFab();
     const query = repeatedSearch.query;
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    beginWalk("page-search", "Match", () => matchWalkPosition(query));
   }
 
   function repeatSearch(direction) {
@@ -521,11 +522,12 @@ export function createTargetPicker({
       return repaint();
     }
     const from = Math.min(repeatedSearch.index, matches.value.length - 1);
-    const { row, wrapped } = cycledRow(matches.value, matches.value[from], direction);
-    active = matches.value.indexOf(row);
+    active = matches.value.indexOf(
+      cycledRow(matches.value, matches.value[from], direction),
+    );
     repeatedSearch.index = active;
     showMatch();
-    landOnMatch(wrapped);
+    landOnMatch();
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`,
     );

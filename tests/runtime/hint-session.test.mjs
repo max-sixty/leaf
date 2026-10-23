@@ -14,7 +14,6 @@ import test from "node:test";
 import { createHintSession, hintCodes } from "/runtime/keyboard/hints.js";
 import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
 import { liveEl } from "/runtime/notifications.js";
-import { walkPosition } from "/runtime/walk-position.js";
 import { html } from "/vendor/browser-runtime.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.
@@ -83,11 +82,6 @@ function hintMap(t, names) {
     choose: { title: "go there", description: "Go to the heard target" },
   });
   t.after(() => {
-    // The walk's timers are module state that outlives the case, such as the accent a
-    // step that came round holds for a moment. Run them out under this case's mocked
-    // clock: a later case clearing a timer an earlier clock set loses that case's own
-    // timers, so its announcement never arrives.
-    t.mock.timers.runAll();
     session.disarm();
     layer.remove();
     for (const node of links.values()) node.remove();
@@ -166,18 +160,10 @@ test("Tab and Shift+Tab walk the map aloud, round from either end, and Enter tak
   assert.equal(map.current(), "a");
   map.tab();
   assert.equal(map.heard(), "Hint s: Link, two. Press Enter to go there.");
-  assert.equal(
-    walkPosition().boundary,
-    false,
-    "a step inside the map comes round nothing",
-  );
   map.tab();
   assert.equal(map.heard(), "Hint a: Link, one. Press Enter to go there.");
-  // The position says the step came round, which "1 of 2" alone does not.
-  assert.equal(walkPosition().boundary, true);
   map.shiftTab();
   assert.equal(map.heard(), "Hint s: Link, two. Press Enter to go there.");
-  assert.equal(walkPosition().boundary, true);
   map.session.paint();
   assert.equal(map.current(), "s");
 

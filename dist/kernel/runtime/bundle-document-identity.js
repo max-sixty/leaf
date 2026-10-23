@@ -1809,13 +1809,11 @@ function createSelectionComposer({
     const choices = responseOptionButtons();
     if (!choices.length) return;
     const backward = [rowArrows(choices[0])[0], "ArrowUp"].includes(binding);
-    const { row, wrapped } = cycledRow(choices, focused(), backward ? -1 : 1);
-    focusDestination(row, "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk(
       "response-option",
       "Response",
-      () => listWalkPosition(responseOptionButtons(), focused()),
-      wrapped
+      () => listWalkPosition(responseOptionButtons(), focused())
     );
   }
   const focusResponseOption = (focus) => {
@@ -4871,13 +4869,11 @@ function createReactionController({
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding
     );
-    const { row, wrapped } = cycledRow(choices, focused(), backward ? -1 : 1);
-    focusDestination(row, "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk(
       "reaction",
       "Reaction",
-      () => listWalkPosition(responseChoices(reactSurface), focused()),
-      wrapped
+      () => listWalkPosition(responseChoices(reactSurface), focused())
     );
   }
   const REACT = {

@@ -24,8 +24,7 @@ const same = (a, b) =>
   a.goTo === b.goTo &&
   a.stance === b.stance &&
   shownWalk(a)?.text === shownWalk(b)?.text &&
-  shownWalk(a)?.target === shownWalk(b)?.target &&
-  shownWalk(a)?.boundary === shownWalk(b)?.boundary;
+  shownWalk(a)?.target === shownWalk(b)?.target;
 
 /** Read the context again, `goToStatus` the Go-to sequence's word or null. */
 export function paintStatusContext(goToStatus) {
@@ -36,7 +35,6 @@ export function paintStatusContext(goToStatus) {
       kind: position.kind,
       target: position.target,
       text: position.text,
-      boundary: position.boundary,
     });
   const next = Object.freeze({
     goTo,

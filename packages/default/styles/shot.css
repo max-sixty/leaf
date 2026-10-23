@@ -229,7 +229,11 @@
   background: var(--add-tint);
   color: var(--ok-ink);
 }
+/* The frame is a viewport onto the source, cropped to a focus or scaled to fit, so it
+   declares the drawing it frames (`--lf-drawing`) and the render check reads what it
+   clips as the crop rather than as content cut off. */
 .lf-shotimage {
+  --lf-drawing: 1;
   position: relative;
   overflow: clip;
   inline-size: var(--lf-shot-frame-width);

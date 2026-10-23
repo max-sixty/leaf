@@ -333,9 +333,13 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
         ("<div id=dusk>", (1280, 1280)),
         ("<div id=dusk>", (540, 540)),
     }, clipped
+    # Each card that loses its controls loses the prose above them too, at the same
+    # widths: the content reading names the card, with what would show the rest.
+    cut = {(f.at, f.widths) for f in reading.failures if f.code == "clipped-content"}
+    assert cut == {(f.values["by"], f.widths) for f in clipped}, reading.failures
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
         (f.code, f.at, f.widths) for f in clipped
-    } == {
+    } - {("clipped-content", *box) for box in cut} == {
         ("page-scrolls", "", (600, 880)),
         ("scrollbar-clearance", "<div id=strip>", (600, 880)),
     }, reading.failures

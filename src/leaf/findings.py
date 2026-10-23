@@ -214,6 +214,21 @@ def _squeezed(at: str, v: dict) -> str:
     )
 
 
+def _clipped_content(at: str, v: dict) -> str:
+    cuts = []
+    if v["down"]:
+        cuts.append(
+            f"{v['down']}px of it below its height — let it grow to fit, move the rest"
+            " into a <details>, or give it data-bound so it scrolls"
+        )
+    if v["across"]:
+        cuts.append(
+            f"{v['across']}px of it past its width — let it wrap, or scroll it"
+            ' sideways with overflow-x: auto and class="scroll"'
+        )
+    return f"{at} cuts off its content where no scroll reaches it: " + "; ".join(cuts)
+
+
 def _line(at: str, v: dict) -> str:
     """An element of the author's file, as they find it: its name and its line."""
     return f"{at} (line {v['line']})"
@@ -615,6 +630,7 @@ _TEXT = {
     "clipped-out": lambda at, v: (
         f"{at} is drawn {v['past']}px outside {v['container']}, which does not show it"
     ),
+    "clipped-content": _clipped_content,
     "scrollbar-clearance": lambda at, v: (
         f"{at} leaves {v['clear']}px below its {v['content']} for a"
         f" {v['required']:g}px horizontal overlay scrollbar; avoid the horizontal"

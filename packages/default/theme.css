@@ -217,6 +217,7 @@
   color: var(--ok-ink);
 }
 .lf-shotimage {
+  --lf-drawing: 1;
   position: relative;
   overflow: clip;
   inline-size: var(--lf-shot-frame-width);

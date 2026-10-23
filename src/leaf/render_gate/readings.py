@@ -493,8 +493,8 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
 
 def swept_faults(samples) -> list[Finding]:
-    """Sideways overflow, misplaced boxes, scrollbar collisions, clipped controls and
-    covered words across the gate's geometry samples, with the widths each run spans
+    """Sideways overflow, misplaced boxes and clipped content, scrollbar collisions,
+    clipped controls and covered words across the gate's geometry samples, with the widths each run spans
     and what it reads at the narrowest. Each refuses the version, since a control cut
     off at 400px is as far out of reach as one cut off at 540px.
 

@@ -94,7 +94,8 @@ def _render_version_attempt(
     360px to 1920px (`readings.sweep`), the geometry that moves with the window: the
     page scrolling sideways, content set past the column and out into the margin, a
     horizontal scrollbar with no room below what it scrolls, a control clipped out of
-    reach, words drawn on top of other words. There it also reads, as advice naming
+    reach, a box cutting off its own content where no scroll reaches it, words drawn on
+    top of other words. There it also reads, as advice naming
     the widths it spans, whether a drawing's fit to its box shrinks its labels past
     reading, and whether a table scrolls sideways with a cell in it wrapped. That pass
     also finds each width where the page's margin content changes (a sidebar,

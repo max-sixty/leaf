@@ -244,9 +244,7 @@ change overflow at a breakpoint; Leaf measures the declared surface, never all o
 descendants. Use a bounded reading region for independently scrolling vertical content.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. It scrolls them sideways only: one given just a
-`max-height` clips what runs past it, so add `overflow-y: auto` to let it scroll down
-too. In a table that scrolls sideways, prose wraps a word per
+to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
 line, and the render check reports each width from a 360px phone up where that happens.
 Put identifiers in `<code>`, which can break inside a cell, and keep the columns to
 what fits at the narrowest width the page's readers use. Keep a diagram's detail rather

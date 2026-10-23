@@ -183,6 +183,74 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
     assert reservation["textEnd"] == pytest.approx(reservation["sendStart"], abs=0.1)
 
 
+# The field's shadow root is closed, so the reading keeps each root as it is attached.
+KEEP_ROOTS = """(() => {
+  const attach = Element.prototype.attachShadow;
+  const roots = (window.__lfRoots = new WeakMap());
+  Element.prototype.attachShadow = function (init) {
+    const root = attach.call(this, init);
+    roots.set(this, root);
+    return root;
+  };
+})()"""
+
+# How far past the caret's offset the boxes clipping the field's words let paint run.
+CARET_ROOM = """box => {
+  const root = window.__lfRoots.get(box);
+  let [{startContainer: at, startOffset: offset}] = document
+    .getSelection().getComposedRanges({shadowRoots: [root]});
+  // An offset between elements has no box; the caret after them ends their text.
+  while (at.nodeType === Node.ELEMENT_NODE && offset > 0) {
+    at = at.childNodes[offset - 1];
+    offset = at.nodeType === Node.TEXT_NODE ? at.length : at.childNodes.length;
+  }
+  const caret = document.createRange();
+  caret.setStart(at, offset);
+  let clip = Infinity;
+  for (let node = at.parentElement; node; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (style.overflowX !== 'clip') continue;
+    const margin = parseFloat(style.overflowClipMargin) || 0;
+    clip = Math.min(clip, node.getBoundingClientRect().right + margin);
+  }
+  return clip - caret.getBoundingClientRect().right;
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
+    """The caret after a line's last character stands at the very end of the text
+    column: in a box that grows with its words, and after a trailing space that fits
+    beside Send. Firefox paints the caret a pixel wide from that offset onward, pulled
+    inside only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
+    clipping its words at the column's end hid it, and it read as gone under Send.
+    Chromium and WebKit pull a line-end caret back inside the line's block, and WebKit
+    has no `overflow-clip-margin` to read."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page("Compact comment", '<p id="passage">A passage to comment on.</p>')
+        ),
+        init_script=KEEP_ROOTS,
+    )
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    # The box grows with its words, so the caret after the last word ends its column.
+    page.keyboard.insert_text(
+        "it's not really a feed as much as a list? I see a feed as"
+    )
+    rendered(page)
+    assert field.evaluate(CARET_ROOM) >= 1
+    # At a narrow allocation the trailing space fits beside Send (see above).
+    resized(page, 346, 900)
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
+    page.keyboard.press("Space")
+    rendered(page)
+    assert field.evaluate(CARET_ROOM) >= 1
+
+
 # Two threads put the card's navigation on the row too, which a finger's larger
 # controls leave least room for.
 @pytest.mark.parametrize(("touch", "thread_count"), [(False, 1), (True, 2)])

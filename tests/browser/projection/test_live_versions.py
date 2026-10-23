@@ -101,10 +101,6 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     expect(versions.locator(".lf-fp-version[data-current]")).to_contain_text(
         "Current · Draft after v1"
     )
-    approval = versions.locator(".lf-fp-approval .lf-fp-item")
-    expect(approval).to_have_count(1)
-    expect(approval).to_be_disabled()
-    expect(approval).to_contain_text("There is no stamped version to approve yet")
     page.keyboard.press("Escape")
     assert page.locator('meta[name="description"]').get_attribute("content") == "second"
     assert page.locator("html").get_attribute("lang") == "fr"
@@ -142,7 +138,6 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert stamped.exit_code == 0, stamped.output
     told(page)
     expect(panel_control(page, "versions").locator(".lf-fp-value")).to_have_text("v2")
-    expect(panel_control(page, "approval")).to_be_enabled()
     page.keyboard.press("Escape")
     assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
         "stamping the displayed revision replaced its main"

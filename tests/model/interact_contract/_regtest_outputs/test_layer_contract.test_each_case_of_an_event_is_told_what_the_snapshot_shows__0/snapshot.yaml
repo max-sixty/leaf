@@ -1009,15 +1009,6 @@ unresolve:
         the thread's latest user message was never answered, `leaf page state <page>
         <thread-id>` shows the `answer` still owed.
 
-done:
-  event:
-    kind: done
-  told:
-    - text: >-
-        The user approved the page's sign-off. The page stays open: keep watching
-        it while you do the work the approval unblocks, and show that work as a
-        to-do (`leaf task open <page> page "<the work>"`, then `leaf task start`).
-
 Done on a to-do on the user:
   event:
     kind: todo_end

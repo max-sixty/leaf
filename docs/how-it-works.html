@@ -970,7 +970,7 @@
                   </td>
                   <td>
                     What is recorded, what is derived, and what survives edits, Undo,
-                    reloads, and version approval?
+                    reloads, and approval requests?
                   </td>
                 </tr>
                 <tr>
@@ -3555,8 +3555,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                       elsewhere or withdrawn.
                     </td>
                     <td>
-                      <code>widget:</code>, <code>approval:</code> or
-                      <code>update:</code>, followed by its source
+                      <code>widget:</code> or <code>update:</code>, followed by its
+                      source
                     </td>
                   </tr>
                   <tr id="ontology-todo">
@@ -3654,9 +3654,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <div id="relations-obligation-sources">
                     <strong>A request for an answer</strong>
                     <ul>
-                      <li>A widget question or decision</li>
+                      <li>A widget question, decision or approval</li>
                       <li>An update handed to the agent</li>
-                      <li>Sign-off on a stamped version</li>
                     </ul>
                   </div>
                   <span class="coherence-arrow" aria-hidden="true">→</span>
@@ -3692,8 +3691,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   </div>
                 </div>
                 <figcaption>
-                  The page-wide lists include sign-off even though it is not a thread.
-                  The same records supply each thread’s attention and the page’s lists.
+                  The page-wide lists include widget approvals alongside other
+                  obligations. The same records supply each thread’s attention and the
+                  page’s lists.
                 </figcaption>
               </figure>
             </section>
@@ -3942,15 +3942,30 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               disappears. If neither can be identified, the thread detaches rather than
               choosing unrelated text.
             </p>
-            <p id="review-meta">
-              A page requests version approval with
-              <code>&lt;meta name="lf-review" content="sign-off"&gt;</code>. Each
-              stamped version then offers an approval obligation in On me and Versions.
-              Approval waits for every widget obligation on the page and in unresolved
-              threads, including questions answered in words, to be answered or
-              withdrawn. Widgets in resolved threads do not block it. Undo withdraws
-              approval and reopens that version's obligation.
+            <p id="approval-requests">
+              An <code>lf-approval</code> widget requests permission for the action its
+              heading and prose describe. Its <code>approve</code> action answers an
+              ordinary widget obligation on On me; Undo approval reopens it. Each
+              request is independent of other unanswered widgets and page stamps.
+              Approval persists with the widget's id across unrelated edits. When the
+              action or evidence changes enough to invalidate that permission, the
+              author explains the change and marks the widget <code>restated</code>. A
+              request that depends on another decision is presented after that decision,
+              once the action to authorize is concrete.
             </p>
+            <p id="approval-sample-guide">
+              Try Approve, then Undo approval. The request changes immediately, and the
+              activity feed records the action and its withdrawal.
+            </p>
+            <lf-sample id="approval-sample" label="Approval of a sample report">
+              <template id="approval-sample-page" data-sample>
+                <lf-approval id="sample-publish-report">
+                  <h2>Publish the sample report?</h2>
+                  <p>Publish the park survey to the sample team's shared workspace.</p>
+                </lf-approval>
+                <lf-activity id="sample-approval-history"></lf-activity>
+              </template>
+            </lf-sample>
           </section>
 
           <section id="gate">
@@ -4283,8 +4298,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>On me</td>
                   <td>
                     Open widget decisions and questions, including <code>lf-ask</code>;
-                    required version sign-off; user to-dos; and updates the user needs
-                    to send again.
+                    user to-dos; and updates the user needs to send again.
                   </td>
                 </tr>
                 <tr>
@@ -5042,11 +5056,10 @@ EOF</code></pre>
               <summary>The On me walk can leave the panel's filtered list</summary>
               <p id="navigation-queue-rule">
                 <kbd>m</kbd> / <kbd>Shift</kbd> + <kbd>m</kbd> walk work waiting on the
-                user: open obligations, version sign-off, to-dos and updates to send
-                again. The walk reveals closed tabs or disclosures and can leave a
-                filtered panel list. A single-choice obligation ends when answered; a
-                multi-select choice waits for Done. Later presses walk the remaining
-                work.
+                user: open obligations, to-dos and updates to send again. The walk
+                reveals closed tabs or disclosures and can leave a filtered panel list.
+                A single-choice obligation ends when answered; a multi-select choice
+                waits for Done. Later presses walk the remaining work.
               </p>
               <p id="navigation-tab-rule">
                 Page walks through open threads (<kbd>t</kbd>), On me (<kbd>m</kbd>) and
@@ -5253,10 +5266,10 @@ EOF</code></pre>
               <p id="phone-panel-menu">
                 The leaf’s menu includes Search page and Page Map under Navigate, Undo,
                 and Select element, Draw mode, Design mode and Hide annotations under
-                Annotations. Version approval appears in On me and Versions. An active
-                mode or search names itself in the panel and provides a ✕ exit. Search
-                arrows stand beside the match count; tapping the marked match selects
-                it.
+                Annotations. Approval requests appear in On me and in their widgets. An
+                active mode or search names itself in the panel and provides a ✕ exit.
+                Search arrows stand beside the match count; tapping the marked match
+                selects it.
               </p>
             </section>
             <section id="phone-comments">
@@ -5520,10 +5533,9 @@ EOF</code></pre>
               <p id="browser-updates-obligations">
                 The server computes obligation completion from the whole log. A user’s
                 answer changes the widget and its answer in the On view immediately; the
-                obligation leaves the list when server state arrives. Version approval
-                and replies to thread questions take effect locally at once. Thread
-                turns also come from the server, with local adjustments for a comment
-                being sent or refused.
+                obligation leaves the list when server state arrives. Replies to thread
+                questions take effect locally at once. Thread turns also come from the
+                server, with local adjustments for a comment being sent or refused.
               </p>
             </details>
           </section>

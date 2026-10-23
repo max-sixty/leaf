@@ -42,17 +42,6 @@ def event_document(event: dict) -> dict:
     return document_identity(event["meaning"]["scope"], event["revision"])
 
 
-def approvals_in_force(events: list, *, withdrawn: set | None = None) -> list:
-    """The sign-off approvals no later undo took back, in log order."""
-    if withdrawn is None:
-        withdrawn = taken_back(events)
-    return [
-        event
-        for event in events
-        if event["kind"] == "done" and event["id"] not in withdrawn
-    ]
-
-
 def is_reaction(event: dict) -> bool:
     """A message carrying a token in place of words ($events, $reactions)."""
     return bool(event.get("token"))

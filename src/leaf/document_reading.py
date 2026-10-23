@@ -10,7 +10,7 @@ the document reading's own (`SourceReading.decided_passages`).
 from typing import NamedTuple
 
 from .events import retractions
-from .obligations import approval_obligation, collection, page_obligation_readings
+from .obligations import page_obligation_readings
 from .passages import Passages
 from .projection import PageReading, StateProjection, retirement_outcomes
 from .structure import SourceDocument
@@ -60,8 +60,6 @@ def read_document(
         events=events,
         data=data,
     )
-    if approval := approval_obligation(document, revision, events):
-        items = collection([*items["all"], approval])
     return DocumentReading(
         document=document,
         projection=projection,

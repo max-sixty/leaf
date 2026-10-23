@@ -1,34 +1,22 @@
-/* The page's status and its version's approval, which the floating panel presents
- * (floating-panel.js) and the queue walk arrives at (queue-walk.js).
+/* The page status, presented by the floating panel (floating-panel.js).
  *
  * The status says how the server answered the page's latest read (`reach`) and what the
  * reading it adopted says, in the words activity-words.js gives it (`statusReading`). It
  * paints the tab's icon in its tone and announces a change after the first status
  * reading. Provisional interface readiness gives a status without establishing that
  * announcement baseline; saved state or a failed read does.
- *
- * Approval is the page's decision, offered only where the version declares
- * <meta name="lf-review" content="sign-off">, a plan or proposed change seeking
- * assent (`isSignoffDeclared`). An informational page takes comments only. A neutral
- * "End leaf" once stood in its place and ended nothing it named, so nothing does. The
- * declaration rides the document, so a pinned older version keeps its own decision.
- * The presentation that shows approval registers itself (`registerApprovalPresentation`)
- * to name its control, bring the user to it, and repaint when a press or the
- * declaration changes what approval says. */
+ */
 import { pageStatus, statusModel } from "./activity-words.js";
 import { keeps } from "./keeps.js";
 import { el } from "./widget-elements.js";
 import { WEBSITE_DELIVERY, runtime, runtimeResource } from "./context.js";
 import { chromeRoot } from "./chrome.js";
-import { pagePresented } from "./page-paint.js";
 import { announce } from "./notifications.js";
 import { effect, signal, untracked } from "/vendor/browser-runtime.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
 import { readQueues } from "./queue-api.js";
-import { approvalBlockingObligations } from "./obligations/model.js";
-import { holdingError, raiseError } from "./errors.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { holdingError } from "./errors.js";
 
 // ---------- status ----------
 // Upgrade opens new comments before the buffered saved reading is applied.
@@ -168,104 +156,8 @@ function paintStatus(current) {
   if (changed) announce(model.explanation);
 }
 
-// ---------- approval ----------
-/** @typedef {import("../framework/contract.js").AuthoredMeta} AuthoredMeta */
-/** @type {keyof AuthoredMeta} */
-const REVIEW = "lf-review";
-/** @type {AuthoredMeta[typeof REVIEW]} */
-const SIGN_OFF = "sign-off";
-export const isSignoffDeclared = () =>
-  /** @type {HTMLMetaElement | null} */ (
-    document.querySelector(`meta[name="${REVIEW}"]`)
-  )?.content === SIGN_OFF;
-
-let signoff = false;
-let approving = false;
-let approveVersion = null;
-let presentation = null;
-// The page's decision is not actionable until the page itself is present. Discussion
-// stays live during replay, but approving hidden authored content would decide a version
-// the user has not seen yet.
-const AWAITING_STATE = "Approval waits until this page has read its current state";
-
-/** The presentation of approval: `target()` its control, `arrive()` bringing the user to
- * it, and `repaint()` after a mechanical change to what approval says. */
-export function registerApprovalPresentation(next) {
-  presentation = next;
-}
-export const presentedApproval = () => presentation;
-// The page presenting changes whether a press would approve.
-export const paintApproval = () => presentation?.repaint();
-// The queue arrives at the one approval control shown.
-export const approvalTarget = () => (signoff ? (presentation?.target() ?? null) : null);
-
-// Whether the user has approved the shown version.
-const versionApproved = readPart((root) =>
-  root.effective.obligations.all.some(
-    (item) => item.source.kind === "approval" && item.status === "answered",
-  ),
-);
-
-// What Approval says now: its `text`, why a press is refused (`reason`, null where it
-// approves) and whether it is `approved`; null where the page asks no sign-off. The
-// asks holding approval are null before the page has read the log and so cannot say
-// which those are. Approved, it says the state and the way out of it, which is `z`
-// like every other user gesture.
-export const approvalReading = () => {
-  if (!signoff) return null;
-  const approved = versionApproved();
-  const blockingObligations = approvalBlockingObligations();
-  const reason = approved
-    ? "Approved. Press z to undo while approval is still the latest update"
-    : runtime.currentStamp === null
-      ? "There is no stamped version to approve yet"
-      : !pagePresented() || blockingObligations === null
-        ? AWAITING_STATE
-        : blockingObligations.length
-          ? "Answer every open widget before approving this work"
-          : null;
-  return {
-    text: approved ? "✓ Version approved" : "Approve version",
-    // A press already in flight is refused silently: its busy state says so.
-    reason: reason ?? (approving ? "Approving this version" : null),
-    approved,
-  };
-};
-
-// The one approval press, whichever control the user made it on. A refused press
-// raises its reason as an error (errors.js).
-export async function approve() {
-  if (approving || !approveVersion) return;
-  const reason = approvalReading()?.reason;
-  if (reason) {
-    raiseError(reason);
-    return;
-  }
-  approving = true;
-  // Paint busy before the next frame only if the send is still waiting then.
-  const busyPaint = nextRender(paintApproval);
-  try {
-    await approveVersion();
-  } finally {
-    approving = false;
-    cancelRender(busyPaint);
-    paintApproval();
-  }
-}
-
-// Sign-off belongs to the authored revision, and the head it rides in is the only copy
-// of it: a revision this document takes on in place brings its own, so the reading is
-// taken from the document each time rather than kept beside it.
-export function stateSignoff(next) {
-  if (next === signoff) return;
-  signoff = next;
-  presentation?.repaint();
-}
-
-/** Start the status and approval: `approveVersion` posts the approval. */
-export function mountPageStatus({ approveVersion: post }) {
-  approveVersion = post;
-  signoff = isSignoffDeclared();
+/** Start the page status. */
+export function mountPageStatus() {
   chromeRoot.append(toneProbe);
   effect(() => {
     const current = currentStatus();

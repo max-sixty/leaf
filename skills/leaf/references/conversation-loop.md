@@ -209,12 +209,11 @@ press lands where the obligation is answered; on a widget's obligation, its numb
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence         | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
 | A conversational answer                                                         | An `lf-ask` holding the question, with no widget inside, in a reply's or new thread's markup (`threads.md`)     | The user's next message there or a settling reaction                                  |
-| Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-decisions.md`, "Sign-off")                                   | The user's approval of that version, its row in On me                                 |
+| Approval of a stated action                                                     | Write `lf-approval` with the exact subject (`authoring-decisions.md`, "Approval")                               | The widget's recorded approval and its row in On me                                   |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 Obligation ids are `widget:<widget-id>` for a widget, `lf-ask` included,
-`approval:v<version>` for a version's sign-off, and `update:<event-id>` for an update
-the user handed over. A to-do on the user keeps the id `task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
+and `update:<event-id>` for an update the user handed over. A to-do on the user keeps the id `task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
 The user's next message in a thread answers every question asked before it there.
 Ask a dependent question only once its prerequisite is answered. The user's Done on a
 to-do says they did it; it grants nothing its question did not ask.

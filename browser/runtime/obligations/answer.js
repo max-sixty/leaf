@@ -12,16 +12,14 @@ export function ownedObligationControl(source, commandSource) {
 }
 
 /* What a row or a walk calls an obligation on the user's list: a widget's own word, so
-   lf-options reads Options; Approval for a version's sign-off. */
+   lf-options reads Options. */
 export function obligationWord(item) {
-  if (item.source.kind === "approval") return "Approval";
   const word = widgetWord(item.source.tag, elementById(item.source.id));
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 export function answerWords(item) {
   if (item.answer === null) return "";
-  if (item.source.kind === "approval") return "Approved";
   if (answeredInWords(item))
     return item.answer.value.text ?? item.answer.value.token ?? "";
   const source = elementById(item.source.id);

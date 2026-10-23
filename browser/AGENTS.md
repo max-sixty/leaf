@@ -221,7 +221,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                                     |
 | Passages and target identity                                                                                | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                      |
 | Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
-| Page status, approval and what a user copies about the page                                                 | `page-status.js`, `page-about.js`                                                                                                                                         |
+| Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`                                                                                                                                         |
 | Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                                          |
 | Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                                          |
 | Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                                         |
@@ -476,9 +476,7 @@ answered. Each view carries every obligation record once, the page's and its fro
 (`obligations`); a row of On me names its obligation by id, and the publisher joins the two. The
 browser reads a widget's answer from
 the same state its controls draw and doesn't reapply the `x-awaits.answered` rule. A
-required-version approval is an obligation the browser updates at once, restoring the server's
-state on refusal. A thread gesture changes no attention and no obligation until the server's
-reading of it arrives (root `AGENTS.md`, "Responsiveness").
+thread gesture changes no attention and no obligation until the server's reading of it arrives (root `AGENTS.md`, "Responsiveness").
 
 Every state read carries one `through_seq`, and version comparison asks `/api/view` at
 the sequence already applied. A page widget's projection stops at the current revision;

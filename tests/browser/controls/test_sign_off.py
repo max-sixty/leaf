@@ -1,10 +1,11 @@
-"""Sign-off approval and the obligations it joins: where the control stands, how a press
-records, is taken back or refused, and when it waits."""
+"""Approval widgets record independent permissions through ordinary action and Undo.
 
-import re
+The browser proves immediate drawing, refusal recovery and preservation across live
+revisions; the model suite owns obligation folding and admission.
+"""
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, stamp
 from playwright.sync_api import expect
 from render_cases_interaction import (
     SEATED_OBLIGATION_LAYER,
@@ -13,210 +14,157 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import actions
 from render_harness import (
-    LONG_PAGE,
-    _traffic,
     expect_obligations_answered,
     holding,
     leaf_page,
     open_page,
-    panel_control,
-    panel_menu,
-    panel_settled,
-    resized,
     round_trip,
+    stamp_page,
     told,
 )
 
+from browser.threads import open_panel_thread
 from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-SIGN_OFF = LONG_PAGE.replace(
-    "<title>long</title>",
-    '<title>long</title><meta name="lf-review" content="sign-off">',
+APPROVAL_PAGE = leaf_page(
+    "Publish the report",
+    '<h1 id="heading">Team report</h1>'
+    '<lf-approval id="publish-report"><h2>Publish the report?</h2>'
+    "<p>Publish the park survey to the team workspace.</p></lf-approval>"
+    '<lf-ask id="next-survey">Where should the next survey run?</lf-ask>',
 )
 
 
-# The approval's control in the leaf's menu, under Versions (floating-panel.js).
-APPROVAL = ".lf-fp-approval"
-
-
-def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
-    """Approval stands under Versions wherever the page declares sign-off, stamped or
-    not, and a draft arriving moves nothing on the page. Before a stamp the press is
-    refused and says why."""
-    page = open_page(browser, live_url(serve(SIGN_OFF)))
-    resized(page, 560, 800)
-    expect(panel_control(page, "approval")).to_be_enabled()
-    page.locator(".lf-fp-leaf").click()
-    top = page.evaluate(
-        "() => document.querySelector('main').getBoundingClientRect().top"
-    )
-    (serve.page_dir / "index.html").write_text(
-        SIGN_OFF.replace("</main>", "<p>A draft's new paragraph.</p></main>")
-    )
-    told(page)
-    # The menu holds the rows it opened with, so it opens once the draft has arrived.
-    approval = panel_control(page, "approval")
-    expect(approval).to_be_disabled()
-    expect(page.locator(APPROVAL)).to_have_attribute(
-        "title", "There is no stamped version to approve yet"
-    )
-    after = page.evaluate(
-        "() => document.querySelector('main').getBoundingClientRect().top"
-    )
-    assert after == pytest.approx(top, abs=1), (top, after)
-
-
-def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
-    """The declared obligation puts the approval there, and the press posts `done`, once
-    however often it is pressed while the first is on its way.
-
-    Drive the shipped browser through the real POST door, since a control that merely
-    looks right says nothing about the event the agent's loop receives.
-    """
-    page = open_page(browser, serve(SIGN_OFF))
-    button = panel_control(page, "approval")
-    expect(button).to_contain_text("Approve version")
-    expect(button).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
-
+def test_approval_and_undo_draw_immediately_and_recover_after_refusal(browser, serve):
+    """Unanswered questions never block this permission; refused gestures restore it."""
+    page = open_page(browser, serve(APPROVAL_PAGE))
+    approval = page.locator("#publish-report")
+    button = approval.get_by_role("button")
+    status = approval.get_by_role("status")
+    expect_obligations_answered(page, "0/2")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     button.click()
-    holding(page, held, 1, "the approval")
-    button.dispatch_event("click")
-    assert _traffic(page).sends == 1, "one approval press became two log events"
-
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-    event = events_model.read_events(serve.page_dir)[-1]
-    assert (event["kind"], event["author"], event["version"]) == ("done", "user", 1)
-
-
-def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
-    """Approval and its obligation agree during send, undo and refusal.
-
-    Holding each POST proves the result is visible before admission; a definitive
-    refusal restores the same admitted approval through every consumer: the row's word
-    that the version is approved, and On me's count.
-    """
-    page = open_page(browser, serve(SIGN_OFF))
-    approved = page.locator(".lf-fp-row-notice")
-    on_me = page.locator(".lf-fp-on-user")
-    owed = re.compile(r"^On me: 1")
-    clear = re.compile(r"^On me$")
-    expect(on_me).to_have_attribute("aria-label", owed)
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    panel_control(page, "approval").click()
     holding(page, held, 1, "the refused approval")
-    expect(approved).to_have_text(re.compile(r"✓ v1 approved"))
-    expect(on_me).to_have_attribute("aria-label", clear)
-    held[0].fulfill(
-        json={
-            "ok": False,
-            "attempt": held[0].request.post_data_json["attempt"],
-            "error": "This approval was refused.",
-            "final": True,
-        }
-    )
+    expect(status).to_have_text("Approved")
+    held.pop().fulfill(json={"ok": False, "error": "Approval refused", "final": True})
     round_trip(page)
-    expect(approved).to_be_hidden()
-    expect(on_me).to_have_attribute("aria-label", owed)
-    held.clear()
-    page.keyboard.press("Escape")
-    panel_control(page, "approval").click()
+    expect(status).to_have_text("Awaiting approval")
+    expect_obligations_answered(page, "0/2")
+
+    button.click()
     holding(page, held, 1, "the accepted approval")
-    expect(approved).to_have_text(re.compile(r"✓ v1 approved"))
-    expect(on_me).to_have_attribute("aria-label", clear)
-    held[0].continue_()
-    page.unroute("**/api/event")
+    expect(status).to_have_text("Approved")
+    held.pop().continue_()
     round_trip(page)
-    expect(approved).to_have_text(re.compile(r"✓ v1 approved"))
-    expect(on_me).to_have_attribute("aria-label", clear)
-
-    page.keyboard.press("Escape")
-    page.locator("body").focus()
-    held.clear()
-    page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("z")
-    holding(page, held, 1, "the refused approval undo")
-    expect(approved).to_be_hidden()
-    expect(on_me).to_have_attribute("aria-label", owed)
-    held[0].fulfill(
-        json={
-            "ok": False,
-            "attempt": held[0].request.post_data_json["attempt"],
-            "error": "This withdrawal was refused.",
-            "final": True,
-        }
+    expect_obligations_answered(page, "1/2")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert (event["kind"], event["widget"], event["action"], event["detail"]) == (
+        "action",
+        "publish-report",
+        "approve",
+        {},
     )
+    expect(button).to_have_text("Undo approval")
+    expect(button).to_be_focused()
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the refused undo")
+    expect(status).to_have_text("Awaiting approval")
+    held.pop().fulfill(json={"ok": False, "error": "Undo refused", "final": True})
+    round_trip(page)
+    expect(status).to_have_text("Approved")
+    expect_obligations_answered(page, "1/2")
+
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the accepted undo")
+    expect(status).to_have_text("Awaiting approval")
+    held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(approved).to_have_text(re.compile(r"✓ v1 approved"))
-    expect(on_me).to_have_attribute("aria-label", clear)
-    held.clear()
-    page.route("**/api/event", lambda route: held.append(route))
-    page.locator("body").focus()
-    page.keyboard.press("z")
-    holding(page, held, 1, "the accepted approval undo")
-    expect(approved).to_be_hidden()
-    expect(on_me).to_have_attribute("aria-label", owed)
-    held[0].continue_()
-    page.unroute("**/api/event")
+    expect_obligations_answered(page, "0/2")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
+    expect(button).to_have_text("Approve")
+
+
+def test_approval_survives_a_stamp_until_the_request_is_restated(browser, serve):
+    """A request owns permission across live revisions; explicit restatement reopens it."""
+    page = open_page(browser, live_url(serve(APPROVAL_PAGE)))
+    approval = page.locator("#publish-report")
+    approval.get_by_role("button", name="Approve", exact=True).click()
     round_trip(page)
-    expect(approved).to_be_hidden()
-    expect(on_me).to_have_attribute("aria-label", owed)
-    expect(panel_control(page, "approval")).to_be_enabled()
-    kinds = [e["kind"] for e in events_model.read_events(serve.page_dir)]
-    assert kinds[-2:] == [
-        "done",
-        "undo",
-    ], f"the withdrawal is not in the log as its own event: {kinds}"
+    revised = APPROVAL_PAGE.replace(
+        "</main>", '<p id="news">The next survey is being planned.</p></main>'
+    )
+    (serve.page_dir / "index.html").write_text(revised)
+    assert stamp(serve.page_dir, "Added survey news").exit_code == 0
+    told(page)
+    expect(approval.get_by_role("status")).to_have_text("Approved")
+    expect_obligations_answered(page, "1/2")
 
-    # And the press is available again, which is what makes this a correction rather than
-    # a page the user has spent.
-    held.clear()
-    page.route("**/api/event", lambda route: held.append(route))
-    panel_control(page, "approval").click()
-    holding(page, held, 1, "the second approval")
-    expect(approved).to_have_text(re.compile(r"✓ v1 approved"))
-    expect(on_me).to_have_attribute("aria-label", clear)
-    held[0].continue_()
-    page.unroute("**/api/event")
+    restated = revised.replace(
+        '<lf-approval id="publish-report">',
+        '<lf-approval id="publish-report" restated>',
+    ).replace(
+        "Publish the park survey to the team workspace.",
+        "Publish the park survey and its location data to the public website.",
+    )
+    (serve.page_dir / "index.html").write_text(restated)
+    assert (
+        stamp(serve.page_dir, "Ask permission for public location data").exit_code == 0
+    )
+    told(page)
+    expect(approval.get_by_role("status")).to_have_text("Awaiting approval")
+    expect_obligations_answered(page, "0/2")
+
+
+def test_approval_in_a_thread_keeps_its_permission_across_page_revisions(
+    browser, serve
+):
+    """A reply's widget loads its initial drawing and owns its state in the thread."""
+    source = leaf_page("Report discussion", '<h1 id="heading">Report</h1>')
+    url = serve(source)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-publish",
+            "author": "user",
+            "revision": 1,
+            "text": "Can you publish the finished report?",
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "c-publish",
+            "revision": 1,
+            "text": "The report is ready. Confirm where it will be published.",
+            "markup": '<lf-approval id="thread-publication"><h2>Publish to the team workspace?</h2>'
+            "<p>Publish the finished park survey to the private research workspace.</p></lf-approval>",
+        },
+    )
+    page = open_page(browser, live_url(url))
+    open_panel_thread(page, "c-publish")
+    approval = page.locator("#thread-publication")
+    approval.get_by_role("button", name="Approve", exact=True).click()
     round_trip(page)
-    assert [e["kind"] for e in events_model.read_events(serve.page_dir)][-1] == "done"
-
-
-def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
-    """Approval belongs to the presented page; runtime discussion does not wait for it."""
-    held = []
-    page = browser.new_page()
-    page.route("**/api/state*", lambda route: held.append(route))
-    with page.expect_request("**/api/state*"):
-        page.goto(serve(SIGN_OFF), wait_until="load")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-    assert held, "the positive control did not hold the first state response"
-
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-
-    held.pop(0).continue_()
-    wait_until_ready(page)
-    page.locator(".lf-fp-close").click()
-    expect(panel_control(page, "approval")).to_be_enabled()
-
-
-def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
-    """An informational page lists its versions without an approval action."""
-    page = open_page(browser, serve(LONG_PAGE))
-    # The versions list is drawn in one pass, so a version standing in it is what makes
-    # the absence beside it worth reading rather than a list that never rendered.
-    menu = panel_menu(page, "versions")
-    expect(menu.locator(".lf-fp-version")).to_have_count(1)
-    expect(menu.locator(APPROVAL)).to_have_count(0)
+    expect(approval.get_by_role("status")).to_have_text("Approved")
+    stamp_page(
+        serve.page_dir,
+        source.replace("</main>", "<p>Next survey planned.</p></main>"),
+        "Survey news",
+    )
+    told(page)
+    open_panel_thread(page, "c-publish")
+    expect(approval.get_by_role("status")).to_have_text("Approved")
+    approval.get_by_role("button", name="Undo approval", exact=True).click()
+    round_trip(page)
+    expect(approval.get_by_role("status")).to_have_text("Awaiting approval")
+    expect_obligations_answered(page, "0/1")
 
 
 def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):

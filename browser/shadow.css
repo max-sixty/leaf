@@ -1363,6 +1363,14 @@ svg[data-lf-icon] {
 .lf-compose-placeholder > kbd {
   flex: none;
 }
+.lf-compose-placeholder > .lf-compose-placeholder-aside {
+  max-width: 40%;
+  margin-inline-start: auto;
+  padding-inline-start: 0.75em;
+}
+.lf-compose-placeholder-aside:empty {
+  display: none;
+}
 .lf-compose-placeholder .lf-key-badge {
   background: transparent;
   color: var(--muted);

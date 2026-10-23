@@ -207,6 +207,255 @@
         --try-says: "Padding 32px, from the page's <style>";
       }
 
+      /* Ownership drawings align each part of one page with the owner who supplies it.
+         Each part and its label remain a pair when the figure narrows. */
+      .owner-map {
+        margin-block: var(--sp-4);
+        font: 15px/1.5 var(--sans);
+      }
+      .owner-map figcaption {
+        margin-top: var(--sp-3);
+        color: var(--muted);
+        font: 14px/1.5 var(--sans);
+      }
+      .owner-request {
+        display: grid;
+        gap: 4px;
+        margin-bottom: var(--sp-3);
+        padding-bottom: var(--sp-3);
+        border-bottom: 1px solid var(--rule);
+      }
+      .owner-request q {
+        font: 20px/1.45 var(--serif);
+      }
+      .owner-anatomy {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+        gap: 0 var(--sp-4);
+      }
+      .owner-anatomy > :nth-child(odd) {
+        padding: 16px 20px;
+        border: 1px solid var(--rule);
+        border-bottom: 0;
+        background: var(--field);
+      }
+      .owner-anatomy > .owner-record {
+        border-bottom: 1px solid var(--rule);
+        border-top-style: dashed;
+      }
+      .owner-note {
+        align-self: center;
+        position: relative;
+        padding-block: 12px;
+      }
+      .owner-note::before {
+        content: "";
+        position: absolute;
+        width: var(--sp-3);
+        left: calc(-1 * var(--sp-4));
+        top: 50%;
+        border-top: 1px solid var(--rule);
+      }
+      .owner-note strong,
+      .owner-note span,
+      .contract-data-node > :is(strong, code, span),
+      .contract-action-flow :is(strong, span, code) {
+        display: block;
+      }
+      .owner-note span,
+      .contract-data-node > span,
+      .contract-action-flow span {
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .owner-page-face {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        color: var(--accent);
+      }
+      .owner-page-face > :nth-child(2) {
+        font: 24px/1.2 var(--serif);
+      }
+      .owner-page-face > :last-child {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .owner-swatch {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .owner-authored > strong {
+        font: 600 23px/1.3 var(--serif);
+      }
+      .owner-authored p {
+        margin: 8px 0 12px;
+        font: 16px/1.5 var(--serif);
+      }
+      .owner-evidence {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 20px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .owner-choice > span,
+      .owner-record > span {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+      .owner-choice > div {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        padding: 8px 0;
+        border-top: 1px solid var(--rule);
+      }
+      .owner-choice > div:first-of-type {
+        color: var(--ok-ink);
+      }
+      .owner-choice small {
+        font-size: 13px;
+      }
+      .owner-record ol {
+        margin: 0;
+        padding-left: 1.3em;
+      }
+      .owner-record li {
+        margin: 3px 0;
+      }
+      .contract-data-flow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        gap: 12px;
+      }
+      .contract-data-node {
+        min-width: 0;
+        align-self: stretch;
+        border-block: 1px solid var(--rule);
+        padding-block: 16px;
+      }
+      .contract-data-node > code {
+        margin-block: 12px;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      .contract-arrow {
+        color: var(--muted);
+        font-size: 24px;
+      }
+      .contract-tree {
+        font: 13px/1.5 var(--mono);
+        margin-top: 12px;
+        overflow-wrap: anywhere;
+      }
+      .contract-tree span {
+        display: block;
+      }
+      .contract-tree span:nth-child(even) {
+        margin-left: 8px;
+        padding-left: 10px;
+        border-left: 1px solid var(--rule);
+      }
+      .contract-wire {
+        display: flex;
+        align-items: baseline;
+        gap: 8px 16px;
+        padding: 12px 16px;
+        margin-top: 16px;
+        background: var(--accent-tint);
+      }
+      .contract-wire > code {
+        white-space: nowrap;
+      }
+      .contract-wire > span {
+        min-width: 0;
+      }
+      .contract-declaration {
+        margin: 0 0 16px;
+        color: var(--muted);
+      }
+      .contract-gesture,
+      .contract-reconcile {
+        padding: 12px 16px;
+        border-block: 1px solid var(--rule);
+        text-align: center;
+      }
+      .contract-gesture {
+        background: var(--field);
+      }
+      .contract-action-flow {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+        margin-block: 0 16px;
+      }
+      .contract-action-flow > div {
+        min-width: 0;
+        padding: 12px 16px;
+      }
+      .contract-action-flow > div::before {
+        display: block;
+        content: "↓";
+        margin-bottom: 8px;
+        color: var(--muted);
+        text-align: center;
+        font-size: 24px;
+      }
+      .contract-action-flow code {
+        margin-top: 8px;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      @media (width <= 600px) {
+        .owner-anatomy {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .owner-anatomy > :nth-child(odd) {
+          border-bottom: 1px solid var(--rule);
+        }
+        .owner-note {
+          padding: 8px 0 24px;
+        }
+        .owner-note::before {
+          display: none;
+        }
+        .owner-note strong {
+          display: inline;
+        }
+        .owner-note strong::after {
+          content: " · ";
+        }
+        .owner-note span {
+          display: inline;
+        }
+        .contract-data-flow {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 0;
+        }
+        .contract-arrow {
+          justify-self: center;
+          rotate: 90deg;
+          line-height: 1.5;
+        }
+        .contract-wire {
+          flex-wrap: wrap;
+        }
+        .contract-action-flow {
+          gap: 12px;
+        }
+        .contract-action-flow > div {
+          padding-inline: 0;
+        }
+      }
+
       /* A Layout's class name reads as one word, so it holds its line. */
       #layouts-table td:first-child code {
         white-space: nowrap;
@@ -669,6 +918,215 @@
           bottom: -0.35rem;
           transform: none;
           font-size: 20px;
+        }
+      }
+      /* Styles diagrams preserve nesting and flow at a readable text size. */
+      .style-map-figure {
+        margin-block: var(--sp-4);
+        font: 15px/1.5 var(--sans);
+      }
+      .style-map-figure code {
+        font-size: 13px;
+      }
+      #styles-reach-table td:first-child code {
+        white-space: nowrap;
+      }
+      .style-map-figure figcaption {
+        margin-top: var(--sp-2);
+        color: var(--muted);
+        font: 14px/1.5 var(--sans);
+      }
+      .style-map-figure figcaption strong {
+        color: var(--ink);
+      }
+      .style-map-capture {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 4.5rem minmax(0, 1fr) 3rem minmax(0, 1fr);
+        align-items: center;
+        gap: 8px;
+        --lf-holds-edge: 1;
+      }
+      .style-map-capture > * {
+        min-width: 0;
+      }
+      .style-map-choice > strong,
+      .style-map-document > strong {
+        display: block;
+        margin-bottom: 12px;
+      }
+      .style-map-choice > code {
+        display: block;
+        margin-top: 10px;
+      }
+      .style-map-theme-name,
+      .style-map-theme-other {
+        padding: 7px 9px;
+        border-bottom: 1px solid var(--rule);
+      }
+      .style-map-theme-name {
+        background: var(--accent-tint);
+        color: var(--ink);
+        border: 1px solid var(--accent);
+      }
+      .style-map-theme-name small {
+        display: block;
+        font-size: inherit;
+      }
+      .style-map-theme-other {
+        color: var(--muted);
+      }
+      .style-map-document {
+        padding: 12px;
+        border: 1px solid var(--rule);
+        background: var(--paper);
+      }
+      .style-map-page-lines,
+      .style-map-choice-lines {
+        display: grid;
+        gap: 7px;
+        margin: 12px 0;
+      }
+      .style-map-page-lines i,
+      .style-map-choice-lines i {
+        display: block;
+        height: 4px;
+        background: var(--rule);
+      }
+      .style-map-page-lines i:last-child {
+        width: 70%;
+      }
+      .style-map-captured-theme {
+        display: grid;
+        gap: 3px;
+        border-top: 1px solid var(--accent);
+        padding-top: 9px;
+      }
+      .style-map-captured-theme span {
+        color: var(--muted);
+      }
+      .style-map-link {
+        position: relative;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--muted);
+        text-align: center;
+        color: var(--muted);
+      }
+      .style-map-link::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        bottom: -4px;
+        width: 6px;
+        height: 6px;
+        border-right: 1px solid var(--muted);
+        border-top: 1px solid var(--muted);
+        rotate: 45deg;
+      }
+      .style-map-token-source {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 6px 12px;
+        padding: 10px 14px;
+        border: 1px solid var(--rule);
+      }
+      .style-map-down {
+        position: relative;
+        width: 1px;
+        height: 24px;
+        margin-inline: auto;
+        background: var(--muted);
+      }
+      .style-map-down::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: -3px;
+        width: 6px;
+        height: 6px;
+        border-right: 1px solid var(--muted);
+        border-bottom: 1px solid var(--muted);
+        rotate: 45deg;
+      }
+      .style-map-outer {
+        padding: 16px;
+        border: 1px solid var(--ok);
+        background: var(--ok-tint);
+        color: var(--ink);
+      }
+      .style-map-scope-heading {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 4px 12px;
+      }
+      .style-map-owned-content {
+        display: grid;
+        gap: 4px;
+        padding: 18px 0 8px;
+      }
+      .style-map-owned-content > strong {
+        font: 600 var(--t-3) / 1.3 var(--serif);
+      }
+      .style-map-inheritance {
+        display: grid;
+        justify-items: center;
+        gap: 4px;
+        padding-top: 8px;
+      }
+      .style-map-host {
+        border: 1px dashed var(--ok);
+        padding: 10px;
+        background: var(--paper);
+      }
+      .style-map-host-label {
+        display: block;
+        margin-bottom: 10px;
+      }
+      .style-map-interior {
+        display: grid;
+        gap: 12px;
+        border: 1px solid var(--accent);
+        background: var(--accent-tint);
+        padding: 14px;
+      }
+      .style-map-choice-lines {
+        margin: 0;
+      }
+      .style-map-choice-lines i {
+        height: 12px;
+        width: 75%;
+        background: color-mix(in srgb, var(--accent) 18%, var(--paper));
+        border-left: 1px solid var(--accent);
+      }
+      @media (width <= 680px) {
+        .style-map-capture {
+          grid-template-columns: minmax(0, 1fr);
+          justify-items: stretch;
+          max-width: 25rem;
+          margin-inline: auto;
+        }
+        .style-map-link {
+          min-height: 28px;
+          margin-left: 50%;
+          padding: 2px 0 2px 12px;
+          border-bottom: 0;
+          border-left: 1px solid var(--muted);
+          text-align: start;
+        }
+        .style-map-link::after {
+          left: -4px;
+          right: auto;
+          bottom: 0;
+          rotate: 135deg;
+        }
+        .style-map-theme-name small {
+          display: inline;
+          margin-left: 8px;
+        }
+        .style-map-outer,
+        .style-map-interior {
+          padding: 12px;
         }
       }
     </style>
@@ -1789,78 +2247,126 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           <section id="responsibilities">
             <h2>Who is responsible for what</h2>
             <p id="responsibilities-lede">
-              The user directs the work. The authoring agent composes the page, packages
-              supply reusable behavior and presentation, and Leaf's kernel keeps the
-              shared record and interaction model coherent. The user can name personal
-              themes and a default; the author selects one for the task. The page
-              captures that theme alongside its other packages.
+              A release review brings several owners together on one page. The user sets
+              the goal and preferences; the author chooses the content and arrangement.
+              Packages make the parts work, and Leaf keeps their shared record.
             </p>
-            <table id="responsibilities-table">
-              <thead>
-                <tr>
-                  <th>Owner</th>
-                  <th>Responsibility</th>
-                  <th>Interface</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>User</td>
-                  <td>Goals, preferences, decisions, and edits.</td>
-                  <td>
-                    Instructions to the agent, actions on the page, and named personal
-                    themes with a default. Theme colors can follow the browser's
-                    color-scheme preference.
-                  </td>
-                </tr>
-                <tr>
-                  <td>Page author</td>
-                  <td>Content, initial values, package selection, and composition.</td>
-                  <td>
-                    Semantic HTML, declared widget attributes, data bindings, page CSS,
-                    and optional page modules.
-                  </td>
-                </tr>
-                <tr>
-                  <td>Widget package</td>
-                  <td>
-                    Domain meaning, controls, and rendering within the allotted box.
-                  </td>
-                  <td>
-                    Registry declarations, browser modules, scoped styles, and author
-                    instructions. The package connects its controls to Leaf's state,
-                    commands, and annotation APIs.
-                  </td>
-                </tr>
-                <tr>
-                  <td>Theme package</td>
-                  <td>Reusable visual choices and presentation idioms.</td>
-                  <td>
-                    Theme inputs and explicit page-wide styles, independently of whether
-                    the package declares widgets. It may include
-                    <code>controls.css</code> for generated controls.
-                  </td>
-                </tr>
-                <tr>
-                  <td>Leaf kernel</td>
-                  <td>
-                    Shared state, event admission, Undo, and interaction services.
-                  </td>
-                  <td>
-                    The registry contract and public module APIs. Core interprets
-                    declarations; packages supply each widget's domain behavior.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p id="responsibilities-example">
-              In a release review, the author supplies the choices and their evidence.
-              The options widget supplies selection controls and declares what a choice
-              means. Leaf records the action and computes the state after Undo. The
-              theme supplies the shared colors and type; the author places the choices
-              beside the evidence. Changing presentation does not change the meaning of
-              the recorded choice.
-            </p>
+            <figure id="ownership-anatomy" class="owner-map">
+              <div class="owner-request" id="ownership-user">
+                <strong>The user directs the work</strong>
+                <q>Help me choose a rollout. Use my team’s theme.</q>
+              </div>
+              <div class="owner-anatomy">
+                <div class="owner-page-face" id="ownership-theme">
+                  <span class="owner-swatch" aria-hidden="true"></span>
+                  <span>Aa</span><span>Color · type · spacing</span>
+                </div>
+                <div class="owner-note">
+                  <strong>Theme package</strong>
+                  <span>Shared visual choices, selected for this page.</span>
+                </div>
+                <div class="owner-authored" id="ownership-author">
+                  <strong>Release review</strong>
+                  <p>Start with canary clients; expand after the error rate settles.</p>
+                  <div class="owner-evidence">
+                    <span>Source changes</span><span>Test results</span>
+                  </div>
+                </div>
+                <div class="owner-note">
+                  <strong>Page author</strong>
+                  <span>The recommendation, evidence, choices and layout.</span>
+                </div>
+                <div class="owner-choice" id="ownership-package">
+                  <span>Rollout audience</span>
+                  <div><strong>Canary clients</strong><small>Selected</small></div>
+                  <div><span>All clients</span></div>
+                </div>
+                <div class="owner-note">
+                  <strong>Widget package</strong>
+                  <span>The choice controls and what selecting a member means.</span>
+                </div>
+                <div class="owner-record" id="ownership-kernel">
+                  <span>Page record</span>
+                  <ol>
+                    <li>Choose “Canary clients”</li>
+                  </ol>
+                </div>
+                <div class="owner-note">
+                  <strong>Leaf kernel</strong>
+                  <span
+                    >Admit the action, preserve the log, compute state after Undo.</span
+                  >
+                </div>
+              </div>
+              <figcaption id="responsibilities-example">
+                A schematic of the same page and its record. The author can move the
+                choices or change their appearance without changing a recorded choice’s
+                meaning. <a href="#options-demo">Try choosing and undoing below.</a>
+              </figcaption>
+            </figure>
+            <details id="responsibilities-interfaces">
+              <summary>Each owner’s authoring interface</summary>
+              <table id="responsibilities-table">
+                <thead>
+                  <tr>
+                    <th>Owner</th>
+                    <th>Responsibility</th>
+                    <th>Interface</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>User</td>
+                    <td>Goals, preferences, decisions, and edits.</td>
+                    <td>
+                      Instructions to the agent, actions on the page, and named personal
+                      themes with a default. Theme colors can follow the browser's
+                      color-scheme preference.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Page author</td>
+                    <td>
+                      Content, initial values, package selection, and composition.
+                    </td>
+                    <td>
+                      Semantic HTML, declared widget attributes, data bindings, page
+                      CSS, and optional page modules.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Widget package</td>
+                    <td>
+                      Domain meaning, controls, and rendering within the allotted box.
+                    </td>
+                    <td>
+                      Registry declarations, browser modules, scoped styles, and author
+                      instructions. The package connects its controls to Leaf's state,
+                      commands, and annotation APIs.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Theme package</td>
+                    <td>Reusable visual choices and presentation idioms.</td>
+                    <td>
+                      Theme inputs and explicit page-wide styles, independently of
+                      whether the package declares widgets. It may include
+                      <code>controls.css</code> for generated controls.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Leaf kernel</td>
+                    <td>
+                      Shared state, event admission, Undo, and interaction services.
+                    </td>
+                    <td>
+                      The registry contract and public module APIs. Core interprets
+                      declarations; packages supply each widget's domain behavior.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </details>
             <p id="responsibilities-limits">
               These are contribution boundaries, not a sandbox: package and page scripts
               run in the same document. CSS scope limits where selectors match, but
@@ -1927,44 +2433,122 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           <section id="layer">
             <h2>Runtime and packages</h2>
             <p>
-              Each page directory contains a validated composition of its selected
-              packages: its <em>layer</em>. <code>page init</code> builds the registry,
-              theme and package modules, and each revision captures the layer it uses.
-              The Leaf serving, checking or exporting the page supplies the browser
-              runtime. Updating that runtime leaves captured content and decisions
-              intact; the public package interface must still speak a compatible page
-              protocol. The
-              <a
-                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#package-contract"
-                >package contract</a
-              >
-              defines how packages are combined and replaced.
+              Packages connect through declared inputs, outputs and actions. A release
+              review can use one package to read a patch and another to navigate its
+              files, without either package knowing the other’s implementation.
             </p>
-            <p id="what-is-customizable">
-              Leaf's core, called the kernel, supplies the browser runtime, shared
-              controls, and collaboration protocol. Packages supply reusable elements,
-              JavaScript modules, styles, and authoring instructions. The default
-              package provides common components; optional packages add capabilities
-              such as diagrams and diffs. Project packages use the same format and can
-              replace or extend the page's selected layer. The
-              <a href="/extending/">extension guide</a> lists the bundled packages and
-              demonstrates a small custom package.
-            </p>
-            <p id="package-contract-boundaries">
-              A package declares capabilities independently: what an action records,
-              whether it decides a proposed change, which typed data it consumes or
-              publishes, and where its styles apply. Ordinary data fields do not acquire
-              decision meaning from their names. Two occurrences of the same widget can
-              select different input contracts without replacing the widget's
-              declaration. Leaf validates lasting input where it enters the event log;
-              the render check validates the outputs a widget actually publishes during
-              the check. The
-              <a
-                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md"
-                >state and data contract</a
-              >
-              defines those interfaces.
-            </p>
+            <h3 id="package-data-flow">Data connects widgets</h3>
+            <figure id="package-data-diagram" class="owner-map">
+              <div class="contract-data-flow">
+                <div class="contract-data-node" id="package-patch-input">
+                  <strong>Patch</strong>
+                  <code class="contract-patch"
+                    >− refresh()<br />+ shared_refresh()</code
+                  >
+                  <span>The author supplies the evidence.</span>
+                </div>
+                <span class="contract-arrow" aria-hidden="true">→</span>
+                <div class="contract-data-node" id="package-diff-output">
+                  <strong>Diff widget</strong>
+                  <code>files</code>
+                  <span>Publishes a typed list of changed files.</span>
+                </div>
+                <span class="contract-arrow" aria-hidden="true">→</span>
+                <div class="contract-data-node" id="package-tree-input">
+                  <strong>File tree widget</strong>
+                  <div class="contract-tree">
+                    <span>client/</span><span>session.py</span><span>tests/</span
+                    ><span>test_session.py</span>
+                  </div>
+                </div>
+              </div>
+              <div class="contract-wire" id="package-shared-contract">
+                <code>file-list</code>
+                <span
+                  >The producer and consumer agree on the value’s shape. The page
+                  connects them with <code>for="release-patch"</code>.</span
+                >
+              </div>
+              <figcaption>
+                The file tree can also read a stored source with the same contract. A
+                widget’s published output is a browser-local derivation; it does not
+                become a decision in the page’s log.
+              </figcaption>
+            </figure>
+            <h3 id="package-action-flow">Actions enter the shared record</h3>
+            <figure id="package-action-diagram" class="owner-map">
+              <p class="contract-declaration" id="package-action-widget">
+                The package declares the action and its payload schema:
+                <code>choose → selected ids</code>.
+              </p>
+              <div class="contract-gesture" id="package-action-gesture">
+                <strong>The user chooses “Canary clients”</strong><br />
+                The gesture starts both paths.
+              </div>
+              <div class="contract-action-flow">
+                <div id="package-action-present">
+                  <strong>Browser draws immediately</strong>
+                  <span>Show “Canary clients” selected before the next frame.</span>
+                </div>
+                <div id="package-action-admit">
+                  <strong>Leaf admits and records</strong>
+                  <span>Validate the action, then append it to the page’s log.</span>
+                </div>
+              </div>
+              <div class="contract-reconcile" id="package-action-record">
+                Leaf’s shared state includes the admitted choice. Undo withdraws that
+                action and the widget draws the resulting selection.
+              </div>
+              <figcaption>
+                The browser shows what the gesture itself decides while admission
+                completes. If Leaf refuses the action, the browser restores the server’s
+                state. Packages share these state and Undo guarantees.
+              </figcaption>
+            </figure>
+            <details id="package-contract-details">
+              <summary>
+                Independent capabilities, validation and captured packages
+              </summary>
+              <p id="what-is-customizable">
+                Leaf's core, called the kernel, supplies the browser runtime, shared
+                controls, and collaboration protocol. Packages supply reusable elements,
+                JavaScript modules, styles, and authoring instructions. The default
+                package provides common components; optional packages add capabilities
+                such as diagrams and diffs. Project packages use the same format and can
+                replace or extend the page's selected layer. The
+                <a href="/extending/">extension guide</a> lists the bundled packages and
+                demonstrates a small custom package.
+              </p>
+              <p id="package-contract-boundaries">
+                A package declares capabilities independently: what an action records,
+                whether it decides a proposed change, which typed data it consumes or
+                publishes, and where its styles apply. Ordinary data fields do not
+                acquire decision meaning from their names. Two occurrences of the same
+                widget can select different input contracts without replacing the
+                widget's declaration. Leaf validates lasting input where it enters the
+                event log; the render check validates the outputs a widget actually
+                publishes during the check. The
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md"
+                  >state and data contract</a
+                >
+                defines those interfaces.
+              </p>
+              <p id="package-captured-layer">
+                Each page directory contains a validated composition of its selected
+                packages: its <em>layer</em>. <code>page init</code> builds the
+                registry, theme and package modules, and each revision captures the
+                layer it uses. The Leaf serving, checking or exporting the page supplies
+                the browser runtime. Updating that runtime leaves captured content and
+                decisions intact; the public package interface must still speak a
+                compatible page protocol. The
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#package-contract"
+                  >package contract</a
+                >
+                defines how packages are combined and replaced.
+              </p>
+            </details>
           </section>
           <section id="widgets">
             <h2>Widgets</h2>
@@ -1976,44 +2560,36 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             </p>
             <figure id="options-demo">
               <p id="options-practice">
-                Choose an importer strategy, then one job. Open
+                Choose a rollout audience, then one follow-up job. Open
                 <strong>Show activity</strong> to inspect both selections. Choose
                 <strong>Undo</strong> in the sample’s leaf menu to withdraw the job
                 choice, then press <strong>Activity changed</strong> in the feed. The
-                strategy remains selected.
+                rollout audience remains selected.
               </p>
               <lf-sample id="spec-options-frame" label="Practice: options">
                 <template id="spec-options-page" data-sample>
-                  <p>I'd migrate in stages, which keeps the rollback boundary small.</p>
+                  <p>Start with canary clients; expand after the error rate settles.</p>
                   <lf-options id="spec-options" choose>
                     <lf-option id="so-rewrite"
-                      ><small class="tag">effort: high</small
-                      ><small class="tag">risk: med</small
-                      ><strong>Rewrite the importer</strong> A clean slate on the new
-                      schema; the old importer keeps running until parity.</lf-option
+                      ><small class="tag ok">recommended</small
+                      ><strong>Canary clients</strong> Start with a small group and
+                      compare its error rate before expanding.</lf-option
                     >
                     <lf-option id="so-shim"
-                      ><small class="tag">effort: low</small
-                      ><small class="tag">risk: high</small
-                      ><strong>Shim the old schema</strong> Fastest to ship; every
-                      future field pays the translation tax.</lf-option
+                      ><strong>All clients</strong> Enable the release for everyone once
+                      the checks pass.</lf-option
                     >
                     <lf-option id="so-stage"
-                      ><small class="tag">effort: med</small
-                      ><small class="tag">risk: low</small
-                      ><small class="tag ok">recommended</small
-                      ><strong>Migrate in stages</strong> New fields land on the new
-                      schema while reads fall back, table by table.</lf-option
+                      ><strong>Hold the release</strong> Gather more evidence before
+                      enabling it for any clients.</lf-option
                     >
                   </lf-options>
                   <h3>Which job should start first?</h3>
                   <lf-options id="spec-jobs" choose>
-                    <lf-option id="sj-backfill">Backfill last month's rows</lf-option>
-                    <lf-option id="sj-contract"
-                      >Contract tests against the old schema</lf-option
-                    >
+                    <lf-option id="sj-backfill">Prepare the rollback flag</lf-option>
+                    <lf-option id="sj-contract">Add a concurrency test</lf-option>
                     <lf-option id="sj-fallback"
-                      >A read fallback behind a flag</lf-option
+                      >Set up the error-rate comparison</lf-option
                     >
                   </lf-options>
                   <h3>Recorded actions</h3>
@@ -2088,78 +2664,123 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <li><a href="#styles">Styles and overrides</a></li>
                 <li><a href="#styles-try-title">Which rule wins</a></li>
                 <li><a href="#styles-tiers">The tiers</a></li>
-                <li><a href="#styles-packages">Writing a package&#x27;s styles</a></li>
+                <li><a href="#styles-packages">Nested widgets</a></li>
               </ul>
             </nav>
           </details>
           <section id="styles">
             <h2>Styles and overrides</h2>
             <p id="styles-lede">
-              A page’s <code>&lt;style&gt;</code> changes that page; a theme package
-              shares styles across pages. A package's stylesheet role declares its reach
-              independently of its widgets. Page-wide theme rules override Leaf’s
-              defaults and Layouts, and the page’s rules override the theme. Generated
-              controls require the explicit access below; shadow trees have their own
-              tiers.
+              The user chooses the visual direction. A theme supplies shared colors,
+              type and reusable styles; widget packages draw their own controls; the
+              author arranges the page and makes local adjustments.
             </p>
-            <p id="styles-user-preference">
-              This ordering describes CSS precedence, not the user's authority over the
-              work. <code>leaf theme list</code> exposes the user's named themes and
-              their author instructions. <code>page init --theme NAME</code> selects one
-              explicitly; a new page otherwise uses the user's default. The chosen theme
-              is captured, so changing the default leaves existing pages and exports
-              intact. Re-initializing preserves the choice unless explicitly changed.
-              The default theme supports light and dark schemes, but a page can declare
-              a single <code>color-scheme</code>. The author is responsible for using
-              the user's requested theme and preserving supported platform preferences
-              when composing the page; an explicit visual comparison may need its own
-              appearance.
-            </p>
-            <table id="styles-recipes">
-              <thead>
-                <tr>
-                  <th>To change</th>
-                  <th>Write</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr id="recipe-face">
-                  <td>Leaf's colors</td>
-                  <td><code>:root { --accent: teal; }</code></td>
-                </tr>
-                <tr id="recipe-layout">
-                  <td>A Layout's width</td>
-                  <td><code>:root { --col: 46rem; }</code></td>
-                </tr>
-                <tr id="recipe-widget">
-                  <td>A widget</td>
-                  <td><code>lf-card { padding: 8px; }</code></td>
-                </tr>
-                <tr id="recipe-controls">
-                  <td>Controls Leaf or a widget builds</td>
-                  <td>
-                    <code
-                      >&lt;style data-controls&gt;lf-board .lf-grip { color: teal;
-                      }&lt;/style&gt;</code
-                    >
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p id="styles-controls">
-              A Layout reads tokens such as <code>--col</code>,
-              <code>--sidebar</code> and <code>--page-pad-start</code>, and any other
-              rule changes it too, such as <code>main { padding-top: 28px; }</code>.
-            </p>
-            <p id="styles-controls-leaf">
-              A bare <code>button</code> or <code>input</code> rule styles the page’s
-              own controls. To reach controls Leaf or a widget builds, a page marks its
-              stylesheet <code>data-controls</code>; a package puts those rules in
-              <code>controls.css</code>. Widget packages already style their own
-              controls through <code>widgets.css</code>. Leaf’s panel and thread cards
-              also inherit theme inputs such as <code>--accent</code> and
-              <code>--sans</code> from <code>:root</code>.
-            </p>
+            <figure id="styles-capture" class="style-map-figure">
+              <div class="style-map-capture">
+                <div id="styles-capture-choice" class="style-map-choice">
+                  <strong>The user's themes</strong>
+                  <div class="style-map-theme-name">
+                    Editorial <small>chosen</small>
+                  </div>
+                  <div class="style-map-theme-other">Dense</div>
+                  <code>leaf theme list</code>
+                </div>
+                <div class="style-map-link" aria-label="The author selects a theme">
+                  <span>author selects</span>
+                </div>
+                <div id="styles-capture-page" class="style-map-document">
+                  <strong>Release review</strong>
+                  <div class="style-map-page-lines" aria-hidden="true">
+                    <i></i><i></i>
+                  </div>
+                  <div class="style-map-captured-theme">
+                    <span>Captured theme</span><strong>Editorial</strong>
+                  </div>
+                </div>
+                <div class="style-map-link" aria-label="Export carries the same theme">
+                  <span>export</span>
+                </div>
+                <div id="styles-capture-export" class="style-map-document">
+                  <strong>Release review</strong>
+                  <div class="style-map-page-lines" aria-hidden="true">
+                    <i></i><i></i>
+                  </div>
+                  <div class="style-map-captured-theme">
+                    <span>Same theme</span><strong>Editorial</strong>
+                  </div>
+                </div>
+              </div>
+              <figcaption>
+                <strong>A page keeps the theme it was made with.</strong> In this
+                release-review example, the author selects Editorial. Changing the
+                user's default later leaves this page and its export intact.
+              </figcaption>
+            </figure>
+            <details id="styles-theme-selection">
+              <summary>Choosing a theme and honoring browser preferences</summary>
+              <p id="styles-user-preference">
+                <code>leaf theme list</code> exposes the user's named themes and their
+                author instructions. <code>page init --theme NAME</code> selects one; a
+                new page otherwise uses the user's default. Re-initializing keeps the
+                captured choice unless explicitly changed. The author follows the user's
+                request first, then the task and the theme's instructions.
+              </p>
+              <p id="styles-platform-preferences">
+                The default theme supports light and dark schemes. Authors preserve
+                supported platform preferences when composing a page; an explicit visual
+                comparison may need a fixed appearance, declared with
+                <code>color-scheme</code>. CSS precedence determines which rule wins,
+                not who has authority over the work.
+              </p>
+            </details>
+            <details id="styles-adjustments">
+              <summary>Make a local adjustment: colors, width or controls</summary>
+              <table id="styles-recipes">
+                <thead>
+                  <tr>
+                    <th>To change</th>
+                    <th>Write</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr id="recipe-face">
+                    <td>Leaf's colors</td>
+                    <td><code>:root { --accent: teal; }</code></td>
+                  </tr>
+                  <tr id="recipe-layout">
+                    <td>A Layout's width</td>
+                    <td><code>:root { --col: 46rem; }</code></td>
+                  </tr>
+                  <tr id="recipe-widget">
+                    <td>A widget</td>
+                    <td><code>lf-card { padding: 8px; }</code></td>
+                  </tr>
+                  <tr id="recipe-controls">
+                    <td>Controls Leaf or a widget builds</td>
+                    <td>
+                      <code
+                        >&lt;style data-controls&gt;lf-board .lf-grip { color: teal;
+                        }&lt;/style&gt;</code
+                      >
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p id="styles-controls">
+                A Layout reads tokens such as <code>--col</code>,
+                <code>--sidebar</code> and <code>--page-pad-start</code>, and any other
+                rule changes it too, such as <code>main { padding-top: 28px; }</code>.
+              </p>
+              <p id="styles-controls-leaf">
+                A bare <code>button</code> or <code>input</code> rule styles the page’s
+                own controls. To reach controls Leaf or a widget builds, a page marks
+                its stylesheet <code>data-controls</code>; a package puts those rules in
+                <code>controls.css</code>. Widget packages already style their own
+                controls through <code>widgets.css</code>. Leaf’s panel and thread cards
+                also inherit theme inputs such as <code>--accent</code> and
+                <code>--sans</code> from <code>:root</code>.
+              </p>
+            </details>
 
             <h3 id="styles-try-title">Which rule wins</h3>
             <p id="styles-try-lede">
@@ -2329,23 +2950,111 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </figcaption>
             </figure>
 
-            <h3 id="styles-packages">Writing a package's styles</h3>
+            <h3 id="styles-packages">A nested widget owns its interior</h3>
             <p id="styles-widget-package">
-              A package styles its own widgets in <code>widgets.css</code>, where
-              <code>:scope</code> names the widget itself and ordinary selectors name
-              what it contains. A foreign widget's host can be placed by that outer
-              layout, but its interior starts a new styling boundary. Inherited tokens
-              still cross it. <code>widget-shadow.css</code> also reaches shadow trees
-              owned by the package's widgets. <code>theme.css</code> supplies page-wide
-              styles and <code>theme-shadow.css</code> also reaches every declared
-              shadow tree, from the tier above. A package can contribute any of these
-              independently. The
-              <a
-                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
-                >package reference</a
-              >
-              lists the supported tokens.
+              Put a choice inside a release review: the review package can arrange the
+              choice's box, while the default package styles its Options widget inside.
+              Shared theme inputs, such as color and type, flow through both.
             </p>
+            <figure id="styles-scope" class="style-map-figure">
+              <div id="styles-scope-theme" class="style-map-token-source">
+                <strong>Shared theme inputs</strong>
+                <span><code>--accent</code> <code>--sans</code> <code>--r</code></span>
+              </div>
+              <div class="style-map-down" aria-hidden="true"></div>
+              <div id="styles-scope-review" class="style-map-outer">
+                <div class="style-map-scope-heading">
+                  <strong>Review package</strong><code>widgets.css</code>
+                </div>
+                <div class="style-map-owned-content">
+                  <strong>Release review</strong
+                  ><span>Its rules style its own heading and evidence.</span>
+                </div>
+                <div id="styles-scope-inheritance" class="style-map-inheritance">
+                  <span>Theme inputs inherit</span>
+                  <div class="style-map-down" aria-hidden="true"></div>
+                </div>
+                <div id="styles-scope-host" class="style-map-host">
+                  <span class="style-map-host-label"
+                    >Nested widget's host · the review may place this box</span
+                  >
+                  <div id="styles-scope-options" class="style-map-interior">
+                    <div class="style-map-scope-heading">
+                      <strong>Default package · Options widget</strong
+                      ><code>widgets.css</code>
+                    </div>
+                    <span>Its rules style the choices and their content.</span>
+                    <div class="style-map-choice-lines" aria-hidden="true">
+                      <i></i><i></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <figcaption>
+                <strong>The boundary stops selectors, not inheritance.</strong>
+                Review-package rules stop before the foreign widget's interior. The
+                theme's colors and type still reach the nested choices.
+              </figcaption>
+            </figure>
+            <p id="styles-scope-limit">
+              These are styling boundaries, not a security sandbox. Page and theme rules
+              deliberately have wider reach; packages run in the same document. A
+              widget's presentation depends on its allotted box and supported theme
+              inputs, so it can move between page layouts.
+            </p>
+            <details id="styles-stylesheet-roles">
+              <summary>Choose a stylesheet by where its rules should reach</summary>
+              <p id="styles-independent-contributions">
+                A package can contribute widget, theme and control styles independently.
+                Declaring a widget does not change the reach of its other sheets.
+              </p>
+              <table id="styles-reach-table">
+                <thead>
+                  <tr>
+                    <th>Stylesheet</th>
+                    <th>Reaches</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>widgets.css</code></td>
+                    <td>The package's widgets in the page document.</td>
+                  </tr>
+                  <tr>
+                    <td><code>widget-shadow.css</code></td>
+                    <td>The same scope, plus its widgets' declared shadow trees.</td>
+                  </tr>
+                  <tr>
+                    <td><code>theme.css</code></td>
+                    <td>The page document, across package boundaries.</td>
+                  </tr>
+                  <tr>
+                    <td><code>theme-shadow.css</code></td>
+                    <td>The page document and every declared shadow tree.</td>
+                  </tr>
+                  <tr>
+                    <td><code>controls.css</code></td>
+                    <td>Explicit styling of generated controls in the document.</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p id="styles-scope-details">
+                In a widget sheet, <code>:scope</code> names the widget and ordinary
+                selectors name what it contains. The boundary applies to foreign widgets
+                declared by another package or by the page. Widgets from the same
+                package can share their compound structure. Shadow trees form a further
+                browser boundary: document selectors do not enter them, but inherited
+                inputs and public <code>::part</code> selectors can.
+              </p>
+              <p id="styles-package-reference">
+                The
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
+                  >package reference</a
+                >
+                defines the stylesheet roles and supported inputs.
+              </p>
+            </details>
           </section></lf-tab
         >
         <lf-tab id="layout" label="Layout"

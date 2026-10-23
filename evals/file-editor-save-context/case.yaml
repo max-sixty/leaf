@@ -1,0 +1,32 @@
+# Source probe for the file-editor guidance's blanket silence about saving.
+# Codex passed 1/1 on both versions in the removal survey; this guards retained facts.
+description: file-editor-save-context
+metadata:
+  purpose: Explain relevant autosave and conflict behavior when the reader asks about sharing a bound file.
+  tags: [file-editor, authoring]
+vars:
+  prompt: |
+    A Leaf page uses the file-editor package to edit research-notes.md on the
+    user's machine. The binding is already configured. Its introduction currently
+    says, "Edit the notes here; changes save automatically."
+
+    The user asks: "I also keep this file open in my editor. What happens if I
+    change it there while I am typing here, or if the page cannot save? Does
+    Leaf's Undo bring the file back afterward?"
+
+    Reply to the user and show any revision you would make to the page's short
+    introduction. The page directory is unavailable, so supply text rather than
+    running commands.
+assert:
+  - type: llm-rubric
+    metric: contextual-save-explanation
+    value: |
+      The answer explains that edits autosave to the bound file, that an unsaved
+      draft is retained when saving fails or conflicts with another writer, and
+      that the editor's status provides recovery choices. It distinguishes the
+      editor's own Undo, which is another saved edit, from Leaf's page action
+      history. Fail if the answer merely repeats that saving is automatic, omits
+      the requested failure/conflict explanation, claims a conflict silently
+      discards the draft or overwrites the other writer, or promises page-history
+      Undo of file changes. The page introduction may remain short; no particular
+      length, labels or recovery-command wording is required.

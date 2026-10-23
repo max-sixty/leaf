@@ -13,9 +13,8 @@
    theirs: an obligation arrives through the obligation view's `arriveAtRecord`; a thread through the
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
    lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
-   onto the widget the action was made on, the element, or the page's head; the
-   version's approval by the floating panel's own arrival (page-status.js,
-   `registerApprovalPresentation`). An On me card's Show arrives through the same
+   onto the widget the action was made on, the element, or the page's head.
+   An On me card's Show arrives through the same
    function (`arriveAtItem`), for an item on either list or one that is done, and
    offers itself where that arrival goes anywhere (`arrivesAt`); the card names its
    item as the walk does (`queueStop`).
@@ -63,7 +62,7 @@
 import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
-import { focused, onCurrentLocation } from "./focus.js";
+import { onCurrentLocation } from "./focus.js";
 import {
   obligationHolding,
   placeOf,
@@ -83,7 +82,6 @@ import { drawnThreadId } from "./thread/selectors.js";
 import { effect, untracked } from "/vendor/browser-runtime.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
-import { approvalTarget, presentedApproval } from "./page-status.js";
 
 const QUALIFIER = "waiting on me";
 const WITHIN = "waiting on me here";
@@ -91,13 +89,12 @@ const NOUNS = Object.freeze({
   thread: "Thread",
   widget: "Update",
   page: "To-do",
-  approval: "Approval",
 });
 // What a stop is called: an obligation by its widget's own word, else by where it is arrived
 // at, but a to-do on an element is a To-do rather than the Update a widget's stop
 // otherwise is.
 const nounOf = (item, stop) =>
-  carriesObligation(item) && stop.kind !== "approval"
+  carriesObligation(item)
     ? obligationWord(item.obligation)
     : stop.kind === "widget" && itemNoun(item) === "todo"
       ? "To-do"
@@ -108,21 +105,18 @@ const nounOf = (item, stop) =>
 // thread it stands in, a to-do on the page as a whole at the page's head, or else the
 // element it stands on, as an action is arrived at on the widget it was made on.
 const stopOf = (item) =>
-  item.kind === "approval"
-    ? { kind: "approval", id: item.id, thread: null }
-    : item.kind === "widget" &&
-        !(item.thread !== null && answeredInWords(item.obligation))
-      ? {
-          kind: "obligation",
-          id: item.id,
-          thread: item.thread,
-          obligation: item.obligation,
-        }
-      : item.thread !== null
-        ? { kind: "thread", id: item.thread, thread: item.thread }
-        : item.subject.kind === "page"
-          ? { kind: "page", id: "page", thread: null }
-          : { kind: "widget", id: item.subject.id, thread: null };
+  item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation))
+    ? {
+        kind: "obligation",
+        id: item.id,
+        thread: item.thread,
+        obligation: item.obligation,
+      }
+    : item.thread !== null
+      ? { kind: "thread", id: item.thread, thread: item.thread }
+      : item.subject.kind === "page"
+        ? { kind: "page", id: "page", thread: null }
+        : { kind: "widget", id: item.subject.id, thread: null };
 const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 
 // An item as the walk reads it: where it is arrived at, the key the walk's position
@@ -153,17 +147,15 @@ export function createQueueWalk({
 }) {
   // The element a stop stands at on the page, if it has one.
   const stopElement = (stop) =>
-    stop.kind === "approval"
-      ? approvalTarget()
-      : stop.kind === "obligation"
-        ? stop.thread !== null
+    stop.kind === "obligation"
+      ? stop.thread !== null
+        ? threadPlace(stop.thread)
+        : obligationPlace(stop.obligation).node
+      : stop.kind === "page"
+        ? pageHead()
+        : stop.thread !== null
           ? threadPlace(stop.thread)
-          : obligationPlace(stop.obligation).node
-        : stop.kind === "page"
-          ? pageHead()
-          : stop.thread !== null
-            ? threadPlace(stop.thread)
-            : elementById(stop.id);
+          : elementById(stop.id);
 
   // Where a stop stands on the page, if anywhere.
   const pagePlace = (stop) => {
@@ -205,8 +197,6 @@ export function createQueueWalk({
   // the user's place unless a walk supplies its own starting point. A reading
   // in the viewport can start a walk but does not select a task to finish or count.
   function currentLocationStop(list, origin = currentLocationOrigin()) {
-    if (focused(document) === approvalTarget())
-      return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
     const thread = drawnThreadId(held);
     if (thread) {
@@ -280,9 +270,6 @@ export function createQueueWalk({
       return record ? arriveAtRecord(record) : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id);
-    // A chrome presenting the approval elsewhere brings the user to it itself.
-    if (stop.kind === "approval" && presentedApproval())
-      return presentedApproval().arrive();
     return arriveAtElement(() => stopElement(stop));
   }
 
@@ -411,8 +398,7 @@ export function createQueueWalk({
   // Whether the walk takes the user somewhere for an item that its card does not already
   // offer: its place on the page, or a widget in a thread the page draws no passage for,
   // which the panel opens with the user on the widget. A thread with no place opens in
-  // the panel as the card's Discuss opens it, and the version's approval stands in On me
-  // (`stopElement`), so neither goes anywhere further.
+  // the panel as the card's Discuss opens it, so it goes nowhere further.
   const arrivesAt = (item) => {
     const stop = stopOf(item);
     return (

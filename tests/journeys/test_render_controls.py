@@ -220,7 +220,6 @@ diff --git a/gateway/limits.py b/gateway/limits.py
     f"""<lf-shot id="stable-shot" alt="the release card"
          before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>
 """,
-    head='<meta name="lf-review" content="sign-off">',
 )
 
 

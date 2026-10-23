@@ -167,7 +167,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     ],
 )
 def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where):
-    """A content revision keeps the reader on a page that still asks for approval.
+    """A content revision keeps the reader on the same passage.
 
     Native scroll anchoring is disabled by this page's layout, so it cannot conceal
     a broken semantic carry when five paragraphs arrive above the reader. Where the
@@ -180,7 +180,7 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where)
     anchoring = "<style>html { overflow-anchor: none; }</style>"
     first = LIVE_V1.replace(
         "</head>",
-        '<meta name="lf-review" content="sign-off">' + anchoring + "</head>",
+        anchoring + "</head>",
     )
     second = LIVE_V2.replace("</head>", anchoring + "</head>")
     if where == "inside":

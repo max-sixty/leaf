@@ -1725,8 +1725,8 @@ def panel_control(page, key, at=None):
     """Return the panel's control for the page's control row `key`, opening the leaf's
     menu, and the list `at` names (`panel_menu`), where the row stands there.
 
-    Threads (`threads`) and On me (`queue`) are the row's marks; the version's approval
-    (`approval`) stands under Versions. Every other row is the menu's, by its key:
+    Threads (`threads`) and On me (`queue`) are the row's marks. Every other row is
+    the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
@@ -1735,8 +1735,6 @@ def panel_control(page, key, at=None):
     `selection_field`'s."""
     if key in PANEL_ROW_CONTROLS:
         control = page.locator(PANEL_ROW_CONTROLS[key])
-    elif key == "approval":
-        control = panel_menu(page, "versions").locator(".lf-fp-approval .lf-fp-item")
     else:
         control = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]')
     expect(control).to_be_visible()

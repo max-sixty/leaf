@@ -1,8 +1,8 @@
 """The two lists, On me (`on_user`) and On <agent> (`on_agent`): what is on the user,
 what is on the agent, and what each has finished (`done`).
 
-Every row but a to-do is an obligation record (`obligations.py`): a widget's, a version's
-sign-off, or an update the user handed over (`workflows.handed_over`). This is the one
+Every row but a to-do is an obligation record (`obligations.py`): a widget's or an
+update the user handed over (`workflows.handed_over`). This is the one
 selection that lists them by their next actor beside the to-dos. An obligation is never
 a to-do: its source owns its answer, and only a to-do on the user, which the agent
 opened, ends at their Done. A browser view serves these lists and `page state` prints
@@ -11,7 +11,7 @@ selection. The browser places its own unresolved sends against the served lists
 (`browser/framework/application.ts`, `localQueues`); it never selects them again.
 
 On me holds the open records whose next actor is the user, which are the obligations
-widgets and sign-off ask and the updates handed back for the user to send again, then the
+widgets ask and the updates handed back for the user to send again, then the
 to-dos on the user. On <agent> holds the open update records whose next actor is the
 agent, which are the answers it owes, then the agent's to-dos. A widget's obligation
 is the agent's only while a thread about it awaits the agent's word, and that thread's
@@ -29,8 +29,8 @@ orders the updates by their strongest workflow (`work.served_workflows`), the or
 every surface showing one of several reads.
 
 A row that leaves a list lands in Done, whose `owner` names the list: the records no
-longer open, which an update's is when the agent's reply answered it and a widget's or
-sign-off's when the user answered it, here or elsewhere, or it was withdrawn; and the
+longer open, which an update's is when the agent's reply answered it and a widget's
+when the user answered it, here or elsewhere, or it was withdrawn; and the
 ended to-dos. Each done row adds how it ended (`state`: `done`, or `dropped` for a
 withdrawn record, or a to-do's outcome), when (`ended`), and the outcome's detail,
 which for a record is its agent end's. Done is served newest first, and a row without a

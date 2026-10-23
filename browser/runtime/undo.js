@@ -11,7 +11,7 @@
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
    safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago — sent"), in
    every tab and after a reload. A thread goes by its name as it stands now, a to-do by
-   its title, an approval by its version and a reaction by where it stands, all of
+   its title and a reaction by where it stands, all of
    which the page already holds. An action's ids are words only in the document it was
    made in, so the server serves what the head did in that document's words
    (`gesture`, `GestureWords.gesture`), and the widget goes by its name on this page.
@@ -27,7 +27,7 @@
    showed out of view clears the arm, and the next press shows again; a press in
    Leaf's chrome keeps it, since the menu's Undo, the touch route, is reached
    through the leaf. The place is the thread a settlement or reaction is in, the
-   message holding a widget an agent sent, or the element changed; an approval or a
+   message holding a widget an agent sent, or the element changed; a
    to-do's Done changes only the leaf's own rows, so it has none. A gesture whose
    reversal this tab holds (below) is taken at once, since taking it back puts the
    user back at its place.
@@ -114,8 +114,6 @@ function gestureWords(event, gesture) {
       const name = thread ? quoted(threadName(thread), 48) : "a thread";
       return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
     }
-    case "done":
-      return `approved v${event.version}`;
     case "todo_end": {
       const todo = runtime.todos.find(({ id }) => id === event.todo);
       return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
@@ -127,7 +125,7 @@ function gestureWords(event, gesture) {
 
 // Where taking `event` back shows on the page: the thread it settled or reacted in, a
 // widget an agent sent in a message (its message is its place), or the element it
-// changed. An approval or a to-do's Done changes only the leaf's own rows, which stand
+// changed. A to-do's Done changes only the leaf's own rows, which stand
 // in front of the user, so it has no place.
 function placeOf(event) {
   // A reaction in a thread is a reply naming the message it reacts to.

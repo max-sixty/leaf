@@ -30,7 +30,6 @@ from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
-    expect_panel_says,
     holding,
     http_error_console,
     open_page,
@@ -55,10 +54,6 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 
-SIGN_OFF = LONG_PAGE.replace(
-    "<title>long</title>",
-    '<title>long</title><meta name="lf-review" content="sign-off">',
-)
 OBLIGATION_PAGE = leaf_page(
     "obligation",
     """<h1 id="t">Ask</h1>
@@ -379,7 +374,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     page = floating(browser, url)
     page.locator(".lf-fp-threads").click()
     page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first.click()
-    # The thread current location open: moving on to the next thread fades the one it leaves.
+    # The currently open thread: moving on to the next thread fades the one it leaves.
     thread = page.locator(".lf-fp-view[data-view=thread]:not([data-leaving])")
     expect(thread).to_be_visible()
     first = page.locator(".lf-fp-head .lf-fp-title").inner_text()
@@ -3164,15 +3159,14 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
     expect(tabs.nth(0)).to_be_focused()
 
 
-def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
+def test_versions_travel_opens_in_the_panel(browser, serve):
     """Version travel turns the leaf's menu to Versions, whatever route asks for the
     versions menu: the menu's row, which names the key as keys, apart from its value,
     and that key, which stands the user on the first version. It lists each version
-    with its note, marks the one shown, travels to another, and holds the page's
-    approval, which records the sign-off."""
-    url = serve(SIGN_OFF)
+    with its note, marks the one shown, and travels to another."""
+    url = serve(LONG_PAGE)
     stamp_page(
-        serve.page_dir, SIGN_OFF.replace("Paragraph 0.", "Paragraph zero."), "two"
+        serve.page_dir, LONG_PAGE.replace("Paragraph 0.", "Paragraph zero."), "two"
     )
     page = floating(browser, url)
     view = page.locator(".lf-fp-menu[data-level=versions]")
@@ -3198,7 +3192,7 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
         "title", "two"
     )
     # The list is one stop for Tab, which the arrows walk from the first version through
-    # each version and its Compare and the approval to the way back at its foot.
+    # each version and its Compare to the way back at its foot.
     stops = view.locator("button:not(:disabled)")
     expect(stops.first).to_be_focused()
     page.keyboard.press("ArrowDown")
@@ -3207,10 +3201,6 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     expect(stops.last).to_be_focused()
     expect(stops.last).to_have_class(re.compile(r"\blf-fp-menu-back\b"))
     expect(view.locator("[tabindex='0']")).to_have_count(1)
-
-    with sending(page, "the approval"):
-        view.locator(".lf-fp-item", has_text="Approve version").click()
-    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "done"
 
     other = view.locator(".lf-fp-version:not([data-current]) .lf-fp-label")
     number = re.search(r"v\d+", other.inner_text()).group(0)
@@ -3222,9 +3212,9 @@ def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, se
     """While Versions holds focus the page's keys rest, where d and j scrolled the page
     under it and c left it for the field. A version's number shows that version, not
     the row in that place, and `?` lists the numbers among the panel's keys."""
-    url = serve(SIGN_OFF)
+    url = serve(LONG_PAGE)
     for words, note in (("Paragraph zero.", "two"), ("Paragraph nought.", "three")):
-        stamp_page(serve.page_dir, SIGN_OFF.replace("Paragraph 0.", words), note)
+        stamp_page(serve.page_dir, LONG_PAGE.replace("Paragraph 0.", words), note)
     page = floating(browser, url)
     view = page.locator(".lf-fp-menu[data-level=versions]")
 
@@ -3299,29 +3289,6 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     expect(notice).to_be_hidden()
 
 
-def test_the_row_says_the_version_shown_is_approved(browser, serve):
-    """Once the user approves the version shown, the row says so, quietly and with no
-    press, until Undo takes the approval back."""
-    page = floating(browser, serve(SIGN_OFF))
-    notice = page.locator(".lf-fp-row-notice")
-    expect(notice).to_be_hidden()
-    page.locator(".lf-fp-leaf").click()
-    page.locator(".lf-fp-menu .lf-fp-item", has_text="Versions").click()
-    view = page.locator(".lf-fp-menu[data-level=versions]")
-    with sending(page, "the approval"):
-        view.locator(".lf-fp-item", has_text="Approve version").click()
-    expect(notice).to_have_text(re.compile(r"^\s*✓ v1 approved\s*$"))
-    expect(notice.locator("button, a")).to_have_count(0)
-    expect(notice.locator(".lf-fp-row-notice-face")).to_have_attribute(
-        "data-tone", "ok"
-    )
-    page.keyboard.press("Escape")
-    page.locator("body").focus()
-    with sending(page, "the undo"):
-        page.keyboard.press("z")
-    expect(notice).to_be_hidden()
-
-
 def test_a_failed_save_is_an_error_until_the_next_valid_one(browser, serve):
     """When the agent's latest save fails its check, the page keeps the last one that
     passed, and that stands as an error: the field says it and Errors in the leaf's
@@ -3376,80 +3343,6 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
         "/examples/",
         "/#install",
     ]
-
-
-def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
-    """The version's approval waits on the user in On me, and `m` arrives at it where
-    this chrome shows it: the panel's On view, focused on its Approve."""
-    url = serve(SIGN_OFF)
-    stamp_page(serve.page_dir, SIGN_OFF, "one")
-    page = floating(browser, url)
-    page.locator("body").focus()
-    page.keyboard.press("m")
-    approve = page.locator(".lf-fp-view[data-view=queue] [data-approval] .lf-fp-answer")
-    expect(approve).to_be_focused()
-    expect_panel_says(page, "Approval")
-
-    # Answered, it is still arrived at: on its card in Done, at its Undo.
-    with sending(page, "the approval"):
-        page.keyboard.press("Enter")
-    page.keyboard.press("Escape")
-    # A page's own control arrives at it, as a widget's script would.
-    page.evaluate(
-        """async () => {
-          const api = await window.__lfWidgetApi();
-          const go = document.createElement('button');
-          go.id = 'to-approval';
-          go.textContent = 'To the approval';
-          go.onclick = () => api.obligationActions.open(
-            api.readObligations().all.find((item) => item.source.kind === 'approval').id);
-          go.style.cssText = 'position: fixed; top: 0; left: 0';
-          document.body.append(go);
-        }"""
-    )
-    page.locator("#to-approval").click()
-    card = page.locator(".lf-fp-view[data-view=queue] [data-approval]")
-    expect(card.get_by_role("button", name="Undo")).to_be_focused()
-
-
-def test_the_approval_is_arrived_at_in_sight_below_many_obligations(browser, serve):
-    """With more obligations than On me shows at once, arriving at the approval
-    scrolls its card into the view, so the Approve the user is located on is in sight."""
-    items = "".join(
-        f'<lf-ask id="ask-{n}"><h3>Question {n}?</h3><lf-options id="o-{n}" choose>'
-        f'<lf-option id="y-{n}">Yes</lf-option><lf-option id="n-{n}">No</lf-option>'
-        "</lf-options></lf-ask>"
-        for n in range(12)
-    )
-    source = leaf_page("many", f"<h1>Many</h1>{items}").replace(
-        "<title>many</title>",
-        '<title>many</title><meta name="lf-review" content="sign-off">',
-    )
-    url = serve(source)
-    stamp_page(serve.page_dir, source, "one")
-    page = floating(browser, url)
-    page.evaluate(
-        """async () => {
-          const api = await window.__lfWidgetApi();
-          const go = document.createElement('button');
-          go.id = 'to-approval';
-          go.textContent = 'To the approval';
-          go.onclick = () => api.obligationActions.open(
-            api.readObligations().all.find((item) => item.source.kind === 'approval').id);
-          go.style.cssText = 'position: fixed; top: 0; left: 0';
-          document.body.append(go);
-        }"""
-    )
-    page.locator("#to-approval").click()
-    view = page.locator(".lf-fp-view[data-view=queue]")
-    approve = view.locator("[data-approval] .lf-fp-answer")
-    expect(approve).to_be_focused()
-    expect(approve).to_be_in_viewport()
-    box, room = approve.bounding_box(), view.bounding_box()
-    assert (
-        room["y"] <= box["y"]
-        and box["y"] + box["height"] <= room["y"] + room["height"] + 1
-    ), (box, room)
 
 
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):

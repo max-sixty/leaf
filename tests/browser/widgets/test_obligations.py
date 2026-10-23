@@ -40,25 +40,10 @@ from render_harness import (
 from browser.widgets import (
     expect_accept_all,
     observe_live_region,
-    put_menu_away,
 )
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-def expect_approval(page, *, enabled, title=None):
-    """Read the version's approval in the leaf's menu, under Versions, enabled or not,
-    with the reason `title` gives where it is refused; then put the menu away. The menu
-    holds what it opened with, so wait for the page state first."""
-    approve = panel_control(page, "approval")
-    if enabled:
-        expect(approve).to_be_enabled()
-    else:
-        expect(approve).to_be_disabled()
-    if title is not None:
-        expect(page.locator(".lf-fp-approval")).to_have_attribute("title", title)
-    put_menu_away(page)
 
 
 ACROSS_OBLIGATION = """
@@ -230,9 +215,7 @@ def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
     assert abs(sum(at["widths"]) - (at["list"] - 2)) <= 2, at
 
 
-def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
-    browser, serve
-):
+def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
     """Ordinary choices retain the implementation set and a reversible Done."""
     example = ROOT / "examples/ideas-to-implement.html"
     context = browser.new_context(
@@ -240,7 +223,6 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     )
     page = open_page(browser, live_url(serve(example)), context=context)
     choices = page.locator("#ideas-shortlist")
-    expect_approval(page, enabled=False)
 
     first = page.locator("#idea-shared-filters .lf-pick")
     first.focus()
@@ -257,7 +239,6 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     done.tap()
     round_trip(page)
     expect_obligations_answered(page, "1/1")
-    expect_approval(page, enabled=True)
 
     revised = example.read_text().replace("One API", "A permission-checked API")
     wait_for_revision(
@@ -265,14 +246,12 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     )
     expect(page.locator("#idea-shared-filters")).to_have_attribute("chosen", "")
     expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
-    expect_approval(page, enabled=True)
 
     choices.get_by_role(
         "button", name="Take back Done: reopen these options", exact=True
     ).tap()
     round_trip(page)
     expect_obligations_answered(page, "0/1")
-    expect_approval(page, enabled=False)
     choices.get_by_text("Export the filtered table", exact=True).tap()
     round_trip(page)
     expect(page.locator("#idea-csv-export")).not_to_have_attribute("chosen", "")
@@ -281,17 +260,13 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
     done.tap()
     round_trip(page)
-    panel_control(page, "approval").tap()
-    round_trip(page)
-    expect(panel_control(page, "approval")).to_contain_text("Version approved")
+    expect_obligations_answered(page, "1/1")
 
 
-def test_clearing_an_answer_reopens_its_obligation_and_shuts_the_approval_gate(
-    browser, serve
-):
+def test_clearing_an_answer_reopens_its_obligation(browser, serve):
     """An answer verb with an empty recorded value leaves its obligation unanswered."""
     html = leaf_page(
-        "approval after a cleared pick",
+        "obligation after a cleared pick",
         """
 <lf-ask id="release-decision"><h1>Ship this release?</h1>
   <lf-options id="release-options" choose>
@@ -300,7 +275,6 @@ def test_clearing_an_answer_reopens_its_obligation_and_shuts_the_approval_gate(
   </lf-options>
 </lf-ask>
 """,
-        head='<meta name="lf-review" content="sign-off">',
     )
     page = open_page(browser, serve(html))
     pick = page.locator("#release-ship .lf-pick")
@@ -308,23 +282,19 @@ def test_clearing_an_answer_reopens_its_obligation_and_shuts_the_approval_gate(
     pick.click()
     round_trip(page)
     expect_obligations_answered(page, "1/1")
-    expect_approval(page, enabled=True)
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     pick.click()
     holding(page, held, 1, "the cleared selection")
     # The pick clears under the user at once; whether that leaves the obligation unanswered
-    # is the log's reading, and the gate waits for it.
+    # is the log's reading.
     expect(page.locator("#release-ship")).not_to_have_attribute("chosen", "")
 
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect_obligations_answered(page, "0/1")
-    expect_approval(
-        page, enabled=False, title="Answer every open widget before approving this work"
-    )
 
 
 def test_the_obligation_reading_counts_completed_obligations_against_the_active_total(

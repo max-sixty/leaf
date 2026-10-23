@@ -95,13 +95,7 @@ import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { createVersionController } from "./runtime/version.js";
-import {
-  isSignoffDeclared,
-  loadIcon,
-  mountPageStatus,
-  paintApproval,
-  stateSignoff,
-} from "./runtime/page-status.js";
+import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
@@ -399,8 +393,6 @@ app = mountApplication({
     prepareActivation: (state) => version.prepareActivation(state),
     acceptData,
     notifyDataSubscribers,
-    isSignoffDeclared,
-    stateSignoff,
   },
 });
 if (offlineInteractive) applicationState.setHostAvailable(false);
@@ -683,9 +675,7 @@ if (!offlineInteractive) {
   );
   document.body.append(chromeRoot);
   version.mount();
-  mountPageStatus({
-    approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
-  });
+  mountPageStatus();
   floatingPanel.mount(chromeForeground);
   responseSurface.mount();
   holdToRead();
@@ -793,7 +783,6 @@ async function presentPage() {
     return;
   }
   paintKeys();
-  paintApproval();
   repaint();
   app.overlay?.flushLayout();
   landFragment();

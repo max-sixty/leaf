@@ -54,6 +54,43 @@
       }
     }
   },
+  "lf-approval": {
+    "description": "A request for explicit approval of the action described in its authored heading and prose.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "restated": {
+        "type": "boolean"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "markup",
+    "x-word": "approval",
+    "x-upgrade": true,
+    "x-state": {
+      "approve": {
+        "unit": "widget",
+        "detail": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    "x-awaits": {
+      "value": "approve",
+      "answered": {
+        "approve": {}
+      }
+    },
+    "x-example": "<lf-approval id=\"publish-report\"><h3>Publish this report?</h3><p>Publish the report shown above to the team workspace.</p></lf-approval>",
+    "x-instructions": "Name exactly what approval authorizes in a heading and the evidence beside it. Use for permission to take a stated action; use lf-options when the user must choose between outcomes. The request remains the same across page edits and stamps until explicitly restated. Follow authoring-decisions.md, \"Approval\", for its scope and lifecycle.",
+    "x-initial": "/vendor/lf-approval-initial.js"
+  },
   "lf-ask": {
     "description": "A question for the user. Around decision widgets it gives their heading and context, each widget answered separately; with no widget inside, it is a question the user answers in words.",
     "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Include the evidence the user needs to answer. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
@@ -516,7 +553,7 @@
   },
   "lf-tabs": {
     "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",
-    "x-instructions": "The first `lf-tabs` written directly in `main` is the page's navigation; any other tab set is a framed box within the page. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads, versions and sign-off belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
+    "x-instructions": "The first `lf-tabs` written directly in `main` is the page's navigation; any other tab set is a framed box within the page. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads and versions belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
     "type": "object",
     "properties": {
       "id": {
@@ -592,7 +629,7 @@
   },
   "lf-parts": {
     "description": "A page made of parts, each laid out by a Layout of its own and shown one at a time, listed down the window's left edge under the page's title.",
-    "x-instructions": "Use it where a page holds work of different shapes, such as a workspace and the reading behind it, that each want a Layout of their own (`page-layout.md`, \"A page of parts\"). Write it directly in a `main` that carries no Layout, after one `header` holding the page's short title, and give each `lf-part` one child carrying that part's Layout, such as `<article class=\"layout-column\">`. Put the main current part first. History, threads, versions and sign-off belong to the whole page. When current work no longer needs a part, remove it, moving any passage an open thread or an unretracted decision is anchored to into a `details` in the relevant part. Where the parts share one Layout, use page tabs (`lf-tabs`) in a `main` that carries it instead.",
+    "x-instructions": "Use it where a page holds work of different shapes, such as a workspace and the reading behind it, that each want a Layout of their own (`page-layout.md`, \"A page of parts\"). Write it directly in a `main` that carries no Layout, after one `header` holding the page's short title, and give each `lf-part` one child carrying that part's Layout, such as `<article class=\"layout-column\">`. Put the main current part first. History, threads and versions belong to the whole page. When current work no longer needs a part, remove it, moving any passage an open thread or an unretracted decision is anchored to into a `details` in the relevant part. Where the parts share one Layout, use page tabs (`lf-tabs`) in a `main` that carries it instead.",
     "type": "object",
     "properties": {
       "id": {
@@ -633,7 +670,7 @@
   },
   "lf-draft": {
     "description": "A block of text the user owns and can rewrite in place, with recorded revision history.",
-    "x-instructions": "Write the exact Markdown source as `<pre>`, one newline, the HTML-escaped source (& before < and >), then `</pre>` right after it. HTML drops that first newline; every later character, indentation and trailing newlines included, is part of the draft. For a change you propose to existing prose, use a suggestion instead. With `needed`, a draft asks the user for an edit; without it, it is an optional editing surface. Use lf-ask when the request needs its own heading and evidence, or page sign-off to approve the whole page. Keep the user's exact source on revision (authoring-revisions.md, \"Honor user state\"); to replace an edited passage on purpose, write the new text and mark the draft `restated` ($restated).",
+    "x-instructions": "Write the exact Markdown source as `<pre>`, one newline, the HTML-escaped source (& before < and >), then `</pre>` right after it. HTML drops that first newline; every later character, indentation and trailing newlines included, is part of the draft. For a change you propose to existing prose, use a suggestion instead. With `needed`, a draft asks the user for an edit; without it, it is an optional editing surface. Use lf-ask when the request needs its own heading and evidence, or lf-approval for permission to use the finished wording. Keep the user's exact source on revision (authoring-revisions.md, \"Honor user state\"); to replace an edited passage on purpose, write the new text and mark the draft `restated` ($restated).",
     "type": "object",
     "properties": {
       "id": {

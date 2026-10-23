@@ -534,7 +534,7 @@ export function createResponseSurface({
       // A browser command or touch handle can replace the visual target while its
       // selectionchange is held out above. Re-read once the explicit activation is
       // complete so that real later selection is not discarded with the focus collapse.
-      observeSelection();
+      selectionChanged();
     });
   }
   // Focusing text entry collapses a native page selection. Hold that browser-authored
@@ -839,7 +839,12 @@ export function createResponseSurface({
     // in-progress branch until the compatibility mouseup has been and gone.
     const releasePress = () =>
       setTimeout(() => {
+        if (!actionPress) return;
         actionPress = false;
+        // Native selectionchange may have coalesced the focus collapse and a later
+        // passage while this press held observation. Read the live selection when
+        // the handoff ends, through the same guards as a native notification.
+        selectionChanged();
       });
     // Opening or acting in chrome is a route away from the page, not a new selection
     // gesture. Keep the native touch passage verbatim while focus moves
@@ -955,6 +960,39 @@ export function createResponseSurface({
     drawingEdits,
   });
 
+  function selectionChanged() {
+    const automatic = programmaticSelection(getSelection());
+    if (primaryPointerPressed && selectionPressIntent?.()) {
+      rememberPointerSelection();
+      if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
+        rememberSelection();
+      reflectSelection();
+      return;
+    }
+    // Focus and action handoffs own the captured target while the browser collapses
+    // its selection. Outside those handoffs, observe the browser's live passage;
+    // only the completed page gesture above/below may replace the composer.
+    if (takesLetters(focused())) {
+      offerSelection(null);
+      return;
+    }
+    if (actionPress || targetActivation) return;
+    const selection = pageSelection();
+    if (coarsePointer.matches && selection && !automatic) rememberSelection(selection);
+    observeSelection();
+    // A bare selected passage only stands while the browser still holds it.
+    // Focusing Comment captures that passage, and a written draft keeps it even
+    // after focus moves elsewhere; neither belongs to the native selection now.
+    if (
+      !selection &&
+      fabAnchor.value?.quote &&
+      !fabHoldsCapturedPassage() &&
+      !composer.composerHolds()
+    )
+      putAwayFab();
+    reflectSelection();
+  }
+
   function mount() {
     composer.mount();
     placement?.mount();
@@ -1016,39 +1054,7 @@ export function createResponseSurface({
     });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
-    document.addEventListener("selectionchange", () => {
-      const automatic = programmaticSelection(getSelection());
-      if (primaryPointerPressed && selectionPressIntent?.()) {
-        rememberPointerSelection();
-        if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
-          rememberSelection();
-        reflectSelection();
-        return;
-      }
-      // Focus and action handoffs own the captured target while the browser collapses
-      // its selection. Outside those handoffs, observe the browser's live passage;
-      // only the completed page gesture above/below may replace the composer.
-      if (takesLetters(focused())) {
-        offerSelection(null);
-        return;
-      }
-      if (actionPress || targetActivation) return;
-      const selection = pageSelection();
-      if (coarsePointer.matches && selection && !automatic)
-        rememberSelection(selection);
-      observeSelection();
-      // A bare selected passage only stands while the browser still holds it.
-      // Focusing Comment captures that passage, and a written draft keeps it even
-      // after focus moves elsewhere; neither belongs to the native selection now.
-      if (
-        !selection &&
-        fabAnchor.value?.quote &&
-        !fabHoldsCapturedPassage() &&
-        !composer.composerHolds()
-      )
-        putAwayFab();
-      reflectSelection();
-    });
+    document.addEventListener("selectionchange", selectionChanged);
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;
       const selectedOnPage = pointerSelecting && selectionPressIntent?.();

@@ -146,7 +146,7 @@ export function createThreadPresentation({
       const paintPrepared = (primaryCandidate) => {
         if (!current()) return;
         renderSeats(listed, inlineView);
-        // Capture every core message and approval age before yielding to a package.
+        // Capture every core message age before yielding to a package.
         // Their shared clock refreshes this whole presentation, including its outlets.
         // Register the cohort's commit before yielding: its synchronous writes belong
         // to this requested reading, while preparation and continuity remain separate.

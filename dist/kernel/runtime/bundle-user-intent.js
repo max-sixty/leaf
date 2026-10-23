@@ -1050,12 +1050,6 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 var readObligations = readPart((root) => root.effective.obligations);
 var obligationEntry = (obligation) => registry[obligation?.source.tag]?.["x-awaits"];
 var answeredInWords = (obligation) => Boolean(obligationEntry(obligation)?.reply);
-var approvalBlockingObligations = readPart((root) => {
-  const { obligations, view } = root.effective;
-  if (obligations.phase !== "ready" || !view) return null;
-  const held = new Set(view.approval_blocking);
-  return obligations.all.filter((obligation) => held.has(obligation.id));
-});
 
 // runtime/obligations/place.js
 function obligationPlace(item, items = readObligations().all) {
@@ -7789,7 +7783,6 @@ export {
   readObligations,
   obligationEntry,
   answeredInWords,
-  approvalBlockingObligations,
   obligationPlace,
   obligationsIn,
   declareSide,

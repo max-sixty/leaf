@@ -63,49 +63,40 @@ QUEUE_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize("kind", ["approval", "thread"])
-def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(
-    browser, serve, kind
-):
+def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, serve):
     source = leaf_page(
         "Chrome queue stops",
         "<h1>Release</h1><p>Review the release.</p>",
-        head='<meta name="lf-review" content="sign-off">' if kind == "approval" else "",
     )
     url = serve(source)
-    if kind == "thread":
-        comment = append_carried_log_record(
-            serve.page_dir,
-            {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
-        )
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "agent": "Agent",
-                "parent": comment["id"],
-                "responds": comment["id"],
-                "revision": 1,
-                "text": "Which channel?",
-                "markup": '<lf-ask id="page-question">Which channel?</lf-ask>',
-            },
-        )
+    comment = append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "revision": 1,
+            "text": "Which channel?",
+            "markup": '<lf-ask id="page-question">Which channel?</lf-ask>',
+        },
+    )
     page = open_page(browser, url)
     page.evaluate("getSelection().removeAllRanges()")
     page.keyboard.press("m")
     rendered(page)
-    if kind == "approval":
-        expect(page.locator(".lf-fp-view [data-approval] button")).to_be_focused()
-    else:
-        assert page.evaluate(
-            "id => document.activeElement.closest('[data-thread]')?.dataset.thread === id",
-            comment["id"],
-        )
-    noun = "Approval" if kind == "approval" else "Question"
+    assert page.evaluate(
+        "id => document.activeElement.closest('[data-thread]')?.dataset.thread === id",
+        comment["id"],
+    )
     position = walk_position(page)
     assert position is not None
-    assert position["text"] == f"1 of 1 waiting on me · {noun}"
+    assert position["text"] == "1 of 1 waiting on me · Question"
 
 
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):

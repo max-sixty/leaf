@@ -27,7 +27,8 @@
    sending, and editor growth. Merely entering a reply reveals its writing area
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
    the turn the user was reading, even when it is not the latest one. A separate
-   transcript opened for reading shows its latest turn (`showLatestTurn`). */
+   transcript opened for reading shows its first unread turn, else its latest
+   (`showReturnTurn`). */
 import { seenRect, stuckBox, userScrollport } from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -88,29 +89,38 @@ const landingTarget = (held, control) => {
 // (geometry.js, `seenRect`).
 const onScreen = (node) => seenRect(node, new Map()) !== null;
 
-// The turn a user comes back to a thread for: its latest message shown, or the summary
-// standing for earlier ones.
-const latestTurn = (transcript) =>
-  [
+// The turn a user comes back to a thread for: the first message they have not read,
+// named by the thread's `unread`, else its latest message shown, or the summary
+// standing for earlier ones. Landing past an unread start would leave the user reading
+// below a message they never saw begin, which read tracking (read.js) then rightly
+// keeps unread while every reply after it reads.
+const returnTurn = (transcript, unread) => {
+  const shown = [
     ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)"),
-  ].findLast((node) => node.checkVisibility()) ?? null;
+  ].filter((node) => node.checkVisibility());
+  return (
+    (unread && shown.find((node) => node.dataset.message === unread)) ??
+    shown.at(-1) ??
+    null
+  );
+};
 
-// A separate transcript opened for reading shows its latest turn: the transcript's end,
-// or that turn's head where it alone is taller than the transcript, as a long thread
-// lands in the Threads list (landing.js, `threadLandingStart`). The turn carries its
-// own head, so it is measured from the transcript's top.
-export function showLatestTurn(transcript) {
+// A separate transcript opened for reading shows the turn the user comes back for: the
+// transcript's end where that turn is still in view there, or else that turn's head at
+// the transcript's top. The turn carries its own head, so it is measured from the
+// transcript's top. `unread` is the key of the thread's first unread message, if any.
+export function showReturnTurn(transcript, unread = null) {
   scrollToEnd(transcript);
-  const latest = latestTurn(transcript);
-  if (!latest) return;
+  const turn = returnTurn(transcript, unread);
+  if (!turn) return;
   const over =
     transcript.getBoundingClientRect().top +
     transcript.clientTop -
-    latest.getBoundingClientRect().top;
+    turn.getBoundingClientRect().top;
   // A turn only a little taller than its room still shows its head at the end.
   // Keep its trailing reference and metadata there; align to the head only when
   // scrolling to the end would hide that head altogether.
-  const headHeight = latest.firstElementChild?.getBoundingClientRect().height ?? 0;
+  const headHeight = turn.firstElementChild?.getBoundingClientRect().height ?? 0;
   if (over > headHeight) moveScrollerBy(transcript, -over);
 }
 

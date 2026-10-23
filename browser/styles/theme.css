@@ -1378,9 +1378,11 @@ figcaption {
 }
 /* Media fits its container on every page, with a Layout or without, and in a thread: the
  * live root clips what overflows sideways (html[data-lf-live], above), so an image wider
- * than its container would otherwise lose its far side with no way to scroll to it. */
+ * than its container would otherwise lose its far side with no way to scroll to it.
+ * Leaf's icons are not the page's media: they take their size from the icon rule
+ * (controls.css), which this one would outrank, unsizing a 16px icon's height. */
 img,
-svg,
+svg:where(:not([data-lf-icon])),
 video {
   max-width: 100%;
   height: auto;
@@ -2184,10 +2186,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 .lf-margin-entry-glyph {
   line-height: 1;
-}
-.lf-margin-entry-icon {
-  inline-size: 16px;
-  block-size: 16px;
 }
 .lf-margin-entry > .lf-margin-entry-space {
   display: none;

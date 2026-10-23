@@ -157,8 +157,4 @@
     opacity: 1;
     pointer-events: auto;
   }
-  .lf-draft-icon {
-    inline-size: 16px;
-    block-size: 16px;
-  }
 }

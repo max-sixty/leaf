@@ -1787,7 +1787,7 @@ figcaption {
   margin-top: 8px;
 }
 img,
-svg,
+svg:where(:not([data-lf-icon])),
 video {
   max-width: 100%;
   height: auto;
@@ -2231,10 +2231,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 .lf-margin-entry-glyph {
   line-height: 1;
-}
-.lf-margin-entry-icon {
-  inline-size: 16px;
-  block-size: 16px;
 }
 .lf-margin-entry > .lf-margin-entry-space {
   display: none;

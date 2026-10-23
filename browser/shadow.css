@@ -1028,7 +1028,6 @@ leaf-text.lf-fab-input,
   cursor: pointer;
 }
 svg[data-lf-icon] {
-  max-width: none;
   overflow: visible;
   fill: none;
   stroke: currentColor;
@@ -1036,9 +1035,11 @@ svg[data-lf-icon] {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.lf-disclosure-icon {
+:where(svg[data-lf-icon]) {
   inline-size: 16px;
   block-size: 16px;
+}
+.lf-disclosure-icon {
   flex: none;
   align-self: center;
   rotate: -90deg;
@@ -1052,10 +1053,6 @@ svg[data-lf-icon] {
 }
 [aria-expanded=true] > .lf-disclosure-icon:dir(rtl) {
   rotate: 0deg;
-}
-.lf-msg-control-icon {
-  inline-size: 16px;
-  block-size: 16px;
 }
 .lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
 .lf-msg-control[data-lf-focus] {
@@ -1415,8 +1412,6 @@ svg[data-lf-icon] {
 .lf-action-icon {
   position: relative;
   z-index: 1;
-  inline-size: 16px;
-  block-size: 16px;
   pointer-events: none;
 }
 :is(.lf-compose-submit, .lf-compose-dictate),
@@ -1963,8 +1958,6 @@ html[data-lf-draw-mode] main {
   }
   & > .lf-video-icon {
     grid-area: 1 / 1;
-    inline-size: 16px;
-    block-size: 16px;
   }
 }
 .lf-video-controls:not(.lf-video-playing) .lf-video-icon[data-lf-icon=pause],

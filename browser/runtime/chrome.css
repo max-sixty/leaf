@@ -107,10 +107,6 @@
         outline: var(--focus-ring);
         outline-offset: -2px;
       }
-      .lf-action-icon {
-        width: 16px;
-        height: 16px;
-      }
     }
   }
   .lf-fp-row {
@@ -2131,8 +2127,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: color-mix(in srgb, var(--lf-entry-tint, var(--chip)) 92%, var(--ink));
   }
   .lf-page-map-action .lf-margin-kind {
-    width: 16px;
-    height: 16px;
     align-self: center;
   }
   .lf-page-map-action-label {

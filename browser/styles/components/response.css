@@ -111,8 +111,6 @@
 .lf-action-icon {
   position: relative;
   z-index: 1;
-  inline-size: 16px;
-  block-size: 16px;
   pointer-events: none;
 }
 /* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,

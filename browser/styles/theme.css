@@ -512,6 +512,15 @@
      it, so there is still one place the band's thickness is decided. */
   --focus-ring-w: 2px;
   --focus-ring: var(--focus-ring-w) solid var(--accent);
+  /* A forced palette replaces the accent with its own ink for every outline, so the
+     ring would read as one more edge. Naming the platform's Highlight here gives every
+     rule that draws with the token the system's focus colour, inside the chrome and
+     out, where each surface once restated it for itself. A forced palette drops box
+     shadows outright, so --focus-shadow has no such answer: the browsed key hint that
+     wears it is told apart there only by its bold face. */
+  @media (forced-colors: active) {
+    --focus-ring: var(--focus-ring-w) solid Highlight;
+  }
   --focus-ring-gap: 3px;
   --focus-ring-room: calc(var(--focus-ring-w) + var(--focus-ring-gap));
   /* What a landing keeps clear for the ring at a scroller's edge: its room and two

@@ -1034,9 +1034,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       border: 1px solid CanvasText;
       box-shadow: none;
     }
-    .lf-page-map-action[data-lf-focus-visible] {
-      outline: 2px solid Highlight;
-    }
   }
   .lf-binding-sequence {
     display: inline-flex;
@@ -1204,9 +1201,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     }
   }
 
-  /* Windows high-contrast mode suppresses the shadow used by text fields. Restore a
-     platform-colour outline for every focused chrome control instead of freezing the
-     product palette with forced-color-adjust. */
+  /* A forced palette keeps the chrome's states in platform colours rather than freezing
+     the product palette with forced-color-adjust. The focus ring needs nothing here:
+     --focus-ring is Highlight in a forced palette (theme.css). */
   @media (forced-colors: active) {
     .lf-dot {
       background: CanvasText !important;
@@ -1215,11 +1212,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       border-color: Highlight;
       background: Highlight;
       color: HighlightText;
-    }
-    :scope [data-lf-focus-visible] {
-      outline: var(--focus-ring-w) solid Highlight !important;
-      outline-offset: 2px !important;
-      box-shadow: none !important;
     }
     :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {
       border-color: Highlight !important;

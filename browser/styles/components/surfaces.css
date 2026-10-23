@@ -515,11 +515,12 @@ summary {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
+/* A forced palette paints every ground in Canvas, so the quiet ground of a thread
+   holding focus would vanish; the thread wears the ring instead. */
 @media (forced-colors: active) {
   .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
-    box-shadow: none;
+    outline: var(--focus-ring);
+    outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
 .lf-say {

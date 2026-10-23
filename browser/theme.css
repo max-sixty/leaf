@@ -1402,6 +1402,9 @@
   --offer-hover-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent);
   --focus-ring-w: 2px;
   --focus-ring: var(--focus-ring-w) solid var(--accent);
+  @media (forced-colors: active) {
+    --focus-ring: var(--focus-ring-w) solid Highlight;
+  }
   --focus-ring-gap: 3px;
   --focus-ring-room: calc(var(--focus-ring-w) + var(--focus-ring-gap));
   --focus-ring-landing: calc(var(--focus-ring-room) + 2px);

@@ -207,9 +207,8 @@ summary {
 }
 @media (forced-colors: active) {
   .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
-    box-shadow: none;
+    outline: var(--focus-ring);
+    outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
 .lf-say {
@@ -1836,13 +1835,6 @@ leaf-text.lf-fab-input {
 @media print {
   .lf-fab-bar[data-lf-presentation=inline] {
     display: none !important;
-  }
-}
-@media (forced-colors: active) {
-  .lf-response-control[data-lf-focus-visible] {
-    outline: var(--focus-ring-w) solid Highlight;
-    outline-offset: 2px;
-    filter: none;
   }
 }
 

@@ -652,13 +652,3 @@ leaf-text.lf-fab-input {
     display: none !important;
   }
 }
-
-/* Forced-colour palettes suppress elevation shadows. The same control keeps a
- * visible platform ring when seated outside the private chrome scope as well. */
-@media (forced-colors: active) {
-  .lf-response-control[data-lf-focus-visible] {
-    outline: var(--focus-ring-w) solid Highlight;
-    outline-offset: 2px;
-    filter: none;
-  }
-}

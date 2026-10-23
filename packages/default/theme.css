@@ -3218,11 +3218,6 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     block-size: 16px;
   }
 }
-@media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
-    outline-color: Highlight;
-  }
-}
 
 /* packages/default/styles/approval.css */
 :scope:is(lf-approval) {

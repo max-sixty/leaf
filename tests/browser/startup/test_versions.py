@@ -285,6 +285,11 @@ def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
     page.route("**/api/view*", another_runtime)
     page.route("**/registry.json", source)
     compare_with(page)
+    # Compare starts an asynchronous read. Wait for its refusal before opening the
+    # menu, whose rows deliberately stay as they were when it opened.
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "placeholder", re.compile("Couldn't load v1")
+    )
     menu = panel_menu(page)
     menu.locator('.lf-fp-item[data-row="errors"]').click()
     expect(

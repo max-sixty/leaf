@@ -31,10 +31,11 @@
 // - the change reaches the box that holds the row: a row inside a line that keeps its
 //   height, as a crumb inside a taller controls row, shows the reader nothing;
 // - the taller occupant is no taller for its content, which the rule lets grow a
-//   place: it holds no words in a field that grows with them, as a reply box that
-//   arrives with its draft does, and kept the height it appeared at while it stood,
-//   which a comment box grown to two lines did not, though Send emptied it in the frame
-//   it gave way to the reply. A one-line input's words never size it.
+//   place: it is not an SVG drawing or a field holding words that grow the field,
+//   as a reply box that arrives with its draft does, and kept the height it appeared
+//   at while it stood, which a comment box grown to two lines did not, though Send
+//   emptied it in the frame it gave way to the reply. A one-line input's words never
+//   size it.
 //
 // Rejected: judging every place in every axis. Nearly all its firings were views, lists
 // and cards growing with what they show, the content the rule allows. A flex column's
@@ -50,17 +51,13 @@
 // two frames after a window resize, where container queries may swap occupants and
 // every place take a new size.
 //
-// The sizes come from one ResizeObserver on every element: each frame's reading is the
-// layout the frame painted, read after layout and before paint, and an element's
-// previous size is the one the observer last reported. Children's arrivals and
-// departures come from a MutationObserver over the document and every shadow root;
-// showing and hiding come from the same ResizeObserver, as a size that leaves or reaches
-// zero. A subtree that leaves the page and stays away is unobserved, so the watch holds
-// no node the page let go. Observing every element has one cost a page can see: a
-// ResizeObserver callback of the page's own that resizes an element shallower than its
-// target leaves this observer a notice it can't deliver that frame, which the browser
-// reports as a loop error. Leaf's runtime defers such writes to the next frame
-// (rendering.js), and no test in the survey met one.
+// One ResizeObserver reads flex rows, their occupants and the box around each row.
+// Observing unrelated descendants can change another observer's delivery depth and
+// make a valid layout update report a loop error. Each frame's reading is the layout
+// frame painted, read after layout and before paint; the previous size is the one the
+// observer last reported. A MutationObserver over the document and every shadow root
+// supplies arrivals and departures. The ResizeObserver supplies showing and hiding
+// when a size leaves or reaches zero. A subtree that leaves stays unobserved.
 (() => {
   const { frame, listen } = window.lfWatchPlatform;
   const sizes = new WeakMap();
@@ -114,8 +111,10 @@
     resizes.unobserve(element);
     resizes.observe(element, { box: "border-box" });
   };
-  // A field whose height grows with its words, as words_watch.js reads them.
-  const holdsWords = (element) =>
+  // A field whose height grows with its words, or a drawing whose own geometry
+  // determines its height. An icon nested in a control does not excuse the control.
+  const holdsContent = (element) =>
+    element.localName === "svg" ||
     [...elementsOf(element)].some(
       (field) =>
         field.matches("textarea, [contenteditable], leaf-text") &&
@@ -146,6 +145,9 @@
     presentation.disconnect();
     presented = true;
     exempt("presentation");
+    frame(() => {
+      for (const element of elementsOf(document.documentElement)) watchArrival(element);
+    });
   });
   presentation.observe(document, {
     subtree: true,
@@ -162,19 +164,89 @@
   let departed = [];
   let written = new Set();
   let source = null;
+  let deliveringSizes = false;
+  const observed = new WeakSet();
+  const pending = new WeakSet();
+  const flexRows = new WeakSet();
+  const flexRow = (element) => {
+    if (!element?.isConnected) return false;
+    const { display, flexDirection } = getComputedStyle(element);
+    return display.endsWith("flex") && flexDirection.startsWith("row");
+  };
+  const observeOnce = (element) => {
+    if (!element || observed.has(element) || pending.has(element)) return;
+    if (deliveringSizes) {
+      pending.add(element);
+      frame(() => {
+        pending.delete(element);
+        if (element.isConnected) observeOnce(element);
+      });
+      return;
+    }
+    observed.add(element);
+    watch(element);
+  };
+  const watchArrival = (element) => {
+    // Leaf has not presented its first arrangement yet. Its widgets may still
+    // hide panels, so observing their descendants now can force premature style.
+    if (!presented && document.querySelector("script[data-lf-entry]")) return false;
+    // Only a flex row, its occupants and its container contribute to this rule.
+    // Watching unrelated descendants changes the page's ResizeObserver delivery
+    // depth, and can turn an otherwise valid layout update into a loop error.
+    // `hidden="until-found"` keeps a panel's own box while skipping its contents.
+    // Even checkVisibility() would force that content through style resolution.
+    if (element.parentElement?.closest("[hidden]")) return false;
+    if (element.hasAttribute("hidden")) {
+      if (flexRows.has(up(element))) {
+        observeOnce(element);
+        return true;
+      }
+      return false;
+    }
+    const direct = up(element);
+    if (flexRows.has(direct)) {
+      observeOnce(element);
+      return true;
+    }
+    // A hidden panel can grow without being styled by Leaf. The watch must not
+    // force its descendants through computed style just to rule them out.
+    if (!element.checkVisibility()) return false;
+    const parent = holder(direct);
+    const row = flexRow(element) ? element : flexRow(parent) ? parent : null;
+    if (!row) return false;
+    flexRows.add(row);
+    observeOnce(row);
+    observeOnce(holder(up(row)));
+    if (element !== row) observeOnce(element);
+    return true;
+  };
   const take = (records, from) => {
     for (const record of records) {
       // Any write names the input behind the frame; hiding a child is an attribute's.
       if (from) source = from;
-      if (record.type === "attributes") written.add(record.target);
+      if (record.type === "attributes") {
+        written.add(record.target);
+        if (record.attributeName === "hidden" && record.target.hasAttribute("hidden"))
+          for (const child of record.target.children)
+            for (const element of elementsOf(child)) {
+              resizes.unobserve(element);
+              observed.delete(element);
+              flexRows.delete(element);
+            }
+        if (
+          record.target !== document.body &&
+          record.target !== document.documentElement &&
+          (record.attributeName === "hidden" || !observed.has(record.target))
+        )
+          for (const element of elementsOf(record.target)) watchArrival(element);
+      }
       if (record.type !== "childList") continue;
       for (const node of record.removedNodes)
         if (node.nodeType === Node.ELEMENT_NODE)
           departed.push({ node, parent: record.target, size: sizes.get(node) });
       for (const node of record.addedNodes)
         for (const element of elementsOf(node)) {
-          arrived.add(element);
-          watch(element);
+          if (watchArrival(element)) arrived.add(element);
         }
     }
   };
@@ -219,7 +291,7 @@
     const is = container && read(container);
     if (!was || !is || Math.abs(is.height - was.height) < 1) return false;
     return (
-      !holdsWords(taller.child) &&
+      !holdsContent(taller.child) &&
       Math.abs(taller.size.height - appeared.get(taller.child)) < 1
     );
   };
@@ -275,7 +347,11 @@
       for (const [element, size] of now) sizes.set(element, size);
       for (const { node } of departed)
         if (!node.isConnected)
-          for (const element of elementsOf(node)) resizes.unobserve(element);
+          for (const element of elementsOf(node)) {
+            resizes.unobserve(element);
+            observed.delete(element);
+            flexRows.delete(element);
+          }
     } finally {
       arrived = new Set();
       departed = [];
@@ -284,9 +360,17 @@
     }
   };
   const resizes = new ResizeObserver((entries) => {
-    take(changes.takeRecords(), window.lfInputWork.current());
-    const now = new Map(entries.map((entry) => [entry.target, box(entry)]));
-    judge(now, (element) => now.get(element) ?? sizes.get(element));
+    deliveringSizes = true;
+    try {
+      take(changes.takeRecords(), window.lfInputWork.current());
+      const now = new Map(entries.map((entry) => [entry.target, box(entry)]));
+      judge(
+        now,
+        (element) => now.get(element) ?? sizes.get(element) ?? measure(element),
+      );
+    } finally {
+      deliveringSizes = false;
+    }
   });
   // Judging before the frame reads the layout as the observer would: the border box,
   // and nothing for an inline box, which the observer reports as empty. What changed
@@ -342,11 +426,11 @@
     return root;
   };
 
-  // Judgement waits for the frame that lays out the test's last act; a page the browser
-  // doesn't render has no frame to wait for.
+  // The fixture drains the shift watch before this reading. That drain waits for the
+  // last painted frames when the page is visible and finishes without frames when a
+  // tab or embedded page is hidden. A second frame wait here would hang in an
+  // offscreen frame, whose document still reports visibilityState === "visible".
   window.lfSwapsJudged = async () => {
     await window.lfInputWork.dispatched();
-    if (document.visibilityState !== "visible") return;
-    await new Promise((resolve) => frame(() => frame(resolve)));
   };
 })();

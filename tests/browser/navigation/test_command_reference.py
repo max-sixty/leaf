@@ -4,7 +4,6 @@ keyboard layer."""
 import re
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE
 from render_cases_navigation import CONTROL_LABEL_PAGE, NOTED_PAGE
@@ -17,6 +16,8 @@ from render_harness import (
     resized,
     round_trip,
 )
+
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

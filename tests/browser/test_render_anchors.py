@@ -9,14 +9,6 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference, wait_for
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import structure as structure_model
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -91,6 +83,14 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import anchor_capture as anchor_capture_model
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import structure as structure_model
+from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -4180,6 +4180,37 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
         if held and not released:
             held[0].continue_()
         page.unroute(view_request)
+
+
+def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, serve):
+    """A failed replacement leaves no old marks and releases its selected base."""
+    v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
+    v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, v2, "reworded the neighbour")
+    _publish(serve.page_dir, 3, v3, "reworded the compound")
+    page = open_page(browser, url.replace("v1.html", "v3.html"))
+    compare_with(page, 1)
+    expect(page.locator(".lf-ins-block")).to_have_count(2)
+
+    held = []
+    view_request = re.compile(r"/api/view\?")
+    page.route(view_request, lambda route: held.append(route))
+    compare_with(page, 2)
+    holding(page, held, 1, "the replacement comparison")
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+    held[0].fulfill(status=500, json={"error": "comparison unavailable"})
+    expect_panel_says(page, "Couldn't load v2")
+    consume_browser_errors(page, http_error_console(500))
+    page.unroute(view_request)
+
+    menu = panel_menu(page, "versions")
+    compare = menu.get_by_role("menuitem", name="Compare with v2")
+    expect(compare).to_have_attribute("aria-pressed", "false")
+    # A pending choice left behind would treat this press as cancellation.
+    compare.click()
+    expect(page.locator(".lf-ins-block")).to_have_count(1)
+    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
 
 
 def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):

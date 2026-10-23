@@ -342,12 +342,9 @@ export async function solidInitialOutputs(root) {
     ],
   });
   return new Map([
+    [`browser/${initialSolidPath}`, Buffer.from(result.outputFiles[0].contents)],
     [
-      `skills/leaf/assets/${initialSolidPath}`,
-      Buffer.from(result.outputFiles[0].contents),
-    ],
-    [
-      `skills/leaf/assets/${sharedSolidPath}`,
+      `browser/${sharedSolidPath}`,
       Buffer.from(
         `import "/runtime/dom-move.js"; const { ${solidExports} } = ${solidGlobal}; export { ${solidExports}, html as default };\n`,
       ),

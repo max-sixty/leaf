@@ -112,8 +112,7 @@ widget.
 ### Text alignment
 
 `alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
-with `kind` `same`, `delete` or `insert`. A large rewritten middle comes back as one
-delete and one insert. To align by sentences, pass an `Intl.Segmenter` with
+with `kind` `same`, `delete` or `insert`. A large rewrite comes back as one delete and one insert. To align by sentences, pass an `Intl.Segmenter` with
 `granularity: "sentence"` as the third argument.
 
 ### Image comparison
@@ -143,15 +142,12 @@ For a thread control, put `iconElement("comment", "lf-action-icon")` in an
 
 ## Page readings
 
-A widget that draws from the readings below registers its drawing once with
-`watchProjection(owner, paint)`. Leaf calls `paint()` on the next microtask, again when
-the page first presents, and again whenever a reader it called, such as `readObligations()` or a
-controller's `read()`, returns something new. So a paint never lists its inputs. Only
-reads before the first `await` count, and reads of DOM nodes don't; watch those
-yourself. The watcher pauses while the owner is out of the page. Call the returned
-function to end it, or its `refresh()` to repaint after a change Leaf can't see, such as
-revealing held news. An optional third argument, `ready()`, holds every paint until it
-returns true.
+A widget reads these values in its `LeafElement.render()`. Lit follows the signals
+read synchronously there and redraws when they change, pausing while the element is
+away. Use `requestUpdate()` for inputs outside that reading, such as revealing held
+news, and `performUpdate()` when the gesture must draw immediately. DOM reads and
+reads after an `await` are not tracked. `module-authoring.md`, "Drawing what a widget
+reads", owns the rendering and readiness contract.
 
 ### Reading obligations and the On lists
 
@@ -258,9 +254,8 @@ carrying its thread, whether it was undone, the agent's name as `agent`, and a g
 words. The widget only words these. A widget restoring something from `tabStore` compares
 it with the history once `phase` is `ready`.
 
-A widget an agent reports on reads the reports with `reportSequence(this)`, in a paint
-registered as `watchProjection(this, paint, () => reportsPresented(this))`. A
-`LeafElement` checks `reportsReady(this)` in `render()` instead and returns `noChange`
+A widget an agent reports on reads reports with `reportSequence(this)`. Its
+`LeafElement.render()` first checks `reportsReady(this)` and returns without changing its view
 while it is false. Each entry has `id`, `target`, `source`, `action`, `detail`, `text`,
 `ts` and `disposition`: `effective`, `outranked` by a newer report on the same unit and
 verb, or `settled` by a stamped version. Pass `{kind: "thread", id}` for a Thread's
@@ -268,12 +263,16 @@ reports, or nothing for all of them. `saidAt(element)` is when the message holdi
 `element` was sent, or the page published, for showing how long a worker has been
 quiet.
 
+`reportsPresented(target)` queries report presentation readiness synchronously.
+Inside `LeafElement.render()`, use `reportsReady(this)` to also arrange an update
+when the reports become ready.
+
 ### Reading version changes
 
 `comparisonChanges(owner)` returns the changed elements inside `owner` in the current
 version comparison, or every changed element with no owner, and an empty array with no
-comparison active. `watchComparison(owner, callback)` calls back at once and on each
-change to the comparison; its returned function ends the watch.
+comparison active. Reading it during a `LeafElement` render subscribes that render
+to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

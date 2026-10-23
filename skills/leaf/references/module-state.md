@@ -33,7 +33,7 @@ Record a gesture with `dispatch({kind: "action", verb, detail, attempt?, says?})
 undo one with `dispatch({kind: "undo", target})`, naming an `id` or `attempt` from the
 action's Undo candidates. `says` names the gesture in the widget's words, such as
 `Chose “Fast”`: Leaf shows "Chose “Fast” — sent" once the server admits it, and
-"Undid: Chose “Fast” — sent" when the user undoes it, so post no notice of your own for it. `dispatch` returns `null` when the action isn't available, throws for a
+"Undid: Chose “Fast” · just now — sent" when the user undoes it, so post no notice of your own for it. `dispatch` returns `null` when the action isn't available, throws for a
 verb the widget doesn't declare, and otherwise returns `{reading, delivery}`. The reading
 already shows the result; `delivery` resolves to the event the server admitted, or
 `null`, and a refusal restores the server's state.
@@ -163,8 +163,7 @@ records each datum's source and revision. A datum that knows its place in the JS
 
 ### Time readings
 
-Reading the time synchronously in a `LeafElement`'s `render()` or a `watchProjection`
-paint makes Leaf repaint it when the time's reading changes; time read after an `await`
+Reading the time synchronously in a `LeafElement`'s `render()` makes Leaf repaint it when the time's reading changes; time read after an `await`
 isn't watched. `ago(ts)` words a server timestamp as the page does everywhere: "just
 now", then "2m ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h").
 `quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the

@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { kernelOutputs } from "./runtime-bundle.mjs";
 
-/** The layer a page vendors with the kernel: the source minus what it replaces. */
+/** The runtime a Leaf serves with the kernel: the source minus what it replaces. */
 async function vendor(layer, kernel, output) {
   await cp(layer, output, { recursive: true });
   const record = JSON.parse(kernel.get("kernel.json"));
@@ -21,7 +21,7 @@ async function vendor(layer, kernel, output) {
   return record;
 }
 
-test("the kernel preserves native packages, shared state, and stampable generation", async () => {
+test("the kernel preserves native packages and shared state", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "leaf-install-bundle-"));
   const layer = join(temporary, "input");
   const output = join(temporary, "output");
@@ -35,10 +35,7 @@ test("the kernel preserves native packages, shared state, and stampable generati
     "runtime/annotation-overlay/check-api.js": 'export { state } from "../state.js";',
     "runtime/media.js":
       'export { state } from "./state.js"; export { rendered } from "../vendor/browser-runtime.js";',
-    "runtime/layer-client.js":
-      'export { layerGeneration } from "./layer-generation.js";',
-    "runtime/layer-generation.js":
-      'export const layerGeneration = "__LEAF_LAYER_GENERATION__";',
+    "runtime/layer-client.js": 'export { state } from "./state.js";',
     "runtime/annotation-overlay/index.js":
       'import { state } from "../state.js"; export { state }; state.annotations = true; export const vendor = () => import("../../vendor/example.js");',
     "runtime/bootstrap.js": "(() => { window.boot = true; })();",
@@ -84,7 +81,7 @@ test("the kernel preserves native packages, shared state, and stampable generati
 
     // The kernel is runtime modules and chunks named after their modules; it
     // absorbs the framework and leaves widgets, upstream vendor modules, and the
-    // generation and classic scripts nothing imports native.
+    // classic scripts nothing imports native.
     assert.deepEqual([...kernel.keys()].sort(), [
       "kernel.json",
       "leaf.js",
@@ -112,10 +109,6 @@ test("the kernel preserves native packages, shared state, and stampable generati
       "vendor/browser-runtime/render.js",
     ]);
     assert.match(kernel.get("leaf.js").toString(), /import\("\/widgets\/custom.js"\)/);
-    assert.match(
-      kernel.get("runtime/layer-client.js").toString(),
-      /from "\/runtime\/layer-generation.js"/,
-    );
     const javascript = [...kernel]
       .filter(([path]) => path.endsWith(".js"))
       .map(([, bytes]) => bytes)

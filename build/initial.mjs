@@ -11,7 +11,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 export async function initialOutputs() {
   const outputs = new Map();
   const dependencies = {};
-  const packages = path.join(root, "skills/leaf/packages");
+  const packages = path.join(root, "packages");
   for (const item of (await readdir(packages, { withFileTypes: true }))
     .filter((item) => item.isDirectory())
     .sort((a, b) => a.name.localeCompare(b.name))) {
@@ -25,11 +25,7 @@ export async function initialOutputs() {
     // inlines only the renderers of the widgets it holds.
     for (const [tag, entry] of Object.entries(registry)) {
       if (!entry?.["x-initial"]) continue;
-      const output = path.join(
-        "skills/leaf/packages",
-        name,
-        entry["x-initial"].slice(1),
-      );
+      const output = path.join("packages", name, entry["x-initial"].slice(1));
       if (outputs.has(output))
         throw new Error(`${output} is more than one tag's bundle`);
       const result = await build({
@@ -55,7 +51,7 @@ export async function initialOutputs() {
   }
   // Delivery reads the build's dependency facts; it never names widget families.
   outputs.set(
-    "skills/leaf/assets/vendor/initial-dependencies.json",
+    "browser/vendor/initial-dependencies.json",
     Buffer.from(JSON.stringify(dependencies) + "\n"),
   );
   return outputs;

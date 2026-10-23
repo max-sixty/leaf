@@ -92,9 +92,15 @@ delivered at prompt:
               writer: agent
   attention: ''
 
-acknowledged at stop:
+acknowledged at stop: null
+
+the watch wakes the session to remind it: >-
+  <page> has an update still owed an answer; Leaf's prompt hook names it in your
+  context with this notification
+
+reminded at prompt:
   hookSpecificOutput:
-    hookEventName: Stop
+    hookEventName: UserPromptSubmit
     additionalContext: |-
       Leaf needs attention:
       - <page>: 1 acknowledged user update with no answer (`leaf response reply <delivery>:0:event-3`).
@@ -127,9 +133,9 @@ answer:
   responds: event-3
   attempt: <attempt>
   revision: 1
-  id: event-6
+  id: event-7
   attention: false
   ts: <time>
-  seq: 6
+  seq: 7
 
 answered at stop: null

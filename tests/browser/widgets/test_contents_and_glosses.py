@@ -6,7 +6,6 @@ from itertools import pairwise
 
 import pytest
 from interact_support import append_command
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -17,6 +16,8 @@ from render_harness import (
     scroll_settled,
     told,
 )
+
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

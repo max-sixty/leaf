@@ -5,18 +5,17 @@
  * shared chunks. Both builds keep vendor modules native, at their public URL however
  * a runtime module names them, so a page loads one Solid, and each runtime module a
  * vendor module imports stays an entry at its own URL. The kernel also leaves native
- * package widgets, whose absolute URLs resolve through the revision's import map,
- * and the generation module, so page init can stamp it without rebuilding any chunk.
+ * package widgets, whose absolute URLs resolve through the revision's import map.
  * It compiles in the framework `build/browser/build.mjs` commits as native modules,
- * since only runtime modules import it. The website captures layers a prepared
- * installation vendored, which already carry their generation, and compiles their
+ * since only runtime modules import it. The website publishes each revision with the
+ * runtime a prepared installation serves beside its captured layer, and compiles that
  * kernel again with the widgets while preserving authored module locations. Neither
  * build runs on a user's machine.
  *
- * `build/browser/build.mjs` commits the kernel to `skills/leaf/kernel/`
+ * `build/browser/build.mjs` commits the kernel to `dist/kernel/`
  * (`kernelOutputs`) and checks it against a rebuild with every other committed
  * bundle, and an install serves it only while it matches the tree's modules
- * (`leaf.layer.current_kernel`). Its form is what keeps it committable: it is
+ * (`leaf.runtime_selection.read_runtime`). Its form is what keeps it committable: it is
  * unminified, so a runtime change moves the lines that compile from it rather than
  * the whole chunk, and its chunks keep their names across rebuilds (`kernelOutputs`).
  * Replaying the 52 runtime pull requests before 2026-10-14, each committing its own
@@ -58,8 +57,6 @@ export const runtimeEntries = [
 // the entries a layer supplies; the required delivery boundaries above stay strict.
 const diagnosticEntries = ["runtime/annotation-overlay/check-api.js"];
 
-const GENERATION = "runtime/layer-generation.js";
-
 function browserPath(path) {
   return path.replaceAll("\\", "/");
 }
@@ -73,13 +70,12 @@ function layerPath(path, assetRoot) {
 /** Whether a layer module is served as committed rather than compiled into the kernel.
  *
  * Page modules and vendor modules always are; installations also keep package widgets
- * and the generation module native. The framework is not: the kernel absorbs it with
- * the runtime it imports.
+ * native. The framework is not: the kernel absorbs it with the runtime it imports.
  */
 function native(local, assetRoot) {
   if (local.startsWith("page/")) return true;
   if (local.startsWith("vendor/")) return !inFramework(local);
-  return !assetRoot && (local === GENERATION || local.startsWith("widgets/"));
+  return !assetRoot && local.startsWith("widgets/");
 }
 
 /** Where a module reads its own URL, as source ranges in order. */
@@ -269,14 +265,14 @@ async function layerModules(layerRoot) {
 
 /**
  * The kernel built from one layer: each file by its layer path, and `kernel.json`,
- * the record an install's guard reads (`leaf.layer.current_kernel`).
+ * the record an install's guard reads (`leaf.runtime_selection.read_runtime`).
  *
  * The record's `inputs` map every module the build reads, `leaf.js` and each `.js`
  * under `runtime/`, `vendor/` and `widgets/`, to the SHA-256 of its bytes, one line
  * each, so branches that change different modules change different lines.
- * `replaces` lists the modules compiled into the kernel, which a page vendoring it
- * no longer carries. The modules it leaves native, such as `layer-generation.js`
- * and the classic scripts nothing imports, are served from source beside it.
+ * `replaces` lists the modules compiled into the kernel, which a runtime serving it
+ * no longer carries. The modules it leaves native, such as the classic scripts
+ * nothing imports, are served from source beside it.
  *
  * esbuild names a split chunk only by its hash (`[name]` is `chunk` for every
  * chunk), and the hash moves whenever anything inside the chunk does, so every

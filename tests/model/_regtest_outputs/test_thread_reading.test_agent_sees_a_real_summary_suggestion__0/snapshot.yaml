@@ -6,7 +6,7 @@ delivery:
   created_at: <time>
   acknowledge: >-
     Whoever ran the `leaf wait` that printed this delivery acknowledges it; until
-    then the user's updates read Sent rather than Picked up. If the output was cut
+    then the user's updates read Sent rather than Delivered. If the output was cut
     off, reread it with `leaf delivery read <delivery>`. Follow any `next` commands
     before confirming. If you handle it, acknowledge before any other work; if you
     forward it, acknowledge once it durably arrives there. To acknowledge, start

@@ -7,8 +7,6 @@ from urllib.parse import urljoin
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -35,6 +33,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf.media import store_uploaded_media
+from leaf.render_checks import rendered
 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):

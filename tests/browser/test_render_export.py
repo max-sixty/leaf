@@ -8,13 +8,6 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
 )
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import exporting as exporting_model
-from leaf import files as files_model
-from leaf import media as media_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
-from leaf.structure import UTF8_BOM
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, live_url
@@ -30,6 +23,13 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import exporting as exporting_model
+from leaf import files as files_model
+from leaf import media as media_model
+from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
+from leaf.structure import UTF8_BOM
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

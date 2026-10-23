@@ -270,9 +270,7 @@ const ownerBoundary = {
   ],
 };
 
-const runtimeRoot = fileURLToPath(
-  new URL("./skills/leaf/assets/runtime/", import.meta.url),
-);
+const runtimeRoot = fileURLToPath(new URL("./browser/runtime/", import.meta.url));
 const runtimeName = (file) =>
   path.relative(runtimeRoot, file).split(path.sep).join("/");
 
@@ -548,7 +546,7 @@ const placementsRule = {
             ["showModal", "showPopover", "hidePopover"].includes(
               callee.property.name,
             ) &&
-            file !== "skills/leaf/assets/runtime/keyboard/layer-stack.js"
+            file !== "browser/runtime/keyboard/layer-stack.js"
           )
             context.report({
               node,
@@ -1326,9 +1324,9 @@ export default [
       ".tmp/**",
       ".venv/**",
       "examples/corpus.html",
-      "skills/leaf/assets/vendor/**",
-      "skills/leaf/kernel/**",
-      "skills/leaf/packages/*/vendor/**",
+      "browser/vendor/**",
+      "dist/kernel/**",
+      "packages/*/vendor/**",
       "evals/ui-review-detection/fixtures/**",
     ],
   },
@@ -1363,7 +1361,11 @@ export default [
     // The browser framework's and runtime's own fold tests exercise private owners,
     // which the facade rule would forbid; the entry stays out of reach, because a
     // test is not a page and booting one would import the whole layer to read one fold.
-    files: ["tests/runtime/**/*.mjs", "build/browser/**/*.test.mjs"],
+    files: [
+      "tests/runtime/**/*.mjs",
+      "build/browser/**/*.test.mjs",
+      "browser/framework/**/*.test.mjs",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -1428,7 +1430,7 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/scripts/leaf/render-checks/*.js"],
+    files: ["src/leaf/render-checks/*.js"],
     languageOptions: { globals: browserGlobals },
     rules: {
       ...publicRuntimeBoundary,
@@ -1445,7 +1447,7 @@ export default [
   {
     // The Playwright driver imports the probe route Python selects at runtime. It is
     // the loader being tested; every probe behind that route keeps static imports.
-    files: ["skills/leaf/scripts/leaf/render-checks/driver.js"],
+    files: ["src/leaf/render-checks/driver.js"],
     languageOptions: { sourceType: "script" },
     rules: {
       "no-restricted-syntax": [
@@ -1459,7 +1461,7 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/scripts/leaf/render-checks/*.js"],
+    files: ["src/leaf/render-checks/*.js"],
     rules: {
       // Render checks use their diagnostic adapter alongside the public widget API.
       // Every other runtime owner remains private to the kernel.
@@ -1491,7 +1493,7 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/assets/leaf.js"],
+    files: ["browser/leaf.js"],
     plugins: { architecture: architecturePlugin },
     rules: {
       ...entryBoundary,
@@ -1508,15 +1510,15 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
+    files: ["browser/**/*.js", "packages/*/**/*.js"],
     languageOptions: { globals: browserGlobals },
     rules: { "no-undef": "error" },
   },
   {
     // The settled reading answers only for the rendering callbacks and size observers it
     // counts, so the layer and its packages reach both through runtime/rendering.js.
-    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: ["skills/leaf/assets/runtime/rendering.js"],
+    files: ["browser/**/*.js", "packages/*/**/*.js"],
+    ignores: ["browser/runtime/rendering.js"],
     rules: {
       "no-restricted-globals": [
         "error",
@@ -1525,48 +1527,48 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
+    files: ["browser/**/*.js", "packages/*/**/*.js"],
     plugins: { architecture: architecturePlugin },
     rules: {
       "architecture/standing-listeners": [
         "error",
         {
           // The owner of every focus event.
-          "skills/leaf/assets/runtime/focus.js": ["focus", "focusin", "focusout"],
+          "browser/runtime/focus.js": ["focus", "focusin", "focusout"],
           // Records the raw events of a session for the interaction log, the one
           // exception that is not one element's or one subtree's own question: it is a
           // recorder of events, and reads no standing from them.
-          "skills/leaf/assets/runtime/interaction-log.js": ["focusin", "focusout"],
+          "browser/runtime/interaction-log.js": ["focusin", "focusout"],
           // A reply row's own entry begins its composition. The box's host is in the
           // row's tree, so entering its shadow tree reaches the row, and a move inside
           // it is no new entry.
-          "skills/leaf/assets/runtime/thread/replies.js": ["focusin"],
+          "browser/runtime/thread/replies.js": ["focusin"],
           // A widget's own subtree, whose controls stand in its tree: whether focus is
           // within the gloss, and the contents link the user last stood on.
-          "skills/leaf/packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
-          "skills/leaf/packages/default/widgets/lf-toc.js": ["focusin"],
+          "packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
+          "packages/default/widgets/lf-toc.js": ["focusin"],
           // The text field's empty line hands focus that lands on it to the editor it
           // builds, in its own shadow tree.
-          "skills/leaf/assets/runtime/composing/text-field.js": ["focusin"],
+          "browser/runtime/composing/text-field.js": ["focusin"],
         },
       ],
       "architecture/placements": [
         "error",
         [
           // The one placement, and the one handing on an arrival in progress.
-          "skills/leaf/assets/runtime/focus.js",
+          "browser/runtime/focus.js",
           // The text field's own `focus()`, which the placement calls, hands on to the
           // editor its shadow tree holds.
-          "skills/leaf/assets/runtime/composing/text-field.js",
+          "browser/runtime/composing/text-field.js",
           // The shared CodeMirror adapter places its own native editor.
-          "skills/leaf/assets/runtime/editor-view.js",
+          "browser/runtime/editor-view.js",
         ],
       ],
       "architecture/open-layers": [
         "error",
         [
           // The owner.
-          "skills/leaf/assets/runtime/shadow-tree.js",
+          "browser/runtime/shadow-tree.js",
         ],
       ],
       "architecture/scroll-writes": [
@@ -1574,44 +1576,44 @@ export default [
         [
           // Restores, each returning a box to an offset it held: a carried node's in
           // its replacement, the adopted message body's, and CodeMirror's own view.
-          "skills/leaf/assets/runtime/carry.js",
-          "skills/leaf/assets/runtime/annotation-overlay/thread-preview.js",
-          "skills/leaf/packages/file-editor/widgets/editor.js",
+          "browser/runtime/carry.js",
+          "browser/runtime/annotation-overlay/thread-preview.js",
+          "packages/file-editor/widgets/editor.js",
           // The trace's time axis is its scroll offset, which it sets and then expects.
-          "skills/leaf/packages/playwright/widgets/timeline.js",
+          "packages/playwright/widgets/timeline.js",
         ],
       ],
       "architecture/layer-returns": [
         "error",
         [
           // The owner of the hand-back and the let-go.
-          "skills/leaf/assets/runtime/focus.js",
+          "browser/runtime/focus.js",
         ],
       ],
       "architecture/standing-reads": [
         "error",
         [
           // The one reading of where the user stands.
-          "skills/leaf/assets/runtime/focus.js",
+          "browser/runtime/focus.js",
           // The editor asks whether its own content holds focus inside the closed
           // root it renders in, which focus.js, reading through open roots, cannot see.
-          "skills/leaf/assets/runtime/editor-view.js",
-          "skills/leaf/assets/runtime/composing/text-field.js",
+          "browser/runtime/editor-view.js",
+          "browser/runtime/composing/text-field.js",
         ],
       ],
       "architecture/moves": [
         "error",
         [
           // The one mover.
-          "skills/leaf/assets/runtime/dom-move.js",
+          "browser/runtime/dom-move.js",
           // Its parser-time hook inserts the first drawing before modules run.
-          "skills/leaf/assets/runtime/prepaint.js",
+          "browser/runtime/prepaint.js",
         ],
       ],
     },
   },
   {
-    files: ["skills/leaf/assets/runtime/**/*.js"],
+    files: ["browser/runtime/**/*.js"],
     plugins: { architecture: architecturePlugin },
     rules: {
       ...ownerBoundary,
@@ -1622,7 +1624,7 @@ export default [
   {
     // This is the boundary that loads authored/package modules, whose paths are
     // data rather than runtime dependencies. Literal imports still enter the graph.
-    files: ["skills/leaf/assets/runtime/widget-loader.js"],
+    files: ["browser/runtime/widget-loader.js"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -1643,7 +1645,7 @@ export default [
     // whose own imports this same rule holds: `rendering.js`, which every rendering
     // callback is counted through, or `focus.js`, which a primitive that moves the
     // user's node asks to keep them standing on it.
-    files: runtimePrimitives.map((name) => `skills/leaf/assets/runtime/${name}`),
+    files: runtimePrimitives.map((name) => `browser/runtime/${name}`),
     rules: {
       "no-restricted-imports": [
         "error",
@@ -1673,12 +1675,12 @@ export default [
     // Thread folding accepts values; it must not obtain them from browser
     // stores or painters. The current derived reading has the same dependency floor.
     files: [
-      "skills/leaf/assets/runtime/projection/model.js",
-      "skills/leaf/assets/runtime/projection/state.js",
-      "skills/leaf/assets/runtime/pending/model.js",
-      "skills/leaf/assets/runtime/pending/state.js",
-      "skills/leaf/assets/runtime/thread/model.js",
-      "skills/leaf/assets/runtime/thread/state.js",
+      "browser/runtime/projection/model.js",
+      "browser/runtime/projection/state.js",
+      "browser/runtime/pending/model.js",
+      "browser/runtime/pending/state.js",
+      "browser/runtime/thread/model.js",
+      "browser/runtime/thread/state.js",
     ],
     rules: {
       "no-restricted-imports": [
@@ -1707,7 +1709,7 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/scripts/leaf/render-checks/init.js"],
+    files: ["src/leaf/render-checks/init.js"],
     languageOptions: { sourceType: "script" },
   },
   {
@@ -1715,7 +1717,7 @@ export default [
     // takes a rule's options from the last block matching it, not a merge of every
     // block's, so all of them stand in this one list, and the history owners' block
     // below repeats the others.
-    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
+    files: ["browser/**/*.js", "packages/*/**/*.js"],
     rules: {
       "no-restricted-properties": [
         "error",
@@ -1730,10 +1732,7 @@ export default [
     // page added returns to the place it was left at only because that owner takes the
     // traversal. The prepaint bootstrap runs before any module, and only cleans marks
     // off the address the document arrived at.
-    files: [
-      "skills/leaf/assets/runtime/history.js",
-      "skills/leaf/assets/runtime/bootstrap.js",
-    ],
+    files: ["browser/runtime/history.js", "browser/runtime/bootstrap.js"],
     rules: {
       "no-restricted-properties": ["error", ...RENDERING_PROPERTIES, ...ID_PROPERTIES],
     },

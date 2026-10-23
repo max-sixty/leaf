@@ -6,7 +6,7 @@ import {
   trackContributionControl,
   presentContributionHost,
   presentContributionReceipts,
-} from "../../skills/leaf/assets/runtime/contribution-controls.js";
+} from "../../browser/runtime/contribution-controls.js";
 import { servedWorkflow } from "../served.mjs";
 
 const workflow = (stage, condition = null) =>
@@ -52,7 +52,7 @@ test("a reply streaming paints the working face under its own word", () => {
   assert.equal(control.getAttribute("data-lf-agent-workflow"), "picked_up");
   assert.equal(
     control.getAttribute("aria-description"),
-    "Picked up · Preparing an update",
+    "Delivered · Preparing an update",
   );
 });
 

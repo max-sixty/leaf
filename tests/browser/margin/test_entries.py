@@ -7,8 +7,6 @@ import re
 
 import pytest
 from interact_support import append_command
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_cases_layout import token_colour
@@ -26,6 +24,8 @@ from browser.margin import (
     DENSE_SUGGESTIONS_PAGE,
     _comment_on,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

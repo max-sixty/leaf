@@ -5,8 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     SEATED_OBLIGATION_LAYER,
@@ -28,6 +26,9 @@ from render_harness import (
     round_trip,
     told,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

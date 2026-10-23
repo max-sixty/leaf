@@ -15,14 +15,14 @@ otherwise have to maintain.
 
 ## Lit versus Solid for Leaf
 
-| Concern                            | Lit                                                      | Solid 2                                                                                |
-| ---------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Existing custom-element lifecycle  | Fits directly; lowest migration cost                     | Leaf keeps the lifecycle and gives generated views retained Solid roots                |
-| Reactive state                     | Separate signal integration and redraw bridge            | Native memos, effects and projections share one graph with view updates                |
-| Authored HTML and retained editing | Leaf must preserve nodes and native state across redraws | Still a Leaf responsibility; keyed rendering alone does not preserve all browser state |
-| Build-free package authors         | Tagged templates                                         | Tagged templates through the shared `/vendor/solid.js` API                             |
-| Parser-time first paint            | Shared initial/live Lit rendering on main                | Shared initial/live Solid rendering; live modules adopt the same nodes and graph       |
-| Maturity                           | Stable and already integrated                            | Release candidate, with pinned local upstream adaptations                              |
+| Concern                            | Lit                                                            | Solid 2                                                                                |
+| ---------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Existing custom-element lifecycle  | Fits directly; lowest migration cost                           | Leaf keeps the lifecycle and gives generated views retained Solid roots                |
+| Reactive state                     | Native Preact selections with SignalWatcher and AsyncDirective | Native memos, effects and projections share one graph with view updates                |
+| Authored HTML and retained editing | Leaf must preserve nodes and native state across redraws       | Still a Leaf responsibility; keyed rendering alone does not preserve all browser state |
+| Build-free package authors         | Tagged templates                                               | Tagged templates through the shared `/vendor/solid.js` API                             |
+| Parser-time first paint            | Shared initial/live Lit rendering on main                      | Shared initial/live Solid rendering; live modules adopt the same nodes and graph       |
+| Maturity                           | Stable and already integrated                                  | Release candidate, with pinned local upstream adaptations                              |
 
 Solid offers a more coherent reactive graph and selective updates within retained
 views. Solid now schedules a graph of explicit DOM dependencies and settles bindings
@@ -34,8 +34,9 @@ owners; semantic readers and native DOM callbacks belong to those owners' lifeti
 yet justify replacing Lit on main.** The implementation demonstrates a viable
 direction, but changes package authoring, scheduling, first-paint delivery and
 focus retention without an established startup speedup. The matched corpus
-comparison finds less than a one-percent reduction in total delivered HTML and
-code. This is not a performance reason to migrate.
+comparison against the earlier main baseline found less than a one-percent reduction
+in total delivered HTML and code. Those historical measurements are not results
+against the newly merged main and do not establish a performance reason to migrate.
 
 The build documents and checks the upstream seams for retained DOM movement,
 quiet form writes, detached-root event collection, template traversal,
@@ -62,12 +63,64 @@ of these adaptations, or when a measured interaction or maintenance improvement
 outweighs it. Ordinary native controls and retaining WebAwesome can be chosen
 independently of the rendering framework; neither is evidence for Solid itself.
 
+## Review after merging current main
+
+The merge incorporates main through `766c1ed` (68 commits since the original
+comparison), including its repository reorganization, serving-runtime delivery,
+unified panel search, focus visibility, flat summary folds, shared screenshot
+inspection, and indexed diff preparation. These product and performance improvements
+remain in the candidate independently of the renderer choice.
+
+**Recommendation: retain Lit on production main.** The Solid branch improves on its
+own earlier architecture, but current main makes migration less compelling. Main
+already removed `watchProjection` in `23dff9c`, uses `SignalWatcher(LitElement)` for
+tracked rendering, `AsyncDirective` for command attachment, native computed
+selections, and keyed templates for generated lists. Retained DOM and shared initial
+and live rendering are shared capabilities. Removing a redraw bridge is no longer
+a reason to migrate.
+
+Solid's distinct gains are selective bindings through top-level props projections
+and explicit dependencies on committed DOM. They are useful architectural properties,
+but no matched evidence yet shows a user-visible speedup over current main. They
+come with six pinned upstream adaptations, a custom element lifecycle adapter,
+explicit imperative reaction roots, and deferred error ownership. Main also patches
+Lit movement and refs; the comparison is an increased integration burden rather
+than patches versus no patches. Solid remains a release candidate.
+
+The presentation redesign removes numeric ranks and their microtask queue. It does
+not eliminate application coordination: semantic proof, asynchronous preparation,
+generation checks, cancellation and retained editor ownership remain necessary.
+Those are Leaf responsibilities, and deleting them would weaken correctness.
+
+Useful work to carry onto Lit main:
+
+- Express which committed DOM a dependent owner requires, using native reactive
+  dependencies and Lit completion. Main's numeric scheduler currently guarantees
+  only that an earlier renderer reached its first await. Keep DOM completion
+  separate from held asynchronous proof, so one held region cannot stall unrelated
+  drawing.
+- Keep main's native framework lifecycle and command directives. The experiment
+  confirms the cost of maintaining application substitutes for those interfaces.
+- Port behavioral regression cases for retained selection/editor identity,
+  replacement, disconnection, late failures and balanced input attribution. Port
+  the behavior, not Solid's error adapter, which addresses Solid-specific timing.
+- Publish mechanical DOM changes and signal changes atomically. Preact `batch`
+  already gives main the appropriate primitive.
+- Keep dependency decisions independent: WebAwesome's maintained copy and
+  comparison behavior remains valuable. Native ordinary controls and any future
+  component-library trial should be justified by their own behavior and quality.
+
+Main's hidden-in-place summary folds, retained search editors, lf-shot ownership and
+off-document/indexed diff preparation are concrete examples of framework-independent
+improvement. They are already present on main; they should not be credited as new
+benefits of this branch.
+
 ## Native rendering phases
 
 The ranked microtask presentation pass is removed. `createPresentationFlow` owns
 Solid effects connected by explicit DOM dependencies: a widget follows its current
 parent, projection follows committed widget DOM, threads follow projection, and
-obligations follow threads. A dependency advances after synchronous rendering and
+obligations follow threads, and annotations follow obligations. A dependency advances after synchronous rendering and
 post-render work, including failure; an unrelated owner's asynchronous preparation
 cannot hold the graph behind it. Independent effects have no FIFO contract.
 
@@ -78,7 +131,7 @@ setup after those bindings settle. Nested writes settle before outer measurement
 presentation ledger uses its ticket's final verdict, including explicit fallback
 proof, rather than confusing DOM completion with semantic completion.
 
-The conversion covers `LeafElement.updated()`, projection watchers, document
+The conversion covers `LeafElement.updated()`, retained views, document
 presenters and their asynchronous continuations, thread messages/cards/reactions,
 the floating panel, command reference, Page Map, media inspection, visual review,
 file editor, recording timelines, diff summaries and draft controls. Native inputs,
@@ -104,14 +157,14 @@ The public primitives are Solid's `createEffect`, `createMemo`, `createReaction`
 read immediately after writing props inside an effect remains stale; consumers now
 use the post-render phase instead of asking for a nested flush.
 
-Regression coverage lives in `build/browser/rendering.test.mjs`,
-`build/browser/presentation.test.mjs`, `tests/runtime/solid-views.test.mjs`,
+Regression coverage lives in `browser/framework/rendering.test.mjs`,
+`browser/framework/presentation.test.mjs`, `tests/runtime/solid-views.test.mjs`,
 `tests/runtime/leaf-element.test.mjs`, and the application-boundary, input-attribution
 and parent-widget ordering browser tests. These protect asynchronous holds, failed
 measurements, retained focus/editing, native/shadow owners, disconnection and
 supersession rather than the old queue's incidental order.
 
-The redesigned candidate passes 145 framework/build, 538 runtime and 85 Worker
+Before merging main, the redesigned candidate passed 145 framework/build, 538 runtime and 85 Worker
 tests, plus 28 focused Chromium cases. Independent browser review covers delayed
 image loads and acknowledgements during editing, disconnects, command-hub
 save/discard/undo, keyboard navigation and narrow dark layouts. The matched corpus

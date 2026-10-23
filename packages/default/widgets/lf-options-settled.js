@@ -1,0 +1,98 @@
+/* A settled options group's tab-local disclosure. The current option projection is
+ * always read from the host; the row never becomes a second record of selection. */
+import {
+  DISCLOSE,
+  commands,
+  comparisonChanges,
+  keeps,
+  html,
+  iconTemplate,
+  createView,
+  Show,
+  selectableOffer,
+  tabStore,
+} from "/runtime/widget-api.js";
+
+const SETTLED_KEY = "lf-settled:";
+
+export class SettledOptions {
+  #host;
+  #label;
+  #row = null;
+  #isOpen = false;
+  #drawing;
+
+  constructor(host, { label }) {
+    this.#host = host;
+    this.#label = label;
+  }
+
+  connect() {
+    if (this.#row) return;
+    this.#build();
+  }
+
+  #build() {
+    this.#row = selectableOffer("button", "lf-settled");
+    this.#row.setAttribute("aria-expanded", "false");
+    this.#row.onclick = () => this.#open(!this.#isOpen, true);
+    commands(this.#row, "In settled options", [
+      {
+        id: "option.toggle-settled",
+        keys: () => DISCLOSE(this.#row),
+        title: () => (this.#isOpen ? "close" : "open"),
+        run: () => this.#row.click(),
+      },
+    ]);
+    this.#host.prepend(this.#row);
+    this.#host.addEventListener("beforematch", () => this.#open(true, true), true);
+    this.#host.addEventListener("lf-reveal", () => this.#open(true, true), true);
+    this.#host.classList.toggle("lf-rendered", true);
+    this.#open(tabStore.get(SETTLED_KEY + this.#host.id) === "1", false);
+  }
+
+  #open(open, remember) {
+    this.#isOpen = open;
+    this.sync();
+    keeps(this.#row, "aria-expanded", open);
+    if (remember) tabStore.set(SETTLED_KEY + this.#host.id, open ? "1" : "0");
+  }
+
+  sync() {
+    const options = [...this.#host.querySelectorAll(":scope > lf-option")];
+    keeps(this.#row, "aria-controls", options.map((option) => option.id).join(" "));
+    for (const el of [
+      ...options,
+      ...this.#host.querySelectorAll(":scope > :is(.lf-another, lf-options-done)"),
+    ])
+      keeps(el, "hidden", this.#isOpen ? null : "until-found");
+
+    const names = options
+      .filter((option) => option.hasAttribute("chosen"))
+      .map(this.#label)
+      .filter(Boolean);
+    const changes = comparisonChanges(this.#host).length;
+    const model = {
+      names: names.length ? `Settled: ${names.join(", ")}` : "Settled",
+      count: `${options.length} option${options.length === 1 ? "" : "s"}`,
+      changes,
+    };
+    if (this.#drawing) this.#drawing.update(model);
+    else
+      this.#drawing = createView(
+        this.#row,
+        (read) =>
+          html`${iconTemplate("down", "lf-disclosure-icon")}<span
+              data-lf-gen="1"
+              data-lf-said
+              >${() => read().names}</span
+            ><span class="lf-settled-count">${() => read().count}</span>${Show({
+              get when() {
+                return read().changes;
+              },
+              children: (count) => html`<span class="lf-settled-diff">Δ${count}</span>`,
+            })}`,
+        model,
+      );
+  }
+}

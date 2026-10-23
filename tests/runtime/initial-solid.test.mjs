@@ -60,11 +60,11 @@ test("classic Solid and the mapped module facade are the same instance", () => {
       import { registerHooks } from "node:module";
       registerHooks({ resolve(specifier, context, next) {
         const resolved = next(specifier, context);
-        if (resolved.url.endsWith("/assets/vendor/solid.js")) return next("/vendor/solid-shared.js", context);
+        if (resolved.url.endsWith("/browser/vendor/solid.js")) return next("/vendor/solid-shared.js", context);
         return resolved;
       }});
       assert.equal(document.documentElement.lfInitial.solid, undefined);
-      new Function(readFileSync("skills/leaf/assets/vendor/solid-initial.js", "utf8"))();
+      new Function(readFileSync("browser/vendor/solid-initial.js", "utf8"))();
       const early = document.documentElement.lfInitial.solid;
       const live = await import("/vendor/solid-shared.js");
           assert.deepEqual(Object.keys(live).sort(), Object.keys(early).sort());
@@ -78,7 +78,7 @@ test("classic Solid and the mapped module facade are the same instance", () => {
 test("the initial dependency graph follows producer imports", async () => {
   const outputs = await initialOutputs();
   const dependencies = JSON.parse(
-    outputs.get("skills/leaf/assets/vendor/initial-dependencies.json"),
+    outputs.get("browser/vendor/initial-dependencies.json"),
   );
   assert.deepEqual(dependencies, {
     "/vendor/lf-toc-initial.js": ["/vendor/solid-initial.js"],

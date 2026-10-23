@@ -6,10 +6,7 @@ import { expect, it } from "vitest";
 import { Window } from "happy-dom";
 
 import { bundleSite } from "../bundle-runtime.mjs";
-import {
-  registeredTags,
-  widgetImports,
-} from "../../skills/leaf/assets/runtime/widget-imports.js";
+import { registeredTags, widgetImports } from "../../browser/runtime/widget-imports.js";
 
 it("an arriving widget scope requires its own initializer and upgrade while template contents stay inert", async () => {
   const window = new Window();

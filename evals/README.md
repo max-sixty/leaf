@@ -179,7 +179,7 @@ pins, and `metadata.tags` its area.
 
 A short case that needs real authoring declares `metadata.authoring: true`.
 Its agent has native file and command tools, an initialized writable page, the
-arm's launcher as `$LEAF`, and a fresh workspace, home, temporary directory and
+arm's launcher first on `PATH`, and a fresh workspace, home, temporary directory and
 Leaf state for every sample. Pinned files under `evals/<case>/` are copied into
 that workspace at the same relative paths. Cite those paths in the prompt; the
 agent can open, register, crop or mark the captures. Ask it to write the page.
@@ -234,11 +234,11 @@ tasks use one JavaScript assertion to pass the final live judge's verdict throug
 the Python provider. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
 
-Python prepares fixtures, drives the agent through resumed phases or live user
-rounds, and extracts evidence. Complete authoring tasks have only two execution
+Python prepares fixtures, drives live chat turns or user input through the page,
+and extracts evidence. Complete authoring tasks have only two execution
 checks: the author completed all turns, and a final page exists. The one live
 judge owns result correctness, including decision values and the requested
-comment changes. The author is asked to check its own page; the harness does not
+comment changes. The installed skill owns the author's review workflow; the harness does not
 repeat render checks or run a separate decision-reading agent after every sample.
 Other executors declare their execution facts in `expected_checks`. Semantic grading stays with Promptfoo: anything said
 in prose, a reply or a passage on the page, goes to the text judge. A text rubric's

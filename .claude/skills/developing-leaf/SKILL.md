@@ -375,8 +375,15 @@ context the behavior needs, and a few assertions. Explore freely, but keep only 
 that cover distinct failures or necessary controls. The case's leading comment records
 where it came from and whether it told the two versions apart.
 
-The prompt never states the behavior under test, or sends the agent to the file that
-holds its rule; a replay may still say what the failing session had read. Grade what the agent wrote with an
+For every agent eval, give the subject the task, context, tools and handoff it would
+receive in normal use, adding only fixture facts needed to run the case. Keep grading
+criteria and harness bookkeeping outside its input. Let the installed instructions
+teach the workflow; don't repeat their procedure or direct the subject to the rule
+being measured. A replay preserves what the recorded session had read. A diagnostic
+that deliberately supplies a skill or rule measures behavior with that context,
+not whether ordinary use discovers it; name that limit when interpreting its result.
+
+Grade what the agent wrote with an
 `llm-rubric` assertion whose `value` describes the passing behavior without requiring
 particular wording; use `regex` only for a literal such as a command or URL
 (`evals/README.md`, "Case format").

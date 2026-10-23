@@ -91,8 +91,7 @@ cases:
           maintenance window I booked with operations; the booking is only in my
           private calendar, and I haven't told you its time yet.
 
-          Keep your files inside {work}. This session is headless; don't start a
-          server or wait after your turn.
+          Keep your files inside {work}. Use headless browser tooling for your own inspection; I'll open any page you send me.
         - |-
           The booked production maintenance window is 02:00–02:40 UTC on
           29 October 2026. Finish the plan.
@@ -142,6 +141,8 @@ cases:
           The backfill comparison at {page} is ready. I've chosen snapshot restore.
           Update the plan to reflect that choice and hand it over so I can leave
           comments. Handle what I send you.
+
+          Use headless browser tooling for your own inspection; I'll open any page you send me.
       fixture: handoff
       rounds:
         - - kind: comment
@@ -191,7 +192,7 @@ cases:
           3. Cost: the run used 38 instance-hours, 22% more than the last test, because
              autoscaling added nodes late.
 
-          This session is headless: nobody can open a browser or answer you during it. If you would normally serve something and wait for feedback, don't start a server or wait; finish once the work is written and checked, and end with one line saying where it is. Keep every file you create inside {work}.
+          Use headless browser tooling for your own inspection; I'll open any page you send me. Keep every file you create inside {work}.
     assert:
       - type: llm-rubric
         metric: outcome
@@ -202,7 +203,7 @@ cases:
 
           agent_checked (the complete native trace): The agent actually ran Leaf page check on the page it authored or handed over, and the tool result confirms the check succeeded before its final handover. Merely mentioning or printing a check command, reading help, or a failed invocation does not count. Recognize equivalent launcher paths, variables, wrappers, and argument layouts from the calls and their results.
 
-          not_served (the complete native trace): The agent completed this headless task without starting a server to serve the authored page. Judge executed tools and their results, including wrappers and indirect invocations. Quoting a server command, reading server help, or a command that failed before starting a server is allowed.
+          served (the complete native trace and handoff): The agent successfully serves the page and returns its URL so the user can open it. Judge executed tools and results, not a quoted command or an unsupported claim of serving.
 
           The result is one readable Leaf report of the supplied findings, without inventing a decision or demanding approval or sign-off for this short-lived report.
         transform: context.metadata.texts?.['evidence'] ?? ''
@@ -221,7 +222,7 @@ cases:
 
           We'll run exactly one of these.
 
-          This session is headless: nobody can open a browser or answer you during it. If you would normally serve something and wait for feedback, don't start a server or wait; finish once the work is written and checked, and end with one line saying where it is. Keep every file you create inside {work}.
+          Use headless browser tooling for your own inspection; I'll open any page you send me. Keep every file you create inside {work}.
     assert:
       - type: llm-rubric
         metric: outcome
@@ -232,7 +233,7 @@ cases:
 
           agent_checked (the complete native trace): The agent actually ran Leaf page check on the page it authored or handed over, and the tool result confirms the check succeeded before its final handover. Merely mentioning or printing a check command, reading help, or a failed invocation does not count. Recognize equivalent launcher paths, variables, wrappers, and argument layouts from the calls and their results.
 
-          not_served (the complete native trace): The agent completed this headless task without starting a server to serve the authored page. Judge executed tools and their results, including wrappers and indirect invocations. Quoting a server command, reading server help, or a command that failed before starting a server is allowed.
+          served (the complete native trace and handoff): The agent successfully serves the page and returns its URL so the user can open it. Judge executed tools and results, not a quoted command or an unsupported claim of serving.
 
           names_gesture (phase 1 reply): The message tells the user how to make the decision on the page: by picking, choosing or selecting one of its options.
 
@@ -244,8 +245,6 @@ cases:
         - |-
           Explain the difference between optimistic and pessimistic locking in a
           relational database. A short answer is fine.
-
-          This session is headless: nobody can open a browser or answer you during it. If you would normally serve something and wait for feedback, don't start a server or wait; finish once the work is written and checked, and end with one line saying where it is. Keep every file you create inside {work}.
     assert:
       - type: llm-rubric
         metric: outcome
@@ -272,7 +271,7 @@ cases:
           6. Which cutover mode has the user picked?
           7. Which attempt tab am I looking at right now?
 
-          This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Use headless browser tooling for your own inspection.
       fixture: reading
     assert:
       - type: llm-rubric
@@ -318,7 +317,7 @@ cases:
 
           1. On what date does the migration window open?
 
-          This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Use headless browser tooling for your own inspection.
       fixture: reading-plain
     assert:
       - type: llm-rubric
@@ -340,7 +339,7 @@ cases:
 
           1. Who owns the rollback?
 
-          This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Use headless browser tooling for your own inspection.
       fixture: reading-collapsed
     assert:
       - type: llm-rubric
@@ -362,7 +361,7 @@ cases:
 
           1. At which shard did the earlier attempt stop?
 
-          This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Use headless browser tooling for your own inspection.
       fixture: reading-inactive-tab
     assert:
       - type: llm-rubric
@@ -384,7 +383,7 @@ cases:
 
           1. How many write errors did ap-south record in the rehearsal?
 
-          This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Use headless browser tooling for your own inspection.
       fixture: reading-widget-data
     assert:
       - type: llm-rubric
@@ -406,7 +405,7 @@ cases:
 
           1. What is max_parallel_copies set to in the copier configuration the page shows?
 
-          This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Use headless browser tooling for your own inspection.
       fixture: reading-external-data
     assert:
       - type: llm-rubric
@@ -428,7 +427,7 @@ cases:
 
           1. Which cutover mode has the user picked?
 
-          This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Use headless browser tooling for your own inspection.
       fixture: reading-action-in-force
     assert:
       - type: llm-rubric
@@ -450,7 +449,7 @@ cases:
 
           1. Which attempt tab am I looking at right now?
 
-          This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Use headless browser tooling for your own inspection.
       fixture: reading-view
     assert:
       - type: llm-rubric
@@ -475,10 +474,9 @@ cases:
           Approach: <how traffic will move to the new index>
           Next: <what needs doing next>
 
-          This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Use headless browser tooling for your own inspection; I'll open any page you send me.
         - |-
-          Go ahead and do what needs doing next. Check the page and stamp the new version
-          when it's ready. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Go ahead and do what needs doing next.
       fixture: resume
     assert:
       - type: llm-rubric
@@ -509,11 +507,11 @@ cases:
           2. What p95 does the latency sentence state, and what is the latest measurement?
           3. Which region has the most errors in the chart?
 
-          Don't change anything yet. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Don't change anything yet. Use headless browser tooling for your own inspection; I'll open any page you send me.
         - |-
           Now update the page: the rollout starts 19 November, not 12 November; the latency
           sentence should state the latest p95 measurement; and sa-east's error count was
-          miscounted, it is 85. Check the page and stamp the new version. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          miscounted, it is 85.
       fixture: constructs
     assert:
       - type: llm-rubric
@@ -535,7 +533,7 @@ cases:
 
           chart_85 (the final canonical page, state and agent replies): In the data this chart plots, sa-east has 85 errors.
 
-          The stamped final record preserves the user's release-note wording about merchants needing no code changes while updating rollout to 19 November. The current latency sentence is 231 ms, its measurement is current, and the chart has sa-east at 85 errors. Other measurement source values remain unchanged; old decisions are withdrawn explicitly when the changed content invalidates them.
+          The final page preserves the user's release-note wording about merchants needing no code changes while updating rollout to 19 November. The current latency sentence is 231 ms, its measurement is current, and the chart has sa-east at 85 errors. Other measurement source values remain unchanged; old decisions are withdrawn explicitly when the changed content invalidates them.
         transform: context.metadata.texts?.['evidence'] ?? ''
   board:
     inputs:
@@ -547,10 +545,10 @@ cases:
           1. List the cards in the Doing column, top to bottom.
           2. Which column is "Rotate signing keys" in?
 
-          Don't change anything yet. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Don't change anything yet. Use headless browser tooling for your own inspection; I'll open any page you send me.
         - |-
           Now add a card "Revoke old keys" at the bottom of To do, and rename "Expiry
-          alerts" to "Key expiry alerts". Check the page and stamp the new version. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          alerts" to "Key expiry alerts".
       fixture: board
     assert:
       - type: llm-rubric
@@ -562,7 +560,7 @@ cases:
 
           undo_read (phase 1 reply): Answer 2, to "Which column is \"Rotate signing keys\" in?", is To do.
 
-          The final board preserves the user's Doing order (Update runbook, Inventory services, Audit key usage, Key expiry alerts), keeps Rotate signing keys in To do after its move was undone, adds Revoke old keys at the bottom of To do and renames Expiry alerts to Key expiry alerts. It preserves unrelated decisions and stamps the revision. Judge the board's meaning and current state, not an exact tag or card count.
+          The final board preserves the user's Doing order (Update runbook, Inventory services, Audit key usage, Key expiry alerts), keeps Rotate signing keys in To do after its move was undone, adds Revoke old keys at the bottom of To do and renames Expiry alerts to Key expiry alerts. It preserves unrelated decisions. Judge the board's meaning and current state, not an exact tag or card count.
         transform: context.metadata.texts?.['evidence'] ?? ''
   package:
     inputs:
@@ -571,8 +569,8 @@ cases:
           The Leaf page at {page} is a reliability review I'm writing with an agent.
           It uses our team's `slo` package, which has a widget for error budgets. Add checkout's
           error budget to the Checkout section: the objective is 99.9% availability over 28 days,
-          and 62% of the budget is spent so far. Check the page and stamp the new version.
-          This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          and 62% of the budget is spent so far.
+          Use headless browser tooling for your own inspection; I'll open any page you send me.
       fixture: package
     assert:
       - type: llm-rubric
@@ -584,7 +582,7 @@ cases:
 
           source_unread (the complete native trace): Before first modifying page/index.html to add the slo widget, the agent did not read the implementation source of that widget (lf-burn.js or equivalent package implementation files). Reading package instructions, the selected registry or page declarations is allowed; merely mentioning implementation filenames without reading their contents is allowed.
 
-          The final stamped page uses the supplied slo package to show checkout's 99.9% availability objective over 28 days with 62% of the budget spent. Judge the widget's declared meaning, not a particular spelling of numeric attributes.
+          The final page uses the supplied slo package to show checkout's 99.9% availability objective over 28 days with 62% of the budget spent. Judge the widget's declared meaning, not a particular spelling of numeric attributes.
         transform: context.metadata.texts?.['evidence'] ?? ''
   shared-source:
     inputs:
@@ -596,10 +594,10 @@ cases:
           1. Which branch is finch's worktree on, and are its tests passing?
           2. How many commits ahead of its base is wren's worktree?
 
-          Don't change anything yet. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          Don't change anything yet. Use headless browser tooling for your own inspection; I'll open any page you send me.
         - |-
           finch just pushed a fix: its worktree's head is now 3f0a6be, 7 commits ahead of
-          main, and its tests pass. Update the page to show that. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+          main, and its tests pass. Update the page to show that.
       fixture: shared-source
     assert:
       - type: llm-rubric
@@ -624,6 +622,8 @@ cases:
           I've drafted a Leaf page at {page} comparing three ways to run the
           order-history backfill. Hand it over so I can pick one in my browser and leave
           comments, and handle what I send you.
+
+          Use headless browser tooling for your own inspection; I'll open any page you send me.
       fixture: handoff
       rounds:
         - - kind: comment
@@ -663,6 +663,8 @@ cases:
           The Leaf page at {page} is one I've been reviewing with another agent
           session, which has ended. Serve it again so I can keep working on it in my browser,
           and handle what I send you.
+
+          Use headless browser tooling for your own inspection; I'll open any page you send me.
       fixture: mixed
       rounds:
         - - kind: comment
@@ -711,6 +713,8 @@ cases:
           The Leaf page at {page} is one I've been reviewing with another agent
           session, which has ended. Serve it again so I can keep working on it in my browser,
           and handle what I send you.
+
+          Use headless browser tooling for your own inspection; I'll open any page you send me.
       fixture: elided
       rounds:
         - - kind: reply
@@ -742,6 +746,8 @@ cases:
           I'll pick on the page which region goes first; then write that region's
           schedule, a day per stage at 1%, 10%, 50% and 100%; and last, add a rollback
           section. Handle what I send you.
+
+          Use headless browser tooling for your own inspection; I'll open any page you send me.
       fixture: plan
       rounds:
         - - kind: action
@@ -780,7 +786,7 @@ cases:
           The Leaf page at {page} is one I've been working on with another agent
           session, which has ended. Pick up where it left off and finish the job.
 
-          This session is headless: nobody can open a browser or answer you during it. If you would normally serve something and wait for feedback, don't start a server or wait; finish once the work is written and checked, and end with one line saying where it is. Keep every file you create inside {work}.
+          Use headless browser tooling for your own inspection; I'll open any page you send me. Keep every file you create inside {work}.
       fixture: plan-resume
     assert:
       - type: llm-rubric
@@ -794,7 +800,7 @@ cases:
 
           plan_kept (the page's events and final state): The agent kept the earlier plan current rather than abandoning it: a later plan event keeps its goal and its finished steps, including the step naming `widget:first-region`, and marks the schedule and rollback steps done. Fail if the plan in force at the end still shows a finished step as open or working, or if the agent cleared the plan or replaced it with an outline that drops the earlier steps.
 
-          not_served (the complete native trace): The agent completed this headless task without starting a server to serve the page. Judge executed tools and their results, including wrappers and indirect invocations. Quoting a server command, reading server help, or a command that failed before starting a server is allowed.
+          served (the complete native trace and handoff): The agent successfully serves the page and returns its URL so the user can open it. Judge executed tools and results, not a quoted command or an unsupported claim of serving.
 
           The agent recovers the remaining job from the page, finishes it with the user's choice in force, and leaves a plan that says the job is done.
         transform: context.metadata.texts?.['evidence'] ?? ''

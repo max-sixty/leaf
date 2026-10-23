@@ -24,6 +24,7 @@ from leaf_dev import ROOT
 from leaf_dev.arms import (
     blocks,
     completed,
+    environment,
     instruction_context,
     run_agent,
     run_leaf,
@@ -143,7 +144,10 @@ def execute(
                 out=evidence / "stream.jsonl",
                 err=evidence / "err.txt",
                 dirs=[payload],
-                env={"LEAF": str(payload / "bin/leaf"), "XDG_STATE_HOME": str(state)},
+                env={
+                    "PATH": environment(payload=payload)["PATH"],
+                    "XDG_STATE_HOME": str(state),
+                },
                 harness=harness,
             )
             plain = run_leaf(payload, state, "page", "check", str(page))

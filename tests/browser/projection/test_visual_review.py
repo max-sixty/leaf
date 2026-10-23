@@ -329,10 +329,11 @@ def test_visual_review_preserves_capture_reading_when_returning_to_a_case(
     resized(page, 1366, 700)
     widget = page.locator("#visual-review-run")
     case = widget.locator(SELECTED)
-    case.get_by_role("button", name="Image scale and originals").click()
+    case.get_by_role("button", name="Pair", exact=True).click()
+    case.get_by_role("button", name="Image options").click()
     case.get_by_role("checkbox", name="Full frame").check()
     page.keyboard.press("Escape")
-    case.get_by_role("button", name="Image scale and originals").click()
+    case.get_by_role("button", name="Image options").click()
     case.get_by_role("button", name="100%", exact=True).click()
     capture = case.locator(".lf-shotviewport").first
     assert capture.evaluate("node => node.scrollHeight > node.clientHeight")

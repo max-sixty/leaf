@@ -1969,11 +1969,6 @@ td.num {
 ol.steps > li {
   margin: 10px 0;
 }
-ol.steps > li::marker {
-  color: var(--accent);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
 svg.drawing {
   display: block;
   height: auto;

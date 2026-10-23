@@ -1367,6 +1367,14 @@ svg[data-lf-icon] {
 .lf-compose-placeholder > kbd {
   flex: none;
 }
+.lf-compose-placeholder > .lf-compose-placeholder-aside {
+  max-width: 40%;
+  margin-inline-start: auto;
+  padding-inline-start: 0.75em;
+}
+.lf-compose-placeholder-aside:empty {
+  display: none;
+}
 .lf-compose-placeholder .lf-key-badge {
   background: transparent;
   color: var(--muted);
@@ -1541,6 +1549,7 @@ button.lf-media-open {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
+.lf-media-frame,
 .lf-composer-media-item > .lf-composer-media-open {
   border-radius: 8px;
   box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
@@ -1557,7 +1566,6 @@ button.lf-media-open {
   max-width: calc(2 * var(--lf-media-h));
   object-fit: cover;
   border-radius: inherit;
-  box-shadow: none;
 }
 .lf-composer-media-item > .lf-corner-mark {
   inset-block-start: calc(-1 * var(--lf-media-mark-overhang));

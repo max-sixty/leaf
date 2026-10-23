@@ -104,6 +104,11 @@ def field(page):
     return page.locator(".lf-fp-field leaf-text")
 
 
+def aside(page):
+    """A walk's position at the end of the field while it says an open thread's reply."""
+    return page.locator(".lf-fp-field .lf-compose-placeholder-aside")
+
+
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and resolving the
@@ -954,6 +959,58 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     page.mouse.click(*at)
     expect(search).to_be_hidden()
     assert page.evaluate("getSelection().toString()") == "Paragraph 10"
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_whatever_the_field_holds_the_row_keeps_its_line(browser, serve, touch):
+    """Page search, Threads' search and a thread's reply take turns with the page's
+    comment field in one seat, so each stands in the one line the theme reserves for
+    the row rather than sizing it. Page search's box once brought its vendor's own
+    control height and stood the row 6px taller than the comment field it replaced."""
+    url = serve(AGENDA_PAGE)
+    agenda_threads(serve.page_dir)
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=touch
+    )
+    page = open_page(browser, url, context=context)
+    row = page.locator(".lf-fp-row")
+    line = page.evaluate("""() => {
+      const room = document.createElement('div');
+      room.style.height = 'var(--lf-floating-row)';
+      document.body.append(room);
+      const line = room.getBoundingClientRect().height;
+      room.remove();
+      return line;
+    }""")
+    heights = {"rest": row.bounding_box()["height"]}
+
+    page.locator("body").focus()
+    page.keyboard.press("/")
+    expect(page.locator(".lf-page-search")).to_be_visible()
+    heights["page search"] = row.bounding_box()["height"]
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-search")).to_be_hidden()
+
+    rows = threads_rows(page)
+    page.get_by_role("button", name="Find a thread or message").click()
+    expect(page.locator("input.lf-fp-search")).to_be_visible()
+    heights["threads search"] = row.bounding_box()["height"]
+    page.keyboard.press("Escape")
+    expect(page.locator("input.lf-fp-search")).to_be_hidden()
+
+    rows.first.click()
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    expect(field(page)).to_be_visible()
+    heights["thread reply"] = row.bounding_box()["height"]
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    heights["rest again"] = row.bounding_box()["height"]
+
+    assert all(h == pytest.approx(line, abs=0.5) for h in heights.values()), (
+        line,
+        heights,
+    )
 
 
 @pytest.mark.parametrize(
@@ -2650,6 +2707,29 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
         "placeholder", re.compile("^Reply in this thread")
     )
     expect(page.locator(".lf-fp-peek")).to_be_hidden()
+
+
+def test_a_thread_s_field_says_its_reply_beside_the_walk_s_position(browser, serve):
+    """A thread open in the panel keeps saying that its field takes the reply, with the
+    key that enters it, when the thread walk stands on it: the walk's place stands at
+    the field's end instead of in the reply's place, and `c` writes there."""
+    page = floating(browser, serve(LONG_PAGE))
+    write(field(page), "Could the rollback cover the weekend?")
+    with sending(page, "the page comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view).to_be_visible()
+    view.focus()
+    page.keyboard.press("t")
+    expect(aside(page)).to_have_text("1 of 1")
+    expect(field(page)).to_have_attribute("data-says", "turn")
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Reply\b.* c$"))
+    key = page.locator(".lf-fp-field .lf-compose-placeholder kbd")
+    expect(key).to_have_text("c")
+    expect(key).to_be_visible()
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    expect(aside(page)).to_be_hidden()
 
 
 def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):
@@ -4609,7 +4689,7 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
                   top: rows[0].top - content.top,
                   wrapped: rows.at(-1).left - content.left,
                   marker: style.display === 'list-item' ? style.listStyleType : null,
-                  source: getComputedStyle(mark).color !== 'rgba(0, 0, 0, 0)',
+                  source: getComputedStyle(mark).webkitTextFillColor !== 'rgba(0, 0, 0, 0)',
                   height: content.height,
                 };
               });
@@ -4743,3 +4823,21 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     expect(field(page)).to_have_js_property("value", "Make it the weekend.")
     page.wait_for_timeout(300)
     expect(page.get_by_text("That writing place is unavailable")).to_have_count(0)
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_the_comment_box_seated_in_the_row_keeps_its_line(browser, serve, touch):
+    """The comment box that stands in the field's place on a page drawing its own
+    annotations takes turns with the field, so it is the row's line tall too. Its own
+    resting height, the pointer's floor, once stood the row 10px taller under a
+    finger."""
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=touch
+    )
+    page = open_page(browser, serve(PAGE_ANNOTATED), context=context)
+    row = page.locator(".lf-fp-row")
+    rest = row.bounding_box()["height"]
+    select_words(page, "#p3")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fp-response leaf-text")).to_be_focused()
+    assert row.bounding_box()["height"] == pytest.approx(rest, abs=0.5)

@@ -1,13 +1,8 @@
 # Agent usability evals
 
-What earlier eval runs found about agents authoring, reading and revising Leaf pages,
-and what remains unmeasured. The runs used harnesses the catalog has since absorbed
-(`evals/README.md`); their scenarios survive as the `usability_eval` and
-`arrangement_eval` executors. The per-run results were under
-`notes/usability-eval/results/` and `notes/arrangement-eval/results/` until this
-note was condensed; `git log --` on those paths finds them. The findings through
-2026-10-12, which have landed, are in Git history; `d91b67b26` is the last commit
-holding them.
+Evidence from Leaf/plain HTML comparisons and page-quality studies, with remaining
+evaluation gaps. `evals/README.md` owns execution and reporting; the maintainer
+`/grinding-ui` skill owns the improvement loop.
 
 ## Recovered Codex comparison, 2026-10-14
 
@@ -204,28 +199,7 @@ still count Orbis's contacts one short (8 of 11 to 4 of 10). The second batch ra
 because the first alone (−29 points, −53 to +1) did not exclude no change. Six Codex
 pages per arm showed no change.
 
-The overlap from a playground followed by a note came from `lf-ask`: its full-height
-rule gave every child the height signal, so a playground that was not the last child
-shrank below the floors of its rows and drew past its own box. The fix holds the
-context at its own height. The three configuration pages authored after it have no
-such overlap, including one with a note after its playground;
-`test_a_playground_followed_by_a_note_keeps_its_instruction_off_the_note` holds it.
-
-Both queue pages where the judge commented on an item and cleared its answer showed
-"1 of 8 to answer" beside a disabled Next on me: the comment hands the item to the
-agent (`obligations.discussed`), and `lf-tally` counted every open obligation as to
-answer. Reproduced on a three-item queue, the tally now splits the open ones by next
-actor ("1 of 3 on Claude"), and
-`test_a_tally_counts_its_regions_obligations_and_walks_them` holds it.
-
-At 900×700 the judge found a workspace playground's stage too short on 4 of 9
-configuration pages: it kept 12rem (192px) so the instruction and Send stayed in
-view. The stage now keeps at least half the window and the workspace scrolls to
-Send; on the study's alert page at 900×700 it grew from 192 to 350px, with 2 of
-12 controls in view rather than none.
-`test_inline_playground_keeps_half_a_short_workspace_for_its_stage` holds it.
-
-The other recurring Leaf-owned defects follow from recorded choices, and are open
+The recurring Leaf-owned defects below follow from recorded choices, and are open
 decisions rather than fixes:
 
 - A thread card opens over the text near its passage, which Escape uncovers (root
@@ -289,12 +263,6 @@ Audit evidence is `.tmp/eval/audit-yci6yzij/0/`, with its provenance recorded in
 `.tmp/ui-grinding/cycle/astra-audit.json`. Opus reviewed the proposed skill and
 audit recipe; this block did not run fresh Opus authors.
 
-Visual review found provider identifiers crowding the comparison viewer on phones.
-The report producer now derives short labels from recorded conditions, keeps
-same-condition columns distinct and exposes full identifiers in metadata. The
-regenerated viewer passed render and independent visual review, plus live checks
-of image zoom, matched capture widths, disclosures and phone overflow.
-
 The four runs are under `.tmp/eval/` in this checkout:
 
 - `20261021-135550-9h8_k04r` — Leaf, `configuration-ocar5rb0`.
@@ -338,46 +306,3 @@ twelve-author Codex comparison above. The continuing brief is TODO #20.
 When a real failure supplies a case, state its expected answer
 and edit owner before running it, and classify a miss as missing information,
 inaccessible information, or information misread.
-
-## Grinding playbook research, 2026-10-21
-
-The first grinding skill coordinated tools but left task selection, sampling and
-held-out confirmation in other documents or unspecified. The complete method now
-lives in `.claude/skills/grinding-ui/SKILL.md`; `evals/README.md` retains individual
-command mechanics.
-
-The desktop emphasis comes directly from the user's October 15 session,
-`01a142c3-d3fc-77d2-9fb8-55cc914836b2`, archived at
-`~/.codex/archived_sessions/rollout-2026-10-15T20-31-32-01a142c3-d3fc-77d2-9fb8-55cc914836b2.jsonl`:
-line 154 names fullscreen work; line 187 asks for desktop-focused comparisons with
-variation in resolutions, cases and inputs. Exact dimensions remain owned by
-`evals/workflows/eval.yaml`. No earlier exact model-allocation instruction was
-recovered; Sol/Astra/Opus roles reflect the current request.
-
-The research synthesis drew most directly on
-[GEPA](https://arxiv.org/abs/2507.19457) for learning from execution traces,
-[UXBench](https://arxiv.org/html/2606.16262) for testing a critique through the
-resulting repair, and [WebCraftBench](https://arxiv.org/html/2609.15387) for gathering
-interaction evidence before scoring. Those studies do not demonstrate the combined
-method on Leaf. [Parallel prototyping](https://hci.stanford.edu/publications/2010/parallel-prototyping/ParallelPrototyping2010-final.pdf)
-supports exploring alternatives, with human ad-design evidence rather than agent
-UI evidence. [Adaptive holdout research](https://research.ibm.com/publications/the-reusable-holdout-preserving-validity-in-adaptive-data-analysis)
-and [UI-judge research](https://arxiv.org/html/2510.08783) inform the limits of repeated
-selection on model preferences. The full survey and qualifications are on the
-session's Leaf report at `~/.tmp/leaf/ui-grinding-20261021-cd4b/`.
-
-Independent Sol planning probes applied the old and new skill to the same three
-scenarios, with one response per arm rather than a statistical evaluation. The old
-skill left task selection, sampling and holdouts unresolved; the new skill supplied
-concrete choices. A follow-up exposed and corrected confusion between a short page
-and a short viewport. Astra independently reviewed the playbook and formed a bounded
-campaign plan. These checks establish clearer operational guidance, not improved
-page quality; no new UI authors were run for this rewrite.
-
-Review also found that `eval-pairs` writes into its first input run, so repeated
-comparisons can replace earlier evidence. The README recipe now isolates output
-indexes and links the original screenshots/discovery directories. Its setup and
-actual report generation were exercised against the four saved configuration runs,
-reusing their existing verdicts: all eight images remained and no missing-screen
-placeholder appeared. Evidence is in `.tmp/ui-grinding/research/recipe-check.json`;
-no new judge result was generated by that check.

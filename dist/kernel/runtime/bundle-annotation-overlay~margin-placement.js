@@ -766,14 +766,8 @@ function registerMarginRow(row, options = {}) {
 function unregisterMarginRow(row) {
   rows.delete(row);
   anchors.delete(row);
-  if (row) {
-    row.classList.toggle("lf-withheld", false);
-    row.removeAttribute("data-lf-place");
-    for (const property of ["--lf-margin-x", "--lf-margin-y"])
-      setStyle(row, property, null);
-    pushes.delete(row);
-    folded.delete(row);
-  }
+  pushes.delete(row);
+  folded.delete(row);
   if (!rows.size) {
     observer?.disconnect();
     observer = null;

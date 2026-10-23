@@ -134,6 +134,7 @@ import {
 } from "./bundle-frame-visibility.js";
 import {
   applicationPresented,
+  presentDocument,
   readApplication,
   readApplicationPresentation,
   selectWidgets,
@@ -219,6 +220,7 @@ export {
   pageScopes,
   pageText,
   placeOf,
+  presentDocument,
   quoteFrom,
   reachScrollers,
   readApplication,

@@ -154,7 +154,7 @@ START_TIMEOUT = 20
 # https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/utils/string/src/truncate.rs
 HOOK_CONTEXT_BYTES = 10_000
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
-# its pages to that server (`private_app_server`, `leaf codex start`).
+# its pages to that server (`private_app_server`, `leaf page claim`).
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}

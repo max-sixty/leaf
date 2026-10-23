@@ -86,10 +86,10 @@
         padding: 0 8px;
         min-height: var(--lf-fp-press);
       }
-      button:where(:not(.lf-fp-field *)) {
+      button:where(:not(.lf-fp-editors *)) {
         position: relative;
       }
-      button:where(:not(.lf-fp-field *))::after {
+      button:where(:not(.lf-fp-editors *))::after {
         content: "";
         position: absolute;
         inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
@@ -114,6 +114,7 @@
     }
   }
   .lf-fp-row {
+    --wa-form-control-height: var(--lf-fp-line);
     display: flex;
     align-items: flex-end;
     gap: 2px;
@@ -192,7 +193,6 @@
     outline: none;
     box-shadow: none;
     background: none;
-    min-height: var(--lf-fp-line);
   }
   .lf-fp-search-surface wa-input::part(input),
   .lf-fp-search {
@@ -241,6 +241,11 @@
     align-items: center;
     min-height: var(--lf-fp-line);
     gap: 0;
+  }
+  .lf-fp-actions .lf-icon-action {
+    --lf-icon-action-hit: var(--lf-fp-line);
+    width: max(var(--lf-fp-line), var(--aim-floor));
+    min-width: max(var(--lf-fp-line), var(--aim-floor));
   }
   .lf-fp-expand {
     flex: none;
@@ -304,6 +309,9 @@
     flex: 1;
     min-width: 0;
     align-self: center;
+  }
+  .lf-fp-response > .lf-fab-bar {
+    --lf-response-height: var(--lf-fp-line);
   }
   .lf-floating-panel:not([data-open], [data-offers], [data-search]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
     display: none;
@@ -406,7 +414,7 @@
   .lf-floating-panel[data-tone=blocked]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
     color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
-  .lf-fp-field .lf-compose-placeholder kbd {
+  .lf-fp-field leaf-text:not([data-says=turn]) .lf-compose-placeholder kbd {
     display: none;
   }
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {

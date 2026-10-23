@@ -24,6 +24,8 @@ from interact_support import (
     serving,
     wait_for,
 )
+from leaf_dev.page_fixtures import package_selection_args
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -35,8 +37,6 @@ from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import preview as render_gate_model
-from leaf_dev.page_fixtures import package_selection_args
-
 from model.interact_contract import (
     _stateful_page_declaration,
 )

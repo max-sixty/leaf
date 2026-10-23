@@ -16,6 +16,7 @@ from interact_support import (
     lock_contention,
     running_http_server,
 )
+
 from leaf.cli import cli
 from leaf.file_bindings import (
     BINDINGS,
@@ -203,6 +204,13 @@ def test_http_file_door_requires_key_origin_and_current_revision(
         == 403
     )
     assert fetch(url, data=b"[]", headers={"Origin": server})[0] == 400
+    # A tab from before a restart under another runtime saves nothing: the answer
+    # names this server's runtime, which the tab refuses and reloads on.
+    status, raw = fetch(
+        url, data=posted, headers={"Origin": server, "Leaf-Runtime": "0123456789abcdef"}
+    )
+    assert status == 200 and "layer" in json.loads(raw), raw
+    assert target.read_text() == "hello\n"
     status, raw = fetch(url, data=posted, headers={"Origin": server})
     assert status == 200, raw
     assert json.loads(raw) == read_file(page_dir, "notes")

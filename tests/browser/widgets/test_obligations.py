@@ -4,7 +4,6 @@ digit bindings and badges an obligation projects, and the ring around a decision
 import re
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_IN_A_CARD_PAGE,
@@ -43,6 +42,7 @@ from browser.widgets import (
     observe_live_region,
     put_menu_away,
 )
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -195,12 +195,12 @@ ACROSS_GEOMETRY = """(id) => {
 
 def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
     """An obligation holding a figure before its option list sets the titled options side by
-    side under the figure in columns of one width, as many as
-    its width holds, so the question, its figure and every option share a window. Where
-    fewer fit, a card left over on the last row keeps its column's width, and where only
-    one fits they stack. Where the heading sits, in an hgroup after an eyebrow, and a
-    paragraph after the list change nothing. The arrangement belongs to that obligation's own
-    list: a group nested in one of its options keeps its options one to a row."""
+    side under the figure in columns of one width, so the question, its figure and every
+    option share a window. Where the row can't hold them all, they stack one to a row
+    rather than leaving a card alone on a second. Where the heading sits, in an hgroup
+    after an eyebrow, and a paragraph after the list change nothing. The arrangement
+    belongs to that obligation's own list: a group nested in one of its options keeps
+    its options one to a row."""
     page = open_page(browser, serve(ACROSS_OBLIGATION_PAGE))
     resized(page, 1440, 900)
     wide = page.evaluate(ACROSS_GEOMETRY, "across")
@@ -208,13 +208,11 @@ def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
     assert wide["tops"][0] >= wide["figureBottom"], wide
     assert wide["lefts"] == sorted(set(wide["lefts"])), wide
     assert wide["nested"][0] < wide["nested"][1], wide
+    # Two of the three would fit across at this width.
     resized(page, 700, 900)
     middle = page.evaluate(ACROSS_GEOMETRY, "across")
-    assert middle["tops"][0] == middle["tops"][1] < middle["tops"][2], middle
-    assert max(middle["widths"]) - min(middle["widths"]) <= 1, middle
-    resized(page, 390, 900)
-    narrow = page.evaluate(ACROSS_GEOMETRY, "across")
-    assert narrow["tops"] == sorted(set(narrow["tops"])), narrow
+    assert middle["tops"] == sorted(set(middle["tops"])), middle
+    assert len(set(middle["lefts"])) == 1, middle
 
 
 def test_options_laid_across_take_a_widened_obligations_width(browser, serve):

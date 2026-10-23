@@ -14,7 +14,7 @@
 // markers while updating real content, so comment-only restoration is not judged.
 // Such a rendered write still costs a style pass and a repaint, of the whole document while
 // a CSS highlight holds a range, so code writes only what changed
-// (skills/leaf/assets/AGENTS.md).
+// (browser/AGENTS.md).
 //
 // Each finding is reported once per document: a writer that fires every frame would
 // otherwise bury the report under its own repetitions.
@@ -261,6 +261,12 @@
     // as they update, and restate what their own shadow trees hold.
     (what, node) => what !== "children" && node.localName?.startsWith("wa-"),
     (what, node) => hosts(node).some((host) => host.localName.startsWith("wa-")),
+    // Trees restores native row focus after closing search, restating the focus
+    // marker its row renderer already painted.
+    (what, node) =>
+      what === "data-item-focused" &&
+      is(node, 'button[role="treeitem"]') &&
+      hosts(node)[0]?.localName === "lf-file-tree",
     // Viewer.js reapplies image/canvas classes and magnifier visibility when an
     // inspected image changes. It is an upstream-owned renderer; Leaf's adapter
     // controls remain watched.

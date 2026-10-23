@@ -4,12 +4,9 @@ boundary, and a record whose pages are gone retires whichever Leaf wrote it."""
 from copy import deepcopy
 
 from interact_support import append_carried_log_record, published
+
 from leaf import codex as codex_model
-from leaf import presence as presence_model
 from leaf.delivery import batch_data, freeze_delivery
-from leaf.leases import release_lease, take_lease
-from leaf.schema import SERVER_LOCK
-from leaf.server_rows import row_path
 from leaf.service import PageTransaction
 from leaf.state import state_home, write_json
 
@@ -118,9 +115,7 @@ def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(
 
 
 def test_a_record_of_gone_pages_retires_at_any_format(tmp_path, page_dir):
-    """Freezing a delivery retires every envelope whose pages are gone, and reading
-    the neighbours every row whose page no server holds, though this Leaf reads
-    neither format."""
+    """Freezing a delivery retires every envelope whose pages are gone."""
     page = published(page_dir)
     event = append_carried_log_record(
         page, {"kind": "comment", "id": "c", "author": "user", "text": "Hi."}
@@ -135,16 +130,3 @@ def test_a_record_of_gone_pages_retires_at_any_format(tmp_path, page_dir):
     freeze_delivery([captured], delivery_id="00000003")
     assert not envelopes["00000001"].exists()
     assert envelopes["00000002"].exists()
-
-    held = take_lease(page / SERVER_LOCK)
-    unheld = tmp_path / "unheld"
-    unheld.mkdir()
-    for served in (page, unheld):
-        row_path(served).parent.mkdir(parents=True, exist_ok=True)
-        write_json(row_path(served), {"format": "x", "page": str(served)})
-    try:
-        assert presence_model.other_leaves(tmp_path / "observer") == []
-        assert row_path(page).exists()
-        assert not row_path(unheld).exists()
-    finally:
-        release_lease(held)

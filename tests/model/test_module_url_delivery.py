@@ -1,8 +1,154 @@
 """Portable regressions for captured module URL and resource identities."""
 
 import json
+from dataclasses import replace
+from types import MappingProxyType
 
 import pytest
+
+from leaf.runtime_selection import ServingRuntime
+
+
+def running(artifact, runtime: dict[str, str]):
+    """`artifact` as it runs under a runtime of these files (`runtime_selection`)."""
+    served = ServingRuntime(
+        MappingProxyType({path: data.encode() for path, data in runtime.items()}),
+        None,
+        frozenset(),
+        MappingProxyType({}),
+    )
+    return replace(artifact, resources=served.resources(artifact.resources))
+
+
+@pytest.mark.parametrize(
+    ("reference", "importer", "expected"),
+    [
+        (
+            " ./page/État%20v1.svg?theme=dark#shape ",
+            "/index.html",
+            ("/page/État v1.svg", "?theme=dark#shape"),
+        ),
+        ("./child%2Fimage.svg", "/page/main.css", ("/page/child/image.svg", "")),
+        ("./im\tage.svg", "/page/main.css", ("/page/image.svg", "")),
+        ("./im\nage.svg", "/page/main.css", ("/page/image.svg", "")),
+        (r"./sub\image.svg", "/page/main.css", ("/page/sub/image.svg", "")),
+        ("HTTPS :image.svg", "/page/main.css", ("/page/HTTPS :image.svg", "")),
+        ("./next.svg", "/page/?#%dir/main.css", ("/page/?#%dir/next.svg", "")),
+        (
+            "/page/%252e%252e/value.svg",
+            "/index.html",
+            ("/page/%2e%2e/value.svg", ""),
+        ),
+    ],
+)
+def test_capture_and_delivery_resolve_the_same_browser_url(
+    reference, importer, expected
+):
+    from leaf.revision_artifact import resolve_dependency
+    from leaf.revision_delivery import page_path
+
+    assert resolve_dependency(reference, importer) == expected[0]
+    assert page_path(reference, importer) == expected
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "https://leaf.invalid/page/image.svg",
+        "https://relative.invalid/page/image.svg",
+        "http://leaf.invalid/page/image.svg",
+        "http://relative.invalid/page/image.svg",
+        "https:///page/image.svg",
+        "//leaf.invalid/page/image.svg",
+        "//relative.invalid/page/image.svg",
+        r"\\leaf.invalid\page\image.svg",
+        r"\\other-host\page\image.svg",
+        "data:image/png,abc",
+        " \t#paint \n",
+        " # ",
+    ],
+)
+def test_nonlocal_and_fragment_resources_stay_as_written(reference):
+    from leaf.revision_artifact import dependency_reference
+    from leaf.revision_delivery import page_path
+
+    assert dependency_reference(reference, "/page/image.svg") is None
+    assert page_path(reference, "/page/image.svg") is None
+
+
+@pytest.mark.parametrize("scheme", ["http", "https"])
+@pytest.mark.parametrize("path", ["/page/image.svg", "page/image.svg"])
+def test_scheme_dependent_html_resources_are_refused(tmp_path, scheme, path):
+    from leaf.revision_artifact import ArtifactError, capture_artifact
+    from leaf.revision_delivery import page_path
+    from leaf.structure import SourceDocument
+
+    reference = f"{scheme}:{path}"
+    (tmp_path / "leaf.js").write_text("export {};")
+    (tmp_path / "page").mkdir()
+    (tmp_path / "page/image.svg").write_text("<svg/>")
+    document = SourceDocument(f'<img src="{reference}">')
+    for read in (
+        lambda: capture_artifact(tmp_path, document, {}),
+        lambda: page_path(reference, "/index.html"),
+    ):
+        with pytest.raises(ArtifactError, match="depends on the page's URL scheme"):
+            read()
+
+
+@pytest.mark.parametrize(
+    "reference", ["https:", "http:", "https:#paint", "http:#paint", "https://["]
+)
+def test_invalid_or_scheme_dependent_resource_urls_reach_admission(tmp_path, reference):
+    from leaf.revision_artifact import ArtifactError, capture_artifact
+    from leaf.structure import SourceDocument
+
+    (tmp_path / "leaf.js").write_text("export {};")
+    with pytest.raises(ArtifactError):
+        capture_artifact(tmp_path, SourceDocument(f'<img src="{reference}">'), {})
+
+
+def test_an_explicit_self_resource_keeps_its_fragment():
+    from leaf.revision_delivery import page_path
+
+    assert page_path("./image.svg#paint", "/page/image.svg") == (
+        "/page/image.svg",
+        "#paint",
+    )
+
+
+def test_stylesheet_import_uses_the_same_browser_url_reading():
+    from leaf.revision_artifact import Resource
+    from leaf.revision_delivery import DeliveryAddress, deliver_resource
+
+    resource = Resource(b'@import " ./palette.css ";', "text/css")
+    delivered = deliver_resource(
+        resource, "/page/main.css", DeliveryAddress("", "/revision")
+    )
+    assert delivered.data == b'@import "/revision/page/palette.css";'
+
+
+@pytest.mark.parametrize("scheme", ["http", "https"])
+@pytest.mark.parametrize("path", ["/page/external.mjs", "page/external.mjs"])
+def test_javascript_absolute_imports_resolve_without_the_documents_base(
+    tmp_path, scheme, path
+):
+    from leaf.revision_artifact import capture_artifact
+    from leaf.revision_delivery import DeliveryAddress, rebase_module
+    from leaf.structure import SourceDocument
+
+    source = f'import "{scheme}:{path}";'.encode()
+    (tmp_path / "leaf.js").write_text("export {};")
+    (tmp_path / "page").mkdir()
+    (tmp_path / "page/app.mjs").write_bytes(source)
+    document = SourceDocument('<script type="module" src="page/app.mjs"></script>')
+    artifact = capture_artifact(tmp_path, document, {})
+    assert "/page/app.mjs" in artifact.resources
+    assert "/page/external.mjs" not in artifact.resources
+    assert (
+        rebase_module(source, "/page/app.mjs", DeliveryAddress("", "/revision"))
+        == source
+    )
 
 
 @pytest.mark.parametrize(
@@ -14,9 +160,14 @@ import pytest
             ("État+v1.mjs", "État+v1.mjs"),
             ("💧state.mjs", "💧state.mjs"),
             ('"state.mjs', "%22state.mjs"),
+            ("my 100%20state.mjs", "my%20100%2520state.mjs"),
+            ("#state.mjs", "%23state.mjs"),
+            ("?state.mjs", "%3Fstate.mjs"),
         ]
     ]
-    + [("page", "#state.mjs", "%23state.mjs"), ("page", "?state.mjs", "%3Fstate.mjs")],
+    + [
+        ("page", "my state.mjs", "my state.mjs"),
+    ],
 )
 @pytest.mark.parametrize(
     "module",
@@ -53,12 +204,7 @@ def test_native_package_import_urls_survive_delivery_and_export(
         assert address(f"/{directory}/{specifier}") in rebased.decode()
     else:
         assert delivered.data == module.encode()
-    files = {
-        "/leaf.js": "export {};",
-        widget: module,
-        helper: f'export {{ once }} from "{public}";',
-        public: "export const once = () => true;",
-    }
+    files = {widget: module, helper: f'export {{ once }} from "{public}";'}
     for logical, source in files.items():
         path = tmp_path / logical.lstrip("/")
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +217,10 @@ def test_native_package_import_urls_survive_delivery_and_export(
         widget_sources={"lf-risk-note": widget.lstrip("/")},
     )
     assert artifact.resources[helper].mime == "application/javascript"
+    artifact = running(
+        artifact,
+        {"/leaf.js": "export {};", public: "export const once = () => true;"},
+    )
     embedded = _module_urls(artifact, [document])
     assert set(embedded) == {"/leaf.js", alias, widget, helper, public}
     assert embedded[alias] == embedded[widget]
@@ -104,7 +254,15 @@ def test_delivery_css_urls_preserve_query_and_fragment_suffixes():
 
 @pytest.mark.parametrize(
     "name",
-    ["app.mjs", "État+v1.mjs", "💧state.mjs", '"state.mjs', "#state.mjs", "?state.mjs"],
+    [
+        "app.mjs",
+        "État+v1.mjs",
+        "💧state.mjs",
+        '"state.mjs',
+        "#state.mjs",
+        "?state.mjs",
+        "my 100%20state.mjs",
+    ],
 )
 def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, name):
     """Entry URLs resolve to logical captured modules, including native URL syntax."""
@@ -115,16 +273,6 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     from leaf.structure import SourceDocument
 
     files = {
-        "leaf.js": "export {};",
-        "runtime/widget-api.js": "export {};",
-        "runtime/offline-delivery.js": "",
-        "runtime/prepaint.js": "",
-        "vendor/lit-initial.js": "",
-        "runtime/annotation-overlay/annotation-theme.css": "",
-        "runtime/annotation-overlay/annotation-chrome.css": "",
-        "runtime/annotation-overlay/annotation-marks.css": "",
-        "runtime/chrome.css": "",
-        "runtime/marks.css": "",
         "theme.css": "",
         "shadow.css": "",
         "widget-theme.css": "",
@@ -138,7 +286,24 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     document = SourceDocument(
         f'<html><head><script type="module" src="./page/{quote(name, safe="")}"></script></head><body><main><h1>Authored entry</h1></main></body></html>'
     )
-    artifact = capture_artifact(tmp_path, document, {})
+    artifact = running(
+        capture_artifact(tmp_path, document, {"$layer": {"generation": "exported"}}),
+        {
+            path: "export {};" if path.endswith(".js") else ""
+            for path in [
+                "/leaf.js",
+                "/runtime/widget-api.js",
+                "/runtime/offline-delivery.js",
+                "/runtime/prepaint.js",
+                "/vendor/lit-initial.js",
+                "/runtime/annotation-overlay/annotation-theme.css",
+                "/runtime/annotation-overlay/annotation-chrome.css",
+                "/runtime/annotation-overlay/annotation-marks.css",
+                "/runtime/chrome.css",
+                "/runtime/marks.css",
+            ]
+        },
+    )
     modules = _module_urls(artifact, [document])
     logical = "/page/" + name
     assert logical in modules
@@ -177,17 +342,21 @@ def test_export_selects_one_lit_implementation_from_the_initial_document(
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
 
-    files = {
-        "leaf.js": 'import { render } from "/vendor/lit.js";',
-        "vendor/lit.js": 'export const render = "module implementation";',
-        "vendor/lit-shared.js": 'export const render = "shared facade";',
-        "vendor/lit-initial.js": "window.classicLit = true;",
-        "vendor/producer.js": "window.producer = true;",
-        "vendor/initial-dependencies.json": json.dumps(
+    # The serving Leaf supplies the runtime and its Lit; the page vendors the widget
+    # and the package's producer.
+    runtime = {
+        "/leaf.js": 'import { render } from "/vendor/lit.js";',
+        "/vendor/lit.js": 'export const render = "module implementation";',
+        "/vendor/lit-shared.js": 'export const render = "shared facade";',
+        "/vendor/lit-initial.js": "window.classicLit = true;",
+        "/vendor/initial-dependencies.json": json.dumps(
             {
                 "/vendor/producer.js": ["/vendor/lit-initial.js"],
             }
         ),
+    }
+    files = {
+        "vendor/producer.js": "window.producer = true;",
         "widgets/lf-early.js": 'import { render } from "/vendor/lit.js";',
     }
     for filename, source in files.items():
@@ -197,12 +366,15 @@ def test_export_selects_one_lit_implementation_from_the_initial_document(
     document = SourceDocument(
         "<main><lf-early></lf-early></main>" if early_lit else "<main>Plain</main>"
     )
-    artifact = capture_artifact(
-        tmp_path,
-        document,
-        {
-            "lf-early": {"x-initial": "/vendor/producer.js", "x-upgrade": True},
-        },
+    artifact = running(
+        capture_artifact(
+            tmp_path,
+            document,
+            {
+                "lf-early": {"x-initial": "/vendor/producer.js", "x-upgrade": True},
+            },
+        ),
+        runtime,
     )
     modules = _module_urls(
         artifact, [document, SourceDocument("<lf-early></lf-early>")]
@@ -212,9 +384,96 @@ def test_export_selects_one_lit_implementation_from_the_initial_document(
     ).decode()
     assert (
         implementation
-        == files["vendor/lit-shared.js" if early_lit else "vendor/lit.js"]
+        == runtime["/vendor/lit-shared.js" if early_lit else "/vendor/lit.js"]
     )
     assert "/vendor/lit-shared.js" not in modules
     assert "/vendor/lit-initial.js" not in modules
     widget = base64.b64decode(modules["/widgets/lf-early.js"].split(",", 1)[1]).decode()
     assert '"leaf:/vendor/lit.js"' in widget
+
+
+@pytest.mark.parametrize("prefix", ["page", "media"])
+@pytest.mark.parametrize(
+    "reference", [" {prefix}/image.svg ", r"{prefix}\image.svg", "{prefix}/im%61ge.svg"]
+)
+def test_document_resources_capture_the_paths_delivery_rewrites(
+    tmp_path, prefix, reference
+):
+    from leaf.revision_artifact import capture_artifact
+    from leaf.revision_delivery import DeliveryAddress, rebase_document
+    from leaf.structure import SourceDocument
+
+    (tmp_path / "leaf.js").write_text("export {};")
+    (tmp_path / prefix).mkdir()
+    (tmp_path / prefix / "image.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"/>'
+    )
+    source = f'<img src="{reference.format(prefix=prefix)}">'
+    document = SourceDocument(source)
+    artifact = capture_artifact(tmp_path, document, {})
+    assert f"/{prefix}/image.svg" in artifact.resources
+    if prefix == "media":
+        assert document.authoring.media_refs == {"/media/image.svg"}
+    delivered = rebase_document(source, DeliveryAddress("/root", "/revision"))
+    expected = (
+        "/root/media/image.svg" if prefix == "media" else "/revision/page/image.svg"
+    )
+    assert expected in delivered
+
+
+def test_media_attributes_share_normalized_resource_identity():
+    from leaf.structure import SourceDocument
+
+    document = SourceDocument(
+        '<a href=" /media/im%61ge.svg?download=1 ">Image</a><lf-compare before="media/image.svg">'
+    )
+    assert document.authoring.media_refs == {"/media/image.svg"}
+
+
+@pytest.mark.parametrize(
+    "reference", ["/page/%00.svg", "/page/../secret.svg", "/page/%2e%2e/secret.svg"]
+)
+def test_actual_resource_attributes_reach_capture_admission(tmp_path, reference):
+    from leaf.revision_artifact import ArtifactError, capture_artifact
+    from leaf.structure import SourceDocument
+
+    (tmp_path / "leaf.js").write_text("export {};")
+    document = SourceDocument(f'<img src="{reference}">')
+    with pytest.raises(ArtifactError):
+        capture_artifact(tmp_path, document, {})
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "https://leaf.invalid/page/image.svg",
+        r"\\leaf.invalid\page\image.svg",
+        "/icon.svg",
+    ],
+)
+def test_document_resource_collection_preserves_external_and_layer_resources(
+    tmp_path, reference
+):
+    from leaf.revision_artifact import capture_artifact
+    from leaf.structure import SourceDocument
+
+    (tmp_path / "leaf.js").write_text("export {};")
+    (tmp_path / "icon.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    artifact = capture_artifact(
+        tmp_path, SourceDocument(f'<img src="{reference}">'), {}
+    )
+    assert "/page/image.svg" not in artifact.resources
+    assert "/icon.svg" in artifact.resources
+
+
+@pytest.mark.parametrize(
+    "value", ["https:", "https:/", "https:#x", "mailto:hello@example.com"]
+)
+def test_resource_collection_does_not_interpret_arbitrary_attributes_as_dependencies(
+    value,
+):
+    from leaf.structure import SourceDocument
+
+    document = SourceDocument(f'<p title="{value}">Hi</p>')
+    assert not document.authoring.media_refs
+    assert not document.authoring.resource_refs

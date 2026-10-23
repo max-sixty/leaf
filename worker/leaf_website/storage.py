@@ -31,12 +31,16 @@ from typing import BinaryIO
 from urllib.parse import urlencode, urlsplit
 
 import anyio
+from starlette.datastructures import Headers
+from starlette.requests import Request
+
 from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
 from leaf.layer import running_leaf
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
+from leaf.runtime_selection import executing, serving_runtime
 from leaf.schema import (
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
@@ -45,8 +49,6 @@ from leaf.schema import (
 from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
-from starlette.datastructures import Headers
-from starlette.requests import Request
 
 CHUNK_BYTES = 1024 * 1024
 
@@ -253,9 +255,13 @@ def _responses(
             continue
         name = snapshot.revision_names[item]
         paths.add(f"revisions/{name}")
-        for logical in set(artifact.resources) | set(artifact.widget_aliases):
-            path = f"revisions/{name.removesuffix('.html')}{logical}"
-            paths.add(path)
+        # Where the container serves the revision's resources: beside the runtime it
+        # runs, under that runtime's identity (`http.PageEndpoint._named_root`).
+        served = f"revisions/{name.removesuffix('.html')}/{serving_runtime().identity}"
+        for logical in set(executing(artifact).resources) | set(
+            artifact.widget_aliases
+        ):
+            paths.add(f"{served}{logical}")
     paths.update(
         f"versions/v{version['version']}.html" for version in snapshot.context.versions
     )
@@ -268,6 +274,16 @@ def _responses(
     result = {}
     for path in sorted(paths):
         address = urlsplit(f"{root.rstrip('/')}/{path}")
+        request_sent = False
+
+        async def receive():
+            nonlocal request_sent
+            if not request_sent:
+                request_sent = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            # This capture has no client to disconnect while a file streams.
+            await asyncio.Event().wait()
+
         request = Request(
             {
                 "type": "http",
@@ -277,7 +293,8 @@ def _responses(
                 "path": address.path,
                 "query_string": address.query.encode(),
                 "headers": [],
-            }
+            },
+            receive,
         )
         endpoint = WebsitePageEndpoint(
             request,

@@ -23,9 +23,6 @@ from interact_support import (
 from interact_support import (
     append_carried_log_record as append_event,
 )
-from leaf.event_log import read_events
-from leaf.files import revision_path
-from leaf.state import session_record
 from leaf_dev import ROOT, startup
 from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
 from leaf_dev.reply_phases import turn_phases
@@ -35,6 +32,10 @@ from process.website_server import (  # noqa: F401
     get,
     write_manifest,
 )
+
+from leaf.event_log import read_events
+from leaf.files import revision_path
+from leaf.state import session_record
 
 
 class _Read:
@@ -496,7 +497,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     monkeypatch.setattr(
         journey,
         "run_journey",
-        lambda end, version, records=None: {
+        lambda end, version: {
             "version": version,
             "comment": {"eventIds": ["comment"]},
         },
@@ -511,6 +512,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         "harness": "website",
         "origin": "http://127.0.0.1:8080",
         "userEnd": "browser",
+        "case": "waiting",
         "version": "a" * 40,
         "comment": {"eventIds": ["comment"]},
     }
@@ -1024,10 +1026,11 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
     after the reply that ended the turn's wait; the journey reads on for it rather
     than reporting the title as never written. The state it reads is the one a page
     server serves, since the journey reads titles from it."""
-    from leaf.event_log import append_event
-    from leaf.thread import title_event
     from leaf_dev.arms import PageClient, serving
     from leaf_dev.review_scenario import prepare
+
+    from leaf.event_log import append_event
+    from leaf.thread import title_event
 
     state, page_dir = tmp_path / "state", tmp_path / "page"
     prepare(ROOT, state, page_dir)

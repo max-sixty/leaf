@@ -41,9 +41,8 @@
         bound === void 0 ? Infinity : (bound - rows2 * (captions + 2) - (rows2 - 1) * gap) / (rows2 * height)
       )
     );
-    const pairBound = availableHeight ?? screenHeight;
-    const side = fit(2, 1, 0, pairBound);
-    const stack = fit(1, 2, labelHeight, pairBound);
+    const side = fit(2, 1);
+    const stack = fit(1, 2, labelHeight, availableHeight ?? screenHeight);
     const layout = side >= stack ? "side" : "stack";
     const pairScale = layout === "side" ? side : stack;
     const fitScale = view === "compare" ? pairScale : fit(1, 1);

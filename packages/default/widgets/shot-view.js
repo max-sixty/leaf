@@ -11,8 +11,8 @@ const CONTROL = "lf-btn lf-quiet-action";
 let nextOptionsId = 0;
 
 // Fit uses the content box: the scrollport's padding keeps the image shadow visible.
-// In flow nothing bounds the stage's height, so Pair takes the screen's room below
-// the toolbar as its bound: the reader compares both frames in one view.
+// In flow nothing bounds the stage's height, so a stacked Pair takes the screen's room
+// below the toolbar as its bound: the reader compares both frames in one view.
 export function shotAllocation(host, stage) {
   const style = getComputedStyle(stage);
   const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
@@ -61,10 +61,11 @@ export function fitShotGeometry({
       ),
     );
   // Pair takes whichever arrangement draws the captures larger, so short wide
-  // captures stack and tall narrow ones sit side by side.
-  const pairBound = availableHeight ?? screenHeight;
-  const side = fit(2, 1, 0, pairBound);
-  const stack = fit(1, 2, labelHeight, pairBound);
+  // captures stack and tall narrow ones sit side by side. Frames side by side share
+  // rows, so in flow the page's scrolling keeps them aligned; stacked frames must
+  // both fit the room.
+  const side = fit(2, 1);
+  const stack = fit(1, 2, labelHeight, availableHeight ?? screenHeight);
   const layout = side >= stack ? "side" : "stack";
   const pairScale = layout === "side" ? side : stack;
   const fitScale = view === "compare" ? pairScale : fit(1, 1);

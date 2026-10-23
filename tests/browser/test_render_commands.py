@@ -147,11 +147,25 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     toolbar = shot.locator(".lf-shot-toolbar")
     toolbar.scroll_into_view_if_needed()
     controls = toolbar.get_by_role("button").all()
-    boxes = [control.bounding_box() for control in controls if control.is_visible()]
+    controls = [control for control in controls if control.is_visible()]
+    boxes = [control.bounding_box() for control in controls]
     assert len(boxes) == 5
     floor = 44 if touch else 24
     for index, box in enumerate(boxes):
-        assert min(box["width"], box["height"]) >= floor - 0.5, box
+        assert box["width"] >= floor - 0.5, box
+        if touch:
+            assert controls[index].evaluate("""(control, floor) => {
+              const box = control.getBoundingClientRect();
+              const x = box.left + box.width / 2;
+              const y = box.top + box.height / 2;
+              return [-1, 1].every(side => {
+                const offset = side * (floor / 2 - 0.5);
+                const hit = document.elementFromPoint(x, y + offset);
+                return hit === control || control.contains(hit);
+              });
+            }""", floor), box
+        else:
+            assert box["height"] >= floor - 0.5, box
         for other in boxes[index + 1 :]:
             assert (
                 box["x"] + box["width"] <= other["x"] + 0.5

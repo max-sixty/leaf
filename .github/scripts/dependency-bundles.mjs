@@ -5,10 +5,17 @@
 import { execFileSync } from "node:child_process";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { styleEntries } from "../../build/styles.mjs";
+
+// The publisher loads this declaration from its trusted default-branch checkout,
+// never from the PR or its artifact. Package sheets count only when the build owns
+// their source entry, so authored CSS elsewhere remains outside this boundary.
+const styles = new Set((await styleEntries()).map(([, output]) => output));
 
 function generated(path) {
   return (
-    (path === "dist/kernel/kernel.json" ||
+    (styles.has(path) ||
+      path === "dist/kernel/kernel.json" ||
       /^(?:browser\/vendor|packages\/[^/.]+\/vendor|dist\/kernel)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
         path,
       )) &&

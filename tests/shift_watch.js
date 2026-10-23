@@ -152,6 +152,32 @@
   const GEOMETRY =
     /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|blockSize|inlineSize|minBlockSize|minInlineSize|maxBlockSize|maxInlineSize|margin|padding)/;
   const SIZE_GEOMETRY = new Set(["blockSize", "height", "inlineSize", "width"]);
+  // Retain the consumer through finish cleanup. Replacing it while the effect is
+  // active cannot borrow the animation's input ownership.
+  const translationBindings = new WeakMap();
+  const animationProperties = (animation) => {
+    const keys = [
+      ...new Set((animation.effect?.getKeyframes() ?? []).flatMap(Object.keys)),
+    ];
+    const properties = keys.filter((key) => GEOMETRY.test(key));
+    // A registered property can drive a native translate indirectly. Read the
+    // resulting translate, rather than treating its custom-property value as
+    // geometry; the box motion uses this to keep translate and clip in one clock.
+    if (!translationBindings.has(animation)) {
+      const consumer = animation.effect?.target?.style.translate ?? "";
+      const vars = new Set(
+        [...consumer.matchAll(/var\(\s*(--[-\w]+)/g)].map((match) => match[1]),
+      );
+      translationBindings.set(
+        animation,
+        !properties.includes("translate") && keys.some((key) => vars.has(key))
+          ? consumer
+          : null,
+      );
+    }
+    if (translationBindings.get(animation)) properties.push("translate");
+    return properties;
+  };
   // Use the runtime's rendered ancestry, including forwarding slots and shadow hosts.
   const up = renderedParent;
   // Decorative media is not an independent reading. Hidden accessibility trees
@@ -188,41 +214,10 @@
   const settled = () =>
     document.querySelector("script[data-lf-entry]")?.lfRenderingState?.()
       .updatesSettled ?? true;
-  // A direct custom-property consumer is the same native translation effect. Retain
-  // that binding when it starts, including after its owner restores the inline style
-  // on finish; a changed consumer during the effect receives no translation credit.
-  const translationBindings = new WeakMap();
-  const motionFrames = (animation) => {
-    const effect = animation.effect;
-    const frames = effect?.getKeyframes() ?? [];
-    if (!translationBindings.has(animation)) {
-      const consumer = effect?.target?.style.translate;
-      const source = /^var\((--[\w-]+)\)$/.exec(consumer ?? "")?.[1];
-      translationBindings.set(
-        animation,
-        source &&
-          frames.some((frame) => source in frame) &&
-          !frames.some((frame) => "translate" in frame)
-          ? { source, consumer }
-          : null,
-      );
-    }
-    const binding = translationBindings.get(animation);
-    if (!binding) return frames;
-    return frames.map((frame) =>
-      Object.fromEntries(
-        Object.entries(frame).map(([key, value]) => [
-          key === binding.source ? "translate" : key,
-          value,
-        ]),
-      ),
-    );
-  };
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
-    motionFrames(animation).some((keyframe) =>
-      Object.keys(keyframe).some((key) => GEOMETRY.test(key)),
-    ) || GEOMETRY.test(animation.transitionProperty ?? "");
+    animationProperties(animation).length > 0 ||
+    GEOMETRY.test(animation.transitionProperty ?? "");
   // Every animation in the composed tree: the document's own list leaves out those
   // whose targets are in shadow trees, so each connected shadow root adds its own.
   const allAnimations = () => [
@@ -644,13 +639,6 @@
   const animated = new WeakMap();
   const floating = new WeakMap();
   let floatingOwners = new Set();
-  const animationProperties = (animation) => [
-    ...new Set(
-      motionFrames(animation).flatMap((frame) =>
-        Object.keys(frame).filter((key) => GEOMETRY.test(key)),
-      ),
-    ),
-  ];
   // An animated property's value as a translation reads it. The individual `translate`
   // keeps its percentages in its computed value, each of the target's border box (an
   // HTML element's transform reference box), so the reading resolves them to pixels.
@@ -905,7 +893,7 @@
               uses.get(effect.target)?.get(property) === 1 &&
               (property !== "translate" ||
                 !binding ||
-                effect.target.style.translate === binding.consumer ||
+                effect.target.style.translate === binding ||
                 returning) &&
               (!returning ||
                 origin?.[property] === animatedValue(effect.target, style, property)),
@@ -918,7 +906,7 @@
         values,
         axes: translationAxes(effect.target),
         scroll: scrollBinding(animation),
-        keyframes: motionFrames(animation),
+        keyframes: effect.getKeyframes(),
       });
       pruneSamples(readings);
       animated.set(animation, readings);

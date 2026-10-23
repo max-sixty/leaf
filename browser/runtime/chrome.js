@@ -4,9 +4,10 @@
  * this order at insertion lets foreground chips anchor to newly created margin rows
  * without moving the foreground's live editors or embedded browsing contexts. */
 
-// The one scope root for the chrome's private rules: they match nothing outside this
-// container. A div, not a lf-* element — the render gate reads a lf-* ancestor as
-// "inside a widget", and the runtime's layer is inside none.
+// The permanent home of the chrome's private rules. A native modal seated inside
+// an authored popover carries another instance of this styling scope for its opening
+// (keyboard/layer-stack.js). A div, not a lf-* element — the render gate reads an
+// lf-* ancestor as "inside a widget", and the runtime's layer is inside none.
 export const chromeRoot = document.createElement("div");
 chromeRoot.className = "lf-chrome";
 

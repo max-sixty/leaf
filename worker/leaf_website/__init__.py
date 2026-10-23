@@ -81,7 +81,7 @@ from leaf.registry.storage import layer_metadata
 from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
-from leaf.schema import PAGE_ROUTE_DIRS, VENDORED_FILES
+from leaf.schema import PAGE_ROUTE_DIRS, REVISION_NAME, VENDORED_FILES
 from leaf.served_state.context import read_page
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
@@ -1366,6 +1366,16 @@ def published_page(
     return None
 
 
+def released_path(pages: dict, path: str) -> str | None:
+    """The public path whose static file the Worker serves at a release-addressed
+    one, `<assets>/<inside>` (`worker/src/routing.ts`, `releaseAssetRoute`), or None
+    for a path no page's release names."""
+    for root, page in pages.items():
+        if path.startswith(page["assets"] + "/"):
+            return ("" if root == "/" else root) + path[len(page["assets"]) :]
+    return None
+
+
 class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
 
@@ -1426,14 +1436,23 @@ class WebsitePageEndpoint(PageEndpoint):
             head=site_metadata(self.page_root, self.pages[self.page_root or "/"]),
         )
 
-    def _sample_asset_root(self, revision: int) -> str:
+    def _published_root(self, revision: int) -> str | None:
+        """Where the release publishes a revision's resources beside the runtime it
+        runs (`live_shell`), for a revision the release published; None for one a
+        user's session created in this container, which serves its own."""
         page = self.pages[self.page_root or "/"]
-        # Published revisions share the public shell's release-captured graph.
-        # User-created revisions belong to this container, not that release.
-        if str(revision) in page["states"]:
-            name = self._revision_name(revision).removesuffix(".html")
-            return f"{page['assets']}/revisions/{name}"
-        return super()._sample_asset_root(revision)
+        if str(revision) not in page["states"]:
+            return None
+        name = self._revision_name(revision).removesuffix(".html")
+        return f"{page['assets']}/revisions/{name}"
+
+    # A published revision's documents and samples load its graph from the release, so
+    # a page the container saved while asleep needs no container to load it.
+    def _document_asset_root(self, revision: int) -> str:
+        return self._published_root(revision) or super()._document_asset_root(revision)
+
+    def _sample_asset_root(self, revision: int) -> str | None:
+        return self._published_root(revision) or super()._sample_asset_root(revision)
 
     def _acknowledge_startup_report(self) -> Response:
         # Every document the runtime delivers with a release carries the public
@@ -1472,10 +1491,41 @@ class WebsitePageEndpoint(PageEndpoint):
         AGENT_FAIL_PATH: PostRoute(_fail_agent, (PageEndpoint._body_gate,)),
     }
 
+    def _released_resource(self) -> Response | None:
+        """A published revision's resource at its release address, as the Worker
+        serves the static tree the build wrote there (`live_shell`): the same bytes,
+        delivered by the same code at the same address, so a published page starts
+        here as at the edge. None for any other path, which the release names nothing
+        at."""
+        match = re.fullmatch(
+            rf"/revisions/(?P<name>{REVISION_NAME})/(?P<resource>.+)", self.path
+        )
+        if match is None or self.method not in {"GET", "HEAD"}:
+            return None
+        revision = int(match["revision"])
+        if (
+            self.source.revision_names.get(revision) != match["name"] + ".html"
+            or (root := self._published_root(revision)) is None
+        ):
+            return None
+        response = self._revision_resource(revision, "/" + match["resource"], root)
+        if response is not None:
+            response.headers.update(
+                {
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Expose-Headers": "*",
+                }
+            )
+        return response
+
     def _select_page(self) -> Response | None:
         if self.method == "GET" and self.path == "/health":
             return self._content(200, "text/plain; charset=utf-8", b"ok\n")
-        selected = published_page(self.routes, self.path)
+        # A release address names a published revision's resource and nothing else,
+        # so it is answered here, whole, and never reaches the page's own routes.
+        released = released_path(self.pages, self.path)
+        selected = published_page(self.routes, released or self.path)
         if selected is None:
             return self._not_found()
         page_dir, page_root, inside, kind = selected
@@ -1486,6 +1536,8 @@ class WebsitePageEndpoint(PageEndpoint):
         self.publication = {**PUBLICATION, "kind": kind}
         self.page_root = page_root
         self.path = inside
+        if released is not None:
+            return self._released_resource() or self._not_found()
         return None
 
 

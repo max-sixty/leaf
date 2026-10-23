@@ -198,9 +198,8 @@ def test_the_resolves_attribute_belongs_to_a_widget_with_a_local_obligation(page
 
 
 def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
-    """The words gate instructs "add `restated`" when a version rewrites decided
-    words; a widget whose closed schema lacks the attribute would be told to
-    write markup its own element declaration refuses — every rewrite unpublishable."""
+    """A widget that folds user decisions needs an explicit withdrawal route;
+    its closed schema must admit the marker that retracts a decision."""
     registry = json.loads((page_dir / "registry.json").read_text())
     del registry["lf-suggestion"]["properties"]["restated"]
     (page_dir / "registry.json").write_text(json.dumps(registry))

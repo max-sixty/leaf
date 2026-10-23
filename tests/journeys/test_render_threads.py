@@ -127,6 +127,7 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     page.locator("#pr-exact-patch .lf-diff-file-comment").first.click()
     bar = page.locator('lf-diff .lf-fab-bar[data-lf-presentation="inline"]')
     field = bar.locator("leaf-text")
+    field_width = field.bounding_box()["width"]
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     paste_image(field, pixels)
     image_open = bar.get_by_role("button", name="View attached image 1", exact=True)
@@ -137,7 +138,7 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     picture, words = image_open.bounding_box(), field.bounding_box()
     assert picture["y"] + picture["height"] <= words["y"], (picture, words)
     assert remove.bounding_box()["y"] >= bar.bounding_box()["y"]
-    assert abs(words["width"] - bar.bounding_box()["width"]) < 1
+    assert words["width"] == pytest.approx(field_width, abs=1)
     # The shelf's face, its picture alone with a round removal on its corner, reaches
     # the widget's tree too (response.css).
     expect(image_open).to_have_css("border-radius", "8px")
@@ -176,7 +177,7 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     expect(bar.locator(".lf-composer-media")).to_be_hidden()
     expect(field).to_be_focused()
     field.press("Tab")
-    expect(bar).to_have_class(re.compile(r"\blf-response-open\b"))
+    expect(bar.locator(".lf-response-options")).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
     action = bar.locator(".lf-compose-field > button:visible")

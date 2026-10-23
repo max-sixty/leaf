@@ -839,9 +839,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     { capture: true, passive: true }
   );
 function ringBox(node) {
-  if (node && node !== paintedFocus && node === paintDestination?.deref() && !returnPaintPending)
-    refreshFocusPaint();
-  if (!node?.matches?.("[data-lf-focus]")) return node;
+  if (!node?.matches?.(":focus, [data-lf-focus]")) return node;
   for (let box = renderedParent(node); box instanceof Element; box = renderedParent(box))
     if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
   return node;

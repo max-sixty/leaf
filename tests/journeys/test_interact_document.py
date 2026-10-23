@@ -170,36 +170,32 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     redeclared = activate()
 
     files_model.replace_files(
-        [(page_dir / "leaf.js", b"// re-vendored runtime", False)]
+        [(page_dir / "widgets" / "lf-options.js", b"// re-vendored widget", False)]
     )
     revendored = activate()
     assert revendored.executable != redeclared.executable
 
     # `$layer` records where a vendoring run came from rather than what it
     # installed: the fingerprint identifies the composed layer independently of
-    # its epoch, the producer names the checkout that built it, and the epoch
-    # itself is a fresh token every `page init` mints. None of the three says
-    # what this document would have to evaluate, so a restamp on its own leaves
-    # the digest alone.
+    # its epoch, and the producer names the checkout that built it. Neither says
+    # what this document would have to evaluate, so a restamp of them leaves the
+    # digest alone.
     layer_path = page_dir / "registry.json"
     vendored = json.loads(layer_path.read_text())
     vendored["$layer"] = {
         **vendored["$layer"],
         "fingerprint": "sha256:" + "b" * 64,
         "producer": {"commit": "abcdef1", "dirty": True},
-        "generation": "0123456789abcdef0123456789abcdef",
     }
     files_model.replace_files([(layer_path, json.dumps(vendored).encode(), False)])
     restamped = activate()
     assert restamped.digest != revendored.digest
     assert restamped.executable == revendored.executable
 
-    # Vendoring writes that epoch into `runtime/layer-generation.js`, which every
-    # document evaluates, so a real re-vendor reaches the digest through the
-    # module rather than through the stamp beside it.
-    files_model.replace_files(
-        [(page_dir / "runtime" / "layer-generation.js", b"// re-vendored epoch", False)]
-    )
+    # The epoch is what a tab speaks to the server (`runtime/layer-client.js`), so a
+    # re-vendor's new one gives the document a new executable.
+    vendored["$layer"]["generation"] = "0123456789abcdef0123456789abcdef"
+    files_model.replace_files([(layer_path, json.dumps(vendored).encode(), False)])
     reissued = activate()
     assert reissued.executable != restamped.executable
 

@@ -310,7 +310,7 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
 def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     """Words a script selects are quoted in the panel's field, and only a press there
     comments on them: a Tab into the field writes on the page. A page draft hiding the
-    quote moves it to the line over the field, and on a page drawing its own
+    quote shows a Selection mode chip, and on a page drawing its own
     annotations the field stands in an open comment box's place while it quotes."""
     source = leaf_page(
         "Offered words",
@@ -340,8 +340,9 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
 
     page.locator(".lf-fp-leaf").focus()
     select("#first")
-    context = page.locator(".lf-fp-context-words")
-    expect(context).to_have_text("“The first passage holds its words.”")
+    context = page.locator(".lf-fp-mode")
+    expect(context).to_have_text("Selection")
+    expect(context).to_have_attribute("title", "“The first passage holds its words.”")
     field.click()
     expect(composer).to_be_focused()
     expect(field).to_have_js_property("value", "A page note")
@@ -388,7 +389,7 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     page.keyboard.press("Tab")
 
     responses = page.locator(".lf-fab-bar")
-    expect(responses).to_have_class(re.compile(r"\blf-response-open\b"))
+    expect(responses.locator(".lf-response-options")).to_be_visible()
     expect(responses.locator(".lf-fab-suggest")).to_be_focused()
     expect(responses.locator(".lf-react")).to_have_count(0)
 
@@ -646,35 +647,32 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     search_field = page.locator(".lf-page-search-box")
     search_box = search_field.bounding_box()
     search.fill("words absent from this page")
-    expect(status).to_have_text("No matches")
+    expect(status).to_have_attribute("aria-label", "No matches")
     assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
-    # The query and its count share the search's only frame, with no padded card
-    # between the field boundary and the search surface.
+    # Query and feedback stay in the panel, with a persistent mode label even once
+    # typing replaces the placeholder. Both share one row even on a phone.
     frame = search.evaluate("""input => {
-      const field = input.getRootNode().querySelector('[part~="base"]') ?? input;
-      const box = field.getBoundingClientRect();
-      const surface = document.querySelector('.lf-page-search').getBoundingClientRect();
+      const box = document.querySelector('.lf-fp-row').getBoundingClientRect();
       const status = document.querySelector('.lf-page-search-status').getBoundingClientRect();
       return {
-        edges: [box.left - surface.left, box.right - surface.right,
-                box.top - surface.top, box.bottom - surface.bottom],
         statusInside: status.left >= box.left && status.right <= box.right &&
           status.top >= box.top && status.bottom <= box.bottom,
       };
     }""")
-    assert frame["edges"] == pytest.approx([0, 0, 0, 0], abs=0.5), frame
     assert frame["statusInside"], frame
-    search_field.get_by_role("button", name="Clear entry").click()
+    expect(page.locator(".lf-fp-mode")).to_have_text("Search page")
+    search.press("ControlOrMeta+a")
+    search.press("Backspace")
     expect(search).to_have_value("")
     expect(search).to_be_focused()
     expect(status).to_be_empty()
     assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     page.keyboard.type("b")
-    expect(status).to_have_text(re.compile(r"\d+ of \d+"))
+    expect(status).to_have_text(re.compile(r"\d+/\d+"))
     assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     search.fill("button the key")
-    expect(status).to_have_text("1 of 1")
+    expect(status).to_have_text("1/1")
     assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     page.keyboard.press("Tab")
@@ -710,7 +708,7 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
     page.keyboard.press("/")
     page.keyboard.type("Unified")
 
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 2")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1/2")
     title = page.locator("#title").bounding_box()
     match = page.locator(".lf-page-search-match").first.bounding_box()
     assert title is not None and match is not None
@@ -727,7 +725,7 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
         }"""
     )
     page.get_by_role("searchbox", name="Search page text").press("Tab")
-    expect(page.locator(".lf-page-search-status")).to_have_text("2 of 2")
+    expect(page.locator(".lf-page-search-status")).to_have_text("2/2")
     expect(page.locator(".lf-live")).to_contain_text(
         "Match 2 of 2: …Unified title Unified body, rewritten."
     )
@@ -885,7 +883,7 @@ def test_selection_search_announces_context_across_inline_node_boundaries(
     page.keyboard.press("s")
     page.keyboard.press("/")
     page.keyboard.type("repeat")
-    expect(page.locator(".lf-page-search-status")).to_contain_text("of 2")
+    expect(page.locator(".lf-page-search-status")).to_contain_text("/2")
 
     page.keyboard.press("Tab")
     live = page.locator(".lf-live")
@@ -925,7 +923,7 @@ def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
           return box.bottom > 42 && box.top < innerHeight;
         }"""
     )
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1/1")
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
 
@@ -947,7 +945,7 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
     page.keyboard.press("/")
     page.keyboard.type("copper needle")
 
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1/1")
     match = page.locator(".lf-page-search-match").first
     expect(match).to_be_visible()
     mark = page.evaluate(
@@ -1061,7 +1059,7 @@ def test_an_open_search_mark_follows_the_page_it_marks(browser, serve):
 
     page.keyboard.press("/")
     page.keyboard.type("copper needle")
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1/1")
     expect(page.locator(".lf-page-search-match")).to_have_count(1)
     seated = page.evaluate(gap)
     assert abs(seated) < 6, f"the mark did not land on its own words: {seated}"
@@ -1321,7 +1319,7 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
     page.keyboard.press("/")
     page.keyboard.type("phrase only appears")
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1/1")
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
 
     page.keyboard.press("Enter")
@@ -1434,7 +1432,7 @@ def test_the_panel_only_hides_targets_in_the_lane_it_paints(browser, serve):
     # both the box and the row whatever the fonts' widths, as "crosses the edge" did
     # not on Linux, where they went under the box.
     page.keyboard.type("This target")
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1/1")
     expect(page.locator(".lf-page-search-match")).to_have_count(1)
     line, mark = page.evaluate(
         """() => ['.lf-fp-row', '.lf-page-search-match'].map(

@@ -1969,6 +1969,37 @@ var claimsEsc = (node) => scopesFor(node).some(
   (scope) => scope.rows.some((row) => live(row) && bindings(row).includes("Escape"))
 );
 
+// runtime/stylesheets.js
+var sheets = JSON.parse(
+  document.querySelector(
+    'script[type="application/json"][data-lf-runtime][data-lf-sheets]'
+  ).textContent
+);
+var inBaseLayer = (text) => `@layer lf-base {
+${text}
+}`;
+function constructSheet(text) {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(text);
+  return sheet;
+}
+var chromeSheet = constructSheet(sheets.chrome);
+var chromeSharedClasses = Object.freeze([
+  "lf-aiming",
+  "lf-btn",
+  "lf-ins-block",
+  "lf-over-item",
+  "lf-react-mark",
+  "lf-mark-note",
+  "lf-ui",
+  "lf-version-inline",
+  "lf-version-inline-deletion",
+  "lf-visual-action"
+]);
+var marksSheet = constructSheet(sheets.marks);
+var annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];
+var annotationSheets = sheets.annotations ? [constructSheet(sheets.annotations.chrome), ...annotationMarkSheets] : [];
+
 // runtime/keyboard/layer-stack.js
 var entries = [];
 var watchedRoots = /* @__PURE__ */ new WeakSet();
@@ -2051,15 +2082,45 @@ function showNativeLayer(layer, { source, modal = true } = {}) {
 }
 var modalHomes = /* @__PURE__ */ new WeakMap();
 function seatModal(dialog, source) {
-  let home = modalHomes.get(dialog);
-  if (!home) {
-    modalHomes.set(dialog, home = dialog.parentNode);
+  let place = modalHomes.get(dialog);
+  if (!place) {
+    place = {
+      home: dialog.parentNode,
+      chrome: Boolean(dialog.closest(".lf-chrome")),
+      scope: null
+    };
+    modalHomes.set(dialog, place);
+    const restore = () => {
+      if (dialog.parentNode !== place.home) move(place.home, dialog);
+      place.scope?.remove();
+    };
     dialog.addEventListener("close", () => {
-      if (!dialog.open && dialog.parentNode !== home) move(home, dialog);
+      if (!dialog.open) restore();
+    });
+    watchOwner(dialog, {
+      disconnect() {
+        if (dialog.parentNode === place.home) return;
+        closeNativeLayer(dialog);
+        restore();
+      }
     });
   }
   const holder = nativeLayerHolding(source);
-  const seat = nativeLayerKind(holder) === "popover" && renderedUnder(holder, home) ? holder : home;
+  let seat = place.home;
+  if (nativeLayerKind(holder) === "popover") {
+    if (renderedUnder(holder, place.home)) seat = holder;
+    else if (place.chrome) {
+      if (!place.scope) {
+        place.scope = document.createElement("div");
+        place.scope.className = "lf-chrome";
+      }
+      const root2 = holder.getRootNode();
+      if (root2 instanceof ShadowRoot && !root2.adoptedStyleSheets.includes(chromeSheet))
+        root2.adoptedStyleSheets = [...root2.adoptedStyleSheets, chromeSheet];
+      if (place.scope.parentNode !== holder) move(holder, place.scope);
+      seat = place.scope;
+    }
+  }
   if (dialog.parentNode !== seat) move(seat, dialog);
 }
 function closeNativeLayer(layer) {
@@ -3113,16 +3174,7 @@ function dismissErrors() {
 }
 
 // runtime/layer-client.js
-import { layerGeneration } from "/runtime/layer-generation.js";
-var { layer: documentLayer, release, probe } = DELIVERY;
-if (documentLayer && documentLayer !== layerGeneration) {
-  window.dispatchEvent(
-    new CustomEvent("lf-startup-failed", {
-      detail: { reason: "document and runtime belong to different layers" }
-    })
-  );
-  throw new Error("Leaf's document and runtime belong to different layers");
-}
+var { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 async function sourceMovedOn() {
   if (!probe) return true;
   let response;
@@ -3135,6 +3187,7 @@ async function sourceMovedOn() {
   if (!response.ok) return void 0;
   const servedRelease = response.headers.get("Leaf-Release");
   if (release && servedRelease) return servedRelease !== release;
+  if (!sameRuntime(response)) return true;
   const generation = response.headers.get("Leaf-Layer");
   return generation ? generation !== layerGeneration : void 0;
 }
@@ -3164,9 +3217,14 @@ function reloadDelivery(message) {
     }
   })();
 }
+var sameRuntime = (response) => {
+  const served = response.headers.get("Leaf-Runtime");
+  return !runtimeIdentity || !served || served === runtimeIdentity;
+};
 function layerHeaders(headers = {}) {
   return {
     "Leaf-Layer": layerGeneration,
+    ...runtimeIdentity && { "Leaf-Runtime": runtimeIdentity },
     ...runtime.currentRevision && {
       "Leaf-View-Revision": String(runtime.currentRevision)
     },
@@ -3208,14 +3266,20 @@ function sameLayer(generation) {
   reloadDelivery("Leaf has been updated \u2014 reloading this page.");
   return false;
 }
-function admitResponse(response) {
+var admitResponse = (response) => admitted(response, true);
+var admitReading = (response) => admitted(response, false);
+function admitted(response, ofThisLayer) {
   observeSession(response);
   observeKey(response);
   if (!response.ok) return true;
   if (layerReloading) return false;
   const generation = response.headers.get("Leaf-Layer");
   const responseRelease = response.headers.get("Leaf-Release");
-  if (generation && !sameLayer(generation)) return false;
+  if (ofThisLayer && generation && !sameLayer(generation)) return false;
+  if (!sameRuntime(response)) {
+    reloadDelivery("Leaf has been updated \u2014 reloading this page.");
+    return false;
+  }
   if (release && responseRelease && responseRelease !== release) {
     reloadDelivery("Leaf has been updated \u2014 reloading this page.");
     return false;
@@ -3484,6 +3548,12 @@ export {
   saying,
   scopesFor,
   claimsEsc,
+  inBaseLayer,
+  chromeSheet,
+  chromeSharedClasses,
+  marksSheet,
+  annotationMarkSheets,
+  annotationSheets,
   showNativeLayer,
   closeNativeLayer,
   watchLayers,
@@ -3583,6 +3653,7 @@ export {
   requestJson,
   sameLayer,
   admitResponse,
+  admitReading,
   sessionIsActive,
   revealLayer,
   postEvent,

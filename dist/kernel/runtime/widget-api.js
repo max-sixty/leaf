@@ -95,15 +95,15 @@ import {
   bodyText,
   dataBody,
   failSoft,
-  inBaseLayer,
   once,
+  placesFailure,
   quoted,
   reportFailure,
   setChildLists,
   setChildren,
   setRenderedChildren,
   shadowStage
-} from "./bundle-stylesheets.js";
+} from "./bundle-keyboard~disclosure.js";
 import {
   isCanonicalMediaUrl,
   scopedMediaUrl
@@ -181,6 +181,7 @@ import {
   growthIsSeen,
   iconElement,
   iconTemplate,
+  inBaseLayer,
   keys,
   labelOf,
   landingInsets,
@@ -1295,6 +1296,7 @@ export {
   paintMarkdown,
   placeKeeper,
   placePageThreads,
+  placesFailure,
   plainPress,
   presentContributionEntry,
   presentContributionReceipts,

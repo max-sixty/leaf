@@ -7,7 +7,7 @@
     "runtime/anchor-controls.js": "6f68b3de8f6c456dd8e63b217a36c29e2ce936cc31b01442129d9eadca10d7da",
     "runtime/anchor-coordinate.js": "6dce53e1d9f3b17259a6d2ef8194ab8c62c0bea84a814f6a664274e153dc6959",
     "runtime/anchor-note-view.js": "28b488f8f55eaa36d2efd35bb8c5522d2a2e0679d6d7f568e378742a8f34da45",
-    "runtime/anchor-placement.js": "94dd609170039467f1a829c2a48754b669371913c0c571f55bcf02a1725021c4",
+    "runtime/anchor-placement.js": "3537e7ff2fba9b6b3a0c0d8b8ca61ca494736c67a4de1d0ce65df29730b78535",
     "runtime/anchor-resolution.js": "ba5323cc6ecefff769d5b8fe99fb14552474cf1d1e9971898d5dcd2eda5740e6",
     "runtime/anchor-travel.js": "7dc793688b46188beb8fed5304f034fe27c16c64ba450b9093d25cea51c42fd9",
     "runtime/annotation-inventory.js": "4f01ad10ff3e4efc6672154478cbfe6c29602e08549ae44ed37d2e60d7422dba",

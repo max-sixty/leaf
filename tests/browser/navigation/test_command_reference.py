@@ -13,6 +13,7 @@ from render_harness import (
     open_page,
     panel_control,
     panel_field,
+    panel_view,
     resized,
     round_trip,
 )
@@ -441,7 +442,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
 @pytest.mark.parametrize(
     ("command", "suffix", "surface"),
     [
-        ("navigation.panel.threads", "T", '.lf-fp-view[data-view="threads"]'),
+        ("navigation.panel.threads", "T", panel_view("threads")),
         ("navigation.page-map", "P", ".lf-page-map-dialog"),
         ("version.open", "V", '.lf-fp-menu[data-level="versions"]'),
     ],

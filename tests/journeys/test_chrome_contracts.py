@@ -18,6 +18,7 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     CutOff,
+    expect_panel_says,
     leaf_page,
     nudge,
     open_page,
@@ -32,7 +33,6 @@ from render_harness import (
     write,
 )
 
-from journeys import expect_panel_says
 from leaf import data as data_model
 from leaf import event_log as events_model
 

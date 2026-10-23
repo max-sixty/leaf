@@ -18,6 +18,7 @@ from render_harness import (
     panel_field,
     panel_menu,
     panel_settled,
+    panel_view,
     resized,
     scroll_settled,
     select,
@@ -1112,7 +1113,7 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     expect(threads).to_be_focused()
     page.wait_for_function("getSelection().isCollapsed")
     before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
@@ -1581,7 +1582,7 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")

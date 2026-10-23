@@ -40,6 +40,7 @@ from render_harness import (
     command_reference_rows,
     expect_comment_notes,
     expect_obligations_answered,
+    expect_panel_says,
     leaf_page,
     margins_laid_out,
     navigate,
@@ -47,7 +48,9 @@ from render_harness import (
     opened_tab,
     pane_scroll_behavior,
     panel_control,
+    panel_says,
     panel_settled,
+    panel_view,
     resized,
     round_trip,
     scroll_settled,
@@ -68,7 +71,7 @@ from browser.navigation import (
 )
 from browser.threads import open_panel_thread
 
-from journeys import expect_panel_says, expect_showing, panel_says
+from journeys import expect_showing
 
 
 def go_to_passage(page, page_dir, words):
@@ -137,9 +140,7 @@ def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
     page.locator("#right-head").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(
-        page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
-    ).to_be_focused()
+    expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(reading) == "right-reading"
@@ -754,7 +755,7 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
     panel_comment(serve.page_dir, "Another panel thread.")
     page = open_page(browser, url)
     view = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
 
     page.keyboard.press("t")
     expect(view).to_be_focused()
@@ -1118,7 +1119,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # A panel mnemonic completes the sequence and leaves the user in that view of the
     # panel, where its own scoped keys are immediately available.
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
     page.keyboard.press("Shift+t")
     expect(threads).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
@@ -1131,7 +1132,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    expect(page.locator('.lf-fp-view[data-view="queue"]')).to_be_focused()
+    expect(page.locator(panel_view("queue"))).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("ArrowDown")
     expect(page.locator(".lf-fp-on-item").first).to_be_focused()
@@ -1367,7 +1368,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     page.keyboard.press("Shift+l")
 
     panel_settled(page, view="leaves")
-    leaves = page.locator('.lf-fp-view[data-view="leaves"]:not([data-leaving])')
+    leaves = page.locator(panel_view("leaves"))
     expect(leaves).to_be_focused()
     expect(leaves.locator(".lf-fp-page[href]")).to_have_count(2)
     page.keyboard.press("ArrowDown")
@@ -1855,7 +1856,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     # The Threads tab's presets each open a thread in a sample's panel, and the one
     # chosen survives its Reset.
     frame = page.frame_locator("#bg-panel-sample iframe")
-    shown = frame.locator('.lf-fp-view[data-view="thread"]:not([data-leaving])')
+    shown = frame.locator(panel_view("thread"))
     expect(shown).to_have_count(0)
     page.locator('#bg-panel-presets [data-view="overview"]').click()
     expect(shown).to_have_attribute("data-thread", "72e031c5bf0d485ba9054628e09869d4")

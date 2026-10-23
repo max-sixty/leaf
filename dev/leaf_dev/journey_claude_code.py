@@ -112,6 +112,7 @@ from leaf_dev.reply_phases import (
     claude_code_records,
     ends_turn,
     instant,
+    transcript_records,
 )
 from leaf_dev.review_scenario import (
     REQUEST,
@@ -678,12 +679,10 @@ def slow_prompt(place: Isolation) -> Path:
 
 
 def native_records(home: Path, session: str) -> list[dict]:
-    """The native session record, including hook context attachments. A record
-    Claude Code is still writing is no record yet, so the bytes after the last
-    newline, which can end inside a character, are left out."""
+    """The native session record, including hook context attachments
+    (`reply_phases.transcript_records`)."""
     [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
-    written, _, _ = path.read_bytes().rpartition(b"\n")
-    return [json.loads(line) for line in written.decode().splitlines()]
+    return transcript_records(path)
 
 
 def deliveries(records: list[dict], update: str) -> list[int]:

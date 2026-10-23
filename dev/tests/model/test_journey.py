@@ -312,7 +312,8 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
             "type": "user",
             "timestamp": at(1),
             "turnPosition": {"promptIndex": 1, "turnIndex": 1},
-            "message": {"content": "Serve it."},
+            # Claude Code writes U+2028 raw inside a string.
+            "message": {"content": "Serve\u2028it."},
         },
         {"type": "attachment", "timestamp": at(1.5), "attachment": {}},
         {
@@ -339,7 +340,7 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
     # Claude Code is still writing the last record, which is no record yet; its
     # bytes so far can end inside a character.
     path.write_bytes(
-        "".join(json.dumps(line) + "\n" for line in lines).encode()
+        "".join(json.dumps(line, ensure_ascii=False) + "\n" for line in lines).encode()
         + '{"type": "assistant", "text": "é'.encode()[:-1]
     )
     native = journey_claude_code.native_records(tmp_path, session)
@@ -347,7 +348,7 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
         {"type": "turn_start", "received_at": at(1)},
         {
             "type": "user",
-            "message": {"content": [{"type": "text", "text": "Serve it."}]},
+            "message": {"content": [{"type": "text", "text": "Serve\u2028it."}]},
             "received_at": at(1),
         },
         {

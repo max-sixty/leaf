@@ -438,7 +438,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     [data-lf-offer="checkbox"],
     [data-lf-offer="radio"],
     .lf-mark-note,
-    .lf-btn
+    .lf-btn,
+    .lf-msg-control
   )
 ),
 .lf-react,

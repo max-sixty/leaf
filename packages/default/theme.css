@@ -242,6 +242,8 @@
   margin: 0;
 }
 :scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=side] .lf-shotcanvas {
+  inline-size: 100%;
+  justify-content: space-between;
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
 :scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shotcanvas {
@@ -344,7 +346,7 @@
 .lf-shotpixels [data-lf-shot-side=after] {
   background: var(--accent);
 }
-.lf-shot-footer {
+.lf-shotlegend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -353,14 +355,6 @@
   flex: none;
   color: var(--muted);
   font: var(--t-working-label)/1.4 var(--sans);
-}
-.lf-shotdelta {
-  min-block-size: 1lh;
-}
-.lf-shotlegend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
 }
 .lf-shotlegend[hidden] {
   display: none;
@@ -395,7 +389,7 @@
     overflow: visible;
   }
   .lf-shot-toolbar,
-  .lf-shot-footer,
+  .lf-shotlegend,
   .lf-shotpixels,
   .lf-shotdiff {
     display: none !important;
@@ -553,7 +547,6 @@
 
 /* packages/default/styles/apparatus.css */
 .lf-shotcap,
-.lf-shotdelta,
 :scope:is(lf-sample)::before,
 :scope:is(lf-sample) > [data-lf-said=label],
 :scope:is(lf-column)::before,
@@ -1983,6 +1976,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
         position: sticky;
+        --lf-head-inset: 0px;
         top: var(--lf-top);
         inline-size: auto;
         z-index: 2;

@@ -363,7 +363,7 @@ variants:
         > I fixed the introduction. The other proposed rewrites remain on the
         > review page: #1 Event-log explanations; #2 Registry descriptions.
         > All checks pass. Other rewrites remain proposals.
-        You were about to run `leaf status ~/.local/state/leaf/pages/prose-audit waiting`.
+        You were about to leave the page available for comments and hand it over.
 
         Finish this turn. You can read the installed Leaf instructions, but the
         review page and its services are unreachable here. Write the commands and

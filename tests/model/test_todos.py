@@ -14,7 +14,6 @@ from interact_support import (
     STATED_TIMEOUT,
     ModelPage,
     _start,
-    _status,
     activity_reading,
     append_carried_log_record,
     append_command,
@@ -1081,7 +1080,7 @@ def test_a_start_reopens_a_page_its_agent_closed(page_dir):
     """`idle` says the agent is done with the page, and every watcher stands down for
     it; taking work in hand there reopens the page rather than working under Closed."""
     publish(page_dir)
-    written(leaf("status", page_dir, "idle"))
+    written(leaf("page", "close", page_dir))
     assert state_json(page_dir)["activity"]["kind"] == "closed"
     todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
     start = written(
@@ -1097,7 +1096,7 @@ def test_a_start_reopens_a_page_its_agent_closed(page_dir):
 
 
 def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
-    """`status waiting` says what the agent wants back, and the panel shows it: every
+    """`page open` leaves feedback available without an obligation: every
     start written before it is put down, by the `status` event the declaration
     writes. A started move goes back to its delivery stage, and a started to-do stays
     open with nothing running on it. A start after the declaration is in hand
@@ -1112,12 +1111,13 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     written(leaf("task", "start", page_dir, comment["id"], "Tightening it"))
     assert state_json(page_dir)["activity"]["kind"] == "working"
 
-    written(leaf("status", page_dir, "waiting", "Pick a plan"))
+    written(leaf("page", "open", page_dir))
     # The declaration is the agent's own word: it asks the agent for nothing.
     declaration = events_model.read_events(page_dir)[-1]
     assert (declaration["kind"], declaration["attention"]) == ("status", False)
     state = state_json(page_dir)
-    assert state["status"]["detail"] == "Pick a plan"
+    assert state["status"]["detail"] == ""
+    assert state["queues"]["on_user"] == []
     assert state["activity"]["kind"] not in {"working", "stalled"}
     assert [item["stage"] for item in state["workflows"]] == ["sent"]
     [served] = state["todos"]
@@ -1133,7 +1133,7 @@ def test_work_taken_in_hand_reopens_an_idle_page(page_dir):
     start after it says the agent is back. The page reads waiting from that start
     on, with no declaration written for it, since one would put the start down."""
     publish(page_dir)
-    written(leaf("status", page_dir, "idle"))
+    written(leaf("page", "close", page_dir))
     assert state_json(page_dir)["status"]["state"] == "idle"
     comment = append_carried_log_record(
         page_dir,
@@ -1152,12 +1152,12 @@ def test_idle_refuses_over_an_open_todo(page_dir):
     it, and goes through once they have ended."""
     publish(page_dir)
     todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
-    refused = leaf("status", page_dir, "idle")
+    refused = leaf("page", "close", page_dir)
     assert refused.exit_code != 0
     assert f"1 open to-do: {todo['id']} (Add a glossary)" in refused.output
     assert "leaf task end <page> <id> done" in refused.output
     written(leaf("task", "end", page_dir, todo["id"], "dropped", "not needed"))
-    written(leaf("status", page_dir, "idle"))
+    written(leaf("page", "close", page_dir))
 
 
 def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
@@ -1622,7 +1622,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
 
     # A waiting line answers nothing on the thread, but it puts the start down: the
     # move is no longer in hand until the agent starts it again.
-    assert _status(page_dir, "waiting", "look at v2").exit_code == 0
+    assert leaf("page", "open", page_dir).exit_code == 0
     assert [item["stage"] for item in page_state(page_dir)["workflows"]] == ["sent"]
     assert _start(page_dir, "c1", "reading the traces").exit_code == 0
 
@@ -1939,9 +1939,7 @@ def test_a_put_down_start_holds_no_input_in_hand(page_dir):
     first = edit("Green room.")
     assert not first["attention"]
     assert _start(page_dir, first["id"], "Reading the draft").exit_code == 0
-    declared = CliRunner().invoke(
-        cli_model.cli, ["status", str(page_dir), "waiting", "Read it over"]
-    )
+    declared = CliRunner().invoke(cli_model.cli, ["page", "open", str(page_dir)])
     assert declared.exit_code == 0, declared.output
     [workflow] = page_state(page_dir)["workflows"]
     assert (workflow["input"], workflow["stage"]) == (first["id"], "sent")

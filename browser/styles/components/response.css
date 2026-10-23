@@ -285,6 +285,7 @@ button.lf-media-open {
    shelf wears it, so a surface states only where its shelf stands. An image stands at
    the shelf's height in its own proportions, from three quarters as wide as tall, so a
    tall screenshot is more than a sliver, up to twice as wide. */
+.lf-media-frame,
 .lf-composer-media-item > .lf-composer-media-open {
   border-radius: 8px;
   box-shadow:
@@ -303,9 +304,6 @@ button.lf-media-open {
   max-width: calc(2 * var(--lf-media-h));
   object-fit: cover;
   border-radius: inherit;
-  /* The press draws the picture's ring and shadow, so the frame the theme gives a
-     page's images (theme.css, `img`) would draw them twice. */
-  box-shadow: none;
 }
 /* Every press in an item besides its picture is a corner mark (controls.css) on a top
    corner: removal on the right, and a drawing's Undo last stroke on the left. A mark

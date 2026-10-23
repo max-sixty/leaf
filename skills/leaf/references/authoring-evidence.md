@@ -154,17 +154,18 @@ tickets, source locations and URLs as real links.
 viewport. Before writing the prose and `alt`, open both images and compare them where
 the change should be. For a small change, crop both frames to the subject rather than
 making the reader search a whole window. Check the pair as it first appears: Fit
-may shrink its frames to keep both visible. Choose crops and page space that make
+may shrink the captures to fit the available space. Choose crops and page space that make
 the relevant change readable there, without requiring the reader to zoom first.
 
-Every pair offers **Pair**, **Slider** and **Pixels** in a shared header. Before and
-After label the header, or each frame when stacked. Pair keeps the captures at the same scale. Fit keeps both frames visible in a bounded
+Every pair starts in **Slider**, followed by **Pair** and **Pixels** in the shared
+header. Before and After label the header, or each frame when stacked. Pair keeps
+the captures at the same scale; clicking either image opens its original. Fit keeps both frames visible in a bounded
 comparison, placing them beside one another or stacking them to make best use of the
 available space. At 100%, both panes stay visible and scrolling either image moves
 the other to the same location. This scale uses CSS pixels when capture metadata
-supplies the pixel ratio, or bitmap pixels otherwise. The scale menu offers Fit,
-100%, the original images and, for a pair with focus metadata, Full frame to inspect
-beyond that region. Outline changes stays beside the scale control.
+supplies the pixel ratio, or bitmap pixels otherwise. The **…** menu offers Fit,
+100%, the Pixels color key and, for a pair with focus metadata, Full frame to inspect
+beyond that region. Outline changes stays beside the menu.
 
 In Slider, click or tap the image to alternate between the complete Before and After
 frames. Drag the divider for an intermediate comparison, or focus it and use the
@@ -172,7 +173,7 @@ arrow keys; Home and End show the complete frames.
 
 **Outline changes** marks changed regions in Pair and Slider, using the accent color
 for content that only moved. **Pixels** paints removed pixels red, added pixels
-blue and recoloured pixels amber over the greyed after image, so build no difference
+green and recoloured pixels amber over the greyed after image, so build no difference
 image of your own. These controls belong to the reader; author the pair with `before`,
 `after` and `alt`.
 

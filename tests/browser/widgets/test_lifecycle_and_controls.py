@@ -114,7 +114,7 @@ customElements.define('lf-source-stage', class extends HTMLElement {
         assert fallback["color"] != reference["color"], fallback
         assert fallback["overflow"] == "auto", fallback
         widget.get_by_role("button", name="Draw source").click()
-        expect(widget).to_have_class("lf-rendered")
+        expect(widget).to_have_class(re.compile(r"\blf-rendered\b"))
         drawings[widget_id] = widget.evaluate(face)
         references[widget_id] = reference
     assert drawings == references

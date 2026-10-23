@@ -17,18 +17,19 @@ with its actions, obligations and workflows, or one thread with its messages.
 
 ## Publish several authored files together
 
-When the HTML and its modules must change together, prepare a separate directory
-holding `index.html` and the whole `page/` tree, with any media it uses already in the
-live page. Take the current files' digest with `leaf.publishing.authored_digest` (and
-the files themselves with `leaf.publishing.authored_files`), then publish:
+When the HTML and its modules must change together, save `source.digest` from
+`leaf page state <page>` before copying or editing the files. It identifies the
+current `index.html` and complete `page/` tree, including an invalid source save.
+Prepare a separate directory holding the replacement `index.html` and whole `page/`
+tree, with any media it uses already in the live page, then publish:
 
 ```sh
 leaf page stamp <page> --from-directory <candidate> --if-source <digest> --text 'Updated the page'
 ```
 
 The stamp refuses if the page's files changed since you took the digest, and keeps the
-old files if the new ones fail the check. It doesn't touch the event log or external
-data.
+old files if the new ones fail the check. A successful stamp adds its version note
+while preserving the existing event history and external data.
 
 ## Revisions and user-owned words
 
@@ -100,6 +101,10 @@ retire the superseded interaction as finished work. Pose anything still worth as
 as a new decision with new ids. Use `$restated` to withdraw the decision and ask again.
 Don't mark a decision `settled` until you have finished applying it, and keep a section
 open while the user is still commenting there.
+
+The user reads threads to learn where their input stands. When a revision settles or
+lands what an open thread discusses, reply in that thread with what happened and where
+the page shows it, so the thread is not left looking unanswered.
 
 Before handing the page back, check that its status, open to-dos and outstanding work
 agree with what you tell the user.

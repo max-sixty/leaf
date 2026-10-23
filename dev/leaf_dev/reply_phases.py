@@ -392,7 +392,24 @@ def claude_code_transcript(session: str) -> list[dict] | None:
     found = sorted(Path(config).glob(f"projects/*/{session}.jsonl"))
     if not found:
         return None
-    return [json.loads(line) for line in found[0].read_text().splitlines()]
+    return transcript_records(found[0])
+
+
+def transcript_records(path: Path) -> list[dict]:
+    """The records of the Claude Code transcript at `path`, one JSON object a line.
+    Lines split only at the newline Claude Code writes after each record: its strings
+    can hold U+2028 and U+2029 raw, which `splitlines` would split on. A record it
+    is still writing is no record yet, so the bytes after the last newline, which
+    can end inside a character, are left out."""
+    written, _, _ = path.read_bytes().rpartition(b"\n")
+    return [json.loads(line) for line in written.decode().split("\n") if line]
+
+
+def ends_turn(record: dict) -> bool:
+    """Whether a Claude Code transcript record ends a turn: a `turn_duration` record
+    ends one once its Stop hooks let it stop, and an interruption's record
+    (`interruptedMessageId`) ends one that writes none."""
+    return record.get("subtype") == "turn_duration" or "interruptedMessageId" in record
 
 
 def claude_code_records(native: list[dict]) -> list[dict]:
@@ -401,15 +418,14 @@ def claude_code_records(native: list[dict]) -> list[dict]:
     where each response's last record was written: Claude Code writes a response's
     content blocks as records of their own, sharing its message id. Claude Code marks
     its own turns: the input that starts one carries `turnPosition`, which a
-    compaction's summary copies from the turn before without starting one; a
-    `turn_duration` record ends a turn once its Stop hooks let it stop, and an
-    interruption's record (`interruptedMessageId`) ends one that writes none. A
-    response's records carry its usage, whose output the `model_response` keeps:
-    the response's whole output, thinking included, by its last record."""
+    compaction's summary copies from the turn before without starting one, and
+    `ends_turn` says which records end one. A response's records carry its usage,
+    whose output the `model_response` keeps: the response's whole output, thinking
+    included, by its last record."""
     records = []
     responses: dict[str, dict] = {}
     for record in native:
-        if record.get("subtype") == "turn_duration" or "interruptedMessageId" in record:
+        if ends_turn(record):
             records.append({"type": "turn_end", "received_at": record["timestamp"]})
         if record.get("type") not in ("user", "assistant") or "message" not in record:
             continue

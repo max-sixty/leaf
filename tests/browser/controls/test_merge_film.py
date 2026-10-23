@@ -209,3 +209,31 @@ def test_merge_film_phone_holds_readable_outcomes_and_preserves_them_on_reflow(
     expect(page.locator('.film-phone-tree[data-gone="true"]')).to_have_count(0)
     expect(page.locator('.film-phone [data-label="commit b72c9e4"]')).to_be_visible()
     expect(page.locator(".film-play")).to_have_text("Play")
+
+
+def test_merge_film_shows_its_whole_phone_stage_in_a_laptop_height_pane(browser, serve):
+    """Where the film's pane is narrow enough for its phone layout but the workspace
+    still fills an 800x720 window, the stage keeps its content's height and the pane
+    scrolls to its end: the terminal below the drawing stays reachable and clear of
+    Leaf's panel rather than clipped inside a squeezed stage."""
+    source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
+    page = open_page(browser, serve(source))
+    resized(page, 800, 720)
+    film = page.locator("#merge-film")
+    expect(film).to_have_attribute("data-phone", "")
+    geometry = film.evaluate(
+        """film => {
+          film.scrollTop = film.scrollHeight;
+          const stage = film.querySelector('.film-stage');
+          const terminal = stage.querySelector('.film-phone-terminal');
+          return {
+            clipped: stage.scrollHeight - stage.clientHeight,
+            terminalBottom: terminal.getBoundingClientRect().bottom,
+            stageBottom: stage.getBoundingClientRect().bottom,
+            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert geometry["clipped"] <= 1, geometry
+    assert geometry["terminalBottom"] <= geometry["stageBottom"], geometry
+    assert geometry["stageBottom"] <= geometry["panelTop"], geometry

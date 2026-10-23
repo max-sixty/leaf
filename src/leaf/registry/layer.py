@@ -19,6 +19,7 @@ from .contract import (
     registry_error,
     stamp_decisions,
     stamp_states,
+    stamp_words,
 )
 from .kernel import answer_kinds
 from .schema import (
@@ -92,9 +93,11 @@ def _canonical(value) -> str:
 
 
 def stamp_composition(registry: dict) -> dict:
-    """Write into a validated vocabulary what the browser reads rather than derives:
+    """Write into a validated vocabulary what its readers read rather than derive:
     `$decisions` (`registry.contract.stamp_decisions`) and `$states`
-    (`registry.contract.stamp_states`).
+    (`registry.contract.stamp_states`), which the browser reads, and each declared
+    attribute's words as its schema's `enum` (`registry.contract.stamp_words`),
+    which validation and an author reading the entry read.
 
     Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
     page's own declarations over it, overwriting whatever a layer declared under
@@ -102,6 +105,7 @@ def stamp_composition(registry: dict) -> dict:
     """
     stamp_decisions(registry)
     stamp_states(registry)
+    stamp_words(registry)
     return registry
 
 

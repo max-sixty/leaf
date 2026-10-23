@@ -157,9 +157,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     # The agent finishes the earlier task and waits on the user.
     end_work(d)
-    latent_waiting = CliRunner().invoke(
-        cli_model.cli, ["status", str(d), "waiting", "review the answer"]
-    )
+    latent_waiting = CliRunner().invoke(cli_model.cli, ["page", "open", str(d)])
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
     expect(held_workflow).to_have_text("Delivered")

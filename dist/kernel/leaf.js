@@ -8064,6 +8064,7 @@ function createFloatingPanel({
     else open({ view: "queue" });
   }
   const queueLists = () => {
+    documentChanged();
     const reading = readQueues();
     if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
     return {

@@ -376,7 +376,7 @@ says what the user gains and why it can't wait. Bytes off the path, such as a
 lazy module, a vendored file or the install's size, are not alone a reason for a
 change.
 
-Land through a pull request or `wt merge`, which squash-merges to `main`. For
-now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`,
+Land through a GitHub pull request, which squash-merges to `main`; use `wt merge`
+only when the user asks for it. For now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`,
 "Run what the change needs"). Tend sessions follow **Landing** in
 `.claude/skills/running-tend/SKILL.md`.

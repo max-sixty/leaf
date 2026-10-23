@@ -589,9 +589,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
     page.locator("#h").click()
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Question")
-    expect(
-        page.locator(f'.lf-msg[data-event="{question["id"]}"]')
-    ).to_be_focused()
+    expect(page.locator(f'.lf-msg[data-event="{question["id"]}"]')).to_be_focused()
 
 
 @pytest.mark.parametrize("width", [1200, 390])

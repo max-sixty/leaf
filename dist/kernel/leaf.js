@@ -2402,7 +2402,7 @@ function createResponseSurface({
     openComment(anchor, "", { carry: true, point });
     setTimeout(() => {
       targetActivation = false;
-      observeSelection();
+      selectionChanged();
     });
   }
   function focusFabComment() {
@@ -2585,7 +2585,9 @@ function createResponseSurface({
   const finishPointerSelection = (ev) => {
     if (drawModeActive()) return;
     const releasePress = () => setTimeout(() => {
+      if (!actionPress) return;
       actionPress = false;
+      selectionChanged();
     });
     if (offeredSelection && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
@@ -2645,6 +2647,27 @@ function createResponseSurface({
     wireInput,
     drawingEdits: drawingEdits2
   });
+  function selectionChanged() {
+    const automatic = programmaticSelection(getSelection());
+    if (primaryPointerPressed && selectionPressIntent?.()) {
+      rememberPointerSelection();
+      if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
+        rememberSelection();
+      reflectSelection();
+      return;
+    }
+    if (takesLetters(focused())) {
+      offerSelection(null);
+      return;
+    }
+    if (actionPress || targetActivation) return;
+    const selection = pageSelection();
+    if (coarsePointer.matches && selection && !automatic) rememberSelection(selection);
+    observeSelection();
+    if (!selection && fabAnchor.value?.quote && !fabHoldsCapturedPassage() && !composer.composerHolds())
+      putAwayFab();
+    reflectSelection();
+  }
   function mount() {
     composer.mount();
     placement?.mount();
@@ -2694,28 +2717,7 @@ function createResponseSurface({
     });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
-    document.addEventListener("selectionchange", () => {
-      const automatic = programmaticSelection(getSelection());
-      if (primaryPointerPressed && selectionPressIntent?.()) {
-        rememberPointerSelection();
-        if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
-          rememberSelection();
-        reflectSelection();
-        return;
-      }
-      if (takesLetters(focused())) {
-        offerSelection(null);
-        return;
-      }
-      if (actionPress || targetActivation) return;
-      const selection = pageSelection();
-      if (coarsePointer.matches && selection && !automatic)
-        rememberSelection(selection);
-      observeSelection();
-      if (!selection && fabAnchor.value?.quote && !fabHoldsCapturedPassage() && !composer.composerHolds())
-        putAwayFab();
-      reflectSelection();
-    });
+    document.addEventListener("selectionchange", selectionChanged);
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;
       const selectedOnPage = pointerSelecting && selectionPressIntent?.();

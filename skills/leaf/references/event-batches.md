@@ -65,7 +65,7 @@ Events keep their stored fields and log order, without the browser's retry key
   turn's final message where its `writer` is `"turn"`; `parent` names the message it
   threads under and `responds` the exact input it answers. A `kind: "markup"` answer is the
   page revision its `handling` names, and a reply does not replace it. Until the
-  answer is written, `leaf status idle` refuses, and the Stop hook holds the turn
+  answer is written, `leaf page close` refuses, and the Stop hook holds the turn
   open unless the turn started the update (`references/conversation-loop.md`,
   "Long-running work"). Events with no `answer` owe nothing: a page action outside
   any obligation, a pick still waiting for the user's Done, or a message followed by a
@@ -99,5 +99,6 @@ to follow. Receipt commands refuse input that no longer belongs to this session.
 ## After the batch
 
 Write every answer still owed, then return to your harness's wait loop. Run
-`leaf status … waiting` once everything is answered and the next step is the
-user's; while you keep working, leave the update or to-do started instead.
+`leaf page open <page>` to put down current starts and leave feedback open.
+When you need an answer, send a thread message with `--obligation`; page availability
+creates no obligation. While you keep working, leave the update or to-do started.

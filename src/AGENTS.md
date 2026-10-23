@@ -55,7 +55,7 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
   and Stop hooks as a session's transport, and harness declarations;
 - `reconnect`: current reconnect advice for retained pages;
 - `codex_state`, `codex`, `codex_adapter`: Codex delivery eligibility and records, App
-  Server reply lifecycles, and the detached adapter behind `leaf codex start`;
+  Server reply lifecycles, and the detached adapter behind `leaf page claim`;
 - `session_runtime`: the immutable installation selected to own a developer session's delivery;
 - `inference`: tool-free structured model requests through the host login;
 - `llm`: widget inference request validation, concurrency and claim-based dispatch;
@@ -141,3 +141,9 @@ Each boundary shared across modules or runtimes has its reference beside the cod
 
 `../skills/leaf/references/packages.md` owns the public package contract, and
 `../browser/AGENTS.md` the browser's side.
+
+A reference states what code on one side of its boundary may rely on from the other:
+each shared record or event and what it means, who may write it, when a reader stops
+believing it, and the orderings a change elsewhere must keep. How one module provides
+that, such as its functions, constants, retries and the races it closes, goes in that
+module's header.

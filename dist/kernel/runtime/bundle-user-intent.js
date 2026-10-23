@@ -4569,6 +4569,8 @@ function walkPosition() {
     boundary: walking.boundary,
     kind: walking.key,
     target: position.target,
+    position: position.position,
+    total: position.total,
     text: walkPositionLabel(
       walking.noun,
       position.position,
@@ -4826,7 +4828,7 @@ function sendReply(draftCtx, key, text, owns, actions) {
   );
   return sent && { flight };
 }
-function wireReply(key, row, input, send, wireInput, { hint, accessibleName, busy }) {
+function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessibleName, busy }) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
@@ -4841,6 +4843,7 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
     hint,
+    hintAside,
     accessibleName,
     busy,
     sends: "send",
@@ -4939,6 +4942,7 @@ function createReplyView(key, commands2, redraw, {
   },
   editLast = null,
   hint = "Reply",
+  hintAside = () => "",
   accessibleName = "Reply",
   busy = () => false,
   sent = null
@@ -4951,6 +4955,7 @@ function createReplyView(key, commands2, redraw, {
     row.append(input, send);
     return wireReply(key, row, input, send, commands2.wireInput, {
       hint,
+      hintAside,
       accessibleName,
       busy
     });

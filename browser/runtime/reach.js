@@ -17,7 +17,23 @@ import { keeps } from "./keeps.js";
 // Style discovery measures only these surfaces. Stop eligibility still checks the
 // rendered controls inside them. Reading-region registration opts its body in.
 const SCROLL_SURFACE = ".scroll";
-const seenClasses = new WeakMap();
+const seenDeclarations = new WeakMap();
+const scrollAncestors = new WeakSet();
+const styleRoots = new WeakSet();
+const ancestorStyles = new MutationObserver((records) => {
+  for (const { target } of records) if (scrollAncestors.has(target)) reread(target);
+});
+function watchAncestorStyles(scope) {
+  const tree = scope.getRootNode();
+  const root = tree.nodeType === Node.DOCUMENT_NODE ? tree.documentElement : tree;
+  if (!root || styleRoots.has(root) || !root.isConnected) return;
+  styleRoots.add(root);
+  ancestorStyles.observe(root, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style", "dir"],
+  });
+}
 let watchingSurfaces = false;
 // until-found retains its own box, unlike its skipped descendants. That hidden
 // box cannot be inspected, so its apparent overflow earns no keyboard stop.
@@ -91,7 +107,7 @@ function returnStop(el, authored) {
 // computes to `auto` beside vertical scrolling, but the mark still requires measured
 // horizontal overflow. A board reached through its controls needs no container stop,
 // but still needs the cue when its columns are cut.
-const sideways = new Set();
+const sideways = new Map();
 // A reading region is the narrower vertical case. Ordinary vertical overflow is often
 // intentional and self-explanatory (a text box, disclosure, or the document itself),
 // so `reachScrollers` must not infer this mark from overflow-y. Reading-region owners
@@ -100,7 +116,7 @@ const sideways = new Set();
 // the reading after the user reaches the end.
 const downwards = new Map();
 const readingScrolled = (event) => paintReadingReach(event.currentTarget);
-const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
+const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget, true);
 export function reachReadingScroller(el, paintContinuation) {
   el.classList.toggle("scroll", true);
   downwards.set(el, paintContinuation);
@@ -163,12 +179,14 @@ export function reachScrollers(root) {
   paintReach();
   if (watchingSurfaces) return;
   watchingSurfaces = true;
-  watchArrivals(SCROLL_SURFACE, ["class"], {
+  watchArrivals(SCROLL_SURFACE, ["class", "style"], {
     arriveBatch(surfaces) {
       for (const el of surfaces) {
         const classes = el.getAttribute("class");
-        if (seenClasses.get(el) === classes) continue;
-        seenClasses.set(el, classes);
+        const style = el.getAttribute("style");
+        const previous = seenDeclarations.get(el);
+        if (previous?.classes === classes && previous?.style === style) continue;
+        seenDeclarations.set(el, { classes, style });
         reread(el);
       }
     },
@@ -183,6 +201,7 @@ const wait = (el) => {
 function sweep(root) {
   const scopes = [root];
   for (const scope of scopes) scopes.push(...shadowRootsIn(scope));
+  for (const scope of scopes) watchAncestorStyles(scope);
   const surfaces = scopes.flatMap((scope) => [
     ...(scope.nodeType === Node.ELEMENT_NODE && scope.matches(SCROLL_SURFACE)
       ? [scope]
@@ -192,7 +211,10 @@ function sweep(root) {
   const read = [];
   const containers = new Set();
   for (const el of surfaces) {
-    seenClasses.set(el, el.getAttribute("class"));
+    seenDeclarations.set(el, {
+      classes: el.getAttribute("class"),
+      style: el.getAttribute("style"),
+    });
     if (skipped(el)) {
       wait(el);
       continue;
@@ -204,9 +226,11 @@ function sweep(root) {
         overflowX: style.overflowX,
         overflowY: style.overflowY,
         position: style.position,
+        direction: style.direction,
       },
     ]);
     for (let node = el; node?.nodeType === Node.ELEMENT_NODE; node = upFrom(node)) {
+      scrollAncestors.add(node);
       if (containers.has(node)) break;
       containers.add(node);
     }
@@ -226,7 +250,7 @@ function sweep(root) {
 }
 
 function forgetSurface(el) {
-  seenClasses.delete(el);
+  seenDeclarations.delete(el);
   if (mayScroll.has(el)) {
     const authored = mayScroll.get(el);
     mayScroll.delete(el);
@@ -275,10 +299,12 @@ function classify(el, style) {
   }
   // A text box is out of the continuation marks for its own reason: it scrolls a
   // value its user is writing and already knows continues.
-  if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX) && !sideways.has(el)) {
-    sideways.add(el);
-    watchReach(el);
-    el.addEventListener("scroll", sidewaysScrolled, { passive: true });
+  if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX)) {
+    if (!sideways.has(el)) {
+      watchReach(el);
+      el.addEventListener("scroll", sidewaysScrolled, { passive: true });
+    }
+    sideways.set(el, style.direction);
   }
   // A box that already carries a stop of its own is somewhere the user can be put,
   // whoever put it there; this pass neither adds to it nor takes it away.
@@ -351,18 +377,18 @@ const reachSizes = sizeObserver(() => paintReach());
 // wherever the keyboard cannot reach something, and a fade drawn for sub-pixel rounding
 // is a promise of more with nothing behind it. scrollLeft follows the inline direction:
 // it starts at zero and becomes negative in a right-to-left scroller.
-function paintSidewaysReach(el) {
+function paintSidewaysReach(el, readStyle = false) {
   // An allocating owner can resize a pane before its image or table owner fits the
   // contents. Like vertical reading cues, read the completed layout for this script.
   afterScript(() => {
     if (!sideways.has(el) || unpainted(el)) return;
-    const style = getComputedStyle(el);
-    const scrolling =
-      userScrollport(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
+    const direction = readStyle ? getComputedStyle(el).direction : sideways.get(el);
+    if (readStyle) sideways.set(el, direction);
+    const scrolling = el.scrollWidth > el.clientWidth + 1;
     const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
     const raw = Math.abs(el.scrollLeft);
     const position = Math.min(maximum, Math.max(0, raw));
-    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
+    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? direction : null);
     el.toggleAttribute(
       PAGE_PAINT_ATTRIBUTE.moreBefore,
       scrolling && position > SCROLL_SLACK,
@@ -406,7 +432,7 @@ function paintReachNow() {
     if (overflows(el) && !holdsOwnStop(el)) lendStop(el);
     else returnStop(el, authored);
   }
-  for (const el of sideways) paintSidewaysReach(el);
+  for (const el of sideways.keys()) paintSidewaysReach(el);
   for (const el of downwards.keys()) paintReadingReach(el);
 }
 

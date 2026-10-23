@@ -156,12 +156,12 @@
          and pressing paint, keep their height, and it lies in the room the row, the
          head and a menu's rows already keep around their presses. Sideways a press is
          itself as wide as the floor, since a reach there would lie over its
-         neighbour's. The field's presses are its editor's, which sizes and places them
+         neighbour's. The editor's presses are its own, which it sizes and places
          itself (response.css). */
-      button:where(:not(.lf-fp-field *)) {
+      button:where(:not(.lf-fp-editors *)) {
         position: relative;
       }
-      button:where(:not(.lf-fp-field *))::after {
+      button:where(:not(.lf-fp-editors *))::after {
         content: "";
         position: absolute;
         inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
@@ -192,8 +192,12 @@
   /* One alignment for the whole row: everything in it, the field's presses
      included, stands on the row's foot and is a line tall (`--lf-fp-line`), so a field
      grown to several lines keeps them beside its last. The line and the row's padding
-     are the theme's, which reserves the row at the window's foot (`--lf-floating-row`). */
+     are the theme's, which reserves the row at the window's foot (`--lf-floating-row`).
+     A vendor control seated in the row takes the line through its own sizing token:
+     page search's box once kept the vendor's 38px, set by its type, and stood the row
+     taller than the comment field it took turns with. */
   .lf-fp-row {
+    --wa-form-control-height: var(--lf-fp-line);
     display: flex;
     align-items: flex-end;
     gap: 2px;
@@ -283,7 +287,6 @@
     outline: none;
     box-shadow: none;
     background: none;
-    min-height: var(--lf-fp-line);
   }
   .lf-fp-search-surface wa-input::part(input),
   .lf-fp-search {
@@ -332,6 +335,15 @@
     align-items: center;
     min-height: var(--lf-fp-line);
     gap: 0;
+  }
+  /* Search's steps are a line tall, as Send is in the editor's place, and as wide as
+     the pointer's floor, reaching it above and below as the row's presses do (above).
+     The icon action's own hit box, the floor both ways, stood the row 10px taller
+     under a finger. */
+  .lf-fp-actions .lf-icon-action {
+    --lf-icon-action-hit: var(--lf-fp-line);
+    width: max(var(--lf-fp-line), var(--aim-floor));
+    min-width: max(var(--lf-fp-line), var(--aim-floor));
   }
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open
@@ -421,6 +433,12 @@
     flex: 1;
     min-width: 0;
     align-self: center;
+  }
+  /* The box is a line tall at rest, as the field it stands in for. Its own resting
+     height is the pointer's floor, which stood the row 10px taller under a finger;
+     Send keeps its floor-sized box, standing past the field into the row's padding. */
+  .lf-fp-response > .lf-fab-bar {
+    --lf-response-height: var(--lf-fp-line);
   }
   .lf-floating-panel:not([data-open], [data-offers], [data-search])
     .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
@@ -564,7 +582,9 @@
     leaf-text[data-says="status"]::part(placeholder) {
     color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
-  .lf-fp-field .lf-compose-placeholder kbd {
+  /* The panel shows no key hints but the one that enters an open thread's reply, which
+     the empty field says as a margin card's reply box does (`fieldReading`). */
+  .lf-fp-field leaf-text:not([data-says="turn"]) .lf-compose-placeholder kbd {
     display: none;
   }
   /* The field's presses float in its foot's end corner, as an anchored comment box's

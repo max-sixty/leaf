@@ -304,9 +304,10 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     )
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert [(f.code, f.at, f.values["known"]) for f in findings] == [
-        ("unknown-word", "<lf-column>", ["ok", "warn", "danger"])
+    assert [(f.code, f.at, f.values["keyword"]) for f in findings] == [
+        ("attribute-schema", "<lf-column>", "enum")
     ]
+    assert "['ok', 'warn', 'danger']" in findings[0].values["reason"]
 
     # The list is the layer's, so a layer that adds one accepts it with no widget
     # touched — which is the point of $tones over an enum on each widget.

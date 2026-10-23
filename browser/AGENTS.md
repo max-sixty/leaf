@@ -82,6 +82,17 @@ representative desktop viewport.
   position of its ancestors or siblings, and typing may grow a field but never moves it. Check:
   `tests/shift_watch.js`, which the browser fixture runs on every test outside a
   module marked `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
+- **What takes turns in a place doesn't size it.** Where several modes share one seat,
+  as the comment field, page search, Threads' search, a thread's reply and the seated
+  comment box share the floating panel's field, the place sets the box from a theme
+  token and each occupant fills it. Only content grows it, such as typed words, or a
+  gesture that asks for room, such as More room. A label's words (`data-room`, below)
+  and a widget's first paint (`keeps-first-box`) are cases of the same rule. A
+  component that sizes itself from its own type or the pointer's floor, such as a
+  WebAwesome input or an icon action, takes the place's size through its own sizing
+  token, set where it is seated. Check: `test_whatever_the_field_holds_the_row_keeps_its_line`
+  compares the row with its token in each mode; that a place still contains its
+  occupant proves nothing, since a grown place always does.
 - **A runtime region whose contents rearrange inside it declares `data-lf-reflow`.**
   The message header declares `text`: its labels may rewrap, its controls stay put. A
   thread card's transcript declares `append`: it may grow at its end, by new messages or by a last

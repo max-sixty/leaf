@@ -764,7 +764,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
         return json.loads(output) if output else None
 
     def idle():
-        result = CliRunner().invoke(cli_model.cli, ["status", str(page), "idle"])
+        result = CliRunner().invoke(cli_model.cli, ["page", "close", str(page)])
         return {
             "exit": result.exit_code,
             "stdout": result.stdout,

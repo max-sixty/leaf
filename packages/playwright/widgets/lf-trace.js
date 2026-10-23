@@ -76,6 +76,9 @@ import {
   keepsHidden,
   el,
   focusDestination,
+  showNativeLayer,
+  closeNativeLayer,
+  isNativeLayer,
   holdFocus,
   html,
   iconTemplate,
@@ -280,6 +283,10 @@ customElements.define(
     #imageHost = createRef();
     #imageTools = createRef();
     #zoomLabel = createRef();
+    /** @type {import("lit/directives/ref.js").Ref<HTMLButtonElement>} */
+    #imageScale = createRef();
+    /** @type {import("lit/directives/ref.js").Ref<HTMLElement>} */
+    #imageScaleOptions = createRef();
     /** @type {import("lit/directives/ref.js").Ref<HTMLDetailsElement>} */
     #tree = createRef();
     #treeList = createRef();
@@ -1197,10 +1204,22 @@ customElements.define(
     }
     #imageZoom() {
       this.#drawInput();
+      const percent = `${Math.round((this.#picture?.imageData.ratio ?? 1) * 100)}%`;
+      const fitted = !this.#scopeView().image;
+      keepsText(this.#zoomLabel.value, fitted ? "Fit" : percent);
+      keeps(this.#imageScale.value, "title", fitted ? `Fit · ${percent}` : percent);
+      for (const button of this.#imageScaleOptions.value.querySelectorAll("button"))
+        keeps(
+          button,
+          "aria-pressed",
+          button.dataset.scale === "fit"
+            ? fitted
+            : !fitted && this.#picture?.imageData.ratio === 1,
+        );
       keepsText(
-        this.#zoomLabel.value,
+        this.#imageTools.value.querySelector(".lf-trace-image-status"),
         this.#picture?.viewed
-          ? `${Math.round(this.#picture.imageData.ratio * 100)}%`
+          ? ""
           : this.#pendingPicture
             ? "Loading capture…"
             : this.#pictureId
@@ -1977,7 +1996,7 @@ customElements.define(
                       ${iconTemplate("play", "lf-action-icon")}${iconTemplate(
                         "pause",
                         "lf-action-icon",
-                      )}<span>${playLabel}</span>
+                      )}
                     </button>
                     ${transport(
                       this.#previous,
@@ -2052,8 +2071,6 @@ customElements.define(
                 ${[
                   ["−", "Zoom image out", () => this.#picture?.zoom(-0.25)],
                   ["+", "Zoom image in", () => this.#picture?.zoom(0.25)],
-                  ["Fit image", null, () => this.#fitPicture()],
-                  ["Actual size", null, () => this.#picture?.zoomTo(1)],
                 ].map(
                   ([text, label, run]) =>
                     html`<button
@@ -2065,7 +2082,82 @@ customElements.define(
                       ${text}
                     </button>`,
                 )}
-                <span class="lf-trace-image-zoom" ${ref(this.#zoomLabel)}></span>
+                <button
+                  ${offered(
+                    "lf-btn lf-quiet-action lf-compact-control lf-trace-image-scale",
+                  )}
+                  ${ref(this.#imageScale)}
+                  aria-label="Image scale"
+                  aria-controls=${`${this.id}-image-scale-options`}
+                  popovertarget=${`${this.id}-image-scale-options`}
+                  aria-expanded="false"
+                  ?disabled=${!this.#picture?.viewed || q}
+                  @click=${(event) => {
+                    event.preventDefault();
+                    const options = this.#imageScaleOptions.value;
+                    if (isNativeLayer(options)) closeNativeLayer(options);
+                    else {
+                      focusDestination(this.#imageScale.value, "press");
+                      showNativeLayer(options, { source: this.#imageScale.value });
+                      focusDestination(
+                        options.querySelector('[aria-pressed="true"]') ??
+                          options.querySelector("button"),
+                        "move",
+                      );
+                    }
+                  }}
+                >
+                  <span ${ref(this.#zoomLabel)}></span>${iconTemplate(
+                    "down",
+                    "lf-action-icon",
+                  )}
+                </button>
+                <div
+                  id=${`${this.id}-image-scale-options`}
+                  class="lf-trace-scale-options"
+                  popover="auto"
+                  role="group"
+                  aria-label="Image scale"
+                  ${ref(this.#imageScaleOptions)}
+                  @toggle=${() => {
+                    keeps(
+                      this.#imageScale.value,
+                      "aria-expanded",
+                      isNativeLayer(this.#imageScaleOptions.value),
+                    );
+                    paintKeys();
+                  }}
+                >
+                  ${[
+                    {
+                      scale: "fit",
+                      text: "Fit",
+                      label: "Fit image",
+                      run: () => this.#fitPicture(),
+                    },
+                    {
+                      scale: "actual",
+                      text: "100%",
+                      label: "Actual size",
+                      run: () => this.#picture?.zoomTo(1),
+                    },
+                  ].map(
+                    ({ scale, text, label, run }) =>
+                      html`<button
+                        ${offered("lf-btn lf-quiet-action lf-compact-control")}
+                        data-scale=${scale}
+                        aria-label=${label}
+                        @click=${() => {
+                          run();
+                          closeNativeLayer(this.#imageScaleOptions.value);
+                          focusDestination(this.#imageScale.value, "move");
+                        }}
+                      >
+                        ${text}
+                      </button>`,
+                  )}
+                </div>
+                <span class="lf-trace-image-status"></span>
               </div>
             </div>
             <div class="lf-trace-capture-footer" ?hidden=${!trace}>

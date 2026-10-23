@@ -495,6 +495,31 @@ def stamp_states(registry: dict) -> dict:
     return registry
 
 
+# A word a widget declares that its layer has to know, as two things: the x- key
+# naming the attribute that carries it, and the layer-wide fact listing the words the
+# layer has. A misspelt language colors nothing and a misspelt tone paints nothing,
+# and each renders as a page that otherwise looks perfectly well, so the attribute's
+# schema has to refuse any other word. The list is the layer's ($languages, $tones)
+# rather than any widget's, and which attribute carries the word is the entry's to
+# say, so a new tag that takes a tone needs only its x-tone. A third such word is a
+# row here.
+DECLARED_WORDS = (("x-language", "$languages"), ("x-tone", "$tones"))
+
+
+def stamp_words(registry: dict) -> dict:
+    """Write into a validated vocabulary each declared attribute's words
+    (`DECLARED_WORDS`) as its schema's `enum`, so the attribute's schema is complete:
+    validation refuses any other word, and an author reading the entry sees which it
+    may write.
+
+    Each composition stamps it (`registry.layer.stamp_composition`)."""
+    for key, fact in DECLARED_WORDS:
+        for tag, entry in registry.items():
+            if is_element_name(tag) and (attr := entry.get(key)):
+                entry["properties"][attr]["enum"] = list(registry[fact]["names"])
+    return registry
+
+
 def stamp_decisions(registry: dict) -> dict:
     """Write `$decisions` into a validated vocabulary: owner tag → {`verb`, its deciding
     x-state verb; `retires`, `retirement_slots`' outcome → member tags}, for every tag

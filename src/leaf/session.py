@@ -1,4 +1,4 @@
-"""Agent status and the `leaf wait` watch.
+"""Page availability and the `leaf wait` watch.
 
 A watch discovers its pages before loading delivery or page projections, and
 loads the HTTP server only to revive a dead one. Status writes use those same
@@ -53,7 +53,7 @@ STOP_HOOK_S = 20
 
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
-    """Declare the page waiting on its user, which puts down every start that stands
+    """Keep the page open for feedback, which puts down every start that stands
     (`todos.item_starts`), and return the declaration's record, with the updates
     still owed an answer, which the page goes on showing over it."""
     from .revisioning import activate_source
@@ -96,7 +96,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             )
             raise Refused(
                 f"{pending} event{'s' if pending != 1 else ''} nobody has picked up, "
-                f"so the page cannot idle yet. {remedy}"
+                f"so the page cannot close yet. {remedy}"
             )
         owed = blocking_obligations(
             state,
@@ -105,7 +105,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         )
         if owed:
             raise Refused(
-                f"{unanswered(owed, page_dir, 'acknowledged')}; answer before idling. "
+                f"{unanswered(owed, page_dir, 'acknowledged')}; answer before closing. "
                 + ANSWER_INSTRUCTION
             )
         # A to-do is work the agent still owes, which closing the page would leave
@@ -114,7 +114,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             named = "; ".join(f"{todo['id']} ({todo['title']})" for todo in todos)
             raise Refused(
                 f"{len(todos)} open to-do{'s' if len(todos) != 1 else ''}: {named}. "
-                "End each before idling with "
+                "End each before closing with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
                 '`dropped "<why>"`.'
             )

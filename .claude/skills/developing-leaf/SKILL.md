@@ -214,8 +214,7 @@ A plain preview has no claim, so presses on it reach only the page's log; use it
 screenshots and browser checks. `--user` claims the page so the user's comments reach
 this session, which also makes every click this session drives there arrive as an
 unanswered update. So drive only plain previews, and start a `--user` preview only from
-the session the user talks to. Don't idle a preview to quiet the loop; `idle` closes the
-page in the browser.
+the session the user talks to. Don't close a preview to quiet the loop; `page close` closes it in the browser.
 
 ### Temporary review resources
 

@@ -11,7 +11,7 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
 
 1. Check that `send_message_to_thread` is available. If it isn't, finish with that
    reason and don't run `leaf wait`.
-2. Run `leaf page claim <page>`, then `leaf wait <page>` in unified exec. Keep the
+2. Run `leaf page claim <page> --manual-delivery`, then `leaf wait <page>` in unified exec. Keep the
    command's session id and poll it with empty `write_stdin` calls and long yields,
    keeping the watcher's turn running while the page is live.
 3. When the complete output arrives, send one background follow-up to the page task,

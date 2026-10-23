@@ -1521,9 +1521,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
     to the reader."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
-    declared = CliRunner().invoke(
-        cli_model.cli, ["status", str(serve.page_dir), "waiting", "Pick a shard."]
-    )
+    declared = CliRunner().invoke(cli_model.cli, ["page", "open", str(serve.page_dir)])
     assert declared.exit_code == 0, declared.output
     claim = service_model.page_claim(serve.page_dir)
     lease = leases_model.take_lease(
@@ -1533,9 +1531,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
         # The leaf names the agent's status.
-        assert "Pick a shard." in page.locator(".lf-fp-leaf").get_attribute(
-            "aria-label"
-        )
+        assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
 

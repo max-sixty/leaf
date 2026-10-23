@@ -5573,7 +5573,7 @@ def test_a_different_key_does_not_replace_a_page_cookie(page_dir):
 
 def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server):
     """A claimed page whose agent has declared nothing yet, such as a copy served
-    before any `leaf status`, answers `/api/state` as a page waiting on its
+    before any `leaf page open`, answers `/api/state` as a page waiting on its
     user."""
     publish(page_dir)
     service_model.claim_page(page_dir)
@@ -5971,12 +5971,9 @@ def test_test_teardown_ends_detached_delivery_before_removing_state(
     its detached adapter releases its leases before temporary state disappears.
     """
     page = codex_claimed_page
-    program = Path(codex_queue["PATH"].split(os.pathsep)[0]) / "codex"
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
-        shlex.join(
-            [*LEAF_COMMAND, "codex", "start", str(page), "--codex-path", str(program)]
-        ),
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)]),
         codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
         finished=finished,
         stdout=subprocess.PIPE,

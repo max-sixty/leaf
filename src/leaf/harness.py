@@ -410,37 +410,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return "Leaf's hook puts them in your context at your next turn."
 
     def live_turn(self) -> dict | None:
-        """The session's live status in Claude Code's session registry
-        (`claude_code_session_records`), from the newest record whose process
-        still runs: `waiting` while a turn holds a dialog open (a permission
-        prompt, a question), `idle` once no turn runs (`shell` too, which is idle
-        with a background command running), and `busy` otherwise.
-
-        Its `idle` is the one reading of a turn's end that an interrupt moves:
-        Escape ends a turn without running the Stop hook, and the record turns
-        `idle` at that moment (measured at Claude Code 2.1.283). `busy` is weaker:
-        a background job's record stays `busy` across turn endings while its
-        background work runs, so it does not prove a turn is running; after a turn
-        ends, it says work continues (`activity.Turn.background`). The record
-        belongs to the worker hosting the session's current sitting, so a
-        background job whose worker has retired has none."""
-        stamped = [
-            record
-            for record in claude_code_session_records(self.session)
-            if isinstance(record.get("statusUpdatedAt"), int | float)
-            and isinstance(record.get("pid"), int)
-            and pid_alive(record["pid"])
-        ]
-        record = max(stamped, key=lambda item: item["statusUpdatedAt"], default={})
-        state = {"busy": "busy", "waiting": "waiting", "idle": "idle", "shell": "idle"}
-        if record.get("status") not in state:
-            return None
-        return {
-            "state": state[record["status"]],
-            "since": datetime.fromtimestamp(record["statusUpdatedAt"] / 1000)
-            .astimezone()
-            .isoformat(),
-        }
+        """The session's live status (`claude_code_live_turn`) in the registry
+        listing (`claude_code_session_records`)."""
+        return claude_code_live_turn(claude_code_session_records(self.session))
 
     def inference_generator(self) -> Callable[..., dict]:
         from leaf.inference import claude_code_generate
@@ -577,7 +549,7 @@ class CodexHarness(EnvironmentHarness):
         if listening:
             return f"Poll {_POLL_UNIFIED_EXEC}."
         return (
-            f"Start `leaf codex start {page_dir}` so later updates reach this "
+            f"Start `leaf page claim {page_dir}` so later updates reach this "
             "task in new turns."
         )
 
@@ -647,9 +619,9 @@ class CodexHarness(EnvironmentHarness):
                 f"{_POLL_UNIFIED_EXEC}."
             )
         return (
-            f"no delivery adapter. Start `leaf codex start {page_dir}` so this "
+            f"no delivery adapter. Start `leaf page claim {page_dir}` so this "
             "turn can finish and later updates start new turns; or run `leaf "
-            "status <page> idle` if the page is done."
+            "page close <page>` if the page is done."
         )
 
 
@@ -887,24 +859,55 @@ def claude_code_sessions() -> Path:
     return config / "sessions"
 
 
+def claude_code_live_turn(records: list[dict]) -> dict | None:
+    """A session's live status from its registry `records`, taken from the newest
+    record whose process still runs: `waiting` while a turn holds a dialog open (a
+    permission prompt, a question), `idle` once no turn runs (`shell` too, which
+    is idle with a background command running), and `busy` otherwise.
+
+    Its `idle` is the one reading of a turn's end that an interrupt moves: Escape
+    ends a turn without running the Stop hook, and the record turns `idle` at that
+    moment (measured at Claude Code 2.1.283). `busy` is weaker: a background job's
+    record stays `busy` across turn endings while its background work runs, so it
+    does not prove a turn is running; after a turn ends, it says work continues
+    (`activity.Turn.background`). The record belongs to the worker hosting the
+    session's current sitting, so a background job whose worker has retired has
+    none."""
+    stamped = [
+        record
+        for record in records
+        if isinstance(record.get("statusUpdatedAt"), int | float)
+        and isinstance(record.get("pid"), int)
+        and pid_alive(record["pid"])
+    ]
+    record = max(stamped, key=lambda item: item["statusUpdatedAt"], default={})
+    state = {"busy": "busy", "waiting": "waiting", "idle": "idle", "shell": "idle"}
+    if record.get("status") not in state:
+        return None
+    return {
+        "state": state[record["status"]],
+        "since": datetime.fromtimestamp(record["statusUpdatedAt"] / 1000)
+        .astimezone()
+        .isoformat(),
+    }
+
+
 def claude_code_session_records(session_id: str) -> list[dict]:
     """The registry records Claude Code publishes for a session, found by id.
 
-    Each session writes `sessions/<pid>.json` in its config directory, carrying
-    `sessionId`, `pid`, its live `status` and when it last changed
-    (`statusUpdatedAt`, epoch milliseconds), and `messagingSocketPath`. It is
-    found by session id each time rather than written into the claim, because a
-    background job's worker pid, and the record with it, changes over the job's
-    life; a worker that died without removing its record leaves a second one.
-    Each record is another program's live file, and a session can exit between
-    listing and reading it, so a file that vanished or was caught mid-write is
-    passed over.
+    A session is found by id each time rather than written into the claim,
+    because a background job's worker pid, and the record with it, changes over
+    the job's life; a worker that died without removing its record leaves a
+    second one.
 
-    Every state read asks this of each claimed page, so a listing is reused for
-    at most `REGISTRY_READ_S` while the directory's own stamp holds, well inside the
-    presence cache's interval: a record added, removed or atomically replaced
-    moves the stamp at once. The listing is the machine's rather than a page's, so
-    the process keeps the last one, replaced whole."""
+    Every state read asks this of each claimed page, so the registry listing
+    (`claude_code_registry`) is reused for at most `REGISTRY_READ_S` while the
+    directory's own stamp holds, well inside the presence cache's interval. A
+    record added or removed moves the stamp at once. Claude Code rewrites a
+    record's status in place, which leaves the stamp alone (measured at 2.1.309),
+    so a status read here can be up to `REGISTRY_READ_S` old. The listing is the
+    machine's rather than a page's, so the process keeps the last one, replaced
+    whole."""
     sessions = claude_code_sessions()
     try:
         stamp = sessions.stat().st_mtime_ns
@@ -912,7 +915,7 @@ def claude_code_session_records(session_id: str) -> list[dict]:
         return []
     records = _registry_listing.get(
         (sessions, stamp, time.monotonic() // REGISTRY_READ_S),
-        lambda: _registry_records(sessions),
+        claude_code_registry,
     )
     return [record for record in records if record.get("sessionId") == session_id]
 
@@ -922,9 +925,17 @@ REGISTRY_READ_S = 1.0
 _registry_listing = Slot()
 
 
-def _registry_records(sessions: Path) -> list[dict]:
+def claude_code_registry() -> list[dict]:
+    """Every record in Claude Code's session registry, read now.
+
+    Each session writes `sessions/<pid>.json` in its config directory, carrying
+    `sessionId`, `pid`, its live `status` and when it last changed
+    (`statusUpdatedAt`, epoch milliseconds), and `messagingSocketPath`. Each
+    record is another program's live file, and a session can exit between
+    listing and reading it, so a file that vanished or was caught mid-write is
+    passed over."""
     records = []
-    for record_path in sessions.glob("*.json"):
+    for record_path in claude_code_sessions().glob("*.json"):
         try:
             record = json.loads(record_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):

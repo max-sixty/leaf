@@ -11,10 +11,11 @@
       controls.setAttribute("aria-label", host.getAttribute("aria-label"));
       const play = offer("button", "lf-btn lf-motion-play");
       const room = offer("span", "");
-      room.dataset.lfRoom = "Play\nPause\nReplay\nShow end";
+      room.dataset.lfRoom = "Play\nPause\nShow end";
       const playLabel = offer("span", "", "Play");
       room.append(playLabel);
       play.append(room);
+      const replay = offer("button", "lf-btn lf-motion-replay", "Replay");
       const time = offer("input", "lf-motion-time", null, "range");
       time.name = "time";
       time.min = "0";
@@ -38,9 +39,12 @@
       }
       speed.value = String(saved.rate);
       speedLabel.append(speed);
-      controls.append(play, time, clock, speedLabel);
-      host.append(controls);
-      return { controls, play, playLabel, time, clock, speed };
+      controls.append(replay, play, time, clock, speedLabel);
+      const body = document.createElement("div");
+      body.className = "lf-motion-body";
+      body.append(...host.childNodes);
+      host.append(controls, body);
+      return { controls, replay, play, playLabel, time, clock, speed };
     }
   );
 })();

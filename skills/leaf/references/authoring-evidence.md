@@ -141,7 +141,9 @@ instructions give the import command:
 leaf page instructions <page> --contract playwright-trace | jq -er '.producer'
 ```
 
-Give `<video>` and `<audio>` `controls` and a label, and give a video a `poster`. Leaf
+Give `<video>` and `<audio>` `controls` and a label, and give a video a `poster`.
+For recordings compared inside `lf-motion`, use its shared transport as the motion
+package's author instructions describe. Leaf
 accepts MP4 and WebM video and MP3, M4A, Ogg and WAV audio. An export embeds each
 recording whole, a third larger, so trim recordings to what the reader needs.
 

@@ -12,8 +12,8 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const assets = "skills/leaf/assets";
-const packages = "skills/leaf/packages";
+const assets = "browser";
+const packages = "packages";
 
 export async function styleOutputs() {
   const entries = [

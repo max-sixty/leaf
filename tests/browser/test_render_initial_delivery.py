@@ -5,13 +5,14 @@ from threading import Event
 
 import pytest
 from interact_support import running_http_server
+from playwright.sync_api import expect
+from render_cases_interaction import live_url
+from render_harness import displayed, leaf_page, open_page
+
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.revision_artifact import Resource
 from leaf.revision_delivery import Delivery, compose_document
-from playwright.sync_api import expect
-from render_cases_interaction import live_url
-from render_harness import displayed, leaf_page, open_page
 
 
 def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, serve):
@@ -90,7 +91,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
     so its run holds delivery to writing none.
     """
     browser = request.getfixturevalue(engine)
-    assets = compiled_installation / "skills/leaf/assets"
+    assets = compiled_installation / "browser"
     host_source = (
         '<lf-initial-outer id="outer"><aside data-lf-exhibit="">'
         '<lf-initial-inner id="inner"><p>Original nested prose</p>'
@@ -124,13 +125,9 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             "/" + path.relative_to(root).as_posix(): Resource(
                 path.read_bytes(), "application/javascript"
             )
-            for root in (assets, compiled_installation / "skills/leaf/kernel")
+            for root in (assets, compiled_installation / "dist/kernel")
             for path in root.rglob("*.js")
         },
-        "/vendor/initial-dependencies.json": Resource(
-            (assets / "vendor/initial-dependencies.json").read_bytes(),
-            "application/json",
-        ),
         "/leaf.js": Resource(
             b"""
                 import {initialRender} from '/runtime/widget-api.js';
@@ -142,6 +139,9 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             "application/javascript",
         ),
         "/vendor/initial.js": Resource(producer, "application/javascript"),
+        "/vendor/initial-dependencies.json": Resource(
+            b'{"/vendor/initial.js": []}', "application/json"
+        ),
         **{
             path: Resource(b"", "text/css")
             for path in (

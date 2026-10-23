@@ -7,6 +7,7 @@ import os
 
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, check
+
 from leaf import cli as cli_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model

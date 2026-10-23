@@ -12,11 +12,6 @@ from interact_support import (
     append_carried_log_record,
     record_claim,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import schema as schema_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
-from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -90,6 +85,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import schema as schema_model
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf.render_gate.scheme import console_finding
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -846,7 +846,7 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
     assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
-    shot.locator('.lf-shotcap[data-lf-state="after"]').click()
+    shot.get_by_role("button", name="Pair", exact=True).click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
 

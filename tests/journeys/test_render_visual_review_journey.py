@@ -4,11 +4,6 @@ import json
 import shutil
 
 import pytest
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf import hosting as hosting_model
-from leaf import media as media_model
 from playwright.sync_api import expect
 from render_cases_navigation import source_revision
 from render_harness import (
@@ -24,6 +19,12 @@ from render_harness import (
     told,
     undo,
 )
+
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import exporting as exporting_model
+from leaf import hosting as hosting_model
+from leaf import media as media_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -224,7 +225,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert first_images.evaluate_all(
         "images => images.every(image => image.complete && image.naturalWidth > 0)"
     )
-    details_button = first.get_by_role("button", name="More inspection")
+    details_button = first.get_by_role("button", name="Capture details")
     go_to(user, details_button)
     expect(first.locator(".lf-vr-details")).to_be_visible()
     user.keyboard.press("Escape")
@@ -343,7 +344,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("Escape")
     user.keyboard.press("Escape")
     assert user.evaluate("() => document.activeElement === document.body")
-    compare = second.get_by_role("button", name="Before & after")
+    compare = second.get_by_role("button", name="Pair", exact=True)
     go_to(user, compare)
     assert_keyboard_focus(user, compare)
     corrected = shifted | {

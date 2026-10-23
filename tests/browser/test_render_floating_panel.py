@@ -203,7 +203,7 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     page.locator(".lf-fp-threads").click()
     inventory = page.locator(".lf-fp-view[data-view=threads]")
     expect(inventory).to_be_visible()
-    expect(page.locator(".lf-fp-field")).to_have_attribute(
+    expect(page.locator(".lf-fp-editors")).to_have_attribute(
         "aria-keyshortcuts", "Escape"
     )
     expect(page.locator(".lf-fp-opened")).to_have_attribute("aria-keyshortcuts", "/")
@@ -214,7 +214,7 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)
     expect(page.locator(".lf-fp-leaf")).not_to_be_focused()
-    expect(page.locator(".lf-fp-field")).not_to_have_attribute(
+    expect(page.locator(".lf-fp-editors")).not_to_have_attribute(
         "aria-keyshortcuts", "Escape"
     )
 

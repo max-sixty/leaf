@@ -432,7 +432,7 @@ export function createFloatingPanel({
   }, [row]);
   declareOccluder(opened);
 
-  const leaf = el("button", "lf-fp-leaf");
+  const leaf = el("button", "lf-fp-face lf-fp-leaf");
   leaf.type = "button";
   leaf.setAttribute("aria-haspopup", "menu");
   leaf.setAttribute("aria-controls", menu.id);
@@ -456,7 +456,7 @@ export function createFloatingPanel({
   // press. The user chose this on 15 October over the panel widening by itself at the
   // third line, which re-wraps every line under the caret; no composer they compared
   // widens on its own (Open WebUI and Zulip offer the same press once text is long).
-  const expand = el("button", "lf-fp-expand");
+  const expand = el("button", "lf-fp-face lf-fp-expand");
   expand.type = "button";
   let expanded = false;
   // A pointer's press leaves the caret in the words, as the microphone's does.
@@ -563,7 +563,7 @@ export function createFloatingPanel({
   let query = "";
   let searching = false;
   let pageSearch = null;
-  const threadSearchInput = el("input", "lf-fp-search");
+  const threadSearchInput = el("input", "lf-fp-face lf-fp-search");
   searchSurface.prepend(threadSearchInput);
   threadSearchInput.type = "search";
   threadSearchInput.name = "thread-search";
@@ -709,7 +709,7 @@ export function createFloatingPanel({
     if (general) return general;
     const input = textField();
     input.name = "comment";
-    const send = el("button", "lf-fp-send");
+    const send = el("button", "lf-fp-face lf-fp-send");
     send.type = "button";
     const box = el("div", "lf-fp-box");
     box.append(input, send);
@@ -1787,7 +1787,7 @@ export function createFloatingPanel({
       role=${role ?? nothing}
       data-row=${row ?? nothing}
       title=${title ?? nothing}
-      class="lf-fp-item"
+      class="lf-fp-face lf-fp-item"
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
       ?data-opens=${opens}
@@ -1882,7 +1882,7 @@ export function createFloatingPanel({
       <button
         type="button"
         role="menuitem"
-        class="lf-fp-item lf-fp-menu-back"
+        class="lf-fp-face lf-fp-item lf-fp-menu-back"
         aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
         @click=${() => showMenuAt(null)}
       >
@@ -1917,9 +1917,15 @@ export function createFloatingPanel({
     const explains = publication
       ? html`${said}${adds ? " " : nothing}${publication.copy}${
             publication.examplesUrl
-              ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> `
+              ? html`<a class="lf-fp-face" href=${publication.examplesUrl}
+                  >${publication.examples}</a
+                > `
               : nothing
-          }<a href=${publication.installUrl} target="_blank" rel="noopener"
+          }<a
+            class="lf-fp-face"
+            href=${publication.installUrl}
+            target="_blank"
+            rel="noopener"
             >${publication.install}</a
           >`
       : said;
@@ -2034,7 +2040,7 @@ export function createFloatingPanel({
       <label class="lf-fp-copy-label" for=${field}>${capital(entry.label)}</label>
       <textarea
         id=${field}
-        class="lf-fp-copy-text"
+        class="lf-fp-face lf-fp-copy-text"
         readonly
         wrap="off"
         spellcheck="false"
@@ -2083,7 +2089,7 @@ export function createFloatingPanel({
                 ? html`<button
                     type="button"
                     role="menuitem"
-                    class="lf-fp-quiet lf-fp-compare"
+                    class="lf-fp-face lf-fp-quiet lf-fp-compare"
                     aria-pressed=${String(
                       selection.on && selection.base === entry.version,
                     )}
@@ -2158,7 +2164,7 @@ export function createFloatingPanel({
           <button
             type="button"
             role="menuitem"
-            class="lf-fp-quiet"
+            class="lf-fp-face lf-fp-quiet"
             ?disabled=${!live.has(error.id)}
             aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
             @click=${() => dismiss(error.id)}
@@ -2217,7 +2223,7 @@ export function createFloatingPanel({
               (thread) =>
                 html`<button
                   type="button"
-                  class="lf-fp-thread"
+                  class="lf-fp-face lf-fp-thread"
                   data-key=${thread.key}
                   ?data-unread=${hasUnread(thread)}
                   ?data-resolved=${thread.resolved}
@@ -2421,7 +2427,7 @@ export function createFloatingPanel({
         quote.localReading
           ? html`<button
               type="button"
-              class="lf-thread-disclosure lf-quote-expand lf-disclosure-marker"
+              class="lf-fp-face lf-thread-disclosure lf-quote-expand lf-disclosure-marker"
               aria-label="Full quote"
               hidden
               aria-expanded=${String(quoteExpanded)}
@@ -2462,7 +2468,11 @@ export function createFloatingPanel({
       ${
         waiting?.key === key
           ? html`<div class="lf-fp-foot">
-              <button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
+              <button
+                type="button"
+                class="lf-fp-face lf-fp-new-reply"
+                @click=${showAnswer}
+              >
                 ${iconTemplate("down", "lf-action-icon")}${waiting.label}
               </button>
             </div>`
@@ -2599,7 +2609,7 @@ export function createFloatingPanel({
         step.owner === "user" && step.state === "open"
           ? html`<button
               type="button"
-              class="lf-fp-plan-tag"
+              class="lf-fp-face lf-fp-plan-tag"
               @click=${() => {
                 chooseQueueTab("you");
                 paint();
@@ -2682,7 +2692,7 @@ export function createFloatingPanel({
     const discuss = thread
       ? html`<button
           type="button"
-          class="lf-fp-quiet"
+          class="lf-fp-face lf-fp-quiet"
           @click=${() => open({ view: "thread", thread: thread.key })}
         >
           Discuss
@@ -2696,7 +2706,7 @@ export function createFloatingPanel({
     const show = arrivesAt(item)
       ? html`<button
           type="button"
-          class="lf-fp-quiet lf-fp-show"
+          class="lf-fp-face lf-fp-quiet lf-fp-show"
           @click=${() => {
             const route = trail.value.at(-1);
             void queueActions.open(queueItemKey(item)).then((arrived) => {
@@ -2725,7 +2735,7 @@ export function createFloatingPanel({
           gesture
             ? html`<button
                 type="button"
-                class="lf-fp-quiet"
+                class="lf-fp-face lf-fp-quiet"
                 @click=${() => withdraw(gesture)}
               >
                 Undo
@@ -2737,7 +2747,7 @@ export function createFloatingPanel({
         (choice) =>
           html`<button
             type="button"
-            class="lf-fp-answer"
+            class="lf-fp-face lf-fp-answer"
             aria-pressed=${String(choice.chosen)}
             @click=${() => {
               choice.press();
@@ -2750,7 +2760,7 @@ export function createFloatingPanel({
     else if (item.offers?.done)
       answers = html`<button
         type="button"
-        class="lf-fp-answer"
+        class="lf-fp-face lf-fp-answer"
         @click=${() => queueActions.done(queueItemKey(item))}
       >
         Done
@@ -2759,7 +2769,7 @@ export function createFloatingPanel({
       discussHere = false;
       answers = html`<button
         type="button"
-        class="lf-fp-answer"
+        class="lf-fp-face lf-fp-answer"
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
         Reply
@@ -2886,7 +2896,7 @@ export function createFloatingPanel({
           return row.self
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a
-                class="lf-fp-page"
+                class="lf-fp-face lf-fp-page"
                 data-key=${row.key}
                 href=${row.href}
                 target="_blank"
@@ -2912,6 +2922,7 @@ export function createFloatingPanel({
         const counted = count(name);
         return html`<button
           type="button"
+          class="lf-fp-face"
           aria-pressed=${String(current === name)}
           @click=${() => {
             refit();
@@ -2958,7 +2969,7 @@ export function createFloatingPanel({
           parent
             ? html`<button
                 type="button"
-                class="lf-fp-back"
+                class="lf-fp-face lf-fp-back"
                 aria-label=${`Back to ${titleOf(parent)}`}
                 @click=${back}
               >
@@ -2987,7 +2998,7 @@ export function createFloatingPanel({
           (name) => (name === "unread" ? news : name === "open" ? openCount() : null),
         )}<button
           type="button"
-          class="lf-fp-icon-btn"
+          class="lf-fp-face lf-fp-icon-btn"
           aria-label="Find a thread or message"
           aria-pressed=${String(searching)}
           @click=${() => {
@@ -3042,7 +3053,7 @@ export function createFloatingPanel({
         unreadSeat
           ? html`<button
               type="button"
-              class="lf-fp-next-unread"
+              class="lf-fp-face lf-fp-next-unread"
               ?disabled=${!thread.unread.length}
               ?data-unoffered=${!thread.unread.length}
               @click=${() => void firstUnread(thread.key)}
@@ -3054,7 +3065,7 @@ export function createFloatingPanel({
         onPageSeat
           ? html`<button
               type="button"
-              class="lf-fp-quiet"
+              class="lf-fp-face lf-fp-quiet"
               ?disabled=${!thread.anchor}
               ?data-unoffered=${!thread.anchor}
               @click=${() => {
@@ -3083,7 +3094,7 @@ export function createFloatingPanel({
           : nothing
       }<button
         type="button"
-        class="lf-fp-icon-btn lf-fp-settle ${
+        class="lf-fp-face lf-fp-icon-btn lf-fp-settle ${
           thread.resolved ? "lf-reopen" : "lf-resolve"
         }"
         aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
@@ -3422,7 +3433,7 @@ export function createFloatingPanel({
       exit
         ? html`<button
             type="button"
-            class=${`lf-fp-chip lf-fp-exit${exit.press === close ? " lf-fp-close" : ""}`}
+            class=${`lf-fp-face lf-fp-chip lf-fp-exit${exit.press === close ? " lf-fp-close" : ""}`}
             aria-label=${exit.label}
             title=${exit.label}
             ?disabled=${exit.disabled}
@@ -3445,7 +3456,7 @@ export function createFloatingPanel({
     render(
       html`<button
           type="button"
-          class="lf-fp-chip lf-fp-on-user"
+          class="lf-fp-face lf-fp-chip lf-fp-on-user"
           aria-pressed=${String(pressedMark === "onUser")}
           ?data-due=${onUser > 0}
           aria-label=${onUserName}
@@ -3457,7 +3468,7 @@ export function createFloatingPanel({
           ></button
         ><button
           type="button"
-          class="lf-fp-chip lf-fp-threads"
+          class="lf-fp-face lf-fp-chip lf-fp-threads"
           aria-pressed=${String(pressedMark === "threads")}
           aria-label=${threadsName}
           title=${threadsName}
@@ -3511,7 +3522,7 @@ export function createFloatingPanel({
     if (!press) return face;
     return html`<button
       type="button"
-      class="lf-fp-chip lf-fp-row-notice-press"
+      class="lf-fp-face lf-fp-chip lf-fp-row-notice-press"
       title=${press.title ?? nothing}
       ?disabled=${press.disabled}
       @click=${press.run}

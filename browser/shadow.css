@@ -159,7 +159,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-quote {
   min-height: var(--aim-floor);
 }
-:where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), .lf-draft-action, .lf-corner-mark) {
+:where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), .lf-draft-action, .lf-corner-mark, button.lf-fp-face) {
   position: relative;
   &::after {
     content: "";

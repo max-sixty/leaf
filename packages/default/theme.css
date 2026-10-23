@@ -187,6 +187,16 @@
 :scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-frame-label {
   display: flex;
 }
+:scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-toolbar {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "actions";
+}
+:scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-actions {
+  justify-content: center;
+}
+:scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-toolbar > .lf-shotcap {
+  display: none;
+}
 .lf-shotcap {
   box-sizing: border-box;
   display: block;

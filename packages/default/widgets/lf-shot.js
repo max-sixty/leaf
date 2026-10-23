@@ -4,13 +4,12 @@
  * its box. Fit keeps both frames in the allocated box. Actual size pans their
  * images together inside those same windows, keeping both labels and views visible.
  * Both frames always share one source scale. The retained header belongs to the
- * allocated viewport, outside the image canvas. Labels and controls never move
- * when views or scale change; only allocation width chooses its one- or two-row
- * layout. Source labels are passive, and images never change comparison modes.
+ * allocated viewport, outside the image canvas. Source labels are passive, and
+ * images never change comparison modes.
  * In Slider, a plain image click alternates the divider's Before/After endpoints;
  * dragging and the divider's keyboard controls retain continuous adjustment.
- * A stacked pair also labels each frame, since the header's left/right bookends
- * cannot identify vertically arranged images.
+ * A stacked pair labels each frame instead of the header, since left/right
+ * bookends cannot identify vertically arranged images. Other views label the header.
  *
  * A bounded pair chooses the orientation that gives the images the larger scale;
  * in ordinary flow, wide frames stack instead of shrinking below half scale.

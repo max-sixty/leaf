@@ -1,0 +1,95 @@
+"""The browser fixture fails what the "What takes turns in a place doesn't size it" rule
+forbids (`swap_watch.js`): a place that changes size as one occupant gives way to
+another."""
+
+from urllib.parse import quote
+
+import pytest
+from render_harness import consume_browser_errors, judge_watches
+
+from leaf.render_checks import one_frame
+
+# A row seating one occupant at a time. A press on Swap puts the other in its place, the
+# way the page's `data-swap` says: by replacing the node, or by hiding one and showing
+# the other. `data-tall` makes the second occupant taller than the row's line.
+ROW = """<!doctype html><body style="margin:0">
+<div id="row" style="display:flex;align-items:center;gap:4px;width:300px">
+  <button id="first" style="height:24px">First</button>
+  <button id="second" style="height:24px" hidden>Second</button>
+</div>
+<button id="swap">Swap</button>
+<script>
+  const row = document.getElementById("row");
+  const first = document.getElementById("first");
+  const second = document.getElementById("second");
+  document.getElementById("swap").addEventListener("click", () => {
+    const { swap, tall } = document.body.dataset;
+    if (tall) second.style.height = "40px";
+    if (swap === "replace") { second.hidden = false; first.replaceWith(second); }
+    if (swap === "show") { first.hidden = true; second.hidden = false; }
+    if (swap === "frame") {
+      first.remove();
+      requestAnimationFrame(() => { second.hidden = false; });
+    }
+  });
+</script>"""
+
+
+def row_page(browser, swap, tall):
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(ROW))
+    page.evaluate(
+        "([swap, tall]) => Object.assign(document.body.dataset, tall ? {swap, tall} : {swap})",
+        [swap, tall],
+    )
+    return page
+
+
+@pytest.mark.parametrize("swap", ["replace", "show", "frame"])
+def test_an_occupant_that_grows_its_place_fails(browser, swap):
+    page = row_page(browser, swap, tall=True)
+    page.locator("#swap").click()
+    judge_watches()
+    consume_browser_errors(
+        page,
+        {
+            "code": "place-resized",
+            "place": ["div#row"],
+            "left": [["button#first"]],
+            "arrived": [["button#second"]],
+            "before": {"width": 300, "height": 24},
+            "after": {"width": 300, "height": 40},
+            "input": "click",
+        },
+    )
+
+
+def test_an_occupant_that_fills_its_place_passes(browser):
+    page = row_page(browser, "replace", tall=False)
+    page.locator("#swap").click()
+    judge_watches()
+
+
+def test_an_occupant_its_words_grew_passes(browser):
+    """Words are content, which may size a place: a draft grown by its lines gives way
+    to the next occupant, though Send emptied it in that frame."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><div id="row" style="display:flex;width:300px">'
+            '<textarea id="draft" rows="1" style="height:24px"></textarea>'
+            '<button id="next" style="height:24px" hidden>Next</button></div>'
+            "<script>"
+            "draft.addEventListener('input', () => { draft.style.height = '60px'; });"
+            "draft.addEventListener('keydown', (event) => {"
+            " if (event.key !== 'Enter') return;"
+            " draft.value = ''; draft.hidden = true; next.hidden = false; });"
+            "</script>"
+        )
+    )
+    page.locator("#draft").press_sequentially("Two lines")
+    # The grown draft is laid out in a frame of its own, as a user's typing is.
+    one_frame(page)
+    page.keyboard.press("Enter")
+    judge_watches()

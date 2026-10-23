@@ -92,7 +92,9 @@ representative desktop viewport.
   WebAwesome input or an icon action, takes the place's size through its own sizing
   token, set where it is seated. Check: `test_whatever_the_field_holds_the_row_keeps_its_line`
   compares the row with its token in each mode; that a place still contains its
-  occupant proves nothing, since a grown place always does.
+  occupant proves nothing, since a grown place always does. `tests/swap_watch.js`,
+  which the browser fixture runs on every test, fails a flex row whose height follows
+  an occupant that took another's seat in it.
 - **A runtime region whose contents rearrange inside it declares `data-lf-reflow`.**
   The message header declares `text`: its labels may rewrap, its controls stay put. A
   thread card's transcript declares `append`: it may grow at its end, by new messages or by a last

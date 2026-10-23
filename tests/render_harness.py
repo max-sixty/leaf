@@ -92,6 +92,7 @@ WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
 SHIFT_WATCH_SOURCE = Path(__file__).with_name("shift_watch.js")
 WORDS_WATCH_SOURCE = Path(__file__).with_name("words_watch.js")
 INPUT_WORK_WATCH_SOURCE = Path(__file__).with_name("input_work_watch.js")
+SWAP_WATCH_SOURCE = Path(__file__).with_name("swap_watch.js")
 WATCH_PLATFORM_SOURCE = Path(__file__).with_name("watch_platform.js")
 
 
@@ -1278,8 +1279,9 @@ def clean_browser(test=None):
 
 def judge_watches():
     """Judge every layout shift each watched page makes, once the frames the test's
-    last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
-    loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
+    last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), then every
+    loss of typed words so far (`words_watch.js`, `lfWordsJudged`), and then the swaps
+    in the frame that lays out the last act (`swap_watch.js`, `lfSwapsJudged`).
 
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
@@ -1334,6 +1336,7 @@ def _judge_frame_watches(frame):
             Promise.resolve().then(async () => {
               await window.lfShiftsJudged?.();
               await window.lfWordsJudged?.();
+              await window.lfSwapsJudged?.();
             }).then(() => { judgement.complete = true; },
               error => { judgement.error = error; });
         }"""
@@ -1361,8 +1364,9 @@ def watched(page, *, java_script_enabled=True):
     sensors' findings, which each sensor hands over as a record through the
     `__leafWatchFinding` binding: DOM writes that change nothing (`write_watch.js`),
     layout shifts without input or that carry a field being typed in
-    (`shift_watch.js`), and typed words leaving the screen without a key or press
-    (`words_watch.js`).
+    (`shift_watch.js`), typed words leaving the screen without a key or press
+    (`words_watch.js`), and a row sized by the occupant that took a seat in it
+    (`swap_watch.js`).
     Call before navigation so the init scripts take effect. With scripting disabled,
     retain native console and page errors but install no script-driven sensors and
     await none at judgement.
@@ -1400,8 +1404,9 @@ def watched(page, *, java_script_enabled=True):
         "__leafWatchFinding", lambda _source, found: errors.append(Finding.read(found))
     )
     page.add_init_script(path=WRITE_WATCH_SOURCE)
-    # One init script keeps cause tracking installed before its words subscriber;
-    # Playwright does not promise an order between separately registered scripts.
+    # One init script keeps cause tracking installed before its words and swap
+    # subscribers; Playwright does not promise an order between separately registered
+    # scripts.
     page.add_init_script(
         script="\n".join(
             source.read_text()
@@ -1409,6 +1414,7 @@ def watched(page, *, java_script_enabled=True):
                 WATCH_PLATFORM_SOURCE,
                 INPUT_WORK_WATCH_SOURCE,
                 WORDS_WATCH_SOURCE,
+                SWAP_WATCH_SOURCE,
             )
         )
         + "\n"

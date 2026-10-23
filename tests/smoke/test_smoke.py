@@ -41,7 +41,7 @@ def test_ship_review_obligations_are_directly_answerable(browser, serve):
     assert any("/runtime/bundle-" in url for url in loaded), loaded
     assert not any(url.endswith("/runtime/semantic-state.js") for url in loaded)
 
-    expect_obligations_answered(page, "1/2")
+    expect_obligations_answered(page, "1/3")
     expect(page.locator("#off-workaround-review .lf-pick")).to_have_count(2)
     expect(page.locator("#off-workaround-review .lf-pick").first).to_be_visible()
     expect(page.locator("#off-workaround-approve .lf-pick")).to_have_attribute(
@@ -49,9 +49,9 @@ def test_ship_review_obligations_are_directly_answerable(browser, serve):
     )
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     page.locator("#off-workaround-review .lf-pick").first.click()
-    expect_obligations_answered(page, "0/2")
+    expect_obligations_answered(page, "0/3")
     undo(page)
-    expect_obligations_answered(page, "1/2")
+    expect_obligations_answered(page, "1/3")
 
 
 @pytest.mark.parametrize("size", [(1200, 520), (509, 429)])

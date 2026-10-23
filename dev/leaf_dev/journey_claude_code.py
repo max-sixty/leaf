@@ -673,9 +673,13 @@ def slow_prompt(place: Isolation) -> Path:
 
 
 def native_records(home: Path, session: str) -> list[dict]:
-    """The native session record, including hook context attachments."""
+    """The native session record, including hook context attachments. A record
+    Claude Code is still writing is no record yet, so a last line without its
+    newline is left out."""
     [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
-    return [json.loads(line) for line in path.read_text().splitlines()]
+    text = path.read_text()
+    lines = text.splitlines()[: None if text.endswith("\n") else -1]
+    return [json.loads(line) for line in lines]
 
 
 @contextmanager

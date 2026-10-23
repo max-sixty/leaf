@@ -44,8 +44,8 @@
    to `--lf-top` and to the room a landing leaves above them. A path too long for the
    line gives way from its folders first, which end in an ellipsis, and the file's own
    name is cut only where it alone is too long; the path's title then holds it whole.
-   A flex row draws no disclosure marker, so the triangle is the row's own first mark.
-   File and conversation labels have different type sizes; their triangles share one size. */
+   Both rows wear Leaf's disclosure marker (controls.css), at one size though the file
+   and conversation labels have different type sizes. */
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
 :scope:host(.lf-rendered)
   .lf-diff-file-thread-outlet
@@ -64,16 +64,8 @@
   .lf-diff-file-thread-outlet
   > .lf-resolved-threads
   > .lf-resolved-summary::before {
-  content: "▶" / "";
   flex: none;
-  font-size: calc(0.7 * var(--t-5));
-}
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before,
-:scope:host(.lf-rendered)
-  .lf-diff-file-thread-outlet
-  > .lf-resolved-threads[open]
-  > .lf-resolved-summary::before {
-  content: "▼" / "";
+  font-size: var(--t-5);
 }
 /* Source paths may change with new evidence; their region gives way while the
    statistics and adjacent actions keep their trailing columns. */

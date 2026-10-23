@@ -1736,12 +1736,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     gap: 5px;
   }
   .lf-quote-expand::before {
-    content: "▸";
     inline-size: 1em;
     text-align: center;
-  }
-  .lf-quote-expand[aria-expanded=true]::before {
-    content: "▾";
   }
   .lf-msg.lf-unread {
     border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px / 0 0 0 6px;

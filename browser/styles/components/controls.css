@@ -243,23 +243,6 @@ svg[data-lf-icon] {
   inline-size: 16px;
   block-size: 16px;
 }
-/* A disclosure's direction and motion have one face across thread history and
-   settled choices. Its fixed slot turns without delaying content or moving the label. */
-.lf-disclosure-icon {
-  flex: none;
-  align-self: center;
-  rotate: -90deg;
-  transition: rotate var(--lf-motion-disclosure) ease-out;
-}
-[aria-expanded="true"] > .lf-disclosure-icon {
-  rotate: 0deg;
-}
-.lf-disclosure-icon:dir(rtl) {
-  rotate: 90deg;
-}
-[aria-expanded="true"] > .lf-disclosure-icon:dir(rtl) {
-  rotate: 0deg;
-}
 .lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
 .lf-msg-control[data-lf-focus] {
   opacity: 1;
@@ -462,6 +445,36 @@ svg[data-lf-icon] {
   details > summary::-webkit-details-marker {
     display: none;
   }
+  .lf-disclosure-marker::before {
+    visibility: hidden;
+  }
+}
+/* The disclosure marker for a summary or aria-expanded button whose layout draws none,
+   as a flex or grid summary loses its ::marker. It draws the predefined disclosure
+   counter styles a list-item summary's marker names, so it is the platform's symbol
+   and points with the text direction; Chromium draws the native marker with the same
+   glyph, while Firefox and WebKit paint their own shape. Like the native marker it
+   ends in a space: the space parts it from inline words, and falls away at the end of
+   the mark's own line where it is a flex or grid item; `nowrap` keeps the space
+   collapsible in a `pre` row. The class also drops a summary's native marker, so the
+   row shows one. The row's own rules place and colour the mark. Paper draws it no more
+   than the native marker (above), but keeps its room, since a grid row may place its
+   cells after it. */
+.lf-disclosure-marker {
+  list-style: none;
+}
+.lf-disclosure-marker::-webkit-details-marker {
+  display: none;
+}
+.lf-disclosure-marker::before {
+  content: counter(lf-disclosure, disclosure-closed) " " / "";
+  white-space: nowrap;
+}
+:is(
+  details[open] > .lf-disclosure-marker,
+  .lf-disclosure-marker[aria-expanded="true"]
+)::before {
+  content: counter(lf-disclosure, disclosure-open) " " / "";
 }
 /* Ordinary action buttons share their face across document and shadow trees.
  * Authored .button controls use the same face as runtime-owned .lf-btn controls.

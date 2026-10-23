@@ -6339,13 +6339,12 @@ var Transcript = class _Transcript {
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
+      class="lf-thread-disclosure lf-disclosure-marker lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${iconTemplate("down", "lf-disclosure-icon")}
       <span data-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
@@ -6985,7 +6984,7 @@ var ResolvedThreads = class {
     this.node.dataset.lfRuntime = "";
     this.node.dataset.lfGen = "1";
     this.node.dataset.lfOffer = "";
-    this.summary.className = "lf-resolved-summary";
+    this.summary.className = "lf-resolved-summary lf-disclosure-marker";
     new MutationObserver(() => {
       if (this.node.open) {
         opened();

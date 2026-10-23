@@ -8087,7 +8087,7 @@ function createFloatingPanel({
     return html`<header class="lf-fp-quote-head">
       ${quote.localReading ? html`<button
               type="button"
-              class="lf-thread-disclosure lf-quote-expand"
+              class="lf-thread-disclosure lf-quote-expand lf-disclosure-marker"
               aria-label="Full quote"
               hidden
               aria-expanded=${String(quoteExpanded)}

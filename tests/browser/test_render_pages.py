@@ -717,6 +717,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     example = next(path for path in EXAMPLES if path.stem == "release-notes")
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
+    shot.get_by_role("button", name="Slider", exact=True).click()
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
     clip = {

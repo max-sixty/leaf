@@ -59,7 +59,7 @@ The optional bundled packages are:
 | `file-tree`     | `lf-file-tree`, a searchable navigator for a file list or another widget’s typed file inventory, following its opaque datum keys. |
 | `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.                                        |
 | `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                   |
-| `motion`        | `lf-motion`, a shared clock with playback and scrubbing for page-authored animation studies.                                      |
+| `motion`        | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                         |
 | `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                      |
 | `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                |
 

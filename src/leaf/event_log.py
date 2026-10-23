@@ -272,7 +272,9 @@ def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
             changes = page_changes(page_dir)
             generation = changes.mark()
             if file_stamp(log) == seen:
-                changes.wait(generation, None)
+                # A signal may reach a watcher thread while Python's main thread
+                # waits here, leaving its handler pending until this wait ends.
+                changes.wait(generation, 1.0)
 
 
 def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:

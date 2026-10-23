@@ -4395,8 +4395,9 @@ function createTargetPicker({
   searchInPanel
 }) {
   const canChoose = () => anchoringIsReady() && !pointerModeActive();
-  let pickerOpen = false;
-  let pageSearchOpen = false;
+  const pickerMode = Z("closed");
+  const targetPickerOpen = () => pickerMode.value !== "closed";
+  const pageSearchOpen = () => pickerMode.value === "search";
   const matches = Z([]);
   let matchesIn = null;
   let active = -1;
@@ -4443,7 +4444,7 @@ function createTargetPicker({
       paintTargetPicker(on, withHints);
       return;
     }
-    const landing2 = restore && pickerOpen;
+    const landing2 = restore && targetPickerOpen();
     const opener = openerOf(pageSearchInput);
     closeLayer(
       () => paintTargetPicker(on, withHints),
@@ -4451,11 +4452,9 @@ function createTargetPicker({
     );
   }
   function paintTargetPicker(on, withHints) {
-    pickerOpen = on;
-    pageSearchOpen = false;
+    pickerMode.value = on ? "hints" : "closed";
+    if (on) clearMatches();
     searchReturnsToHints = false;
-    matches.value = [];
-    active = -1;
     pageSearchInput.value = "";
     presentSearchField();
     if (on && withHints) {
@@ -4473,11 +4472,15 @@ function createTargetPicker({
     searchInPanel({
       input: pageSearchInput,
       controls: pageSearchControls,
-      open: pageSearchOpen
+      open: pageSearchOpen()
     });
   }
+  function clearMatches() {
+    matches.value = [];
+    active = -1;
+  }
   function setPageSearch(on) {
-    pageSearchOpen = on;
+    pickerMode.value = on ? "search" : "hints";
     presentSearchField();
     if (on) {
       focusDestination(pageSearchInput, "move");
@@ -4485,8 +4488,7 @@ function createTargetPicker({
       announce("Search the page.");
     } else {
       pageSearchInput.value = "";
-      matches.value = [];
-      active = -1;
+      clearMatches();
       releaseFocus();
       hints.invalidate();
       announce(
@@ -4497,8 +4499,8 @@ function createTargetPicker({
     repaint();
   }
   function openPageSearch() {
-    const fromHints = pickerOpen;
-    if (!pickerOpen) setTargetPicker(true, false, false);
+    const fromHints = targetPickerOpen();
+    if (!targetPickerOpen()) setTargetPicker(true, false, false);
     searchReturnsToHints = fromHints;
     setPageSearch(true);
   }
@@ -4552,7 +4554,7 @@ function createTargetPicker({
   function matchWalkPosition(query) {
     if (!query || active < 0 || active >= matches.value.length) return null;
     if (!matchIsRangeable(matches.value[active])) return null;
-    if (!pageSearchOpen && !selectionIs(matches.value[active])) return null;
+    if (!pageSearchOpen() && !selectionIs(matches.value[active])) return null;
     return {
       target: matchIdentity(query, matches.value[active]),
       position: active + 1,
@@ -4565,19 +4567,20 @@ function createTargetPicker({
     return findText(matchesIn, query);
   }
   function refreshMatches() {
-    const query = pageSearchOpen ? pageSearchInput.value.trim() : repeatedSearch?.query;
+    const query = pageSearchOpen() ? pageSearchInput.value.trim() : repeatedSearch?.query;
     const current = matches.value[active];
     if (!query || !current || pageText() === matchesIn) return false;
     const found = find(query);
     const same5 = found.findIndex((candidate) => sameMatch(candidate, current));
     active = same5 >= 0 ? same5 : found.length ? Math.min(active, found.length - 1) : -1;
     matches.value = found;
-    if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
+    if (repeatedSearch && !pageSearchOpen() && active >= 0)
+      repeatedSearch.index = active;
     return true;
   }
   function refreshMatchWalk() {
     if (walkPosition()?.kind !== "page-search") return;
-    if (refreshMatches() && pageSearchOpen) presentSearchStatus();
+    if (refreshMatches() && pageSearchOpen()) presentSearchStatus();
     repaint();
   }
   function search() {
@@ -4614,7 +4617,7 @@ function createTargetPicker({
   }
   function chooseTarget(candidate) {
     const target = candidate.capture ? candidate.capture() : candidate;
-    setTargetPicker(false);
+    closeTargetPicker();
     releaseFocus();
     commentOnTarget(target);
     announce(`Chosen ${target.label}.`);
@@ -4626,19 +4629,21 @@ function createTargetPicker({
     const quote = quoteFrom(matches.value[active]);
     repeatedSearch = { query: pageSearchInput.value.trim(), index: active };
     setTargetPicker(false);
-    selectMatch(segments);
+    landOnMatch();
     announce(
       `Selected match: ${quote}. ${coarsePointer.matches || !bindingEnabled("c") ? "A press on the comment field comments on it." : "Press n for next, Shift+n for previous, or c to comment."}`
     );
   }
-  function selectMatch(segments) {
+  function landOnMatch(wrapped = false) {
     releaseFocus();
-    const range = rangeOf(segments);
+    const range = rangeOf(matches.value[active]);
     selectEnds(
       [range.startContainer, range.startOffset],
       [range.endContainer, range.endOffset]
     );
     updateFab();
+    const query = repeatedSearch.query;
+    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
   }
   function repeatSearch(direction) {
     matches.value = find(repeatedSearch.query);
@@ -4653,22 +4658,20 @@ function createTargetPicker({
     active = matches.value.indexOf(row);
     repeatedSearch.index = active;
     showMatch();
-    selectMatch(matches.value[active]);
-    const query = repeatedSearch.query;
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    landOnMatch(wrapped);
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`
     );
   }
   function back() {
-    if (pageSearchOpen) {
+    if (pageSearchOpen()) {
       if (searchReturnsToHints) return setPageSearch(false);
-      setTargetPicker(false, true);
+      closeTargetPicker(true);
       announce("Page search closed.");
       return;
     }
     if (hints.backOneLetter()) return;
-    setTargetPicker(false, true);
+    closeTargetPicker(true);
     announce("Target picker closed.");
   }
   const hintTemplate = (model) => html`<span class=${model.className} data-lf-hint-code=${model.hintCode}
@@ -4739,7 +4742,7 @@ function createTargetPicker({
     );
   }
   function paintTargetPickerHints() {
-    if (pickerOpen && pageSearchOpen) return paintSearchMatches();
+    if (pageSearchOpen()) return paintSearchMatches();
     marks.place([]);
     hints.paint();
   }
@@ -4750,7 +4753,7 @@ function createTargetPicker({
     menu: "navigate",
     keys: ["/"],
     title: "search page",
-    when: () => anchoringIsReady() && !pageSearchOpen,
+    when: () => anchoringIsReady() && !pageSearchOpen(),
     run: openPageSearch
   };
   const REPEAT_PAGE_SEARCH = {
@@ -4777,7 +4780,7 @@ function createTargetPicker({
   const TARGETING_BACK = {
     id: "targeting.back",
     keys: ["Escape"],
-    title: () => pageSearchOpen ? searchReturnsToHints ? "back to hints" : "close search" : hints.prefix() ? "back one letter" : "close picker",
+    title: () => pageSearchOpen() ? searchReturnsToHints ? "back to hints" : "close search" : hints.prefix() ? "back one letter" : "close picker",
     // The ✕ of both stances (keyboard/AGENTS.md, "Touch routes"). While the user
     // has typed part of a hint it takes back a letter, as its words say; a finger,
     // which types none, always closes.
@@ -4797,7 +4800,7 @@ function createTargetPicker({
   const TARGET_PICKER_SCOPE = {
     title: "In the target picker",
     escape: "inner",
-    at: () => pickerOpen && !pageSearchOpen,
+    at: () => pickerMode.value === "hints",
     // The page owns search, even when target hints are standing over it. Exempt the
     // binding read from that row so one declaration drives both entry routes and every
     // keyboard projection.
@@ -4816,7 +4819,7 @@ function createTargetPicker({
   const PAGE_SEARCH_SCOPE = {
     title: "In page search",
     escape: "inner",
-    at: () => pageSearchOpen,
+    at: () => pageSearchOpen(),
     claims: targetingClaims,
     rows: [
       {
@@ -4854,12 +4857,14 @@ function createTargetPicker({
       TARGETING_BACK
     ]
   };
-  const targetPickerOpen = () => pickerOpen;
   const openTargetPicker = () => setTargetPicker(true);
-  const closeTargetPicker = () => setTargetPicker(false);
+  const closeTargetPicker = (restore = false) => {
+    clearMatches();
+    setTargetPicker(false, restore);
+  };
   let pressOnMatch = false;
   function onMarkedMatch(ev) {
-    if (!pageSearchOpen || ev.button !== 0) return false;
+    if (!pageSearchOpen() || ev.button !== 0) return false;
     refreshMatches();
     const segments = matches.value[active];
     if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
@@ -4884,7 +4889,7 @@ function createTargetPicker({
       document.addEventListener(type, pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
-      if (pageSearchOpen) repaint();
+      if (pageSearchOpen()) repaint();
     });
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }
@@ -4906,7 +4911,7 @@ function createTargetPicker({
     visibleTargets,
     chooseTarget,
     // The map, not the mode: a direct slash opens the mode for search alone.
-    choosing: () => hints.armed() && !pageSearchOpen,
+    choosing: () => hints.armed() && !pageSearchOpen(),
     paintTargetPickerHints,
     targetPickerOpen,
     openTargetPicker,
@@ -6706,9 +6711,12 @@ var coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
   const notice2 = noticeReading();
   if (notice2.visible) return { message: notice2.message, visible: true };
-  const { goTo, walk } = statusContextReading();
-  const message = goTo ?? (walk?.shown ? walk.text : "");
+  const message = navigationWords();
   return { message, visible: Boolean(message) };
+}
+function navigationWords() {
+  const { goTo, walk } = statusContextReading();
+  return goTo ?? (walk?.shown ? walk.text : "");
 }
 var WORKING = ".lf-thread-working";
 var FACE = "face:";
@@ -6925,9 +6933,12 @@ function createFloatingPanel({
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
-    if (!key && selectedWords)
-      return { says: "selection", words: `\u201C${excerptWords(selectedWords.quote, 60)}\u201D` };
     const stance2 = key ? null : statusContextReading().stance;
+    if (!key && selectedWords)
+      return {
+        says: "selection",
+        words: [stance2, navigationWords(), `\u201C${excerptWords(selectedWords.quote, 60)}\u201D`].filter(Boolean).join(" \xB7 ")
+      };
     const notice2 = passing();
     if (notice2.visible)
       return {

@@ -499,8 +499,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     --lf-transcript-room: max(var(--focus-ring-room), var(--lf-group-ring-end));
     padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-room))
       var(--lf-transcript-room);
+    padding-block-start: var(--lf-transcript-room);
     padding-block-end: var(--lf-transcript-room);
     margin-inline: calc(-1 * var(--lf-transcript-room));
+    margin-block-start: calc(-1 * var(--lf-transcript-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
   }
   /* The field stands at the card's inset; words stand one inset inside it. */

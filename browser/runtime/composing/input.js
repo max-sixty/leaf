@@ -297,6 +297,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // A structured visual hint can mark the exact words its owner observes. It
       // shares the existing placeholder slot and send key; null keeps the plain hint.
       hintParts = null,
+      // Words that pass while the hint stands, said at the empty box's far end after
+      // the hint and its key, where they move none of the box's controls.
+      hintAside = () => "",
       accessibleName = null,
       save,
       send,
@@ -340,7 +343,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const hintLabel = document.createElement("span");
     const hintKey = document.createElement("kbd");
     hintKey.className = "lf-key-badge";
-    visibleHint.append(hintLabel, hintKey);
+    const hintAsideWords = document.createElement("span");
+    hintAsideWords.className = "lf-compose-placeholder-aside";
+    visibleHint.append(hintLabel, hintKey, hintAsideWords);
     field.append(ta);
     (submitIn ?? field).append(sendBtn);
     // Firefox lacks speech recognition; WebKit has it only under its prefix.
@@ -536,9 +541,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       const parts = status ? null : hintParts?.();
       if (hintParts) renderHint(parts ?? word, hintLabel);
-      if ((suffix && !status) || (parts !== null && parts !== undefined)) {
+      const aside = status ? "" : hintAside();
+      if ((suffix && !status) || (parts !== null && parts !== undefined) || aside) {
         if (!hintParts) keepsText(hintLabel, word);
         keepsText(hintKey, suffix);
+        keepsText(hintAsideWords, aside);
         if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();
       const ariaLabel = name();

@@ -288,7 +288,7 @@ customElements.define(
         const retryable = Boolean(failure) && !latest && api.writable;
         return html`
           <div class="lf-file-editor-head">
-            <span class="lf-file-editor-name">${label}</span>
+            <span class="lf-file-editor-name scroll">${label}</span>
             <span
               ${offered("lf-file-editor-status")}
               title=${failure?.message ?? nothing}

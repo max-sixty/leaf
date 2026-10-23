@@ -8,13 +8,11 @@ from .obligations import quoted_in
 from .passages import page_passages
 from .projection import (
     PageReading,
-    frozen_thread_reading,
     retirement_outcomes,
     rewritten_bodies,
 )
-from .registry.storage import require_registry
 from .revision_artifact import read_revision
-from .thread_context import id_subject
+from .thread_context import id_subject, thread_names, thread_structure, thread_widgets
 
 
 def widget_seat_error(
@@ -65,15 +63,15 @@ def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
     revision = latest_revision(page_dir)
     if revision is None:
         return id_subject(events, set(), {}, {}, name)
-    registry = require_registry(page_dir)
+    reading = read_revision(page_dir, revision)
     return id_subject(
         events,
         {
             element
-            for element, rec in read_revision(page_dir, revision).document.by_id.items()
-            if rec["tag"] in registry
+            for element, rec in reading.document.by_id.items()
+            if rec["tag"] in reading.registry
         },
-        frozen_thread_reading(events, registry).thread_by_widget,
-        read_revision(page_dir, revision).enclosing,
+        thread_widgets(thread_structure(events), thread_names(events)),
+        reading.enclosing,
         name,
     )

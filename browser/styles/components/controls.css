@@ -190,7 +190,7 @@
 /* A progress disclosure precedes the completed answer's feedback control. Hold that
    control's room from the first disclosure paint so its arrival moves no label. */
 .lf-msg:has(.lf-msg-control, > .lf-msg-head > .lf-progress-expand) > .lf-msg-head {
-  --lf-msg-control: var(--lf-msg-control-size);
+  --lf-msg-control: var(--lf-msg-control-width);
   padding-inline-end: calc(
     var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
   );
@@ -216,7 +216,7 @@
   inset-inline-end: anchor(right);
   translate: 0 -50%;
   box-sizing: border-box;
-  inline-size: var(--lf-msg-control-size);
+  inline-size: var(--lf-msg-control-width);
   block-size: var(--lf-msg-control-size);
   padding: 0;
   display: inline-flex;
@@ -339,7 +339,7 @@ svg[data-lf-icon] {
    The common header row already holds its height; reserve its inline room here too. */
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
-    --lf-msg-control: var(--lf-msg-control-size);
+    --lf-msg-control: var(--lf-msg-control-width);
     padding-inline-end: calc(
       var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
     );

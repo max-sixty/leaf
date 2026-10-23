@@ -447,6 +447,11 @@ button.lf-media-open {
   min-height: 0;
   font: 600 var(--t-6)/1 var(--sans);
 }
+/* The rewrite's field stands just below its head, so Discard and Save reach the floor
+   upward, over the head and the room above it, rather than over the field's top. */
+.lf-msg-edit-actions > .lf-msg-control::after {
+  inset: min(0px, 100% - var(--aim-floor)) 0 0;
+}
 .lf-msg-edit-actions > .lf-msg-edit-cancel {
   inline-size: var(--lf-msg-edit-cancel);
 }

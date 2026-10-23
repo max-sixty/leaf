@@ -269,6 +269,9 @@
      finger's floor raises no line. A finger's line is taller only because the words
      typed in a field are (`--entry-floor`). */
   --lf-line: 32px;
+  /* How far a line-tall control's reach stands past its face on each side: the room a
+     place keeps around such a control where something else takes presses. */
+  --lf-reach-room: max(0px, (var(--aim-floor) - var(--lf-line)) / 2);
   /* The smallest face a user types in. Only a finger's platform asks for one: iOS
      Safari zooms the page onto a text field set smaller as the field takes focus. The
      field rule that holds it is in shadow.css, and a surface that shows words before

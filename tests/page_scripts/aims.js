@@ -1,10 +1,66 @@
 // Aim readings: how large a target each control offers a pointer. Both sweeps read one
 // control's aim the same way and differ only in which controls they stand in front of.
 (() => {
+  // The element a press at a point lands on, through every shadow tree it crosses: a
+  // press on a control's own pseudo-element lands on the control.
+  function pressed(x, y) {
+    let at = document.elementFromPoint(x, y);
+    while (at?.shadowRoot) {
+      const inner = at.shadowRoot.elementFromPoint(x, y);
+      if (!inner || inner === at) break;
+      at = inner;
+    }
+    return at;
+  }
+  const takes = (el, x, y) => {
+    for (let at = pressed(x, y); at; at = at.parentNode || at.host)
+      if (at === el) return true;
+    return false;
+  };
+  // Whether a press at a point lands in another control's reach: on a press whose own
+  // box doesn't hold the point.
+  const PRESS = 'button, a[href], summary, [role="button"], [data-lf-offer]';
+  const reachedBy = (el, x, y) => {
+    for (let at = pressed(x, y); at; at = at.parentNode || at.host) {
+      if (at === el) return false;
+      if (at.nodeType !== 1 || !at.matches(PRESS)) continue;
+      const b = at.getBoundingClientRect();
+      return x < b.left || x > b.right || y < b.top || y > b.bottom;
+    }
+    return false;
+  };
+  // Whether a press at the end of a control's reach misses it because the reach is cut
+  // short: clipped by a box that holds the control, so the press lands on that box, or
+  // covered by another control. A press that lands on something else drawn over the
+  // spot, such as the panel's words over the page, is that surface's to take.
+  const cut = (el, x, y) => {
+    if (takes(el, x, y)) return false;
+    const at = pressed(x, y);
+    if (!at) return true;
+    for (let up = el.parentNode || el.host; up; up = up.parentNode || up.host)
+      if (up === at) return true;
+    for (let up = at; up; up = up.parentNode || up.host)
+      if (up.nodeType === 1 && up.matches(PRESS)) return true;
+    return false;
+  };
+  // What a press that missed the control landed on, for the finding to name.
+  const landed = (x, y) => {
+    const at = pressed(x, y);
+    if (!at) return "nothing";
+    const cls =
+      typeof at.className === "string" ? at.className.trim().split(/\s+/)[0] : "";
+    return cls ? `.${cls}` : at.localName;
+  };
+
   // A control's aim is its box together with any absolutely positioned pseudo it hangs
-  // that takes presses, because a control may enlarge its target outside layout rather
-  // than make the visible line or row taller. A draft's toolbar mark is drawn 26px tall
-  // over the box's border, and its ::before stretches its target to the aim floor.
+  // that takes presses, its reach (surfaces.css), because a control enlarges its target
+  // outside layout rather than make the visible line or row taller. A reach only counts
+  // as far as a press there lands on the control: a box that clips it, or a neighbour
+  // standing over it, cuts it short, which its computed size would not show. So where
+  // the control is in the window, each end of its reach is pressed, and a reach either
+  // end of which lands elsewhere counts for nothing; a control out of the window keeps
+  // its computed reach, unpressed. A control whose own face a neighbour stands over at
+  // an edge has no aim worth the name, and reads as none.
   function aim(el) {
     const box = el.getBoundingClientRect();
     let [w, h] = [box.width, box.height];
@@ -14,6 +70,34 @@
       if (at.pointerEvents === "none") continue;
       w = Math.max(w, parseFloat(at.width) || 0);
       h = Math.max(h, parseFloat(at.height) || 0);
+    }
+    const x = box.left + box.width / 2;
+    const y = box.top + box.height / 2;
+    const shown = (px, py) => px >= 0 && py >= 0 && px < innerWidth && py < innerHeight;
+    if (shown(x, y) && takes(el, x, y)) {
+      // A face whose own edge another control's reach lies over loses presses there
+      // too. A press that lands on another control's face is a box drawn over this
+      // one, such as the panel over the page, which is not a reach's doing.
+      const edges = [
+        [x, box.top + 1],
+        [x, box.bottom - 1],
+        [box.left + 1, y],
+        [box.right - 1, y],
+      ].filter(([px, py]) => shown(px, py));
+      const over = edges.find(([px, py]) => reachedBy(el, px, py));
+      if (over) return { box, w: 0, h: 0, by: landed(...over) };
+      const [top, bottom] = [y - h / 2 + 1, y + h / 2 - 1];
+      const [left, right] = [x - w / 2 + 1, x + w / 2 - 1];
+      let by;
+      if (h > box.height && shown(x, top) && shown(x, bottom)) {
+        const end = [top, bottom].find((py) => cut(el, x, py));
+        if (end !== undefined) [h, by] = [box.height, landed(x, end)];
+      }
+      if (w > box.width && shown(left, y) && shown(right, y)) {
+        const end = [left, right].find((px) => cut(el, px, y));
+        if (end !== undefined) [w, by] = [box.width, landed(end, y)];
+      }
+      return { box, w, h, by };
     }
     return { box, w, h };
   }
@@ -31,7 +115,7 @@
     let seen = 0;
     const sweep = (root) => {
       for (const el of root.querySelectorAll(selectors)) {
-        const { box, w, h } = aim(el);
+        const { box, w, h, by } = aim(el);
         if (!box.width || !box.height) continue;
         const shown = getComputedStyle(el);
         // Hidden, or standing there for a pointer a finger is not: the diff's line
@@ -41,7 +125,9 @@
         if (shown.opacity === "0" || shown.pointerEvents === "none") continue;
         seen += 1;
         if (Math.min(w, h) < floor - 0.5)
-          short.push(`${Math.round(w)}x${Math.round(h)} ${el.className}`);
+          short.push(
+            `${Math.round(w)}x${Math.round(h)} ${el.className}${by ? ` under ${by}` : ""}`,
+          );
       }
       for (const el of root.querySelectorAll("*"))
         if (el.shadowRoot) sweep(el.shadowRoot);
@@ -79,13 +165,15 @@
       // exemption: its box is being rewritten alongside the group's pressable rule, and
       // this line goes with that change. It stands at 11x11 today.
       if (el.classList.contains("lf-pick")) continue;
-      const { box, w, h } = aim(el);
+      const { box, w, h, by } = aim(el);
       if (!box.width || !box.height) continue;
       const name =
         (el.className || el.tagName).toString().trim().split(/\s+/)[0] +
         ` ${JSON.stringify((el.textContent || "").trim().slice(0, 32))}`;
       if (Math.min(w, h) < floor - 0.5)
-        found.push(`${name} at ${w.toFixed(1)}x${h.toFixed(1)}`);
+        found.push(
+          `${name} at ${w.toFixed(1)}x${h.toFixed(1)}${by ? ` under ${by}` : ""}`,
+        );
     }
     return found;
   }

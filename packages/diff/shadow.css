@@ -207,7 +207,7 @@
   --lf-diff-r-start: 0px;
   --lf-diff-r-end: 0px;
   --lf-diff-action-h: 26px;
-  --lf-diff-action-top: 6px;
+  --lf-diff-action-top: max(6px, (var(--aim-floor) - var(--lf-diff-action-h)) / 2);
   --lf-diff-actions: var(--lf-diff-action-h);
   --lf-diff-head-h: 35px;
 }
@@ -219,7 +219,7 @@
   --lf-diff-r-end: var(--r);
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
-  --lf-diff-head-h: max( 35px, calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)) );
+  --lf-diff-head-h: max( 35px, calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)), var(--aim-floor) );
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
   margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));

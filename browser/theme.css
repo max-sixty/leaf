@@ -1299,6 +1299,7 @@
   --sp-4: 24px;
   --aim-floor: 24px;
   --lf-line: 32px;
+  --lf-reach-room: max(0px, (var(--aim-floor) - var(--lf-line)) / 2);
   --entry-floor: 0px;
   --margin-entry: max(32px, var(--aim-floor));
   --corner-mark: 20px;

@@ -2083,9 +2083,7 @@ customElements.define(
                     </button>`,
                 )}
                 <button
-                  ${offered(
-                    "lf-btn lf-quiet-action lf-compact-control lf-trace-image-scale",
-                  )}
+                  ${offered("lf-btn lf-quiet-action lf-trace-image-scale")}
                   ${ref(this.#imageScale)}
                   aria-label="Image scale"
                   aria-controls=${`${this.id}-image-scale-options`}
@@ -2144,7 +2142,7 @@ customElements.define(
                   ].map(
                     ({ scale, text, label, run }) =>
                       html`<button
-                        ${offered("lf-btn lf-quiet-action lf-compact-control")}
+                        ${offered("lf-btn lf-quiet-action")}
                         data-scale=${scale}
                         aria-label=${label}
                         @click=${() => {

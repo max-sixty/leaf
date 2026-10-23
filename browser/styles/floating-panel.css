@@ -576,13 +576,13 @@
      do (response.css), so every line but the last runs the field's whole width and the
      last keeps room for them (text-field.js, `--lf-field-end-room`). The user chose this
      on 15 October over the presses standing beside the words in the row's flow, which
-     kept a press's width empty beside every line. Each is a line square, as the leaf
-     is, standing on the row's foot. */
+     kept a press's width empty beside every line. Each is a line tall, standing on the
+     row's foot, and as wide as the floor, as the row's other presses are. */
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
     inset-inline-end: 0;
     inset-block-end: 0;
     place-items: center;
-    width: var(--lf-line);
+    width: max(var(--lf-line), var(--aim-floor));
     min-width: 0;
     height: var(--lf-line);
     min-height: 0;
@@ -592,7 +592,7 @@
     .lf-fp-field
     .lf-compose-field
     > leaf-text {
-    --lf-field-end-room: calc(var(--lf-line) - 6px);
+    --lf-field-end-room: calc(max(var(--lf-line), var(--aim-floor)) - 6px);
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
      not a press of its own, in Dictate's seat. While the field holds a draft, the
@@ -846,13 +846,15 @@
     box-sizing: border-box;
   }
   /* The controls stand on the row, which their growing view never moves, set off from
-     what the view holds by a hairline inset as far as the words. */
+     what the view holds by a hairline inset as far as the words. Their reach stops
+     short of the row's own presses' (`--lf-reach-room`), so a press between the two
+     lands on the one the user is nearer. */
   .lf-fp-controls {
     display: flex;
     align-items: center;
     gap: 4px;
     min-height: 40px;
-    padding: 3px 6px 0 calc(6px + var(--lf-fp-inset));
+    padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
     background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
       calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;

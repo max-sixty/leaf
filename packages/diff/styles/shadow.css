@@ -281,12 +281,15 @@
                    the same distance in the other direction: the bar is laid out above the
                    file's body and the body is drawn back over it, so a number restated
                    there would put the presses off the name the moment either changed.
-                   A finger's floor is each press's reach, so it raises neither. */
+                   A finger's floor is each press's reach, which the bar starts low
+                   enough to hold inside the row. */
   --lf-diff-action-h: 26px;
-  --lf-diff-action-top: 6px;
+  --lf-diff-action-top: max(6px, (var(--aim-floor) - var(--lf-diff-action-h)) / 2);
   --lf-diff-actions: var(--lf-diff-action-h);
   /* The file's row: 7px above and below a path's line, 35px in all, or the
-                   bar of presses where that stands taller, as under a finger. */
+                   bar of presses where that stands taller. Closed files stand one row on
+                   the next with no room between for a reach, so a row is at least the aim
+                   floor, and the bar stands in its middle. */
   --lf-diff-head-h: 35px;
 }
 .lf-diff-run-start {
@@ -299,7 +302,8 @@
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: max(
     35px,
-    calc(var(--lf-diff-action-top) + var(--lf-diff-action-h))
+    calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)),
+    var(--aim-floor)
   );
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {

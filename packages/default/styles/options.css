@@ -392,8 +392,11 @@
   display: grid;
   padding: 0;
 }
+/* Done is the group's last row, and a stack keeps no room between its rows for a reach,
+ * so its face is the floor's height where that is taller than the line. */
 :scope:is(lf-options) > lf-options-done > .lf-done {
   width: 100%;
+  padding-block: max(4px, (max(var(--lf-line), var(--aim-floor)) - 1lh) / 2 - 1px);
 }
 /* Done's digit stands in the options' digit column, centred on the button. */
 :scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge {
@@ -437,7 +440,7 @@
      * are held until upgrade and the next block stays put. Add is one option line inside
      * the same inset as the option it becomes. */
     --lf-add-cell-height: calc(var(--lf-option-line) + 2 * var(--lf-option-pad-block));
-    --lf-done-cell-height: 32px;
+    --lf-done-cell-height: max(var(--lf-line), var(--aim-floor));
     &:has(> lf-option > strong) {
       --lf-add-cell-height: calc(
         max(var(--lf-option-line), var(--lf-card-state-height)) + 2 *

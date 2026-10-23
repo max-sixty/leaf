@@ -415,14 +415,14 @@
     inset-inline-end: 0;
     inset-block-end: 0;
     place-items: center;
-    width: var(--lf-line);
+    width: max(var(--lf-line), var(--aim-floor));
     min-width: 0;
     height: var(--lf-line);
     min-height: 0;
     padding: 0;
   }
   .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-field .lf-compose-field > leaf-text {
-    --lf-field-end-room: calc(var(--lf-line) - 6px);
+    --lf-field-end-room: calc(max(var(--lf-line), var(--aim-floor)) - 6px);
   }
   .lf-fp-field .lf-compose-submit {
     display: none;
@@ -632,7 +632,7 @@
     align-items: center;
     gap: 4px;
     min-height: 40px;
-    padding: 3px 6px 0 calc(6px + var(--lf-fp-inset));
+    padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
     background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center / calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
   }

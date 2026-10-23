@@ -3198,6 +3198,7 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   }
   .lf-draft-tools > .lf-code-copy {
     position: relative;
+    inset: auto;
     inline-size: auto;
     block-size: auto;
     opacity: 1;

@@ -84,7 +84,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   color: var(--ink-2);
   font-family: var(--mono);
   font-size: var(--t-6);
-  line-height: 1.478;
+  line-height: calc(var(--lf-key-badge-size) - 2px);
   text-align: center;
   white-space: nowrap;
   display: inline-flex;

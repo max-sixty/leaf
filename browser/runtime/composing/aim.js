@@ -26,7 +26,6 @@ export function createAim({
   marginTargetAt,
   refreshAim,
   commentOnTarget,
-  standDown,
   drawModeActive,
   designMode,
   targetPicker,
@@ -202,7 +201,6 @@ export function createAim({
         : armed
           ? { aim: aimedTarget(), choosing: targetPicker.active() }
           : null;
-      if (claimedPress) standDown(ev.target);
     }
     if (!claimedPress && ev.type === "mousedown" && ev.detail > 1 && previousPress)
       claimedPress = { continuing: true };

@@ -470,6 +470,7 @@ import {
   nextRender,
   observePreparations,
   onCurrentLocation,
+  onPressAway,
   onUserInput,
   openLayer,
   openerOf,
@@ -1357,818 +1358,6 @@ function createEngagement({ hasPending, fabAnchorAt, targetPickerOpen }) {
   return { unaccountedGesture, midComposition };
 }
 
-// runtime/keyboard/key-sequence.js
-var rowSteps = (row, route = null) => {
-  if (route) return [spell(route.binding)];
-  const label2 = labelOf(row);
-  return word(row.sequenceSteps) ?? (label2 ? [label2] : []);
-};
-var completeRowSteps = (row, route = null) => {
-  if (route) return rowSteps(row, route);
-  return word(row.completeSequenceSteps) ?? rowSteps(row);
-};
-var neutralStates = (steps) => steps.map(() => "neutral");
-var progressStates = (steps, pressed) => {
-  let matching = true;
-  return steps.map((step, i) => {
-    matching = matching && pressed[i] === step;
-    return matching ? "pressed" : "neutral";
-  });
-};
-function keySequenceModel(steps, states = neutralStates(steps), spokenSteps = steps) {
-  if (!steps.length || states.length !== steps.length || spokenSteps.length !== steps.length)
-    throw new Error("leaf: a key sequence needs one state and spoken label per step");
-  const reading = steps.map((text, index) => {
-    const state = states[index];
-    const spoken = spokenSteps[index];
-    return Object.freeze({ text, spoken, state });
-  });
-  return Object.freeze({
-    label: reading.map(({ spoken }) => spoken.replaceAll(" / ", " or ")).join(" then "),
-    steps: Object.freeze(reading)
-  });
-}
-function keySequenceTemplate(model, { id = null, label: label2 = false } = {}) {
-  return html`<span
-    id=${id ?? nothing}
-    class=${`lf-binding-sequence${label2 ? " lf-key-label" : ""}`}
-    role="group"
-    aria-label=${model.label}
-    >${repeat(
-    model.steps,
-    (_step, index) => index,
-    (step) => html`<kbd
-          class="lf-key-badge"
-          data-lf-sequence-step-state=${step.state}
-          aria-hidden="true"
-          >${step.text}</kbd
-        >`
-  )}</span
-  >`;
-}
-
-// runtime/keyboard/command-reference.js
-var commandReferenceDialog = document.createElement("dialog");
-commandReferenceDialog.id = "lf-command-reference";
-commandReferenceDialog.className = "lf-ui lf-command-reference";
-commandReferenceDialog.setAttribute("aria-label", "Command reference");
-commandReferenceDialog.setAttribute("closedby", "any");
-commandReferenceDialog.setAttribute("aria-modal", "true");
-commandReferenceDialog.tabIndex = -1;
-var stopReferenceReading = null;
-var commandReferenceSearch = searchField("lf-command-reference-search", {
-  name: "shortcut-search",
-  label: "Search commands",
-  placeholder: "Find a key or action"
-});
-commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
-var commandReferenceClose = closeControl({
-  name: "Close the command reference",
-  className: "lf-command-reference-close"
-});
-commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
-commandReferenceClose.setAttribute("aria-label", "Close the command reference");
-commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
-function declaredStack(origin) {
-  pruneScopedElements();
-  const sections = /* @__PURE__ */ new Map();
-  const activeScopes = scopesFor(origin);
-  const named = (section) => activeScopes.some(
-    (scope) => scope.title === section.title && (!scope.when || scope.when())
-  );
-  const contextualIds = /* @__PURE__ */ new Map();
-  const referenceIdentity = (scope, row) => {
-    if (!scope.contextual) return row.id;
-    if (!contextualIds.has(row.id)) contextualIds.set(row.id, Symbol(row.id));
-    return contextualIds.get(row.id);
-  };
-  const referenceRows = (scope) => scope.rows.map((row) => [
-    referenceIdentity(scope, row),
-    // Presentation metadata belongs beside the registered row. Cloning a sequence
-    // row loses the identity used by the dispatcher's route-availability snapshot.
-    { row, sequence: scope.sequencePrefix ?? scope.sequence ?? row.sequence }
-  ]);
-  for (const scope of pageScopes().toReversed()) {
-    if (scope !== ELEMENTS) {
-      merge(sections, { ...scope, rows: referenceRows(scope) });
-      continue;
-    }
-    const declared = /* @__PURE__ */ new Map();
-    const held = [...scopeRefs].map((ref2) => ref2.deref()).filter(
-      (node) => node?.isConnected && scopesAt(node).some((scope2) => scope2.title)
-    );
-    held.sort(renderedOrder);
-    const seen = /* @__PURE__ */ new Set();
-    for (const node of held) {
-      for (const section of scopesAt(node)) {
-        if (!section.title) continue;
-        const identity = section.identity ?? section;
-        if (seen.has(identity)) continue;
-        seen.add(identity);
-        merge(declared, { ...section, rows: referenceRows(section) });
-      }
-    }
-    for (const section of activeScopes.toReversed())
-      if (section.title) merge(declared, { ...section, rows: referenceRows(section) });
-    for (const section of declared.values())
-      merge(sections, { ...section, at: () => named(section) });
-  }
-  const exit = (row) => bindings(row).includes("Escape") ? 1 : 0;
-  return [...sections.values()].map((section) => ({
-    ...section,
-    rows: [...section.rows.values()].sort(
-      (left, right) => exit(left.row) - exit(right.row)
-    )
-  }));
-}
-var commandRoutesAtOpen = { on: /* @__PURE__ */ new Map(), off: /* @__PURE__ */ new Map() };
-var commandReferenceIsOpen = false;
-var commandReferenceInvoke = null;
-var EMPTY_CATALOG = Object.freeze({
-  total: 0,
-  entries: Object.freeze([]),
-  sections: Object.freeze([]),
-  describedMeta: Object.freeze([])
-});
-var commandReferenceCatalog = EMPTY_CATALOG;
-var commandReferenceState = {
-  query: "",
-  selectedCommandId: null,
-  metaOverride: null
-};
-var commandReferenceView = {
-  shown: 0,
-  metadata: "",
-  bindingHeading: null,
-  sectionHeadings: [],
-  entryPresentations: [],
-  visibleCommands: [],
-  selectedCommandId: null,
-  tabStopCommandId: null
-};
-var commandReferenceWords = (value) => String(value ?? "").toLocaleLowerCase().replace(/\s+/g, " ").trim();
-var commandReferenceBinding = (value) => String(value ?? "").replace(/^\s+/, "").replace(/\s+/g, " ");
-var listedTitle = (title) => `${title.charAt(0).toLocaleUpperCase()}${title.slice(1)}`;
-var availableWhere = (row, scopeTitle, scopeReach) => {
-  const place3 = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
-  return `Available ${place3.charAt(0).toLocaleLowerCase()}${place3.slice(1)}`;
-};
-var spokenReferenceSteps = (row, route, steps, declared) => {
-  const alternatives = route ? [route.binding] : declared;
-  if (alternatives.length !== 1) return steps;
-  const binding = alternatives[0];
-  const spoken = [...steps];
-  const index = spoken.lastIndexOf(spell(binding));
-  if (index !== -1) spoken[index] = spokenBinding(binding);
-  return spoken;
-};
-function captureCommandReferenceCatalog() {
-  const referenceScopes = declaredStack(openerOf(commandReferenceDialog)).map((scope) => {
-    const inScope = userIn(scope) || scope.liveInCommandReference;
-    const rows = scope.rows.filter(
-      ({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))
-    ).map(({ row, sequence: prefix }) => {
-      const sequence = [...word(prefix) ?? []];
-      const declared = [...allBindings(row)];
-      const shownBindings = declared.filter(bindingEnabled);
-      const referenceRow = { ...row, keys: shownBindings };
-      const rowBindings = [...declaredBindings(row)];
-      const baseTitle = titleOf(row);
-      const baseDescription = descriptionOf(row);
-      return {
-        row,
-        sequence,
-        declared,
-        rowBindings,
-        referenceRow,
-        baseTitle,
-        baseDescription,
-        familySteps: shownBindings.length ? [...sequence, ...completeRowSteps(referenceRow)] : [],
-        presentations: commandPresentations(row, declared, {
-          includeUnavailable: true
-        }).map(({ id, route }) => ({
-          id,
-          route: route && route.binding == null ? { ...route, binding: contextBindings(route)[0] } : route
-        }))
-      };
-    });
-    return { scope, rows };
-  }).filter(({ rows }) => rows.length);
-  const available = (rowInfo, route) => {
-    const routes = commandRoutesAtOpen[quickShortcuts() ? "on" : "off"].get(rowInfo.row) ?? /* @__PURE__ */ new Set();
-    const alternatives = route ? [route.binding] : rowInfo.rowBindings;
-    return rowInfo.declared.length === 0 ? routes.has(void 0) : alternatives.some((binding) => routes.has(binding));
-  };
-  const actionable = (row, route) => Boolean(
-    (row.run || routedCommand(route)) && (routedCommand(route)?.row ?? row).runFromCommandReference !== false
-  );
-  const preferred = /* @__PURE__ */ new Map();
-  const executable = /* @__PURE__ */ new Set();
-  for (const { rows } of referenceScopes)
-    for (const rowInfo of rows)
-      for (const { id, route } of rowInfo.presentations) {
-        const candidate = {
-          row: rowInfo.row,
-          binding: route?.binding ?? null,
-          available: available(rowInfo, route),
-          actionable: actionable(rowInfo.row, route),
-          keyed: rowInfo.declared.length > 0
-        };
-        if (candidate.available) executable.add(id);
-        const prior = preferred.get(id);
-        if (!prior || !prior.actionable && candidate.actionable || prior.actionable === candidate.actionable && (!prior.keyed && candidate.keyed || prior.keyed === candidate.keyed && !prior.available && candidate.available))
-          preferred.set(id, candidate);
-      }
-  const presented = /* @__PURE__ */ new Set();
-  const sections = [];
-  const entries = [];
-  let entryIndex = 0;
-  for (const { scope, rows } of referenceScopes) {
-    const sectionOrder = sections.length;
-    const sectionTitle = scope.title ?? "On this page";
-    const sectionEntries = [];
-    for (const rowInfo of rows) {
-      for (const { id, route } of rowInfo.presentations) {
-        const chosen = preferred.get(id);
-        if (chosen?.row !== rowInfo.row || chosen.binding !== (route?.binding ?? null) || presented.has(id))
-          continue;
-        presented.add(id);
-        const title = listedTitle(route ? titleOf(route) : rowInfo.baseTitle);
-        const description = route?.description !== void 0 ? descriptionOf(route) : rowInfo.baseDescription;
-        const alternatives = (route ? [route.binding] : rowInfo.declared).filter(
-          bindingEnabled
-        );
-        const steps = alternatives.length ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)] : [];
-        const isAvailable = executable.has(id);
-        const spokenSteps = spokenReferenceSteps(
-          rowInfo.row,
-          route,
-          steps,
-          rowInfo.declared
-        );
-        const entry = Object.freeze({
-          id,
-          rowId: `lf-command-reference-row-${entryIndex}`,
-          keyId: `lf-command-reference-key-${entryIndex}`,
-          descriptionId: `lf-command-reference-description-${entryIndex}`,
-          sectionId: `lf-command-reference-section-${sectionOrder}`,
-          sectionTitle,
-          order: sectionEntries.length,
-          sequenceControl: Boolean(rowInfo.row.sequenceControl),
-          keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
-          steps: Object.freeze(steps),
-          keySequence: steps.length ? keySequenceModel(steps, neutralStates(steps), spokenSteps) : null,
-          title,
-          description,
-          actionable: actionable(rowInfo.row, route),
-          available: isAvailable,
-          unavailableMessage: availableWhere(rowInfo.row, sectionTitle, scope.reach),
-          bindingForms: Object.freeze(
-            alternatives.map(
-              (binding) => Object.freeze({
-                display: [...rowInfo.sequence, spell(binding)].join(" "),
-                spoken: [...rowInfo.sequence, spokenBinding(binding)].join(" ")
-              })
-            )
-          ),
-          directWords: commandReferenceWords(
-            `${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description ?? ""}`
-          ),
-          familyWords: commandReferenceWords(
-            `${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseTitle} ${rowInfo.baseDescription ?? ""}`
-          )
-        });
-        entryIndex += 1;
-        entries.push(entry);
-        sectionEntries.push(entry);
-      }
-    }
-    sections.push(
-      Object.freeze({
-        id: `lf-command-reference-section-${sectionOrder}`,
-        title: sectionTitle,
-        words: commandReferenceWords(sectionTitle),
-        order: sectionOrder,
-        entries: Object.freeze(sectionEntries)
-      })
-    );
-  }
-  return Object.freeze({
-    total: entries.length,
-    entries: Object.freeze(entries),
-    sections: Object.freeze(sections),
-    describedMeta: Object.freeze(
-      entries.filter((entry) => entry.actionable && entry.description).map(selectionMeta)
-    )
-  });
-}
-var selectionMeta = (entry) => [entry.description || entry.title, entry.steps[0], "\u23CE activate"].filter(Boolean).join(" \xB7 ");
-function projectCommandReference(catalog, state) {
-  const query = commandReferenceWords(state.query);
-  const bindingQuery = commandReferenceBinding(state.query);
-  const foldedBindingQuery = bindingQuery.toLocaleLowerCase();
-  const directMatch = Boolean(query) && catalog.entries.some((entry) => entry.directWords.includes(query));
-  const ranked = catalog.sections.flatMap((section) => {
-    const sectionMatch = Boolean(query) && section.words.includes(query);
-    return section.entries.map((entry) => {
-      const exactBinding = Boolean(bindingQuery) && entry.bindingForms.some(({ display }) => display.startsWith(bindingQuery));
-      const foldedBinding = Boolean(foldedBindingQuery) && entry.bindingForms.some(
-        ({ display }) => display.toLocaleLowerCase().startsWith(foldedBindingQuery)
-      );
-      const spokenPrefix = Boolean(foldedBindingQuery) && entry.bindingForms.some(
-        ({ spoken }) => spoken.toLocaleLowerCase().startsWith(foldedBindingQuery)
-      );
-      const rank = !query ? 0 : exactBinding ? 0 : foldedBinding ? 1 : spokenPrefix ? 2 : sectionMatch || entry.directWords.includes(query) ? 3 : !directMatch && entry.familyWords.includes(query) ? 4 : Infinity;
-      return { entry, section, rank };
-    });
-  });
-  const bindingMatches = query ? ranked.filter(({ rank }) => rank <= 2).sort(
-    (left, right) => left.rank - right.rank || left.section.order - right.section.order || left.entry.order - right.entry.order
-  ) : [];
-  const promoted = new Set(bindingMatches.map(({ entry }) => entry.id));
-  const sections = catalog.sections.map((section) => {
-    const matches = ranked.filter(
-      (candidate) => candidate.section === section && Number.isFinite(candidate.rank) && !promoted.has(candidate.entry.id)
-    ).sort(
-      (left, right) => left.rank - right.rank || left.entry.order - right.entry.order
-    );
-    return {
-      ...section,
-      rank: matches[0]?.rank ?? Infinity,
-      entries: matches.map(({ entry }) => entry)
-    };
-  }).sort((left, right) => left.rank - right.rank || left.order - right.order);
-  const visibleEntries = [
-    ...bindingMatches.map(({ entry }) => ({ entry, promoted: true })),
-    ...sections.flatMap(
-      ({ entries: visible }) => visible.map((entry) => ({ entry, promoted: false }))
-    )
-  ];
-  const visibleCommands = visibleEntries.filter(({ entry }) => entry.actionable);
-  const selected = visibleCommands.find(
-    ({ entry }) => entry.id === state.selectedCommandId
-  );
-  const selectedCommandId = selected?.entry.id ?? null;
-  const shown = ranked.filter(({ rank }) => Number.isFinite(rank)).length;
-  const metadata = state.metaOverride ?? (query ? `${shown} of ${catalog.total} commands \xB7 \u2191\u2193 choose \xB7 \u23CE activate` : `${catalog.total} commands \xB7 \u2191\u2193 choose \xB7 \u23CE activate`);
-  let presentationOrder = 0;
-  const bindingHeading = bindingMatches.length ? Object.freeze({ order: presentationOrder++ }) : null;
-  const entryPresentations = bindingMatches.map(
-    ({ entry }) => Object.freeze({ entry, promoted: true, order: presentationOrder++ })
-  );
-  const sectionHeadings = sections.map((section) => {
-    const heading = Object.freeze({
-      id: section.id,
-      title: section.title,
-      shown: section.entries.length > 0,
-      order: section.entries.length > 0 ? presentationOrder++ : -1
-    });
-    entryPresentations.push(
-      ...section.entries.map(
-        (entry) => Object.freeze({ entry, promoted: false, order: presentationOrder++ })
-      )
-    );
-    return heading;
-  });
-  return {
-    shown,
-    metadata,
-    bindingHeading,
-    sectionHeadings,
-    entryPresentations,
-    visibleCommands,
-    selectedCommandId,
-    tabStopCommandId: selectedCommandId ?? visibleCommands[0]?.entry.id ?? null
-  };
-}
-function updateCommandReferenceView() {
-  let view = projectCommandReference(commandReferenceCatalog, commandReferenceState);
-  if (commandReferenceState.selectedCommandId && !view.selectedCommandId) {
-    commandReferenceState = {
-      ...commandReferenceState,
-      selectedCommandId: null
-    };
-    view = projectCommandReference(commandReferenceCatalog, commandReferenceState);
-  }
-  commandReferenceView = view;
-}
-function activateCommandEntry(entry) {
-  if (!entry.available) {
-    commandReferenceState = {
-      ...commandReferenceState,
-      metaOverride: entry.unavailableMessage
-    };
-    return presentCommandReference();
-  }
-  const invokeCommand = commandReferenceInvoke;
-  const origin = openerOf(commandReferenceDialog);
-  const returnTo = commandReferenceReturn;
-  closeLayer(
-    () => closeCommandReference(false),
-    () => handBack(origin)
-  );
-  if (invokeCommand?.(entry.id)) return;
-  queueMicrotask(() => {
-    openCommandReference(invokeCommand, returnTo);
-    commandReferenceState = {
-      ...commandReferenceState,
-      metaOverride: "That command is no longer available"
-    };
-    presentCommandReference();
-  });
-}
-function commandEntryTemplate(entry, promoted = false, shown = true) {
-  const selected = commandReferenceView.selectedCommandId === entry.id;
-  const action = entry.actionable ? html`<button
-        type="button"
-        class="lf-command-reference-command"
-        data-lf-command=${entry.id}
-        data-lf-available=${String(entry.available)}
-        data-lf-selected=${String(selected)}
-        aria-describedby=${[
-    entry.keySequence ? entry.keyId : null,
-    entry.description ? entry.descriptionId : null
-  ].filter(Boolean).join(" ")}
-        title=${[entry.description, entry.available ? "" : entry.unavailableMessage].filter(Boolean).join("\n") || nothing}
-        @click=${() => activateCommandEntry(entry)}
-        .textContent=${entry.title}
-      ></button>` : entry.title;
-  const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
-  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
-  const actionCell = html`<td role="gridcell">${actionBody}</td>`;
-  return html`
-    <tr
-      id=${entry.rowId}
-      role="row"
-      class=${entry.sequenceControl ? "lf-sequence-command" : ""}
-      data-lf-command=${entry.id}
-      aria-selected=${entry.actionable ? String(selected) : nothing}
-      ?hidden=${!shown}
-    >
-      <td role="gridcell">
-        ${entry.keySequence ? keySequenceTemplate(entry.keySequence, {
-    id: entry.keyId,
-    label: entry.keyLabel
-  }) : nothing}
-      </td>
-      ${actionCell}
-    </tr>
-  `;
-}
-var headingRow = (id, title, hidden = false) => html`
-  <tbody ?hidden=${hidden}>
-    <tr role="row">
-      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
-    </tr>
-  </tbody>
-`;
-var commandReferenceItems = () => {
-  const visible = [];
-  if (commandReferenceView.bindingHeading)
-    visible.push({
-      kind: "heading",
-      key: "heading:bindings",
-      id: "lf-command-reference-binding-matches",
-      title: "Matching shortcuts",
-      order: commandReferenceView.bindingHeading.order
-    });
-  for (const heading of commandReferenceView.sectionHeadings)
-    if (heading.shown)
-      visible.push({
-        kind: "heading",
-        key: `heading:${heading.id}`,
-        id: heading.id,
-        title: heading.title,
-        order: heading.order
-      });
-  for (const presentation of commandReferenceView.entryPresentations)
-    visible.push({
-      kind: "entry",
-      key: `entry:${presentation.entry.id}`,
-      ...presentation
-    });
-  visible.sort((left, right) => left.order - right.order);
-  const visibleKeys = new Set(visible.map(({ key }) => key));
-  const hidden = [
-    {
-      kind: "heading",
-      key: "heading:bindings",
-      id: "lf-command-reference-binding-matches",
-      title: "Matching shortcuts"
-    },
-    ...commandReferenceCatalog.sections.map((section) => ({
-      kind: "heading",
-      key: `heading:${section.id}`,
-      id: section.id,
-      title: section.title
-    })),
-    ...commandReferenceCatalog.sections.flatMap(
-      (section) => section.entries.map((entry) => ({
-        kind: "entry",
-        key: `entry:${entry.id}`,
-        entry,
-        promoted: false
-      }))
-    )
-  ].filter(({ key }) => !visibleKeys.has(key));
-  return [...visible, ...hidden.map((item) => ({ ...item, hidden: true }))];
-};
-function commandReferenceItemTemplate(item) {
-  if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
-  return html`<tbody
-    role="rowgroup"
-    aria-labelledby=${item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId}
-    class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
-    ?hidden=${item.hidden}
-  >
-    ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
-  </tbody>`;
-}
-function commandReferenceTemplate() {
-  const items2 = commandReferenceItems();
-  return html`
-    <div class="lf-command-reference-head">
-      <div class="lf-command-reference-title">Command reference</div>
-      ${commandReferenceClose}
-    </div>
-    <label class="lf-command-reference-preference">
-      <input
-        type="checkbox"
-        name="quick-keyboard-shortcuts"
-        autocomplete="off"
-        .checked=${quickShortcuts()}
-        aria-labelledby="lf-quick-keyboard-label"
-        aria-describedby="lf-quick-keyboard-help"
-        @change=${(event) => {
-    setQuickShortcuts(event.currentTarget.checked);
-    commandReferenceCatalog = captureCommandReferenceCatalog();
-    presentCommandReference();
-    repaint();
-  }}
-      />
-      <span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span>
-      <small id="lf-quick-keyboard-help"
-        >Use letters, numbers and symbols for Leaf actions.</small
-      >
-    </label>
-    ${commandReferenceSearch}
-    <div class="lf-command-reference-meta-box">
-      ${commandReferenceCatalog.describedMeta.map(
-    (text) => html`<span aria-hidden="true">${text}</span>`
-  )}
-      <div
-        class="lf-command-reference-meta"
-        aria-live="polite"
-        .textContent=${commandReferenceView.metadata}
-      ></div>
-    </div>
-    <div
-      id="lf-command-reference-results"
-      class="lf-command-reference-results"
-      role="grid"
-      aria-label="Command reference"
-    >
-      <table role="presentation">
-        <colgroup>
-          <col class="lf-command-reference-key-column" />
-          <col />
-        </colgroup>
-        ${repeat(items2, (item) => item.key, commandReferenceItemTemplate)}
-      </table>
-      <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-command-reference-empty" role="gridcell">
-          No matching commands
-        </div>
-      </div>
-    </div>
-  `;
-}
-function presentCommandReference() {
-  updateCommandReferenceView();
-  render(commandReferenceTemplate(), commandReferenceDialog);
-  const search = commandReferenceSearch.input;
-  keeps(search, "role", "combobox");
-  keeps(search, "aria-autocomplete", "list");
-  keeps(search, "aria-expanded", "true");
-  keeps(search, "aria-haspopup", "grid");
-  const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
-  if (search.ariaControlsElements?.[0] !== results)
-    search.ariaControlsElements = [results];
-  const selected = commandReferenceView.visibleCommands.find(
-    ({ entry }) => entry.id === commandReferenceView.selectedCommandId
-  );
-  const row = selected ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`) : null;
-  if (search.ariaActiveDescendantElement !== row)
-    search.ariaActiveDescendantElement = row;
-  rove(
-    commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
-    commandButton(commandReferenceView.tabStopCommandId)
-  );
-}
-function readCommandReferenceSearch(event) {
-  commandReferenceState = {
-    ...commandReferenceState,
-    query: event.currentTarget.value,
-    metaOverride: null
-  };
-  presentCommandReference();
-}
-commandReferenceDialog.addEventListener("cancel", (event) => {
-  event.preventDefault();
-  closeCommandReference();
-});
-var commandReferenceReturn = null;
-function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
-  const fresh = open && !commandReferenceIsOpen;
-  const preserveSelection = fresh && Boolean(pageSelection());
-  const handingBack = !open && restoreFocus && currentLocationIn(commandReferenceDialog);
-  const restore = handingBack ? commandReferenceReturn : null;
-  if (fresh) {
-    commandReferenceInvoke = invokeCommand;
-    dismissPopoversOutside(commandReferenceDialog);
-    openLayer(commandReferenceDialog);
-    commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
-    commandRoutesAtOpen = {
-      on: availableCommandRoutes({ commands: true, quick: true }),
-      off: availableCommandRoutes({ commands: true, quick: false })
-    };
-  }
-  commandReferenceIsOpen = open;
-  if (fresh) {
-    commandReferenceCatalog = captureCommandReferenceCatalog();
-    commandReferenceState = {
-      query: "",
-      selectedCommandId: null,
-      metaOverride: null
-    };
-    presentCommandReference();
-    const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
-    const results = commandReferenceDialog.querySelector(
-      ".lf-command-reference-results"
-    );
-    search.value = "";
-    results.scrollTo({ top: 0, behavior: "instant" });
-    stopReferenceReading = registerReadingRegion({
-      id: "lf-region:command-reference",
-      host: commandReferenceDialog,
-      body: results
-    });
-  }
-  commandReferenceDialog.classList.toggle("open", open);
-  if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
-  if (!open) {
-    stopReferenceReading?.();
-    stopReferenceReading = null;
-    closeLayer(
-      () => {
-        if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (currentLocationIn(commandReferenceDialog))
-          deepFocus()?.blur();
-        repaint();
-      },
-      handingBack && (() => handBack(restore))
-    );
-    return;
-  }
-  reachScrollers(commandReferenceDialog);
-  focusDestination(
-    commandReferenceDialog.querySelector(
-      preserveSelection ? ".lf-command-reference-close" : ".lf-command-reference-search"
-    ),
-    "move"
-  );
-  repaint();
-}
-var commandButton = (id) => [
-  .../** @type {NodeListOf<HTMLElement>} */
-  commandReferenceDialog.querySelectorAll(".lf-command-reference-command")
-].find((button) => button.dataset.lfCommand === id) ?? null;
-var focusedCommandId = () => focused()?.matches?.(".lf-command-reference-command") ? focused().dataset.lfCommand : null;
-var commandReferenceCommandActive = () => commandReferenceView.visibleCommands.length > 0 && (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
-function moveCommandReferenceSelection(dir) {
-  const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
-  if (!ids.length) return;
-  const focusedId = focusedCommandId();
-  const nextId = clampedRow(
-    ids,
-    focusedId ?? commandReferenceState.selectedCommandId,
-    dir
-  );
-  const nextRecord = commandReferenceView.visibleCommands.find(
-    ({ entry }) => entry.id === nextId
-  );
-  commandReferenceState = {
-    ...commandReferenceState,
-    selectedCommandId: nextId,
-    metaOverride: selectionMeta(nextRecord.entry)
-  };
-  presentCommandReference();
-  const next = commandButton(nextId);
-  if (focusedId) focusDestination(next, "move");
-  scrollIntoView(next.closest("tr"), { block: "nearest" });
-  beginWalk("shortcut-command", "Command", () => {
-    const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
-    return listWalkPosition(
-      commandReferenceView.visibleCommands.map(({ entry }) => entry.id),
-      current
-    );
-  });
-}
-function activateSelectedCommand() {
-  if (!commandReferenceCommandActive()) return false;
-  const id = focusedCommandId() ?? commandReferenceState.selectedCommandId ?? commandReferenceView.visibleCommands[0]?.entry.id;
-  const record = commandReferenceView.visibleCommands.find(
-    ({ entry }) => entry.id === id
-  );
-  if (!record) return false;
-  activateCommandEntry(record.entry);
-  return true;
-}
-var commandReferenceOpen = () => commandReferenceIsOpen;
-var openCommandReference = (invokeCommand, returnTo = null) => showCommandReference(true, true, invokeCommand, returnTo);
-var closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null, null);
-pageScope("command reference", {
-  title: "In the command reference",
-  escape: "inner",
-  root: () => commandReferenceDialog,
-  at: () => commandReferenceOpen(),
-  claims: EVERYTHING,
-  rows: [
-    {
-      id: "command.reference.command.next",
-      touch: false,
-      keys: ["ArrowDown"],
-      title: "choose next",
-      repeat: true,
-      runFromCommandReference: false,
-      // The list is built before search receives focus, so physical liveness is false at
-      // that instant even though the reference always lists this instruction.
-      commandReferenceWhen: () => true,
-      when: () => commandReferenceCommandActive(),
-      run: () => moveCommandReferenceSelection(1)
-    },
-    {
-      id: "command.reference.command.previous",
-      touch: false,
-      keys: ["ArrowUp"],
-      title: "choose previous",
-      repeat: true,
-      runFromCommandReference: false,
-      commandReferenceWhen: () => true,
-      when: () => commandReferenceCommandActive(),
-      run: () => moveCommandReferenceSelection(-1)
-    },
-    {
-      id: "command.reference.command.activate",
-      touch: false,
-      keys: ["Enter"],
-      title: "activate",
-      runFromCommandReference: false,
-      commandReferenceWhen: () => true,
-      when: () => commandReferenceCommandActive(),
-      run: () => activateSelectedCommand()
-    },
-    {
-      id: "command.reference.close",
-      touch: false,
-      keys: ["Escape"],
-      title: "close command reference",
-      control: () => commandReferenceClose,
-      runFromCommandReference: false,
-      run: () => closeCommandReference()
-    }
-  ]
-});
-var closeInteractions = () => {
-};
-function mountCommandReference({ beforeOpening }) {
-  closeInteractions = beforeOpening;
-}
-var openReference = (returnTo = null) => {
-  closeInteractions();
-  openCommandReference((id) => executeCommand(id), returnTo);
-};
-pageCommand({
-  id: "command.reference.open",
-  touch: false,
-  runFromCommandReference: false,
-  keys: ["?"],
-  title: "Command reference",
-  run: () => openReference()
-});
-registerPageControl({
-  key: "keyboard",
-  rank: PAGE_CONTROL_RANK.keyboard,
-  label: "Keyboard shortcuts",
-  shortcut: ["?"],
-  group: "page",
-  press: (held) => {
-    const door = focused();
-    if (held) returnPlace(held);
-    openReference(door);
-  }
-});
-
 // runtime/composing/surface.js
 function createResponseSurface({
   rememberSelection,
@@ -2191,6 +1380,7 @@ function createResponseSurface({
   setReact,
   openPageThread,
   drawModeActive,
+  captureActive,
   refreshThread,
   dismissThreadView,
   pageComment,
@@ -2202,7 +1392,6 @@ function createResponseSurface({
   drawingEdits: drawingEdits2,
   createPlacement = null
 }) {
-  const hideReference = () => closeCommandReference(false);
   const hasOtherResponses = (anchor) => reactionTokens2().length > 0 || Boolean(anchor?.quote && !designModeActive());
   const fabAnchor = Z(null);
   let fabPoint = null;
@@ -2639,17 +1828,18 @@ function createResponseSurface({
     selectionGestureClaimed = false;
     releasePress();
   };
-  function standDown(target) {
-    if (nativeLayers().some((layer) => layer.kind === "modal")) return;
+  function pressedAway(path) {
+    if (drawModeActive() || captureActive() || nativeLayers().some((layer) => layer.kind === "modal"))
+      return false;
+    const [target] = path;
     const visual = visualAt(target);
     const sameVisual = visual && !fabAnchor.value?.quote && fabAnchor.value?.section === visual.id && fabAnchor.value?.visual === visual.part?.id;
-    if (!sameVisual && !target.closest?.(".lf-fab-bar, .lf-react-surface, .lf-composer") && !reactionContextContains(target)) {
-      if (composerOpen) composer.hideComposer();
-      letGoOfFab();
-      setReact(false);
-    }
-    if (commandReferenceOpen() && !target.closest?.(".lf-command-reference"))
-      hideReference();
+    return !sameVisual && !target.closest?.(".lf-fab-bar, .lf-react-surface, .lf-composer") && !reactionContextContains(target);
+  }
+  function standDown() {
+    if (composerOpen) composer.hideComposer();
+    letGoOfFab();
+    setReact(false);
   }
   const fabAnchorAt = () => fabAnchor.value;
   const fabFrameAt = () => placement?.frame() ?? null;
@@ -2794,9 +1984,7 @@ function createResponseSurface({
         scheduleSelectionUpdate();
       } else observeSelection();
     });
-    document.addEventListener("mousedown", (ev) => {
-      if (!drawModeActive()) standDown(ev.composedPath()[0]);
-    });
+    onPressAway(pressedAway, standDown);
     document.addEventListener("click", (ev) => {
       if (drawModeActive()) return;
       const target = ev.composedPath()[0];
@@ -2959,7 +2147,6 @@ function createResponseSurface({
     showFabOptions,
     hasPageSelectionTarget,
     updateFab,
-    standDown,
     fabAnchorAt,
     seatFab,
     restoreFab,
@@ -3719,7 +2906,6 @@ function createAim({
   marginTargetAt,
   refreshAim,
   commentOnTarget,
-  standDown,
   drawModeActive,
   designMode: designMode2,
   targetPicker
@@ -3791,7 +2977,6 @@ function createAim({
       const designTarget = !targetPicker.active() && designMode2.press(pressed);
       const armed = armedBy(ev.getModifierState(AIM.modifier)) && (designMode2.active() ? designMode2.target(pressed) : onPage(ev.target));
       claimedPress = designTarget ? { designMode: designMode2.target(pressed) } : armed ? { aim: aimedTarget(), choosing: targetPicker.active() } : null;
-      if (claimedPress) standDown(ev.target);
     }
     if (!claimedPress && ev.type === "mousedown" && ev.detail > 1 && previousPress)
       claimedPress = { continuing: true };
@@ -3822,6 +3007,56 @@ function createAim({
   }
   pageCommand(AIM);
   return { aimIsOn, aimedTarget, armChanged, mount, destroy };
+}
+
+// runtime/keyboard/key-sequence.js
+var rowSteps = (row, route = null) => {
+  if (route) return [spell(route.binding)];
+  const label2 = labelOf(row);
+  return word(row.sequenceSteps) ?? (label2 ? [label2] : []);
+};
+var completeRowSteps = (row, route = null) => {
+  if (route) return rowSteps(row, route);
+  return word(row.completeSequenceSteps) ?? rowSteps(row);
+};
+var neutralStates = (steps) => steps.map(() => "neutral");
+var progressStates = (steps, pressed) => {
+  let matching = true;
+  return steps.map((step, i) => {
+    matching = matching && pressed[i] === step;
+    return matching ? "pressed" : "neutral";
+  });
+};
+function keySequenceModel(steps, states = neutralStates(steps), spokenSteps = steps) {
+  if (!steps.length || states.length !== steps.length || spokenSteps.length !== steps.length)
+    throw new Error("leaf: a key sequence needs one state and spoken label per step");
+  const reading = steps.map((text, index) => {
+    const state = states[index];
+    const spoken = spokenSteps[index];
+    return Object.freeze({ text, spoken, state });
+  });
+  return Object.freeze({
+    label: reading.map(({ spoken }) => spoken.replaceAll(" / ", " or ")).join(" then "),
+    steps: Object.freeze(reading)
+  });
+}
+function keySequenceTemplate(model, { id = null, label: label2 = false } = {}) {
+  return html`<span
+    id=${id ?? nothing}
+    class=${`lf-binding-sequence${label2 ? " lf-key-label" : ""}`}
+    role="group"
+    aria-label=${model.label}
+    >${repeat(
+    model.steps,
+    (_step, index) => index,
+    (step) => html`<kbd
+          class="lf-key-badge"
+          data-lf-sequence-step-state=${step.state}
+          aria-hidden="true"
+          >${step.text}</kbd
+        >`
+  )}</span
+  >`;
 }
 
 // runtime/keyboard/chip-seats.js
@@ -5452,22 +4687,26 @@ function createAnchorControls({
     event.preventDefault();
     raiseError(missingReference(fragmentId(href)));
   };
-  const onOutsideReaction = (event) => {
-    for (const record of reactionSeats.values())
-      if (record.expanded && !event.composedPath().some((node) => record.margin.contains(node)))
-        setReactionRemoval(record, null);
-  };
+  const offeredAway = (path) => [...reactionSeats.values()].filter(
+    (record) => record.expanded && !path.some((node) => record.margin.contains(node))
+  );
+  let stopPressAway = null;
   function mount() {
     if (mounted) return;
     mounted = true;
     document.addEventListener("lf-layout", onLayoutInvalidated);
-    document.addEventListener("pointerdown", onOutsideReaction, { capture: true });
+    stopPressAway = onPressAway(
+      (path) => offeredAway(path).length > 0,
+      (path) => {
+        for (const record of offeredAway(path)) setReactionRemoval(record, null);
+      }
+    );
     messageReferenceRoot.addEventListener("click", onMessageReference);
   }
   function destroy() {
     if (mounted) {
       document.removeEventListener("lf-layout", onLayoutInvalidated);
-      document.removeEventListener("pointerdown", onOutsideReaction, { capture: true });
+      stopPressAway();
       messageReferenceRoot.removeEventListener("click", onMessageReference);
     }
     mounted = false;
@@ -9081,14 +8320,12 @@ function createFloatingPanel({
     writing = next;
     paint();
   });
-  document.addEventListener(
-    "pointerdown",
-    (event) => {
-      if (event.composedPath().includes(host) || !nativeModalAdmits(host)) return;
+  onPressAway(
+    (path) => (menuOpen.value || trail.value.length > 0) && !path.includes(host) && nativeModalAdmits(host),
+    () => {
       if (menuOpen.value) setMenu(false);
       if (trail.value.length) close();
-    },
-    true
+    }
   );
   function putVersionsAway() {
     const inside = renderedUnder(focused(), menu);
@@ -11356,6 +10593,768 @@ function paintTouchControls() {
   if (changed) pageControlsChanged();
 }
 
+// runtime/keyboard/command-reference.js
+var commandReferenceDialog = document.createElement("dialog");
+commandReferenceDialog.id = "lf-command-reference";
+commandReferenceDialog.className = "lf-ui lf-command-reference";
+commandReferenceDialog.setAttribute("aria-label", "Command reference");
+commandReferenceDialog.setAttribute("closedby", "any");
+commandReferenceDialog.setAttribute("aria-modal", "true");
+commandReferenceDialog.tabIndex = -1;
+var stopReferenceReading = null;
+var commandReferenceSearch = searchField("lf-command-reference-search", {
+  name: "shortcut-search",
+  label: "Search commands",
+  placeholder: "Find a key or action"
+});
+commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
+var commandReferenceClose = closeControl({
+  name: "Close the command reference",
+  className: "lf-command-reference-close"
+});
+commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
+commandReferenceClose.setAttribute("aria-label", "Close the command reference");
+commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
+function declaredStack(origin) {
+  pruneScopedElements();
+  const sections = /* @__PURE__ */ new Map();
+  const activeScopes = scopesFor(origin);
+  const named = (section) => activeScopes.some(
+    (scope) => scope.title === section.title && (!scope.when || scope.when())
+  );
+  const contextualIds = /* @__PURE__ */ new Map();
+  const referenceIdentity = (scope, row) => {
+    if (!scope.contextual) return row.id;
+    if (!contextualIds.has(row.id)) contextualIds.set(row.id, Symbol(row.id));
+    return contextualIds.get(row.id);
+  };
+  const referenceRows = (scope) => scope.rows.map((row) => [
+    referenceIdentity(scope, row),
+    // Presentation metadata belongs beside the registered row. Cloning a sequence
+    // row loses the identity used by the dispatcher's route-availability snapshot.
+    { row, sequence: scope.sequencePrefix ?? scope.sequence ?? row.sequence }
+  ]);
+  for (const scope of pageScopes().toReversed()) {
+    if (scope !== ELEMENTS) {
+      merge(sections, { ...scope, rows: referenceRows(scope) });
+      continue;
+    }
+    const declared = /* @__PURE__ */ new Map();
+    const held = [...scopeRefs].map((ref2) => ref2.deref()).filter(
+      (node) => node?.isConnected && scopesAt(node).some((scope2) => scope2.title)
+    );
+    held.sort(renderedOrder);
+    const seen = /* @__PURE__ */ new Set();
+    for (const node of held) {
+      for (const section of scopesAt(node)) {
+        if (!section.title) continue;
+        const identity = section.identity ?? section;
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        merge(declared, { ...section, rows: referenceRows(section) });
+      }
+    }
+    for (const section of activeScopes.toReversed())
+      if (section.title) merge(declared, { ...section, rows: referenceRows(section) });
+    for (const section of declared.values())
+      merge(sections, { ...section, at: () => named(section) });
+  }
+  const exit = (row) => bindings(row).includes("Escape") ? 1 : 0;
+  return [...sections.values()].map((section) => ({
+    ...section,
+    rows: [...section.rows.values()].sort(
+      (left, right) => exit(left.row) - exit(right.row)
+    )
+  }));
+}
+var commandRoutesAtOpen = { on: /* @__PURE__ */ new Map(), off: /* @__PURE__ */ new Map() };
+var commandReferenceIsOpen = false;
+var commandReferenceInvoke = null;
+var EMPTY_CATALOG = Object.freeze({
+  total: 0,
+  entries: Object.freeze([]),
+  sections: Object.freeze([]),
+  describedMeta: Object.freeze([])
+});
+var commandReferenceCatalog = EMPTY_CATALOG;
+var commandReferenceState = {
+  query: "",
+  selectedCommandId: null,
+  metaOverride: null
+};
+var commandReferenceView = {
+  shown: 0,
+  metadata: "",
+  bindingHeading: null,
+  sectionHeadings: [],
+  entryPresentations: [],
+  visibleCommands: [],
+  selectedCommandId: null,
+  tabStopCommandId: null
+};
+var commandReferenceWords = (value) => String(value ?? "").toLocaleLowerCase().replace(/\s+/g, " ").trim();
+var commandReferenceBinding = (value) => String(value ?? "").replace(/^\s+/, "").replace(/\s+/g, " ");
+var listedTitle = (title) => `${title.charAt(0).toLocaleUpperCase()}${title.slice(1)}`;
+var availableWhere = (row, scopeTitle, scopeReach) => {
+  const place3 = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
+  return `Available ${place3.charAt(0).toLocaleLowerCase()}${place3.slice(1)}`;
+};
+var spokenReferenceSteps = (row, route, steps, declared) => {
+  const alternatives = route ? [route.binding] : declared;
+  if (alternatives.length !== 1) return steps;
+  const binding = alternatives[0];
+  const spoken = [...steps];
+  const index = spoken.lastIndexOf(spell(binding));
+  if (index !== -1) spoken[index] = spokenBinding(binding);
+  return spoken;
+};
+function captureCommandReferenceCatalog() {
+  const referenceScopes = declaredStack(openerOf(commandReferenceDialog)).map((scope) => {
+    const inScope = userIn(scope) || scope.liveInCommandReference;
+    const rows = scope.rows.filter(
+      ({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))
+    ).map(({ row, sequence: prefix }) => {
+      const sequence = [...word(prefix) ?? []];
+      const declared = [...allBindings(row)];
+      const shownBindings = declared.filter(bindingEnabled);
+      const referenceRow = { ...row, keys: shownBindings };
+      const rowBindings = [...declaredBindings(row)];
+      const baseTitle = titleOf(row);
+      const baseDescription = descriptionOf(row);
+      return {
+        row,
+        sequence,
+        declared,
+        rowBindings,
+        referenceRow,
+        baseTitle,
+        baseDescription,
+        familySteps: shownBindings.length ? [...sequence, ...completeRowSteps(referenceRow)] : [],
+        presentations: commandPresentations(row, declared, {
+          includeUnavailable: true
+        }).map(({ id, route }) => ({
+          id,
+          route: route && route.binding == null ? { ...route, binding: contextBindings(route)[0] } : route
+        }))
+      };
+    });
+    return { scope, rows };
+  }).filter(({ rows }) => rows.length);
+  const available = (rowInfo, route) => {
+    const routes = commandRoutesAtOpen[quickShortcuts() ? "on" : "off"].get(rowInfo.row) ?? /* @__PURE__ */ new Set();
+    const alternatives = route ? [route.binding] : rowInfo.rowBindings;
+    return rowInfo.declared.length === 0 ? routes.has(void 0) : alternatives.some((binding) => routes.has(binding));
+  };
+  const actionable = (row, route) => Boolean(
+    (row.run || routedCommand(route)) && (routedCommand(route)?.row ?? row).runFromCommandReference !== false
+  );
+  const preferred = /* @__PURE__ */ new Map();
+  const executable = /* @__PURE__ */ new Set();
+  for (const { rows } of referenceScopes)
+    for (const rowInfo of rows)
+      for (const { id, route } of rowInfo.presentations) {
+        const candidate = {
+          row: rowInfo.row,
+          binding: route?.binding ?? null,
+          available: available(rowInfo, route),
+          actionable: actionable(rowInfo.row, route),
+          keyed: rowInfo.declared.length > 0
+        };
+        if (candidate.available) executable.add(id);
+        const prior = preferred.get(id);
+        if (!prior || !prior.actionable && candidate.actionable || prior.actionable === candidate.actionable && (!prior.keyed && candidate.keyed || prior.keyed === candidate.keyed && !prior.available && candidate.available))
+          preferred.set(id, candidate);
+      }
+  const presented = /* @__PURE__ */ new Set();
+  const sections = [];
+  const entries = [];
+  let entryIndex = 0;
+  for (const { scope, rows } of referenceScopes) {
+    const sectionOrder = sections.length;
+    const sectionTitle = scope.title ?? "On this page";
+    const sectionEntries = [];
+    for (const rowInfo of rows) {
+      for (const { id, route } of rowInfo.presentations) {
+        const chosen = preferred.get(id);
+        if (chosen?.row !== rowInfo.row || chosen.binding !== (route?.binding ?? null) || presented.has(id))
+          continue;
+        presented.add(id);
+        const title = listedTitle(route ? titleOf(route) : rowInfo.baseTitle);
+        const description = route?.description !== void 0 ? descriptionOf(route) : rowInfo.baseDescription;
+        const alternatives = (route ? [route.binding] : rowInfo.declared).filter(
+          bindingEnabled
+        );
+        const steps = alternatives.length ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)] : [];
+        const isAvailable = executable.has(id);
+        const spokenSteps = spokenReferenceSteps(
+          rowInfo.row,
+          route,
+          steps,
+          rowInfo.declared
+        );
+        const entry = Object.freeze({
+          id,
+          rowId: `lf-command-reference-row-${entryIndex}`,
+          keyId: `lf-command-reference-key-${entryIndex}`,
+          descriptionId: `lf-command-reference-description-${entryIndex}`,
+          sectionId: `lf-command-reference-section-${sectionOrder}`,
+          sectionTitle,
+          order: sectionEntries.length,
+          sequenceControl: Boolean(rowInfo.row.sequenceControl),
+          keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
+          steps: Object.freeze(steps),
+          keySequence: steps.length ? keySequenceModel(steps, neutralStates(steps), spokenSteps) : null,
+          title,
+          description,
+          actionable: actionable(rowInfo.row, route),
+          available: isAvailable,
+          unavailableMessage: availableWhere(rowInfo.row, sectionTitle, scope.reach),
+          bindingForms: Object.freeze(
+            alternatives.map(
+              (binding) => Object.freeze({
+                display: [...rowInfo.sequence, spell(binding)].join(" "),
+                spoken: [...rowInfo.sequence, spokenBinding(binding)].join(" ")
+              })
+            )
+          ),
+          directWords: commandReferenceWords(
+            `${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description ?? ""}`
+          ),
+          familyWords: commandReferenceWords(
+            `${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseTitle} ${rowInfo.baseDescription ?? ""}`
+          )
+        });
+        entryIndex += 1;
+        entries.push(entry);
+        sectionEntries.push(entry);
+      }
+    }
+    sections.push(
+      Object.freeze({
+        id: `lf-command-reference-section-${sectionOrder}`,
+        title: sectionTitle,
+        words: commandReferenceWords(sectionTitle),
+        order: sectionOrder,
+        entries: Object.freeze(sectionEntries)
+      })
+    );
+  }
+  return Object.freeze({
+    total: entries.length,
+    entries: Object.freeze(entries),
+    sections: Object.freeze(sections),
+    describedMeta: Object.freeze(
+      entries.filter((entry) => entry.actionable && entry.description).map(selectionMeta)
+    )
+  });
+}
+var selectionMeta = (entry) => [entry.description || entry.title, entry.steps[0], "\u23CE activate"].filter(Boolean).join(" \xB7 ");
+function projectCommandReference(catalog, state) {
+  const query = commandReferenceWords(state.query);
+  const bindingQuery = commandReferenceBinding(state.query);
+  const foldedBindingQuery = bindingQuery.toLocaleLowerCase();
+  const directMatch = Boolean(query) && catalog.entries.some((entry) => entry.directWords.includes(query));
+  const ranked = catalog.sections.flatMap((section) => {
+    const sectionMatch = Boolean(query) && section.words.includes(query);
+    return section.entries.map((entry) => {
+      const exactBinding = Boolean(bindingQuery) && entry.bindingForms.some(({ display }) => display.startsWith(bindingQuery));
+      const foldedBinding = Boolean(foldedBindingQuery) && entry.bindingForms.some(
+        ({ display }) => display.toLocaleLowerCase().startsWith(foldedBindingQuery)
+      );
+      const spokenPrefix = Boolean(foldedBindingQuery) && entry.bindingForms.some(
+        ({ spoken }) => spoken.toLocaleLowerCase().startsWith(foldedBindingQuery)
+      );
+      const rank = !query ? 0 : exactBinding ? 0 : foldedBinding ? 1 : spokenPrefix ? 2 : sectionMatch || entry.directWords.includes(query) ? 3 : !directMatch && entry.familyWords.includes(query) ? 4 : Infinity;
+      return { entry, section, rank };
+    });
+  });
+  const bindingMatches = query ? ranked.filter(({ rank }) => rank <= 2).sort(
+    (left, right) => left.rank - right.rank || left.section.order - right.section.order || left.entry.order - right.entry.order
+  ) : [];
+  const promoted = new Set(bindingMatches.map(({ entry }) => entry.id));
+  const sections = catalog.sections.map((section) => {
+    const matches = ranked.filter(
+      (candidate) => candidate.section === section && Number.isFinite(candidate.rank) && !promoted.has(candidate.entry.id)
+    ).sort(
+      (left, right) => left.rank - right.rank || left.entry.order - right.entry.order
+    );
+    return {
+      ...section,
+      rank: matches[0]?.rank ?? Infinity,
+      entries: matches.map(({ entry }) => entry)
+    };
+  }).sort((left, right) => left.rank - right.rank || left.order - right.order);
+  const visibleEntries = [
+    ...bindingMatches.map(({ entry }) => ({ entry, promoted: true })),
+    ...sections.flatMap(
+      ({ entries: visible }) => visible.map((entry) => ({ entry, promoted: false }))
+    )
+  ];
+  const visibleCommands = visibleEntries.filter(({ entry }) => entry.actionable);
+  const selected = visibleCommands.find(
+    ({ entry }) => entry.id === state.selectedCommandId
+  );
+  const selectedCommandId = selected?.entry.id ?? null;
+  const shown = ranked.filter(({ rank }) => Number.isFinite(rank)).length;
+  const metadata = state.metaOverride ?? (query ? `${shown} of ${catalog.total} commands \xB7 \u2191\u2193 choose \xB7 \u23CE activate` : `${catalog.total} commands \xB7 \u2191\u2193 choose \xB7 \u23CE activate`);
+  let presentationOrder = 0;
+  const bindingHeading = bindingMatches.length ? Object.freeze({ order: presentationOrder++ }) : null;
+  const entryPresentations = bindingMatches.map(
+    ({ entry }) => Object.freeze({ entry, promoted: true, order: presentationOrder++ })
+  );
+  const sectionHeadings = sections.map((section) => {
+    const heading = Object.freeze({
+      id: section.id,
+      title: section.title,
+      shown: section.entries.length > 0,
+      order: section.entries.length > 0 ? presentationOrder++ : -1
+    });
+    entryPresentations.push(
+      ...section.entries.map(
+        (entry) => Object.freeze({ entry, promoted: false, order: presentationOrder++ })
+      )
+    );
+    return heading;
+  });
+  return {
+    shown,
+    metadata,
+    bindingHeading,
+    sectionHeadings,
+    entryPresentations,
+    visibleCommands,
+    selectedCommandId,
+    tabStopCommandId: selectedCommandId ?? visibleCommands[0]?.entry.id ?? null
+  };
+}
+function updateCommandReferenceView() {
+  let view = projectCommandReference(commandReferenceCatalog, commandReferenceState);
+  if (commandReferenceState.selectedCommandId && !view.selectedCommandId) {
+    commandReferenceState = {
+      ...commandReferenceState,
+      selectedCommandId: null
+    };
+    view = projectCommandReference(commandReferenceCatalog, commandReferenceState);
+  }
+  commandReferenceView = view;
+}
+function activateCommandEntry(entry) {
+  if (!entry.available) {
+    commandReferenceState = {
+      ...commandReferenceState,
+      metaOverride: entry.unavailableMessage
+    };
+    return presentCommandReference();
+  }
+  const invokeCommand = commandReferenceInvoke;
+  const origin = openerOf(commandReferenceDialog);
+  const returnTo = commandReferenceReturn;
+  closeLayer(
+    () => closeCommandReference(false),
+    () => handBack(origin)
+  );
+  if (invokeCommand?.(entry.id)) return;
+  queueMicrotask(() => {
+    openCommandReference(invokeCommand, returnTo);
+    commandReferenceState = {
+      ...commandReferenceState,
+      metaOverride: "That command is no longer available"
+    };
+    presentCommandReference();
+  });
+}
+function commandEntryTemplate(entry, promoted = false, shown = true) {
+  const selected = commandReferenceView.selectedCommandId === entry.id;
+  const action = entry.actionable ? html`<button
+        type="button"
+        class="lf-command-reference-command"
+        data-lf-command=${entry.id}
+        data-lf-available=${String(entry.available)}
+        data-lf-selected=${String(selected)}
+        aria-describedby=${[
+    entry.keySequence ? entry.keyId : null,
+    entry.description ? entry.descriptionId : null
+  ].filter(Boolean).join(" ")}
+        title=${[entry.description, entry.available ? "" : entry.unavailableMessage].filter(Boolean).join("\n") || nothing}
+        @click=${() => activateCommandEntry(entry)}
+        .textContent=${entry.title}
+      ></button>` : entry.title;
+  const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
+  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
+  const actionCell = html`<td role="gridcell">${actionBody}</td>`;
+  return html`
+    <tr
+      id=${entry.rowId}
+      role="row"
+      class=${entry.sequenceControl ? "lf-sequence-command" : ""}
+      data-lf-command=${entry.id}
+      aria-selected=${entry.actionable ? String(selected) : nothing}
+      ?hidden=${!shown}
+    >
+      <td role="gridcell">
+        ${entry.keySequence ? keySequenceTemplate(entry.keySequence, {
+    id: entry.keyId,
+    label: entry.keyLabel
+  }) : nothing}
+      </td>
+      ${actionCell}
+    </tr>
+  `;
+}
+var headingRow = (id, title, hidden = false) => html`
+  <tbody ?hidden=${hidden}>
+    <tr role="row">
+      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
+    </tr>
+  </tbody>
+`;
+var commandReferenceItems = () => {
+  const visible = [];
+  if (commandReferenceView.bindingHeading)
+    visible.push({
+      kind: "heading",
+      key: "heading:bindings",
+      id: "lf-command-reference-binding-matches",
+      title: "Matching shortcuts",
+      order: commandReferenceView.bindingHeading.order
+    });
+  for (const heading of commandReferenceView.sectionHeadings)
+    if (heading.shown)
+      visible.push({
+        kind: "heading",
+        key: `heading:${heading.id}`,
+        id: heading.id,
+        title: heading.title,
+        order: heading.order
+      });
+  for (const presentation of commandReferenceView.entryPresentations)
+    visible.push({
+      kind: "entry",
+      key: `entry:${presentation.entry.id}`,
+      ...presentation
+    });
+  visible.sort((left, right) => left.order - right.order);
+  const visibleKeys = new Set(visible.map(({ key }) => key));
+  const hidden = [
+    {
+      kind: "heading",
+      key: "heading:bindings",
+      id: "lf-command-reference-binding-matches",
+      title: "Matching shortcuts"
+    },
+    ...commandReferenceCatalog.sections.map((section) => ({
+      kind: "heading",
+      key: `heading:${section.id}`,
+      id: section.id,
+      title: section.title
+    })),
+    ...commandReferenceCatalog.sections.flatMap(
+      (section) => section.entries.map((entry) => ({
+        kind: "entry",
+        key: `entry:${entry.id}`,
+        entry,
+        promoted: false
+      }))
+    )
+  ].filter(({ key }) => !visibleKeys.has(key));
+  return [...visible, ...hidden.map((item) => ({ ...item, hidden: true }))];
+};
+function commandReferenceItemTemplate(item) {
+  if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
+  return html`<tbody
+    role="rowgroup"
+    aria-labelledby=${item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId}
+    class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
+    ?hidden=${item.hidden}
+  >
+    ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
+  </tbody>`;
+}
+function commandReferenceTemplate() {
+  const items2 = commandReferenceItems();
+  return html`
+    <div class="lf-command-reference-head">
+      <div class="lf-command-reference-title">Command reference</div>
+      ${commandReferenceClose}
+    </div>
+    <label class="lf-command-reference-preference">
+      <input
+        type="checkbox"
+        name="quick-keyboard-shortcuts"
+        autocomplete="off"
+        .checked=${quickShortcuts()}
+        aria-labelledby="lf-quick-keyboard-label"
+        aria-describedby="lf-quick-keyboard-help"
+        @change=${(event) => {
+    setQuickShortcuts(event.currentTarget.checked);
+    commandReferenceCatalog = captureCommandReferenceCatalog();
+    presentCommandReference();
+    repaint();
+  }}
+      />
+      <span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span>
+      <small id="lf-quick-keyboard-help"
+        >Use letters, numbers and symbols for Leaf actions.</small
+      >
+    </label>
+    ${commandReferenceSearch}
+    <div class="lf-command-reference-meta-box">
+      ${commandReferenceCatalog.describedMeta.map(
+    (text) => html`<span aria-hidden="true">${text}</span>`
+  )}
+      <div
+        class="lf-command-reference-meta"
+        aria-live="polite"
+        .textContent=${commandReferenceView.metadata}
+      ></div>
+    </div>
+    <div
+      id="lf-command-reference-results"
+      class="lf-command-reference-results"
+      role="grid"
+      aria-label="Command reference"
+    >
+      <table role="presentation">
+        <colgroup>
+          <col class="lf-command-reference-key-column" />
+          <col />
+        </colgroup>
+        ${repeat(items2, (item) => item.key, commandReferenceItemTemplate)}
+      </table>
+      <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
+        <div class="lf-command-reference-empty" role="gridcell">
+          No matching commands
+        </div>
+      </div>
+    </div>
+  `;
+}
+function presentCommandReference() {
+  updateCommandReferenceView();
+  render(commandReferenceTemplate(), commandReferenceDialog);
+  const search = commandReferenceSearch.input;
+  keeps(search, "role", "combobox");
+  keeps(search, "aria-autocomplete", "list");
+  keeps(search, "aria-expanded", "true");
+  keeps(search, "aria-haspopup", "grid");
+  const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
+  if (search.ariaControlsElements?.[0] !== results)
+    search.ariaControlsElements = [results];
+  const selected = commandReferenceView.visibleCommands.find(
+    ({ entry }) => entry.id === commandReferenceView.selectedCommandId
+  );
+  const row = selected ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`) : null;
+  if (search.ariaActiveDescendantElement !== row)
+    search.ariaActiveDescendantElement = row;
+  rove(
+    commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
+    commandButton(commandReferenceView.tabStopCommandId)
+  );
+}
+function readCommandReferenceSearch(event) {
+  commandReferenceState = {
+    ...commandReferenceState,
+    query: event.currentTarget.value,
+    metaOverride: null
+  };
+  presentCommandReference();
+}
+commandReferenceDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeCommandReference();
+});
+var commandReferenceReturn = null;
+function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
+  const fresh = open && !commandReferenceIsOpen;
+  const preserveSelection = fresh && Boolean(pageSelection());
+  const handingBack = !open && restoreFocus && currentLocationIn(commandReferenceDialog);
+  const restore = handingBack ? commandReferenceReturn : null;
+  if (fresh) {
+    commandReferenceInvoke = invokeCommand;
+    dismissPopoversOutside(commandReferenceDialog);
+    openLayer(commandReferenceDialog);
+    commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
+    commandRoutesAtOpen = {
+      on: availableCommandRoutes({ commands: true, quick: true }),
+      off: availableCommandRoutes({ commands: true, quick: false })
+    };
+  }
+  commandReferenceIsOpen = open;
+  if (fresh) {
+    commandReferenceCatalog = captureCommandReferenceCatalog();
+    commandReferenceState = {
+      query: "",
+      selectedCommandId: null,
+      metaOverride: null
+    };
+    presentCommandReference();
+    const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
+    const results = commandReferenceDialog.querySelector(
+      ".lf-command-reference-results"
+    );
+    search.value = "";
+    results.scrollTo({ top: 0, behavior: "instant" });
+    stopReferenceReading = registerReadingRegion({
+      id: "lf-region:command-reference",
+      host: commandReferenceDialog,
+      body: results
+    });
+  }
+  commandReferenceDialog.classList.toggle("open", open);
+  if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
+  if (!open) {
+    stopReferenceReading?.();
+    stopReferenceReading = null;
+    closeLayer(
+      () => {
+        if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
+        if (currentLocationIn(commandReferenceDialog))
+          deepFocus()?.blur();
+        repaint();
+      },
+      handingBack && (() => handBack(restore))
+    );
+    return;
+  }
+  reachScrollers(commandReferenceDialog);
+  focusDestination(
+    commandReferenceDialog.querySelector(
+      preserveSelection ? ".lf-command-reference-close" : ".lf-command-reference-search"
+    ),
+    "move"
+  );
+  repaint();
+}
+var commandButton = (id) => [
+  .../** @type {NodeListOf<HTMLElement>} */
+  commandReferenceDialog.querySelectorAll(".lf-command-reference-command")
+].find((button) => button.dataset.lfCommand === id) ?? null;
+var focusedCommandId = () => focused()?.matches?.(".lf-command-reference-command") ? focused().dataset.lfCommand : null;
+var commandReferenceCommandActive = () => commandReferenceView.visibleCommands.length > 0 && (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
+function moveCommandReferenceSelection(dir) {
+  const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
+  if (!ids.length) return;
+  const focusedId = focusedCommandId();
+  const nextId = clampedRow(
+    ids,
+    focusedId ?? commandReferenceState.selectedCommandId,
+    dir
+  );
+  const nextRecord = commandReferenceView.visibleCommands.find(
+    ({ entry }) => entry.id === nextId
+  );
+  commandReferenceState = {
+    ...commandReferenceState,
+    selectedCommandId: nextId,
+    metaOverride: selectionMeta(nextRecord.entry)
+  };
+  presentCommandReference();
+  const next = commandButton(nextId);
+  if (focusedId) focusDestination(next, "move");
+  scrollIntoView(next.closest("tr"), { block: "nearest" });
+  beginWalk("shortcut-command", "Command", () => {
+    const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
+    return listWalkPosition(
+      commandReferenceView.visibleCommands.map(({ entry }) => entry.id),
+      current
+    );
+  });
+}
+function activateSelectedCommand() {
+  if (!commandReferenceCommandActive()) return false;
+  const id = focusedCommandId() ?? commandReferenceState.selectedCommandId ?? commandReferenceView.visibleCommands[0]?.entry.id;
+  const record = commandReferenceView.visibleCommands.find(
+    ({ entry }) => entry.id === id
+  );
+  if (!record) return false;
+  activateCommandEntry(record.entry);
+  return true;
+}
+var commandReferenceOpen = () => commandReferenceIsOpen;
+var openCommandReference = (invokeCommand, returnTo = null) => showCommandReference(true, true, invokeCommand, returnTo);
+var closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null, null);
+pageScope("command reference", {
+  title: "In the command reference",
+  escape: "inner",
+  root: () => commandReferenceDialog,
+  at: () => commandReferenceOpen(),
+  claims: EVERYTHING,
+  rows: [
+    {
+      id: "command.reference.command.next",
+      touch: false,
+      keys: ["ArrowDown"],
+      title: "choose next",
+      repeat: true,
+      runFromCommandReference: false,
+      // The list is built before search receives focus, so physical liveness is false at
+      // that instant even though the reference always lists this instruction.
+      commandReferenceWhen: () => true,
+      when: () => commandReferenceCommandActive(),
+      run: () => moveCommandReferenceSelection(1)
+    },
+    {
+      id: "command.reference.command.previous",
+      touch: false,
+      keys: ["ArrowUp"],
+      title: "choose previous",
+      repeat: true,
+      runFromCommandReference: false,
+      commandReferenceWhen: () => true,
+      when: () => commandReferenceCommandActive(),
+      run: () => moveCommandReferenceSelection(-1)
+    },
+    {
+      id: "command.reference.command.activate",
+      touch: false,
+      keys: ["Enter"],
+      title: "activate",
+      runFromCommandReference: false,
+      commandReferenceWhen: () => true,
+      when: () => commandReferenceCommandActive(),
+      run: () => activateSelectedCommand()
+    },
+    {
+      id: "command.reference.close",
+      touch: false,
+      keys: ["Escape"],
+      title: "close command reference",
+      control: () => commandReferenceClose,
+      runFromCommandReference: false,
+      run: () => closeCommandReference()
+    }
+  ]
+});
+var closeInteractions = () => {
+};
+function mountCommandReference({ beforeOpening }) {
+  closeInteractions = beforeOpening;
+}
+var openReference = (returnTo = null) => {
+  closeInteractions();
+  openCommandReference((id) => executeCommand(id), returnTo);
+};
+pageCommand({
+  id: "command.reference.open",
+  touch: false,
+  runFromCommandReference: false,
+  keys: ["?"],
+  title: "Command reference",
+  run: () => openReference()
+});
+registerPageControl({
+  key: "keyboard",
+  rank: PAGE_CONTROL_RANK.keyboard,
+  label: "Keyboard shortcuts",
+  shortcut: ["?"],
+  group: "page",
+  press: (held) => {
+    const door = focused();
+    if (held) returnPlace(held);
+    openReference(door);
+  }
+});
+
 // runtime/navigation.js
 var openThreads = (placedAt) => inPageOrder(
   threadList().filter((thread) => !thread.resolved),
@@ -11685,7 +11684,6 @@ aim = createAim({
   marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
   refreshAim: () => pageGeometry.refreshAim(),
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-  standDown: (...args) => responseSurface.standDown(...args),
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
   targetPicker: {
@@ -11885,6 +11883,7 @@ responseSurface = createResponseSurface({
   setReact: (...args) => reactions.setReact(...args),
   openPageThread: app.threadDestinations.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
+  captureActive: () => regionCapture.active(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
   pageComment: generalComment,

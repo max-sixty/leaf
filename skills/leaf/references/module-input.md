@@ -120,10 +120,12 @@ returns the list at each press, `landed(row)` runs after a move, and `scroll: fa
 keeps the page still.
 
 A widget that steps through something itself, such as a diff's hunks, calls
-`beginWalk(key, noun, read)` at each step and announces what it returns, such as
-`Hunk 3 of 7`. `read()` returns the position, usually from
+`beginWalk(key, noun, read, wrapped)` at each step and announces what it returns, such
+as `Hunk 3 of 7`. `read()` returns the position, usually from
 `listWalkPosition(items, current, {identity})`. A step that lands where the last one did
-shows the walk has reached its end.
+shows the walk has reached its end. A walk that comes round at its ends steps with
+`cycledRow(items, current, direction)`, which returns `{row, wrapped}`, and passes
+`wrapped` on, so a step that came round shows it did.
 
 ### Go-to targets
 

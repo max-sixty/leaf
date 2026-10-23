@@ -281,6 +281,7 @@ import {
   commandRoutes,
   completeData,
   countTraffic,
+  cycledRow,
   dataHeaders,
   el,
   frameFor,
@@ -1807,14 +1808,14 @@ function createSelectionComposer({
   function stepResponseOptions(binding) {
     const choices = responseOptionButtons();
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp"].includes(binding);
-    const next = at < 0 ? backward ? choices.length - 1 : 0 : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    const { row, wrapped } = cycledRow(choices, focused(), backward ? -1 : 1);
+    focusDestination(row, "move");
     beginWalk(
       "response-option",
       "Response",
-      () => listWalkPosition(responseOptionButtons(), focused())
+      () => listWalkPosition(responseOptionButtons(), focused()),
+      wrapped
     );
   }
   const focusResponseOption = (focus) => {
@@ -4867,16 +4868,16 @@ function createReactionController({
   function stepResponse(binding) {
     const choices = responseChoices(reactSurface);
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding
     );
-    const next = at < 0 ? backward ? choices.length - 1 : 0 : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    const { row, wrapped } = cycledRow(choices, focused(), backward ? -1 : 1);
+    focusDestination(row, "move");
     beginWalk(
       "reaction",
       "Reaction",
-      () => listWalkPosition(responseChoices(reactSurface), focused())
+      () => listWalkPosition(responseChoices(reactSurface), focused()),
+      wrapped
     );
   }
   const REACT = {

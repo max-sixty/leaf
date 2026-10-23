@@ -14,6 +14,9 @@ import {
   live,
   offered,
   commands,
+  cycledRow,
+  beginWalk,
+  listWalkPosition,
   paintKeys,
   holdFocus,
   focused,
@@ -207,11 +210,17 @@ customElements.define(
     #approved(id) {
       return this.state?.review?.units?.[id]?.detail.approved === true;
     }
+    // n and Shift+n walk the cases, coming round at either end, and say where the
+    // landing stands among them as every walk does.
     #step(delta) {
-      const ids = this.#snapshot.value.cases.map((record) => record.id);
-      this.#select(
-        ids[(ids.indexOf(this.#selected) + delta + ids.length) % ids.length],
-        true,
+      const ids = () => this.#snapshot.value.cases.map((record) => record.id);
+      const { row, wrapped } = cycledRow(ids(), this.#selected, delta);
+      this.#select(row, true);
+      beginWalk(
+        "visual-case",
+        "Case",
+        () => listWalkPosition(ids(), this.#selected),
+        wrapped,
       );
     }
     #inspection() {

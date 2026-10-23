@@ -77,8 +77,9 @@ export function walkPosition() {
 // `landed(row)` runs after a press that moved focus to another row. `scroll: false`
 // holds the page still for a list read off what is in view, such as the Page Map's
 // visible markers, where scrolling to the landed row would change the list the walk
-// is over. Tabs and spatial grids own cyclic policies; the page's queue walk steps by
-// document position.
+// is over. A walk that comes round at its ends steps with `cycledRow`
+// (keyboard/bindings.js) and passes its `wrapped` to `beginWalk`; the page's queue walk
+// steps by document position.
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 /** @param {{

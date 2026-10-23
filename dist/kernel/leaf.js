@@ -4078,12 +4078,13 @@ function createHintSession({
   function walk(direction) {
     const targets2 = hinted();
     if (!targets2.length) return;
-    at = at < 0 ? direction > 0 ? 0 : targets2.length - 1 : (at + direction + targets2.length) % targets2.length;
-    const target = targets2[at];
+    const { row: target, wrapped } = cycledRow(targets2, targets2[at], direction);
+    at = targets2.indexOf(target);
     beginWalk(
       walkKey,
       "Target",
-      () => listWalkPosition(hinted(), hinted()[at], { identity })
+      () => listWalkPosition(hinted(), hinted()[at], { identity }),
+      wrapped
     );
     const said = words.describe(target);
     const stop = /[.!?]$/.test(said) ? "" : ".";

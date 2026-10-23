@@ -107,7 +107,7 @@ import {
 import { el, offer } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
-import { PRESS, rowArrows } from "../keyboard/bindings.js";
+import { PRESS, cycledRow, rowArrows } from "../keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "../walk-position.js";
 
 import { readingRegionFor } from "../reading-regions.js";
@@ -452,21 +452,24 @@ export function createMarginProjection({
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
     const direction = binding === rowArrows(active)[1] ? 1 : -1;
-    focusDestination(
-      buttons[(at + direction + buttons.length) % buttons.length],
-      "move",
+    const { row, wrapped } = cycledRow(buttons, active, direction);
+    focusDestination(row, "move");
+    beginWalk(
+      "margin-entry",
+      "Action",
+      () => {
+        const currentLocation = focused();
+        const currentLocationHost = closestAcross(
+          currentLocation,
+          "[data-lf-margin-for]",
+        );
+        return listWalkPosition(
+          clusterMarginEntries(currentLocationHost),
+          currentLocation,
+        );
+      },
+      wrapped,
     );
-    beginWalk("margin-entry", "Action", () => {
-      const currentLocation = focused();
-      const currentLocationHost = closestAcross(
-        currentLocation,
-        "[data-lf-margin-for]",
-      );
-      return listWalkPosition(
-        clusterMarginEntries(currentLocationHost),
-        currentLocation,
-      );
-    });
   }
 
   // Folding a cluster the user was in hands them back to its toggle.

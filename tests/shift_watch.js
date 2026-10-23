@@ -399,8 +399,9 @@
     unread = fresh = true;
   };
   // Chrome animates native details' ::details-content without exposing that
-  // transition through getAnimations(). Keep its closing interval as a motion
-  // source so following boxes are read and credited by their actual size change.
+  // transition through getAnimations(). Keep the closure through its final painted
+  // frame: a loaded browser can paint the last size change after the nominal CSS
+  // duration, and the layout-shift observer reports that paint later still.
   const nativeClosures = new Map();
   const durationMs = (value) =>
     Math.max(
@@ -433,7 +434,8 @@
       )
         continue;
       const duration = durationMs(style.transitionDuration);
-      if (duration) nativeClosures.set(node, at + duration);
+      if (duration)
+        nativeClosures.set(node, { until: at + duration, settledAt: null });
     }
     announce();
   };
@@ -981,8 +983,18 @@
     // its scroller scrolls or its layout changes, which announce themselves, so it
     // reads completely only on those frames, as the contents' window does in lf-toc.
     const animations = allAnimations();
-    for (const [node, until] of nativeClosures)
-      if (!node.isConnected || at > until + 100) nativeClosures.delete(node);
+    for (const [node, closure] of nativeClosures) {
+      if (!node.isConnected) {
+        nativeClosures.delete(node);
+        continue;
+      }
+      if (
+        closure.settledAt === null &&
+        at >= closure.until &&
+        parseFloat(getComputedStyle(node, "::details-content").blockSize) === 0
+      )
+        closure.settledAt = at;
+    }
     const running =
       animations.some(
         ({ playState, timeline }) =>
@@ -991,7 +1003,7 @@
             typeof window.ScrollTimeline === "function" &&
             timeline instanceof ScrollTimeline
           ),
-      ) || [...nativeClosures.values()].some((until) => at <= until);
+    ) || [...nativeClosures.values()].some(({ settledAt }) => settledAt === null);
     observeWrites(writes.takeRecords());
     // A child frame reads completely on every frame, since its embedding page can
     // hide or move it without telling it; only a hidden tab announces itself here.
@@ -2379,8 +2391,8 @@
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0, terms: [] };
     if (!element) return motion;
-    for (const [details, until] of nativeClosures) {
-      if (to > until + 100 || details.getRootNode() !== element.getRootNode()) continue;
+    for (const details of nativeClosures.keys()) {
+      if (details.getRootNode() !== element.getRootNode()) continue;
       const before = boxAt(details, from),
         after = boxAt(details, to),
         first = layoutAt(element, from),
@@ -2842,6 +2854,11 @@
   // can outlive any number of paint checkpoints. Unadmitted movement before this
   // checkpoint was not painted as a layout shift (e.g. a transform-only move).
   const retire = (through) => {
+    // `drained` judges native shift records before retiring their closing motion.
+    // A settled closure can leave only after the paint checkpoint that followed
+    // its final size has passed.
+    for (const [node, { settledAt }] of nativeClosures)
+      if (settledAt !== null && settledAt <= through) nativeClosures.delete(node);
     for (let i = pendingMotion.length - 1; i >= 0; i--)
       if (
         pendingMotion[i].after <= through &&

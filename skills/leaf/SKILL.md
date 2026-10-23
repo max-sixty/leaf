@@ -51,9 +51,9 @@ words in `error` or `text`.
    you take on. Run `leaf page init <page>`, adding a package when the page needs
    its vocabulary or instructions: `leaf page init --package diagram --package diff <page>`.
    `references/packages.md`, "Package reach", lists the packages. Use
-   `playground` when the user tunes several values or behaviors before choosing.
-   Drawn candidates the user picks among need no package, since the user selects
-   the candidate itself (`references/authoring-decisions.md`). Running `page init`
+   `playground` when the user explores candidates or tunes a configuration before
+   sending it; its choices can contain the previews themselves. Simple decisions
+   use `lf-options` (`references/authoring-decisions.md`). Running `page init`
    again with a package adds it to a page already written.
 2. Read all of `references/page-authoring.md`, then each reference the page
    needs, listed under "Author a version" below. Choose elements and class idioms

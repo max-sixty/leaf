@@ -1,0 +1,17 @@
+# From the panel-motion comparison praised in Codex chat
+# 01a1647b-3fa6-7663-b40a-06d47d0e5188. Measures live comparison and choice,
+# including shared inspection controls staying useful while the page scrolls.
+# One baseline/candidate pilot is planned; no result is claimed yet.
+description: Motion design comparison
+metadata:
+  purpose: Compare real motion candidates through shared playback and record the
+    chosen visible candidate without confusing inspection with a design choice.
+  tags:
+    - workflow
+    - design
+    - playground
+    - motion
+  conditions:
+    - leaf
+  executor: leaf_dev.arrangement_eval
+  scenario: motion-design

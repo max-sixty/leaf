@@ -255,6 +255,39 @@ cases:
             key includes tenant_id and job.id and is computed once before the retry loop. The
             cross-tenant same-job-ID check is included. Proposed tests and approval remain distinct
             from tests having run or code having deployed."
+  motion-design:
+    inputs:
+      comment: null
+      decision:
+        task: >-
+          Compare the panel recordings using their shared playback controls, including
+          quarter speed and seeking. Then choose B · Balanced where its recording is
+          shown and complete the page's offered route for recording that design choice.
+        typed: My final choice is B · Balanced, the 260 ms panel timing.
+      reveal: ""
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric: >-
+            Operate the before_decision page at every declared viewport. The actual supplied
+            recordings play and remain readable, with Baseline visibly distinguished from
+            the three alternatives and each candidate's meaningful difference explained.
+            All candidates can be compared together without switching a single view between
+            them. Replay, pause, quarter-speed playback and seeking operate every recording
+            at the same moment; establish this by operating them and inspecting the media,
+            not only their labels. While scrolling to a lower candidate, shared playback
+            and seeking remain available without returning to the top. A recording's own
+            displayed candidate provides its selection action, and choosing works by keyboard
+            as well as pointer or touch. Playback and seeking must not accidentally change
+            or submit the choice. Check that controls remain usable and the recordings do
+            not become illegible or clipped on the phone. On the final page, B · Balanced
+            at 260 ms is clearly recorded as the user's choice and its actual recording
+            remains available. The page must not claim the choice has been implemented or
+            shipped. Judge these user outcomes rather than particular widgets, CSS properties,
+            a prescribed grid or exact wording. An untested required interaction is
+            insufficient evidence, not a pass.
   notification-design:
     inputs:
       comment:

@@ -1,8 +1,10 @@
-/* One finite clock for page-authored illustrations. The author supplies a
- * synchronous renderFrame(time) in milliseconds; it paints every compared view
- * from the same instant and owns their geometry and meaning. Assigning the
- * renderer draws immediately, so either module may load first. This is not
- * recorded evidence: recordings retain their native clocks in lf-trace.
+/* One transport for page-authored illustrations and compared video recordings.
+ * A synchronous renderFrame(time) paints illustrations from milliseconds, while
+ * descendant videos play on their native media clocks. The furthest video time
+ * drives the shared timeline; seeking and pausing align all views to that time.
+ * Never seek videos on animation frames: the browser owns decoding and playback.
+ * The author owns geometry, duration and meaning. Assigning a renderer draws
+ * immediately, so either module may load first.
  *
  * Playback, speed and scrubbing are local inspection, never page events. The
  * clock starts still, stops on disconnect/inspection, and resumes only on Play.
@@ -25,6 +27,7 @@ import {
   relabel,
   paintKeys,
   tabStore,
+  raiseError,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -39,6 +42,16 @@ customElements.define(
     #label;
     #rate = 1;
 
+    get #videos() {
+      return [...this.querySelectorAll("video")].filter(
+        (video) => video.closest("lf-motion") === this,
+      );
+    }
+
+    get #playable() {
+      return Boolean(this.#draw || this.#videos.length);
+    }
+
     get duration() {
       return Number(this.getAttribute("duration"));
     }
@@ -50,6 +63,7 @@ customElements.define(
         throw new TypeError("currentTime must be finite milliseconds");
       this.#pause();
       this.#time = Math.max(0, Math.min(this.duration, value));
+      this.#seekVideos();
       this.#paint();
       this.#save();
     }
@@ -73,8 +87,18 @@ customElements.define(
           id: "motion.play",
           title: () => this.#playLabel(),
           control: this.#ui.play,
-          when: () => Boolean(this.#draw),
+          when: () => this.#playable,
           run: () => this.#toggle(),
+        },
+        {
+          id: "motion.replay",
+          title: "Replay from the beginning",
+          control: this.#ui.replay,
+          when: () => this.#playable,
+          run: () => {
+            this.currentTime = 0;
+            this.#toggle();
+          },
         },
       ]);
       whileConnected(this, (signal) => {
@@ -89,6 +113,7 @@ customElements.define(
           "change",
           () => {
             this.#rate = Number(this.#ui.speed.value);
+            for (const video of this.#videos) video.playbackRate = this.#rate;
             this.#save();
           },
           { signal },
@@ -112,6 +137,12 @@ customElements.define(
           if (reducedMotion() && this.#playing) this.currentTime = this.duration;
           else this.#paintControls();
         });
+        for (const video of this.#videos) {
+          video.addEventListener("loadedmetadata", () => this.#seekVideos(), {
+            signal,
+          });
+        }
+        this.#seekVideos();
         this.#paint();
         return () => {
           this.#pause();
@@ -129,15 +160,21 @@ customElements.define(
     #playLabel() {
       if (this.#playing) return "Pause";
       if (reducedMotion()) return "Show end";
-      return this.#time >= this.duration ? "Replay" : "Play";
+      return "Play";
     }
 
     #pause() {
       if (this.#frame !== null) cancelAnimation(this.#frame);
       this.#frame = null;
+      const readVideo =
+        this.#playing && this.#videos.length && this.#time < this.duration;
+      if (readVideo) this.#readVideoTime();
       this.#playing = false;
+      for (const video of this.#videos) video.pause();
+      this.#seekVideos();
       this.#paintControls();
       if (this.#ui) this.#save();
+      if (readVideo && this.isConnected) this.#draw?.(this.#time);
     }
 
     #save() {
@@ -157,23 +194,52 @@ customElements.define(
         return;
       }
       if (this.#time >= this.duration) this.#time = 0;
+      this.#seekVideos();
       this.#playing = true;
       this.#last = performance.now();
       this.#paint();
+      for (const video of this.#videos) {
+        video.playbackRate = this.#rate;
+        video.play().catch((error) => {
+          // A pause or seek may interrupt the browser's pending play request.
+          if (error.name === "AbortError") return;
+          this.#pause();
+          raiseError(`Playback failed: ${error.message}`);
+        });
+      }
       this.#frame = nextAnimation(() => this.#tick());
+    }
+
+    #seekVideos() {
+      for (const video of this.#videos) {
+        const time = Math.min(this.#time / 1000, video.duration || Infinity);
+        if (video.currentTime !== time) video.currentTime = time;
+      }
+    }
+
+    #readVideoTime() {
+      this.#time = Math.min(
+        this.duration,
+        Math.max(...this.#videos.map((video) => video.currentTime * 1000)),
+      );
     }
 
     #tick() {
       this.#frame = null;
       const now = performance.now();
-      this.#time = Math.min(
-        this.duration,
-        this.#time + (now - this.#last) * this.#rate,
-      );
+      const videos = this.#videos;
+      if (videos.length) {
+        this.#readVideoTime();
+        if (videos.every((video) => video.ended)) this.#time = this.duration;
+      } else {
+        this.#time = Math.min(
+          this.duration,
+          this.#time + (now - this.#last) * this.#rate,
+        );
+      }
       this.#last = now;
       if (this.#time >= this.duration) {
-        this.#playing = false;
-        this.#save();
+        this.#pause();
       }
       this.#paint();
       if (this.#playing) this.#frame = nextAnimation(() => this.#tick());

@@ -233,6 +233,8 @@ text `llm-rubric` and screenshot `agent-rubric` assertions. Complete authoring
 tasks use one JavaScript assertion to pass the final live judge's verdict through
 the Python provider. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
+`arrangement_eval` copies pinned assets under `evals/<task>/` to the same relative
+path in each author's isolated workspace, as short authoring cases do.
 
 Python prepares fixtures, drives the agent through resumed phases or live user
 rounds, and extracts evidence. Complete authoring tasks have only two execution

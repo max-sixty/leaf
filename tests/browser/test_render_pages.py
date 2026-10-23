@@ -3361,9 +3361,7 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     on_main, in_child = measured(workspace_body, "workspace", 1280)
     assert {
         k: v for k, v in without_main(in_child).items() if k not in ("box", "regions")
-    } == {
-        k: v for k, v in without_main(on_main).items() if k not in ("box", "regions")
-    }
+    } == {k: v for k, v in without_main(on_main).items() if k not in ("box", "regions")}
     for key in ("box", "regions"):
         assert in_child[key][:3] == on_main[key][:3]
         assert in_child[key][3] < on_main[key][3]

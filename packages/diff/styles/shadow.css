@@ -307,7 +307,8 @@
 }
 .lf-diff-file-actions {
   position: relative;
-  z-index: 3;
+  /* Stay above the pinned name while its path box covers numbered line controls. */
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: flex-end;

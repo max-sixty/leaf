@@ -1,10 +1,7 @@
 Use `lf-worktree-diffs` when the reader needs to inspect a supplied set of worktrees.
-Give it one `lf-worktree` per snapshot, in review order. One to four fit comfortably;
-larger sets use the same rows without a cap. Wrap each member’s evidence in one
-native `details` with a stable id. Leaf supplies its summary; set `open` on the first
-useful disclosure.
-Readers can open several worktrees together, and closing a row retains its diff's
-file filter, disclosures, and reading position.
+Give it one `lf-worktree` per snapshot, in review order. There is no limit on how many.
+Wrap each member’s evidence in one native `details` with a stable id. Leaf supplies its
+summary; set `open` on the first useful disclosure.
 
 Each member supplies `label`, `path`, `status`, and the known snapshot's `files`,
 `additions`, and `deletions`. Use `branch` when attached and `head` for the full current
@@ -69,8 +66,6 @@ The worktree path itself is supplied by `path` and shown above the body. Include
 path in the authored details too when the reader needs to comment on it.
 
 `lf-diff` remains the patch reader: supply the exact Git patch inline or through its
-existing source contract. Its own file navigation, line comments, and keyboard
-routes work within each worktree. Describe binary changes in the authored body when
-there is no textual patch to inspect. There is no second patch
-parser or separate worktree selection event. This widget displays snapshots supplied
+existing source contract. Describe binary changes in the authored body when
+there is no textual patch to inspect. This widget displays snapshots supplied
 by the author; it does not discover directories or run Git in the browser.

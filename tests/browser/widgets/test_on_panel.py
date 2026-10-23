@@ -17,6 +17,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     post_event,
     resized,
     round_trip,
@@ -28,7 +29,7 @@ from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-ON_ME = '.lf-fp-view[data-view="queue"]:not([data-leaving])'
+ON_ME = panel_view("queue")
 
 
 def open_on_me(page):

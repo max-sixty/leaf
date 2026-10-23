@@ -89,6 +89,10 @@ its `keys`. `rowArrows(node)` returns `[back, ahead]` arrow keys for the text di
 and `PRESS` is Enter and Space. `labelOf(row)` is the key text a row shows, for a
 tooltip, and `saying(rows)` words what a set of rows answers, for an announcement.
 
+A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
+the `lf-disclosure-marker` class, and it shows the one every disclosure on the page
+shows, as its `::before`, turning with its state; the widget's own rules place it.
+
 ### Decisions and forwarded keys
 
 `keys` work inside the widget. `contextKeys` work there too, and Leaf also forwards them
@@ -122,8 +126,8 @@ keeps the page still.
 A widget that steps through something itself, such as a diff's hunks, calls
 `beginWalk(key, noun, read)` at each step and announces what it returns, such as
 `Hunk 3 of 7`. `read()` returns the position, usually from
-`listWalkPosition(items, current, {identity})`. A step that lands where the last one did
-shows the walk has reached its end.
+`listWalkPosition(items, current, {identity})`. A walk that comes round at its ends
+steps with `cycledRow(items, current, direction)`, which returns the item it lands on.
 
 ### Go-to targets
 

@@ -88,9 +88,10 @@ representative desktop viewport.
   token and each occupant fills it. Only content grows it, such as typed words, or a
   gesture that asks for room, such as More room. A label's words (`data-room`, below)
   and a widget's first paint (`keeps-first-box`) are cases of the same rule. A
-  component that sizes itself from its own type or the pointer's floor, such as a
-  WebAwesome input or an icon action, takes the place's size through its own sizing
-  token, set where it is seated. Check: `test_whatever_the_field_holds_the_row_keeps_its_line`
+  one-line control's face is the line (`--lf-line`, theme.css) and a finger's floor its
+  reach (surfaces.css); a control that brings its own height instead, from its type or
+  the floor, sizes every place it is seated in. Check:
+  `test_whatever_the_field_holds_the_row_keeps_its_line`
   compares the row with its token in each mode; that a place still contains its
   occupant proves nothing, since a grown place always does. `tests/swap_watch.js`,
   which the browser fixture runs on every test, fails a flex row whose height follows
@@ -162,6 +163,24 @@ representative desktop viewport.
   typed words without a key or press, and `typed_box_findings` in the render gate tests.
   Owner: `annotation-overlay/composing/floating-response.js`.
 
+### Editing in place
+
+- **Editing something keeps it where it stood and as it read.** Opening a message or
+  any value for editing draws it in its display's place and face: every line
+  of its words keeps its position, type and breaks, and its pictures and other parts
+  keep their places and sizes. The editor adds only what editing needs, such as a
+  field's frame, Save and Discard, or a picture's removal mark, in room the display
+  already has: around the content, or at the head where the display's own control
+  stood. Where the frame needs room the display lacks, give the display that room at
+  rest rather than move the content on opening: a scroller holding messages keeps the
+  thread's text inset beside them, and the user's own words keep the column of the box
+  they write in (`styles/components/reading.css`). The user then finds what they meant
+  to change where they saw it, and sees what saving will show. A draft's editor
+  (`lf-draft`) does not hold this yet: it opens its prose as Markdown source in a sent
+  message's face, so a heading shrinks, gaps between blocks widen and a picture shows as
+  its source. Check: `test_a_rewrite_keeps_the_message_as_it_stood`. Owners:
+  `thread/message-edit.js` and `.lf-msg-editor` in `styles/components/response.css`.
+
 ### Visual grammar
 
 - **Visual treatments carry hierarchy and state.** Contours are solid. A dotted or
@@ -190,7 +209,9 @@ representative desktop viewport.
 - **Nothing the user must read, press, or decide waits on a clock.** Motion the user
   waits on stays under 300ms. A delay may hide a flicker but never adds a minimum
   spinner time or a staged reveal. `runtime/motion.js` owns the shared motion gate,
-  easing and reduced-motion check, and the theme's `--lf-motion-*` properties set durations.
+  easing and reduced-motion check, and `--lf-motion-*` properties set durations and
+  curves: the theme's for the document, and a runtime surface's own sheet for that
+  surface, as `floating-panel.css` does for the panel.
 
 ## Runtime ownership
 

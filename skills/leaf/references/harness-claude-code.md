@@ -28,11 +28,11 @@ Leaf's prompt hook, or the tool-batch boundary while you work, puts the whole
 delivery in your context; input that arrives after your last tool call opens the
 next turn. Leaf confirms receipt itself once your turn goes on past the delivery,
 so `acknowledge` is null and you run no acknowledgement command; if the turn is
-interrupted before then, the same input comes again in the next one. A delivery the hook could not
-confirm, or one too large for the context, arrives as a pointer instead: read every
-part with `leaf delivery read <id>` before working, then follow the confirmation
-instruction on the last part. An update a turn left unanswered comes back once,
-in a turn of its own, and again with the next prompt the user types.
+interrupted before then, the same input comes again in the next one. A delivery
+the hook could not confirm, or one too large for Claude Code to show whole, arrives
+as a pointer instead (`event-batches.md`, "Handle the input"). An update a turn
+left unanswered comes back once, in a turn of its own, and again with the next
+prompt the user types.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; Leaf
 watches it from the end of the turn.

@@ -4,7 +4,9 @@
  * inactive panels with hidden="until-found", so browser find-in-page and
  * fragment navigation still reach them — `beforematch` opens the owning tab,
  * and the runtime's reveal() asks the same via the lf-reveal event when it
- * scrolls to a comment anchor. The open tab is view state for this user,
+ * scrolls to a comment anchor. A page can make a panel itself scroll with CSS,
+ * so the widget declares each panel as a scroll surface; its CSS still decides
+ * whether that panel scrolls. The open tab is view state for this user,
  * remembered per browser tab (`keepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
  * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
@@ -87,6 +89,7 @@ import {
   claimTraversals,
   commands,
   compoundReadingRegionId,
+  cycledRow,
   elementsDeclaring,
   keepView,
   keeps,
@@ -95,6 +98,7 @@ import {
   frameFor,
   whileConnected,
   offer,
+  generated,
   openingView,
   pageScroller,
   preserveReadingRegions,
@@ -215,6 +219,7 @@ export class TabSet extends LeafElement {
       if (!index || (side && group !== panels[index - 1].getAttribute("group")))
         this.#runs.push({ panel, group, panels: [] });
       this.#runs.at(-1).panels.push(panel);
+      panel.classList.add("scroll");
       panel.setAttribute("role", "tabpanel");
       panel.setAttribute("aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
@@ -231,21 +236,17 @@ export class TabSet extends LeafElement {
     // name and the underline in this same task. Later publication uses LeafElement's
     // tracked render; its unchanged Lit parts retain these exact nodes.
     render(this.render(), strip);
-    // Roving focus per the ARIA tabs pattern: arrows move and activate, and wrap, which
-    // is a fact about this walk and so belongs in the words that name it.
-    const walk = (to) => {
-      const order = [...this.#buttons.values()];
-      // The strip takes no tab stop of its own, so focus inside it — which is the
-      // whole of when this scope holds — is always one of these buttons.
-      const at = order.indexOf(focused());
-      const next = order[to(at, order.length)];
+    // Roving focus per the ARIA tabs pattern: arrows move and activate, and come round
+    // at the ends as every cyclic walk does (`cycledRow`). The strip takes no tab stop
+    // of its own, so focus inside it, which is the whole of when this scope holds, is
+    // always one of these buttons.
+    const tabs = () => [...this.#buttons.values()];
+    const walk = (next) => {
       // The strip is always on screen; focus scrolling a stuck tab back to its place
       // in flow would move the view being left before the switch records it.
       focusDestination(next, "move");
       next.click();
-      beginWalk("tab", "Tab", () =>
-        listWalkPosition([...this.#buttons.values()], focused()),
-      );
+      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()));
     };
     // Across the row, back is the way the names run from.
     const [back, ahead] = rowArrows(this);
@@ -278,10 +279,10 @@ export class TabSet extends LeafElement {
         ],
         title: "walk the tabs",
         repeat: true,
-        run: (binding) =>
-          walk((at, n) =>
-            [ahead, "ArrowDown"].includes(binding) ? (at + 1) % n : (at - 1 + n) % n,
-          ),
+        run: (binding) => {
+          const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
+          walk(cycledRow(tabs(), focused(), step));
+        },
       },
       {
         id: "tab.edge",
@@ -291,7 +292,7 @@ export class TabSet extends LeafElement {
           { id: "tab.last", binding: "End", title: "Last tab" },
         ],
         title: "first / last",
-        run: (binding) => walk((at, n) => (binding === "Home" ? 0 : n - 1)),
+        run: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
       },
     ]);
     this.prepend(strip);
@@ -378,8 +379,7 @@ export class TabSet extends LeafElement {
                     ? html`<span
                         class="lf-tab-group"
                         aria-hidden="true"
-                        data-lf-gen="1"
-                        data-lf-said
+                        ${generated({ says: true })}
                         >${run.group}</span
                       >`
                     : nothing
@@ -451,11 +451,11 @@ export class TabSet extends LeafElement {
       tabindex=${panel === this.#active.value ? 0 : -1}
       @click=${(event) =>
         this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
-      ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
+      ><span class="lf-tab-name" ${generated({ says: true })}
         >${panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
         this.#down && panel.hasAttribute("summary")
-          ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said
+          ? html`<span class="lf-tab-summary" ${generated({ says: true })}
               >${panel.getAttribute("summary")}</span
             >`
           : nothing

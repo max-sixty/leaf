@@ -7,7 +7,7 @@ export const SHOT_VIEWS = {
   compare: "Pair",
   pixels: "Pixels",
 };
-const CONTROL = "lf-btn lf-quiet-action lf-compact-control";
+const CONTROL = "lf-btn lf-quiet-action";
 let nextOptionsId = 0;
 
 // Fit uses the content box: the scrollport's padding keeps the image shadow visible.
@@ -120,13 +120,12 @@ export function applyShotGeometry(host, geometry, keeps) {
   // comment target as the pair stacks or the reader changes views.
   const stacked = host.dataset.lfShotMode === "compare" && geometry.layout === "stack";
   for (const caption of host.querySelectorAll(".lf-shotcap"))
-    caption.toggleAttribute(
-      "data-lf-said",
-      caption.parentElement.classList.contains("lf-shot-frame-label") === stacked,
-    );
+    document.documentElement.lfInitial.generatedElement(caption, {
+      says: caption.parentElement.classList.contains("lf-shot-frame-label") === stacked,
+    });
 }
 
-export function drawShot(host, { offer, keeps }) {
+export function drawShot(host, { offer, generatedElement, keeps }) {
   const buttons = (label, values, selected) => {
     const group = offer("div", "lf-shot-views");
     group.role = "group";
@@ -208,13 +207,11 @@ export function drawShot(host, { offer, keeps }) {
   for (const state of ["before", "after"]) {
     const frame = offer("div", "lf-shotframe lf-media-frame");
     frame.dataset.lfState = state;
-    const caption = offer(
-      "span",
-      "lf-shotcap lf-label",
-      state === "before" ? "Before" : "After",
+    const caption = generatedElement(
+      offer("span", "lf-shotcap lf-label", state === "before" ? "Before" : "After"),
+      { says: true },
     );
     caption.dataset.lfState = state;
-    caption.dataset.lfSaid = "";
     const heading = offer("div", "lf-shot-frame-label lf-ui");
     heading.dataset.lfState = state;
     const frameCaption = offer("span", "lf-shotcap lf-label", caption.textContent);

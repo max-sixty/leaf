@@ -81,3 +81,15 @@ variants:
       purpose: Answer feedback arriving during work.
       conditions:
         - leaf
+  # Added when every harness's hook began handing an over-limit delivery over as the
+  # same `leaf-delivery` element. On Claude Code at 637d54d03, the base (a prose
+  # pointer naming `leaf delivery read`) and the candidate (the element) each passed
+  # 3/3; 2 of 3 candidate runs read event-batches.md before the delivery, so it
+  # guards rather than separates.
+  oversized:
+    metadata:
+      executor: leaf_dev.delivery_eval
+      scenario: oversized
+      purpose: Read and answer a delivery too large for the hook's context, which arrives by pointer.
+      conditions:
+        - leaf

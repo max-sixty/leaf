@@ -15,6 +15,7 @@ from render_harness import (
     http_error_console,
     leaf_page,
     panel_settled,
+    panel_view,
     round_trip,
     select_words,
     stored_draft_text,
@@ -199,7 +200,7 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
-    rows = page.locator('.lf-fp-view[data-view="threads"] .lf-fp-thread')
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     expect(rows).to_have_count(3)
     expect(rows.filter(has_text=words)).to_have_count(1)
     expect(rows.filter(has_text=drawing_words)).to_have_count(1)

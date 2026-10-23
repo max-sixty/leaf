@@ -26,6 +26,7 @@ from render_harness import (
     open_page,
     panel_menu,
     panel_settled,
+    panel_view,
     round_trip,
     told,
     undo,
@@ -51,9 +52,7 @@ def expect_resolved(page, thread_id, resolved=True):
         panel_settled(page, view="threads")
     page.locator(".lf-fp-filters button").filter(has_text="Resolved").click()
     expect(
-        page.locator(
-            f".lf-fp-view[data-view='threads'] .lf-fp-thread[data-key='{thread_id}']"
-        )
+        page.locator(f"{panel_view('threads')} .lf-fp-thread[data-key='{thread_id}']")
     ).to_have_count(1 if resolved else 0)
 
 
@@ -286,6 +285,11 @@ def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
     page.route("**/api/view*", another_runtime)
     page.route("**/registry.json", source)
     compare_with(page)
+    # Compare starts an asynchronous read. Wait for its refusal before opening the
+    # menu, whose rows deliberately stay as they were when it opened.
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "placeholder", re.compile("Couldn't load v1")
+    )
     menu = panel_menu(page)
     menu.locator('.lf-fp-item[data-row="errors"]').click()
     expect(

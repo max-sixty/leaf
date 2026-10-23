@@ -104,10 +104,10 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import { el, offer } from "../widget-elements.js";
+import { el, generatedElement, offer } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
-import { PRESS, rowArrows } from "../keyboard/bindings.js";
+import { PRESS, cycledRow, rowArrows } from "../keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "../walk-position.js";
 
 import { readingRegionFor } from "../reading-regions.js";
@@ -165,7 +165,7 @@ export function createMarginProjection({
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
 
-  nav.dataset.lfGen = "1";
+  generatedElement(nav, { says: false });
   nav.setAttribute("aria-label", "Page Map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");
@@ -452,10 +452,7 @@ export function createMarginProjection({
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
     const direction = binding === rowArrows(active)[1] ? 1 : -1;
-    focusDestination(
-      buttons[(at + direction + buttons.length) % buttons.length],
-      "move",
-    );
+    focusDestination(cycledRow(buttons, active, direction), "move");
     beginWalk("margin-entry", "Action", () => {
       const currentLocation = focused();
       const currentLocationHost = closestAcross(

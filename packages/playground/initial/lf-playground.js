@@ -27,7 +27,7 @@ const COPY_LABELS = [
   ["error", "Copy failed"],
 ];
 
-function render(host, { tabStore, offer, keeps }) {
+function render(host, { tabStore, offer, generatedElement, keeps }) {
   const presets = own(host, "lf-playground-preset");
   const outputs = own(host, "lf-playground-output");
   const previews = own(host, "lf-playground-preview");
@@ -133,7 +133,7 @@ function render(host, { tabStore, offer, keeps }) {
     const element = document.createElement(tag);
     element.className = cls;
     if (text !== undefined) {
-      element.dataset.lfGen = "1";
+      generatedElement(element, { says: false });
       element.textContent = text;
     }
     return element;

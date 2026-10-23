@@ -129,6 +129,7 @@ import {
   elementDeclarations,
   elementsDeclaring,
   exhibits,
+  generatedElement,
   growthAfterIsSeen,
   growthIsSeen,
   headerInset,
@@ -144,6 +145,7 @@ import {
   nearestScrollBy,
   notice,
   offer,
+  offered,
   pagePresented,
   paintKeys,
   passErrorsAt,
@@ -1136,8 +1138,7 @@ function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
     if (!place2) return dir > 0;
     return renderedUnder(here, place2) || Math.sign(renderedOrder(here, place2)) === -dir;
   });
-  const row = dir > 0 ? reach[0] : reach.at(-1);
-  return row ? { row, wrapped: false } : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
+  return (dir > 0 ? reach[0] : reach.at(-1)) ?? (dir > 0 ? list[0] : list.at(-1));
 }
 function heldObligation(node = focused()) {
   const item = obligationHolding(readObligations().all, placeOf(node));
@@ -1270,7 +1271,7 @@ function quietWord(el2, word) {
     className: "lf-ui lf-quiet",
     textContent: word
   });
-  span.dataset.lfGen = "1";
+  generatedElement(span, { says: false });
   move(el2, span, title ? title.nextSibling : el2.firstChild);
 }
 var isExternalPageLink = (link) => document.documentElement.lfInitial.externalLinks.matches(link);
@@ -1319,7 +1320,7 @@ function writePrepaint(root) {
       markup.content.firstElementChild
     );
     written.toggleAttribute("data-lf-prepaint", true);
-    written.dataset.lfGen = "1";
+    generatedElement(written, { says: false });
     for (const el2 of elementsIn(root, tag)) el2.prepend(written.cloneNode(true));
   }
 }
@@ -1338,7 +1339,7 @@ function renderSaid(root) {
         if (text === null) continue;
         const span = document.createElement("span");
         span.dataset.lfSaid = attr;
-        span.dataset.lfGen = "1";
+        generatedElement(span, { says: true });
         span.textContent = text;
         const pastTrailingChrome = [...el2.childNodes].filter(
           (n) => !(n.nodeType === 1 && n.dataset.lfGen)
@@ -3394,18 +3395,18 @@ var MessageEditor = class {
     actions.append(cancel);
     this.foot = document.createElement("span");
     this.foot.className = "lf-msg-edit-foot";
-    this.node.append(this.input, this.foot, actions);
+    this.node.append(this.input, actions);
     this.input.value = loadDraft(ctx) || said2();
-    let opened = this.input.value;
+    const whole = () => sync.value();
+    let opened = null;
     this.#follow = () => {
-      if (base === currentBase() || draftHasContent(ctx) || this.input.value !== opened)
-        return;
+      if (base === currentBase() || draftHasContent(ctx) || whole() !== opened) return;
       base = currentBase();
-      this.input.value = opened = said2();
+      sync.load(opened = said2());
     };
     const unchanged = () => {
-      const words = this.input.value;
-      return !words.trim() || words === said2();
+      const now = whole();
+      return !now.trim() || now === said2();
     };
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land2();
@@ -3430,6 +3431,7 @@ var MessageEditor = class {
       icon: null,
       sendBtn: save,
       submitIn: actions,
+      sentMedia: true,
       save: (value) => {
         saveDraft(ctx, value, { over: base });
         tellDraft(ctx, value, { over: base });
@@ -3473,6 +3475,8 @@ var MessageEditor = class {
         }
       ]
     });
+    opened = whole();
+    this.input.after(this.foot);
     keys(
       this.node,
       "Editing a message",
@@ -3633,10 +3637,7 @@ var ReactionStripView = class {
     this.node.classList.toggle("lf-open", model.latest);
     render(
       html` <button
-          type="button"
-          class="lf-msg-control lf-react-trigger lf-ui"
-          data-lf-gen="1"
-          data-lf-offer="button"
+          ${offered("lf-msg-control lf-react-trigger")}
           aria-expanded="false"
           aria-controls=${this.#paletteId}
           aria-label="Add reaction"
@@ -3659,10 +3660,7 @@ var ReactionStripView = class {
         model.choices,
         (choice) => choice.name,
         (choice) => html` <button
-                type="button"
-                class="lf-react ${HOLDS_WORD} lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
+                ${offered(`lf-react ${HOLDS_WORD}`)}
                 data-token=${choice.name}
                 title=${choice.label}
                 aria-label=${choice.label}
@@ -3911,7 +3909,7 @@ var MessageView = class {
       this.node.dataset.message = model.key;
       this.#header.className = "lf-msg-head";
       this.node.classList.add("lf-ui");
-      this.node.dataset.lfGen = "1";
+      generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
       this.node.addEventListener("dblclick", (event) => {
         if (
@@ -4007,11 +4005,8 @@ var MessageView = class {
       this.#header
     );
     const rewrite = model.editable && !editing ? html`<button
-            type="button"
-            class="lf-msg-control lf-msg-edit lf-ui"
+            ${offered("lf-msg-control lf-msg-edit")}
             tabindex="-1"
-            data-lf-gen="1"
-            data-lf-offer="button"
             aria-label="Edit message"
             title="Edit message"
             @click=${() => this.openEdit()}
@@ -4539,9 +4534,8 @@ function snapSelection() {
 }
 
 // runtime/walk-position.js
-var BOUNDARY_MS = 900;
+var HOLD_MS = 900;
 var walking = null;
-var boundaryTimer = 0;
 function walkPositionLabel(noun, position, total, qualifier = "") {
   if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
   return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");
@@ -4557,13 +4551,10 @@ function walkPosition() {
   if (!walking) return null;
   const position = walking.read();
   if (!position || position.target !== walking.target) {
-    clearTimeout(boundaryTimer);
-    boundaryTimer = 0;
     walking = null;
     return null;
   }
   return {
-    boundary: walking.boundary,
     kind: walking.key,
     target: position.target,
     position: position.position,
@@ -4623,32 +4614,15 @@ function rowWalk({
     }
   ];
 }
-function beginWalk(key, noun, read, wrapped = false) {
+function beginWalk(key, noun, read) {
   const position = read();
   if (!position) {
-    clearTimeout(boundaryTimer);
-    boundaryTimer = 0;
     walking = null;
     return null;
   }
   walkPositionLabel(noun, position.position, position.total, position.qualifier);
-  const boundary = wrapped || walking?.key === key && walking.target === position.target;
-  clearTimeout(boundaryTimer);
-  const arrived = {
-    boundary,
-    key,
-    noun,
-    read,
-    target: position.target
-  };
-  walking = arrived;
-  holdStatus(BOUNDARY_MS);
-  boundaryTimer = boundary ? setTimeout(() => {
-    if (walking !== arrived) return;
-    arrived.boundary = false;
-    boundaryTimer = 0;
-    repaint();
-  }, BOUNDARY_MS) : 0;
+  walking = { key, noun, read, target: position.target };
+  holdStatus(HOLD_MS);
   const shown2 = walkPosition();
   repaint();
   return shown2?.text ?? null;
@@ -6358,13 +6332,12 @@ var Transcript = class _Transcript {
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
+      class="lf-thread-disclosure lf-disclosure-marker lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${iconTemplate("down", "lf-disclosure-icon")}
       <span data-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
@@ -6590,7 +6563,7 @@ var ThreadView = class {
     this.node.tabIndex = -1;
     this.node.classList.add("lf-page-thread", "lf-ui");
     this.node.dataset.lfRuntime = "";
-    this.node.dataset.lfGen = "1";
+    generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
     this.#actions.className = "lf-thread-meta-actions";
   }
@@ -7002,9 +6975,9 @@ var ResolvedThreads = class {
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = "";
-    this.node.dataset.lfGen = "1";
+    generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
-    this.summary.className = "lf-resolved-summary";
+    this.summary.className = "lf-resolved-summary lf-disclosure-marker";
     new MutationObserver(() => {
       if (this.node.open) {
         opened();

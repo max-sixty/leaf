@@ -23,6 +23,7 @@ from render_harness import (
     RELEASE_FOCUS,
     consume_browser_errors,
     example_media,
+    expect_panel_says,
     http_error_console,
     open_page,
     panel_field,
@@ -58,7 +59,7 @@ from browser.threads import (
 )
 from render_harness import leaf_page
 
-from journeys import detached_threads, expect_panel_says
+from journeys import detached_threads
 
 # The same page with the change taken out of it, for the arm that carries the change
 # in a message instead: the two must differ in which document holds it and in nothing

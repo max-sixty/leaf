@@ -2008,9 +2008,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return {
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
-        // The row draws its own triangle, since a flex row draws no native marker.
+        // A flex row draws no native marker, so it wears Leaf's, turned its own way.
         disclosure: getComputedStyle(d.querySelector('summary'), '::before').content
-          .startsWith(d.open ? '"\u25bc"' : '"\u25b6"'),
+          .includes(d.open ? 'disclosure-open' : 'disclosure-closed'),
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({

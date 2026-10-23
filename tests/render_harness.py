@@ -1657,8 +1657,18 @@ def open_versions(page):
 # open view (threads, thread, queue, leaves), `data-menu` marks the menu open and
 # `data-rest="mark"` the panel folded to the leaf.
 PANEL = ".lf-floating-panel"
+
+
+def panel_view(name: str) -> str:
+    """The selector of the panel's `name` view (threads, thread, queue, leaves) that
+    stands open. A view put away keeps its node, marked `data-leaving`, until its
+    exit motion ends, so this never matches one: a selector that did would find two
+    views mid-switch, or a view already on its way out."""
+    return f'.lf-fp-view[data-view="{name}"]:not([data-leaving])'
+
+
 # A view of one thread, which names the thread it shows by id in `data-thread`.
-PANEL_THREAD = '.lf-fp-view[data-view="thread"]:not([data-leaving])'
+PANEL_THREAD = panel_view("thread")
 # Rows the panel's own row holds, rather than its menu.
 PANEL_ROW_CONTROLS = {"threads": ".lf-fp-threads", "queue": ".lf-fp-on-user"}
 
@@ -1788,18 +1798,42 @@ def page_comment(page):
     return box
 
 
+# The words in the panel's one seat for what passes, such as a notice or a walk's
+# position (floating-panel.js, `passing`): the leaf's peek while it shows one over an
+# open view, else the line over the field while it stands, else an error standing
+# over the field's words (composing/input.js), else the empty field's placeholder.
+PANEL_SAYS = """() => {
+  const peek = document.querySelector('.lf-fp-peek');
+  if (peek?.hasAttribute('data-shown')) return peek.textContent.trim();
+  const line = document.querySelector('.lf-fp-context');
+  if (line && !line.hidden && line.textContent.trim()) return line.textContent.trim();
+  const cover = document.querySelector('.lf-fp-field .lf-compose-error:not([hidden])');
+  if (cover) return cover.textContent.trim();
+  return document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder')
+    ?? '';
+}"""
+
+
+def panel_says(page) -> str:
+    """What the panel's seat for passing words says now (`PANEL_SAYS`)."""
+    return page.evaluate(PANEL_SAYS)
+
+
 def expect_panel_says(page, words, *, says=True):
-    """Wait until the panel says, or no longer says, `words` where it says whatever
-    passes, a notice or a walk's position: in the empty field's place, on the line over
-    the field once the caret is in it, or in the leaf's peek over an open view."""
-    page.wait_for_function(
-        """([words, says]) => [
-          document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder'),
-          document.querySelector('.lf-fp-context:not([hidden])')?.textContent,
-          document.querySelector('.lf-fp-peek:not([hidden])')?.textContent,
-        ].some((said) => said?.includes(words)) === says""",
-        arg=[words, says],
-    )
+    """Wait until the panel's seat for passing words says `words`, among others, or,
+    with `says` false, until it no longer does."""
+    try:
+        page.wait_for_function(
+            f"([words, says]) => ({PANEL_SAYS})().includes(words) === says",
+            arg=[words, says],
+        )
+    except PlaywrightTimeout:
+        said = page.locator(".lf-live").text_content()
+        raise AssertionError(
+            f"the panel says {panel_says(page)!r}, "
+            f"{'not' if says else 'still'} {words!r} "
+            f"(the live region last said {said!r})"
+        ) from None
 
 
 def expect_error_waits_in_menu(page, message):

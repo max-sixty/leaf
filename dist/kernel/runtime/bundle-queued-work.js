@@ -5,29 +5,40 @@ function observeQueuedWork(observer) {
   jobObservers.add(observer);
   return () => jobObservers.delete(observer);
 }
-var announce = (phase, job) => {
-  for (const observer of jobCohorts.get(job)) observer(phase, job);
+var announce = (phase, job, observers) => {
+  for (const observer of observers) observer(phase, job);
 };
 function enqueueWork(callback) {
   const job = Object.freeze({ callback });
-  jobCohorts.set(job, [...jobObservers]);
-  announce("enqueue", job);
+  const observers = [...jobObservers];
+  jobCohorts.set(job, observers);
+  announce("enqueue", job, observers);
   return job;
 }
+function claim(job) {
+  const observers = jobCohorts.get(job);
+  jobCohorts.delete(job);
+  return observers;
+}
 function runWork(job, ...args) {
+  const observers = claim(job);
+  if (!observers) return;
   const callback = job.callback;
   try {
-    announce("run", job);
+    announce("run", job, observers);
     return callback(...args);
   } finally {
-    announce("finish", job);
+    announce("finish", job, observers);
   }
 }
 function bindQueuedWork(callback) {
   const job = enqueueWork(callback);
   return (...args) => runWork(job, ...args);
 }
-var cancelWork = (job) => announce("cancel", job);
+function cancelWork(job) {
+  const observers = claim(job);
+  if (observers) announce("cancel", job, observers);
+}
 
 // vendor/browser-runtime/signals-core.js
 var j = /* @__PURE__ */ Symbol.for("preact-signals");
@@ -1278,17 +1289,27 @@ function createPresentationSchedule(bindJob) {
     pass = Promise.withResolvers();
     void pass.promise.catch(() => void 0);
   }
-  function collect(order, run) {
+  function collect(after, run, retired) {
     open();
-    queued.push({ order, run: bindJob(run) });
+    const paint = bindJob(run);
+    queued.push(async () => {
+      let dependencies = after?.() ?? [];
+      while (dependencies.length && (!retired || retired.current())) {
+        const settled = Promise.allSettled(dependencies);
+        await (retired ? Promise.race([settled, retired.ready]) : settled);
+        const latest = after?.() ?? [];
+        if (latest.every((dependency) => dependencies.includes(dependency))) break;
+        dependencies = latest;
+      }
+      return paint();
+    });
     if (scheduled) return;
     scheduled = true;
     queueMicrotask(() => {
       scheduled = false;
       const round = queued;
       queued = [];
-      round.sort((left, right) => left.order - right.order);
-      for (const { run: run2 } of round) {
+      for (const run2 of round) {
         const started = run2();
         void started.catch(() => void 0);
         running.push(started);
@@ -1317,33 +1338,42 @@ function createPresentationSchedule(bindJob) {
     else finished.resolve();
   }
   const passed = () => pass?.promise ?? Promise.resolve();
-  function enqueue(order, run) {
+  function enqueue(after, run, committed) {
     const completion = Promise.withResolvers();
-    collect(order, async () => {
+    const dom = Promise.withResolvers();
+    collect(after, async () => {
       try {
         await run();
         completion.resolve();
+        await committed();
+        dom.resolve();
       } catch (error) {
         completion.reject(error);
+        dom.reject(error);
         throw error;
       }
     });
-    return completion.promise;
+    return Object.freeze({ ready: completion.promise, committed: dom.promise });
   }
   function presenter({
     attach,
     paint,
     failSoft,
-    order = 0
+    after
   }) {
     let handle = null;
     let generation = 0;
-    function claim(value) {
+    let dom = Promise.withResolvers();
+    dom.resolve();
+    function claim2(value) {
       const claimed = ++generation;
       handle ??= attach();
-      return { claimed, value, presentation: handle.present(value, failSoft) };
+      const previous = dom;
+      dom = Promise.withResolvers();
+      previous.resolve();
+      return { claimed, value, dom, presentation: handle.present(value, failSoft) };
     }
-    async function run({ claimed, value, presentation }) {
+    async function run({ claimed, value, presentation, dom: dom2 }) {
       if (claimed !== generation) return;
       let painted;
       try {
@@ -1351,20 +1381,25 @@ function createPresentationSchedule(bindJob) {
       } catch (error) {
         painted = Promise.reject(error);
       }
+      dom2.resolve();
       presentation.resolve(painted);
       await presentation.ready;
     }
     function sync(value) {
-      const ticket = claim(value);
-      collect(typeof order === "function" ? order() : order, () => run(ticket));
+      const ticket = claim2(value);
+      collect(after, () => run(ticket), {
+        ready: ticket.dom.promise,
+        current: () => ticket.claimed === generation
+      });
       return passed();
     }
     function disconnect() {
       generation += 1;
+      dom.resolve();
       handle?.disconnect();
       handle = null;
     }
-    return Object.freeze({ sync, disconnect });
+    return Object.freeze({ sync, committed: () => dom.promise, disconnect });
   }
   return Object.freeze({ presenter, enqueue, passed });
 }

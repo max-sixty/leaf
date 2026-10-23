@@ -6862,7 +6862,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
             };
           } else {
             let joined2 = false;
-            const { hint, accessibleName, busy, sent } = item.options;
+            const { hint, hintAside, accessibleName, busy, sent } = item.options;
             const redraw = () => {
               for (const row of node.querySelectorAll(":scope > .lf-thread-reply"))
                 if (row !== reply.node) row.remove();
@@ -6875,6 +6875,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
               },
               editLast: rewritesOf(item.key).editLast,
               hint,
+              hintAside,
               accessibleName,
               busy,
               sent

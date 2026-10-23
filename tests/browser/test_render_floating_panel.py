@@ -104,6 +104,11 @@ def field(page):
     return page.locator(".lf-fp-field leaf-text")
 
 
+def aside(page):
+    """A walk's position at the end of the field while it says an open thread's reply."""
+    return page.locator(".lf-fp-field .lf-compose-placeholder-aside")
+
+
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and resolving the
@@ -2650,6 +2655,29 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
         "placeholder", re.compile("^Reply in this thread")
     )
     expect(page.locator(".lf-fp-peek")).to_be_hidden()
+
+
+def test_a_thread_s_field_says_its_reply_beside_the_walk_s_position(browser, serve):
+    """A thread open in the panel keeps saying that its field takes the reply, with the
+    key that enters it, when the thread walk stands on it: the walk's place stands at
+    the field's end instead of in the reply's place, and `c` writes there."""
+    page = floating(browser, serve(LONG_PAGE))
+    write(field(page), "Could the rollback cover the weekend?")
+    with sending(page, "the page comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view).to_be_visible()
+    view.focus()
+    page.keyboard.press("t")
+    expect(aside(page)).to_have_text("1 of 1")
+    expect(field(page)).to_have_attribute("data-says", "turn")
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Reply\b.* c$"))
+    key = page.locator(".lf-fp-field .lf-compose-placeholder kbd")
+    expect(key).to_have_text("c")
+    expect(key).to_be_visible()
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    expect(aside(page)).to_be_hidden()
 
 
 def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):

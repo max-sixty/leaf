@@ -406,7 +406,7 @@
   .lf-floating-panel[data-tone=blocked]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
     color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
-  .lf-fp-field .lf-compose-placeholder kbd {
+  .lf-fp-field leaf-text:not([data-says=turn]) .lf-compose-placeholder kbd {
     display: none;
   }
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {

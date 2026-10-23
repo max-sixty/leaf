@@ -447,7 +447,7 @@ customElements.define(
                       ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
                     </button>
                     <div
-                      class="lf-vr-thread-list"
+                      class="lf-vr-thread-list scroll"
                       id=${`${this.id}-${record.id}-threads`}
                       popover
                     >
@@ -506,7 +506,7 @@ customElements.define(
               Capture details
             </button>
             <div
-              class="lf-vr-details"
+              class="lf-vr-details scroll"
               id=${`${this.id}-${record.id}-inspection`}
               popover
             >

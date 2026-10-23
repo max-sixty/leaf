@@ -13,7 +13,7 @@
     ["success", "Copied"],
     ["error", "Copy failed"]
   ];
-  function render(host, { tabStore, offer, keeps }) {
+  function render(host, { tabStore, offer, generatedElement, keeps }) {
     const presets = own(host, "lf-playground-preset");
     const outputs = own(host, "lf-playground-output");
     const previews = own(host, "lf-playground-preview");
@@ -104,7 +104,7 @@
       const element = document.createElement(tag);
       element.className = cls;
       if (text2 !== void 0) {
-        element.dataset.lfGen = "1";
+        generatedElement(element, { says: false });
         element.textContent = text2;
       }
       return element;
@@ -179,7 +179,7 @@
           group.setAttribute("aria-label", label);
           const radios = [];
           for (const choice of choicesByName.get(name)) {
-            const face = node("label", "choice");
+            const face = generatedElement(node("label", "choice"), { says: false });
             const input = offer("input", "", void 0, "radio");
             input.name = `${host.id}-${name}`;
             input.value = choice.getAttribute("value");
@@ -209,7 +209,7 @@
               input.setAttribute(attr, control.getAttribute(attr));
           inputs.set(name, input);
           if (kind === "toggle") {
-            const face = node("label", "choice");
+            const face = generatedElement(node("label", "choice"), { says: false });
             face.append(input);
             control.append(face);
           } else control.append(input);

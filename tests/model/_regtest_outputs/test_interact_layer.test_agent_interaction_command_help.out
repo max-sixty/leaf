@@ -58,6 +58,20 @@ Options:
                          [1<=x<=100]
   --help                 Show this message and exit.
 
+## leaf page claim --help
+Usage: leaf page claim [OPTIONS] PAGE
+
+  Connect PAGE's updates to this session without changing its server.
+
+  Delivery is ready before ownership moves. A watch another session runs on PAGE
+  stops watching it. --manual-delivery leaves delivery to your explicit leaf
+  wait.
+
+Options:
+  --manual-delivery  claim for an explicit leaf wait watcher instead of
+                     preparing harness delivery
+  --help             Show this message and exit.
+
 ## leaf thread summarize --help
 Usage: leaf thread summarize [OPTIONS] PAGE
 
@@ -77,18 +91,26 @@ Options:
   --label TEXT       disclosure label (default: Earlier discussion)
   --help             Show this message and exit.
 
-## leaf status --help
-Usage: leaf status [OPTIONS] PAGE {waiting|idle} [DETAIL]
+## leaf page open --help
+Usage: leaf page open [OPTIONS] PAGE
 
-  Say the page waits on its user, or that you are done with it.
+  Keep PAGE available for feedback and put down current work.
 
-  Use waiting with DETAIL naming the answer you want from the user; waiting
-  without DETAIL invites text comments. Use idle when you are finished; it is
-  refused while the page has updates, workers' reports or page errors nobody has
-  picked up, updates you owe an answer, or to-dos of yours still open. Either
-  one clears every `leaf task start` you made, so no update or to-do reads
-  Working; your to-dos stay open. Status has no working state: to show what you
-  are working on, run `leaf task start`.
+  This clears every task start; to-dos and unanswered updates stay owed. To
+  request an answer, send a thread message with --obligation so the question
+  appears in On me. Opening a page creates no obligation.
+
+Options:
+  --help  Show this message and exit.
+
+## leaf page close --help
+Usage: leaf page close [OPTIONS] PAGE
+
+  Finish PAGE and stop watching for feedback.
+
+  Refuses while updates, workers' reports or page errors remain unread, updates
+  need an answer, or agent to-dos remain open. Closing puts down every task
+  start and settles no obligation.
 
 Options:
   --help  Show this message and exit.
@@ -236,9 +258,9 @@ Usage: leaf page stamp [OPTIONS] PAGE
   removes their widget.
 
   --from-directory replaces index.html and the whole page/ tree and stamps them
-  in one step. Pass --if-source with the digest of the files you started from;
-  if they have changed since, the stamp is refused and the page is left as it
-  was.
+  in one step. Pass --if-source with source.digest from page state before
+  editing; if they have changed since, the stamp is refused and the page is left
+  as it was.
 
 Options:
   --text TEXT                 the changelog
@@ -246,8 +268,7 @@ Options:
                               neither option, from piped stdin
   --from-directory DIRECTORY  replace index.html and page/ together from this
                               candidate directory
-  --if-source TEXT            the page's current index.html and page/ digest
-                              (leaf.publishing.authored_digest), required with
+  --if-source TEXT            source.digest from page state, required with
                               --from-directory
   --completes WIDGET          a widget whose open to-dos this version completes
                               (repeatable)

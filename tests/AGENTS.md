@@ -297,7 +297,7 @@ it by its fields (`{"code": "console-error", "url": "http://page/api/event"}`) o
 fragment of the console message (`render_harness.is_problem`). For a recurring fault,
 close the page first and then consume. Filtering the collector is not an assertion.
 
-Three watches report problems; a fourth, `input_work_watch.js`, tells them which input
+Four watches report problems; a fifth, `input_work_watch.js`, tells them which input
 caused a change. Fix what they report rather than consuming it; there is no per-test
 allowance list.
 
@@ -316,6 +316,9 @@ allowance list.
 - `words_watch.js` reports typed words leaving the screen without a key or press
   ("Words stay where they were typed"). A test that closes a box does it the way a user
   does.
+- `swap_watch.js` reports a row that grows or shrinks across its line as one occupant
+  gives way to another (`browser/AGENTS.md`, "What takes turns in a place doesn't size
+  it"). Fix the occupant so it takes the row's line.
 - `input_work_watch.js` attributes each change to the input whose work caused it, so
   the shift and words watches can tell a reaction from an unprompted move. It follows
   timers, frames, promises and Lit updates, but not a native `await`: code that commits

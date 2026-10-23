@@ -225,10 +225,6 @@ def _bearing(at: str, v: dict, value: str) -> str:
     return _line(f"{at[:-1]} {v['attr']}={value}>", v)
 
 
-def _quoted(value: str) -> str:
-    return f'"{value}"'
-
-
 def _conditions(lacks: dict) -> str:
     """The `x-awaits.when` conditions a widget never met (`instances.unasked`)."""
     return " and ".join(
@@ -286,14 +282,6 @@ def _outside_main(content: list[dict]) -> list[str]:
         else f"<{c['tag']}> at line {c['line']}"
         for c in content
     ]
-
-
-# What the layer does with a word a widget declares from one of its lists, where the
-# word is on it (`instances.DECLARED_WORDS`).
-_HONORED = {
-    "x-language": "a language this page's layer speaks",
-    "x-tone": "a tone this page's layer paints",
-}
 
 
 def _unservable_layer(v: dict, why: str, action: str) -> str:
@@ -485,6 +473,12 @@ _TEXT = {
     "words-left-screen": lambda at, v: (
         "typed words left the screen without a key or press:"
         f" {json.dumps(v['words'], ensure_ascii=False)} in {placed(v['place'])}"
+    ),
+    "place-resized": lambda at, v: (
+        f"{placed(v['place'])} changed size from {_size(v['before'])} to"
+        f" {_size(v['after'])} as {', '.join(map(placed, v['left']))} gave way to"
+        f" {', '.join(map(placed, v['arrived']))}"
+        + (f" after a {v['input']}" if v["input"] else " without input")
     ),
     # The gate's own run, where it could not read the page.
     "gate-failed": lambda at, v: (
@@ -869,11 +863,6 @@ _TEXT = {
     "untitled-question": lambda at, v: (
         f"{_line(at, v)}: this enclosing widget needs a heading to title its obligations,"
         " leading its content alone or in an <hgroup> or <header>"
-    ),
-    "unknown-word": lambda at, v: (
-        f"{_bearing(at, v, _quoted(v['value']))}: not {_HONORED[v['declares']]} —"
-        " known:"
-        f" {_json(v['known'])}"
     ),
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
@@ -1828,12 +1817,11 @@ _TEXT = {
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
     ),
-    # What other commands note beside their result (`note`). `status waiting` over
+    # What other commands note beside their result (`note`). `page open` over
     # updates it still owes an answer, each named by the command that answers it:
-    "waiting-owes": lambda at, v: (
+    "page-open-owes": lambda at, v: (
         f"{len(v['answers'])} user update{'s' if len(v['answers']) != 1 else ''} with"
-        f" no answer ({'; '.join(v['answers'])}); the page reads waiting once each"
-        " has one"
+        f" no answer ({'; '.join(v['answers'])}); opening the page does not answer them"
     ),
     # `delivery ack` of a delivery an earlier turn already picked up
     # (`delivery.earlier_pickup`), with the answers its updates still owe:

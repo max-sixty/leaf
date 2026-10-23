@@ -29,6 +29,7 @@ from interact_support import (
 )
 from model.test_codex_adapter import (
     adapter_log,
+    claim_command,
     codex_start_announcement,
     current_codex_record,
     fake_codex_cli,
@@ -154,18 +155,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
     endpoint = app_server(handle)
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
-        shlex.join(
-            [
-                *LEAF_COMMAND,
-                "codex",
-                "start",
-                str(claimed),
-                "--codex-path",
-                str(program),
-                "--app-server",
-                endpoint,
-            ]
-        ),
+        shlex.join(claim_command(claimed, program, endpoint=endpoint)),
         codex_env | {"CODEX_THREAD_ID": "codex-thread"},
         finished=finished,
         stdout=subprocess.PIPE,
@@ -225,16 +215,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         )
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
-        shlex.join(
-            [
-                *LEAF_COMMAND,
-                "codex",
-                "start",
-                str(page),
-                "--codex-path",
-                os.path.relpath(program),
-            ]
-        ),
+        shlex.join(claim_command(page, program)),
         environment,
         finished=finished,
         stdout=subprocess.PIPE,
@@ -261,8 +242,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     out, err = started.communicate(timeout=STATED_TIMEOUT)
     out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
-    assert json.loads(out)["task"] == "codex-thread"
-    assert json.loads(out)["started"] is True
+    assert json.loads(out)["session"] == "codex-thread"
     try:
         wait_for(
             lambda: (
@@ -485,6 +465,7 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
 import contextlib, json, os, sys
 from pathlib import Path
 from leaf import codex_adapter
+from leaf.service import cmd_claim
 native_flocked = codex_adapter.flocked
 @contextlib.contextmanager
 def observed_flocked(path):
@@ -493,7 +474,8 @@ def observed_flocked(path):
     with native_flocked(path) as held:
         yield held
 codex_adapter.flocked = observed_flocked
-print(json.dumps(codex_adapter.cmd_codex_start(Path(sys.argv[1]), sys.argv[2])), flush=True)
+os.environ["PATH"] = str(Path(sys.argv[2]).parent) + os.pathsep + os.environ["PATH"]
+print(json.dumps(cmd_claim(Path(sys.argv[1]))), flush=True)
 """
     try:
         with cleanup_model.flocked(start_lock):

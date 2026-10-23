@@ -15,6 +15,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     resized,
     round_trip,
     scroll_settled,
@@ -117,7 +118,7 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
             "anchor": {"section": "cadence"},
         },
     )
-    append_carried_log_record(
+    question = append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -149,21 +150,22 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     counts(2)
 
     thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
+    message = thread.locator(f'.lf-msg[data-event="{question["id"]}"]')
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Question")
-    expect(thread).to_be_focused()
+    expect(message).to_be_focused()
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Question")
-    expect(thread).to_be_focused()
+    expect(message).to_be_focused()
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "1 of 2 waiting on me · Question")
-    expect(thread).to_be_focused()
+    expect(message).to_be_focused()
 
     page.keyboard.press("Enter")
     box = thread.locator("leaf-text")
@@ -549,7 +551,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
             "anchor": {"section": "cadence"},
         },
     )
-    append_carried_log_record(
+    question = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -588,9 +590,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
     page.locator("#h").click()
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Question")
-    expect(
-        page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
-    ).to_be_focused()
+    expect(page.locator(f'.lf-msg[data-event="{question["id"]}"]')).to_be_focused()
 
 
 @pytest.mark.parametrize("width", [1200, 390])
@@ -728,7 +728,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     panel_settled(page, view="queue")
     cards = page.locator('.lf-fp-on-item[data-list="you"]')
     expect(cards).to_have_count(1)
-    note = page.locator('.lf-fp-view[data-view="queue"] .lf-fp-empty')
+    note = page.locator(f"{panel_view('queue')} .lf-fp-empty")
     expect(note).to_have_count(0)
 
     stamp_page(

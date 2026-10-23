@@ -550,6 +550,38 @@ def screenshot_comparison(page: Page) -> None:
     page.locator("#bg-shot-guide").scroll_into_view_if_needed()
 
 
+def screenshot_slider_before(page: Page) -> None:
+    """One source fills the slider while change outlines locate its evidence."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.evaluate("async node => await node.difference")
+    shot.get_by_role("button", name="Slider", exact=True).click()
+    divider = shot.get_by_role("scrollbar")
+    divider.focus()
+    page.keyboard.press("End")
+    shot.get_by_role("button", name="Outline changes", exact=True).click()
+    shot.scroll_into_view_if_needed()
+
+
+def screenshot_pixels(page: Page) -> None:
+    """Pixel evidence occupies the image frame without a separate legend row."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.get_by_role("button", name="Pixels", exact=True).click()
+
+
+def screenshot_options(page: Page) -> None:
+    """Image options keep the pixel color key beside the scale choices."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.locator(".lf-shot-scale").click()
+    # Opening a popover may reveal a taller Pair differently from Slider.
+    shot.locator(".lf-shot-toolbar").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
+    shot.scroll_into_view_if_needed()
+
+
 def image_in_page(page: Page) -> None:
     """An authored image in the reading flow, before its viewer opens."""
     page.get_by_role("tab", name="Threads", exact=True).click()
@@ -1480,7 +1512,30 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    State("screenshot-comparison", "developer/feature-gallery", screenshot_comparison),
+    State(
+        "screenshot-comparison",
+        "developer/feature-gallery",
+        screenshot_comparison,
+        region="#bg-shot",
+    ),
+    State(
+        "screenshot-slider-before",
+        "developer/feature-gallery",
+        screenshot_slider_before,
+        region="#bg-shot",
+    ),
+    State(
+        "screenshot-pixels",
+        "developer/feature-gallery",
+        screenshot_pixels,
+        region="#bg-shot",
+    ),
+    State(
+        "screenshot-options",
+        "developer/feature-gallery",
+        screenshot_options,
+        region="#bg-shot",
+    ),
     State(
         "screenshot-comparison-phone",
         "developer/feature-gallery",

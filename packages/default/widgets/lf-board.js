@@ -29,6 +29,7 @@ import {
   nothing,
   move,
   offer,
+  generatedElement,
   quoted,
   says,
   announce,
@@ -66,7 +67,7 @@ customElements.define(
     #resumeProjection = null;
 
     setup() {
-      this.classList.add("scroll");
+      if (!this.classList.contains("scroll")) this.classList.add("scroll");
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the command reference dialog — it stays the static board the theme renders anyway.
@@ -123,7 +124,7 @@ customElements.define(
         if (col.querySelector(':scope > [data-lf-said="label"]')) continue;
         const heading = document.createElement("span");
         heading.dataset.lfSaid = "label";
-        heading.dataset.lfGen = "1";
+        generatedElement(heading, { says: true });
         // The column already carries these words as its name, so the heading is
         // the visible half only: the tree hears them once, the user can still
         // select them, and the theme's generated copy is left to the no-script case.
@@ -135,7 +136,7 @@ customElements.define(
         // list already tells a screen reader its length, so it is the visible half only.
         const count = document.createElement("span");
         count.className = "lf-column-count";
-        count.dataset.lfGen = "1";
+        generatedElement(count, { says: false });
         count.setAttribute("aria-hidden", "true");
         col.prepend(heading);
         heading.after(count);
@@ -325,7 +326,7 @@ customElements.define(
       group.setAttribute("aria-label", `Move ${this.#title(card)} to`);
       const label = document.createElement("span");
       label.className = "lf-board-destinations-label";
-      label.dataset.lfGen = "1";
+      generatedElement(label, { says: false });
       label.textContent = "Move to";
       group.append(label);
       for (const column of columns) {

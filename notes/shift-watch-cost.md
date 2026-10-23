@@ -1,91 +1,40 @@
-# What the shift watch costs, and the cheaper gate we didn't land
+# Shift-watch cost
 
-`tests/shift_watch.js` enforces the Stability rule (`browser/AGENTS.md`,
-"Stability") by keeping a ledger of where everything on the page stands and re-reading
-it after each change. This note records what that costs, an alternative that was built,
-measured and dropped in October 2026, and what would make it worth revisiting.
+`tests/shift_watch.js` owns the Stability sensor and explains why Chrome's
+layout-shift source rectangles cannot replace its landmark ledger. Its header
+also describes the current reuse of unchanged readings. This note holds cost
+evidence and remaining optimization work; `tests/AGENTS.md` owns test selection.
 
-## Where the cost lands
+## Active-page cost
 
-- **Few tests pay it.** Of 3,896 browser, smoke and journey tests, 2,699 sit in modules
-  marked `shifts_unsurveyed` and run without the watch. It watches 1,197, and 412 of
-  those are its own tests.
-- **Watched tests pay a lot.** Comparing the ledger with the gate below, serial runs,
-  mean of 3, on the source runtime before #2767:
+Four feature-gallery tests ran serially on an M-series Mac under other sessions'
+load in October 2026, with one run per condition:
 
-  | selection                          | ledger |          gate |
-  | ---------------------------------- | -----: | ------------: |
-  | 6 typing-heavy tests               | 27.3 s | 19.9 s (−27%) |
-  | 4 tests opening many sample frames | 25.6 s | 15.5 s (−39%) |
-  | 13 ordinary interaction tests      | 20.3 s | 18.1 s (−11%) |
+| CPU         | Unwatched | Watched |
+| ----------- | --------: | ------: |
+| Full speed  |    53.4 s | 119.1 s |
+| 4× throttle |   150.9 s | 469.6 s |
 
-  The four tests whose subject is the feature gallery took, serially on an M-series
-  Mac under other sessions' load, one run each (October 2026):
+## Idle cost
 
-  | CPU         | unwatched | watched |
-  | ----------- | --------: | ------: |
-  | full speed  |    53.4 s | 119.1 s |
-  | 4x throttle |   150.9 s | 469.6 s |
-
-  The two in `tests/browser/`, which run on each push to main, take 35.1 s of the
-  unwatched and 77.9 s of the watched full-speed time.
-
-- **The time goes on full readings of frames where something changed**: page load,
-  sample frames upgrading, trace playback, and the frames around each key. The ledger
-  needs those readings to judge. A ledger-only variant that reused unchanged readings
-  in child frames and read only the field during a key's rendering (51 lines, passing
-  the watch's own tests) saved 1–2%.
-- **CI barely notices.** Browser tests run on pushes to main and nightly, about 3% of
-  runner-hours. The saving matters to an agent running a watched test locally.
-- **An idle watched page keeps costing.** `tick` and the paint checkpoint each ask for
-  the next frame on every frame, so Chrome renders a still page continuously. In two
-  CI jobs that cost 0.03–0.05 s of main-thread time, and 0.04–0.065 s of CPU across
-  processes, for each second the page stayed open.
-
-## The gate that was dropped
-
-The gate made Chrome's `layout-shift` entries the default judge. It credited a move to
-the watch's own record of which input caused each frame, never to Chrome's 500 ms
-`hadRecentInput` window, which hid at least 7 real 28–74 px defects until #1494. It
-compared each source's `previousRect` and `currentRect` against small per-frame
-readings of the declared `data-lf-reflow` regions, and while the reader typed it read
-only the field and its holders. The ledger stayed behind `LEAF_SHIFT_LEDGER=1`.
-
-It was dropped because it judged less than the ledger, on the suite's one set of tests
-that enforces Stability:
-
-- **Missed moves.** Chrome names at most five sources per entry and reports boxes, not
-  their contents. So the gate missed a box moving further than the container Chrome
-  named, and a control beyond the five outside a `text` region. Catching either means
-  reading every frame.
-- **Wrong failures.** It didn't model the ledger's credits for animations an input
-  started that outlive its rendering, floating surfaces placed by their solver, or
-  `translate` slides (#2797). Those families stayed on the ledger.
-- **Accretion.** Each exemption needed state the ledger already kept, and a review
-  round found five cases the first version got wrong. 17 known gaps were recorded as
-  strict expected failures.
-
-## Revisit when
-
-- **Browser tests return to the PR gate**, or watched tests grow to a large share of
-  runner-hours, so the 11–39% reaches CI.
-- **Chrome's entries carry more**: more than five sources, or the content a box
-  carried.
-- **A change already reads the declared regions every frame** for another reason, so
-  the gate's extra state costs nothing.
+The sensor's frame loop and paint checkpoint keep requesting frames on a still
+page. In two October 2026 CI jobs, this cost 0.03–0.05 s of main-thread time and
+0.04–0.065 s of CPU across processes for each second the page stayed open.
+Rerun those historical measurements before estimating current savings.
 
 ## Open findings
 
-- **Most browser tests are unwatched.** Whether each `shifts_unsurveyed` module still
-  needs its exemption hasn't been reviewed. Watching more tests costs time, at the rates
-  above.
-- **The idle cost has a fix that changes the watch's self-check.** Stopping the frame
-  loop while nothing is announced or running, and restarting it on the next
-  announcement or layout-shift entry, would let a still page stop rendering. The
-  VERIFY reading would then run only at judgement rather than every 30th quiet frame,
-  so the user would decide whether that self-check is worth the idle cost.
+- **Coverage exemptions need review.** Whether each `shifts_unsurveyed` module
+  still needs its exemption hasn't been reviewed. Measure the cost of watching
+  the affected tests before widening coverage.
+- **The idle cost has a fix that changes the watch's self-check.** Stopping the
+  frame loop while nothing is announced or running, and restarting it on the
+  next announcement or layout-shift entry, would let a still page stop rendering.
+  The VERIFY reading would then run only at judgement rather than every 30th
+  quiet frame, so the user would decide whether that self-check is worth the
+  idle cost.
 - **Unconfirmed: a reading may lay a frame out twice.** `tick` runs in the frame's
-  first callback, before the page's own frame callbacks write, so where those write,
-  the browser lays the frame out once for the reading and again to paint it. Reading
-  after layout would change which pose a frame records, which the ledger's frame
-  pairing rests on.
+  first callback, before the page's own frame callbacks write, so where those
+  write, the browser may lay the frame out once for the reading and again to
+  paint it. Reading after layout would change which pose a frame records, which
+  the ledger's frame pairing rests on.

@@ -19,20 +19,20 @@ that starts the task, such as leaf.page, has already handed the page over.
 `leaf server start` and `leaf server run` start, or join, a background adapter that
 watches every page this task owns, and keeps running when a turn ends. Serving a page
 again restarts an adapter that stopped. To connect delivery for a page you claim
-without serving it, run `leaf codex start <page>`.
+without serving it, run `leaf page claim <page>`.
 
 While your turn runs, Leaf's hooks offer new input between steps. Input that arrives
 as the turn ends comes either when the turn tries to end or in a turn of its own. The hook carries the complete delivery
-as one line of JSON, or a pointer when it exceeds Codex's context limit. Read inline input directly; for a pointer,
-run its `leaf delivery read <id>` and read every part. Follow the delivery's
-`acknowledge` instruction before handling the input.
+as one line of JSON, or a pointer when it exceeds Codex's context limit
+(`event-batches.md`, "Handle the input"). Follow the delivery's `acknowledge`
+instruction before handling the input.
 
 When the task is idle, or a hook's input wasn't confirmed before the turn ended, the
 adapter either queues a `leaf-delivery` pointer as the task's next user message or
 starts an App Server turn with a `leaf_delivery` tool output, one slice per turn.
 Leaf acknowledges input it queues or starts. A pointer still needs complete reading
-and the confirmation on its last part; inline tool output needs no acknowledgement
-command. On the macOS desktop, the adapter also wakes the queued chat in the
+and its confirmation (`event-batches.md`, "Handle the input"); inline tool output
+needs no acknowledgement command. On the macOS desktop, the adapter also wakes the queued chat in the
 background, avoiding Codex's ten-second check for external queue writes.
 Run no `leaf wait` or `leaf wait --ack`.
 The same delivery id can come back in a later turn after an uncertain queue

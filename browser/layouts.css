@@ -829,9 +829,14 @@
     padding-inline: var(--lf-workspace-gutter);
     padding-block: var(--sp-2) var(--page-pad-end);
   }
-  /* The root workspace owns the window's foot. Its readers keep the panel's room
-   * within their scrollable content, rather than leaving an empty band below every
-   * pane. Flowing workspaces still use the document's end room. */
+  /* The root workspace owns the window's foot. What can reach the foot keeps the
+   * panel's room within its scrollable content, rather than leaving an empty band below
+   * every pane: the body when it is one pane, and each pane of the body's own grid,
+   * since CSS cannot tell a grid's last row from the others. A pane a body widget
+   * places deeper stands inside that body's own end room (below), so it keeps only its
+   * inset: a visual review's stacked case strip, at the top of the window, had given
+   * 72px of a 720px window to a panel it never reaches. Flowing workspaces still use
+   * the document's end room. */
   @media screen and (min-width: 720px) and (min-height: 480px) {
     html[data-lf-live][data-lf-layout~="workspace"] body {
       padding-block-end: 0;
@@ -842,7 +847,13 @@
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
-      [data-lf-reading-role="pane"]
+      > [data-lf-reading-role="pane"]
+      > :not(header, footer),
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body
+      > main.layout-workspace
+      > :not(header, footer)
+      > [data-lf-reading-role="pane"]
       > :not(header, footer) {
       padding-block-end: calc(var(--pane-inset) + var(--lf-foot-room));
     }

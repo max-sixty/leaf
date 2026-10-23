@@ -1,12 +1,19 @@
 (() => {
   // packages/default/widgets/shot-view.js
   var SHOT_VIEWS = {
-    compare: "Pair",
     flip: "Slider",
+    compare: "Pair",
     pixels: "Pixels"
   };
-  var CONTROL = "lf-btn lf-quiet-action lf-compact-control";
+  var CONTROL = "lf-btn lf-quiet-action";
   var nextOptionsId = 0;
+  function shotAllocation(host, stage) {
+    const style = getComputedStyle(stage);
+    return {
+      available: stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+      availableHeight: getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1" ? stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) : void 0
+    };
+  }
   function fitShotGeometry({
     available,
     availableHeight,
@@ -16,7 +23,7 @@
     focus = void 0,
     full = false,
     actual = false,
-    view = "compare",
+    view = "flip",
     gap
   }) {
     const crop = Boolean(focus && !full);
@@ -81,12 +88,11 @@
     keeps(host, "data-lf-shot-focus", geometry.focus);
     const stacked = host.dataset.lfShotMode === "compare" && geometry.layout === "stack";
     for (const caption of host.querySelectorAll(".lf-shotcap"))
-      caption.toggleAttribute(
-        "data-lf-said",
-        caption.parentElement.classList.contains("lf-shot-frame-label") === stacked
-      );
+      document.documentElement.lfInitial.generatedElement(caption, {
+        says: caption.parentElement.classList.contains("lf-shot-frame-label") === stacked
+      });
   }
-  function drawShot(host, { offer, keeps }) {
+  function drawShot(host, { offer, generatedElement, keeps }) {
     const buttons = (label, values, selected) => {
       const group = offer("div", "lf-shot-views");
       group.role = "group";
@@ -110,19 +116,16 @@
     };
     const toolbar = offer("div", "lf-shot-toolbar lf-ui");
     const actions = offer("div", "lf-shot-actions");
-    const views = buttons("Comparison view", SHOT_VIEWS, "compare");
+    const views = buttons("Comparison view", SHOT_VIEWS, "flip");
     views.choices.get("pixels").disabled = true;
     const tools = offer("div", "lf-shot-tools");
-    const scaleTrigger = offer("button", `${CONTROL} lf-shot-scale`);
+    const scaleTrigger = offer("button", `${CONTROL} lf-shot-scale`, "\u2026");
     scaleTrigger.type = "button";
-    scaleTrigger.ariaLabel = "Image scale and originals";
-    const scaleReading = offer("span", "", "Fit");
-    const scaleIcon = offer("span", "lf-shot-scale-icon");
-    scaleTrigger.append(scaleReading, scaleIcon);
+    scaleTrigger.ariaLabel = "Image options";
     const options = offer("div", "lf-shotoptions");
     options.setAttribute("popover", "auto");
     options.role = "group";
-    options.ariaLabel = "Image scale and originals";
+    options.ariaLabel = "Image options";
     do
       options.id = `lf-shot-options-${++nextOptionsId}`;
     while (document.getElementById(options.id));
@@ -139,7 +142,21 @@
     outlines.setAttribute("aria-pressed", "false");
     const full = checkbox("Full frame");
     full.label.hidden = true;
-    options.append(scale.group, full.label);
+    const key = offer("div", "lf-shot-pixel-key");
+    key.append(offer("div", "lf-shot-key-label", "Pixel colors"));
+    for (const [side, text] of [
+      ["before", "Before only"],
+      ["after", "After only"],
+      ["both", "Recolored"]
+    ]) {
+      const item = offer("div", "lf-shot-key-item");
+      const swatch = offer("span", "lf-shot-key-swatch");
+      swatch.dataset.lfShotSide = side;
+      swatch.ariaHidden = "true";
+      item.append(swatch, offer("span", "", text));
+      key.append(item);
+    }
+    options.append(scale.group, full.label, key);
     tools.append(scaleTrigger, outlines, options);
     actions.append(views.group, tools);
     toolbar.append(actions);
@@ -151,15 +168,13 @@
     stage.append(canvas);
     const frames = [], viewports = [], shots = [], captions = /* @__PURE__ */ new Map(), frameCaptions = /* @__PURE__ */ new Map(), openers = /* @__PURE__ */ new Map();
     for (const state of ["before", "after"]) {
-      const frame = offer("div", "lf-shotframe");
+      const frame = offer("div", "lf-shotframe lf-media-frame");
       frame.dataset.lfState = state;
-      const caption = offer(
-        "span",
-        "lf-shotcap lf-label",
-        state === "before" ? "Before" : "After"
+      const caption = generatedElement(
+        offer("span", "lf-shotcap lf-label", state === "before" ? "Before" : "After"),
+        { says: true }
       );
       caption.dataset.lfState = state;
-      caption.dataset.lfSaid = "";
       const heading = offer("div", "lf-shot-frame-label lf-ui");
       heading.dataset.lfState = state;
       const frameCaption = offer("span", "lf-shotcap lf-label", caption.textContent);
@@ -171,17 +186,16 @@
       const viewport = offer("div", "lf-shotviewport");
       viewport.role = "region";
       viewport.ariaLabel = `${state}: ${host.getAttribute("alt")}`;
-      const imageBox = offer("div", "lf-shotimage");
+      const imageBox = offer("a", "lf-shotimage lf-shot-open");
+      imageBox.dataset.lfShotOpen = state;
+      imageBox.tabIndex = -1;
       const plane = offer("div", "lf-shotplane");
       const image = document.createElement("img");
       image.crossOrigin = "anonymous";
       image.alt = `${state}: ${host.getAttribute("alt")}`;
       shots.push(image);
-      const open = offer("a", "lf-media-open lf-shot-open", `Open ${state} image`);
-      open.dataset.lfShotOpen = state;
       captions.set(state, caption);
-      openers.set(state, open);
-      options.append(open);
+      openers.set(state, imageBox);
       plane.append(image);
       imageBox.append(plane);
       viewport.append(imageBox);
@@ -190,23 +204,11 @@
       viewports.push(viewport);
       canvas.append(frame);
     }
-    const legend = offer("div", "lf-shotlegend lf-ui");
-    for (const [side, text] of [
-      ["before", "Before only"],
-      ["after", "After only"],
-      ["both", "Recolored"]
-    ]) {
-      const item = offer("span", "lf-shotlegend-item", text);
-      item.dataset.lfShotSide = side;
-      legend.append(item);
-    }
-    legend.hidden = true;
-    keeps(host, "data-lf-shot-mode", "compare");
+    keeps(host, "data-lf-shot-mode", "flip");
     keeps(host, "data-lf-shot-outlines", false);
-    host.append(toolbar, stage, legend);
+    host.append(toolbar, stage);
     const geometry = fitShotGeometry({
-      available: stage.clientWidth,
-      availableHeight: getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1" ? stage.clientHeight : void 0,
+      ...shotAllocation(host, stage),
       labelHeight: parseFloat(getComputedStyle(frames[0].firstElementChild).blockSize),
       sourceWidth: Number(host.dataset.lfMediaWidth),
       sourceHeight: Number(host.dataset.lfMediaHeight),
@@ -214,18 +216,16 @@
     });
     if (geometry) {
       applyShotGeometry(host, geometry, keeps);
-      scaleTrigger.title = `Fit \xB7 ${Math.round(geometry.scale * 100)}%`;
+      scale.choices.get("fit").title = `Fit \xB7 ${Math.round(geometry.scale * 100)}%`;
     }
     return {
       toolbar,
       scaleTrigger,
-      scaleIcon,
       options,
       views,
       outlines,
       scale,
       full,
-      scaleReading,
       stage,
       canvas,
       frames,
@@ -233,8 +233,7 @@
       shots,
       captions,
       frameCaptions,
-      openers,
-      legend
+      openers
     };
   }
 

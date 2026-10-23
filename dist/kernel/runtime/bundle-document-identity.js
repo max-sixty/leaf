@@ -281,9 +281,11 @@ import {
   commandRoutes,
   completeData,
   countTraffic,
+  cycledRow,
   dataHeaders,
   el,
   frameFor,
+  generatedElement,
   growthIsSeen,
   hasArea,
   holdingError,
@@ -938,9 +940,12 @@ sheet.replaceSync(`
      heading is bold, as the platform draws one, at the size of the words around it. A
      block is drawn line by line, so a code block's frame is each line's sides, closed
      above its first line and below its last. Syntax that holds its room while the
-     caret is away, as a code fence's line does, is there unseen and unspoken. */
+     caret is away, as a code fence's line does, is there unseen and unspoken. Its
+     glyphs go unfilled while its colour stays the words', because the caret can stand
+     at the end of unseen text, as just past a new item's marker, and the browser draws
+     it in that text's colour. */
   .lf-md-mark { color: var(--muted); }
-  .lf-md-unseen { color: transparent; }
+  .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
     background: var(--code-bg); border-radius: var(--code-inline-r);
     padding: var(--code-inline-pad); box-decoration-break: slice; }
@@ -1804,10 +1809,8 @@ function createSelectionComposer({
   function stepResponseOptions(binding) {
     const choices = responseOptionButtons();
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp"].includes(binding);
-    const next = at < 0 ? backward ? choices.length - 1 : 0 : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk(
       "response-option",
       "Response",
@@ -4864,12 +4867,10 @@ function createReactionController({
   function stepResponse(binding) {
     const choices = responseChoices(reactSurface);
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding
     );
-    const next = at < 0 ? backward ? choices.length - 1 : 0 : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk(
       "reaction",
       "Reaction",
@@ -6172,7 +6173,7 @@ function createInlineContributions({ targetPath }) {
       let seat = hosts.get(target);
       if (!seat) {
         const host2 = el("div", "lf-ui lf-margin-inline");
-        host2.dataset.lfGen = "1";
+        generatedElement(host2, { says: false });
         host2.setAttribute("role", "group");
         seat = { host: host2, offers: [] };
         hosts.set(target, seat);
@@ -6800,7 +6801,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
           node.dataset.lfPart = item.kind;
           node.tabIndex = -1;
           node.dataset.lfRuntime = "";
-          node.dataset.lfGen = "1";
+          generatedElement(node, { says: false });
           node.dataset.lfOffer = "";
           if (item.kind === "transcript") {
             const transcript = new Transcript({
@@ -6866,7 +6867,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
             };
           } else {
             let joined2 = false;
-            const { hint, accessibleName, busy, sent } = item.options;
+            const { hint, hintAside, accessibleName, busy, sent } = item.options;
             const redraw = () => {
               for (const row of node.querySelectorAll(":scope > .lf-thread-reply"))
                 if (row !== reply.node) row.remove();
@@ -6879,6 +6880,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
               },
               editLast: rewritesOf(item.key).editLast,
               hint,
+              hintAside,
               accessibleName,
               busy,
               sent

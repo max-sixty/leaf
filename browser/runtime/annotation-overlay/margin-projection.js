@@ -95,7 +95,7 @@ import {
   holdFocus,
   layerLanding,
   letGo,
-  onPress,
+  onPressAway,
   onCurrentLocation,
   pressLed,
   focused,
@@ -104,10 +104,10 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import { el, offer } from "../widget-elements.js";
+import { el, generatedElement, offer } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
-import { PRESS, rowArrows } from "../keyboard/bindings.js";
+import { PRESS, cycledRow, rowArrows } from "../keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "../walk-position.js";
 
 import { readingRegionFor } from "../reading-regions.js";
@@ -165,7 +165,7 @@ export function createMarginProjection({
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
 
-  nav.dataset.lfGen = "1";
+  generatedElement(nav, { says: false });
   nav.setAttribute("aria-label", "Page Map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");
@@ -452,10 +452,7 @@ export function createMarginProjection({
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
     const direction = binding === rowArrows(active)[1] ? 1 : -1;
-    focusDestination(
-      buttons[(at + direction + buttons.length) % buttons.length],
-      "move",
-    );
+    focusDestination(cycledRow(buttons, active, direction), "move");
     beginWalk("margin-entry", "Action", () => {
       const currentLocation = focused();
       const currentLocationHost = closestAcross(
@@ -1680,9 +1677,7 @@ export function createMarginProjection({
   declareRelease(() => {
     if (previewOpen()) closePreview();
   });
-  // A press away is judged where it starts and acted on where it ends, both outside,
-  // as the platform's light dismissal is: the press's own handlers read the scene
-  // first.
+  // A press away from the card puts it away (focus.js, `onPressAway`).
   const pressedAway = (path) => {
     if (!previewOpen()) return false;
     // A pointer mode reinterprets a press on the page as a stroke or an interface
@@ -1697,12 +1692,6 @@ export function createMarginProjection({
     if (currentTargets.some((node) => node && path.includes(node))) return false;
     return !path.some(inRetainedContext);
   };
-  const pressAway = (start, path) =>
-    pressedAway(path)
-      ? (end, completed) => {
-          if (completed && pressedAway(end.composedPath())) closePreview();
-        }
-      : null;
 
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
   // The conversation accompanying a page target while no Thread holds focus.
@@ -1850,22 +1839,16 @@ export function createMarginProjection({
       queueMicrotask(followCurrentLocation);
     });
     // Ahead of the document, where a mode claims its presses before anyone else hears
-    // them: whatever a press becomes, it is still the user's attention moving.
-    onPress(pressAway);
-    document.addEventListener(
-      "pointerdown",
-      (event) => {
-        if (!expandedOptionsKey) return;
-        const host = hosts.get(expandedOptionsKey);
-        if (
-          !host ||
-          event.composedPath().includes(host) ||
-          event.composedPath().some(inRetainedContext)
-        )
-          return;
-        setOptionsOpen(host.lfEntry, false);
+    // them: whatever a press becomes, it is still the user's attention moving. A press
+    // away from the card, or from the cluster whose options stand unfolded, puts it away.
+    onPressAway(pressedAway, () => closePreview());
+    const unfolded = () => hosts.get(expandedOptionsKey) ?? null;
+    onPressAway(
+      (path) => {
+        const host = unfolded();
+        return Boolean(host) && !path.includes(host) && !path.some(inRetainedContext);
       },
-      { capture: true },
+      () => setOptionsOpen(unfolded().lfEntry, false),
     );
     watchRoom(() => scheduleRoving());
     window.addEventListener("resize", () => scheduleWidthRender());

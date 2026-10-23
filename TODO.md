@@ -21,8 +21,8 @@
   interaction mechanisms so each new case does not require another fix.
 - **Reduce the burden of tests.** Tests now take long enough to meaningfully
   slow development. Reduce their runtime and the work needed to run them while
-  preserving useful coverage. `notes/shift-watch-cost.md` records what the
-  Stability sensor costs and when a cheaper gate would be worth revisiting.
+  preserving useful coverage. `notes/shift-watch-cost.md` records the Stability
+  sensor's idle-cost evidence and remaining optimization questions.
   Sharing one page across a test's cases (`tests/AGENTS.md`, "One page for the
   cases that can share it") reaches only cases that leave the log and the page's
   own UI alone, so most of the time spent opening pages needs each opening to
@@ -156,7 +156,7 @@ has tried; settle that before building it.
 ## Next
 
 - **Add a host-owned widget LLM allowance.** The initial `/api/llm` endpoint
-  uses the host's Codex or Claude login and bounds input size, but does not bound
+  uses the claimant harness's login and bounds input size, but does not bound
   cumulative usage. Define an explicitly granted allowance shared across page
   servers, with accounting appropriate to the login's quota or billing model.
   Establish per-request output bounds before promising a hard ceiling, and retain

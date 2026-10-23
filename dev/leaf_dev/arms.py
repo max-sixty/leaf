@@ -50,6 +50,7 @@ from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.render_gate import browser as browser_model
+from leaf.render_gate import command as render_command_model
 from leaf_dev import ROOT
 from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import prepare_page, read_fixture, record_run_context
@@ -121,7 +122,10 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
     set. It outranks CHROME_PATH and CHROME_BIN, which hosts set for other tools
     (GitHub's runner image sets CHROME_BIN to its Chrome), so leaf-dev's children
-    draw with the build `headless_shell` drives, as the suite's fixture arranges."""
+    draw with the build `headless_shell` drives, as the suite's fixture arranges.
+    It also pins `page check --render` to the fixed desktop window
+    (LEAF_RENDER_VIEWPORT), unless that variable is set, so a judged page's verdict
+    doesn't depend on the window of whichever browser last viewed it."""
     env = {
         key: value
         for key, value in os.environ.items()
@@ -137,6 +141,7 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     }
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
+    env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry

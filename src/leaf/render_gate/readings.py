@@ -410,7 +410,7 @@ def sweep(page, widths, open_tags) -> list[tuple[int, dict]]:
 
     Resizes the loaded page rather than rendering it again. Callers walk in steps,
     widest first, so a layout script settles from the width before: a jump from
-    1200px straight to 360px left an lf-shot laid out for the desktop for a frame
+    the desktop's width straight to 360px left an lf-shot laid out for the desktop for a frame
     under load, and the sweep read that frame."""
     height = page.viewport_size["height"]
     readings = []

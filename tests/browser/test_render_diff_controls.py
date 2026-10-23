@@ -950,6 +950,17 @@ def test_resolved_file_threads_share_the_file_disclosure_edge(browser, serve):
         ), geometry
         assert geometry["file"]["size"] == geometry["resolved"]["size"], geometry
         assert geometry["file"]["content"] == geometry["resolved"]["content"], geometry
+    # Paper has nothing to turn, so neither row draws its marker there.
+    page.emulate_media(media="print")
+    printed = summary.evaluate("""summary => [
+      summary.closest('.lf-diff-file').querySelector(':scope > details > summary'),
+      summary,
+    ].map(node => {
+      const arrow = getComputedStyle(node, '::before');
+      return arrow.display === 'none' || arrow.visibility === 'hidden';
+    })""")
+    assert printed == [True, True], printed
+    page.emulate_media(media="screen")
     summary.click()
     expect(thread).to_be_visible()
     reopen = thread.get_by_role("button", name="Reopen", exact=True)

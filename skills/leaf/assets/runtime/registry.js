@@ -113,3 +113,11 @@ export const matchesWhen = (el, when) =>
         : el.getAttribute(attr) === value,
     ),
   );
+
+// An occurrence quotes its descendants only while its declared condition holds.
+export const exhibits = (el, entry) => {
+  const rule = entry?.["x-exhibit"];
+  return typeof rule === "object" && rule !== null
+    ? matchesWhen(el, rule.when)
+    : !!rule;
+};

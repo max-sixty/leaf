@@ -541,6 +541,10 @@ var matchesWhen = (el2, when) => Object.entries(when ?? {}).every(
     (value) => typeof value === "boolean" ? el2.hasAttribute(attr) === value : el2.getAttribute(attr) === value
   )
 );
+var exhibits = (el2, entry) => {
+  const rule = entry?.["x-exhibit"];
+  return typeof rule === "object" && rule !== null ? matchesWhen(el2, rule.when) : !!rule;
+};
 
 // runtime/pointer.js
 var x = -1;
@@ -3385,6 +3389,7 @@ export {
   elementsDeclaring,
   tagsDeclaring,
   matchesWhen,
+  exhibits,
   pointerAt,
   coarsePointer,
   pressIsKeyboardActivation,

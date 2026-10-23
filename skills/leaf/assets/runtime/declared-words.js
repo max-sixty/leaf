@@ -47,7 +47,7 @@
    the registry says aloud. A module reading its slot or body must call `says` so
    runtime words do not become authored or user content. */
 
-import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
+import { elementDeclarations, exhibits, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { highlightBlocks } from "./syntax.js";
 import { keeps } from "./keeps.js";
@@ -312,8 +312,10 @@ export function markDeclared(root) {
     const tags = tagsDeclaring((entry) => entry[key]);
     for (const tag of tags) {
       const declared = registry[tag][key];
-      for (const el of elementsIn(root, tag))
-        keeps(el, paint, declared === true || mark.presence ? "" : declared);
+      for (const el of elementsIn(root, tag)) {
+        const value = key === "x-exhibit" ? exhibits(el, registry[tag]) : declared;
+        keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
+      }
     }
     // Message markup is all content (`authored_on`, `$marks`), so only a
     // mark held to declaring tags asks which tag an occurrence is.

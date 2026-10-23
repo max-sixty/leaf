@@ -24,7 +24,6 @@ from leaf.findings import Finding
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.obligations import (
     approval_blocking,
-    asking,
     quoted_in,
     response_address,
 )
@@ -43,6 +42,7 @@ from leaf.registry.contract import (
     created_child,
     detail_schema,
     event_spec,
+    matches_when,
     state_specs,
     verb_writer,
     visual_parts,
@@ -267,7 +267,7 @@ def held_comment_error(event: dict, page_by_id: dict, registry: dict):
         rec is None
         or not thread
         or not thread.get("hold")
-        or not asking(rec["attrs"], thread.get("when"))
+        or not matches_when(rec["attrs"], thread.get("when"))
         or event.get("anchor") != {"section": target}
     ):
         return Finding("hold-target", values={"holds": target})

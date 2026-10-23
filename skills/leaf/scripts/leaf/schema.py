@@ -326,7 +326,17 @@ EXTENSION_SCHEMA = {
             },
         },
         "x-example": {"type": "string"},
-        "x-exhibit": {"type": "boolean"},
+        "x-exhibit": {
+            "oneOf": [
+                {"type": "boolean"},
+                {
+                    "type": "object",
+                    "properties": {"when": AWAITING_CONDITION},
+                    "required": ["when"],
+                    "additionalProperties": False,
+                },
+            ]
+        },
         "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,

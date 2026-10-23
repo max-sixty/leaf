@@ -65,7 +65,8 @@ the element's first connection, so the element is never built twice. Use
 grab or removing hoisted UI, and hold everything else in `whileConnected`. A
 `LeafElement` that overrides either callback calls the `super` method.
 
-`quoted(element)` is true for a widget inside one the registry marks `x-exhibit`, such
+`quoted(element)` is true for a widget inside one whose `x-exhibit` declaration applies
+(including its optional `when` condition), such
 as `lf-sample`. A quoted widget never takes the user's edits, so
 check `quoted` before wiring a choice, a drag grip or anything else that sends input
 back. Its presentation and view state still work.

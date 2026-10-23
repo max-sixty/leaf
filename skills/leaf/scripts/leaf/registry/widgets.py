@@ -284,6 +284,12 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             for condition in awaits.get("answered", {}).values()
         ),
         ("x-thread-seat", entry.get("x-thread-seat", {}).get("when", {})),
+        (
+            "x-exhibit",
+            entry["x-exhibit"]["when"]
+            if isinstance(entry.get("x-exhibit"), dict)
+            else {},
+        ),
     ]
     for declaration, condition in conditions:
         for attr, values in condition.items():

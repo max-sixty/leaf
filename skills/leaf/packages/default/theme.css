@@ -2762,6 +2762,9 @@
 :scope:is(lf-sample) {
   --lf-sample-word: "quoted";
 }
+:scope:is(lf-sample)[interactive] {
+  --lf-sample-word: "interactive sample";
+}
 :scope:is(lf-sample)[data-lf-sample-live] {
   --lf-sample-word: "live sample";
 }

@@ -124,6 +124,7 @@ import {
   el,
   elementDeclarations,
   elementsDeclaring,
+  exhibits,
   growthAfterIsSeen,
   growthIsSeen,
   headerInset,
@@ -1387,8 +1388,10 @@ function markDeclared(root) {
     const tags = tagsDeclaring((entry) => entry[key]);
     for (const tag of tags) {
       const declared = registry[tag][key];
-      for (const el2 of elementsIn(root, tag))
-        keeps(el2, paint2, declared === true || mark.presence ? "" : declared);
+      for (const el2 of elementsIn(root, tag)) {
+        const value = key === "x-exhibit" ? exhibits(el2, registry[tag]) : declared;
+        keeps(el2, paint2, !value ? null : value === true || mark.presence ? "" : value);
+      }
     }
     if (authored) {
       for (const el2 of elementsIn(root, `[${authored}]`))

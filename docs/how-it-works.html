@@ -1779,12 +1779,96 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <summary>In this topic</summary>
             <nav aria-label="Pages sections">
               <ul>
+                <li><a href="#responsibilities">Who is responsible for what</a></li>
                 <li><a href="#pages">Parts of a page</a></li>
                 <li><a href="#layer">Runtime and packages</a></li>
                 <li><a href="#widgets">Widgets</a></li>
               </ul>
             </nav>
           </details>
+          <section id="responsibilities">
+            <h2>Who is responsible for what</h2>
+            <p id="responsibilities-lede">
+              The user directs the work. The authoring agent composes the page, packages
+              supply reusable behavior and presentation, and Leaf's kernel keeps the
+              shared record and interaction model coherent. A theme is a package
+              contribution selected for a page; it is not a separate user preference
+              layer in the browser.
+            </p>
+            <table id="responsibilities-table">
+              <thead>
+                <tr>
+                  <th>Owner</th>
+                  <th>Responsibility</th>
+                  <th>Interface</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>User</td>
+                  <td>Goals, preferences, decisions, and edits.</td>
+                  <td>
+                    Instructions to the agent and actions on the page. The default theme
+                    follows the browser's color-scheme preference.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Page author</td>
+                  <td>Content, initial values, package selection, and composition.</td>
+                  <td>
+                    Semantic HTML, declared widget attributes, data bindings, page CSS,
+                    and optional page modules.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Widget package</td>
+                  <td>
+                    Domain meaning, controls, and rendering within the allotted box.
+                  </td>
+                  <td>
+                    Registry declarations, browser modules, scoped styles, and author
+                    instructions. The package connects its controls to Leaf's state,
+                    commands, and annotation APIs.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Theme package</td>
+                  <td>Reusable visual choices and presentation idioms.</td>
+                  <td>
+                    Theme inputs and styles. Today, a package with no widget
+                    declarations has unscoped sheets above Layouts and may include
+                    <code>controls.css</code> for generated controls.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Leaf kernel</td>
+                  <td>
+                    Shared state, event admission, Undo, and interaction services.
+                  </td>
+                  <td>
+                    The registry contract and public module APIs. Core interprets
+                    declarations; packages supply each widget's domain behavior.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="responsibilities-example">
+              In a release review, the author supplies the choices and their evidence.
+              The options widget supplies selection controls and declares what a choice
+              means. Leaf records the action and computes the state after Undo. The
+              theme supplies the shared colors and type; the author places the choices
+              beside the evidence. Changing presentation does not change the meaning of
+              the recorded choice.
+            </p>
+            <p id="responsibilities-limits">
+              These are contribution boundaries, not a sandbox: package and page scripts
+              run in the same document. CSS scope limits where selectors match, but
+              inheritance and nested content still connect their presentation. The
+              <a href="#styles">Styles topic</a> describes the current cascade and its
+              explicit access to generated controls; the
+              <a href="/extending/">extension guide</a> describes package checks.
+            </p>
+          </section>
           <section id="pages">
             <h2>Parts of a page</h2>
             <p id="scaffold">
@@ -1999,6 +2083,16 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               ordinary rules override Leaf’s defaults and Layouts, and the page’s rules
               override the theme. Generated controls require the explicit access below;
               shadow trees have their own tiers.
+            </p>
+            <p id="styles-user-preference">
+              This ordering describes CSS precedence, not the user's authority over the
+              work. A user-selected theme still enters through the page's package
+              selection. Leaf has no separate reader-theme override that outranks page
+              CSS. The default theme supports light and dark schemes, but a page can
+              declare a single <code>color-scheme</code>. The author is responsible for
+              using the user's requested theme and preserving supported platform
+              preferences when composing the page; an explicit visual comparison may
+              need its own appearance.
             </p>
             <table id="styles-recipes">
               <thead>

@@ -365,9 +365,11 @@
 .lf-shotpixels .lf-shotplane > span {
   position: absolute;
   inset: 0;
-  background: var(--warn);
   mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100%
     no-repeat;
+}
+.lf-shotpixels [data-lf-shot-side="both"] {
+  background: var(--warn);
 }
 .lf-shotpixels [data-lf-shot-side="before"] {
   background: var(--danger);

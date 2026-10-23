@@ -900,6 +900,10 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
         "title",
         "Before-only pixels: red. After-only pixels: blue. Recolored pixels: amber.",
     )
+    colors = patch.locator(".lf-shotpixels .lf-shotplane > span").evaluate_all(
+        "nodes => nodes.map(node => getComputedStyle(node).backgroundColor)"
+    )
+    assert len(set(colors)) == 3
     expect(patch.locator(".lf-shotdiff").last).to_be_hidden()
     # Reading or pointing at evidence cannot silently switch comparison modes.
     patch.locator(".lf-shotpixels").click(position={"x": 10, "y": 10})

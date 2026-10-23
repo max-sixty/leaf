@@ -466,9 +466,8 @@ export function createAnchorControls({
     document.addEventListener("lf-layout", onLayoutInvalidated);
     stopPressAway = onPressAway(
       (path) => offeredAway(path).length > 0,
-      (end) => {
-        for (const record of offeredAway(end.composedPath()))
-          setReactionRemoval(record, null);
+      (path) => {
+        for (const record of offeredAway(path)) setReactionRemoval(record, null);
       },
     );
     messageReferenceRoot.addEventListener("click", onMessageReference);

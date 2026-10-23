@@ -495,6 +495,7 @@ responseSurface = createResponseSurface({
   setReact: (...args) => reactions.setReact(...args),
   openPageThread: app.threadDestinations.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
+  captureActive: () => regionCapture.active(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
   pageComment: generalComment,

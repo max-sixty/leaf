@@ -148,6 +148,7 @@ export function createResponseSurface({
   setReact,
   openPageThread,
   drawModeActive,
+  captureActive,
   refreshThread,
   dismissThreadView,
   pageComment,
@@ -884,11 +885,16 @@ export function createResponseSurface({
   // The response surface getting out of the way of a press away from it (focus.js,
   // `onPressAway`), which is a fact about the press rather than about who receives it, so
   // a press the aim or a design mode claims from the page puts it away too. A press on
-  // the visual the bar stands for keeps it, as does one in a draw mode, which reads it as
-  // a stroke. A native modal owns its press, the command reference's included, which goes
-  // by its own light dismissal (`closedby`), and the composer behind it stays inert.
+  // the visual the bar stands for keeps it, as does a stroke in a draw mode or a capture's
+  // drag, which go on into the draft the composer holds. A native modal owns its press,
+  // the command reference's included, which goes by its own light dismissal
+  // (`closedby`), and the composer behind it stays inert.
   function pressedAway(path) {
-    if (drawModeActive() || nativeLayers().some((layer) => layer.kind === "modal"))
+    if (
+      drawModeActive() ||
+      captureActive() ||
+      nativeLayers().some((layer) => layer.kind === "modal")
+    )
       return false;
     // The node pressed, not the widget host a shadow tree retargets it to: core controls
     // seated in a widget surface stay inside their own composer or reaction layer.

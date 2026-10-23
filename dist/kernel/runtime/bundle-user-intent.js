@@ -204,6 +204,7 @@ import {
   nextRender,
   onCurrentLocation,
   onPress,
+  onPressAway,
   readCaret,
   recentPlaceInput,
   renderedOrder,
@@ -4733,15 +4734,13 @@ function dismissContext(context) {
   session.owner?.changed();
 }
 var dismissReply = (key) => dismissContext(replyContext(key));
-document.addEventListener(
-  "click",
-  (event) => {
-    if (pressIsKeyboardActivation(event)) return;
-    const within2 = replyDraftContext(event.composedPath()[0]);
-    for (const context of compositions.keys())
-      if (context !== within2) dismissContext(context);
-  },
-  true
+onPressAway(
+  ([node]) => [...compositions.keys()].some((context) => context !== replyDraftContext(node)),
+  ([node], [from]) => {
+    const kept = [replyDraftContext(node), replyDraftContext(from)];
+    for (const context of [...compositions.keys()])
+      if (!kept.includes(context)) dismissContext(context);
+  }
 );
 var dismissReplyAt = (node) => {
   const context = replyDraftContext(node);

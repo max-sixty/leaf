@@ -1,16 +1,25 @@
 """A press away from a surface puts it away: one begun and completed outside it, as the
 platform judges its own light dismissal (focus.js, `onPressAway`). Every surface that
 goes on a press elsewhere is held to that one press, so a drag between it and the page
-leaves it standing whichever way it runs, a finger's tap away and a mouse's click away
-both put it away, and Escape, its keyboard route, does too."""
+leaves it standing, a finger's tap away and a mouse's click away both put it away, a
+finger scrolling the page does not, and Escape, its keyboard route, puts it away too."""
 
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
-from render_harness import open_page, panel_settled
+from render_harness import (
+    LONG_PAGE,
+    open_page,
+    panel_settled,
+    stored_draft_text,
+    told,
+    write,
+)
 
+from browser.drafts.test_reply_sessions import open_reply
 from browser.margin.test_pins import FOLDING_PAGE
 from browser.test_render_reactions import select_paragraph
+from leaf import event_log as events_model
 
 PHONE = {
     "viewport": {"width": 390, "height": 844},
@@ -37,6 +46,23 @@ def tap(page, at):
     cdp.detach()
 
 
+def swipe(page, start, end):
+    """A finger dragging the page, which the browser takes for a scroll and cancels."""
+    cdp = page.context.new_cdp_session(page)
+    cdp.send(
+        "Input.dispatchTouchEvent",
+        {"type": "touchStart", "touchPoints": [dict(zip("xy", start))]},
+    )
+    for step in range(1, 9):
+        at = [a + (b - a) * step / 8 for a, b in zip(start, end)]
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": "touchMove", "touchPoints": [dict(zip("xy", at))]},
+        )
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    cdp.detach()
+
+
 def drag(page, start, end):
     page.mouse.move(*start)
     page.mouse.down()
@@ -56,6 +82,8 @@ def test_a_press_away_puts_the_panel_s_view_away(browser, serve):
     drag(page, outside, centre(view))
     panel_settled(page, view="threads")
     drag(page, centre(view), outside)
+    panel_settled(page, view="threads")
+    swipe(page, outside, (outside[0], outside[1] + 200))
     panel_settled(page, view="threads")
     tap(page, outside)
     panel_settled(page, open=False)
@@ -151,3 +179,30 @@ def test_a_press_away_folds_a_pin_s_unfolded_actions(browser, serve):
     expect(accept).to_be_focused()
     page.keyboard.press("Escape")
     expect(toggle).to_have_attribute("aria-expanded", "false")
+
+
+def test_a_press_away_ends_a_reply_s_composition(browser, serve):
+    url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    page = open_page(browser, url)
+    _, field = open_reply(page, "margin", root)
+    write(field, "A reply still being written.")
+    # A resolved thread draws its reply box only while the reply's composition lasts.
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
+    expect(field).to_be_visible()
+    # The passage the card is about keeps the card, so a press there is away from the
+    # reply alone.
+    passage = page.locator("#p3")
+    drag(page, centre(field), centre(passage))
+    expect(field).to_be_visible()
+    tap(page, centre(passage))
+    expect(field).not_to_be_visible()
+    assert stored_draft_text(page, f"reply:{root}") == "A reply still being written."

@@ -181,10 +181,6 @@
         outline: var(--focus-ring);
         outline-offset: -2px;
       }
-      .lf-action-icon {
-        width: 16px;
-        height: 16px;
-      }
     }
   }
 

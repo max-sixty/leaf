@@ -122,8 +122,6 @@
 .lf-action-icon {
   position: relative;
   z-index: 1;
-  inline-size: 16px;
-  block-size: 16px;
   pointer-events: none;
 }
 /* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
@@ -661,15 +659,5 @@ leaf-text.lf-fab-input {
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] {
     display: none !important;
-  }
-}
-
-/* Forced-colour palettes suppress elevation shadows. The same control keeps a
- * visible platform ring when seated outside the private chrome scope as well. */
-@media (forced-colors: active) {
-  .lf-response-control[data-lf-focus-visible] {
-    outline: var(--focus-ring-w) solid Highlight;
-    outline-offset: 2px;
-    filter: none;
   }
 }

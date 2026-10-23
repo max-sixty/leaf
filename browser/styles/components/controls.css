@@ -226,13 +226,10 @@
   opacity: 0;
   cursor: pointer;
 }
-/* Every Leaf icon (icons.js) is drawn the same way, whatever class its caller sizes or
-   places it by: a round-capped stroke in the text's colour, unfilled, so no caller's
-   class can leave one drawn as the browser's default black fill. It keeps the size that
-   class gives it, which the page's rule for its own pictures (theme.css, `max-width`)
-   would otherwise narrow to a holder no wider than the icon. */
+/* Every Leaf icon (icons.js) is drawn the same way, whatever class its caller places it
+   by: a round-capped stroke in the text's colour, unfilled, so no caller's class can
+   leave one drawn as the browser's default black fill. */
 svg[data-lf-icon] {
-  max-width: none;
   overflow: visible;
   fill: none;
   stroke: currentColor;
@@ -240,11 +237,18 @@ svg[data-lf-icon] {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Every icon is 16px square unless its place asks for another size. The rule weighs
+   nothing, so any class a caller sizes an icon by outranks it, and an icon whose class
+   says nothing of size still draws at 16px rather than at the 300px an unsized SVG
+   takes. Each class once restated the 16px, and a place that wanted another size had
+   to know which. The page's rule for its own pictures (theme.css) leaves these alone. */
+:where(svg[data-lf-icon]) {
+  inline-size: 16px;
+  block-size: 16px;
+}
 /* A disclosure's direction and motion have one face across thread history and
    settled choices. Its fixed slot turns without delaying content or moving the label. */
 .lf-disclosure-icon {
-  inline-size: 16px;
-  block-size: 16px;
   flex: none;
   align-self: center;
   rotate: -90deg;
@@ -258,10 +262,6 @@ svg[data-lf-icon] {
 }
 [aria-expanded="true"] > .lf-disclosure-icon:dir(rtl) {
   rotate: 0deg;
-}
-.lf-msg-control-icon {
-  inline-size: 16px;
-  block-size: 16px;
 }
 .lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
 .lf-msg-control[data-lf-focus] {

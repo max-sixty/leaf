@@ -320,6 +320,20 @@
 .lf-shotcomparison::part(handle) {
   border: 1px solid var(--ink-2);
   box-shadow: var(--raise-1);
+  opacity: 0.52;
+}
+/* Reading an image with the pointer over it keeps the handle faint. Only aiming
+ * at the handle, keyboard focus or a drag brings it forward. */
+.lf-shotcomparison::part(handle):hover,
+.lf-shotcomparison:is([data-lf-focus-visible-within], :state(dragging))::part(handle) {
+  opacity: 1;
+}
+.lf-shotcomparison:is([position="0"], [position="100"]):not(
+  :hover,
+  [data-lf-focus-visible-within],
+  :state(dragging)
+)::part(handle) {
+  opacity: 0.18;
 }
 .lf-shot-handle {
   display: block;
@@ -387,7 +401,7 @@
   background: var(--danger);
 }
 :is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side="after"] {
-  background: var(--accent);
+  background: var(--ok);
 }
 @container style(--lf-full-height:1) {
   :scope:is(lf-shot) {

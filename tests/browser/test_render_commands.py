@@ -464,10 +464,16 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
             handle_box["x"] + handle_box["width"] / 2,
             box["y"] + 80,
         )
+        # Reading the image keeps the handle faint; aiming at it brings it up.
+        page.mouse.move(box["x"] + 20, box["y"] + 40)
+        expect(handle).to_have_css("opacity", "0.52")
+        handle.hover()
+        expect(handle).to_have_css("opacity", "1")
         scroll_before = page.evaluate("document.scrollingElement.scrollTop")
         page.mouse.move(*divider)
         page.mouse.down()
         page.mouse.move(divider[0] + 24, divider[1], steps=3)
+        expect(handle).to_have_css("opacity", "1")
         page.mouse.up()
         scroll_settled(page)
         assert 50 < float(comparison.get_attribute("position")) < 100

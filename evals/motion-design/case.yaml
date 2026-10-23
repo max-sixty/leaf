@@ -8,6 +8,14 @@
 # a page-owned playback implementation. The second candidate read the added
 # inspection guidance, but its native-size view cropped the recording on phone.
 # This small exploratory comparison establishes neither a quality win nor a rate.
+# A fresh local run with revised motion guidance widened phone previews and removed
+# native scrolling duplicates, but the original judge still failed tiny recorded
+# labels/icons (20261022-184059-6_t19wp5). Clarifying the criterion to judge the
+# complete motion produced a passing fresh desktop+phone run
+# (20261022-185628-lpgiyd01). A blind audit of the preserved earlier comparison
+# also passed that motion criterion; it did not include the unavailable final page.
+# Thus the grades establish criterion calibration and demonstrated usability,
+# not an old-fails/new-passes authoring capability win or a quality improvement rate.
 # An earlier pilot with incorrect timing metadata is excluded.
 description: Motion design comparison
 metadata:

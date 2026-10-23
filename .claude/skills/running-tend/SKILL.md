@@ -73,7 +73,7 @@ the behavior the test protects disagree. Choose the repair by what it keeps of e
 
 An existing assertion is evidence about both, not authority: a change that
 deliberately moved the interface leaves the old test stale (`tests/AGENTS.md`,
-**A failure is evidence about the test too**). Prefer a repair that keeps both:
+**Failing tests**). Prefer a repair that keeps both:
 update the test whose expectation the change replaced, or fix the code so the
 change's intent holds without moving the interface further. Where no repair
 keeps both, revert the change, or the part of it at fault, rather than ship a
@@ -108,7 +108,7 @@ the test without changing that behavior.
 Two test-owned failures recur:
 
 - **A read or press before the page said it was ready**, which a re-run hides. State the
-  ordering (`tests/AGENTS.md`, **State races are arrangements, not probabilities** and **Transient states**); don't repeat the
+  ordering (`tests/AGENTS.md`, **Races** and **Transient states**); don't repeat the
   gesture until it happens to hold.
 - **A reading that has been widened before.** When the fix that presents itself
   is one more member of an accepted set, allowlist, or tolerance, read the line's

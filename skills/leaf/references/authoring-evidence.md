@@ -173,7 +173,7 @@ arrow keys; Home and End show the complete frames.
 
 **Outline changes** marks changed regions in Pair and Slider, using the accent color
 for content that only moved. **Pixels** paints removed pixels red, added pixels
-blue and recoloured pixels amber over the greyed after image, so build no difference
+green and recoloured pixels amber over the greyed after image, so build no difference
 image of your own. These controls belong to the reader; author the pair with `before`,
 `after` and `alt`.
 

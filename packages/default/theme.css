@@ -140,12 +140,6 @@
   .lf-shot-actions {
     justify-content: space-between;
   }
-  .lf-shot-views {
-    gap: 0;
-  }
-  .lf-shot-tools {
-    gap: 0;
-  }
 }
 .lf-shotstage {
   --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));

@@ -145,12 +145,6 @@
   .lf-shot-actions {
     justify-content: space-between;
   }
-  .lf-shot-views {
-    gap: 0;
-  }
-  .lf-shot-tools {
-    gap: 0;
-  }
 }
 .lf-shotstage {
   /* Keep the shared image frame's shadow inside the scrollport. */

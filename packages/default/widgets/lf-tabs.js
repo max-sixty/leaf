@@ -219,7 +219,7 @@ export class TabSet extends LeafElement {
       if (!index || (side && group !== panels[index - 1].getAttribute("group")))
         this.#runs.push({ panel, group, panels: [] });
       this.#runs.at(-1).panels.push(panel);
-      panel.classList.add("scroll");
+      if (!panel.classList.contains("scroll")) panel.classList.add("scroll");
       panel.setAttribute("role", "tabpanel");
       panel.setAttribute("aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or

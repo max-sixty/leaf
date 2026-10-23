@@ -147,7 +147,21 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     toolbar = shot.locator(".lf-shot-toolbar")
     toolbar.scroll_into_view_if_needed()
     controls = toolbar.get_by_role("button").all()
-    boxes = [control.bounding_box() for control in controls if control.is_visible()]
+    faces = [control.bounding_box() for control in controls if control.is_visible()]
+    # Shared controls extend their touch target with a transparent reach, leaving the
+    # face compact beside the source labels (surfaces.css).
+    boxes = [
+        control.evaluate("""node => {
+          const face = node.getBoundingClientRect();
+          const reach = getComputedStyle(node, '::after');
+          const left = parseFloat(reach.left), right = parseFloat(reach.right);
+          const top = parseFloat(reach.top), bottom = parseFloat(reach.bottom);
+          return {x: face.x + left, y: face.y + top,
+            width: face.width - left - right, height: face.height - top - bottom};
+        }""")
+        for control in controls
+        if control.is_visible()
+    ]
     assert len(boxes) == 5
     floor = 44 if touch else 24
     for index, box in enumerate(boxes):
@@ -192,7 +206,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     )
     assert [
         control.bounding_box() for control in controls if control.is_visible()
-    ] == boxes
+    ] == faces
     toolbar_box = toolbar.bounding_box()
     for caption in captions.all():
         box = caption.bounding_box()

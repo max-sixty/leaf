@@ -14,8 +14,8 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
     _codex_delivery,
-    _delivery_item,
     _observer,
+    acknowledged_through,
     append_carried_log_record,
     append_command,
     command_findings,
@@ -32,6 +32,7 @@ from interact_support import (
     response_reference,
     served_updates,
 )
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import delivery as delivery_model
@@ -68,7 +69,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
     stale = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -82,7 +83,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
     current = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, second["id"]),
@@ -110,7 +111,7 @@ def test_a_refusal_names_a_ref_only_while_its_owner_holds_the_page(
     reply = ["thread", "reply", str(claimed), asked["id"], "--text", "B"]
     refused = CliRunner().invoke(cli_model.cli, reply)
     assert refused.exit_code == 1
-    assert f"`leaf response reply {ref}` answers it" in refused.output
+    assert f"`leaf thread reply {ref}` answers it" in refused.output
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
     assert service_model.claim_page(claimed)
@@ -134,6 +135,60 @@ def test_a_refusal_names_a_ref_only_while_its_owner_holds_the_page(
     )
 
 
+@pytest.mark.parametrize("earlier", [None, "progress", "failure-markup"])
+def test_the_first_reply_on_a_revision_notes_what_page_check_advises(page_dir, earlier):
+    """A revision that answers a message gets no `page check` before its reply, so
+    the first successful reply notes the advice `page check` gives on it, beside
+    its result. Progress and failure reports do not consume that advice; later
+    successful replies on that revision repeat none of it."""
+
+    def advised(comment):
+        asked = append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "id": comment, "author": "user", "text": "Tidy it"},
+        )
+        posted = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", response_reference(page_dir, asked), "--done"]
+            + ["--text", "Tidied."],
+        )
+        assert posted.exit_code == 0, posted.output
+        return [json.loads(line) for line in posted.stderr.splitlines()]
+
+    (page_dir / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><title>t</title></head>'
+        "<body><main><h1>Title</h1><p>words</p></main></body></html>",
+        encoding="utf-8",
+    )
+    revisioning_model.activate_source(page_dir)
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    report = json.loads(checked.stdout)
+    assert {finding["code"] for finding in report["findings"]} == {"unpointable"}
+    if earlier:
+        asked = append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "author": "user", "text": "Can you check this?"},
+        )
+        reference = response_reference(page_dir, asked)
+        if earlier == "progress":
+            with pytest.raises(Refused) as refused:
+                thread_model.post_response(
+                    reference, "Checking.", ephemeral=True, markup="<p>Checking.</p>"
+                )
+            assert refused_on(refused.value).code == "ephemeral-content"
+        thread_model.post_response(
+            reference,
+            "Checking." if earlier == "progress" else "Unavailable.",
+            **(
+                {"ephemeral": True}
+                if earlier == "progress"
+                else {"failure": "unavailable", "markup": "<p>Unavailable.</p>"}
+            ),
+        )
+    assert advised("first") == report["findings"]
+    assert advised("second") == []
+
+
 def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_path):
     other = tmp_path / "other-response"
     shutil.copytree(page_dir, other)
@@ -150,12 +205,12 @@ def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_pa
     for page, reference in zip((page_dir, other), refs):
         posted = CliRunner().invoke(
             cli_model.cli,
-            ["response", "reply", "--done", reference, "--text", str(page)],
+            ["thread", "reply", "--done", reference, "--text", str(page)],
         )
         assert posted.exit_code == 0, posted.output
         retry = CliRunner().invoke(
             cli_model.cli,
-            ["response", "reply", "--done", reference, "--text", "Retried"],
+            ["thread", "reply", "--done", reference, "--text", "Retried"],
         )
         assert retry.exit_code == 0, retry.output
         assert json.loads(posted.output) == json.loads(retry.output)
@@ -182,7 +237,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     progress = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             reference,
             "--ephemeral",
@@ -200,7 +255,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     invalid = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -220,7 +275,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     posted = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -258,7 +313,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     questioned = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             selected_ref,
             "--text",
@@ -280,7 +335,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
     page_dir, monkeypatch
 ):
     def cli_refuses(reference, text, reason):
-        args = ["response", "reply", "--done", reference, "--text", text]
+        args = ["thread", "reply", "--done", reference, "--text", text]
         refused = CliRunner().invoke(cli_model.cli, args)
         assert refused.exit_code == 1
         assert reason in json.loads(refused.stderr)["error"]
@@ -303,7 +358,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
     )
     before = events_model.read_events(page_dir)
     refused = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", "--done", stale, "--text", "Used A."]
+        cli_model.cli, ["thread", "reply", "--done", stale, "--text", "Used A."]
     )
     assert refused.exit_code != 0
     assert events_model.read_events(page_dir) == before
@@ -350,7 +405,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
             patched.setattr(thread_model, "post_response", fail)
             result = CliRunner().invoke(
                 cli_model.cli,
-                ["response", "reply", "--done", reference, "--text", "Control"],
+                ["thread", "reply", "--done", reference, "--text", "Control"],
             )
         assert result.exception is failure
         assert result.exit_code == (7 if isinstance(failure, SystemExit) else 1)
@@ -363,7 +418,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
             (
                 "from click.testing import CliRunner; from leaf.cli import cli; import sys; "
                 "assert 'leaf.delivery' not in sys.modules; "
-                "result = CliRunner().invoke(cli, ['response', 'reply', '--help']); "
+                "result = CliRunner().invoke(cli, ['thread', 'reply', '--help']); "
                 "assert result.exit_code == 0, result.output; "
                 "assert 'leaf.delivery' not in sys.modules"
             ),
@@ -396,7 +451,7 @@ def test_delegated_response_survives_its_coordinators_end_without_a_competing_cl
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -434,7 +489,7 @@ def test_superseded_response_stays_refused_after_successor_ends(claimed):
     before = events_model.read_events(claimed)
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "Old worker"],
+        ["thread", "reply", "--done", reference, "--text", "Old worker"],
     )
     assert result.exit_code == 1
     assert "claim no longer matches its delivery" in result.stderr
@@ -473,6 +528,9 @@ def test_delegated_author_write_survives_same_owner_process_restart(claimed):
 
 
 def test_response_api_records_failure_without_reopening_thread(page_dir):
+    revisioning_model.activate_source(page_dir)
+    source = page_dir / "index.html"
+    active = files_model.latest_revision(page_dir)
     asked = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Please answer."}
     )
@@ -482,7 +540,7 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
     progress = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             reference,
             "--ephemeral",
@@ -493,10 +551,11 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
         ],
     )
     assert progress.exit_code == 0, progress.output
+    source.write_text("<lf-unknown>Unfinished draft</lf-unknown>")
     posted = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             reference,
             "--failure",
@@ -506,6 +565,8 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
         ],
     )
     assert posted.exit_code == 0, posted.output
+    assert files_model.latest_revision(page_dir) == active
+    assert source.read_text() == "<lf-unknown>Unfinished draft</lf-unknown>"
     reply = json.loads(posted.output)
     assert reply["failure"] == "unavailable"
     assert reply["responds"] == asked["id"]
@@ -516,7 +577,7 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
     # An answer to the same reference is not a retry of the receipt: it is refused
     # as an answer to a settled input rather than handed the receipt back.
     [answered] = command_findings(
-        "response", "reply", reference, "--done", "--text", "Here it is."
+        "thread", "reply", reference, "--done", "--text", "Here it is."
     )
     assert answered.code == "superseded-reply"
     assert [event["id"] for event in events_model.read_events(page_dir)][-1] == (
@@ -567,7 +628,14 @@ def test_a_turns_opening_posts_as_progress_where_it_was_said(page_dir):
     # it as the turn's last item, so nothing says yet that it is complete.
     fold.restore_turn({"id": "author-turn", "items": [opening]})
     assert not fold.said_opening()
-    tool = {"id": "tool", "type": "commandExecution", "command": "ls"}
+    tool = {
+        "id": "tool",
+        "type": "commandExecution",
+        "command": "ls",
+        "commandActions": [],
+        "cwd": "/work",
+        "status": "inProgress",
+    }
     assert told("item/started", tool, startedAtMs=2)
     assert not told("item/completed", opening, completedAtMs=3)
     asked = append_command(
@@ -629,7 +697,7 @@ def test_provider_response_commits_full_content_before_reconnect(
     }[rich]
     authored = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", target["ref"], "--text", "Choose the store.", *flags],
+        ["thread", "reply", target["ref"], "--text", "Choose the store.", *flags],
     )
     assert authored.exit_code == 0, authored.output
     assert json.loads(authored.output)["kind"] == "reply"
@@ -661,7 +729,7 @@ def test_provider_response_commits_full_content_before_reconnect(
     assert (reply["session"], reply["agent"]) == (author, "Worker")
     retried = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", target["ref"], "--text", "Choose the store.", *flags],
+        ["thread", "reply", target["ref"], "--text", "Choose the store.", *flags],
     )
     assert retried.exit_code == 0, retried.output
     assert json.loads(retried.output) == reply
@@ -704,7 +772,12 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
                     "status": "completed",
                     "itemsView": "full",
                     "items": [
-                        _delivery_item(payload),
+                        {
+                            "id": "delivery",
+                            "type": "functionCallOutput",
+                            "name": "leaf_delivery",
+                            "output": json.dumps(payload),
+                        },
                         {
                             "id": "final",
                             "type": "agentMessage",
@@ -762,7 +835,11 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     assert refused_on(refused.value).code == "redeclared-answer"
 
 
-def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
+def test_addressed_progress_uses_active_revision_and_starts_work_atomically(page_dir):
+    revisioning_model.activate_source(page_dir)
+    source = page_dir / "index.html"
+    original = source.read_text()
+    active = files_model.latest_revision(page_dir)
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Answer this"}
     )
@@ -771,9 +848,12 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
     with pytest.raises(Refused) as refused:
         thread_model.post_response(reference, "Checking\nthe store.", ephemeral=True)
     assert refused_on(refused.value).values["field"] == "/text"
+    source.write_text("<lf-unknown>Unfinished draft</lf-unknown>")
     progress = thread_model.post_response(
         reference, "Checking the store.\n", ephemeral=True
     )
+    assert files_model.latest_revision(page_dir) == active
+    assert source.read_text() == "<lf-unknown>Unfinished draft</lf-unknown>"
     events = events_model.read_events(page_dir)
     assert [event["kind"] for event in events] == ["comment", "reply"]
     assert progress["start"]["item"] == comment["id"]
@@ -785,7 +865,12 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
             page_dir, {"parent": comment["id"]}, "Proactive", ephemeral=True
         )
     assert refused_on(refused.value).code == "owed-response"
+    source.write_text(original + "<!-- pending edit -->")
+    thread_model.post_response(reference, "Verifying the store.", ephemeral=True)
+    assert files_model.latest_revision(page_dir) == active
+    assert source.read_text() == original + "<!-- pending edit -->"
     answer = thread_model.post_response(reference, "The durable answer.")
+    assert files_model.latest_revision(page_dir) != active
     assert answer["responds"] == comment["id"]
     assert comment["id"] not in delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
@@ -809,7 +894,7 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     cleanup_model.write_json(path, record)
     assert codex_model.read_record(path) is None
     assert not codex_model.recover_codex_receipt("codex-thread")
-    assert not read_record(page_dir / "cursor.json")
+    assert acknowledged_through(page_dir) == 0
     fresh = codex_model.prepare_codex_delivery(
         page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
@@ -868,10 +953,10 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         "Older question?",
         QUESTION,
     )
-    status = read_record(page_dir / "status.json")["stream"]
-    assert status["reply"]["text"] == "Newer opening"
-    assert newer["id"] in status["reply_reservations"]
-    assert comment["id"] not in status["reply_reservations"]
+    stream = read_record(page_dir / "stream.json")
+    assert stream["reply"]["text"] == "Newer opening"
+    assert newer["id"] in stream["reply_reservations"]
+    assert comment["id"] not in stream["reply_reservations"]
 
 
 def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
@@ -892,11 +977,11 @@ def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
         ],
     )
     assert refused.exit_code != 0
-    assert "leaf response reply <answer.ref>" in refused.output
+    assert "leaf thread reply <answer.ref>" in refused.output
     corrected = runner.invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             target["ref"],
@@ -1021,7 +1106,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
         if retry == "same"
         else "another-retry"
     )
-    with pytest.raises(Refused, match="leaf response reply"):
+    with pytest.raises(Refused, match="leaf thread reply"):
         thread_model.post_reply(
             page_dir,
             {"parent": comment["id"], "responds": comment["id"]},
@@ -1032,7 +1117,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
     authored = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             earlier,
@@ -1057,7 +1142,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
     retried = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             earlier,
@@ -1073,7 +1158,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
 
 def test_failure_reply_is_refused_while_provider_still_owns_the_answer(page_dir):
     comment, target, delivery_id, stream = _reserved_author_response(page_dir)
-    with pytest.raises(Refused, match="leaf response reply"):
+    with pytest.raises(Refused, match="leaf thread reply"):
         thread_model.post_response(
             target["ref"],
             "No answer is coming.",

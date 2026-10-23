@@ -5,7 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_PAGE, panel_comment
@@ -38,6 +37,7 @@ from render_harness import (
 
 from browser.drafts import PANEL_SAYS, expect_panel_says
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -64,7 +64,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     every edit door stays closed and the exact body remains recoverable, and the busy
     draft is readable content.
 
-    A refused save is then an editable state, with Retry and Cancel at the same
+    A refused save is then an editable state, with Retry and Discard at the same
     target."""
     page = open_page(browser, serve(JOURNEY_V1))
     page.evaluate(
@@ -134,7 +134,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     expect(editor).to_have_js_property("value", "Keep these unsent words.")
     expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
-    expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    expect(item.get_by_role("button", name="Discard", exact=True)).to_be_visible()
 
     write(editor, "Keep the revised unsent words.")
     expect(item.locator(".lf-draft-status")).to_be_empty()
@@ -632,7 +632,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     attempt = held[0].request.post_data_json["attempt"]
     pending = page.locator(f'{PANEL_THREAD}[data-thread="pending:{attempt}"]')
     expect(pending).to_be_visible()
-    # The thread's view is the stop the user stands on.
+    # The thread's view is the stop the user is located on.
     pending.focus()
     expect(pending).to_be_focused()
 
@@ -648,7 +648,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
         )
     expect(pending).to_have_count(0)
     assert not thread_listed(page, attempt), "the refused thread is still listed"
-    # The view the user stood on went with the thread, so the field stands for the page
+    # The view the user was located on went with the thread, so the field stands for the page
     # again with the words in it and the caret in them, and the refusal needs no
     # address for them.
     expect(box).to_be_focused()
@@ -824,7 +824,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve):
 
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    standing = page.evaluate("() => document.activeElement.className")
+    current_location = page.evaluate("() => document.activeElement.className")
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -832,11 +832,11 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve):
         "Send this while I return to reading."
     )
     panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement.className") == standing
+    assert page.evaluate("() => document.activeElement.className") == current_location
 
 
 def test_a_held_reply_send_preserves_a_later_scroll(browser, serve):
-    """A wheel can move the reading place while the user stands in the thread the
+    """A wheel can move the reading place while the user is located in the thread the
     reply was sent in; its delivery moves neither."""
     url = serve(LONG_PAGE)
     (root,) = seed_panel_threads(serve.page_dir, 1, long_index=0, messages=20)

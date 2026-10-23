@@ -88,8 +88,8 @@ returns `null`. Call the returned `update()` after the parts or their positions 
 that calls it repaints when it changes (`module-reading.md`, "Page readings"). A
 thread the user just started is there at once; only `phase === "ready"` means every saved thread is.
 Each widget keeps its own search, filter and order. `threadTurns(thread)` returns a
-Thread's turns, and `threadSummary(thread)` its `topic`, the name Threads, the margin and
-Page Map show it under, and its `latest` activity.
+Thread's turns, and `threadSummary(thread)` its `topic`, its name in words (its title,
+else its opening words), and its `latest` activity.
 
 Address a Thread by its `key`, which stays the same after the server admits it. Its `id`
 is the name obligations and workflows use. `root` is its opening message, `anchor` names the
@@ -153,13 +153,14 @@ A package that provides the page's main conversation reader, such as a shelf of
 conversations or a feed of turns, registers
 `registerThreadPresentation(owner, {render, reveal})`, in `whileConnected`. A page has
 at most one. Leaf then opens threads there instead of in its floating panel, and widgets
-inside messages live there.
+inside the messages it draws live there; a message it doesn't draw keeps its widgets
+wherever the page draws its thread, such as a margin card.
 
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
 with `parts.thread(thread.key, outlet)`, or its parts with
 `parts.message(thread.key, message.key, outlet)` for each of its `threadTurns` and
 `parts.reply(thread.key, outlet)`. `parts.transcript(thread.key, outlet)` draws all of
-its turns as a whole conversation does, with progress folded and work under way as one
+its turns as a whole conversation does, with completed progress hidden and work under way as one
 dim line, for a widget that draws the conversation's head itself; it takes the place of
 message parts. A reaction a thread opens on is its root turn; any
 later reaction is drawn as the chip on the message it answers, so naming one as a
@@ -177,10 +178,11 @@ to show held news for a deliberate change of view. A pass in which `render` thro
 names an outlet outside the widget, rejects and hands the threads back to Leaf's
 floating panel, so their asks stay reachable; `primary` reads false until the next
 `update()` takes them back. `reveal(key, request)` shows the
-requested part in the package's layout, or returns `false` to leave a thread or reply
-part to the thread's place on the page, such as its margin card. Where nothing there
+requested part in the package's layout, or returns `false` to leave the part to the
+thread's place on the page, such as its margin card. Where nothing there
 shows it, Leaf asks again with `request.last` set, and a second `false` leaves the
-thread unopened. `request` also carries `part`, `message`, `focus`, `signal` and
+thread unopened. A message part for a message the reader already draws goes there
+even where `reveal` returns `false`. `request` also carries `part`, `message`, `focus`, `signal` and
 `current()`. Leaf then handles focus, scrolling and arrival. The feature gallery's
 `lf-conversation-workspace` is the worked example.
 

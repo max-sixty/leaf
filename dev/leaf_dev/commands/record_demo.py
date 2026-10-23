@@ -24,6 +24,9 @@ from pathlib import Path
 from uuid import uuid4
 
 import click
+from PIL import Image
+from playwright.sync_api import Page
+
 from leaf.delivery import freeze_delivery, receive_held
 from leaf.harness import detached_environment, session_harness
 from leaf.hook_transport import read_plans
@@ -40,9 +43,6 @@ from leaf.state import session_record
 from leaf.thread import post_reply
 from leaf.todos import cmd_start
 from leaf.vendoring import cmd_init
-from PIL import Image
-from playwright.sync_api import Page
-
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import headless_shell, settle, tab
 from leaf_dev.leaf_assets import publish, stage
@@ -137,7 +137,6 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 <html lang="en">
 <head>
 <title>Migration plan</title>
-<meta name="lf-review" content="sign-off">
 <style>#demo-metrics dl {{ margin: 0; padding: var(--sp-3); border: 1px solid var(--rule); }} #demo-metrics dt {{ color: var(--muted); font: 500 var(--t-6)/1.3 var(--sans); }} #demo-metrics dd {{ margin: 0; font: 600 var(--t-2)/1.3 var(--sans); }} #demo-metrics dd small {{ font-size: var(--t-6); }}</style>
 </head>
 <body>
@@ -189,6 +188,10 @@ new version as the checks finish.</p>
 {board_markup(board or BOARD)}
 </lf-board>
 </section>
+<lf-approval id="migration-approval">
+<h2>Approve the migration plan</h2>
+<p>Authorize the rollout sequence and acceptance criteria described above.</p>
+</lf-approval>
 </main>
 </body>
 </html>

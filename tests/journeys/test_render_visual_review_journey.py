@@ -4,11 +4,6 @@ import json
 import shutil
 
 import pytest
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf import hosting as hosting_model
-from leaf import media as media_model
 from playwright.sync_api import expect
 from render_cases_navigation import source_revision
 from render_harness import (
@@ -24,6 +19,12 @@ from render_harness import (
     told,
     undo,
 )
+
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import exporting as exporting_model
+from leaf import hosting as hosting_model
+from leaf import media as media_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -224,57 +225,26 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert first_images.evaluate_all(
         "images => images.every(image => image.complete && image.naturalWidth > 0)"
     )
-    details = first.locator(".lf-vr-details")
-    details_summary = first.locator(".lf-vr-details-summary")
-    go_to(user, details_summary, "Fold")
-    assert_keyboard_focus(user, details_summary)
-    expect(details).to_have_attribute("open", "")
-    user.keyboard.press("Enter")
-    expect(details).not_to_have_attribute("open", "")
-    widget.get_by_text("Inspect comparison", exact=True).click()
-    overlay = widget.get_by_role("radio", name="Overlay")
-    go_to(user, overlay)
-    assert_keyboard_focus(user, overlay)
-    expect(widget).to_have_attribute("data-inspection-mode", "overlay")
-    compare = widget.get_by_role("radio", name="Compare")
-    go_to(user, compare)
-    assert_keyboard_focus(user, compare)
-    expect(widget).to_have_attribute("data-inspection-mode", "compare")
-    user.keyboard.press("ArrowDown")
-    expect(widget).to_have_attribute("data-inspection-mode", "flip")
-    expect(widget.locator(".lf-vr-case-select")).to_have_js_property(
-        "value", "open-release-list"
-    )
-    user.keyboard.press("ArrowUp")
-    expect(widget).to_have_attribute("data-inspection-mode", "compare")
-    assert_keyboard_focus(user, compare)
-    first_stage = first.locator(".lf-vr-shot-host")
-    assert first_stage.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
-
-    first_looks_right = first.get_by_role("button", name="Looks right")
-    with sending(user, "the intended authenticated-navigation change"):
+    details_button = first.get_by_role("button", name="Capture details")
+    go_to(user, details_button)
+    expect(first.locator(".lf-vr-details")).to_be_visible()
+    user.keyboard.press("Escape")
+    expect(first.locator(".lf-vr-details")).to_be_hidden()
+    first_looks_right = first.get_by_role("checkbox", name="Looks right")
+    with sending(user, "approve the authenticated-navigation change"):
         go_to(user, first_looks_right)
     assert_keyboard_focus(user, first_looks_right)
-    user.keyboard.press("ArrowDown")
-    expect(widget.locator(".lf-vr-case-select")).to_have_js_property(
-        "value", "follow-release-link"
-    )
-    expect(second).to_have_attribute("aria-label", "Visual review case 2 of 2")
-    second_looks_right = second.get_by_role("button", name="Looks right")
-    # Case browsing from a verdict reveals its counterpart. Evidence navigation
-    # has its own heading destination, covered by the Next unreviewed journey.
-    assert_keyboard_focus(user, second_looks_right)
+    widget.locator(".lf-vr-case-button").nth(1).click()
+    expect(second).to_be_visible()
+    second_looks_right = second.get_by_role("checkbox", name="Looks right")
+    expect(second_looks_right).not_to_be_checked()
     assert second.locator("lf-shot img").evaluate_all(
         "images => images.every(image => image.complete && image.naturalWidth > 0)"
     )
-    second_needs_work = second.get_by_role("button", name="Needs work")
-    with sending(user, "the missing return route"):
-        go_to(user, second_needs_work)
-    assert_keyboard_focus(user, second_needs_work)
 
     # Case verdicts follow their captures; bring its heading back into view before
     # choosing that case through the visible keyboard target map.
-    second.locator(".lf-vr-case-title").scroll_into_view_if_needed()
+    second.locator(".lf-vr-title").scroll_into_view_if_needed()
     scroll_settled(user)
     comment_on_target(user, second)
     field = user.locator(".lf-fab-input")
@@ -368,13 +338,13 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         if event["kind"] == "action" and event["widget"] == "journey"
     ]
     assert [event["detail"] for event in review_events] == [
-        {"case": "open-release-list", "disposition": "looks-right"},
-        {"case": "follow-release-link", "disposition": "needs-work"},
+        {"case": "open-release-list", "approved": True},
     ]
 
     user.keyboard.press("Escape")
     user.keyboard.press("Escape")
     assert user.evaluate("() => document.activeElement === document.body")
+    compare = second.get_by_role("button", name="Pair", exact=True)
     go_to(user, compare)
     assert_keyboard_focus(user, compare)
     corrected = shifted | {
@@ -391,7 +361,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     data_model.cmd_data_set(review_dir, "journey-run", corrected)
     told(user)
     assert_keyboard_focus(user, compare)
-    expect(second).to_have_attribute("data-disposition", "needs-work")
+    expect(second_looks_right).not_to_be_checked()
     expect(second.locator(".lf-vr-result")).to_contain_text("keeps Back to releases")
     expect(second.locator("lf-shot")).to_have_attribute(
         "after", media["candidate-detail-corrected"]
@@ -401,7 +371,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert corrected_image.evaluate("image => image.naturalWidth") > 0
     with sending(user, "the corrected navigation disposition"):
         go_to(user, second_looks_right)
-    expect(second).to_have_attribute("data-disposition", "looks-right")
+    expect(second_looks_right).to_be_checked()
     assert_keyboard_focus(user, second_looks_right)
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
@@ -413,113 +383,38 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         if event["kind"] == "action" and event["widget"] == "journey"
     ]
     assert [event["detail"] for event in review_events] == [
-        {"case": "open-release-list", "disposition": "looks-right"},
-        {"case": "follow-release-link", "disposition": "needs-work"},
-        {"case": "follow-release-link", "disposition": "looks-right"},
+        {"case": "open-release-list", "approved": True},
+        {"case": "follow-release-link", "approved": True},
     ]
 
     exported = tmp_path / "review.html"
     exporting_model.cmd_export(review_dir, exported, None)
-    data_text = (review_dir / "data.json").read_text() + data_model.source_file(
-        review_dir, "journey-run"
-    ).read_text()
+    data_text = data_model.source_file(review_dir, "journey-run").read_text()
     assert capture_key not in exported.read_text(encoding="utf-8")
     assert capture_key not in data_text
     assert "?t=" not in data_text
 
 
-def test_visual_review_leads_with_evidence_and_walks_only_remaining_cases(
-    browser, serve
-):
-    """Reviewing and browsing are distinct: judgments stay put, remaining navigation
-    lands on the next evidence, and the picker can revisit completed cases."""
+def test_visual_review_approvals_survive_reload_and_undo(browser, serve):
+    """Approval is reversible and independent of case navigation."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, 390, 844)
+    resized(page, 702, 898)
     widget = page.locator("#visual-review-run")
-    selected = widget.locator(".lf-vr-case-select")
-    first_id = selected.evaluate("node => node.value")
-    case = widget.locator(".lf-vr-case[data-selected]")
-    expect(widget.locator(".lf-vr-inspection")).not_to_have_attribute("open", "")
-    geometry = case.evaluate("""node => {
-      const box = selector => node.querySelector(selector).getBoundingClientRect();
-      return {evidence: box('.lf-vr-shot-host'), verdict: box('.lf-vr-review')};
-    }""")
-    assert geometry["evidence"]["top"] < 450
-    assert geometry["verdict"]["top"] >= geometry["evidence"]["bottom"]
-    # Moving the shared inspector preserves the focused native disclosure header.
-    inspector = widget.get_by_text("Inspect comparison", exact=True)
-    inspector.click()
-    page.keyboard.press("ArrowDown")
-    expect(inspector).to_be_focused()
-    expect(selected).not_to_have_js_property("value", first_id)
-    page.keyboard.press("ArrowUp")
-    expect(inspector).to_be_focused()
-    expect(selected).to_have_js_property("value", first_id)
-    inspector.click()
-    # Browsing from a verdict moves to the matching action in the next case,
-    # revealing it even when returning from a short capture to a tall one.
-    verdict = case.get_by_role("button", name="Needs work")
-    verdict.focus()
-    page.keyboard.press("ArrowDown")
-    expect(selected).not_to_have_js_property("value", first_id)
-    expect(verdict).to_be_focused()
-    expect(verdict).to_be_in_viewport(ratio=1)
-    page.keyboard.press("ArrowUp")
-    expect(selected).to_have_js_property("value", first_id)
-    expect(verdict).to_be_focused()
-    expect(verdict).to_be_in_viewport(ratio=1)
-    with sending(page, "first visual verdict"):
-        case.get_by_role("button", name="Looks right").click()
-    expect(selected).to_have_js_property("value", first_id)
-    expect(case).to_have_attribute("data-disposition", "looks-right")
-    # A recorded article shares the disposition value with its verdict control.
-    # Navigation lands on the matching native button, not that container.
-    page.keyboard.press("ArrowDown")
-    expect(selected).not_to_have_js_property("value", first_id)
-    expect(case.get_by_role("button", name="Looks right")).to_be_focused()
-    expect(case.get_by_role("button", name="Looks right")).to_be_in_viewport(ratio=1)
-    page.keyboard.press("ArrowUp")
-    expect(selected).to_have_js_property("value", first_id)
-    expect(case.get_by_role("button", name="Looks right")).to_be_focused()
-    expect(case.get_by_role("button", name="Looks right")).to_be_in_viewport(ratio=1)
-    case.get_by_role("button", name="Next unreviewed").click()
-    expect(selected).not_to_have_js_property("value", first_id)
-    second_id = selected.evaluate("node => node.value")
-    expect(case.locator(".lf-vr-case-title")).to_be_focused()
-    expect(case.locator(".lf-vr-case-title")).to_be_in_viewport()
-    expect(case.locator(".lf-vr-case-position")).to_be_in_viewport()
-    with sending(page, "mobile navigation needs correction"):
-        case.get_by_role("button", name="Needs work").click()
-    # The all-case keyboard route also returns to evidence, including when it
-    # starts deep in the previous case's metadata.
-    case.get_by_text("Capture details", exact=True).click()
-    page.keyboard.press("ArrowDown")
-    expect(case.locator(".lf-vr-case-title")).to_be_focused()
-    expect(case.locator(".lf-vr-case-title")).to_be_in_viewport()
-    expect(case.locator(".lf-vr-case-position")).to_be_in_viewport()
-    widget.get_by_role("button", name="Previous", exact=True).click()
-    expect(selected).to_have_js_property("value", second_id)
-    # All-case browsing can return to the completed first case.
-    widget.get_by_role("button", name="Previous", exact=True).click()
-    expect(selected).to_have_js_property("value", first_id)
-    expect(case).to_have_attribute("data-disposition", "looks-right")
-    case.get_by_role("button", name="Next unreviewed").focus()
-    page.keyboard.press("Enter")
-    expect(selected).not_to_have_js_property("value", first_id)
-    expect(selected).not_to_have_js_property("value", second_id)
-    with sending(page, "last visual verdict"):
-        case.get_by_role("button", name="Looks right").click()
-    expect(case.locator(".lf-vr-review-status")).to_have_text(
-        "All cases reviewed · revisit any case above"
-    )
-    expect(case.get_by_role("button", name="Next unreviewed")).to_be_disabled()
+    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    ids = []
+    for _ in range(3):
+        ids.append(case.get_attribute("data-lf-datum"))
+        with sending(page, "approve selected case"):
+            case.get_by_role("checkbox", name="Looks right").check()
+        expect(case).to_have_attribute("data-lf-datum", ids[-1])
+        if len(ids) < 3:
+            case.get_by_role("button", name="Next unchecked").click()
+    assert len(set(ids)) == 3
+    expect(case.get_by_role("button", name="Next unchecked")).to_be_disabled()
     page.reload()
-    expect(widget.locator(".lf-vr-progress")).to_have_text("3 of 3 cases reviewed")
-    expect(widget.get_by_role("button", name="Next unreviewed")).to_be_disabled()
+    expect(widget.locator(".lf-vr-progress")).to_contain_text("3 of 3")
     undo(page)
-    expect(widget.locator(".lf-vr-progress")).to_have_text("2 of 3 cases reviewed")
-    expect(widget.get_by_role("button", name="Next unreviewed")).to_be_enabled()
-    widget.get_by_role("button", name="Next unreviewed").click()
-    expect(selected).not_to_have_js_property("value", first_id)
-    expect(selected).not_to_have_js_property("value", second_id)
-    expect(case).to_have_attribute("data-disposition", "")
+    expect(widget.locator(".lf-vr-progress")).to_contain_text("2 of 3")
+    case.get_by_role("button", name="Next unchecked").click()
+    expect(case).to_have_attribute("data-lf-datum", ids[-1])
+    expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()

@@ -4,6 +4,7 @@ import json
 
 import pytest
 from click.testing import CliRunner
+
 from leaf.cli import cli
 from leaf.interaction_log import (
     INTERACTIONS_FILE,
@@ -117,12 +118,12 @@ def test_cli_queries_canonical_records_without_changing_the_log(tmp_path, monkey
     )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout) == rows[0]
-    assert path.read_bytes() == before
+    # The query changes no record; it appends only its own `leaf_command` record.
+    assert path.read_bytes().startswith(before)
+    recorded = read_interactions(tmp_path)
     all_rows = CliRunner().invoke(cli, ["page", "interactions", str(tmp_path)])
     assert all_rows.exit_code == 0, all_rows.output
-    assert [
-        json.loads(line) for line in all_rows.stdout.splitlines()
-    ] == read_interactions(tmp_path)
+    assert [json.loads(line) for line in all_rows.stdout.splitlines()] == recorded
     invalid = CliRunner().invoke(
         cli, ["page", "interactions", str(tmp_path), "--since", "2026-10-09T06:08:42"]
     )

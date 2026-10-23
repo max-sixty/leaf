@@ -6,7 +6,6 @@ from itertools import pairwise
 
 import pytest
 from interact_support import append_command
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -17,6 +16,8 @@ from render_harness import (
     scroll_settled,
     told,
 )
+
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -114,6 +115,64 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
         "heading => { const box = heading.getBoundingClientRect(); "
         "return box.top >= 0 && box.bottom <= innerHeight; }"
     )
+
+
+def test_contents_in_a_view_lists_its_topic_and_reveals_closed_details(
+    browser, serve, subtests
+):
+    """Each view owns its outline, including a view nested inside another view.
+
+    Visibility is not scope: a closed disclosure's heading remains a destination.
+    """
+    source = leaf_page(
+        "topic contents",
+        """
+<h1>Field guide</h1>
+<lf-tabs id="topics">
+  <lf-tab id="prepare-topic" label="Prepare">
+    <lf-toc id="prepare-contents"></lf-toc>
+    <h2 id="inventory">Take inventory</h2>
+    <details id="preparation-details">
+      <summary>Detailed preparation</summary>
+      <h3 id="snapshot">Save a snapshot</h3>
+    </details>
+  </lf-tab>
+  <lf-tab id="operate-topic" label="Operate">
+    <h2 id="operation">Run the operation</h2>
+    <lf-tabs id="operation-views">
+      <lf-tab id="monitor-view" label="Monitor">
+        <lf-toc id="monitor-contents"></lf-toc>
+        <h3 id="watch">Watch the readers</h3>
+      </lf-tab>
+      <lf-tab id="finish-view" label="Finish">
+        <h3 id="verify">Verify the result</h3>
+      </lf-tab>
+    </lf-tabs>
+  </lf-tab>
+</lf-tabs>
+""",
+    )
+    page = open_page(browser, serve(source))
+    contents = page.locator("#prepare-contents")
+    contents.locator("summary").click()
+    with subtests.test(scope="topic"):
+        assert contents.locator("li a").all_text_contents() == [
+            "Take inventory",
+            "Save a snapshot",
+        ]
+    contents.get_by_role("link", name="Save a snapshot").click()
+    expect(page.locator("#preparation-details")).to_have_attribute("open", "")
+    expect(page.locator("#snapshot")).to_be_visible()
+
+    page.get_by_role("tab", name="Operate", exact=True).click()
+    nested_contents = page.locator("#monitor-contents")
+    nested_contents.locator("summary").click()
+    with subtests.test(scope="nested view"):
+        assert nested_contents.locator("li a").all_text_contents() == [
+            "Watch the readers"
+        ]
+    nested_contents.get_by_role("link", name="Watch the readers").click()
+    expect(page).to_have_url(re.compile(r"#watch$"))
 
 
 def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, serve):
@@ -370,7 +429,7 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
     expect(renamed_body).to_have_attribute("href", "#body-title")
     expect(renamed_body).to_be_focused()
 
-    # An address edit on the standing heading changes its Lit key. The new link
+    # An address edit on the current heading changes its Lit key. The new link
     # still stands for the same place the user was on.
     page.locator("#body-title").evaluate("node => node.id = 'renamed-body'")
     expect(renamed_body).to_have_attribute("href", "#renamed-body")
@@ -994,7 +1053,7 @@ def test_the_current_entry_follows_the_document_from_a_sticking_track(
     browser, serve, layout, holder
 ):
     """A track that sticks beside the body scrolls only what it holds, so the outline
-    standing in it marks the section the window shows, from the page's scroll."""
+    focusing it marks the section the window shows, from the page's scroll."""
     sections = "".join(
         f'<section><h2 id="{name.lower()}">{name}</h2><div style="height: 1200px">'
         "</div></section>"
@@ -1256,12 +1315,7 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
     page.evaluate(RELEASE_FOCUS)
-    # Walk from the layer's skip link through the chrome's controls to the first
-    # action in the page. The exact number of chrome stops can change.
-    for _ in range(12):
-        page.keyboard.press("Tab")
-        if mark.evaluate("node => document.activeElement === node"):
-            break
+    page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(bubble).to_be_visible()
     expect(gloss).to_have_css("outline-style", "solid")
@@ -1329,5 +1383,5 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     expect(bubble).to_be_hidden()
     page.locator(".lf-fp-threads").click()
     page.locator(".lf-fp-thread").click()
-    page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="On the page").click()
     expect(bubble).to_be_visible()

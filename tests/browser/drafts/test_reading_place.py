@@ -2,7 +2,6 @@
 settles or grows, and the reader pages through a landed section."""
 
 import pytest
-from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_harness import (
     LANDING_TOP,
@@ -11,6 +10,8 @@ from render_harness import (
     resized,
     scroll_settled,
 )
+
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -28,7 +29,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls_away(
     browser, serve, unique, tall, control
 ):
-    """A pane carries visible focus across posture changes without pulling back old focus."""
+    """A pane carries visible focus across scroll behavior changes without pulling back old focus."""
 
     def context(prefix):
         return "".join(
@@ -99,7 +100,7 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
         assert in_view(), "a repeated click lost the focused reading place"
 
     # Focus alone is not a reading place: scrolling elsewhere deliberately leaves
-    # the same element focused, and the next posture must retain that new reading.
+    # the same element focused, and the next scroll behavior must retain that new reading.
     page.mouse.wheel(0, -10000)
     page.wait_for_function("document.scrollingElement.scrollTop === 0")
     scroll_settled(page)

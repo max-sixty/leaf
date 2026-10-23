@@ -1,6 +1,21 @@
 # Live samples
 
-Use `lf-sample` with one direct `template[data-sample]` child to let the user operate a
+Use `<lf-sample interactive>` to show working widgets inline, with a sample label
+and gutter. Its contents belong to the surrounding page: choices and edits use that
+page's event log, Undo and On me, and comments reach the same agent. Give every widget
+its own page-wide id. This mode has no inner page, panel, Reset or Full view controls:
+
+```html
+<lf-sample id="delivery-sample" interactive label="Delivery choices">
+  <lf-options id="delivery-choice" choose>
+    <lf-option id="delivery-standard">Standard delivery</lf-option>
+    <lf-option id="delivery-express">Express delivery</lf-option>
+  </lf-options>
+</lf-sample>
+```
+
+Without `interactive` or a template, the contents are quoted and take no input.
+For an isolated live page, use `lf-sample` with one direct `template[data-sample]` child to let the user operate a
 complete Leaf page inside the surrounding page. Give both the element and the template
 stable ids, and put the sample page's content and styles directly in the template. The
 sample is a column page unless the template's `class` names another Layout, such as
@@ -94,7 +109,8 @@ sample through the element's API:
 
 Use these rather than clicking the sample's controls or reading its DOM. Write the
 sample's content in the template rather than copying rendered controls from the parent.
-An `lf-sample` without a template is static quoted material.
+The child-page API applies only to samples with a template. A direct template selects
+this isolated mode even when `interactive` is present.
 
 An ordinary served Leaf page can also appear in a plain `<iframe src="…">`, with its own
 lasting history, but only inside a page of the same origin: the same scheme, hostname

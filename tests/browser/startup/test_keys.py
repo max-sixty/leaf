@@ -4,8 +4,6 @@ controls waiting for saved history, and the help overlay."""
 import re
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_navigation import JOURNEY_V1, _publish
 from render_harness import (
@@ -26,6 +24,8 @@ from browser.startup import (
     HELD_KEYS_PAGE,
     _hold_startup,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -589,7 +589,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     A section is its title, so two drafts on a page are one heading and a project
     widget declaring under a heading a standard one already uses joins it. That is
     the scope talking rather than the declaration: "On a draft" names where the
-    user would be standing, and there is one such place however many modules
+    user would be located, and there is one such place however many modules
     have something to say about it. Sections used to key on their exact rows, so
     the same heading twice was two headings — and the user, who has one keyboard
     and one draft in front of them, got the reference split in half."""
@@ -618,8 +618,8 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
         )
     ).to_be_visible()
     expect(
-        page.locator(".lf-command-reference", has_text="Edit the text in place")
-    ).to_be_visible()
+        page.locator('.lf-command-reference tr[data-lf-command="draft.edit"]')
+    ).to_be_attached()
     # Help is a scope: the table stands down behind it, so c must open nothing under
     # the sheet, neither a panel view nor the page comment in the panel's field.
     page.keyboard.press("c")

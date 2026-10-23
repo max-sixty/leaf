@@ -5,12 +5,18 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { html, LeafElement, nothing } from "/runtime/widget-api.js";
+import { html, LeafElement, nothing, noChange } from "/runtime/widget-api.js";
+import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import {
   applicationState,
+  attachApplicationPresentation,
+  applicationRegionsPresented,
   readApplicationPresentation,
   readPart,
+  queueWidgetUpdate,
+  applicationPresenter,
+  PRESENTATION_DOM,
 } from "/runtime/semantic-state.js";
 import { clockValue, tickClock } from "/runtime/presence.js";
 import { adoptRegistry } from "/runtime/registry.js";
@@ -56,6 +62,170 @@ const tick = () =>
     throw reason;
   });
 
+test("reactive properties claim presentation only when Lit schedules an update", async () => {
+  const tag = `lf-probe-property-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static properties = {
+        name: {
+          hasChanged: (value, old) => value?.toLowerCase() !== old?.toLowerCase(),
+        },
+      };
+      constructor() {
+        super();
+        this.name = "same";
+      }
+      render() {
+        return html`${this.name}`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    for (const unchanged of ["same", "SAME"]) {
+      element.name = unchanged;
+      assert.equal(element.isUpdatePending, false);
+      assert.ok(!pending(element), "a rejected property change owes no presentation");
+    }
+    element.name = "different";
+    assert.ok(pending(element), "an accepted change claims before its setter returns");
+    await settled(element);
+    assert.equal(element.textContent, "different");
+    assert.ok(!pending(element));
+  } finally {
+    element.remove();
+  }
+});
+
+test("requests consumed by the active render leave no extra presentation claim", async () => {
+  const tag = `lf-probe-active-update-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static properties = { name: {}, derived: {} };
+      constructor() {
+        super();
+        this.name = "first";
+      }
+      render() {
+        this.derived = this.name.toUpperCase();
+        this.requestUpdate();
+        return html`${this.derived}`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    element.name = "second";
+    await settled(element);
+    assert.equal(element.textContent, "SECOND");
+    assert.equal(element.isUpdatePending, false);
+    assert.ok(!pending(element), "the active render fulfills its coalesced requests");
+  } finally {
+    element.remove();
+  }
+});
+
+test("an updated callback's follow-up keeps presentation pending through its drawing", async () => {
+  let finish;
+  const tag = `lf-probe-follow-up-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static properties = { name: {} };
+      constructor() {
+        super();
+        this.name = "first";
+      }
+      render() {
+        return html`${this.name}`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        if (this.name === "second") this.name = "final";
+        else if (this.name === "final")
+          this.drawing(new Promise((done) => (finish = done)));
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    element.name = "second";
+    await settled(element);
+    assert.equal(element.textContent, "final");
+    assert.ok(pending(element), "the follow-up's drawing still holds presentation");
+    finish();
+    await settled(element);
+    assert.ok(!pending(element));
+  } finally {
+    element.remove();
+  }
+});
+
+test("mechanical focus reads do not subscribe a widget's content to focus moves", async () => {
+  const { element, draws } = probe(() => {
+    focused();
+    return phase();
+  });
+  const button = document.createElement("button");
+  document.body.append(element, button);
+  await settled(element);
+  focusDestination(button, "move");
+  await settled(element);
+  assert.equal(draws.length, 1);
+  element.remove();
+  button.remove();
+});
+
+test("readiness finishes a waiting render without claiming another presentation", async () => {
+  const region = "probe:ready";
+  const prerequisite = attachApplicationPresentation(region, {});
+  let claim = prerequisite.present("first");
+  let draws = 0;
+  const tag = `lf-probe-ready-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      render() {
+        draws++;
+        if (!this.whenReady(() => applicationRegionsPresented([region])))
+          return noChange;
+        return html`ready`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  document.body.append(element);
+  await settled(element);
+  assert.equal(element.textContent, "");
+  claim.resolve();
+  assert.equal(
+    pending(element),
+    false,
+    "completion does not reopen this widget's claim",
+  );
+  await settled(element);
+  assert.equal(element.textContent, "ready");
+  assert.equal(draws, 2);
+  claim = prerequisite.present("second");
+  await settled(element);
+  claim.resolve();
+  await settled(element);
+  assert.equal(draws, 2, "finished readiness has no subscription to falling proof");
+  element.remove();
+  prerequisite.disconnect();
+});
+
 test("an element draws again when a part its render read moves, and not for another", async () => {
   applicationState.setPhase("waiting");
   const { element, draws } = probe(() => phase());
@@ -84,24 +254,26 @@ test("an element draws again when a time it shows ages", async () => {
   element.remove();
 });
 
-test("an element away draws on its return only what moved meanwhile", async () => {
+test("an element reconnects its dependencies without replacing unchanged content", async () => {
   applicationState.setPhase("waiting");
   const { element, draws } = probe(() => phase());
   document.body.append(element);
   await settled(element);
+  const content = element.firstChild;
   element.remove();
   await settled(element);
   document.body.append(element);
   await settled(element);
-  assert.deepEqual(draws, ["waiting"], "nothing it read moved while it was away");
+  assert.deepEqual(draws, ["waiting", "waiting"]);
+  assert.equal(element.firstChild, content, "Lit keeps unchanged nodes on return");
   element.remove();
   await settled(element);
   applicationState.setPhase("offline");
   await settled(element);
-  assert.deepEqual(draws, ["waiting"], "it does not draw while away");
+  assert.deepEqual(draws, ["waiting", "waiting"], "it does not draw while away");
   document.body.append(element);
   await settled(element);
-  assert.deepEqual(draws, ["waiting", "offline"]);
+  assert.deepEqual(draws, ["waiting", "waiting", "offline"]);
   element.remove();
 });
 
@@ -115,10 +287,18 @@ test("a render that throws shows its failure and draws again for the next move",
     if (now === "offline") throw new Error("cannot draw offline");
     return now;
   });
-  document.body.append(element);
+  const unrelated = probe(() => phase());
+  document.body.append(element, unrelated.element);
   await settled(element);
+  await settled(unrelated.element);
   applicationState.setPhase("offline");
   await settled(element);
+  await settled(unrelated.element);
+  assert.equal(
+    unrelated.element.textContent,
+    "offline",
+    "a failing owner leaves other signal views functional",
+  );
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.match(element.textContent, /failed: cannot draw offline/);
   applicationState.setPhase("waiting");
@@ -127,6 +307,7 @@ test("a render that throws shows its failure and draws again for the next move",
   assert.equal(element.textContent, "waiting");
   window.removeEventListener("error", report);
   element.remove();
+  unrelated.element.remove();
 });
 
 test("an element that reads its bound data draws each accepted reading", async () => {
@@ -553,5 +734,106 @@ test("accepted data claims the element's region until its delivery draws", async
   await notifyDataSubscribers();
   assert.equal(element.textContent, "r2");
   assert.ok(!pending(element));
+  element.remove();
+});
+
+test(
+  "a source no longer drawn cannot hold later data delivery",
+  { timeout: 2000 },
+  async () => {
+    const tag = `lf-probe-unused-data-${++tags}`;
+    adoptRegistry({
+      [tag]: { "x-data": { rows: { source: "source", contract: "rows" } } },
+      $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
+    });
+    const accept = (version, revision) =>
+      acceptData(
+        {
+          version,
+          sources: { jobs: { contract: "rows", revision, value: [{ key: "api" }] } },
+        },
+        1,
+      );
+    accept("unused-d1", "r1");
+    await notifyDataSubscribers();
+    customElements.define(
+      tag,
+      class extends LeafElement {
+        showData = true;
+        render() {
+          return html`${this.showData ? this.data("rows")?.revision : "Hidden"}`;
+        }
+      },
+    );
+    const element = document.createElement(tag);
+    element.id = "unused-data";
+    element.setAttribute("source", "jobs");
+    document.body.append(element);
+    try {
+      await settled(element);
+      assert.equal(element.textContent, "r1");
+      element.showData = false;
+      element.requestUpdate();
+      await settled(element);
+      assert.equal(element.textContent, "Hidden");
+      accept("unused-d2", "r2");
+      await notifyDataSubscribers();
+      assert.ok(!pending(element), "unused input leaves no presentation claim");
+      assert.equal(element.textContent, "Hidden");
+      assert.equal(document.body.getAttribute("data-lf-data-version"), "unused-d2");
+    } finally {
+      element.remove();
+    }
+  },
+);
+
+test("document consumers wait for native Lit follow-up DOM, not held drawing", async () => {
+  const held = Promise.withResolvers();
+  const tag = `lf-probe-native-completion-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static properties = { value: {} };
+      constructor() {
+        super();
+        this.value = "initial";
+      }
+      scheduleUpdate() {
+        return queueWidgetUpdate(
+          this.id,
+          () => super.scheduleUpdate(),
+          () => this.updateComplete,
+        );
+      }
+      render() {
+        return html`<p>${this.value}</p>`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        if (this.value === "intermediate") this.value = "final";
+        if (this.value === "final") this.drawing(held.promise);
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  await settled(element);
+  const seen = [];
+  const consumer = applicationPresenter({
+    region: "native-completion-consumer",
+    reading: () => true,
+    after: PRESENTATION_DOM.widgets,
+    paint: () => seen.push(element.textContent),
+  });
+  element.value = "intermediate";
+  const ready = consumer.present();
+  await ready;
+  assert.deepEqual(seen, ["final"]);
+  assert.ok(pending(element), "DOM completion does not certify held semantic drawing");
+  held.resolve();
+  await settled(element);
+  assert.ok(!pending(element));
+  consumer.disconnect();
   element.remove();
 });

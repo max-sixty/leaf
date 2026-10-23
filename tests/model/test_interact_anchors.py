@@ -30,6 +30,7 @@ from interact_support import (
     suggested,
     thread_records,
 )
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -45,7 +46,7 @@ def undelivered(page_dir, input_id: str) -> str:
     this session has not claimed: no reference exists yet, so it names the wait that
     delivers one, after the claim that wait's receipt needs."""
     return (
-        "`leaf response reply <answer.ref>` with the `answer.ref` that "
+        "`leaf thread reply <answer.ref>` with the `answer.ref` that "
         f"`leaf wait {page_dir}` delivers for {input_id} (`leaf page claim "
         f"{page_dir}` first, since this session does not hold the page)"
     )
@@ -340,7 +341,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, asked["id"]),
@@ -354,7 +355,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
 def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     """A route is only worth naming where the writer it names takes the value. What a
     writer takes is what the log still owes, not the event's kind: a resolve is owed
-    nothing, so sending the agent to a response command hands it a second refusal with no
+    nothing, so sending the agent to an addressed reply hands it a second refusal with no
     route at all."""
     root = append_carried_log_record(
         published(page_dir),
@@ -389,7 +390,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
 
     refused = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "I checked it."],
+        ["thread", "reply", "--done", reference, "--text", "I checked it."],
     )
 
     assert refused.exit_code != 0
@@ -420,7 +421,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -450,7 +451,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     mistaken = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, pressed["id"]),
@@ -578,13 +579,123 @@ def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_di
         ],
     )
     assert result.exit_code == 0, result.output
-    reply = json.loads(result.output)
+    reply = json.loads(result.stdout)
     assert reply["anchor"]["quote"] == "Beta"
+    # The reply tells its author where the revision moved the thread it left alone.
+    [moved] = [json.loads(line) for line in result.stderr.splitlines()]
+    assert (moved["code"], moved["values"]) == (
+        "relocated-anchor",
+        {"thread": roots[1]["id"], "section": "wording"},
+    )
     threads = {t["id"]: t for t in state_json(page_dir)["threads"]}
     assert threads[roots[0]["id"]]["anchor"] == reply["anchor"]
     assert threads[roots[1]["id"]]["anchor"] == {"section": "wording"}
     moves = [e for e in events_model.read_events(page_dir) if e["kind"] == "reanchor"]
     assert [e["thread"] for e in moves] == [roots[1]["id"]]
+
+
+def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
+    """The server activates a valid save before anyone checks it, so the moves are
+    in the log by then. `page check` still names every thread the active revision
+    moved, and so does the reply, except the one it moves itself."""
+    from leaf.revisioning import activate_source
+
+    original = PAGE.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    roots = [
+        json.loads(comment(page_dir, "--quote", q, "--text", q).output)
+        for q in ("Alpha", "Gamma")
+    ]
+    (page_dir / "index.html").write_text(
+        original.replace("Alpha and Gamma", "Beta and Delta")
+    )
+    assert activate_source(page_dir).created
+
+    def checked():
+        result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+        assert result.exit_code == 0, result.output
+        return [
+            finding["values"]
+            for finding in json.loads(result.stdout)["findings"]
+            if finding["code"] == "relocated-anchor"
+        ]
+
+    assert checked() == [{"thread": root["id"], "section": "wording"} for root in roots]
+
+    def reply(*options):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), roots[0]["id"], *options],
+        )
+        assert result.exit_code == 0, result.output
+        return [json.loads(line) for line in result.stderr.splitlines()]
+
+    [moved] = reply("--quote", "Beta", "--text", "Revised this.")
+    assert (moved["code"], moved["values"]) == (
+        "relocated-anchor",
+        {"thread": roots[1]["id"], "section": "wording"},
+    )
+    assert reply("--text", "And checked it.") == []
+    # The reply placed the first thread itself, so only the second still stands
+    # where the move put it.
+    assert checked() == [{"thread": roots[1]["id"], "section": "wording"}]
+
+    # Two saves move the first thread twice before the next reply, which names each
+    # thread once, where it stands now.
+    (page_dir / "index.html").write_text(
+        original.replace("Alpha and Gamma", "Beta and Epsilon")
+    )
+    assert activate_source(page_dir).created
+    (page_dir / "index.html").write_text(
+        original.replace('<p id="wording">Alpha and Gamma</p>', "")
+    )
+    assert activate_source(page_dir).created
+    assert [moved["values"] for moved in reply("--text", "Removed the wording.")] == [
+        {"thread": roots[0]["id"], "section": None},
+        {"thread": roots[1]["id"], "section": None},
+    ]
+
+
+def test_page_check_names_no_move_of_a_withdrawn_reaction(page_dir):
+    """A reaction the user took back opens no thread, so a save that moved it
+    before the undo leaves `page check` nothing to name."""
+    from leaf.revisioning import activate_source
+
+    original = PAGE.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "shorten",
+            "anchor": {"section": "wording"},
+        },
+    )
+    (page_dir / "index.html").write_text(
+        original.replace('<p id="wording">Alpha and Gamma</p>', "")
+    )
+    assert activate_source(page_dir).created
+    assert [
+        e["thread"]
+        for e in events_model.read_events(page_dir)
+        if e["kind"] == "reanchor"
+    ] == [root["id"]]
+    append_carried_log_record(
+        page_dir, {"kind": "undo", "author": "user", "undoes": root["id"]}
+    )
+    result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    assert "relocated-anchor" not in {
+        finding["code"] for finding in json.loads(result.stdout)["findings"]
+    }
 
 
 def test_a_stamp_preserves_threads_its_restatement_reopens(page_dir):
@@ -947,7 +1058,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     moved = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root["id"]),
@@ -964,7 +1075,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     detached = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root["id"]),
@@ -1419,7 +1530,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
         .invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, root["id"]),
@@ -1608,7 +1719,7 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, user),
@@ -1777,7 +1888,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     clash = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1792,7 +1903,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     plain_clash = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),

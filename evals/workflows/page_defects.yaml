@@ -25,10 +25,13 @@ judge: |-
   List every defect this user would notice: text they can't read at that size,
   content cut off or out of reach, something drawn on top of something else, a
   control they can't operate, a widget that draws broken or empty, space wasted so
-  that what they came for falls out of view, or a fact the request supplied that
-  the page states wrongly or leaves out. List each defect once, naming every
-  viewport where it shows. A choice the author made that this user would accept is
-  not a defect.
+  that what they came for falls out of view, a fact the request supplied that the
+  page states wrongly or leaves out, or a decision they couldn't answer where they
+  land on it without asking what something it names is or does. Judge the visible
+  content's grouping, spacing and alignment with its labels and surrounding
+  explanation, even when everything fits and remains readable. List each defect
+  once, naming every viewport where it shows. A choice the author made that this
+  user would accept is not a defect.
 
   Use pass when you found none, defect when you found at least one, and
   insufficient_evidence when you could not observe the page.
@@ -94,6 +97,7 @@ schemas:
                 - control
                 - widget
                 - wasted-space
+                - composition
                 - content
                 - thread
             where:

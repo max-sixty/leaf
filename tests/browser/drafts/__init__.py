@@ -63,7 +63,7 @@ def choose_comment_target(page, selector):
 
 
 def cancel_draft(page, draft_id="draft-ops"):
-    """Cancel stands beside Save throughout an engaged draft edit."""
+    """Discard stands beside Save throughout an engaged draft edit."""
     draft_control(page, "cancel", draft_id).click()
 
 

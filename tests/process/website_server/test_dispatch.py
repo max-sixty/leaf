@@ -9,14 +9,18 @@ from types import SimpleNamespace
 
 import leaf_website as website_server
 import pytest
+from conftest import app_server_message_error
 from interact_support import (
     STATED_TIMEOUT,
     activity_reading,
     refused_on,
     running_http_server,
+    status_and_stream,
     wait_for,
 )
 from interact_support import append_carried_log_record as append_event
+from websockets.exceptions import ConnectionClosedError
+
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, delivery_records
 from leaf.event_log import read_events
@@ -24,13 +28,10 @@ from leaf.hosting import LeafHTTPServer
 from leaf.refusals import Refused
 from leaf.state import session_record
 from leaf.thread import post_reply
-from websockets.exceptions import ConnectionClosedError
-
 from process.website_server import (
     FakeCodexHarness,
     accept_in_turn,
     post,
-    queued_turn,
     write_manifest,
 )
 
@@ -41,7 +42,6 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
 ):
     harness = website_server.WebsiteCodexHarness(
         "codex",
-        tmp_path / "app-server.sock",
         tmp_path / "app-server.log",
     )
     process = type("Process", (), {"pid": 41})()
@@ -157,8 +157,7 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     active is one whose container died mid-turn: that turn answers into nothing and
     holds the thread against the user waiting behind it. App Server takes the
     interrupt without a turn id and says the turn ended on the same subscription,
-    which is what makes the thread the new delivery's. The interrupt leaves App
-    Server's queue held, so the dispatch starts the delivery it queued.
+    which is what makes the thread the new delivery's.
     """
     declared = website_server.website_harness("hosted-thread", os.getpid())
     append_event(
@@ -174,7 +173,6 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     harness = website_server.WebsiteCodexHarness("codex")
     process = type("Process", (), {"pid": os.getpid()})()
     sent = []
-    queued = []
 
     class Socket:
         def recv(self, timeout):
@@ -183,40 +181,30 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
                     "method": "turn/completed",
                     "params": {
                         "threadId": "hosted-thread",
-                        "turn": {"id": "active-turn", "status": "interrupted"},
+                        "turn": {
+                            "id": "active-turn",
+                            "status": "interrupted",
+                            "items": [],
+                        },
                     },
                 }
             )
 
     def send(socket, method, params, pending=None):
         sent.append((method, params))
-        if method == "thread/queue/add":
-            queued.append(
-                {
-                    "id": "submission",
-                    "clientUserMessageId": params["clientUserMessageId"],
-                }
-            )
-        elif method == "thread/queue/list":
-            return {"data": list(queued), "nextCursor": None}
-        elif method == "thread/queue/start":
-            queued.clear()
-            pending.append(
-                {
-                    "method": "turn/started",
-                    "params": {
-                        "threadId": "hosted-thread",
-                        "turn": {"id": "second-turn", "items": []},
-                    },
-                }
-            )
+        if method == "turn/start":
             return {"turn": {"id": "second-turn"}}
         return {}
 
     def request(resources, method, params):
         return (
             Socket(),
-            {"thread": {"id": "hosted-thread", "status": {"type": "active"}}},
+            {
+                "thread": {
+                    "id": "hosted-thread",
+                    "status": {"type": "active", "activeFlags": []},
+                }
+            },
             [],
         )
 
@@ -230,18 +218,13 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
         process,
         second["id"],
     )
-    assert [method for method, _ in sent] == [
-        "turn/interrupt",
-        "thread/queue/add",
-        "thread/queue/list",
-        "thread/queue/start",
-    ]
+    assert [method for method, _ in sent] == ["turn/interrupt", "turn/start"]
     assert sent[0][1] == {"threadId": "hosted-thread", "turnId": ""}
+    for method, params in sent:
+        request = {"method": method, "id": 0, "params": params}
+        assert app_server_message_error(request, "Client") is None
+    assert app_server_message_error(json.loads(Socket().recv(1)), "Server") is None
     assert sent[1][1]["clientUserMessageId"]
-    assert sent[3][1] == {
-        "threadId": "hosted-thread",
-        "queuedSubmissionId": "submission",
-    }
     [(_, queue)] = delivery_records("hosted-thread")
     assert queue.state == "offering"
 
@@ -383,9 +366,9 @@ def test_a_thread_opened_during_a_hosted_turn_is_named_as_it_is_dispatched(
     )
     requests = []
 
-    def app_server_title(endpoint, model):
+    def app_server_title(endpoint):
         def generate(request, target):
-            requests.append((endpoint, model, request))
+            requests.append((endpoint, request))
             return {"title": "Export speed"}
 
         return generate
@@ -399,8 +382,8 @@ def test_a_thread_opened_during_a_hosted_turn_is_named_as_it_is_dispatched(
             failure="the thread was never named",
         )
         assert (title["thread"], title["title"]) == (comment["id"], "Export speed")
-        [(endpoint, model, request)] = requests
-        assert (endpoint, model) == (harness.endpoint, website_server.HOSTED_MODEL)
+        [(endpoint, request)] = requests
+        assert endpoint == harness.endpoint
         assert "Why is the export slow?" in request
 
         def resume_and_start(target, thread_id, process, event_id):
@@ -470,7 +453,9 @@ def test_a_follower_that_cannot_start_releases_its_delivery(page_dir, monkeypatc
         raise OSError("no thread resources")
 
     monkeypatch.setattr(harness, "_request", request)
-    monkeypatch.setattr(harness, "_send", queued_turn("unfollowed-turn"))
+    monkeypatch.setattr(
+        harness, "_send", lambda *_: {"turn": {"id": "unfollowed-turn"}}
+    )
     monkeypatch.setattr(
         harness, "_interrupt", lambda *args, **_: interrupted.append(args)
     )
@@ -551,7 +536,7 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
         TimeoutError("lost ack"),
         None,
     ],
-    ids=["refused", "lost", "unstarted"],
+    ids=["refused", "lost", "unnamed"],
 )
 def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     page_dir, monkeypatch, refusal
@@ -572,9 +557,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     harness = website_server.WebsiteCodexHarness("codex")
     competing_writer_rejected = []
 
-    def refuse(socket, method, params, pending=None):
-        if method == "thread/queue/list":
-            return {"data": [], "nextCursor": None}
+    def refuse(*args, **kwargs):
         with pytest.raises(Refused) as refused:
             post_reply(
                 page_dir,
@@ -585,22 +568,11 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
         assert refused_on(refused.value).code == "reserved-answer"
         competing_writer_rejected.append(True)
         if refusal is None:
-            return {}
+            return {"turn": {}}
         raise refusal
 
-    class Socket:
-        def recv(self, timeout):
-            raise TimeoutError
-
     interrupts = []
-    unqueued = []
     monkeypatch.setattr(harness, "_send", refuse)
-    monkeypatch.setattr(website_server, "START_TIMEOUT", 0)
-    monkeypatch.setattr(
-        harness,
-        "_unqueue",
-        lambda thread_id, delivery_id, **fields: unqueued.append(thread_id),
-    )
     monkeypatch.setattr(
         harness,
         "_interrupt",
@@ -608,16 +580,12 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     )
     with pytest.raises(RuntimeError, match="did not start a turn"):
         harness._start_turn(
-            Socket(),
+            "socket",
             page_dir,
             "hosted-thread",
             type("Process", (), {"pid": os.getpid()})(),
-            [],
         )
 
-    # A submission App Server still holds leaves its queue too, or after the
-    # interrupt it would hold back every later delivery on the thread.
-    assert unqueued == ["hosted-thread"]
     assert interrupts == [("hosted-thread", "")]
     assert delivery_records("hosted-thread") == []
     assert competing_writer_rejected == [True]
@@ -632,13 +600,14 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     )
 
 
-def test_a_started_turn_answers_a_user_with_no_notification_naming_its_delivery(
+def test_an_acknowledged_start_answers_a_user_with_no_turn_started_notification(
     page_dir, monkeypatch
 ):
-    """The turn that starts after the container queues a delivery is the binding.
+    """App Server's answer to `turn/start` is the binding, not a timing record.
 
-    The container is the thread's only client, so the next turn to start takes the
-    delivery it queued. Waiting for a later notification to say so leaves the
+    The request carries the delivery both as its `clientUserMessageId` and as its
+    `leaf_delivery` tool output, so the turn the response names is the turn that
+    took this delivery. Waiting for a notification to repeat that leaves the
     follower unbound, and an unbound follower has no turn whose terminal status it
     can read: nothing it receives finishes it, and nothing it loses recovers it.
     The stream below carries the whole turn except the one notification that names
@@ -650,7 +619,9 @@ def test_a_started_turn_answers_a_user_with_no_notification_naming_its_delivery(
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
     harness = website_server.WebsiteCodexHarness("codex")
-    monkeypatch.setattr(harness, "_send", queued_turn("app-server-turn"))
+    monkeypatch.setattr(
+        harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+    )
     answer = {
         "id": "answer",
         "type": "agentMessage",
@@ -701,7 +672,6 @@ def test_a_started_turn_answers_a_user_with_no_notification_naming_its_delivery(
         page_dir,
         "hosted-thread",
         type("Process", (), {"pid": os.getpid()})(),
-        [],
     )
     follow.follow()
     events = read_events(page_dir)
@@ -756,7 +726,9 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
         page_dir, {"kind": "comment", "author": "user", "text": "An old request"}
     )
     harness = website_server.WebsiteCodexHarness("codex")
-    monkeypatch.setattr(harness, "_send", queued_turn("started-turn"))
+    monkeypatch.setattr(
+        harness, "_send", lambda *args: {"turn": {"id": "started-turn"}}
+    )
     winner = {}
 
     def competing_work(event, **fields):
@@ -780,17 +752,17 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
             expected=current,
         )
         winner["epoch"] = current
-        winner["status"] = website_server.PageTransaction(page_dir).status
+        winner["status"] = status_and_stream(page_dir)
 
     monkeypatch.setattr(website_server, "log_agent", competing_work)
     try:
         old = harness._start_turn(
-            "socket", page_dir, "hosted-thread", SimpleNamespace(pid=os.getpid()), []
+            "socket", page_dir, "hosted-thread", SimpleNamespace(pid=os.getpid())
         )
         with pytest.raises(RuntimeError, match="no longer owns"):
             old.begin()
         old.close({"id": "started-turn", "status": "completed", "items": []}, None)
         assert session_record("hosted-thread") == winner["epoch"]
-        assert website_server.PageTransaction(page_dir).status == winner["status"]
+        assert status_and_stream(page_dir) == winner["status"]
     finally:
         harness.close()

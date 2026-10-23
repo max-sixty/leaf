@@ -5,6 +5,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect
+from render_cases_interaction import HOLD_MOTION
 from render_cases_widgets import SQUEEZED_BOARD_PAGE
 from render_harness import (
     BOARD_PAGE,
@@ -352,6 +353,85 @@ def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
         reading
     )
     expect(grip).to_be_focused()
+
+
+@pytest.mark.parametrize("route", ["keyboard", "reading"])
+def test_reversing_a_move_continues_from_the_painted_card(browser, serve, route):
+    """A superseding move starts where the old animation currently paints."""
+    page = open_page(browser, serve(BOARD_PAGE), init_script=HOLD_MOTION)
+    page.emulate_media(reduced_motion="no-preference")
+    card = page.locator("#card-heater")
+
+    def place(key, column):
+        if route == "keyboard":
+            page.keyboard.press(key)
+        else:
+            card.evaluate(
+                """(el, column) => el.closest('lf-board').controller.dispatch({
+                  kind: 'action', verb: 'move',
+                  detail: {unit: el.id, value: column, rank: '0i'},
+                  says: 'Moved card',
+                })""",
+                column,
+            )
+        expect(page.locator(f"#{column} #card-heater")).to_have_count(1)
+
+    if route == "keyboard":
+        card.locator(".lf-grip").focus()
+        page.keyboard.press("Enter")
+    place("ArrowRight", "col-done")
+    first = card.evaluate(
+        """el => {
+          el.getAnimations()[0].currentTime = 75;
+          const box = el.getBoundingClientRect();
+          return {x: box.x, y: box.y};
+        }"""
+    )
+    place("ArrowLeft", "col-todo")
+    reverse = card.bounding_box()
+    assert abs(reverse["x"] - first["x"]) < 1, (first, reverse)
+    assert abs(reverse["y"] - first["y"]) < 1, (first, reverse)
+    page.keyboard.press("Escape")
+
+
+@pytest.mark.parametrize("cancel", ["Escape", "pointercancel", "touchcancel"])
+def test_cancelling_a_pointer_drag_restores_the_card_without_a_move(
+    browser, serve, cancel
+):
+    """Cancelling tears down the drag; a later release cannot record its old preview."""
+    # Safari uses Sortable's mouse/touch fallback instead of its pointer listeners.
+    context = (
+        browser.new_context(user_agent="Version/26.0 Safari/605.1.15")
+        if cancel == "touchcancel"
+        else None
+    )
+    page = open_page(browser, serve(BOARD_PAGE), context=context)
+    posts = []
+    page.on(
+        "request",
+        lambda request: posts.append(request) if "/api/event" in request.url else None,
+    )
+    grip = page.locator("#card-heater .lf-grip").bounding_box()
+    dest = page.locator("#col-done").bounding_box()
+    page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(
+        dest["x"] + dest["width"] / 2, dest["y"] + dest["height"] / 2, steps=15
+    )
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    if cancel == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        page.evaluate(
+            "type => document.dispatchEvent(type === 'pointercancel' ? new PointerEvent(type) : new TouchEvent(type))",
+            cancel,
+        )
+    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
+    expect(page.locator(".lf-ghost, .lf-lift, .lf-inhand")).to_have_count(0)
+    page.mouse.up()
+    page.reload()
+    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
+    assert not posts
 
 
 def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(

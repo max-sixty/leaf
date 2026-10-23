@@ -3,7 +3,6 @@ has, failed redraws, and inspecting a merge film by touch and keyboard."""
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_widgets import (
@@ -24,6 +23,7 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -215,6 +215,25 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
             f"two of a chart's labels stood on each other unreported: {covered}",
             scrolled,
         )
+
+
+def test_covered_words_reads_only_the_visible_svg_state(browser, serve):
+    """A timing study replaces overlapping SVG labels by hiding their group."""
+    page = open_page(
+        browser,
+        serve("""<!doctype html><html><head><title>SVG states</title></head><body><main>
+          <svg id="states" viewBox="0 0 500 80">
+            <text x="10" y="30">Editing the proposal</text>
+            <g id="saved-state" style="display:none">
+              <text x="10" y="30">Original words restored</text>
+            </g>
+          </svg></main></body></html>"""),
+    )
+    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
+    page.locator("#saved-state").evaluate("node => node.style.display = 'inline'")
+    assert render_checks_model.evaluate_probe(page, "coveredWords")
+    page.locator("#saved-state").evaluate("node => node.style.display = 'none'")
+    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
 
 
 def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser, serve):

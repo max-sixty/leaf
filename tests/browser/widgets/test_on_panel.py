@@ -3,7 +3,6 @@ identity and order, and what an answered one says."""
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_OBLIGATIONS_IN_ORDER,
@@ -21,11 +20,11 @@ from render_harness import (
     post_event,
     resized,
     round_trip,
-    stamp_page,
     told,
 )
 
 from browser.navigation import expect_walk_position
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -220,15 +219,17 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
 
     page.evaluate(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfCheckApi();
+          const {readApplicationPresentation, presentDocument} =
+            await window.__lfCheckApi();
           window.__lfReadObligationPresentation = readApplicationPresentation;
+          window.__lfPresentDocument = presentDocument;
           const cards = [...document.querySelectorAll(
             '.lf-fp-view[data-view="queue"] .lf-fp-on-item')];
           window.__lfObligationCards = new Map(cards.map(card => [card.dataset.key, card]));
           const honored = document.querySelector('#honored-decision');
           document.querySelector('#live-question-decision').before(honored);
           window.__lfObligationCards.get('["widget","widget:sug-refill"]').focus();
-          document.dispatchEvent(new Event('lf-presentation'));
+          await presentDocument();
         }"""
     )
     page.wait_for_function("__lfReadObligationPresentation().pending.length === 0")
@@ -243,9 +244,9 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
     # keyed card stays, focus with it, and takes the walk's place for an item with no
     # place on the page, after the rest of the list.
     page.evaluate(
-        """() => {
+        """async () => {
           document.querySelector('#sug-refill').remove();
-          document.dispatchEvent(new Event('lf-presentation'));
+          await window.__lfPresentDocument();
         }"""
     )
     page.wait_for_function("__lfReadObligationPresentation().pending.length === 0")
@@ -326,17 +327,19 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
 
 
 def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
-    """On me's tabs name its view, so they start the head where Threads' title starts,
-    rather than standing among the controls at its end."""
+    """On me's tabs name its view, so they start its controls, where another view's way
+    back stands, rather than standing among the presses at their end; no name bar
+    stands over the view, the heading naming it to assistive tech alone."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     resized(page, 1440, 900)
     open_on_me(page)
-    tabs = page.locator(".lf-fp-head .lf-fp-filters").bounding_box()
-    page.keyboard.press("Escape")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    title = page.locator(".lf-fp-head .lf-fp-title").bounding_box()
-    assert tabs["x"] == title["x"], (tabs, title)
+    start, tabs = page.locator(".lf-fp-controls").evaluate(
+        """c => [c.getBoundingClientRect().left
+            + parseFloat(getComputedStyle(c).paddingLeft),
+          c.querySelector('.lf-fp-filters').getBoundingClientRect().left]"""
+    )
+    assert tabs == start, (tabs, start)
+    assert page.locator(".lf-fp-head").bounding_box()["height"] == 0
 
 
 def test_each_on_me_card_names_its_kind_as_the_walk_does(browser, serve):
@@ -367,21 +370,15 @@ def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
     browser, serve
 ):
     """Every On me card whose item has somewhere to go offers Show, a question answered
-    on its card included, and Show puts the user where `m` puts them. The version's
-    approval is answered on its own card, so that card offers none."""
-    signed = CHANGE_SHAPES_PAGE.replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
-    )
-    url = serve(signed)
-    stamp_page(serve.page_dir, signed, "Ready for sign-off")
+    on its card included, and Show puts the user where `m` puts them."""
+    url = serve(CHANGE_SHAPES_PAGE)
     page = open_page(browser, url)
     resized(page, 1440, 900)
-    # Where `m` arrives at the question: the fourth stop in page order, before the
-    # approval, which has no place on the page.
+    # Where `m` arrives at the question: the fourth stop in page order.
     page.locator("#title").click()
     for _ in range(4):
         page.keyboard.press("m")
-    expect_walk_position(page, "4 of 5 waiting on me · Options")
+    expect_walk_position(page, "4 of 4 waiting on me · Options")
     landed = page.evaluate("() => document.activeElement.id")
     page.locator("#title").click()
 
@@ -392,9 +389,6 @@ def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
 
     for at in ("sug-rewrite", "sug-insert", "sug-delete", "shapes-q"):
         expect(show(on_card(page, f"widget:{at}"))).to_have_count(1)
-    approval = page.locator(f"{ON_ME} .lf-fp-on-item[data-approval]")
-    expect(approval).to_have_count(1)
-    expect(show(approval)).to_have_count(0)
 
     show(on_card(page, "widget:shapes-q")).click()
     expect(page.locator(f"#{landed}")).to_be_focused()

@@ -1,5 +1,6 @@
 """Preview and offline export tests."""
 
+import hashlib
 import json
 import re
 
@@ -8,16 +9,10 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
 )
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import exporting as exporting_model
-from leaf import files as files_model
-from leaf import media as media_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
-from leaf.structure import UTF8_BOM
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, live_url
+from render_cases_layout import solid_png
 from render_cases_navigation import (
     source_revision,
 )
@@ -30,6 +25,13 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import exporting as exporting_model
+from leaf import files as files_model
+from leaf import media as media_model
+from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
+from leaf.structure import UTF8_BOM
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -252,6 +254,93 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
         page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     ).to_have_count(1)
     assert external == []
+
+
+def test_an_export_keeps_visual_review_images_and_inspection_offline(
+    browser, serve, tmp_path
+):
+    """Data-owned captures, including unopened cases, travel with the offline review."""
+    source = leaf_page(
+        "Offline visual review",
+        '<lf-visual-review id="review" source="visual-run"></lf-visual-review>',
+    )
+    cases = []
+    media = {}
+    for index, title in enumerate(("Navigation", "Search")):
+        width = 320 + index * 40
+        captures = [
+            solid_png(width, 200, color) for color in ((232, 226, 213), (214, 226, 235))
+        ]
+        before, after = (
+            f"/media/{hashlib.sha256(image).hexdigest()[:16]}.png" for image in captures
+        )
+        media.update(zip((before, after), captures, strict=True))
+        cases.append(
+            {
+                "id": title.lower(),
+                "title": title,
+                "path": f"/{title.lower()}",
+                "action": "Open the page.",
+                "result": "The background changed.",
+                "classification": "changed",
+                "before": before,
+                "after": after,
+                "capture": {
+                    "observedAt": "2026-10-22T10:00:00-07:00",
+                    "browser": "Chrome",
+                    "browserVersion": "140",
+                    "viewport": {"width": width, "height": 200},
+                    "deviceScaleFactor": 1,
+                    "colorScheme": "light",
+                    "locale": "en-US",
+                    "timezone": "America/Los_Angeles",
+                },
+            }
+        )
+    serve(source, packages=("visual-review",), media=media)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "visual-run",
+        {
+            "title": "Visual review",
+            "base": {"revision": "base"},
+            "candidate": {"revision": "candidate"},
+            "cases": cases,
+        },
+    )
+    out = tmp_path / "visual-review.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    context = browser.new_context(offline=True, viewport={"width": 1200, "height": 900})
+    page = context.new_page()
+    requests = []
+    page.on("request", lambda request: requests.append(request.url))
+    page.goto(out.as_uri(), wait_until="load")
+    wait_until_ready(page)
+    widget = page.locator("#review")
+    selected = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    for index, case in enumerate(cases):
+        if index:
+            widget.locator('.lf-vr-case-button[aria-current="true"]').click()
+            page.keyboard.press("n")
+        expect(selected).to_have_attribute("data-lf-datum", case["id"])
+        images = selected.locator("lf-shot img")
+        expect(images).to_have_count(2)
+        for image in images.all():
+            expect(image).to_have_js_property("naturalWidth", 320 + index * 40)
+        assert images.evaluate_all(
+            "async images => { await Promise.all(images.map(image => image.decode())); return true; }"
+        )
+    shot = selected.locator("lf-shot")
+    shot.get_by_role("button", name="Slider", exact=True).click()
+    comparison = shot.locator("wa-comparison")
+    handle = comparison.get_by_role("scrollbar")
+    handle.press("Home")
+    expect(comparison).to_have_js_property("position", 0)
+    handle.press("ArrowRight")
+    expect(comparison).to_have_js_property("position", 1)
+    assert [url for url in requests if not url.startswith(("blob:", "data:"))] == [
+        out.as_uri()
+    ]
 
 
 def test_an_export_keeps_utf8(browser, serve, tmp_path):

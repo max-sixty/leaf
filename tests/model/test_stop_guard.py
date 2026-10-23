@@ -20,12 +20,15 @@ from interact_support import (
     _interaction_prompt_evidence,
     _start,
     _watched,
+    acknowledged_through,
+    adapter_lease,
     append_carried_log_record,
     append_command,
     codex_records,
     consume_pending_input,
     continued,
     declare_idle,
+    declared,
     delivered_ref,
     delivery_through,
     end_work,
@@ -38,7 +41,6 @@ from interact_support import (
     page_state,
     publish,
     queue_board_registry,
-    read_record,
     receive_through,
     record_claim,
     response_reference,
@@ -50,6 +52,7 @@ from interact_support import (
     write_record,
     yaml_document,
 )
+
 from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -83,11 +86,8 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
         "response": {
             "state": "active",
             "settles": True,
-            "has_text": True,
-            "session": "codex-thread",
+            "attempt": "leaf-delivery-1",
             "turn": "leaf-turn",
-            "parent": "widget-owner-thread",
-            "responds": "widget-action",
         },
     }
 
@@ -130,8 +130,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 
     # The adapter's second lease proves that the watcher can deliver into a
     # later turn. With that adapter alive, this turn may end normally.
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
+    adapter = adapter_lease("codex-thread", None)
     hooks_model.cmd_hook(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
     )
@@ -160,7 +159,9 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     # Pending output still has to cross context: the remedy is to poll the wait
     # already running, and nothing tells this task to start one in the background.
     # The delivery the poll yields says how this harness acknowledges it.
-    append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
+    comment = append_carried_log_record(
+        page, {"kind": "comment", "author": "user", "text": "hi"}
+    )
     lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
     assert lease
     hooks_model.cmd_hook(
@@ -177,16 +178,13 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     assert "background" not in acknowledge
     leases_model.release_lease(lease)
 
-    receive_through(page, 1)
+    receive_through(page, comment["seq"])
     # Answered before the page closes: an acknowledged comment with nothing
     # under it holds the turn on its own account, which is the subject of
     # test_an_acknowledged_comment_nobody_answered_holds_the_turn.
     thread_model.post_reply(
         page,
-        {
-            "parent": events_model.read_events(page)[0]["id"],
-            "responds": events_model.read_events(page)[0]["id"],
-        },
+        {"parent": comment["id"], "responds": comment["id"]},
         "so it does",
     )
     declare_idle(page)
@@ -221,7 +219,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
 
 def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, capsys):
     """Between turns a page is either watched or idle. Under Claude Code the
-    watch is Leaf's own background Stop hook, which the turn's ending starts, so a
+    watch is the one Leaf's background Stop hook starts as the turn ends, so a
     turn ends over a page nothing watches yet. A watcher that is a process of its
     own, as a Codex task's adapter is, has to be running before the turn may end:
     without it the page keeps saying "Codex is working" over nobody."""
@@ -259,7 +257,7 @@ def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, 
 
 
 def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
-    claimed, tmp_path, capsys, snapshot
+    claimed, printing, tmp_path, capsys, snapshot
 ):
     """Each page states its own debt; the protocol they share is stated once.
 
@@ -316,7 +314,9 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     )
 
 
-def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
+def test_a_preview_owes_no_watcher_but_still_carries_its_user(
+    claimed, printing, capsys
+):
     """A developer preview is a page put up to be looked at, not handed over.
 
     A session inspecting a dozen slots was carrying a dozen copies of the same
@@ -377,7 +377,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
 
 @pytest.mark.parametrize("rewritten", [True, False])
 def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
-    claimed, capsys, rewritten
+    claimed, printing, capsys, rewritten
 ):
     """A pick answers the question it was asked in, and a version that rewrites
     the option picked takes that answer back — so the question is open again and
@@ -448,7 +448,9 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
         assert printed == ""
 
 
-def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys):
+def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
+    claimed, printing, capsys
+):
     """Acknowledging is what takes a comment off the batch, so after it no
     watcher will raise that comment again and every other gate reads the page as
     clean. The failure, from a live channel session: a comment arrived while the
@@ -480,7 +482,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     assert schema_model.ANSWER_INSTRUCTION in continued(answer)
     # The receipt recorded the delivery's reference, so the reminder names the
     # complete command rather than a placeholder nothing on hand fills.
-    assert f"`leaf response reply {delivered_ref(claimed, asked['id'])}`" in continued(
+    assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in continued(
         answer
     )
 
@@ -492,14 +494,14 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     reason = continued(capsys.readouterr().out)
     assert (
         "your turn's final message or "
-        f"`leaf response reply {delivered_ref(claimed, asked['id'])}`"
+        f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`"
     ) in reason
     assert "leaf thread reply <page>" not in reason
     # A failure receipt waits for the turn, and its refusal names the same command.
     ref = delivered_ref(claimed, asked["id"])
     with pytest.raises(delivery_model.Refused) as refused:
         thread_model.post_response(ref, "gave up", failure="turn_failed")
-    assert f"use `leaf response reply {ref}` without `--failure`" in str(refused.value)
+    assert f"use `leaf thread reply {ref}` without `--failure`" in str(refused.value)
     with service_model.PageTransaction(claimed) as page:
         page.clear_delivery_reply_reservation(session["id"], asked["id"], "a1")
 
@@ -590,7 +592,9 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     leases_model.release_lease(lease)
 
 
-def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, capsys):
+def test_the_guard_survives_a_page_vendored_before_the_layer_moved(
+    claimed, printing, capsys
+):
     """A page directory holds the copy of the layer it was created with, and the
     stamp refuses a copy it cannot read — by design, since that refusal is what
     sends an agent to re-vendor. The Stop hook is the one user
@@ -637,7 +641,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert "1 event nobody has picked up" in refused.output
     # The claimant's harness names the remedy: Claude Code's hook carries them.
     assert "Leaf's hook puts them in your context" in refused.output
-    assert service_model.read_status(claimed)["state"] != "idle"
+    assert declared(claimed)["state"] != "idle"
 
     # An explicit wait hands the input to its reader, which confirms it. Reading
     # it is not answering it: idle holds until the thread has something under it.
@@ -647,7 +651,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged user update with no answer" in refused.output
-    assert service_model.read_status(claimed)["state"] != "idle"
+    assert declared(claimed)["state"] != "idle"
 
     comment = events_model.read_events(claimed)[0]["id"]
     assert (
@@ -655,7 +659,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         .invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(claimed, comment),
@@ -712,7 +716,9 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     )
 
 
-def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(claimed, capsys):
+def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(
+    claimed, printing, capsys
+):
     """A move the adapter queued for a later turn is that turn's debt: the turn that
     queued it may end over it, and may idle the page over it. Once the later turn
     opens it, both the Stop hook and `leaf status idle` hold the agent to it."""
@@ -825,10 +831,12 @@ cli_model.cli()
     out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
     assert "1 event nobody has picked up" in err
-    assert read_record(page_dir / "status.json")["state"] == "waiting"
+    assert declared(page_dir)["state"] == "waiting"
 
 
-def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(claimed, capsys):
+def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
+    claimed, printing, capsys
+):
     """A reaction is a mark, not a question: the agent answers it by acting, so an
     acknowledged one nobody replied to does not hold the turn the way a comment
     does. Nor does an `ok` the user put on the agent's answer hand the thread back
@@ -892,10 +900,7 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
             page, {"kind": "comment", "author": "user", "text": "Check this."}
         )
         observations["direct wait has input"] = hook()
-        adapter = leases_model.take_lease(
-            leases_model.adapter_lease_path("codex-thread")
-        )
-        assert adapter
+        adapter = adapter_lease("codex-thread", None)
         try:
             observations["adapter carries input"] = hook()
         finally:
@@ -920,7 +925,7 @@ def _idle(page_dir):
     return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), "idle"])
 
 
-def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
+def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     """A start on a delivered move is the agent's answer for now: the move reads
     Working, with the start's line beside it. Work longer than a few minutes goes to
     background workers whose results wake a later turn, so the turn that started the
@@ -955,7 +960,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     )
     reason = _stop(capsys)
     assert f"your start on {asked['id']} came before this turn" in reason
-    assert f"`leaf response reply {delivered_ref(claimed, asked['id'])}`" in reason
+    assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
     # A task notification reaching the turn mid-way says nothing about it either.
@@ -979,7 +984,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     capsys.readouterr()
     consume_pending_input("s1")
     reason = _stop(capsys)
-    assert f"`leaf response reply {delivered_ref(claimed, follow['id'])}`" in reason
+    assert f"`leaf thread reply {delivered_ref(claimed, follow['id'])}`" in reason
     assert f"your start on {asked['id']} came before this turn" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
@@ -992,7 +997,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     leases_model.release_lease(lease)
 
 
-def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
+def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, capsys):
     """A thread's messages share one reply, but a move on an obligation frozen in one of its
     messages owes an answer of its own, so each is started on its own id. Once their
     replies settle them, a later move in the thread is offered no start in place of
@@ -1077,7 +1082,7 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
         event["id"]
         for event in service_model.unacknowledged(
             events_model.read_events(claimed),
-            read_record(claimed / "cursor.json")["seq"],
+            acknowledged_through(claimed),
         )
     ] == [resolve["id"]]
 
@@ -1095,12 +1100,13 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
 ):
     """The reminder recovers captured input and a usable response address, including
     after ownership changes. Consecutive user messages owe the newest one answer.
+    An update the previous owner received is offered to the new one as new input,
+    which, with a queue adapter running, Stop hands into the ending turn.
     """
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "active")
     waiter = _watched(page_dir)
-    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
-    assert adapter
+    adapter = adapter_lease("codex-thread", None)
     try:
         latest = append_carried_log_record(
             page_dir, {"kind": "comment", "author": "user", "text": "why here?"}
@@ -1128,7 +1134,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             )
             delivery_model.receive(original, "prior")
             codex_loop(page_dir)
-        cursor = events_model.read_cursor(page_dir)
+        cursor = acknowledged_through(page_dir)
         deliveries = set(
             delivery_model.state_home().joinpath("deliveries").glob("*.json")
         )
@@ -1143,15 +1149,15 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             },
         )
         reason = json.loads(capsys.readouterr().out)["reason"]
-        [pointer_xml] = re.findall(r"<leaf-delivery\b[^>]*?/>", reason)
-        pointer = ElementTree.fromstring(pointer_xml)
-        assert pointer.attrib["operation"] == "delivery read"
-        read = CliRunner().invoke(
-            cli_model.cli, ["delivery", "read", pointer.attrib["id"]]
-        )
-        assert read.exit_code == 0, read.output
-        envelope = json.loads(read.output)
         if history == "lost-pointer":
+            [pointer_xml] = re.findall(r"<leaf-delivery\b[^>]*?/>", reason)
+            pointer = ElementTree.fromstring(pointer_xml)
+            assert pointer.attrib["operation"] == "delivery read"
+            read = CliRunner().invoke(
+                cli_model.cli, ["delivery", "read", pointer.attrib["id"]]
+            )
+            assert read.exit_code == 0, read.output
+            envelope = json.loads(read.output)
             assert (
                 set(delivery_model.delivery_path(envelope["id"]).parent.glob("*.json"))
                 == deliveries
@@ -1159,10 +1165,12 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             assert not codex_records("codex-thread")
         else:
             # The new owner is offered the update as Codex offers new input.
+            envelope = json.loads(reason)
+            assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
             assert envelope["id"] != original["id"]
             [(offered, _)] = codex_records("codex-thread")
             assert offered.stem == envelope["id"]
-        assert events_model.read_cursor(page_dir) == cursor
+        assert acknowledged_through(page_dir) == cursor
         [batch] = envelope["batches"]
         [event] = batch["events"]
         assert event["id"] == latest["id"]
@@ -1170,7 +1178,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         reply = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 event["answer"]["ref"],
@@ -1195,7 +1203,9 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         leases_model.release_lease(waiter)
 
 
-def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys):
+def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
+    claimed, printing, capsys
+):
     """A pick on a page obligation is owed a version that writes it in. The delivery says
     so, the Stop hook and `idle` hold the agent to it, and the stamped version whose
     markup records the pick settles it — one rule, read by every consumer. An edit

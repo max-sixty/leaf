@@ -5,8 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_layout import (
@@ -35,6 +33,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -197,7 +197,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     # view's parent is the document, so Escape lands the user there rather than on
     # the mark that reopens it.
     toggle.focus()
-    assert page.evaluate(ringed), "the control the user is standing on says nothing"
+    assert page.evaluate(ringed), "the control the user is located on says nothing"
     page.keyboard.press("Enter")
     expect(panel).to_be_visible()
     expect(panel.locator(".lf-fp-thread").first).to_be_focused()
@@ -249,11 +249,36 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     )
 
 
+def test_scroll_surfaces_added_after_upgrade_gain_keyboard_reach(browser, serve):
+    page = open_page(browser, serve(leaf_page("Late scroll", "<h1>Late scroll</h1>")))
+    page.evaluate(
+        """() => {
+          const authored = document.createElement('div');
+          authored.id = 'late-authored';
+          authored.className = 'scroll';
+          authored.style.cssText = 'width:220px;overflow-x:auto;white-space:nowrap';
+          authored.textContent = 'a'.repeat(500);
+          const native = document.createElement('pre');
+          native.id = 'late-native';
+          native.style.width = '220px';
+          native.textContent = 'b'.repeat(500);
+          document.querySelector('main').append(authored, native);
+        }"""
+    )
+    for selector in ("#late-authored", "#late-native"):
+        surface = page.locator(selector)
+        expect(surface).to_have_attribute("data-lf-more-after", "")
+        measured = surface.evaluate(
+            "el => ({scrolls: el.scrollWidth > el.clientWidth, tab: el.tabIndex})"
+        )
+        assert measured == {"scrolls": True, "tab": 0}, (selector, measured)
+
+
 def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
     markup = leaf_page(
         "Hidden control in scroll box",
         '<h1>Review</h1><a id="before" href="#scroll">Read code</a>'
-        '<div id="scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
+        '<div id="scroll" class="scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
         '<button style="visibility:hidden">Unavailable</button>'
         "<span>alpha_function_name = compute_the_overly_long_value(first_argument, second_argument)</span>"
         "</div>",
@@ -458,6 +483,7 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
           const ids = ["out", "in"].map((order) => {
           const box = document.createElement("div");
           box.id = `box-${order}`;
+          box.classList.add("scroll");
           box.style.cssText = "width:200px;overflow-x:auto;white-space:nowrap";
           const host = document.createElement("span");
           if (order === "out") host.setAttribute("tabindex", "-1");
@@ -792,9 +818,9 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
     for step in ["nothing to land on", "body"]:
         assert page.evaluate(HAND_BACK, step) == "body"
         page.keyboard.press("Tab")
-        assert page.evaluate(
-            "() => !document.activeElement.matches('#open, #shut, .lf-skip')"
-        ), f"{step}: the next Tab did not carry on from the block being read"
+        assert page.evaluate("() => !document.activeElement.matches('#open, #shut')"), (
+            f"{step}: the next Tab did not carry on from the block being read"
+        )
 
 
 @pytest.mark.parametrize("new_composer", [False, True], ids=["control", "composer"])

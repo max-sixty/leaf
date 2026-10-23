@@ -3,7 +3,7 @@
    ariaDetailsElements, so this rule test models that native setter's empty attribute. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { shelve, unshelve } from "../../skills/leaf/assets/runtime/details-shelf.js";
+import { shelve, unshelve } from "../../browser/runtime/details-shelf.js";
 
 test("the shelf keeps all notes after authored details and restores the latest source", () => {
   const root = document.createElement("section");

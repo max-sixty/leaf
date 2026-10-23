@@ -25,7 +25,7 @@ the author's assessment.
 ## Derive
 
 For a recurring sweep, start from a user workflow in the examples. Use
-`skills/leaf/assets/AGENTS.md` for UI contracts, render gates, and the
+`browser/AGENTS.md` for UI contracts, render gates, and the
 ownership map.
 Source access belongs in this audit, including when delegating it.
 
@@ -101,7 +101,7 @@ reverse or cancel it, exhaust its available room, or change external state while
 it remains active. Choose the operators that challenge the hypothesized mechanism.
 Vary one factor at a time across an ownership boundary and exercise both the
 forward and return paths. State what must change and what must survive before
-driving. When a change sends an existing surface into a different posture or
+driving. When a change sends an existing surface into a different layout or
 fallback, compare the same user task against the merge base; the candidate must
 preserve its task-relevant information and actions. Include an unrelated change
 that should preserve the active relationship.
@@ -142,7 +142,7 @@ support that judgment. Computed styles and geometry explain a visual result; the
 establish that it looks coherent. Test affected paint in both color schemes and in
 print.
 
-Judge against `skills/leaf/assets/AGENTS.md`, "Layout and motion". Keep visual
+Judge against `browser/AGENTS.md`, "Layout and motion". Keep visual
 grammar in browser judgment; automate the concrete failures it causes.
 
 ## Reconcile

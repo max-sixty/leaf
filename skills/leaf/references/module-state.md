@@ -33,7 +33,7 @@ Record a gesture with `dispatch({kind: "action", verb, detail, attempt?, says?})
 undo one with `dispatch({kind: "undo", target})`, naming an `id` or `attempt` from the
 action's Undo candidates. `says` names the gesture in the widget's words, such as
 `Chose “Fast”`: Leaf shows "Chose “Fast” — sent" once the server admits it, and
-"Undid: Chose “Fast” — sent" when the user undoes it, so post no notice of your own for it. `dispatch` returns `null` when the action isn't available, throws for a
+"Undid: Chose “Fast” · just now — sent" when the user undoes it, so post no notice of your own for it. `dispatch` returns `null` when the action isn't available, throws for a
 verb the widget doesn't declare, and otherwise returns `{reading, delivery}`. The reading
 already shows the result; `delivery` resolves to the event the server admitted, or
 `null`, and a refusal restores the server's state.
@@ -163,8 +163,7 @@ records each datum's source and revision. A datum that knows its place in the JS
 
 ### Time readings
 
-Reading the time synchronously in a `LeafElement`'s `render()` or a `watchProjection`
-paint makes Leaf repaint it when the time's reading changes; time read after an `await`
+Reading the time synchronously in a `LeafElement`'s `render()` makes Leaf repaint it when the time's reading changes; time read after an `await`
 isn't watched. `ago(ts)` words a server timestamp as the page does everywhere: "just
 now", then "2m ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h").
 `quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the
@@ -174,7 +173,7 @@ server's grace period. For any other reading, use `clockValue((now) => reading)`
 ## Editing a bound file
 
 `boundFile(binding)` reads and writes a file the agent granted this page with
-`leaf file bind`. `read()` returns `{label, text, revision, newline, bytes}`, with `text`
+`leaf file bind`. `read()` returns `{label, text, revision}`, with `text`
 in LF line endings. `save({revision, text})` writes only if the file is still at
 `revision`; otherwise it throws an error whose `current` holds the newer file.
 `watch(callback)` calls back whenever the file may have changed on disk, including after
@@ -182,3 +181,90 @@ the widget's own save, so read it again then. `writable` is false in captured do
 and exports. Editing the file records nothing in the page's log and takes no part in its
 Undo. The `file-editor` package's `lf-file-editor` provides this; use `lf-code` for a
 snapshot that should travel with the page.
+
+## Authenticated HTTP connections
+
+An agent can write an integration as page-owned JavaScript, using a named host
+connection for credentials. The trusted CLI grants a single HTTPS origin:
+
+```sh
+leaf connection bind PAGE source https://api.example.com --credential-env EXAMPLE_TOKEN
+```
+
+The variable must be in the binding command's environment. Leaf captures its value
+in private host storage, outside page files and exports, so restarting a page
+server keeps the grant usable. The default credential header is
+`Authorization: Bearer <value>`; `--header` and `--prefix` configure other
+header-based APIs. Binding grants the entire origin, so choose a credential with
+only the access this page should have. A connection is available to all scripts
+on that page, not isolated to one widget.
+
+```js
+import { connection } from "/runtime/widget-api.js";
+
+const response = await connection("source").fetch("/items?page=2");
+if (response.status !== 200) throw new Error(`Source returned ${response.status}`);
+const items = JSON.parse(response.body);
+```
+
+`fetch(path)` returns `{status, headers, body}` with a text body. Only relative
+paths beginning with one `/` are accepted. Leaf sends GET with the configured
+header, refuses redirects, limits responses to 1 MiB and uses a 15-second socket
+inactivity timeout.
+Transport and grant refusals reject the promise; upstream HTTP errors return their
+status and body. No request is retried automatically. The response exposes content
+type, pagination/cache and rate-limit headers, not credentials or cookies.
+
+Each grant allows 200 requests by default (`--max-requests` sets its budget).
+Leaf reserves a request before sending it, including failed requests; rebinding
+explicitly resets the budget. `leaf connection unbind PAGE source` revokes access.
+Connections work only on live pages, not captures, exports or live samples.
+
+Keep endpoint paths, pagination, parsing and application policy in the page or a
+package. Fetching changes neither page state nor stored data. Publish browser
+derivations through widget outputs; use the typed data source workflow when the
+result needs to be stored for the page's other readers.
+
+## LLM generation
+
+`generate({input, schema, instructions?})` asks the host's model for a structured
+response. `input` and optional `instructions` are strings; `schema` is the required
+JSON Schema for the response, within the selected model's structured-output subset.
+For portable Codex/Claude requests, use an object root, mark every property required,
+and set `additionalProperties: false` on each object. Represent optional values with
+nullable types. Leaf checks schema validity locally; the harness reports unsupported
+schema features as generation errors. Import it from `/runtime/widget-api.js`:
+
+```js
+import { generate } from "/runtime/widget-api.js";
+
+const result = await generate({
+  instructions: "Write a concise headline for this story.",
+  input: story,
+  schema: {
+    type: "object",
+    properties: { headline: { type: "string" } },
+    required: ["headline"],
+    additionalProperties: false,
+  },
+});
+```
+
+The result is `{value, model, usage, durationMs}`: `value` is parsed JSON matching
+the schema, `model` identifies the host-selected model, `usage` is
+`{inputTokens, outputTokens}` (counts may be `null` when unavailable), and
+`durationMs` measures the generation's elapsed time. Failures reject the promise.
+Leaf sends once; the underlying harness may retry network failures. Requests are
+limited to 64 KiB of input, instructions and schema combined.
+
+Generation is available only on live pages, not captured documents, exports or live
+samples. It collects no external data and writes no page data or events: the caller
+supplies the context and decides how to use the returned value.
+
+The page must have an active Codex or Claude claim. The host reuses that harness's
+existing login and selects its inexpensive model: Luna for Codex, Haiku for Claude.
+Credentials stay on the host; a widget cannot choose the model or supply tools. Leaf does not yet enforce a
+spending allowance: repeated calls can continue to incur charges. Usage is returned
+per call, not retained as a billing ledger. Each page server runs one widget
+generation at a time and rejects overlapping calls as busy (HTTP 429), keeping
+ordinary page interactions responsive.

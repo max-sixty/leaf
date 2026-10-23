@@ -6,8 +6,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     MESSAGE_ROOM_PAGE,
@@ -34,6 +32,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -314,7 +314,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     page = open_page(browser, url)
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
-    expect(inline.locator(".lf-msg-body")).to_have_text("The north bracket fit.")
+    expect(inline.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
     panel_thread = open_panel_thread(page, "edited-agent-message")
     panel = panel_thread.locator(f'.lf-msg[data-event="{message["id"]}"]')
     expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
@@ -348,7 +348,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     told(page)
     # Revealing the edit in either view settles the thread's shared unread state.
-    page.locator(".lf-fp-head").get_by_role(
+    page.locator(".lf-fp-controls").get_by_role(
         "button", name="1 message edited", exact=True
     ).click()
 

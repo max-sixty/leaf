@@ -23,6 +23,8 @@ from interact_support import (
     yaml_block,
     yaml_document,
 )
+from leaf_dev.page_fixtures import package_selection_args
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import delivery as delivery_model
@@ -37,7 +39,6 @@ from leaf.findings import Finding
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
-from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
@@ -188,7 +189,7 @@ def test_init_refuses_instructions_that_a_batch_could_not_carry(
 def test_the_events_reference_names_the_fields_each_kind_declares():
     """events.md's kind table agrees with `$events.kinds`, the schema admission enforces.
 
-    The table has one row per declared kind. A code span in a row's Fields cell that
+    The table has one row per declared kind, opening on the kind's anchor. A code span in a row's Fields cell that
     opens on a name (`messages: [...]` names `messages`) must be a field that kind
     declares; parentheses hold values and qualifications, not fields. Every field
     the kind requires appears in its row, except those the opening paragraph
@@ -223,7 +224,11 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     for kind, _author, _door, cell, _meaning in itertools.batched(cells[5:], 5):
         while (bare := re.sub(r"\([^()]*\)", "", cell)) != cell:
             cell = bare
-        listed.append(kind.strip("`"))
+        # Each kind carries its own anchor, which the site's Data structures page
+        # links each kind to (`leaf_dev.docs.EVENTS_REFERENCE`).
+        anchored = re.fullmatch(r'<a id="kind-([a-z_]+)"></a>`\1`', kind)
+        assert anchored, f'{kind} needs its anchor, <a id="kind-<kind>"></a>'
+        listed.append(anchored[1])
         rows[listed[-1]] = {
             match[1]
             for span in re.findall(r"`([^`]*)`", cell)
@@ -272,7 +277,7 @@ How this text reaches the agent, by example
    delivery for the comment. The explicit wait carries the input even if the
    session's hooks no longer run.
    The comment is owed a reply, which the delivery records as its `answer` (step
-   4): a `reply` for `leaf response reply <answer.ref>` here; the Codex App Server route
+   4): a `reply` for `leaf thread reply <answer.ref>` here; the Codex App Server route
    would record a `turn`, which the turn's own messages write. For the
    instructions, `leaf wait` reads the clauses under
    `$events.handling.comment` in the page's copy of registry.json, then those
@@ -297,14 +302,14 @@ How this text reaches the agent, by example
 @DELIVERY@
 
 5. The agent acknowledges the delivery, then follows `handling`. For requested
-   work it opens with `leaf response reply <answer.ref> --ephemeral --text "<plan>"`,
-   does the work, and answers with `leaf response reply <answer.ref>`.
+   work it opens with `leaf thread reply <answer.ref> --ephemeral --text "<plan>"`,
+   does the work, and answers with `leaf thread reply <answer.ref>`.
 
 What this file records
 ----------------------
 
 Step 3, for one example of every case, using the clauses in
-skills/leaf/assets/registry.json (the file `leaf page init` copies into a page).
+browser/registry.json (the file `leaf page init` copies into a page).
 Each top-level key below names a case and holds:
 
   event:  the input: a log line's `kind`, the kind of answer its delivery
@@ -454,7 +459,6 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
-        "done": {"kind": "done"},
         "Done on a to-do on the user": {"kind": "todo_end"},
         "undo": {"kind": "undo"},
         "report": {"kind": "report"},
@@ -619,7 +623,7 @@ A route is how new user input reaches the agent's task:
                      output to the agent as the command's result, which wakes
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
-                     `leaf response reply <answer.ref>`. A Codex task without Leaf's
+                     `leaf thread reply <answer.ref>`. A Codex task without Leaf's
                      adapter uses this route, and so does a bare shell.
   Claude Code hook   Leaf's native hook watcher runs between turns. When input
                      arrives it wakes the session with one line naming the page,
@@ -627,19 +631,19 @@ A route is how new user input reaches the agent's task:
                      turn begins, and its Stop hook as a turn ends; either
                      freezes the delivery, acknowledges it, and adds it to the
                      turn's context after one line saying so. The agent answers
-                     with `leaf response reply <answer.ref>`.
+                     with `leaf thread reply <answer.ref>`.
   Codex queue        Leaf's adapter freezes the delivery and runs `codex queue`
                      with a pointer to it as the task's next user message. The
                      agent reads the delivery with `leaf delivery read <id>`,
                      follows every `next` command, and confirms complete receipt
                      with `leaf delivery ack <id>` before answering with
-                     `leaf response reply <answer.ref>`.
-  Codex App Server   Leaf adds the delivery to the task's queue with
-                     `thread/queue/add`, as the user message of the turn App
-                     Server starts for it, and binds that turn's opening and
-                     final messages as the reply. Leaf acknowledges the
-                     delivery once it enters that turn. leaf.page's hosted
-                     agent and a `leaf codex launch` terminal use this route.
+                     `leaf thread reply <answer.ref>`.
+  Codex App Server   Leaf starts a turn with `turn/start`, carrying the
+                     delivery as a `leaf_delivery` tool output, and binds the
+                     turn's opening and final messages as the reply. Leaf
+                     acknowledges the delivery once it enters that turn.
+                     leaf.page's hosted agent and a `leaf codex launch`
+                     terminal use this route.
 
 CLI readings print bounded, indented JSON. Large deliveries expose numbered
 parts and a `next` command; read all parts before acknowledging. A CLI reading
@@ -649,7 +653,7 @@ confirm it. This comment fits in one reading on every route.
 Each route freezes a delivery of its own. The envelope's shape is the same on
 all four. Two things differ, each stated once: `acknowledge` says how the agent
 confirms the delivery, or is null where the route confirmed it; and the
-comment's `answer` is a `reply`, for `leaf response reply`, except on App Server,
+comment's `answer` is a `reply`, for `leaf thread reply`, except on App Server,
 where it is a `turn` the turn's own messages write. The `handling` follows from
 the answer, so each agent is told only its own route.
 The agent's lasting instructions (its harness contract, and on leaf.page the
@@ -668,9 +672,8 @@ One top-level key per route, holding exactly what reaches the agent's task:
                      after it.
   Codex queue:       the `--message` given to `codex queue`, and the output of
                      the `leaf delivery read` it points at.
-  Codex App Server:  the `thread/queue/add` params. The input's text is one
-                     line saying Leaf has new input, then the delivery
-                     serialized as one line of JSON; it is shown split and
+  Codex App Server:  the `turn/start` params. `toolOutput.output` is the
+                     delivery serialized as one line of JSON; it is shown
                      decoded here.
 
 JSON is shown as YAML, and each clause in a batch's `handling` as wrapped prose,
@@ -734,11 +737,9 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     prepared = codex_model.prepare_codex_delivery(
         page_dir, harness_model.EmbeddedHarness(thread, "Codex", os.getpid())
     )
-    submitted = codex_model.app_server_queue_params(thread, prepared.payload)
+    started = codex_model.app_server_turn_start_params(thread, prepared.payload)
     reader = delivery_model.cmd_delivery_read(prepared.payload["id"])
-    [message] = submitted["input"]
-    opening, carried = message["text"].split("\n")
-    assert json.loads(carried) == prepared.payload
+    assert json.loads(started["toolOutput"]["output"]) == prepared.payload
     assert reader["batches"] == prepared.payload["batches"]
     assert f"leaf delivery ack {prepared.payload['id']}" in reader["acknowledge"]
 
@@ -787,11 +788,8 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
             }
         return delivery
 
-    submitted = json.loads(pin(json.dumps(submitted)))
-    submitted["input"][0]["text"] = {
-        "opening": Prose(opening),
-        "delivery": readable(carried),
-    }
+    started = json.loads(pin(json.dumps(started)))
+    started["toolOutput"]["output"] = readable(started["toolOutput"]["output"])
     snapshot.check(
         yaml_document(
             ROUTE_WALKTHROUGH,
@@ -809,7 +807,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
                     "codex queue --message": Prose(pin(queued.prompt)),
                     "leaf delivery read 22222222": readable(read),
                 },
-                "Codex App Server": {"thread/queue/add": submitted},
+                "Codex App Server": {"turn/start": started},
             },
         )
     )

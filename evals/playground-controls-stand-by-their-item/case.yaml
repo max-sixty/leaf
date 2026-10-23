@@ -4,6 +4,13 @@
 # Claude Code: base 0/2 (every control in the rail), candidate 2/2.
 # playground-presets-are-whole-designs holds the other side: controls that change the
 # whole preview stay in the rail.
+# workspace-premise-is-short came with the short-premise guidance in the playground's
+# author.md, after a 900x700 study page spent three lines of premise above the stage.
+# Claude Code: base 0/2 (three sentences), the rule in page-layout.md 0/2 (read, not
+# followed), the rule in author.md 2/2.
+# Those scores used the historical sentence-count rubric. The revised premise
+# rubric grades useful context and task prominence. Both saved Codex answers passed
+# when regraded for context anywhere on the page rather than repeated in its intro.
 description: playground-controls-stand-by-their-item
 metadata:
   purpose: "Playground: a control that changes one item of several stands beside that item in the preview, and a setting shared by every item stays in the rail."
@@ -31,7 +38,7 @@ vars:
     sees the month's page count against the budget as they go, and submits the
     settings for me to apply.
 
-    Read packages/playground/instructions/author.md inside the leaf skill's base
+    Read ../../packages/playground/instructions/author.md relative to the leaf skill's base
     directory. The page directory is not reachable here, so reply with the page's
     HTML and any page module it needs.
 assert:
@@ -45,3 +52,12 @@ assert:
       `lf-playground` (so all of them stand together in the rail), if the per-alert
       settings are hand-built inputs rather than playground controls, or if the budget
       is repeated beside each alert.
+  - type: llm-rubric
+    metric: premise-supports-the-task
+    value: |
+      The page gives the context needed to tune the alerts against the
+      monthly page budget. The preview, settings and submission remain the page's
+      main content rather than following a second explanation of the replay data
+      or controls already visible there. Supporting detail may be disclosed or
+      kept visible where it helps the decision. Judge the content and proposed
+      arrangement, not a sentence count, a particular disclosure widget or Layout.

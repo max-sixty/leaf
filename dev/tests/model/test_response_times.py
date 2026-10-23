@@ -3,10 +3,11 @@
 import json
 
 from click.testing import CliRunner
+from leaf_dev.cli import cli
+
 from leaf import interaction_log
 from leaf.event_log import append_event
 from leaf.interaction_log import append_interactions, client_records
-from leaf_dev.cli import cli
 
 
 def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypatch):
@@ -344,7 +345,7 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
             "parent": "one",
             "responds": "one",
             "attempt": "answer-attempt",
-            "ts": at(16),
+            "ts": at(25),
         },
     ]:
         append_event(tmp_path, row)
@@ -371,6 +372,18 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
                 "ts": at(10),
                 "purpose": "user-review",
                 "run": "review-run",
+            },
+            {
+                "source": "server",
+                "type": "reply_stream_words",
+                "ts": at(8),
+                "input_id": "one",
+                "parent": "one",
+                "attempt": "answer-attempt",
+                "session": "model-session",
+                "turn": "stream-turn",
+                "agent": "Codex",
+                "context": None,
             },
         ],
     )
@@ -459,6 +472,16 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
         ),
     )
     args = ["response-times", str(tmp_path), "--until", at(30), "--json"]
+    pending = CliRunner().invoke(
+        cli, ["response-times", str(tmp_path), "--until", at(22), "--json"]
+    )
+    assert pending.exit_code == 0, pending.output
+    [streamed] = [
+        row for row in json.loads(pending.output)["samples"] if row["input_id"] == "one"
+    ]
+    assert streamed["first_reply_kind"] == "stream"
+    assert "answered" not in streamed["milestones"]
+    assert streamed["milestones"]["send_to_visible"]["elapsed_s"] == 0.5
     result = CliRunner().invoke(cli, args)
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)

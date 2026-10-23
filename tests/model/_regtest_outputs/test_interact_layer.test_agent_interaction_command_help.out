@@ -30,7 +30,9 @@ Options:
 Usage: leaf delivery ack [OPTIONS] DELIVERY_ID
 
   Confirm that every part of DELIVERY_ID is in your context, so its updates read
-  Picked up. Reread any part whose output is missing first.
+  Delivered. Reread any part whose output is missing first. Where an earlier
+  turn already picked it up, a note says so and names what its updates still
+  owe.
 
 Options:
   --help  Show this message and exit.
@@ -61,15 +63,17 @@ Usage: leaf thread summarize [OPTIONS] PAGE
 
   Replace --from through --through in the panel with a Markdown summary.
 
-  Both name messages in one thread, which is the thread summarized. The original
-  messages remain in the append-only transcript and can always be revealed. A
-  later overlapping summary replaces this one.
+  Both name messages in one thread, which is the thread summarized. An empty
+  summary, such as `--text ''`, folds them without prose. The original messages
+  remain in the append-only transcript and can always be revealed. A later
+  overlapping summary replaces this one.
 
 Options:
   --from MESSAGE     [required]
   --through MESSAGE  [required]
-  --text TEXT        summary Markdown; pass '' to fold without prose (default:
-                     stdin)
+  --text TEXT        the summary's Markdown
+  --file PATH        read the summary's Markdown from PATH, - for stdin; with
+                     neither option, from piped stdin
   --label TEXT       disclosure label (default: Earlier discussion)
   --help             Show this message and exit.
 
@@ -92,63 +96,52 @@ Options:
 ## leaf thread open --help
 Usage: leaf thread open [OPTIONS] PAGE
 
-  Open a thread as the agent (--text or stdin): anchored where --quote or
-  --section points at a passage, general where neither does \u2014 a question about
-  the work as a whole.
+  Open a thread as the agent: anchored where --quote or --section points at a
+  passage, general where neither does \u2014 a question about the work as a whole.
 
-  The user answers it in the browser; a question in an `<lf-ask>` in --markup
-  waits on them until they do. Refuses a quote the active revision does not
-  hold, or holds more than once. The comment's id is the thread's.
+  Use --obligation when the next move is the user's: the message waits on On me
+  until their reply or settling reaction. Refuses a quote the active revision
+  does not hold, or holds more than once. The comment's id is the thread's.
 
 Options:
   --quote TEXT   passage text from the active revision
   --section ID   element ID to anchor or scope --quote
   --part ID      declared visual part within --section
-  --text TEXT    comment text (default: stdin)
+  --text TEXT    the comment's text
+  --file PATH    read the comment's text from PATH, - for stdin; with neither
+                 option, from piped stdin
   --markup TEXT  HTML fragment after the text, validated here
   --title TEXT   name the thread for the panel unless it has a name: a few
                  words, at most 80 characters
+  --obligation   put this message on On me until the user replies or settles it
   --help         Show this message and exit.
 
 ## leaf thread reply --help
-Usage: leaf thread reply [OPTIONS] PAGE THREAD
+Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]
 
-  Post a new agent message to THREAD (--text or stdin).
+  Reply to a delivered update using its `answer.ref` as the only argument, or
+  post an agent-initiated message using PAGE THREAD. A page and thread cannot
+  bypass an owed answer: use its delivered reference instead.
 
-  A message is refused while the thread owes a response; answer it with `leaf
-  response reply <answer.ref>`. --ephemeral posts progress. Saved page edits are
-  validated and activated before posting.
-
-Options:
-  --title TEXT   name the thread for the panel unless it has a name: a few
-                 words, at most 80 characters
-  --ephemeral    one-line progress, without answering
-  --todo TITLE   the reply promises work it doesn't deliver; opens that to-do on
-                 the thread, ended by `leaf task end` with the reply's id
-  --markup TEXT  frozen HTML fragment after the text
-  --text TEXT    reply text (default: stdin)
-  --detach       remove the thread's page target
-  --part ID      new declared visual part within --section
-  --section ID   new element ID, or scope for --quote
-  --quote TEXT   new passage text to move this thread onto
-  --help         Show this message and exit.
-
-## leaf response reply --help
-Usage: leaf response reply [OPTIONS] REFERENCE
-
-  Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
-
-  Mark every answer with --done (it delivers what the message asked for) or
-  --todo TITLE (it promises work it doesn't deliver, which stays on you as a to-
-  do), or ask the user something back with an `<lf-ask>` in its --markup, which
-  waits on them until their next message in the thread. A progress line
+  With a reference, mark every answer with --done (it delivers what the message
+  asked for) or --todo TITLE (it promises work it doesn't deliver, which stays
+  on you as a to-do), or --obligation when the next move is the user's. A widget
+  in --markup can also register its own obligation. A progress line
   (--ephemeral) or a failure (--failure) takes none of them.
 
-  The reply can also set frozen HTML, the thread's title and a new anchor. Saved
-  page edits are checked and made live before it posts. After an answer posts,
-  your turn's final message is not posted as a second reply; an --ephemeral line
-  does not change that. Rerunning a reply that already posted prints the earlier
-  one; give a retried --ephemeral line an --attempt so it posts once.
+  The reply can also set frozen HTML, the thread's title and a new anchor. It
+  publishes your saved page edits with it, checking them as `page check` does
+  without a browser: an error refuses the reply, and the first reply on a
+  revision notes the advice `page check` gives on its source. Nothing runs in a
+  browser, where `page check` runs a page's scripts and data widgets; one that
+  fails for the user arrives as an `error` event.
+
+  With a reference, an answer suppresses your turn's final message as a second
+  reply; an --ephemeral line does not. Rerunning a reply that already posted
+  prints the earlier one; give a retried --ephemeral line an --attempt so it
+  posts once. --done, --failure and --attempt require a reference. PAGE THREAD
+  accepts --obligation when the message needs the user's next move, or --todo
+  for promised work.
 
 Options:
   --attempt TEXT  retry key: a rerun with the same key posts nothing new
@@ -156,31 +149,37 @@ Options:
   --failure TEXT  failure code when no answer is coming; refused while your
                   turn's final message is to be the reply
   --done          the reply delivers what the message asked for
-  --title TEXT    name the thread for the panel unless it has a name: a few
-                  words, at most 80 characters
-  --ephemeral     one-line progress, without answering
+  --text TEXT     the reply's text
+  --file PATH     read the reply's text from PATH, - for stdin; with neither
+                  option, from piped stdin
+  --markup TEXT   frozen HTML fragment after the text
   --todo TITLE    the reply promises work it doesn't deliver; opens that to-do
                   on the thread, ended by `leaf task end` with the reply's id
-  --markup TEXT   frozen HTML fragment after the text
-  --text TEXT     reply text (default: stdin)
-  --detach        remove the thread's page target
-  --part ID       new declared visual part within --section
-  --section ID    new element ID, or scope for --quote
+  --ephemeral     one-line progress, without answering
+  --title TEXT    name the thread for the panel unless it has a name: a few
+                  words, at most 80 characters
+  --obligation    put this message on On me until the user replies or settles it
   --quote TEXT    new passage text to move this thread onto
+  --section ID    new element ID, or scope for --quote
+  --part ID       new declared visual part within --section
+  --detach        remove the thread's page target
   --help          Show this message and exit.
 
 ## leaf thread edit --help
 Usage: leaf thread edit [OPTIONS] PAGE MESSAGE
 
   Replace the visible text of MESSAGE, an agent-authored comment or reply, or
-  with --title rename the thread MESSAGE is in, whoever opened it.
+  with --title rename the thread MESSAGE is in, whoever opened it. --title alone
+  leaves the text as it is.
 
   The original and every revision remain in the append-only event log. Frozen
   markup is not editable. Keep a title stable unless the thread's subject
   changes.
 
 Options:
-  --text TEXT   replacement text (default: stdin, unless --title)
+  --text TEXT   the replacement text
+  --file PATH   read the replacement text from PATH, - for stdin; with neither
+                option, from piped stdin
   --title TEXT  rename MESSAGE's thread for the panel: a few words, at most 80
                 characters
   --help        Show this message and exit.
@@ -191,8 +190,7 @@ Usage: leaf thread resolve [OPTIONS] PAGE THREAD
   Close THREAD, by any message in it, as the agent.
 
   The user ordinarily closes a thread; the Leaf skill's references/threads.md
-  says when the agent does. Refuses a thread that asked for a version until a
-  stamped version answers it. The panel names who resolved it.
+  says when the agent does. The panel names who resolved it.
 
 Options:
   --help  Show this message and exit.
@@ -243,7 +241,9 @@ Usage: leaf page stamp [OPTIONS] PAGE
   was.
 
 Options:
-  --text TEXT                 changelog text (default: stdin)
+  --text TEXT                 the changelog
+  --file PATH                 read the changelog from PATH, - for stdin; with
+                              neither option, from piped stdin
   --from-directory DIRECTORY  replace index.html and page/ together from this
                               candidate directory
   --if-source TEXT            the page's current index.html and page/ digest

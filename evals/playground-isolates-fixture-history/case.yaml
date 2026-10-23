@@ -33,7 +33,7 @@ vars:
 
     The page was initialized with the `playground` package, whose author
     instructions `page init` copied into the page; the same file is
-    `packages/playground/instructions/author.md` inside the leaf skill's base
+    `../../packages/playground/instructions/author.md` relative to the leaf skill's base
     directory, the directory that holds its `references/`. Read that file and
     `references/page-authoring.md` and `references/live-samples.md` from that
     same skill directory.
@@ -60,3 +60,12 @@ assert:
       and lf-sample-ready reapplies the chosen view after Reset. Fail if controls
       query private thread chrome, click its buttons, observe its DOM to finish
       selecting a view, or import a child window's runtime themselves.
+  - type: llm-rubric
+    metric: independent-practice
+    value: |
+      Trying a reply, resolving a thread or moving through a conversation in one
+      candidate affects that candidate's practice history and view. The other
+      candidate remains available in the state where the user left it. Explicit
+      outer controls may change the shared case or comparison view, and Reset may
+      restore the common starting history. Fail if ordinary practice gestures are
+      mirrored into the other candidate or become decisions on the review page.

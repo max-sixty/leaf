@@ -30,10 +30,7 @@ pnpm run eval:view
   another version of Leaf through it. The hosted `website-replies` experiment
   requires producer-owned hosted-turn diagnostics in each arm; an arm without
   them is refused before a native turn starts.
-- **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Run
-  the harness the motivating failure came from, or the one you are working in when
-  no session failed. Run `both` when the change is about how the harnesses differ,
-  such as a harness contract.
+- **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. The selected harness uses its model pin in `dev/leaf_dev/arms.py`.
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks whose
   `metadata.conditions` declare one; `both` runs it beside Leaf. The control gets
   the same request, revisions and judge with no Leaf skill, runtime or widgets.
@@ -66,92 +63,78 @@ screenshots show arrival only. Unvisited required content remains
 insufficient evidence, while supported defects still fail when other parts remain
 unobserved. The judge follows the requested output's scope.
 
-## Desktop comparisons and exploratory discovery
+## Viewports, saved comparisons and discovery
 
-Routine authored-task comparisons use a 1600 × 1000 CSS-pixel desktop window.
-`evals/workflows/eval.yaml` owns the available viewport presets and default.
-Case definitions do not select resolutions. Use `--viewport short` or
-`--viewport phone` for an explicitly chosen alternative; repeat the option to
-inspect several sizes within each sample. The first selected size is used for
-the comment and decision journey, and all selected sizes reach the author’s
-window preference, report captures and final judge. This does not multiply
-author runs or judges.
+For the goal, task/model/viewport selection, sampling, improvement loop and
+acceptance decisions, use the
+[grinding playbook](../.claude/skills/grinding-ui/SKILL.md).
+This section describes the commands that execute a selected experiment.
 
-```bash
-uv run leaf-dev eval patch-review --harness codex --condition both
-uv run leaf-dev eval patch-review --harness codex --condition both --viewport short --repeat 3
-```
-
-The core loop keeps the task, screen size and requested journey fixed while
-changing the Leaf implementation or authoring guidance. `--base` compares a
-candidate against current Leaf. Occasional `--condition both` runs compare Leaf
-against ordinary HTML to check the product's value. Completion and preserved
-user decisions remain part of the judgment. Phone behavior stays visible in
-exploratory observations unless explicitly selected for a scored run.
-
-An optional relative quality comparison is `uv run leaf-dev eval-pairs RUN...`, which
-judges its samples in two columns side by side, each pair in both orders, and counts
-a winner only when both completed live judgments name it. Decision controls are
-judged on the latest saved version before the decision; final evidence, layout,
-comment responses and recorded decisions are judged on the final revision. Both
-versions use the sample's original runtime. Each sample captures its common task,
-author phase order, comparison phase roles and viewports before authoring, in
-`comparison.json` and its returned diagnostics. Pairwise judging uses those saved inputs even after the catalog case
-changes or is removed; the judge's methodology comes from the current checkout.
-Samples must have the same saved task inputs. Incomplete or unlike saved inputs
-raise an error for the developer to fix before comparing the runs.
-Unverified required observation is insufficient evidence;
-a failed judge is unscored. Each sample's one final rubric is the absolute-quality judgment; optional pairs add
-a relative comparison without rerunning the author. Run
-each column the same number of times; the Nth samples pair. To keep host load and
-drift from favoring one column, alternate one-repeat runs of each
-condition, swapping which goes first, and pass every run:
+`evals/workflows/eval.yaml` owns viewport presets and the default. Case definitions
+do not select resolutions. Use `--viewport short` or `--viewport phone` to choose
+an alternative; repeat the option to inspect several sizes within each sample.
+The first selected size drives the comment and decision journey. All selected
+sizes reach the author's window preference, report captures and final judge.
+This does not multiply author runs or judges.
 
 ```sh
-uv run leaf-dev eval configuration --harness claude-code --condition leaf --repeat 1 -j 1
-uv run leaf-dev eval configuration --harness claude-code --condition html --repeat 1 -j 1
-uv run leaf-dev eval configuration --harness claude-code --condition html --repeat 1 -j 1
-uv run leaf-dev eval configuration --harness claude-code --condition leaf --repeat 1 -j 1
+uv run leaf-dev eval patch-review --harness codex --condition both --viewport desktop
+uv run leaf-dev eval patch-review --harness codex --condition leaf --viewport short --repeat 1 -j 1
+```
+
+### Compare saved samples
+
+`leaf-dev eval-pairs RUN...` compares two provider columns, pairing each column's
+Nth sample and judging each pair in both presentation orders. A winner is counted
+only when both completed live judgments name it. Decision controls are judged on
+the latest saved version before the decision; final evidence, layout, comment
+responses and recorded decisions are judged on the final revision. Both use the
+sample's original runtime. Each sample captures its task inputs, author phase
+order, comparison phase roles and viewports before authoring in `comparison.json`
+and returned diagnostics. Saved inputs remain authoritative if the catalog changes;
+the judge methodology comes from the current checkout. Incomplete or unlike task
+inputs raise an error. Unverified required observation is insufficient evidence;
+a failed judge is unscored.
+
+```sh
 uv run leaf-dev eval-pairs .tmp/eval/<leaf-run> .tmp/eval/<html-run> .tmp/eval/<html-repeat> .tmp/eval/<leaf-repeat>
 ```
 
+Each sample's final rubric is its absolute-quality judgment. Pairwise grading
+adds a relative comparison without rerunning the author. The command writes
+`pairs.json` and per-order evidence under `pairs/` in its first input run; running
+it there again can replace an earlier comparison. Use fresh copied indexes for
+each retained comparison, as in "Independent live audits" below, with `-` for
+the default judge. Render the report from those copied run directories.
+
+### Explore a saved sample
+
 `leaf-dev eval-discover RUN SAMPLE [--focus TEXT]` gives an agent a saved sample
-and its original runtime to seek useful observations. The agent chooses window
-sizes and interaction sequences, following failures or surprising behavior into
-nearby variations. Most exploration should concern desktop use: short windows,
-layout breakpoints, long content, crowded queues, and edit/save/reload or
-choice/undo journeys. Occasional phone exploration checks functional access and
-records its impact separately. This is agent-led inquiry rather than an
-algorithm that mutates and ranks populations.
+and its original runtime. The agent chooses window sizes and interaction sequences
+from the requested focus and what it observes.
 
 ```sh
-uv run leaf-dev eval-discover .tmp/eval/<run> <sample-directory-name> --focus 'Explore short desktop windows and decision undo; inspect phone access if useful.'
-uv run leaf-dev eval-report ~/.tmp/leaf/eval-comparison .tmp/eval/<run>
+uv run leaf-dev eval-discover .tmp/eval/<run> <sample-directory-name> --focus 'Explore short desktop windows and decision undo.'
 ```
-
-Discovery starts with saved pages to test robustness without another authoring
-run. A changed task, content requirement or authoring instruction requires a
-fresh author to test whether it produces better pages. A useful initial effort
-budget is roughly 80% fixed comparisons and 20% discovery, with most discovery
-also on desktop. The agent allocates that effort; there is no automatic
-scheduler or weighted score.
 
 Each attempt retains observations, viewport, reproduction steps, evidence,
 unverified work and a proposed next check under
 `RUN/discovery/SAMPLE/attempt-*/response.json`, beside native traces and captures.
-Discovery counts are not defect rates: the agent adapts its search toward
-interesting cases. Reproduce a useful finding, simplify its trigger, inspect
-nearby variations, fix the owning mechanism and retain a small regression case.
-Confirm broader gains on fresh or withheld cases.
 
-`uv run leaf-dev eval-report PAGE RUN...` writes a Leaf page with each pair's
-arrival screens, author spend, judge reasons and named defects. It reads each
-sample's saved task, phases and viewport dimensions; unlike task inputs are unscored,
+### Render a report
+
+`leaf-dev eval-report PAGE RUN...` replaces `PAGE/index.html` with a Leaf page
+containing each pair's arrival
+screens, author spend, judge reasons and named defects. It reads each sample's
+saved task, phases and viewport dimensions; unlike task inputs are unscored,
 and incomplete records fail where read. Provider labels distinguish Leaf versions
-as well as the HTML control.
-The report shows exploratory observations separately from pair outcomes, with
-expandable screenshot evidence. Missing captures and supplementary trace paths
-remain explicit.
+as well as the HTML control. Exploratory observations appear separately from pair
+outcomes, with expandable screenshot evidence. Missing captures and supplementary
+trace paths remain explicit.
+
+```sh
+uv run leaf-dev eval-report ~/.tmp/leaf/eval-comparison .tmp/eval/<run>
+```
 
 `pnpm run eval:view` opens Promptfoo's viewer on every run recorded on
 this machine, each named by branch, commits and cases. It shows each sample's
@@ -187,14 +170,16 @@ for source and reading probes; Claude Code receives a request to use the plugin'
 skill. These probes may only read (Claude Code's Skill and Read tools; Codex's
 read-only sandbox), so a prompt that needs a page asks for its HTML in the reply,
 and one that grades what the
-agent would do asks for the commands it would run. Opus 5.5's safeguards refuse a
+agent would do asks for the commands it would run. The runner tells such a probe
+the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
+the ages its fixtures' times give hold whenever it runs. Opus 5.5's safeguards refuse a
 prompt asking for its tool calls with their JSON input. The leading comment records
 where the case came from and what it measured, `metadata.purpose` the behavior it
 pins, and `metadata.tags` its area.
 
 A short case that needs real authoring declares `metadata.authoring: true`.
 Its agent has native file and command tools, an initialized writable page, the
-arm's launcher as `$LEAF`, and a fresh workspace, home, temporary directory and
+arm's launcher first on `PATH`, and a fresh workspace, home, temporary directory and
 Leaf state for every sample. Pinned files under `evals/<case>/` are copied into
 that workspace at the same relative paths. Cite those paths in the prompt; the
 agent can open, register, crop or mark the captures. Ask it to write the page.
@@ -248,12 +233,14 @@ text `llm-rubric` and screenshot `agent-rubric` assertions. Complete authoring
 tasks use one JavaScript assertion to pass the final live judge's verdict through
 the Python provider. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
+`arrangement_eval` copies pinned assets under `evals/<task>/` to the same relative
+path in each author's isolated workspace, as short authoring cases do.
 
-Python prepares fixtures, drives the agent through resumed phases or live user
-rounds, and extracts evidence. Complete authoring tasks have only two execution
+Python prepares fixtures, drives live chat turns or user input through the page,
+and extracts evidence. Complete authoring tasks have only two execution
 checks: the author completed all turns, and a final page exists. The one live
 judge owns result correctness, including decision values and the requested
-comment changes. The author is asked to check its own page; the harness does not
+comment changes. The installed skill owns the author's review workflow; the harness does not
 repeat render checks or run a separate decision-reading agent after every sample.
 Other executors declare their execution facts in `expected_checks`. Semantic grading stays with Promptfoo: anything said
 in prose, a reply or a passage on the page, goes to the text judge. A text rubric's
@@ -287,7 +274,7 @@ instruction diagnostic do not establish that rendered behavior.
 ## Isolation and models
 
 Every provider runs in a fresh workspace outside the repository, under a home of its
-own seeded only with a copy of the host's login, so runs spend the signed-in accounts'
+own using only the host's login, so runs spend the signed-in accounts'
 usage and never an API key. Authoring agents write scratch files in `/tmp` under
 names their task suggests, so on macOS a Claude Code child runs under a sandbox
 profile that refuses those writes outside its own directories (`private_tmp` in `dev/leaf_dev/arms.py`); its own
@@ -324,8 +311,52 @@ grader restricted to `Read` on the screenshot tree works), rerun the same cases,
 compare the runs in the viewer, starting with the `dashboard/reader-*` calibration.
 That setting does not change complete-task live judges. Their model follows the
 Codex harness pin; `eval-pairs` rejudges saved samples with the current live judge
-while retaining their original authored pages and runtimes. An independent live
-audit should operate those same saved versions before reading the prior verdict.
+while retaining their original authored pages and runtimes.
+
+### Independent live audits
+
+This recipe creates an isolated output directory for one comparison and can
+optionally select another judge model served by the Codex login. Use `-` instead
+of the model name to keep the current default judge. The indexes retain absolute sample and runtime paths; links keep screenshots and
+discovery evidence available to the report without copying captures. The
+standard pair command handles both presentation orders and writes its evidence
+under the new directories. The override changes no shared model pin or original
+verdict. For example, audit one completed Leaf/HTML pair with Astra:
+
+```sh
+uv run python - gpt-6-astra .tmp/eval/<leaf-run> .tmp/eval/<html-run> <<'PY'
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+from leaf_dev.arms import MODELS
+from leaf_dev.commands.eval_pairs import eval_pairs
+
+audit = Path(tempfile.mkdtemp(prefix="audit-", dir=Path(".tmp/eval").resolve()))
+runs = []
+for index, source in enumerate(sys.argv[2:]):
+    target = audit / str(index)
+    target.mkdir()
+    source = Path(source).resolve()
+    shutil.copyfile(source / "results.json", target / "results.json")
+    for name in ("screenshots", "discovery"):
+        if (source / name).is_dir():
+            (target / name).symlink_to(source / name, target_is_directory=True)
+    runs.append(str(target))
+if sys.argv[1] != "-":
+    MODELS["codex"] = sys.argv[1]
+print("Comparison indexes:", *runs, sep="\n")
+eval_pairs.main(args=runs, standalone_mode=False)
+PY
+```
+
+Verify the model in each native `err.codex.jsonl` trace's `thread/started`
+notification (`params.thread.model`), then inspect the judge's actions and images.
+These audits retain the Codex harness's medium reasoning effort. Opus authoring
+uses `--harness claude-code`; selecting a different Codex model does not change
+the harness. Cross-harness authoring and independent judging answer different
+questions.
 
 These cases score instruction use and the agent loop. `leaf-dev journey` covers
 plugin installation, discovery and hooks on each harness, and `leaf-dev verify-site`

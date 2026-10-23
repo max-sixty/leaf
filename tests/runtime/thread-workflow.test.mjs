@@ -6,15 +6,9 @@ import {
   strongestWorkflow,
   threadAttention,
   workflowLabel,
-} from "../../skills/leaf/assets/runtime/thread/workflow.js";
-import {
-  foldThreads,
-  readThreadRecords,
-} from "../../skills/leaf/assets/runtime/thread/model.js";
-import {
-  isTurnEvent,
-  turnMessage,
-} from "../../skills/leaf/assets/runtime/pending/model.js";
+} from "../../browser/runtime/thread/workflow.js";
+import { foldThreads, readThreadRecords } from "../../browser/runtime/thread/model.js";
+import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 // The user's turns, which `events.exchange` and `events.turn_message` read off the log
@@ -100,7 +94,7 @@ test("thread attention gives an open user obligation precedence over agent work"
     workflows: [recovery, work],
     // The record the agent's work serves, which it still owes.
     obligations: [{ id: "update:a", source: { kind: "update" }, next_actor: "agent" }],
-    attention: { kind: "needs_user", reason: "widget", workflow: "recovery" },
+    attention: { kind: "needs_user", reason: "obligation", workflow: "recovery" },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
@@ -311,7 +305,7 @@ test("pending thread gestures fold in the order the user made them, as the log w
   const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: "kept" };
   const resolve = { kind: "resolve", parent: "root", author: "user" };
   const unresolve = { ...resolve, kind: "unresolve" };
-  const owed = { kind: "needs_user", reason: "widget", workflow: null };
+  const owed = { kind: "needs_user", reason: "obligation", workflow: null };
   const fold = (changes, ...gestures) =>
     foldThreads([servedThread([asked, question], changes)], gestures)[0];
 

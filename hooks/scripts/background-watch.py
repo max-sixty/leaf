@@ -13,14 +13,8 @@ the child's stderr and become nonblocking exit 1; cancellation stays quiet.
 The harness's timeout signal is forwarded to the child, allowing the watch to
 release its lease. Only Claude Code's registrations run it: Codex
 ignores asyncRewake and would wait on this long-running command.
-
-Where Leaf's hooks module keeps the session's watch instead (`hooks/claude-code.ts`),
-it marks the Stop payload it passes on `leaf_watch: "module"`, and this ends at once
-without starting a second watch.
 """
 
-import contextlib
-import json
 import signal
 import subprocess
 import sys
@@ -72,15 +66,5 @@ def watch(args: list[str], payload: str) -> None:
         sys.exit(2)
 
 
-def module_watches(payload: str) -> bool:
-    """Whether Leaf's hooks module marked this Stop as one whose watch it keeps."""
-    with contextlib.suppress(ValueError):
-        record = json.loads(payload)
-        return isinstance(record, dict) and record.get("leaf_watch") == "module"
-    return False
-
-
 if __name__ == "__main__":
-    payload = sys.stdin.read()
-    if not module_watches(payload):
-        watch(sys.argv[1:], payload)
+    watch(sys.argv[1:], sys.stdin.read())

@@ -5,38 +5,58 @@ import {
   shortAgo,
   clockValue,
   tickClock,
-} from "../../skills/leaf/assets/runtime/presence.js";
-import { watchProjection } from "../../skills/leaf/assets/runtime/projection-watch.js";
+} from "../../browser/runtime/presence.js";
+import { LeafElement, noChange } from "/runtime/widget-api.js";
 
 const before = (ms) => new Date(Date.now() - ms).toISOString();
 const MINUTE = 60 * 1000;
 
-test("a watcher another stops during a tick stays stopped", async () => {
-  const owner = document.createElement("div");
-  document.body.append(owner);
+test("an element removed by another clock render stays disconnected", async () => {
   let clock = 0;
   const calls = { first: 0, second: 0 };
   let second;
-  const first = watchProjection(owner, () => {
-    calls.first += 1;
-    clockValue(() => clock);
-    if (calls.first > 1) second();
-  });
-  second = watchProjection(owner, () => {
-    calls.second += 1;
-    clockValue(() => clock);
-  });
-  await Promise.resolve();
-  for (let round = 0; round < 2; round += 1) {
-    clock += 1;
-    await tickClock((message) => {
-      throw new Error(message);
-    });
-    await Promise.resolve();
+  customElements.define(
+    "leaf-first-clock",
+    class extends LeafElement {
+      render() {
+        calls.first += 1;
+        clockValue(() => clock);
+        if (calls.first > 1) second.remove();
+        return noChange;
+      }
+    },
+  );
+  customElements.define(
+    "leaf-second-clock",
+    class extends LeafElement {
+      render() {
+        calls.second += 1;
+        clockValue(() => clock);
+        return noChange;
+      }
+    },
+  );
+  const first = document.createElement("leaf-first-clock");
+  second = document.createElement("leaf-second-clock");
+  document.body.append(first, second);
+  const settle = async () => {
+    await new Promise((resolve) => setTimeout(resolve));
+    await first.updateComplete;
+  };
+  try {
+    await settle();
+    for (let round = 0; round < 2; round += 1) {
+      clock += 1;
+      await tickClock((message) => {
+        throw new Error(message);
+      });
+      await settle();
+    }
+    assert.deepEqual(calls, { first: 3, second: 1 });
+  } finally {
+    first.remove();
+    second.remove();
   }
-  assert.deepEqual(calls, { first: 3, second: 1 });
-  first();
-  owner.remove();
 });
 
 test("the sentence and compact elapsed readings name the same figure", (t) => {

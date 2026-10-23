@@ -8,16 +8,16 @@ state store or event semantics.
 
 The adapter also runs the hosted agent. The Worker posts each accepted event that owes
 a reply to `/_leaf/agent/start`, and `attach` starts or resumes one Codex App Server
-thread rooted at the page directory and queues the event on it in Leaf's delivery
-envelope; while a turn is running, Leaf holds the delivery and queues it when that
-turn ends. A repeated start for the same event starts nothing new. Codex has the
-prepared Leaf plugin installed, as a terminal agent's Codex does, and
-`CODEX_INSTRUCTIONS` adds only the session's environment and scope. The container is
-the thread's only client, so the next turn to start after a delivery is queued is
-that delivery's (`next_turn`). A delivery carries at most one plain reply, which streams into its thread and is committed through
+thread rooted at the page directory and hands it the event in Leaf's delivery envelope;
+while a turn is running, Leaf holds the delivery and starts it when that turn ends. A
+repeated start for the same event starts nothing new. Codex has the prepared Leaf plugin
+installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS` adds only the
+session's environment and scope. Each turn is bound to its delivery id, sent as
+`clientUserMessageId`, so the turn's follower knows its turn from the start. A delivery
+carries at most one plain reply, which streams into its thread and is committed through
 Leaf's reply writer even if the connection drops or the next turn opens first.
 
-`HostedTurn` follows a turn on the connection that queued its delivery. Completion ends it, and
+`HostedTurn` follows a turn on the connection that started it. Completion ends it, and
 so do a dropped connection, silence past `STREAM_SILENCE`, and any fault; for those the
 follower interrupts the provider turn, since nothing else is reading it. Every ending
 closes the Leaf turn and gives each update the turn still owed an answer the
@@ -41,7 +41,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from collections.abc import Mapping
@@ -53,10 +52,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
+from starlette.responses import Response
+
 from leaf.codex import (
-    APP_SERVER_ENV,
-    START_TIMEOUT,
-    AppServerDeliveryUncertain,
     CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
@@ -65,10 +63,8 @@ from leaf.codex import (
     delivery_owed_updates,
     open_app_server_delivery,
     prepare_codex_delivery,
-    queue_app_server_delivery,
-    queued_submissions,
-    start_queued_delivery,
-    stop_app_server,
+    private_app_server,
+    start_app_server_delivery,
 )
 from leaf.delivery import read_delivery, stream_reply_target
 from leaf.event_contracts import write_refusal
@@ -85,7 +81,7 @@ from leaf.registry.storage import layer_metadata
 from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
-from leaf.schema import PAGE_ROUTE_DIRS, VENDORED_FILES
+from leaf.schema import PAGE_ROUTE_DIRS, REVISION_NAME, VENDORED_FILES
 from leaf.served_state.context import read_page
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
@@ -100,20 +96,19 @@ from leaf.state import (
     flocked,
     session_lock_path,
     session_record,
-    start_session_turn,
 )
 from leaf.thread import (
     fail_answer,
     release_delivery_reply,
 )
 from leaf.thread_titles import app_server_title, name_thread
-from starlette.responses import Response
 
 if TYPE_CHECKING:
     from websockets.sync.client import ClientConnection
 
 PORT = 8080
-# The model every hosted task runs on, and the one its threads are titled with.
+# The model every hosted task runs on. Its threads are titled on Codex's title
+# model (`thread_titles.CODEX_TITLE_MODEL`).
 HOSTED_MODEL = "gpt-5.6-luna"
 WEBSITE_AGENT = "Agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
@@ -427,37 +422,6 @@ def next_unaccepted_agent_event(
         )
 
 
-def next_turn(socket, pending: list[dict], thread_id: str) -> str:
-    """The id of the next turn to start on the thread, read off its subscription.
-
-    The container is App Server's only client and queues one delivery at a time,
-    so the next turn to start is the one that took the delivery just queued. It is
-    named at `turn/started` rather than by the user message that carries the
-    delivery, which a thread's first turn reported 2.4 s later in the runs measured
-    with codex-cli 0.160.0. Every notification read stays on `pending`, in order,
-    for the turn's follower.
-    """
-    deadline = time.monotonic() + START_TIMEOUT
-    read = 0
-    while True:
-        for message in pending[read:]:
-            params = message.get("params") or {}
-            if (
-                message.get("method") == "turn/started"
-                and params["threadId"] == thread_id
-            ):
-                return params["turn"]["id"]
-        read = len(pending)
-        if time.monotonic() >= deadline:
-            raise AppServerDeliveryUncertain(
-                "no Codex App Server turn took the queued delivery"
-            )
-        try:
-            pending.append(json.loads(socket.recv(timeout=1)))
-        except TimeoutError:
-            continue
-
-
 class HostedTurn(CarriedTurn):
     """One delivery's hosted turn, from the start that made it to its receipt.
 
@@ -543,8 +507,10 @@ class HostedTurn(CarriedTurn):
     def begin(self) -> None:
         """Open this delivery's Leaf turn and reply reservation for its provider turn.
 
-        The turn named here is the one that took this delivery from App Server's
-        queue (`next_turn`), named as it started.
+        The `turn/start` request carried this delivery both as its
+        `clientUserMessageId` and as its `leaf_delivery` tool output, and App Server
+        answered with the turn it made from it, so the turn named here is this
+        delivery's without anything having to read it back off the stream.
         """
         self.record("turn_following_started")
         if not self.open():
@@ -725,17 +691,12 @@ class WebsiteCodexHarness:
     def __init__(
         self,
         codex_path: str | None = None,
-        socket_path: Path | None = None,
         log_path: Path | None = None,
     ):
         self.codex_path = codex_path or shutil.which("codex")
-        # App Server's Unix socket is short and private to this harness, even when
-        # multiple website versions run in the same machine's temporary directory.
-        self.runtime = tempfile.TemporaryDirectory(prefix="lwh.", dir="/tmp")
-        runtime = Path(self.runtime.name)
-        self.socket_path = socket_path or runtime / "codex.sock"
-        self.log_path = log_path or runtime / "codex.log"
-        self.endpoint = f"unix://{self.socket_path}"
+        self.log_path = log_path
+        self.server_resources = ExitStack()
+        self.endpoint = ""
         self.process: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self.next_request_id = 0
@@ -765,7 +726,7 @@ class WebsiteCodexHarness:
         try:
             with self.lock:
                 self._ensure_server()
-        except (OSError, RuntimeError) as error:
+        except (OSError, RuntimeError, Refused) as error:
             log_agent(
                 "app_server_prewarm_failed",
                 durationMs=elapsed_ms(started),
@@ -818,71 +779,35 @@ class WebsiteCodexHarness:
             for lease in self.waiter_leases.values():
                 release_lease(lease)
             self.waiter_leases.clear()
-            process = self.process
             self.process = None
-        if process is not None:
-            self._stop_server(process)
-        self.runtime.cleanup()
-
-    def _stop_server(self, process: subprocess.Popen) -> None:
-        stop_app_server(process)
-        self.socket_path.unlink(missing_ok=True)
+        self.server_resources.close()
 
     def _ensure_server(self) -> subprocess.Popen:
         if self.stop_event.is_set():
             raise RuntimeError("the website harness is closed")
         if self.codex_path is None:
             raise RuntimeError("cannot find the `codex` executable on PATH")
-        if self.process is not None:
-            if self.process.poll() is None and self.socket_path.exists():
-                return self.process
-            stale = self.process
+        if self.process is None or self.process.poll() is not None:
+            self.server_resources.close()
             self.process = None
-            self._stop_server(stale)
-        started = time.monotonic()
-        log_agent("app_server_spawn_started")
-        self.socket_path.unlink(missing_ok=True)
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.log_path, "ab", buffering=0) as log:
-            self.process = subprocess.Popen(
-                [self.codex_path, "app-server", "--listen", self.endpoint],
-                env={
-                    **os.environ,
-                    APP_SERVER_ENV: self.endpoint,
-                    "LEAF": LEAF_COMMAND,
-                    "LEAF_HOST_LAUNCHER": LEAF_COMMAND,
-                    # The contract says `leaf`, so that name has to be this
-                    # install's launcher ahead of any other on the PATH. A login
-                    # shell rebuilds PATH from the system's profile, which is why
-                    # the website image also links it into /usr/local/bin.
-                    "PATH": os.pathsep.join(
-                        (str(Path(LEAF_COMMAND).parent), os.environ.get("PATH", ""))
-                    ),
-                },
-                cwd=os.environ.get("LEAF_SITE_ROOT", "/app/site"),
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=log,
-                start_new_session=True,
-            )
-        deadline = time.monotonic() + 20
-        while time.monotonic() < deadline:
-            if self.socket_path.exists():
-                log_agent(
-                    "app_server_spawn_completed",
-                    durationMs=elapsed_ms(started),
+            started = time.monotonic()
+            log_agent("app_server_spawn_started")
+            self.endpoint, self.process = self.server_resources.enter_context(
+                private_app_server(
+                    self.codex_path,
+                    env=os.environ
+                    | {
+                        "LEAF_HOST_LAUNCHER": LEAF_COMMAND,
+                        "PATH": os.pathsep.join(
+                            (str(Path(LEAF_COMMAND).parent), os.environ.get("PATH", ""))
+                        ),
+                    },
+                    cwd=os.environ.get("LEAF_SITE_ROOT", "/app/site"),
+                    log_path=self.log_path,
                 )
-                return self.process
-            if self.process.poll() is not None:
-                detail = self.log_path.read_text(encoding="utf-8", errors="replace")
-                self.process = None
-                self.socket_path.unlink(missing_ok=True)
-                raise RuntimeError(detail.strip() or "Codex App Server exited")
-            time.sleep(0.05)
-        process = self.process
-        self.process = None
-        self._stop_server(process)
-        raise RuntimeError("Codex App Server did not become ready")
+            )
+            log_agent("app_server_spawn_completed", durationMs=elapsed_ms(started))
+        return self.process
 
     def _request(
         self, resources: ExitStack, method: str, params: dict
@@ -1082,33 +1007,6 @@ class WebsiteCodexHarness:
             if socket is not None:
                 socket.close()
 
-    def _unqueue(self, thread_id: str, delivery_id: str, **fields) -> None:
-        """Remove a delivery no follower took from the thread's App Server queue.
-
-        After an interrupt App Server holds its queue, and Leaf starts a delivery
-        only from the queue's head, so a submission left there would hold back
-        every later delivery on the thread. Like `_interrupt`, this takes its own
-        connection and records a failure rather than raising it.
-        """
-        socket = None
-        try:
-            socket = app_server_connect(self.endpoint)
-            app_server_handshake(
-                socket, self._request_id(), "leaf-website", "Leaf website"
-            )
-            send = partial(self._send, socket)
-            for submission in queued_submissions(send, thread_id):
-                if submission["clientUserMessageId"] == delivery_id:
-                    send(
-                        "thread/queue/delete",
-                        {"threadId": thread_id, "queuedSubmissionId": submission["id"]},
-                    )
-        except Exception as error:  # noqa: BLE001 - reported, never raised
-            log_agent("turn_unqueue_failed", **fields, **fault_fields(error))
-        finally:
-            if socket is not None:
-                socket.close()
-
     def _send(
         self,
         socket,
@@ -1136,7 +1034,7 @@ class WebsiteCodexHarness:
         page_dir: Path,
         thread_id: str,
         process: subprocess.Popen,
-        pending: list[dict],
+        pending: list[dict] | None = None,
     ) -> HostedTurn:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
@@ -1153,44 +1051,40 @@ class WebsiteCodexHarness:
         )
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
         reply_target = stream_reply_target(prepared.payload)
-        delivery_id = prepared.payload["id"]
         try:
-            expected = session_record(thread_id)
-            send = partial(self._send, socket, pending=pending)
-            queue_app_server_delivery(send, thread_id, prepared.payload)
-            # An interrupt this harness sent holds the queue until a client starts
-            # it; on a thread that ended its last turn normally, adding the
-            # delivery started it.
-            start_queued_delivery(send, thread_id, delivery_id)
-            turn_id = next_turn(socket, pending, thread_id)
-            admitted = start_session_turn(thread_id, turn_id, expected)
-            if admitted is None:
-                raise AppServerDeliveryUncertain(
-                    "a newer session epoch superseded the provider start"
-                )
-        # Every class: once the submission went out, any failure leaves a delivery
-        # App Server may hold, and only the withdrawal below gives it back.
-        except Exception as error:
-            # No turn to follow, and after an uncertain submission possibly one
-            # App Server began and this never named. This harness owns the thread,
-            # so it tells the provider to drop whatever it began rather than waiting
-            # to adopt it, and gives up the delivery and any reply reservation it
-            # holds rather than leaving them held, because both would otherwise block
-            # the `startup_failed` receipt the Worker writes when this raises — the
+            admitted = start_app_server_delivery(
+                lambda method, params: self._send(socket, method, params, pending),
+                thread_id,
+                prepared.payload,
+            )
+        except (RuntimeError, Refused) as error:
+            # No turn to follow, and after an uncertain start possibly one this
+            # request made and never named. This harness owns the thread, so it tells
+            # the provider to drop whatever it began rather than waiting to adopt it,
+            # and gives up the delivery and any reply reservation it holds rather than
+            # leaving them held, because both would otherwise block the
+            # `startup_failed` receipt the Worker writes when this raises — the
             # receipt that tells the user to send the message again.
             self._withdraw_delivery(
-                thread_id, delivery_id, prepared_events, reply_target
+                thread_id, prepared.payload["id"], prepared_events, reply_target
             )
             restore_page_claim(page_dir, prepared.claim_transition)
             raise RuntimeError(f"Codex App Server did not start a turn: {error}") from (
                 error
             )
+        turn_id = admitted["turn"]
         log_agent(
             "turn_start_acknowledged",
             **agent_event_fields(prepared_events),
             turnId=turn_id,
             durationMs=elapsed_ms(started),
         )
+        # App Server answered for the turn it made from this delivery, so the follower
+        # knows which turn is its own before it reads anything. The answer names a turn
+        # of this delivery's rather than another request's because `turn/start` steers
+        # into a turn already running, and every caller here sends one against a thread
+        # it has read as not active — the container being App Server's only client,
+        # nothing starts one in between.
         return HostedTurn(
             self,
             page_dir,
@@ -1201,7 +1095,7 @@ class WebsiteCodexHarness:
             socket,
             lifecycle=admitted,
             reply_target=reply_target,
-            buffered=tuple(pending),
+            buffered=tuple(pending or ()),
         )
 
     def _end_unfollowed_turn(
@@ -1258,13 +1152,11 @@ class WebsiteCodexHarness:
     ) -> None:
         """Retire offered input that no follower took, so the Worker can receipt it.
 
-        Take the delivery out of App Server's queue, interrupt any provider turn
-        the request started, release its reply reservation, and give the moves
-        back as unanswered input. The Worker's failure receipt then invites the
-        user to send again; an offered delivery still holding those moves would
-        swallow the retry.
+        Interrupt any provider turn the request started, release its reply
+        reservation, and give the moves back as unanswered input. The Worker's
+        failure receipt then invites the user to send again; an offered delivery
+        still holding those moves would swallow the retry.
         """
-        self._unqueue(thread_id, delivery_id, **agent_event_fields(event_ids))
         self._interrupt(thread_id, "", **agent_event_fields(event_ids))
         if reply_target is not None:
             release_delivery_reply(thread_id, delivery_id, reply_target)
@@ -1412,7 +1304,7 @@ class WebsiteCodexHarness:
         # first turn on, so this follows the start rather than the admission.
         if attached is not None:
             name_thread(
-                app_server_title(self.endpoint, HOSTED_MODEL),
+                app_server_title(self.endpoint),
                 page_dir,
                 event_id,
                 attached,
@@ -1473,8 +1365,23 @@ def published_page(
     return None
 
 
+def released_path(pages: dict, path: str) -> str | None:
+    """The public path whose static file the Worker serves at a release-addressed
+    one, `<assets>/<inside>` (`worker/src/routing.ts`, `releaseAssetRoute`), or None
+    for a path no page's release names."""
+    for root, page in pages.items():
+        if path.startswith(page["assets"] + "/"):
+            return ("" if root == "/" else root) + path[len(page["assets"]) :]
+    return None
+
+
 class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
+
+    # A visitor's private comments and replies would otherwise stay in the browser's
+    # disk cache after their session ends, for anyone who later uses that browser
+    # profile to read. The price is the back/forward cache, which keeps no such page.
+    cache_control = "no-store"
 
     def __init__(
         self,
@@ -1528,14 +1435,23 @@ class WebsitePageEndpoint(PageEndpoint):
             head=site_metadata(self.page_root, self.pages[self.page_root or "/"]),
         )
 
-    def _sample_asset_root(self, revision: int) -> str:
+    def _published_root(self, revision: int) -> str | None:
+        """Where the release publishes a revision's resources beside the runtime it
+        runs (`live_shell`), for a revision the release published; None for one a
+        user's session created in this container, which serves its own."""
         page = self.pages[self.page_root or "/"]
-        # Published revisions share the public shell's release-captured graph.
-        # User-created revisions belong to this container, not that release.
-        if str(revision) in page["states"]:
-            name = self._revision_name(revision).removesuffix(".html")
-            return f"{page['assets']}/revisions/{name}"
-        return super()._sample_asset_root(revision)
+        if str(revision) not in page["states"]:
+            return None
+        name = self._revision_name(revision).removesuffix(".html")
+        return f"{page['assets']}/revisions/{name}"
+
+    # A published revision's documents and samples load its graph from the release, so
+    # a page the container saved while asleep needs no container to load it.
+    def _document_asset_root(self, revision: int) -> str:
+        return self._published_root(revision) or super()._document_asset_root(revision)
+
+    def _sample_asset_root(self, revision: int) -> str | None:
+        return self._published_root(revision) or super()._sample_asset_root(revision)
 
     def _acknowledge_startup_report(self) -> Response:
         # Every document the runtime delivers with a release carries the public
@@ -1543,7 +1459,7 @@ class WebsitePageEndpoint(PageEndpoint):
         # observability record belongs. This adapter has no Worker in front of it,
         # so it owes the browser the same "recorded, nothing to read back" answer
         # the edge gives — otherwise every page served here loads with a 404 in its
-        # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
+        # console (`browser/runtime/bootstrap.js`, `observePublicStartup`).
         return self._content(204, "application/json", b"")
 
     # The two routes below are for the Worker, which refuses every `/_leaf/` path from
@@ -1574,10 +1490,41 @@ class WebsitePageEndpoint(PageEndpoint):
         AGENT_FAIL_PATH: PostRoute(_fail_agent, (PageEndpoint._body_gate,)),
     }
 
+    def _released_resource(self) -> Response | None:
+        """A published revision's resource at its release address, as the Worker
+        serves the static tree the build wrote there (`live_shell`): the same bytes,
+        delivered by the same code at the same address, so a published page starts
+        here as at the edge. None for any other path, which the release names nothing
+        at."""
+        match = re.fullmatch(
+            rf"/revisions/(?P<name>{REVISION_NAME})/(?P<resource>.+)", self.path
+        )
+        if match is None or self.method not in {"GET", "HEAD"}:
+            return None
+        revision = int(match["revision"])
+        if (
+            self.source.revision_names.get(revision) != match["name"] + ".html"
+            or (root := self._published_root(revision)) is None
+        ):
+            return None
+        response = self._revision_resource(revision, "/" + match["resource"], root)
+        if response is not None:
+            response.headers.update(
+                {
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Expose-Headers": "*",
+                }
+            )
+        return response
+
     def _select_page(self) -> Response | None:
         if self.method == "GET" and self.path == "/health":
             return self._content(200, "text/plain; charset=utf-8", b"ok\n")
-        selected = published_page(self.routes, self.path)
+        # A release address names a published revision's resource and nothing else,
+        # so it is answered here, whole, and never reaches the page's own routes.
+        released = released_path(self.pages, self.path)
+        selected = published_page(self.routes, released or self.path)
         if selected is None:
             return self._not_found()
         page_dir, page_root, inside, kind = selected
@@ -1588,6 +1535,8 @@ class WebsitePageEndpoint(PageEndpoint):
         self.publication = {**PUBLICATION, "kind": kind}
         self.page_root = page_root
         self.path = inside
+        if released is not None:
+            return self._released_resource() or self._not_found()
         return None
 
 

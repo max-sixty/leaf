@@ -9,23 +9,24 @@ Resolve the repository root three directories above this `SKILL.md`, check that
 `<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
 absolute launcher; a bare `leaf` may run the installed plugin instead.
 
-Before naming or renaming anything the user sees or operates, or an identifier for one,
-read `references/glossary.md`, Leaf's canonical vocabulary.
+Before writing words the user sees, such as a label, status line or placeholder, or
+naming anything they operate or an identifier for one, read `references/glossary.md`,
+Leaf's canonical vocabulary and the voice its visible copy speaks in.
 
 ## Read the owning contract
 
 A contract shared across modules or runtimes lives in a reference beside the Python
-code that owns it; `<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol
+code that owns it; `<root>/src/AGENTS.md` lists them under "Protocol
 references". To check what the code does, call it: `leaf` and `leaf_dev` are installed
 editable, so `uv run python -c 'from leaf... import ...'` works as is. A tag's schema
 is in the registry of the package that ships it:
 
 ```bash
 jq 'select(has("lf-shot"))."lf-shot"' \
-  skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
+  browser/registry.json packages/*/registry.json
 ```
 
-A fact both runtimes use has one home (`skills/leaf/assets/AGENTS.md`, "Facts both
+A fact both runtimes use has one home (`browser/AGENTS.md`, "Facts both
 runtimes know"). When a change adds a parity fixture, or a test that scans one
 language's source for the other's names, ask why the fact isn't generated.
 
@@ -49,12 +50,13 @@ changes.
 These are optional installs, separate from Leaf's plugin. Check the harness's available
 skills before invoking one; each link has installation instructions.
 
-| Install                                                                                                     | Use in a UI review                                                                                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [Impeccable](https://github.com/pbakaus/impeccable#installation)                                            | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality; focused workflows such as `layout` and `typeset`.                                                                                      |
-| [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion.                                                                                                                                     |
-| [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design)                    | `/frontend-design` for new compositions or an intentional redesign.                                                                                                                                                                  |
-| [Emil Kowalski's skills](https://github.com/emilkowalski/skills)                                            | `review-animations` for motion; it refuses model invocation, so read its `SKILL.md` and `STANDARDS.md`. `/break-ui` for worst-case content, such as long names or no items; keep the demo-data toggle it adds out of a shipped page. |
+| Install                                                                                                     | Use in a UI review                                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Impeccable](https://github.com/pbakaus/impeccable#installation)                                            | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality; focused workflows such as `layout` and `typeset`.                                                                                                  |
+| [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion.                                                                                                                                                 |
+| [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design)                    | `/frontend-design` for new compositions or an intentional redesign.                                                                                                                                                                              |
+| [Emil Kowalski's skills](https://github.com/emilkowalski/skills)                                            | `review-animations` for motion; it refuses model invocation, so read its `SKILL.md` and `STANDARDS.md`. `/break-ui` for worst-case content, such as long names or no items; keep the demo-data toggle it adds out of a shipped page.             |
+| [Mblode UI skills](https://github.com/mblode/agent-skills)                                                  | `/ui-animation` for motion and interruption; `/ui-design` Audit for visual quality and Break for extreme content; `/ui-verification` for browser reproduction; `/product-design` for action scope, recovery and consistency across input routes. |
 
 ## Leave taste to the authoring agent
 
@@ -123,7 +125,7 @@ when it covers the same decision.
 
 The exploration is one HTML file under `.tmp/`, served with
 `uv run leaf-dev preview --source <file> --user` ("Preview a page"); its CSS reads the
-live theme's tokens. Follow `<root>/skills/leaf/packages/playground/instructions/author.md`
+live theme's tokens. Follow `<root>/packages/playground/instructions/author.md`
 to choose the elements, present the candidates, and say what to build.
 
 To compare against an existing interface, cover the controls and states the named
@@ -131,8 +133,8 @@ property affects, with this checkout's rendered interface as the baseline and
 candidates that differ from it only in the requested change. Build runtime candidates
 in the runtime and theme that own the surface; a separate sketch follows "Decision
 fidelity" in the playground author instructions, copying Leaf's mark from
-`skills/leaf/assets/icon.svg` as inline SVG and each icon's path from
-`skills/leaf/assets/runtime/icons.js`. Drive the baseline and every candidate
+`browser/icon.svg` as inline SVG and each icon's path from
+`browser/runtime/icons.js`. Drive the baseline and every candidate
 through the same journey before handoff. For a live Leaf interface, embed each as an
 `lf-sample window` child (`skills/leaf/references/live-samples.md`) and start their
 histories with `data-sample-events`.
@@ -242,6 +244,16 @@ running for their review.
 For response timing, run `uv run leaf-dev response-times PAGE... --json`;
 `dev/leaf_dev/commands/response_times.py` owns its measurements and limits.
 
+To benchmark replies, run each harness's journey a few times in each case: its
+first comment asks for a small page change while the harness waits, or with
+`--case working` while the user's own turn runs. The benchmark is the whole reply's
+time, which `dev/leaf_dev/reply_phases.py` attributes to Leaf's delivery, commands
+and hooks, the harness, the model's wait for its first output and its generation,
+and the agent's other tools; `uv run leaf-dev journey-chart --replies` tabulates the
+kept samples by target and case, `--since` selecting a batch. Model time varies
+widely from run to run, so compare a phase Leaf owns directly, and the whole reply
+over enough runs to see past that spread.
+
 `uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a real
 agent. On the triage board, it tells the agent that a release passed its checks and
 asks it to record that, then checks for a reply and a revision naming the release. It
@@ -257,9 +269,9 @@ The journey runs a session of the harness with this working tree as its plugin. 
 suite only stands in for each harness, so run the journey on the harness a change
 touches; each target's module header lists its steps and the promises it checks:
 
-- `claude-code` (`journey_claude_code.py`): with and without `--hooks-module`, after a
-  change to `hooks/hooks.json`, `hooks/claude-code.ts`, `ClaudeCodeHarness`,
-  `hooks.py`, `background-watch.py`, or the watch between turns in `session.py`. Add
+- `claude-code` (`journey_claude_code.py`): after a change to `hooks/hooks.json`,
+  `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, or the watch between turns
+  in `session.py`. Add
   `--sandbox` after a change to `bridge.py`, the README's "Agent sandboxes" settings,
   or what a `leaf` command needs from outside its page directory.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`): both, after a change to
@@ -311,6 +323,23 @@ the sample using only what that prose says, and read each line the feed prints: 
 probe that knows more than the prose shows that the sample works, not that a user can
 work it.
 
+## Keep authoring a page fast
+
+Leaf is often a developer tool, used by one person waiting on the page in the middle
+of their own work, so the time an agent takes to produce a page is usually part of
+its quality. Shipped instructions keep that path short: write the page, run
+`page check`, look it over and hand it over. Avoid adding a reviewer subagent, a
+render pass or a critique round to the path most pages take. Keep such a step for a
+page that has to be especially well made, such as one that will be published or read
+by many people, in the reference that owns that kind of page.
+
+When pages keep failing the same way, improve the guidance the author reads while
+writing, and measure it in `evals/`, where a judge reading the page cold can stand in
+for the user. That guidance is usually the workflow's reference rather than a registry
+entry (`skills/leaf/references/packages.md`, "A widget"), and a passage that has grown
+into a list is rewritten around its goals (`/improving-instructions`, "Authoring the
+change").
+
 ## Score an instruction change
 
 Score an instruction change when you can't be sure how an agent will read it: a new or
@@ -339,6 +368,10 @@ pnpm run eval:view
 `evals/README.md` owns selection, arms, the case format, where results go and how far
 a pass can be trusted. Read the outputs as well as the pass counts.
 
+Score every case whose `metadata.tags` covers the passage, such as `asks` for
+decisions, counting only runs that opened the changed file (`/improving-instructions`,
+"Confirming each arm loaded what you edited").
+
 Use an existing case wherever one fits, extending its assertions or prompt if it nearly
 does, since every case costs time and money on each later run. Add a case only when no
 existing one can carry the behavior, and keep it small: one prompt with only the
@@ -346,7 +379,15 @@ context the behavior needs, and a few assertions. Explore freely, but keep only 
 that cover distinct failures or necessary controls. The case's leading comment records
 where it came from and whether it told the two versions apart.
 
-The prompt never states the behavior under test. Grade what the agent wrote with an
+For every agent eval, give the subject the task, context, tools and handoff it would
+receive in normal use, adding only fixture facts needed to run the case. Keep grading
+criteria and harness bookkeeping outside its input. Let the installed instructions
+teach the workflow; don't repeat their procedure or direct the subject to the rule
+being measured. A replay preserves what the recorded session had read. A diagnostic
+that deliberately supplies a skill or rule measures behavior with that context,
+not whether ordinary use discovers it; name that limit when interpreting its result.
+
+Grade what the agent wrote with an
 `llm-rubric` assertion whose `value` describes the passing behavior without requiring
 particular wording; use `regex` only for a literal such as a command or URL
 (`evals/README.md`, "Case format").

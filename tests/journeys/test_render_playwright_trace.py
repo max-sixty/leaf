@@ -15,10 +15,6 @@ from browser.test_render_playwright_trace import (
     navigate_to_phase,
     stop_time,
 )
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
 from render_harness import (
@@ -28,6 +24,11 @@ from render_harness import (
     sending,
     told,
 )
+
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import exporting as exporting_model
+from leaf.render_checks import rendered, wait_until_ready
 
 
 def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
@@ -65,7 +66,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     context.tracing.stop(path=archive)
     context.close()
 
-    script = ROOT / "skills/leaf/packages/playwright/scripts/import_trace.py"
+    script = ROOT / "packages/playwright/scripts/import_trace.py"
     spec = importlib.util.spec_from_file_location("trace_import", script)
     importer = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(importer)
@@ -405,7 +406,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         )
     ).not_to_have_attribute("data-lf-datum", captured)
     expect(posted).to_have_count(0)
-    # The drawing is the last thread before the timeline the user stands on.
+    # The drawing is the last thread before the timeline the user is located on.
     user.keyboard.press("Shift+t")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
     expect(posted).to_have_count(1)
@@ -573,7 +574,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     context.tracing.stop(path=archive)
     context.close()
 
-    script = ROOT / "skills/leaf/packages/playwright/scripts/import_trace.py"
+    script = ROOT / "packages/playwright/scripts/import_trace.py"
     spec = importlib.util.spec_from_file_location("trace_import", script)
     importer = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(importer)

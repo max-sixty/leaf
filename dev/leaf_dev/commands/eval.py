@@ -33,8 +33,8 @@ from pathlib import Path
 
 import click
 import yaml
-from leaf.harness import ClaudeCodeHarness
 
+from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
@@ -58,10 +58,11 @@ from leaf_dev.screenshot_judge import screenshot_judge
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = definition("eval")["skill_prefix"]
+NOW = definition("eval")["now"]
 
 
 def context_case(source: dict, address: str) -> dict:
-    """A named diagnostic overrides the primary, inheriting its metadata."""
+    """A named diagnostic overrides the primary, inheriting its metadata and vars."""
     primary = {key: value for key, value in source.items() if key != "variants"}
     if "/" not in address:
         return primary
@@ -70,6 +71,7 @@ def context_case(source: dict, address: str) -> dict:
         **primary,
         **variant,
         "metadata": {**primary["metadata"], **variant.get("metadata", {})},
+        "vars": {**primary.get("vars", {}), **variant.get("vars", {})},
     }
 
 
@@ -361,6 +363,11 @@ def prepare(
                     prompt = (
                         ROOT / "evals" / prompt.removeprefix("file://")
                     ).read_text()
+                # An authoring agent's page dates its events by the real clock, so only
+                # a reading probe is told the time its fixtures were written at.
+                now = sample["vars"].pop("now", NOW)
+                if not authoring:
+                    prompt = f"It is now {now}.\n\n{prompt}"
                 sample["vars"] = {
                     **sample["vars"],
                     "prompt": ("" if instructions else SKILL_PREFIX) + prompt,

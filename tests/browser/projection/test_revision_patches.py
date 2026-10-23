@@ -2,7 +2,6 @@
 widgets and editors it keeps, and the markup it releases."""
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
 from render_harness import (
@@ -19,6 +18,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -844,7 +845,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
     from, so holding that copy past the revision that replaced it kept every served
     node alive for the rest of the session. A host painted before modules run is
     included, since the first-paint coordinator copies it separately. Neither the
-    dropped focus, before another input, nor a fragment trip's history checkpoint
+    dropped focus, before another input, nor a fragment navigation step's history checkpoint
     may keep removed markup alive."""
     first = leaf_page(
         "Served",

@@ -1,11 +1,9 @@
 """Which passage an unsent comment belongs to as the user selects, retargets, revisits
-or moves to another standing, and whose words a transfer carries."""
+or moves to another location, and whose words a transfer carries."""
 
 import re
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
@@ -25,6 +23,8 @@ from render_harness import (
 from browser.drafts import (
     choose_comment_target,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -245,7 +245,9 @@ def _draft_attachment_boxes(field, passage):
     )
 
 
-def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, serve):
+def test_comment_follows_a_new_current_location_instead_of_an_earlier_draft(
+    browser, serve
+):
     """The earlier draft keeps its subject while a later keyboard landing names
     the next comment. Resume recovers the editor that followed its earlier passage."""
     source = LONG_PAGE.replace(
@@ -313,19 +315,23 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
     ]
 
 
-@pytest.mark.parametrize("existing_reply", ["", "This thread already holds a reply."])
-def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
-    browser, serve, existing_reply
+@pytest.mark.parametrize(
+    ("existing_reply", "resume_before_scroll"),
+    [("", True), ("", False), ("This thread already holds a reply.", False)],
+)
+def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
+    browser, serve, existing_reply, resume_before_scroll
 ):
     """A chrome thread is a destination; an earlier draft follows its own passage.
 
-    Resume returns its words and caret before Comment answers the standing thread.
+    Resume returns its words and caret before Comment answers the current thread.
     """
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
-    # Slow the browser to expose Resume writing interrupting native smooth travel.
-    page.context.new_cdp_session(page).send(
-        "Emulation.setCPUThrottlingRate", {"rate": 6}
-    )
+    if not resume_before_scroll:
+        # Slow the browser to expose Resume interrupting native smooth travel.
+        page.context.new_cdp_session(page).send(
+            "Emulation.setCPUThrottlingRate", {"rate": 6}
+        )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     if existing_reply:
         page.keyboard.press("t")
@@ -342,20 +348,44 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     earlier.evaluate("node => {window.earlierEditor = node;}")
     before_field, before_target = _draft_attachment_boxes(earlier, "#p3")
     page.keyboard.press("Shift+Tab")
+    if resume_before_scroll:
+        # Hold the ordering at the native smooth-scroll call: Resume runs before
+        # its first frame, while both destinations still look readable. The real
+        # browser animation runs, so a Resume that does not cancel it loses them.
+        page.evaluate("""async () => {
+          const {executeCommand} = await window.__lfCheckApi();
+          const scrollBy = Element.prototype.scrollBy;
+          Element.prototype.scrollBy = function(options) {
+            const result = scrollBy.call(this, options);
+            if (this === document.scrollingElement && options.behavior === 'smooth') {
+              Element.prototype.scrollBy = scrollBy;
+              window.earlyResumeBoxes = ['#p3', '.lf-fab-input'].map(selector =>
+                document.querySelector(selector).getBoundingClientRect().toJSON());
+              queueMicrotask(() => executeCommand('writing.resume'));
+            }
+            return result;
+          };
+        }""")
     page.keyboard.press("t")
-    expect(thread).to_be_focused()
-    expect(page.locator("#p3")).not_to_be_in_viewport()
-    expect(earlier).not_to_be_in_viewport()
+    if resume_before_scroll:
+        page.wait_for_function("window.earlyResumeBoxes !== undefined")
+        boxes = page.evaluate("earlyResumeBoxes")
+        height = page.viewport_size["height"]
+        assert all(0 <= box["top"] < box["bottom"] <= height for box in boxes)
+    else:
+        expect(thread).to_be_focused()
+        expect(page.locator("#p3")).not_to_be_in_viewport()
+        expect(earlier).not_to_be_in_viewport()
     expect(earlier).to_have_js_property("value", words)
     expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))
-    after_field, after_target = _draft_attachment_boxes(earlier, "#p3")
-    for axis in ("x", "y"):
-        assert after_field[axis] - before_field[axis] == pytest.approx(
-            after_target[axis] - before_target[axis], abs=2
-        )
-
-    page.keyboard.press("g")
-    page.keyboard.press("i")
+    if not resume_before_scroll:
+        after_field, after_target = _draft_attachment_boxes(earlier, "#p3")
+        for axis in ("x", "y"):
+            assert after_field[axis] - before_field[axis] == pytest.approx(
+                after_target[axis] - before_target[axis], abs=2
+            )
+        page.keyboard.press("g")
+        page.keyboard.press("i")
     expect(earlier).to_be_focused()
     scroll_settled(page)
     expect(earlier).to_be_in_viewport()

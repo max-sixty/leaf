@@ -7,6 +7,7 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
+
 from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner, ReadableAssets
 from leaf.files import revision_path
@@ -27,6 +28,8 @@ from leaf.revision_delivery import (
     mark_declared,
     rebase_document,
 )
+from leaf.runtime_selection import executing
+from leaf.schema import ASSETS
 from leaf.structure import SourceDocument
 
 PAGE_ROOT = "/p/user"
@@ -123,21 +126,40 @@ def test_export_walks_css_imports_without_recursion_and_retains_their_meaning(
     assert reads == Counter({path: 1 for path in resources})
 
 
-def test_initial_producers_are_captured_once_and_called_after_each_complete_host():
+@pytest.mark.parametrize("early_lit", [False, True])
+def test_initial_producers_are_captured_once_and_called_after_each_complete_host(
+    early_lit,
+):
     source = (
         "<html><head><title>Initial</title></head><body><main>"
         '<lf-early id="first"><p>First</p></lf-early>'
         '<lf-early id="second"><p>Second</p></lf-early>'
-        "<template><lf-unused></lf-unused></template>"
+        + (
+            "<lf-lit></lf-lit>"
+            if early_lit
+            else "<template><lf-lit></lf-lit></template>"
+        )
+        + "<template><lf-unused></lf-unused></template>"
         "</main></body></html>"
     )
     registry = {
         "lf-early": {"x-initial": "/vendor/early.js"},
         "lf-unused": {"x-initial": "/vendor/unused.js"},
+        "lf-lit": {"x-initial": "/vendor/lit-producer.js"},
     }
     resources = {
         "/runtime/prepaint.js": Resource(
             b"window.prepaint = true;", "application/javascript"
+        ),
+        "/vendor/initial-dependencies.json": Resource(
+            b'{"/vendor/lit-producer.js":["/vendor/lit-initial.js"]}',
+            "application/json",
+        ),
+        "/vendor/lit-initial.js": Resource(
+            b"window.lit = true;", "application/javascript"
+        ),
+        "/vendor/lit-producer.js": Resource(
+            b"window.litProducer = true;", "application/javascript"
         ),
         "/vendor/early.js": Resource(
             b'window.initial = "</script>";', "application/javascript"
@@ -158,21 +180,40 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
         registry=registry,
         delivery=Delivery(
             address=ADDRESS,
+            import_map={"imports": {"/vendor/": ADDRESS("/vendor/")}},
             runtime="<script data-lf-runtime>window.boot = true;</script>",
         ),
     )
     parsed = SourceDocument(delivered.removeprefix("\ufeff"))
     scripts = parsed.tree.find_all("script")
     calls = [script for script in scripts if "lfInitial.mount" in script.text]
-    assert len(calls) == 2
-    assert [script.previous_sibling.tag for script in calls] == ["lf-early", "lf-early"]
-    assert delivered.count("data-lf-initial-source") == 2
+    assert len(calls) == 2 + early_lit
+    assert [script.previous_sibling.tag for script in calls[:2]] == [
+        "lf-early",
+        "lf-early",
+    ]
+    assert delivered.count("<lf-early data-lf-arriving") == 2
     assert delivered.count('window.initial = "<\\/script>";') == 1
     assert (
         delivered.index("window.prepaint")
         < delivered.index("window.initial")
         < delivered.index("window.boot")
     )
+    import_map = json.loads(parsed.tree.select_one('script[type="importmap"]').text)[
+        "imports"
+    ]
+    if early_lit:
+        assert (
+            delivered.index("window.prepaint")
+            < delivered.index("window.lit =")
+            < delivered.index("window.initial")
+        )
+        assert delivered.index("window.lit =") < delivered.index("window.litProducer")
+        assert import_map["/vendor/lit.js"] == ADDRESS("/vendor/lit-shared.js")
+        assert import_map[ADDRESS("/vendor/lit.js")] == ADDRESS("/vendor/lit-shared.js")
+    else:
+        assert "window.lit" not in delivered
+        assert "/vendor/lit.js" not in import_map
     assert mark_declared(source, registry, resources) == source
 
 
@@ -225,11 +266,7 @@ def test_capture_follows_deep_and_cyclic_dependencies_once(tmp_path):
     }
     assert set(reads) == expected
     assert len(reads) == len(expected)
-    assert artifact.resources[f"/page/{depth - 1}.js"].dependencies == (
-        "/page/0.js",
-        "/page/shared.js",
-    )
-    assert artifact.resources["/page/second.css"].dependencies == ("/page/first.css",)
+    assert expected <= artifact.resources.keys()
 
 
 def test_document_rewrites_only_resource_references_with_exact_source_spans():
@@ -360,8 +397,9 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
 
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     captured = artifact.resources["/page/style.css"]
-    assert set(captured.dependencies) == expected
-    assert "/page/ignored.css" not in artifact.resources
+    assert {
+        path for path in artifact.resources if path.startswith("/page/")
+    } == expected | {"/page/style.css"}
 
     delivered = deliver_resource(captured, "/page/style.css", ADDRESS).data.decode()
     assert {path for path in expected if f'"{ROOT}{path}"' in delivered} == expected
@@ -449,8 +487,9 @@ const plain = "../helper.js";
     )
 
 
-def test_authored_lazy_positioning_import_uses_the_captured_public_provider(page_dir):
-    """Authored imports keep the provider vendored with their immutable revision."""
+def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page_dir):
+    """An authored import names the public provider, which the revision does not
+    capture: the Leaf delivering it supplies the provider with its runtime."""
     provider = "/vendor/floating-ui.esm.js"
     module = f'export const position = () => import("{provider}");'
     (page_dir / "page" / "position.js").write_text(module)
@@ -464,12 +503,60 @@ def test_authored_lazy_positioning_import_uses_the_captured_public_provider(page
     assert activated.error is None, activated.error
     artifact = read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/position.js"]
-    assert resource.dependencies == (provider,)
     assert provider in json.loads(artifact.manifest)["public_modules"]
-    assert artifact.resources[provider].data == (page_dir / provider[1:]).read_bytes()
+    assert provider not in artifact.resources
+    assert (
+        executing(artifact).resources[provider].data
+        == (ASSETS / provider[1:]).read_bytes()
+    )
     assert deliver_resource(
         resource, "/page/position.js", ADDRESS
     ).data.decode() == module.replace(provider, ROOT + provider)
+
+
+def test_a_vendored_replacement_of_a_public_provider_is_captured_and_served(page_dir):
+    """A package may replace a public vendor module, and the page then runs its own:
+    the revision captures the vendored file, which wins over the runtime's."""
+    provider = "/vendor/floating-ui.esm.js"
+    own = b"export const computePosition = () => 'the package\\'s own';"
+    (page_dir / provider[1:]).write_bytes(own)
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None, activated.error
+    artifact = read_artifact(page_dir, activated.revision)
+    assert artifact.resources[provider].data == own
+    assert executing(artifact).resources[provider].data == own
+
+
+def test_an_export_runs_the_exporters_runtime(page_dir, monkeypatch):
+    """An export pairs the state the exporting Leaf reads with that Leaf's runtime,
+    whichever Leaf captured the version, since only that runtime reads that state."""
+    from click.testing import CliRunner
+
+    from leaf import cli as cli_model
+    from leaf import runtime_selection
+    from leaf.exporting import cmd_export
+
+    stamped = CliRunner().invoke(
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "Exported"]
+    )
+    assert stamped.exit_code == 0, stamped.output
+    current = runtime_selection.read_runtime()
+    marker = b"/* the exporting Leaf's runtime */"
+    exporter = runtime_selection.ServingRuntime(
+        {
+            **current.source,
+            "/runtime/prepaint.js": current.source["/runtime/prepaint.js"] + marker,
+        },
+        None,
+        frozenset(),
+        current.probes,
+    )
+    monkeypatch.setattr(runtime_selection, "serving_runtime", lambda: exporter)
+
+    out = page_dir.parent / "export.html"
+    cmd_export(page_dir, out, 1)
+
+    assert marker.decode() in out.read_text()
 
 
 def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
@@ -789,3 +876,11 @@ def test_an_authored_override_holds_only_where_it_means_something():
     assert soup.find(id="feed").attrs["data-lf-bound"] == "end"
     for page in (soup.find("main"), soup.find("body")):
         assert not {"data-lf-space", "data-lf-bound"} & set(page.attrs), page.attrs
+
+
+def test_exhibit_paint_follows_the_occurrence_condition():
+    registry = {"lf-sample": {"x-exhibit": {"when": {"interactive": [False]}}}}
+    source = '<lf-sample id="quote"></lf-sample><lf-sample id="working" interactive></lf-sample>'
+    tree = SourceDocument(mark_declared(source, registry, {})).tree
+    assert "data-lf-exhibit" in tree.find(id="quote").attrs
+    assert "data-lf-exhibit" not in tree.find(id="working").attrs

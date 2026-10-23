@@ -65,7 +65,8 @@ the element's first connection, so the element is never built twice. Use
 grab or removing hoisted UI, and hold everything else in `whileConnected`. A
 `LeafElement` that overrides either callback calls the `super` method.
 
-`quoted(element)` is true for a widget inside one the registry marks `x-exhibit`, such
+`quoted(element)` is true for a widget inside one whose `x-exhibit` declaration applies
+(including its optional `when` condition), such
 as `lf-sample`. A quoted widget never takes the user's edits, so
 check `quoted` before wiring a choice, a drag grip or anything else that sends input
 back. Its presentation and view state still work.
@@ -74,7 +75,10 @@ When an upgrade fails, or one part of it, `failSoft(element, error, source)` rep
 the widget or part with an error box naming it, shows `source` beneath when given, and
 reports a page error, which fails `page check`. The next `render` into the same
 container, or the next `shadowStage` call, replaces the box; a `LeafElement` shows the
-box beside what it drew, and its next draw takes it away. Where the widget shows a
+box beside what it drew, and its next draw takes it away. A native renderer that
+retains its nodes can register `placesFailure(element, place)` to place the box
+beside them: `place(box)` returns true when it handles the box, and the renderer
+removes it when the failed content recovers. Where the widget shows a
 failed part its own way and the rest keeps working, as `lf-diff` does for a file whose
 patch it cannot draw, call `reportFailure(element, error)`, which only reports.
 
@@ -107,22 +111,12 @@ after reading the whole batch of DOM changes. When a revision replaces a widget,
 element's cleanup runs before the new one's `start`, so a registration only one element
 may hold, such as `registerReadingRegion`, passes to the replacement.
 
-A `LeafElement` draws nothing while it is away, and on its return draws again only if
-something it read changed meanwhile or drawing it held with `drawing()` had not landed
-when it left. `watchComparison` and the page readings pause the
-same way: on the return, Leaf calls a callback again only if its reading changed, or if
-the promise the callback returned had not settled when the element left. A callback
-that throws or rejects is reported once and stays subscribed. So return the promise of
-any paint that finishes later, drop unfinished work when the element leaves but keep
-finished nodes, and have `start` restore what its cleanup removed.
-
-For a reading the module computes itself, build `const paint = readingPaint(element,
-draw)` once, before `whileConnected`, and call `paint(key, ...args)` from `start`. It
-calls `draw(...args)` only when `key` differs from the last key it drew or the last draw
-was cut short; key authored content that never changes by its text. A failing `draw` is
-reported as above and never makes `start` throw. `paint.refresh()` redraws the last
-reading, `paint.forget()` makes the next call draw, `paint.owes(key)` says whether it
-would, and `paint.stop()` retires it.
+A `LeafElement` draws nothing while it is away. On return, Lit updates it once to
+reconnect its dependencies and draw the current reading, keeping unchanged template
+nodes. Put asynchronous rendering in `updated()` and pass its promise to
+`this.drawing(work)` so presentation waits for it and reports a rejection. Drop
+unfinished work when the element leaves but keep finished nodes, and have `start`
+restore what its cleanup removed.
 
 `Promise.race([work, aborted(signal)])` ends work when its signal aborts.
 
@@ -175,9 +169,18 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
   read nothing from the log; it may move authored nodes within the host, and returns the
   node references the module needs. The module calls `initialRender(host)` to get that
   result, drawn on demand for a host that arrived later, and adds behavior to those
-  nodes. A drawing that reads markup after its host, as `lf-toc` reads the headings
+  nodes. Bundled initial sources import Lit from `/vendor/lit.js`; the build records
+  that dependency so delivery initializes the shared instance before those producers.
+  Pages whose initial producers do not use Lit load it as a normal module. Return an update
+  function along with the node references, and call that same function after upgrade.
+  It retains the template identities and Lit parts of the early drawing; compiling
+  the template again in the live module would replace its nodes.
+  A drawing that reads markup after its host, as `lf-toc` reads the headings
   below it, finishes inside the host when the document has parsed
-  (`readystatechange`), before any module runs. `x-initial` requires `x-upgrade: true`
+  (`readystatechange`), before any module runs. If those later inputs change its
+  height, mark the affected reading scope `data-lf-initial-pending` while parsing and
+  remove the mark after drawing it. The scope keeps its box but first paints complete.
+  `x-initial` requires `x-upgrade: true`
   and excludes `x-prepaint`.
 - Where the markup can't say how tall the drawing will be, declare `x-height` and add
   the class `lf-rendered` once drawn. For a drawing that can't fit any height,
@@ -185,7 +188,10 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
 - A widget that shows one member at a time, as `lf-tabs` does, declares `x-views`.
   Before upgrade only the member marked `data-lf-opening` shows; on upgrade, open the
   member `openingView(holder, members)` returns, and record each member it shows with
-  `keepView(holder, member)` so a reload reopens it.
+  `keepView(holder, member)` so a reload reopens it. A holder whose members share
+  the surrounding page's flow declares `--lf-views-flow: page` in its stylesheet;
+  the default is `box`. Prepaint publishes that reading as `data-lf-views-flow`,
+  which Layouts read when seating a member's sidebar in the page margin.
 
 ## Rendering
 
@@ -284,9 +290,14 @@ whose host implements `focus()` and `click()`. In a template, `<button
 ${offered("lf-btn")}>` does the same, with an input's `type` binding placed before
 `offered`.
 
+Shared control styles are listed in `page-layout.md`, "Page CSS and Leaf's controls";
+they apply to generated controls too.
+
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable span
-for which the widget supplies the keyboard behavior. `el(tag, className, text)` makes a
+for which the widget supplies the keyboard behavior. In a template, use
+`<span ${selectableOffered(role, className)}>${label}</span>`; its owner supplies the
+keyboard behavior and selected tab stop. `el(tag, className, text)` makes a
 plain element for structure that isn't injected UI. Printing drops every offer, in a
 shadow stage too, so build a box holding what the widget shows, such as an editor's
 file, with `el`.
@@ -301,11 +312,8 @@ A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a
 box.
 
-A label whose words change, such as a count, keeps one width so nothing beside it moves.
-Put the words in the only child of an element whose `data-lf-room` lists every wording it
-can show, one per line; the theme sizes the element to the widest, drawing the list
-invisibly in its `::before`. Longer words are cut with an ellipsis, though the accessible
-name keeps them whole.
+For changing text, use `page-layout.md`, "Space for changing text";
+the same `data-room` layout applies to authored and generated controls.
 
 After a view swap that rearranges a widget's contents without resizing it, await
 `layoutChanged(element)` before restoring scroll. It dispatches `LAYOUT` to widgets that

@@ -5,9 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_layout import page_at_rest
@@ -32,12 +29,21 @@ from render_harness import (
     write,
 )
 
-from browser.navigation import (
-    STANDING,
-)
 from browser.threads import open_panel_thread
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+# Authored controls distinguish resuming Tab at the reading from restarting at the top.
+READING_CONTROLS_PAGE = LONG_PAGE.replace(
+    '<h1 id="t">', '<button id="first-control">First control</button><h1 id="t">'
+).replace(
+    "<p id='p41'>",
+    '<p id="p41"><button id="next-control">Next reading control</button>',
+)
 
 
 # Each route once and each reading region once.
@@ -76,7 +82,7 @@ def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
 def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
     browser, serve, route
 ):
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(READING_CONTROLS_PAGE))
     page.evaluate("() => document.getElementById('p40').scrollIntoView()")
     page_at_rest(page)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -91,7 +97,7 @@ def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
     expect(sheet).to_be_hidden()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     page.keyboard.press("Tab")
-    assert not page.evaluate(STANDING)["isFirstStop"]
+    expect(page.locator("#next-control")).to_be_focused()
 
 
 def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serve):
@@ -190,7 +196,7 @@ def test_a_new_reading_passage_ends_a_travel_group(
         leaf_page(
             "A fresh reading stop",
             "<h1>Reading before the conversations</h1>"
-            '<p id="origin" tabindex="0">The reading before the thread journey.</p>'
+            '<p id="origin" tabindex="0">The reading before the thread navigation group.</p>'
             f'<div style="height:1800px"></div>{first}'
             '<div style="height:1800px"></div>'
             '<p id="second">The second discussion concerns the rollout.</p>'
@@ -256,7 +262,7 @@ def test_a_new_reading_passage_ends_a_travel_group(
     page.wait_for_function("navigation.transition === null")
     page.go_forward()
     # A margin card that has closed on Back returns through its source; one still
-    # standing returns focus to its card. Both are the second thread's working place.
+    # the current location returns focus to its card. Both are the second thread's working place.
     page.wait_for_function(
         "id => document.activeElement.id === 'second' || "
         "document.activeElement.closest('[data-thread]')?.dataset.thread === id",
@@ -304,8 +310,8 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     style = ' style="display:contents"' if concealment == "contents" else ""
     url = serve(
         leaf_page(
-            "One continuing journey",
-            "<h1>One continuing journey</h1>"
+            "One continuing navigation group",
+            "<h1>One continuing navigation group</h1>"
             '<p id="origin" tabindex="0">The original reading place.</p>'
             '<div style="height:1800px"></div>'
             f'<section id="first">{concealed}'
@@ -506,9 +512,9 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
 
 def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     """The obligation walk records the same history the thread walk does: one entry for a
-    journey to obligations somewhere else however far it goes, so Back returns to where the
-    user was reading before it, and a journey that crosses from threads to obligations is
-    still one journey."""
+    navigation group visiting obligations somewhere else however far it goes, so Back returns to where the
+    user was reading before it, and a navigation group that crosses from threads to obligations is
+    still one navigation group."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -574,7 +580,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     )
 
     # From the bottom again: `t` travels to the thread just below the first obligation, and
-    # `m` from there to the second continues that journey rather than starting another,
+    # `m` from there to the second continues that navigation group rather than starting another,
     # so one Back skips the thread's landing and returns to the bottom.
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
     page.keyboard.press("t")
@@ -738,7 +744,7 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
     alignment.get_by_role("button").click()
     expect(reference).to_be_hidden()
-    # The reference hands focus back before the standing paint. Its command can align
+    # The reference hands focus back before the current-location paint. Its command can align
     # before the ring supplies a scroll margin; either landing clears the pinned band.
     _expect_aligned(page, "#align-ask", exact_margin=False)
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
@@ -1568,17 +1574,10 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
     the user to the top of the page. The press that tells them apart is the Tab after
     it: from a panel opened four screens down, it belongs on from the words in front of
     the user rather than at the document's first stop.
-
-    A fresh page is the other half of the same fact and the opposite answer: nobody has
-    read it yet, so its first Tab is the skip link, which is what
-    test_a_user_at_the_top_of_the_document_is_one_press_from_the_chrome pins.
     """
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(READING_CONTROLS_PAGE))
     page.evaluate("() => document.getElementById('p40').scrollIntoView()")
     page_at_rest(page)
-    reading = page.evaluate(
-        "() => document.getElementById('p40').getBoundingClientRect().top"
-    )
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -1588,12 +1587,7 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("Tab")
-    standing = page.evaluate(STANDING)
-    assert not standing["isFirstStop"], (
-        f"after Threads closed, the user's next Tab went to the first stop in the "
-        f"document ({standing}) rather than on from the words they were reading at "
-        f"{reading:.0f}px"
-    )
+    expect(page.locator("#next-control")).to_be_focused()
     # And nothing of the borrow is left on the author's paragraph.
     assert (
         page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
@@ -1614,27 +1608,20 @@ def test_the_reference_hands_the_user_back_to_the_page_they_were_reading(
 
     The reading is the next Tab rather than the focused element, because that is the fact
     that was wrong: the restore itself looked fine both before and after, focus being on
-    nothing either way. The skip link is the document's first stop, so landing on it is
-    exactly the failure written down.
+    nothing either way. Authored controls before and after the reading distinguish
+    restarting at the top from carrying on where the user was.
     """
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(READING_CONTROLS_PAGE))
     page.evaluate("() => document.getElementById('p40').scrollIntoView()")
     page_at_rest(page)
-    reading = page.evaluate(
-        "() => document.getElementById('p40').getBoundingClientRect().top"
-    )
+
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
 
     page.keyboard.press("Tab")
-    standing = page.evaluate(STANDING)
-    assert not standing["isFirstStop"], (
-        f"after the reference closed, the user's next Tab went to the first stop in "
-        f"the document ({standing}) rather than on from the words they were reading at "
-        f"{reading:.0f}px"
-    )
+    expect(page.locator("#next-control")).to_be_focused()
     # And nothing of the borrow is left on the author's paragraph: `tabindex` is not in
     # PAGE_PAINT_ATTRIBUTES, so a stop left in place would be runtime paint the replay
     # signature has no vocabulary for.

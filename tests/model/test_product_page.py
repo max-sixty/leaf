@@ -7,6 +7,9 @@ from pathlib import Path
 
 import click
 from click.testing import CliRunner
+from leaf_dev.page_fixtures import authored_markup
+from unidiff import PatchSet
+
 from leaf import __main__ as leaf_entry
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
@@ -16,12 +19,10 @@ from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
-from leaf_dev.page_fixtures import authored_markup
-from unidiff import PatchSet
 
 ROOT = Path(__file__).parents[2]
-ASSETS = ROOT / "skills" / "leaf" / "assets"
-DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
+ASSETS = ROOT / "browser"
+DEFAULT_PACKAGE = ROOT / "packages" / "default"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
@@ -220,11 +221,11 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     what the door stores now has to be what the page shows, `id` and `ts` aside.
     A changed field, meaning, or refusal fails here with the records to paste."""
     source = SourceDocument(EVENT_LOG.read_text())
-    template = source.tree.select_one("template#try-page").inner_html
+    sample = source.tree.select_one("lf-sample#try-sample").inner_html
     (page_dir / "index.html").write_text(
         '<!doctype html><html lang="en"><head><title>Release question</title>'
         '<meta name="description" content="The sample."></head>'
-        f"<body><main>{template}</main></body></html>"
+        f"<body><main>{sample}</main></body></html>"
     )
     stamped = CliRunner().invoke(
         cli_model.cli, ["page", "stamp", str(page_dir), "--text", "v1"]

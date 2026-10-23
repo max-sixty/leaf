@@ -6,11 +6,11 @@ commands, and each command's `--help` says what it does.
 
 Only the root dev dependency group installs this package, so the checkout's
 environment has it and `bin/leaf`, which runs `--no-dev`, never does. Nothing in
-`skills/` may import it.
+`src/` may import it.
 
-A command writes under `.tmp/` unless its reader expects the output at a committed
-path, as with `examples/corpus.html`. Evidence, previews and probe results leave the
-tracked tree unchanged.
+A command writes under `.tmp/` unless its reader expects another path. The corpus
+uses ignored `examples/corpus.*` paths so repeated previews keep their source identity.
+Evidence, previews and probe results leave the tracked tree unchanged.
 
 ## Where tooling goes
 
@@ -40,11 +40,15 @@ here that the others import, never through `sys.path`, `PYTHONPATH` or a file pa
 - `browser.py` launches Playwright's pinned headless shell, the build the suite drives,
   and opens and waits on a tab the same way for every command.
 - `leaf-dev probe SOURCE` opens a page built from this working tree, runs input steps,
-  and prints what a JavaScript expression returns, the console errors and optionally a
-  screenshot; `--base` does the same on the merge base. It also takes an HTTP(S) URL,
-  a `--journey` file, and `--record` for a trace and video (`recording.py`, whose
-  `recording(page, directory)` works in any Playwright script). Its startup report
-  includes layout shifts, for diagnosis only.
+  and prints what a JavaScript expression returns, the console errors and warnings
+  and optionally a screenshot; `--base` does the same on the merge base. It also
+  takes an HTTP(S) URL, a `--journey` file, and `--record` for a trace and video
+  (`recording.py`, whose `recording(page, directory)` works in any Playwright
+  script). Its layout-shift report includes startup and the journey, for diagnosis
+  only; the journey waits for its own delayed results before returning.
+- `leaf-dev claude-code-session` leaves a Claude Code session running in tmux with
+  this working tree as its live plugin and a served page, to see what
+  `hooks/claude-code.ts` draws in Claude Code itself; `--stop` ends it.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states on a base runtime
   and on HEAD's, and crops each state that changed into a before/after pair under
   `.tmp/stills/`. Repeat `--state NAME` to compare only some states.
@@ -73,7 +77,10 @@ here that the others import, never through `sys.path`, `PYTHONPATH` or a file pa
 - `leaf-dev bench-check [BASE_REF]` times `leaf page check --render` on a few examples,
   base against HEAD, with no model.
 - `leaf-dev response-times PAGE...` queries retained page logs for time from a
-  user message version to exact-linked progress or an answer. `commands/response_times.py`
+  user message version to exact-linked progress or an answer, the time Leaf's own
+  commands took on it on any harness, and where Claude Code answered, how the
+  reply's time split between Leaf, the harness and the model.
+  `commands/response_times.py`
   owns its population, missing-evidence handling, and clock boundaries;
   `--json` keeps individual inputs and milestone evidence for further analysis.
 - `leaf-dev eval [CASE]... --harness claude-code|codex|both` runs the eval catalog
@@ -114,7 +121,9 @@ Node evaluator smoke test is separate from `pnpm check`.
 
 - `leaf-dev preview [EXAMPLE]` serves one example or developer fixture as a live page,
   or exports it with `--export`. `/developing-leaf` says when to pass `--user`.
-- `leaf-dev corpus` generates `examples/corpus.html` and its companions.
+- `leaf-dev corpus` generates the ignored `examples/corpus.html` snapshot and its
+  companions. Named corpus consumers generate it automatically; running corpus
+  previews also regenerate when their authored sources change.
 
 ## Website and demo
 

@@ -6,9 +6,6 @@ from time import monotonic
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
@@ -17,7 +14,7 @@ from render_cases_interaction import (
     executable_revision,
     live_url,
 )
-from render_cases_layout import standing_ring
+from render_cases_layout import current_location_ring
 from render_harness import (
     PANEL,
     PANEL_THREAD,
@@ -49,6 +46,9 @@ from browser.margin import (
     leave_card_by_its_target,
     seeded_thread,
 )
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -313,7 +313,7 @@ HIDDEN_TAB_PAGE = leaf_page(
 def test_opening_a_thread_reveals_its_closed_tab(browser, serve, options):
     """Opening a thread reveals its passage whether or not the page travels to it: its
     card stands beside the passage's margin row, which a closed tab hides. Opened where
-    the user stands (`travel: false`), the card never placed and the opening never
+    the user is located (`travel: false`), the card never placed and the opening never
     answered."""
     page = open_page(
         browser, serve(HIDDEN_TAB_PAGE, events=[_comment_on("closed-words")])
@@ -568,13 +568,13 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           return {
             metaRow: {top: mr.top, bottom: mr.bottom},
             close: {top: cr.top, left: cr.left, bottom: cr.bottom},
-            closeBorder: getComputedStyle(close).borderTopWidth,
+            closeBorderColor: getComputedStyle(close).borderTopColor,
             resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
             resolve: {top: rr.top, right: rr.right, bottom: rr.bottom},
           };
         }"""
     )
-    assert float(geometry["closeBorder"][:-2]) == 0
+    assert geometry["closeBorderColor"] == "rgba(0, 0, 0, 0)"
     assert float(geometry["resolveBorder"][:-2]) == 0
     assert geometry["resolve"]["top"] == pytest.approx(geometry["close"]["top"], abs=1)
     assert geometry["resolve"]["bottom"] == pytest.approx(
@@ -647,7 +647,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     options = marker.locator("xpath=..").locator(":scope > .lf-margin-options")
     expect(options).to_be_visible()
     # The move's delivery status, whatever its stage has reached: the pickup grace can
-    # run out during this journey, turning "Sent" to "Waiting for pickup".
+    # run out during this journey, turning "Sent" to "Waiting for delivery".
     status = options.get_by_role("status")
     expect(status).to_be_visible()
     expect(preview).to_be_hidden()
@@ -832,7 +832,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
 ):
     """The send lands on its thread, and each press takes off one level.
 
-    `c` opens the box on whatever the user is standing in without moving them off it,
+    `c` opens the box on whatever the user is located in without moving them off it,
     and the send leaves them on the card it puts up, whether or not the panel's Threads
     view stood open. The thread hands them to the page it is about. The control `c` was
     pressed from is not a landing.
@@ -866,7 +866,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_standing_on_a_commented_element_shows_its_thread_beside_it(browser, serve):
+def test_arriving_on_a_commented_element_shows_its_thread_beside_it(browser, serve):
     """A thread belongs to the element it is about, so both stand together.
 
     Arriving at the element by keyboard puts its card up without taking the user off
@@ -905,7 +905,7 @@ def test_standing_on_a_commented_element_shows_its_thread_beside_it(browser, ser
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # A pointer on the passage the card is about is standing there too, holding
+    # A pointer on the passage the card is about keeps the current location there too, holding
     # nothing, and Escape takes the card from there.
     passage.evaluate("node => node.removeAttribute('tabindex')")
     marker = page.locator('[data-lf-margin-for="mounts-p"] .lf-margin-marker')
@@ -917,7 +917,7 @@ def test_standing_on_a_commented_element_shows_its_thread_beside_it(browser, ser
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
 
-    # A press elsewhere on the page is standing somewhere else.
+    # A press elsewhere on the page moves the current location elsewhere.
     marker.click()
     expect(card).to_be_focused()
     page.locator("h1").click()
@@ -930,7 +930,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
 
     `t` walks the card on to the next thread without adding a level, so the way out is
     still the thread's target and then the page: neither the note nor the control `c`
-    was pressed from is standing any more, and the margin entry the card now hangs from
+    was pressed from is current any more, and the margin entry the card now hangs from
     is one the user never stood on.
     """
     page = open_page(browser, serve(OBLIGATION_PAGE))
@@ -966,8 +966,8 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
 def test_a_comment_raised_inside_a_card_s_target_takes_the_card_down(browser, serve):
     """A new comment box stands clear of the thread card the user moved on from.
 
-    The card stays up while the user stands at its target, and an aimed comment inside
-    that target is still standing there. The card is drawn above the page-level comment
+    The card stays up while the user is located at its target, and an aimed comment inside
+    that target keeps the same current location. The card is drawn above the page-level comment
     box and covers the margin beside the target, so leaving it up hid the field the
     user was typing into. The box on a new target takes the card down instead.
     """
@@ -1000,7 +1000,7 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     stays open as `t` walks the card on to a thread on a different entry. Landing on the
     entry the card now hangs from would hand the next press a fold belonging to an entry
     somewhere else, so the card lands on its target and the cluster answers next, at the
-    entry the user actually unfolded. Standing there is standing at another target,
+    entry the user actually unfolded. Located there means another current target,
     which takes the card.
     """
     page = open_page(
@@ -1090,7 +1090,7 @@ def test_a_second_press_into_an_open_card_leaves_one_level_to_take_off(
 
     The card shows one thread, so the second note or marker changes its contents and
     leaves one card open. Its way out is the target it is anchored to and then the
-    page: neither note nor marker is a place the user was standing.
+    page: neither note nor marker is a place the user was located.
     """
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
@@ -1194,7 +1194,6 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
     expect(preview.locator(".lf-margin-preview-nav")).to_be_hidden()
     expect(preview).to_contain_text(COMMENT_ON_OBLIGATION["text"])
     expect(preview).not_to_contain_text(second_comment["text"])
-    expect(preview.locator(".lf-page-thread-open")).to_have_count(0)
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
@@ -1364,6 +1363,6 @@ def test_resolving_a_cells_thread_rings_the_whole_cell(browser, serve):
     expect(preview).to_be_hidden()
     cell = page.locator("#phase-2 > td").last
     expect(cell).to_be_focused()
-    ring = standing_ring(page)
-    assert ring, "the cell the user stands on wears no ring"
+    ring = current_location_ring(page)
+    assert ring, "the cell the user is located on wears no ring"
     assert ring["cuts"] == [], ring["cuts"]

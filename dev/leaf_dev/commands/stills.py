@@ -46,10 +46,17 @@ from pathlib import Path
 
 import click
 from PIL import Image, ImageDraw
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 
 from leaf_dev import ROOT
-from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
+from leaf_dev.arms import (
+    PageClient,
+    build_pair,
+    copy_committed,
+    run_directory,
+    served_page,
+    serving_source,
+)
 from leaf_dev.browser import (
     BESIDE,
     DESKTOP,
@@ -62,7 +69,7 @@ from leaf_dev.browser import (
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
-DIFFERENCE = ROOT / "skills" / "leaf" / "assets" / "runtime" / "image-difference.js"
+DIFFERENCE = ROOT / "browser" / "runtime" / "image-difference.js"
 # Where `differences` serves the stills and the module that compares them.
 ORIGIN = "http://stills.invalid"
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
@@ -78,6 +85,14 @@ def captured_source(page: Page) -> None:
         "tab", name="Data & work", exact=True
     ).click()
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
+
+
+def native_code(page: Page) -> None:
+    """Native fenced code using short language labels."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
 def recorded_video(page: Page) -> None:
@@ -169,14 +184,11 @@ def drawing_comment_keyboard(page: Page) -> None:
     page.get_by_role("button", name="Undo last stroke").focus()
 
 
-def drawing_photo_comment(page: Page) -> None:
-    """Drawing and photo removal together in the same draft attachment shelf."""
-    drawing_comment(page)
-    field = page.locator(".lf-fab-input")
-    field.focus()
+def paste_screenshot(page: Page, field: Locator) -> None:
+    """Paste the feature gallery's screenshot into `field` and wait for its picture."""
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        # This state exercises the paste handler and shelf; keep its payload local
-        # to the tab so captures cannot overwrite or race the machine's clipboard.
+        # This exercises the paste handler and shelf; keep its payload local to the
+        # tab so captures cannot overwrite or race the machine's clipboard.
         field.evaluate("""async field => {
           const response = await fetch('/media/051bee487bfb5d13.png');
           const image = await response.blob();
@@ -189,6 +201,37 @@ def drawing_photo_comment(page: Page) -> None:
     expect(
         page.get_by_role("button", name="Remove attached image 1", exact=True)
     ).to_be_visible()
+    settle(page)
+
+
+def drawing_photo_comment(page: Page) -> None:
+    """Drawing and photo removal together in the same draft attachment shelf."""
+    drawing_comment(page)
+    field = page.locator(".lf-fab-input")
+    field.focus()
+    paste_screenshot(page, field)
+
+
+def page_comment_photo(page: Page) -> None:
+    """The floating panel's field with a pasted screenshot hanging above the panel."""
+    field = page.locator(".lf-fp-field leaf-text")
+    field.click()
+    page.keyboard.insert_text("Is this screenshot right?")
+    paste_screenshot(page, field)
+
+
+def page_comment_photo_hover(page: Page) -> None:
+    """The panel's attached screenshot under the pointer, which shows its removal."""
+    page_comment_photo(page)
+    page.locator(".lf-fp-field .lf-composer-media-open").hover()
+
+
+def panel_corner_hover(page: Page) -> None:
+    """The pointer at the panel's top-right corner, which shows its fold."""
+    box = page.locator(".lf-fp-card").bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + box["width"] - 24, box["y"] + 8)
+    expect(page.locator(".lf-fp-minimize")).to_be_visible()
     settle(page)
 
 
@@ -237,6 +280,11 @@ def panel_leaf(page: Page) -> None:
     page.locator(".lf-fp-leaf").focus()
 
 
+def panel_status_hover(page: Page) -> None:
+    """The expanded panel while the pointer rests over its leaf."""
+    page.locator(".lf-fp-leaf").hover()
+
+
 def open_threads(page: Page) -> None:
     """The floating panel's Threads view, listing every open thread."""
     page.locator(".lf-fp-threads").click()
@@ -251,16 +299,16 @@ def open_thread(page: Page, key: str) -> None:
 
 
 def floating_thread(page: Page) -> None:
-    """The floating panel with a thread opened from Threads: its head names the way
-    back and the thread's title, beside On the page, Resolve and Close."""
+    """The floating panel with a thread opened from Threads: the thread's title over
+    its view, and under it, on the row, the way back, On the page, Resolve and Close."""
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
 
 def floating_thread_retitled(page: Page) -> None:
-    """The same head once the thread's opening message is rewritten short, so its
-    title is far narrower than the head."""
+    """The same thread once its opening message is rewritten short, so its title is far
+    narrower than the view it names."""
     floating_thread(page)
     page.locator(".lf-fp-view[data-view=thread] .lf-msg-body").first.dblclick()
     page.keyboard.press("ControlOrMeta+a")
@@ -272,16 +320,27 @@ def floating_thread_retitled(page: Page) -> None:
 def playground_choice(page: Page) -> None:
     """Keyboard focus on the choice's whole labelled hit target."""
     page.keyboard.press("Tab")
-    radio = page.locator(".lf-playground-radio").first
+    radio = page.locator("lf-playground input[type=radio]").first
     radio.scroll_into_view_if_needed()
     radio.focus()
 
 
+def motion_controls(page: Page) -> None:
+    """Focus the motion's native speed field beside its playback controls."""
+    select = page.locator(".lf-motion-speed select").first
+    select.scroll_into_view_if_needed()
+    select.focus()
+
+
 def card_by_pointer(page: Page) -> None:
-    """The first margin card, opened by a click on its marker. The margin is fixed to
-    the window and anchored to the page, so Playwright's scroll into view leaves a
-    marker below the window where it is: the page scrolls it up instead."""
-    marker = page.locator(".lf-margin-marker").first
+    """The first margin card, opened by a click on its marker."""
+    open_card(page, page.locator(".lf-margin-marker").first)
+
+
+def open_card(page: Page, marker: Locator) -> None:
+    """The margin card `marker` opens, by a click on it. The margin is fixed to the
+    window and anchored to the page, so Playwright's scroll into view leaves a marker
+    below the window where it is: the page scrolls it up instead."""
     marker.evaluate(
         "m => { const box = m.getBoundingClientRect();"
         " if (box.top < 0 || box.bottom > innerHeight)"
@@ -341,6 +400,57 @@ def card_reply_resolved(page: Page) -> None:
     ).click()
 
 
+def as_agent(command: str, verb: str, *args: str) -> None:
+    """Run `leaf COMMAND VERB PAGE ARGS` as the agent on the page being served, with
+    its arm's launcher."""
+    served = served_page.get()
+    served.leaf(command, verb, str(served.directory), *args)
+
+
+def held_news(page: Page, thread: Locator) -> None:
+    """News arriving in `thread` while the user drafts a reply there: the agent's reply
+    and the user's own message from another tab, which the thread holds behind its
+    notice (held-news.js)."""
+    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.insert_text("Drafting a reply while the news arrives")
+    root = thread.get_attribute("data-thread")
+    assert root
+    as_agent("thread", "reply", root, "--text", "That one goes first.")
+    notice = thread.locator(".lf-thread-notice-news")
+    expect(notice).to_have_attribute("title", "1 new reply")
+    client = PageClient(served_page.get().address)
+    client.post(
+        {
+            "kind": "reply",
+            "parent": root,
+            "revision": client.state()["active"]["revision"],
+            "attempt": "stills-held-news-other-tab",
+            "text": "Sent from my other tab.",
+        }
+    )
+    expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+
+
+def card_held_news(page: Page) -> None:
+    """A margin card holding a reply and a message from another tab while the user
+    drafts a reply in it."""
+    open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    held_news(page, page.locator(".lf-margin-preview .lf-page-thread"))
+
+
+def seat_held_news(page: Page) -> None:
+    """A seat's thread holding a reply and a message from another tab while the user
+    drafts a reply in it: the agent's question on a goal, which a reload draws in
+    place."""
+    as_agent(
+        "thread", "open", "--section", "goal-parser", "--text", "Which worker first?"
+    )
+    load(page, served_page.get().address)
+    thread = page.locator("#goal-parser .lf-page-thread")
+    thread.scroll_into_view_if_needed()
+    held_news(page, thread)
+
+
 def threads_panel(page: Page) -> None:
     """Threads, opened from the floating panel's thread mark."""
     page.locator(".lf-fp-threads").click()
@@ -374,6 +484,25 @@ def page_search(page: Page) -> None:
     page.keyboard.press("Tab")
     page.keyboard.press("/")
     page.get_by_role("searchbox", name="Search page text").fill("review")
+
+
+def accepted_page_search(page: Page) -> None:
+    """The current match remains named after Return accepts the query."""
+    page_search(page)
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("searchbox", name="Search page text")).not_to_be_visible()
+
+
+def selected_passage_responses(page: Page) -> None:
+    """Other responses beside a comment on a selected search match."""
+    page_search(page)
+    expect(page.get_by_role("button", name="Next match", exact=True)).to_be_enabled()
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("searchbox", name="Search page text")).not_to_be_visible()
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    page.keyboard.press("e")
+    expect(page.get_by_role("button", name="Suggest", exact=True)).to_be_visible()
 
 
 def command_reference_search(page: Page) -> None:
@@ -419,6 +548,12 @@ def screenshot_comparison(page: Page) -> None:
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     # Anchor the unchanged guide, so a taller rail does not recenter the entire capture.
     page.locator("#bg-shot-guide").scroll_into_view_if_needed()
+
+
+def image_in_page(page: Page) -> None:
+    """An authored image in the reading flow, before its viewer opens."""
+    page.get_by_role("tab", name="Threads", exact=True).click()
+    page.locator("#bg-image-preview").scroll_into_view_if_needed()
 
 
 def image_preview(page: Page) -> None:
@@ -582,6 +717,14 @@ def option_long(page: Page) -> None:
     )
 
 
+def option_add_hover(page: Page) -> None:
+    """A compact alternative's Add face beside its one-line draft."""
+    form = page.locator("#bg-choice > .lf-another")
+    form.locator("leaf-text").click()
+    page.keyboard.insert_text("Keep the current behavior")
+    form.get_by_role("button", name="Add and select option", exact=True).hover()
+
+
 def options_in_pane(page: Page) -> None:
     """An option list in a workspace pane, under the paragraphs it answers."""
     page.get_by_text("Checkout p99 latency", exact=True).click()
@@ -606,6 +749,27 @@ def card_grabbed(page: Page) -> None:
     page.locator("#card-tz > .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowLeft")
+
+
+def activity_feed(page: Page) -> None:
+    """A committed board move beside the published revision in the opened feed."""
+    card_grabbed(page)
+    page.keyboard.press("Enter")
+    expect(page.locator("#col-blocking #card-tz")).to_be_visible()
+    notice = page.locator("#triage-activity .lf-activity-news")
+    expect(notice).to_contain_text("new")
+    notice.click()
+    expect(
+        page.locator("#triage-activity .lf-activity-row").filter(has_text="moved")
+    ).to_be_visible()
+    page.locator("#triage-moves").scroll_into_view_if_needed()
+
+
+def settled_option_hover(page: Page) -> None:
+    """An expanded decision answers hover without lifting the card."""
+    page.locator("#bg-outcome .lf-settled").click()
+    page.locator("#bg-outcome-door").hover()
+    settle(page)
 
 
 def into_the_body(page: Page) -> None:
@@ -745,6 +909,33 @@ def diff_path_by_keyboard(page: Page) -> None:
     head.scroll_into_view_if_needed()
     page.keyboard.press("Shift")
     head.focus()
+
+
+def diff_source_by_pointer(page: Page) -> None:
+    """A click stands on the scrolling source without a keyboard ring."""
+    file = page.locator("#pr-exact-patch .lf-diff-file").filter(
+        has=page.locator("summary", has_text="benches/picker_preview.rs")
+    )
+    file.locator("summary").click()
+    source = file.locator("code[data-code]")
+    source.click(position={"x": 150, "y": 25})
+    expect(source).to_be_focused()
+    page.mouse.move(0, 0)
+
+
+def diff_source_by_keyboard(page: Page) -> None:
+    """Tab returns to the source; its ring stays over shaded, scrolled rows."""
+    diff_source_by_pointer(page)
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    source = page.locator(
+        '#pr-exact-patch code[data-code][aria-label="benches/picker_preview.rs"]'
+    )
+    expect(source).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function(
+        "document.querySelector('#pr-exact-patch').shadowRoot.querySelector('code[data-code][aria-label=\"benches/picker_preview.rs\"]').scrollLeft > 0"
+    )
 
 
 def diff_file_reply(page: Page) -> None:
@@ -896,6 +1087,17 @@ def contents_by_keyboard(page: Page) -> None:
     page.locator("lf-toc li a").first.focus()
 
 
+def topic_contents(page: Page) -> None:
+    """The topic's inline index in the gallery's page-tabs sample."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-tab-set").scroll_into_view_if_needed()
+    sample = page.locator("#bg-topic-contents")
+    sample.scroll_into_view_if_needed()
+    page.evaluate("document.getElementById('bg-topic-contents').ready")
+
+
 def contents_over_reading(page: Page) -> None:
     """Reveal the margin map over a section, including its title's background."""
     contents_by_keyboard(page)
@@ -945,15 +1147,9 @@ def page_end(page: Page) -> None:
     page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
 
 
-def visual_review_menu(page: Page) -> None:
-    """The review case picker open on its selected option."""
-    control = page.locator(".lf-vr-case-select")
-    control.evaluate("""node => {
-      node.reviewShown = new Promise(resolve => node.addEventListener(
-        'wa-after-show', () => resolve(), {once: true}));
-    }""")
-    control.get_by_role("combobox").click()
-    control.evaluate("node => node.reviewShown")
+def visual_review_inspection(page: Page) -> None:
+    """Capture the artifact inspection popover beside the selected comparison."""
+    page.locator('.lf-vr-case[aria-hidden="false"] .lf-vr-inspect').click()
     page.mouse.move(0, 0)
 
 
@@ -1056,6 +1252,19 @@ class State:
 
 STATES = (
     State(
+        "native-code",
+        "developer/feature-gallery",
+        native_code,
+        region="#bg-javascript-code",
+    ),
+    State(
+        "native-code-dark",
+        "developer/feature-gallery",
+        native_code,
+        scheme="dark",
+        region="#bg-javascript-code",
+    ),
+    State(
         "markdown-preview-scrolled",
         "developer/feature-gallery",
         markdown_preview_scrolled,
@@ -1108,18 +1317,19 @@ STATES = (
         touch=True,
         region=".lf-fp-leaf",
     ),
-    State("floating-thread", "ship-review", floating_thread, region=".lf-fp-head"),
+    State("panel-status-hover", "review-a-plan", panel_status_hover),
+    State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
     State(
         "floating-thread-retitled",
         "ship-review",
         floating_thread_retitled,
-        region=".lf-fp-head",
+        region=".lf-fp-opened",
     ),
     State(
         "playground-choice",
         "notification-playground",
         playground_choice,
-        region=".lf-playground-choice-face:has(> input:focus)",
+        region="lf-playground label:has(> input:focus)",
     ),
     State(
         "playground-choice-phone-dark",
@@ -1128,7 +1338,7 @@ STATES = (
         viewport=(390, 844),
         scheme="dark",
         touch=True,
-        region=".lf-playground-choice-face:has(> input:focus)",
+        region="lf-playground label:has(> input:focus)",
     ),
     State(
         "trace-transport-icons",
@@ -1187,12 +1397,20 @@ STATES = (
         touch=True,
         region="#fix-before",
     ),
+    State("drawing-photo-comment", "developer/feature-gallery", drawing_photo_comment),
+    State("page-comment-photo", "developer/feature-gallery", page_comment_photo),
     State(
-        "drawing-photo-comment",
+        "page-comment-photo-hover",
         "developer/feature-gallery",
-        drawing_photo_comment,
-        region=".lf-fab-bar",
+        page_comment_photo_hover,
     ),
+    State(
+        "page-comment-photo-hover-dark",
+        "developer/feature-gallery",
+        page_comment_photo_hover,
+        scheme="dark",
+    ),
+    State("panel-corner-hover", "review-a-plan", panel_corner_hover),
     State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
     State(
@@ -1264,6 +1482,12 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State(
+        "image-in-page",
+        "developer/feature-gallery",
+        image_in_page,
+        region="#bg-image-preview",
+    ),
     State("image-preview", "developer/feature-gallery", image_preview),
     State(
         "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"
@@ -1275,7 +1499,11 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    State("visual-review-menu", "developer/visual-review-gallery", visual_review_menu),
+    State(
+        "visual-review-inspection",
+        "developer/visual-review-gallery",
+        visual_review_inspection,
+    ),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
     State(
@@ -1294,12 +1522,38 @@ STATES = (
     ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State(
-        "visual-review-menu-dark",
+        "visual-review-inspection-dark",
         "developer/visual-review-gallery",
-        visual_review_menu,
+        visual_review_inspection,
         scheme="dark",
     ),
+    State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
+    State(
+        "settled-option-hover",
+        "developer/feature-gallery",
+        settled_option_hover,
+        region="#bg-outcome",
+    ),
     State("trace-controls", "developer/playwright-trace-gallery", trace_controls),
+    State(
+        "trace-actions",
+        "developer/playwright-trace-gallery",
+        trace_controls,
+        viewport=(800, 900),
+        region=".lf-trace-toolbar",
+    ),
+    State(
+        "trace-pace",
+        "developer/playwright-trace-gallery",
+        trace_controls,
+        region=".lf-trace-pace",
+    ),
+    State(
+        "motion-controls",
+        "developer/motion",
+        motion_controls,
+        region="#fold-motion .lf-motion-controls",
+    ),
     State(
         "trace-timeline-keyboard",
         "developer/playwright-trace-gallery",
@@ -1328,6 +1582,12 @@ STATES = (
         touch=True,
     ),
     State("contents-spine", "developer/feature-gallery", at_rest),
+    State(
+        "topic-contents",
+        "developer/feature-gallery",
+        topic_contents,
+        region="#bg-topic-contents",
+    ),
     State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
     State(
         "contents-over-reading",
@@ -1454,8 +1714,36 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
-    State("page-search", "review-a-plan", page_search),
-    State("page-search-phone", "review-a-plan", page_search, viewport=(390, 844)),
+    State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
+    State(
+        "accepted-page-search",
+        "review-a-plan",
+        accepted_page_search,
+        region=".lf-floating-panel",
+    ),
+    State(
+        "accepted-page-search-touch",
+        "review-a-plan",
+        accepted_page_search,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-floating-panel",
+    ),
+    State(
+        "page-search-phone",
+        "review-a-plan",
+        page_search,
+        viewport=(390, 844),
+        region=".lf-floating-panel",
+    ),
+    State("selected-passage-responses", "review-a-plan", selected_passage_responses),
+    State(
+        "selected-passage-responses-phone",
+        "review-a-plan",
+        selected_passage_responses,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("command-reference-search", "review-a-plan", command_reference_search),
     State(
         "command-reference-search-dark",
@@ -1482,6 +1770,34 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
+    State(
+        "plan-card-held-news",
+        "review-a-plan",
+        card_held_news,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "plan-card-held-news-phone",
+        "review-a-plan",
+        card_held_news,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "hub-seat-held-news",
+        "command-hub",
+        seat_held_news,
+        region="#goal-parser .lf-page-thread",
+    ),
+    State(
+        "hub-seat-held-news-phone",
+        "command-hub",
+        seat_held_news,
+        viewport=(390, 844),
+        touch=True,
+        region="#goal-parser .lf-page-thread",
+    ),
     State(
         "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
     ),
@@ -1637,6 +1953,20 @@ STATES = (
         touch=True,
         scheme="dark",
     ),
+    State(
+        "option-add-hover",
+        "developer/feature-gallery",
+        option_add_hover,
+        region="#bg-choice",
+    ),
+    State(
+        "option-add-hover-touch",
+        "developer/feature-gallery",
+        option_add_hover,
+        region="#bg-choice",
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
@@ -1732,6 +2062,20 @@ STATES = (
         viewport=(390, 844),
     ),
     State(
+        "walkthrough-diff-source-pointer",
+        "pr-walkthrough",
+        diff_source_by_pointer,
+        viewport=(600, 900),
+        region="#pr-exact-patch .lf-diff-file:has(code[data-code])",
+    ),
+    State(
+        "walkthrough-diff-source-keyboard",
+        "pr-walkthrough",
+        diff_source_by_keyboard,
+        viewport=(600, 900),
+        region="#pr-exact-patch .lf-diff-file:has(code[data-code])",
+    ),
+    State(
         "walkthrough-source-touch",
         "pr-walkthrough",
         code_source_by_touch,
@@ -1815,7 +2159,7 @@ def differences(browser, out: Path):
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "skills/leaf/assets" / path.lstrip("/"))
+            route.fulfill(path=ROOT / "browser" / path.lstrip("/"))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

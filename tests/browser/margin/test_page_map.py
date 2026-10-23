@@ -7,9 +7,6 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, REPORT_PAGE, live_url
 from render_cases_navigation import CHIPS, _publish, address_code, go_to_address
@@ -37,6 +34,9 @@ from browser.margin import (
     COMMENT_ON_OBLIGATION,
     DENSE_SUGGESTIONS_PAGE,
 )
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -145,7 +145,7 @@ PAGE_MAP_EVENTS = [
 ]
 
 
-def test_the_standing_obligation_marks_its_selected_margin_reading(browser, serve):
+def test_the_current_obligation_marks_its_selected_margin_reading(browser, serve):
     """The page and margin projections identify the same selected obligation."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
@@ -409,7 +409,7 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
     assert page.evaluate("() => window.lfIdentityActivations") == ["c", "b:c"]
 
 
-def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
+def test_page_map_keyed_reconciliation_preserves_user_current_location(browser, serve):
     """A synchronous inventory reorder retains its control, query, scroll, and scope."""
     fixture = leaf_page(
         "Keyed Page Map",
@@ -1222,7 +1222,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     close = page.locator(".lf-margin-preview-close")
     close.focus()
     expect(close).to_be_focused()
-    # The card's thread, which the user stands in, marks its element.
+    # The card's thread, which the user is located in, marks its element.
     mark = page.locator('.lf-visual-mark-here[data-for="bracket"]')
     expect(mark).to_be_visible()
 

@@ -6,7 +6,7 @@ contiguous range when a discussion grows long; the agent reads it and writes the
 summary. Users can unfold the original messages, and the agent can replace an
 overlapping summary as the discussion grows. Their contracts live in
 [threads](../skills/leaf/references/threads.md),
-[session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md), and
+[session lifetime](../src/leaf/session-lifetime.md), and
 [the module Thread API](../skills/leaf/references/module-annotations.md#widget-local-thread-placement).
 
 ## Current status
@@ -27,43 +27,13 @@ the model against a coordinator ending while its delegate continues and against 
 watcher losing contact. Waiting on CI should mean an observed dependency with a
 working resumption path, not a phrase in status text.
 
-Native request buttons retain their one-shot command lifecycle, whose outcome
-may precede its receipt. Job observations must preserve that contract: chat
-pickup cannot prove the external operation succeeded.
-
-## Further Thread placement
-
-A package that needs interactive authored messages inline must ask Leaf to move
-its single live instance out of the panel. That needs focus, retained-node, and
-presentation-proof contracts. Core already arbitrates exact widget seats before
-the selected page presentation. Inline views open authored interactive messages
-in Threads; broader placement by unrelated widgets would need an ownership rule
-beyond the current exact-datum API. Test a package that needs the live instance
-before extending the placement contract.
-
-## Notification transitions
-
-If notices, accessibility announcements or badges need a shared transition feed,
-test the existing publication subscriptions before adding a typed notification bus.
-It would report domain changes without becoming another state store.
-
 ## Shared evidence
 
-Use real Leaf components and the same seeded histories: sparse and crowded pages,
+Use real Leaf widgets and the same seeded histories: sparse and crowded pages,
 a long exchange, an oversized message, an unanswered question, queued input during
 older work, a healthy external wait, interrupted progress, and an unfinished draft.
 Exercise direct gestures and keyboard routes in light/dark themes and wide/narrow
 layouts. Keep these independent slices; retire each plan when its contract lands.
-
-For compact Thread rows, evaluate three separate facts: whose move is owed, what
-delivery or work evidence exists for that move, and which unanswered input or obligation
-establishes it. A later agent message must not replace an unanswered question;
-an old user message must not remain the next move after it is answered. Test questions
-in words (an `lf-ask` holding no widget), frozen widget obligations, failed responses, locally pending sends, and resolved
-Threads in the same panel. Score the collapsed row by whether a reader can name the
-next actor and kind of action without opening it, then open it to check the exact
-question or control is reachable. A time or latest-message label is only recency
-evidence, not a next move.
 
 ## Later: long-thread reading
 

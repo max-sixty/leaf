@@ -16,6 +16,7 @@ from interact_support import (
     record_claim,
     write_record,
 )
+
 from leaf import event_log as events_model
 from leaf import harness as harness_model
 from leaf import service as service_model
@@ -111,8 +112,8 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
     """The page's reading, which a tab polls, and its shared subscription, which its
     row publisher and lifetime supervisor wake on, derive from one declaration of its
     inputs. A bound file outside the page moves both, as does an authored edit or
-    renaming the folder that holds the bound file; a tab's attention lease,
-    `viewed.json`, which the server renews while a tab looks, moves neither.
+    renaming the folder that holds the bound file; `user-views.json`, which the
+    server rewrites as a tab reports its view, moves neither.
 
     Where the volume ignores letter case, the page and the file are named in a
     spelling other than the one on disk, which notifications report: both must
@@ -143,7 +144,7 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
         return changes.wait(mark, timeout), page_reading(page) != reading
 
     assert classified(
-        lambda: write_record(page_dir / "viewed.json", {"t": 1.0}),
+        lambda: write_record(page_dir / "user-views.json", {"sessions": {}}),
         DIAGNOSTIC_QUIET_WINDOW_S,
     ) == (False, False)
     assert classified(
@@ -410,6 +411,56 @@ def test_shared_page_native_owner_rearms_created_and_replaced_directories(
             assert waiting.result(timeout=STATED_TIMEOUT)
     finally:
         owner.release()
+
+
+@pytest.mark.parametrize("phase", ["opening", "native-installation"])
+def test_shared_page_watch_replans_a_root_removed_during_subscription(
+    tmp_path, monkeypatch, phase
+):
+    """A page removed during subscription stays observable through its parent."""
+    from leaf import file_changes
+
+    page = tmp_path / "retiring-page"
+    page.mkdir()
+    original_open = file_changes.os.open
+    original_native = watchfiles.main.RustNotify
+    removed = False
+
+    def retire():
+        nonlocal removed
+        if not removed:
+            page.rmdir()
+            removed = True
+
+    def opening(path, *args, **kwargs):
+        if Path(path) == page and phase == "opening":
+            retire()
+        return original_open(path, *args, **kwargs)
+
+    def installing(paths, *args, **kwargs):
+        if str(page) in paths and phase == "native-installation":
+            retire()
+        return original_native(paths, *args, **kwargs)
+
+    owner = file_changes._PageChanges()
+    monkeypatch.setattr(file_changes.os, "open", opening)
+    monkeypatch.setattr(watchfiles.main, "RustNotify", installing)
+    try:
+        changes = owner.connect(page)
+        assert removed
+        generation = changes.mark()
+        page.mkdir()
+        assert changes.wait(generation, STATED_TIMEOUT)
+        replacement = owner.connect(page)
+        assert replacement is not changes
+        source = page / "page"
+        source.mkdir()
+        generation = replacement.mark()
+        (source / "index.html").write_text("back in service")
+        assert replacement.wait(generation, STATED_TIMEOUT)
+    finally:
+        if owner.release is not None:
+            owner.release()
 
 
 def test_session_native_watch_pins_roots_until_replacement(page_dir, monkeypatch):

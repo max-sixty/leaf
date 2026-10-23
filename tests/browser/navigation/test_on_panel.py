@@ -5,10 +5,8 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import live_url
+from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import toggle_queue
 from render_harness import (
     PANEL,
@@ -27,6 +25,8 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position, walk_position
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -49,7 +49,7 @@ def expect_on_me(page, count):
 
 
 def x_ends(page):
-    """Whether `x` ends something where the user stands: a to-do on them."""
+    """Whether `x` ends something at the current location: a to-do on them."""
     return any("x" in keys for keys in available_commands(page).values())
 
 
@@ -61,6 +61,42 @@ QUEUE_PAGE = leaf_page(
     '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
     '<p id="notes">Release notes come from merged titles.</p>',
 )
+
+
+def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, serve):
+    source = leaf_page(
+        "Chrome queue stops",
+        "<h1>Release</h1><p>Review the release.</p>",
+    )
+    url = serve(source)
+    comment = append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "revision": 1,
+            "text": "Which channel?",
+            "markup": '<lf-ask id="page-question">Which channel?</lf-ask>',
+        },
+    )
+    page = open_page(browser, url)
+    page.evaluate("getSelection().removeAllRanges()")
+    page.keyboard.press("m")
+    rendered(page)
+    assert page.evaluate(
+        "id => document.activeElement.closest('[data-thread]')?.dataset.thread === id",
+        comment["id"],
+    )
+    position = walk_position(page)
+    assert position is not None
+    assert position["text"] == "1 of 1 waiting on me · Question"
 
 
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
@@ -81,7 +117,7 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
             "anchor": {"section": "cadence"},
         },
     )
-    append_carried_log_record(
+    question = append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -113,21 +149,22 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     counts(2)
 
     thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
+    message = thread.locator(f'.lf-msg[data-event="{question["id"]}"]')
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Question")
-    expect(thread).to_be_focused()
+    expect(message).to_be_focused()
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Question")
-    expect(thread).to_be_focused()
+    expect(message).to_be_focused()
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "1 of 2 waiting on me · Question")
-    expect(thread).to_be_focused()
+    expect(message).to_be_focused()
 
     page.keyboard.press("Enter")
     box = thread.locator("leaf-text")
@@ -175,11 +212,12 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     """An `lf-tally` counts the obligations its region holds, by the rule a queue row's mark
     reads, and leaves out one outside it. Its Next on me is `m` within the region: a
-    press keeps the user standing where they are and steps on, coming round at the end,
+    press keeps the user located where they are and steps on, coming round at the end,
     and the walk announces its place among the region's obligations. Reached by Shift+Tab from
     an obligation, through the queue's own rows, Enter counts from that obligation, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
-    tally says so and Next on me is disabled."""
+    tally says so and Next on me is disabled. One the user commented on is the agent's
+    turn, which the tally names instead of calling it the user's to answer."""
 
     def item(key, label):
         return (
@@ -232,12 +270,15 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     assert answer["widget"] == "second"
     button.click()
     expect(first).to_be_focused()
+    # Next put the answer out of view in its tab, so the first press shows it there
+    # and the second takes it back.
+    page.keyboard.press("z")
+    expect(page.locator("#second")).to_be_focused()
     with sending(page, "undo the second item's answer after Next"):
         page.keyboard.press("z")
     round_trip(page)
     expect(words).to_have_text("2 of 2 to answer")
     assert events_model.read_events(serve.page_dir)[-1]["undoes"] == answer["id"]
-    expect(first).to_be_focused()
     # Leave the next press at the region's start, as on initial arrival.
     page.get_by_role("tab", name="First", exact=True).click()
 
@@ -272,10 +313,28 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     round_trip(page)
     expect(words).to_have_text("All 2 answered")
     expect(button).to_be_disabled()
+    expect(page.locator("#left")).to_have_attribute("data-lf-done", "")
+    with sending(page, "undo the first decision's answer"):
+        page.keyboard.press("z")
+    round_trip(page)
+    expect(words).to_have_text("1 of 2 to answer")
+    expect(button).to_be_enabled()
+    expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
+    # A comment on the open obligation hands it to the agent until a reply: the tally and
+    # the item's row say so rather than calling it the user's to answer, beside a
+    # disabled Next on me.
+    panel_comment(serve.page_dir, "Why Alpha?", {"section": "first-decision"})
+    expect(words).to_have_text("1 of 2 on Claude")
+    expect(page.locator("#queue .lf-tab-answer").first).to_have_text("On Claude")
+    expect(button).to_be_disabled()
+    expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
     assert page.locator("#left").bounding_box() == box
 
 
-def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, serve):
+@pytest.mark.parametrize("idle_setup", ["at_rest", "layout_clamp"])
+def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
+    browser, serve, idle_setup
+):
     """A task the agent put on the user ends at their Done. Where `m` lands on it, `x`
     is Done; its card in On me carries a Done button. Either leaves the user's queue
     in the turn it is pressed, and writes the user's `todo_end`; the obligation beside them
@@ -302,12 +361,38 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, 
     page = open_page(browser, url)
     resized(page, 1280, 900)
     expect_on_me(page, 3)
+    assert not x_ends(page), "the viewport alone selects no task to finish"
+    if idle_setup == "layout_clamp":
+        page.evaluate("""() => {
+          const tail = document.createElement('div');
+          tail.id = 'temporary-tail';
+          tail.style.height = '3000px';
+          document.querySelector('main').append(tail);
+          window.scrollTo({top: 1000, behavior: 'instant'});
+        }""")
+        scroll_settled(page)
+        page.evaluate("document.querySelector('#temporary-tail').remove()")
+        scroll_settled(page)
+        assert page.evaluate("scrollY") == 0
 
     # The page as a whole is arrived at its head, which comes first.
     page.locator("#cadence").click()
+    page.evaluate("""() => {
+      document.addEventListener('keydown', function read(event) {
+        if (event.key.toLowerCase() !== 'm') return;
+        document.removeEventListener('keydown', read, true);
+        requestAnimationFrame(() => {
+          window.todoAtFirstFrame = document.activeElement.id;
+        });
+      }, true);
+    }""")
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "1 of 3 waiting on me · To-do")
     expect(page.locator("#h")).to_be_focused()
+    assert page.evaluate("todoAtFirstFrame") == "h", (
+        "an idle arrival paints in its first frame"
+    )
+    assert x_ends(page), "the page's head as current location selects the page task"
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 3 waiting on me · Options")
     assert not x_ends(page)
@@ -402,7 +487,7 @@ NESTED_TODOS_PAGE = leaf_page(
 
 
 def test_x_ends_the_innermost_todo_the_user_stands_on(browser, serve):
-    """Standing on a task inside another, `x` ends the inner one: a task on a section
+    """Located on a task inside another, `x` ends the inner one: a task on a section
     inside the page, with no heading for the page's own task to stand at, and a task
     on a paragraph inside that section."""
     url = serve(NESTED_TODOS_PAGE)
@@ -441,7 +526,7 @@ def test_x_ends_the_innermost_todo_the_user_stands_on(browser, serve):
     expect_on_me(page, 1)
     assert events_model.read_events(d)[-1]["todo"] == plan["id"]
 
-    # Off every section, nothing the user stands on is the page's own task, which `m`
+    # Off every section, nothing the user is located on is the page's own task, which `m`
     # arrives at its head.
     page.locator("#tail").click()
     assert not x_ends(page)
@@ -465,7 +550,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
             "anchor": {"section": "cadence"},
         },
     )
-    append_carried_log_record(
+    question = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -504,9 +589,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
     page.locator("#h").click()
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Question")
-    expect(
-        page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
-    ).to_be_focused()
+    expect(page.locator(f'.lf-msg[data-event="{question["id"]}"]')).to_be_focused()
 
 
 @pytest.mark.parametrize("width", [1200, 390])

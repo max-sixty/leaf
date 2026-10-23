@@ -7,20 +7,20 @@ event's `handling`. A chat response does not change the page.
 
 The user follows your work on the page:
 
-| Surface                   | What it shows                                                                                                                                                           | Written by                                                                |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Leaf's panel              | one sentence for the whole page, in the empty comment field: the line of the item you started last, or what you want back; the leaf beside it takes the status's colour | `leaf task start`, `leaf status <page> waiting "<detail>"`                |
-| Beside a thread or widget | **Working** and your line: the thread's working message, where you posted it, or on the control the work answers                                                        | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread                    | your answer to the user's message, with the progress before it folded behind it                                                                                         | the response operation named by delivered `handling`                      |
-| Page                      | the revised content in place, and a stamp's changelog                                                                                                                   | saving `index.html`, `leaf page stamp`                                    |
+| Surface                   | What it shows                                                                                                                                                           | Written by                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Leaf's panel              | one sentence for the whole page, in the empty comment field: the line of the item you started last, or what you want back; the leaf beside it takes the status's colour | `leaf task start`, `leaf status <page> waiting "<detail>"`              |
+| Beside a thread or widget | **Working** and your line: the thread's working message, where you posted it, or on the control the work answers                                                        | `leaf thread reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
+| Thread                    | your answer to the user's message, replacing the progress before it                                                                                                     | the response operation named by delivered `handling`                    |
+| Page                      | the revised content in place, and a stamp's changelog                                                                                                                   | saving `index.html`, `leaf page stamp`                                  |
 
 Leaf's panel floats at the foot of the window. Leaf marks each update **Sent**,
-**Queued**, and **Picked up** by itself. Your harness may add its current step to the
-status, which the user reads in full by pointing at the field, or at the leaf when the
-panel is folded.
+**Queued**, and **Delivered** by itself. Your harness may add its current step to the
+status, which the user reads in full in the leaf's menu, or by pointing at the leaf
+when the panel is folded.
 
 In `leaf page state <page>`, `viewed` is when a browser tab last showed the page, in
-epoch seconds, renewed about every 30 seconds while visible and `null` if nobody has
+epoch seconds, renewed about every 10 seconds while visible and `null` if nobody has
 opened it. Each thread's `unread` lists your messages the user has not read
 ([threads](threads.md#what-the-user-has-read)). Nothing records whether they saw a
 status.
@@ -35,7 +35,8 @@ the page at its last report, `freshness` turns `stale` after 45 seconds without 
 and `matches_active_revision` says whether it shows your latest revision. Each
 entry's `checks` lists layout problems that browser measured, such as sideways
 overflow, with their own `freshness` and `matches_view`. They are context, not a
-substitute for `leaf page check --render`. An empty list means no browser has
+substitute for `leaf page check --render`, which reads the desktop at the latest
+entry's viewport. An empty list means no browser has
 reported, and a region on screen does not mean the user read it.
 
 ## When to write
@@ -46,7 +47,7 @@ your turn's opening message is that line (your harness's "Replies"). Otherwise r
 first:
 
 ```bash
-leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
+leaf thread reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
 ```
 
 The line shows at once as the thread's working message and the panel's **Working**
@@ -107,8 +108,8 @@ When input arrives:
 3. If it interrupted other work, start that item again, so the panel's status
    describes the work that continues.
 
-Before replying about a page revision, run `leaf page check`, the only check the
-main skill's "Check the page" step requires for that reply.
+Reply about a page revision as soon as it is saved; the reply checks it (the main
+skill's "Check the page").
 
 ## Status and handoff
 
@@ -159,8 +160,9 @@ your conversation inherits the page too. Work that needs its own conversation wi
 the user belongs in its own session, with its own page.
 
 A start lasts only for the turn that wrote it. About two minutes after the turn ends,
-the panel's status says your turn ended and quotes the line, and within a long turn a
-start goes stale after about 15 minutes. The status shows the item you started last, so
+the panel's status says your turn ended and quotes the line, or in Claude Code, while
+background subagents run, that you are working in the background. Within a long turn
+a start goes stale after about 15 minutes. The status shows the item you started last, so
 start the one that best describes what is running. While a worker produces an
 update's answer, start that update before you end your turn; the Stop hook lets a
 turn end over an update it started. In the next turn, start the item again or answer
@@ -170,7 +172,7 @@ For work that outlasts the turn, such as a worker's build, a wait on CI, or a ch
 you promise for the next version, answer the thread with a to-do:
 
 ```bash
-leaf response reply <answer.ref> --todo "<what you owe>" --text "<what is under way>"
+leaf thread reply <answer.ref> --todo "<what you owe>" --text "<what is under way>"
 ```
 
 The reply answers the message and opens a to-do on the thread, under the reply's id.
@@ -204,17 +206,24 @@ On me also lists any update of the user's that failed to send. Your own list sho
 press lands where the obligation is answered; on a widget's obligation, its numbered actions
 (`1`–`9`) answer it there.
 
-| Request                                                                         | Register it                                                                                                     | What answers it                                                                       |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence         | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
-| A conversational answer                                                         | An `lf-ask` holding the question, with no widget inside, in a reply's or new thread's markup (`threads.md`)     | The user's next message there or a settling reaction                                  |
-| Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-decisions.md`, "Sign-off")                                   | The user's approval of that version, its row in On me                                 |
-| An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
+| Request                                                                         | Register it                                                                                                             | What answers it                                                                       |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence                 | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
+| A conversational answer                                                         | `--obligation` on `thread open` or `thread reply` (`threads.md`)                                                        | The user's next message there or a settling reaction                                  |
+| Approval of a stated action                                                     | Write `lf-approval` with the exact subject (`authoring-decisions.md`, "Approval")                                       | The widget's recorded approval and its row in On me                                   |
+| An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its thread, widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
-Obligation ids are `widget:<widget-id>` for a widget, `lf-ask` included,
-`approval:v<version>` for a version's sign-off, and `update:<event-id>` for an update
-the user handed over. A to-do on the user keeps the id `task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
-The user's next message in a thread answers every question asked before it there.
+Generally pass `--obligation` when a message hands the next move to the user.
+Progress and information that need no response create no obligation. When a widget
+already captures the same answer, its obligation is sufficient.
+
+Obligation ids are `message:<message-id>` for an explicit message request,
+`widget:<widget-id>` for a widget, `lf-ask` and `lf-approval` included,
+and `update:<event-id>` for an update
+the user handed over. A to-do on the user keeps the id `task open` printed. It can sit on a thread; replies discuss the action and Done completes it.
+The user's next message in a thread answers every conversational request before it.
+A clarification hands the conversation back to you; if you still need input, make
+the next request with `--obligation`. A reply does not claim outside work is done.
 Ask a dependent question only once its prerequisite is answered. The user's Done on a
 to-do says they did it; it grants nothing its question did not ask.
 
@@ -225,8 +234,8 @@ answer:
 leaf page state <page> | jq '{source, obligations, todos, queues}'
 ```
 
-`queues.on_user` is On me: the open obligations on the user, updates to resend among
-them, and to-dos on the user. `queues.on_agent` is your list: the updates you owe a
+`queues.on_user` is On me: the open obligations on the user, including updates to
+resend and user to-dos. `queues.on_agent` is your list: the updates you owe a
 reply or a version, and your to-dos. Read them as given rather than rebuilding them
 from events. A row names its obligation or to-do by `id`. An obligation's record in
 `obligations` holds its `prompt`, its `answer` once given, its `status` and its
@@ -253,6 +262,8 @@ a question in a thread answered elsewhere `done`, or `dropped` when it no longer
 applies:
 
 ```bash
-leaf task end <page> widget:<lf-ask-id> done "<where the answer is>"
-leaf task end <page> widget:<lf-ask-id> dropped "<why>"
+leaf task end <page> message:<message-id> done "<where the answer is>"
+leaf task end <page> message:<message-id> dropped "<why>"
 ```
+
+For a reply-answered widget, use its `widget:<widget-id>` obligation id instead.

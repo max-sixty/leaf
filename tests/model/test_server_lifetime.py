@@ -23,6 +23,7 @@ from interact_support import (
     append_carried_log_record,
     available_loopback_port,
     command_findings,
+    declared,
     fixture_service,
     publish,
     read_record,
@@ -32,6 +33,7 @@ from interact_support import (
     wait_for,
     write_record,
 )
+
 from leaf import cli as cli_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
@@ -529,9 +531,8 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
     records the persistent lifetime and the page stays nobody's — no watcher
     thread to stop it when the harness pid goes, no SessionEnd reaper. The harness is
     the suite's own session, which every command here already runs under. Its user
-    stops it with Ctrl-C, which unwinds through the process's exit handlers while
-    its watch threads still run, whereas `server stop` ends it at once
-    (`exit_serving`)."""
+    stops it with Ctrl-C, which ends it at once, as `server stop` does
+    (`exit_serving`), with SIGINT's status."""
     process = spawn(
         [
             *LEAF_COMMAND,
@@ -552,8 +553,7 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
 
     process.send_signal(signal.SIGINT)
     _, error = process.communicate(timeout=STATED_TIMEOUT)
-    assert process.returncode == 1, error
-    assert json.loads(error.splitlines()[-1])["error"] == "interrupted"
+    assert process.returncode == 128 + signal.SIGINT, error
 
 
 def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn):
@@ -694,7 +694,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
 
     # The synchronous hook left the persistent service enabled and live.
     assert server_model.running_server(page_dir) == launched
-    assert read_record(page_dir / "status.json")["state"] == "waiting"
+    assert declared(page_dir)["state"] == "waiting"
     assert not service_model.claim_is_active(service_model.page_claim(page_dir))
     assert page_dir not in service_model.owned_pages("later")
     # Explicit stop crosses that server's release barrier before returning.

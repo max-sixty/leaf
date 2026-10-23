@@ -76,8 +76,7 @@ heading. Remove those marks in the next version you hand over.
 ## Keep the current page current
 
 [SOUL.md](../SOUL.md), "Keep the page current and the record trustworthy", sets the
-goal. Restructuring the page is an ordinary revision; write
-`index.html` whole rather than as a series of edits. Threads and user state follow ids
+goal. Restructuring the page is an ordinary revision. Threads and user state follow ids
 (`page-authoring.md`, "Stable anchors"), so a passage you keep keeps its id wherever it
 moves, and moving it needs neither a suggestion nor `restated`.
 
@@ -101,6 +100,10 @@ retire the superseded interaction as finished work. Pose anything still worth as
 as a new decision with new ids. Use `$restated` to withdraw the decision and ask again.
 Don't mark a decision `settled` until you have finished applying it, and keep a section
 open while the user is still commenting there.
+
+The user reads threads to learn where their input stands. When a revision settles or
+lands what an open thread discusses, reply in that thread with what happened and where
+the page shows it, so the thread is not left looking unanswered.
 
 Before handing the page back, check that its status, open to-dos and outstanding work
 agree with what you tell the user.

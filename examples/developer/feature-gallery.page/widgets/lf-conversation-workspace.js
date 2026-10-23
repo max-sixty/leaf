@@ -7,7 +7,8 @@ import {
   keeps,
   keepsText,
   offer,
-  once,
+  LeafElement,
+  noChange,
   queueActions,
   queueItemKey,
   queueTitle,
@@ -23,15 +24,13 @@ import {
   threadActions,
   threadSummary,
   threadTurns,
-  watchProjection,
   whileConnected,
 } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-conversation-workspace",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
+  class extends LeafElement {
+    setup() {
       this.build();
       whileConnected(this, () => {
         const stopRegions = this.regionBodies.map(([name, body]) =>
@@ -58,7 +57,10 @@ customElements.define(
           this.presentation.unregister();
         };
       });
-      watchProjection(this, () => this.paintObligations());
+    }
+    render() {
+      this.paintObligations();
+      return noChange;
     }
     build() {
       this.mode = "Conversation";

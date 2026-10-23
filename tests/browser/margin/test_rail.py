@@ -5,7 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_harness import (
@@ -24,6 +23,7 @@ from browser.margin import (
     MARGIN_ENTRY_KEYBOARD_PAGE,
     _comment_on,
 )
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -370,7 +370,7 @@ def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
     """A column page keeps a rail beside its column and a sidebar page does not: its markers
     stand as pins on their blocks. `data-rail` on `body` turns either round: `right`
     gives up the rail's width at the shell's right edge, and `none` keeps the margin for
-    the page's own residents. Only `right` takes room from the page, and only above a
+    the page's own margin content. Only `right` takes room from the page, and only above a
     phone's width: on a phone every form's markers pin and the page keeps its width."""
     source = (
         leaf_page(

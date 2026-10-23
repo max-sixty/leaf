@@ -6,7 +6,7 @@ import {
   KINDS,
   contributionEntry,
   normalizeContributionReading,
-} from "../../skills/leaf/assets/runtime/contribution-model.js";
+} from "../../browser/runtime/contribution-model.js";
 import {
   canFold,
   clusterProjection,
@@ -18,8 +18,8 @@ import {
   choosePrimary,
   entryHasMarginHost,
   awaitingUser,
-} from "../../skills/leaf/assets/runtime/margin-model.js";
-import { marginMapGroups } from "../../skills/leaf/assets/runtime/margin-map-model.js";
+} from "../../browser/runtime/margin-model.js";
+import { marginMapGroups } from "../../browser/runtime/margin-map-model.js";
 
 const control = (key, options = {}) =>
   contributionEntry({ key, glyph: "+", label: key, ...options });
@@ -222,7 +222,7 @@ test("thread aggregation preserves canonical user attention and obligation prece
     userAttention: { label: "Not answered", reason: "workflow" },
   });
   const item = marker("question", "comment", {
-    userAttention: { label: "On you", reason: "widget" },
+    userAttention: { label: "On you", reason: "obligation" },
   });
   assert.equal(awaitingUser([recovery]), true);
   assert.equal(readingContext({ items: [recovery] }), "Not answered");
@@ -286,12 +286,12 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     ["Not answered", "Not answered"],
   );
   const onUser = thread(
-    { kind: "needs_user", reason: "widget", workflow: null },
+    { kind: "needs_user", reason: "obligation", workflow: null },
     { unread: 1 },
   );
   assert.deepEqual(threadMarks(onUser).userAttention, {
     label: "My turn to answer",
-    reason: "widget",
+    reason: "obligation",
   });
   assert.deepEqual(said(onUser), ["My turn to answer", "My turn to answer"]);
 });

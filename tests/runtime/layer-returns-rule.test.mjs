@@ -12,7 +12,7 @@ import { parse } from "acorn";
 import { layerReturnsRule } from "../../eslint.config.mjs";
 
 const filename = fileURLToPath(
-  new URL("../../skills/leaf/assets/runtime/probe.js", import.meta.url),
+  new URL("../../browser/runtime/probe.js", import.meta.url),
 );
 
 // How many times the rule reports on `code`.
@@ -40,7 +40,7 @@ test("a landing's own body may hand the user back", () => {
   for (const code of [
     "closeLayer(() => a.remove(), () => handBack(a));",
     "closeLayer(hide, open && (() => handBack(a)));",
-    "closeLayer(hide, standing ? () => handBack(a) : letGo);",
+    "closeLayer(hide, currentLocation ? () => handBack(a) : letGo);",
     "const land = layerLanding((a) => handBack(a));",
     "closeLayer(() => (box.hidden = true), () => focusDestination(a, 'return'));",
     "focusDestination(a, 'return');",

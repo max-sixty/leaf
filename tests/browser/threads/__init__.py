@@ -6,11 +6,6 @@ import json
 
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, record_claim
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -31,10 +26,16 @@ from render_harness import (
     write,
 )
 
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import leases as leases_model
+from leaf import service as service_model
+from leaf.render_checks import rendered
+
 # The open thread's reply, the editor standing in the panel's field, and the thread's
-# held news, which the panel stands in its view's head.
+# held news, which the panel stands among its view's controls.
 PANEL_REPLY = '.lf-fp-field leaf-text[name="reply"]'
-PANEL_NEWS = ".lf-fp-head .lf-thread-news"
+PANEL_NEWS = ".lf-fp-controls .lf-thread-news"
 
 
 def open_threads(page):
@@ -42,7 +43,7 @@ def open_threads(page):
     stands while the counts step aside for words being typed, else by its count."""
     if page.locator(PANEL).get_attribute("data-open") == "threads":
         return
-    back = page.locator(".lf-fp-head .lf-fp-back", has_text="Threads")
+    back = page.locator(".lf-fp-controls .lf-fp-back", has_text="Threads")
     (back if back.count() else page.locator(".lf-fp-threads")).click()
     panel_settled(page, view="threads")
 
@@ -513,7 +514,7 @@ def clear_of_the_panel(page, locator):
 
 def pressed_send_surface(browser, serve, surface):
     """A page with words typed into `surface`'s box, and that box, the control that
-    submits it, where the user stands once it has sent, and the reply box a follow-up
+    submits it, the current location once it has sent, and the reply box a follow-up
     is written in: the same box for one that stays to take more, else None."""
     if surface in {"pause", "handoff"}:
         url, host = seated_page(serve, "task" if surface == "pause" else "verdict")

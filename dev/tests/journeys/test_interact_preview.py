@@ -13,6 +13,7 @@ in a `main` module runs nowhere near the change that breaks it.
 
 import json
 import os
+import re
 import shlex
 import shutil
 import socket
@@ -37,12 +38,13 @@ from interact_support import (
     stamp,
     wait_for,
 )
+from leaf_dev.commands import preview
+from leaf_dev.page_fixtures import read_fixture, record_run_context
+
 from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, state
 from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
-from leaf_dev.commands import preview
-from leaf_dev.page_fixtures import read_fixture, record_run_context
 
 from ..model.test_interact_preview import _ScriptedChanges
 
@@ -373,10 +375,12 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
             return fetch(urlsplit(url)._replace(path=path).geturl(), token=None)
 
         def resource(revision):
+            # Beneath the runtime the preview's server runs, which its document names.
+            document = at("/")[1].decode()
+            runtime = re.search(r'data-lf-runtime-identity="([0-9a-f]+)"', document)[1]
             return (
-                "/revisions/"
-                + revision_path(page, revision).stem
-                + "/page/widgets/lf-reading.js"
+                f"/revisions/{revision_path(page, revision).stem}/{runtime}"
+                "/page/widgets/lf-reading.js"
             )
 
         first = latest_revision(page)
@@ -478,7 +482,7 @@ def test_preview_filters_feedback_before_discovering_inputs(tmp_path, monkeypatc
 
     def changes(_watched):
         count = len(readings)
-        for name in ("observations.jsonl", "user-views.json", "viewed.json"):
+        for name in ("observations.jsonl", "user-views.json"):
             yield {str(page / name)}
             assert len(readings) == count
         source.write_text(source.read_text().replace("Reading</h1>", "Revised</h1>"))
@@ -830,7 +834,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             comment["answer"]["ref"],
@@ -853,7 +857,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     assert status == 200, body
     pending = read_events(page)[-1]["id"]
     before = (page / "events.jsonl").read_bytes()
-    cursor = (page / "cursor.json").read_bytes()
+    cursor = service.acknowledged(read_events(page))
     data = read_data(page, load_registry(page))
     first = latest_revision(page)
     layer = load_registry(page)["$layer"]["generation"]
@@ -864,7 +868,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     task, resumed, _ = start(2)
     assert resumed == url
     assert (page / "events.jsonl").read_bytes().startswith(before)
-    assert (page / "cursor.json").read_bytes() == cursor
+    assert service.acknowledged(read_events(page)) == cursor
     assert read_data(page, load_registry(page)) == data
     assert latest_revision(page) == first
     assert any(event.get("text") == "Preserved reply" for event in read_events(page))
@@ -875,7 +879,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
         for event in batch["events"]
     )
     before = (page / "events.jsonl").read_bytes()
-    cursor = (page / "cursor.json").read_bytes()
+    cursor = service.acknowledged(read_events(page))
     stop(task)
 
     # A restart updates authored and runtime inputs, but never replays new seeds
@@ -890,7 +894,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     assert resumed == url
     assert (page / "events.jsonl").read_bytes().startswith(before)
     assert all(event["id"] != "fictional" for event in read_events(page))
-    assert (page / "cursor.json").read_bytes() == cursor
+    assert service.acknowledged(read_events(page)) == cursor
     assert read_data(page, load_registry(page)) == data
     assert latest_revision(page) > first
     assert revision_path(page, first).is_file()

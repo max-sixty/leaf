@@ -8,8 +8,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, THREAD_DIFF_PAGE
@@ -29,10 +27,13 @@ from render_harness import (
     write,
 )
 
+from browser.test_render_drawing import draw_over
 from browser.threads import (
     PANEL_REPLY,
     open_panel_thread,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -308,11 +309,11 @@ FIRST_LINE = """n => {
 def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surface):
     """Opening a rewrite with ↑ swapped the message for a bordered box with Cancel on a
     row of its own, pushing every turn and the reply box below it down 55px, and Escape
-    left that room behind and the user standing on the thread rather than in the box
+    left that room behind and the user located on the thread rather than in the box
     they pressed ↑ from. A later box painted around the words, with no padding of its
     own, moved nothing but read as a thinner, narrower field than the reply box beside
     it. The rewrite is now the reply box's own field, at its width and height, with the
-    words at their inset under the message's head; Cancel and Save take that head, and
+    words at their inset under the message's head; Discard and Save take that head, and
     every way out steps back up to the reply box, leaving the thread as it was. In the
     margin card the reply box's taller field grew a short message, so the card kept
     that room under every message of the user's; the rewrite there is now the comment
@@ -366,7 +367,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
         assert abs(editing_line[1] - first_line[1]) < 0.5, (editing_line, first_line)
         unmoved()
     head = message.locator(".lf-msg-head").bounding_box()
-    for name in ("Cancel", "Save"):
+    for name in ("Discard", "Save"):
         box = message.get_by_role("button", name=name, exact=True).bounding_box()
         middle = box["y"] + box["height"] / 2
         assert head["y"] - 1 <= middle <= head["y"] + head["height"] + 1, (
@@ -393,7 +394,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(thread).to_be_visible()
     expect(reply).to_be_focused()
-    # Saved, the new words take the box's place, and the user stands in the reply box.
+    # Saved, the new words take the box's place, and the user is located in the reply box.
     words.dblclick()
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("Fit the bracket.")
@@ -447,7 +448,7 @@ def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "Fit the south bracket. Or the east.")
     expect(feed).to_have_attribute("aria-pressed", "true")
-    message.get_by_role("button", name="Cancel").click()
+    message.get_by_role("button", name="Discard").click()
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
@@ -648,7 +649,7 @@ def test_a_rewrite_saves_its_exact_words(browser, serve):
 
 def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
     """Under a finger a message's head holds the row its control stands in. An open
-    rewrite's Cancel and Save took that row's height from the room they need across, so
+    rewrite's Discard and Save took that row's height from the room they need across, so
     a message below the first grew a head 120px tall and pushed the reply box down. The
     head keeps its row, and the box's words take the floor a field's type needs on a
     phone, the one size that changes."""
@@ -695,21 +696,51 @@ def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
     rendered(page)
     now = head.bounding_box()
     assert abs(now["height"] - rest["height"]) < 0.5, (rest, now)
-    for name in ("Cancel", "Save"):
+    for name in ("Discard", "Save"):
         box = message.get_by_role("button", name=name, exact=True).bounding_box()
         assert (
             now["y"] - 1 <= box["y"] + box["height"] / 2 <= now["y"] + now["height"] + 1
         )
 
 
-def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve):
+@pytest.mark.parametrize("previous", ["reply", "reply-after-empty-composer", "drawing"])
+def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve, previous):
     """Resume writing returned to a rewrite Escape had just discarded, reopening it on
     the message's own words, ahead of the reply the user had been writing. A rewrite
-    put away hands Resume writing back to the place written in before it."""
+    put away hands Resume writing back to the place written in before it, including
+    a drawing whose accompanying words are still empty. An emptied composer between
+    the reply and rewrite has nothing to resume and must not take the reply's place."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     reply = page.locator(PANEL_REPLY)
-    reply.click()
-    page.keyboard.type("A reply in progress")
+    if previous != "drawing":
+        resume = reply
+        reply.click()
+        page.keyboard.type("A reply in progress")
+        if previous == "reply-after-empty-composer":
+            mine = message.get_attribute("data-event")
+            page.keyboard.press("Escape")
+            page.locator("#cd-lede").click(modifiers=["Alt"])
+            field = page.locator(".lf-fab-input")
+            field.click()
+            page.keyboard.type("x")
+            page.keyboard.press("Backspace")
+            expect(field).to_have_js_property("value", "")
+            page.keyboard.press("Escape")
+            page.keyboard.press("g")
+            page.keyboard.press("i")
+            expect(field).to_be_focused()
+            expect(field).to_have_js_property("value", "")
+            page.keyboard.press("Escape")
+            open_panel_thread(page, mine)
+    else:
+        mine = message.get_attribute("data-event")
+        page.keyboard.press("Escape")
+        draw_over(page, page.locator("#cd-q"))
+        resume = page.locator(".lf-fab-input")
+        expect(resume).to_be_focused()
+        expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+        page.keyboard.press("Escape")
+        open_panel_thread(page, mine)
     message.locator(".lf-msg-text").dblclick()
     page.keyboard.type(" and more")
     page.keyboard.press("Escape")
@@ -717,8 +748,12 @@ def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve):
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")
-    expect(reply).to_be_focused()
-    expect(reply).to_have_js_property("value", "A reply in progress")
+    expect(resume).to_be_focused()
+    expect(resume).to_have_js_property(
+        "value", "" if previous == "drawing" else "A reply in progress"
+    )
+    if previous == "drawing":
+        expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
 
 
@@ -1306,7 +1341,7 @@ def test_a_rewrite_saved_in_a_resolved_thread_goes_with_its_thread(browser, serv
     2026-10-07)."""
     page, _, message = _rewrite_surface(browser, serve, "panel", resolved=True)
     settle = page.locator(".lf-fp-settle")
-    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Reopen")
     reply = page.locator(PANEL_REPLY)
     held = []
     page.route(
@@ -1320,7 +1355,7 @@ def test_a_rewrite_saved_in_a_resolved_thread_goes_with_its_thread(browser, serv
     page.keyboard.type(" Now.")
     page.keyboard.press("Enter")
     holding(page, held, 1, "the rewrite")
-    expect(settle).to_have_text("Resolve", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Resolve thread")
     expect(reply).to_be_focused()
     held.pop().continue_()
     round_trip(page)
@@ -1348,7 +1383,7 @@ def test_a_refused_rewrite_puts_the_resolved_thread_back(browser, serve):
     page.keyboard.type(" Now.")
     page.keyboard.press("Enter")
     holding(page, held, 1, "the refused rewrite")
-    expect(settle).to_have_text("Resolve", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Resolve thread")
     rendered(page)
     # Chrome reports no shift within 500ms of input, so the refusal lands after it.
     page.wait_for_function(
@@ -1356,7 +1391,7 @@ def test_a_refused_rewrite_puts_the_resolved_thread_back(browser, serve):
     )
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     round_trip(page)
-    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    expect(settle).to_have_accessible_name("Reopen")
     expect(thread).to_be_visible()
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
     page.unroute_all(behavior="wait")

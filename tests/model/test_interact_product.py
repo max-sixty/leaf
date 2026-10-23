@@ -8,6 +8,7 @@ import socket
 import sys
 from pathlib import Path
 
+import click
 import pytest
 from click.testing import CliRunner
 from interact_support import (
@@ -35,10 +36,12 @@ from interact_support import (
     published,
     refused_on,
     response_reference,
-    served_thread,
     state_json,
     words,
 )
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import prepare_page, read_fixture
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
@@ -50,7 +53,6 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import todos as todos_model
 from leaf.findings import Finding, Rejected
-from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
@@ -58,12 +60,9 @@ from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
 from leaf.validation.admission import (
     check_markup,
-    read_text_arg,
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
-from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -238,16 +237,13 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
     assert not (page_dir / "versions").exists()
 
 
-def test_page_events_name_revisions_stamps_name_both_and_signoff_a_version(page_dir):
+def test_page_events_name_revisions_and_stamps_name_both(page_dir):
     kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
     required = kinds["note"]["record"]["required"]
     assert "revision" in required and "version" in required
-    # A sign-off names the stamp it approves; the note already maps that to a revision.
-    required = kinds["done"]["record"]["required"]
-    assert "version" in required and "revision" not in required
     result = CliRunner().invoke(cli_model.cli, ["page", "--help"])
     assert result.exit_code == 0
     assert "\n  stamp " in result.output and "\n  publish " not in result.output
@@ -493,7 +489,6 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 
 PAGE_FIXTURES = (
     *CORPUS_SOURCES,
-    ROOT / "examples" / "corpus.html",
     *sorted((ROOT / "notes").glob("**/*.html")),
 )
 
@@ -575,12 +570,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     assert apparatus.isdisjoint(indexed), (
         f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & indexed))}"
     )
-    # `leaf-dev corpus` strips the contents sidebar when it composes the tab, so
-    # lf-toc is page chrome rather than a sample a section demonstrates.
-    sections = re.sub(
-        r'<aside class="sidebar".*?</aside>', "", authored, flags=re.DOTALL
-    )
-    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", sections)) - apparatus
+    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", authored)) - apparatus
     assert tags
     assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
 
@@ -866,7 +856,7 @@ def test_reply_validates_widget_markup(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, "c1"),
@@ -909,7 +899,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, "c1"),
@@ -944,7 +934,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
 
     def reply(markup, *, for_event=None, to="c1"):
         route = (
-            ["response", "reply", "--done", response_reference(page_dir, for_event)]
+            ["thread", "reply", "--done", response_reference(page_dir, for_event)]
             if for_event
             else ["thread", "reply", str(page_dir), to]
         )
@@ -1045,7 +1035,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1074,7 +1064,8 @@ def test_agent_messages_preserve_a_single_space(page_dir):
     )
     assert empty.exit_code != 0
     assert json.loads(empty.stderr)["error"] == (
-        "empty text (pass --text or pipe via stdin)"
+        "empty text (pass --text, --file PATH or a pipe on stdin; --file - reads"
+        " any stdin)"
     )
 
     opened = comment(page_dir, "--text", " ")
@@ -1101,24 +1092,96 @@ def test_agent_messages_preserve_a_single_space(page_dir):
     assert [message["text"] for message in messages] == [" ", " "]
 
 
-def test_a_body_reads_only_piped_stdin(page_dir, monkeypatch):
-    """A body without --text comes from a pipe or file; a socket the caller keeps
-    open, as Claude Code hands a command spanning lines, is refused at once rather
-    than waited on."""
+def test_a_body_reads_only_piped_stdin(monkeypatch):
+    """A body given by neither --text nor --file comes from a pipe or file; a socket
+    the caller keeps open, as Claude Code hands a command spanning lines, gives none
+    at once rather than being waited on."""
     held, caller = socket.socketpair()
     with held, caller:
         # A regression waits on the socket; the timeout turns that into a failure.
         held.settimeout(STATED_TIMEOUT)
         monkeypatch.setattr(sys, "stdin", held.makefile("r"))
-        with pytest.raises(Refused, match="empty text"):
-            read_text_arg(page_dir, None)
+        assert cli_model.read_body(None, None) is None
 
     read, write = os.pipe()
     os.write(write, b"Checked the label row.")
     os.close(write)
     with open(read) as piped:
         monkeypatch.setattr(sys, "stdin", piped)
-        assert read_text_arg(page_dir, None) == "Checked the label row."
+        assert cli_model.read_body(None, None) == "Checked the label row."
+
+
+def _commands(group, path=()):
+    for name, command in group.commands.items():
+        if isinstance(command, click.Group):
+            yield from _commands(command, (*path, name))
+        else:
+            yield (
+                " ".join((*path, name)),
+                {
+                    param.name
+                    for param in command.params
+                    if isinstance(param, click.Option)
+                },
+            )
+
+
+def test_every_body_takes_text_and_file():
+    """Every command that takes a body takes it the same ways: `--text` inline,
+    `--file` naming a file or `-` for stdin, else a pipe on stdin
+    (`cli.body_options`)."""
+    bodies = {
+        name: params & {"text", "body_file"}
+        for name, params in _commands(cli_model.cli)
+        if params & {"text", "body_file"}
+    }
+    assert "thread reply" in bodies
+    assert {name for name, given in bodies.items() if len(given) < 2} == set()
+
+
+def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
+    """One reply's text, and one plan's JSON, by each route the convention offers;
+    giving both options is refused before anything is written."""
+    reply = tmp_path / "reply.md"
+    reply.write_text("Checked the **label** row.\n", encoding="utf-8")
+    runner = CliRunner()
+    opened = json.loads(comment(page_dir, "--text", "Opening.").output)
+
+    def posted(*body, stdin=None):
+        result = runner.invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), opened["id"], *body],
+            input=stdin,
+        )
+        assert result.exit_code == 0, result.output
+        return json.loads(result.stdout)["text"]
+
+    assert posted("--file", str(reply)) == "Checked the **label** row.\n"
+    assert posted("--file", "-", stdin="From stdin.") == "From stdin."
+    assert posted(stdin="Piped.") == "Piped."
+    both = runner.invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), opened["id"], "--text", "a"]
+        + ["--file", str(reply)],
+    )
+    assert both.exit_code == 2
+    assert "not both" in json.loads(both.stderr)["error"]
+    renamed = runner.invoke(
+        cli_model.cli,
+        ["thread", "edit", str(page_dir), opened["id"], "--title", "Label row"],
+        input="Not the text.",
+    )
+    assert renamed.exit_code == 0, renamed.output
+    assert [
+        record["kind"] for record in map(json.loads, renamed.stdout.split("\n")[:-1])
+    ] == ["thread_title"]
+
+    planned = runner.invoke(
+        cli_model.cli,
+        ["task", "plan", str(page_dir), "--text"]
+        + ['[{"depth": 0, "title": "Check the rows", "state": "working"}]'],
+    )
+    assert planned.exit_code == 0, planned.output
 
 
 def test_the_wire_ships_a_message_as_logged(page_dir):
@@ -1138,7 +1201,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1184,7 +1247,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "The work is ready."],
+        ["thread", "reply", "--done", reference, "--text", "The work is ready."],
     )
     assert answered.exit_code == 0, answered.output
     assert json.loads(answered.output)["responds"] == "c1"
@@ -1238,7 +1301,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
         route = (
             ["thread", "reply", str(claimed), root["id"]]
             if proactive
-            else ["response", "reply", reference]
+            else ["thread", "reply", reference]
         )
         return CliRunner().invoke(
             cli_model.cli,
@@ -1272,7 +1335,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     answer = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -1285,11 +1348,6 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert completed["responds"] == root["id"]
     state = page_state(claimed)
     assert state["workflows"] == []
-    [thread] = served_thread(state["browser"])["threads"]
-    assert thread["summaries"][0]["covers"] == [
-        update["id"],
-        json.loads(again.output.splitlines()[0])["id"],
-    ]
     # Once nothing is owed, an update takes nothing in hand, so it may run long.
     later = progress("The clock drifts.\n\nWatching it overnight.", proactive=True)
     assert later.exit_code == 0, later.output
@@ -1315,7 +1373,7 @@ def test_an_agent_reply_asks_the_user_only_through_a_widget_in_its_markup(page_d
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root["id"]),
@@ -1370,7 +1428,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, user["id"]),
@@ -1509,7 +1567,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         result = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, event_id),
@@ -1587,7 +1645,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     asking = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             response_reference(page_dir, again["id"]),
             "--text",
@@ -1649,7 +1707,7 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
         result = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, said["id"]),
@@ -1711,7 +1769,7 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     south = rewrite("South.", said["id"])
     with pytest.raises(events_model.EventRefused) as stale:
         rewrite("East.", said["id"])
-    assert stale.value.user == "The message changed while you edited it; edit it again."
+    assert stale.value.user == "The message changed while I edited it; edit it again."
     west = rewrite("West.", south["id"])
     with pytest.raises(events_model.EventRefused):
         rewrite("West.", west["id"])
@@ -1946,7 +2004,7 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -2150,7 +2208,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     named = runner.invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root),

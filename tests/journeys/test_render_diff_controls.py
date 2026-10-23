@@ -3,14 +3,15 @@
 from html import escape
 
 import pytest
-from leaf import data as data_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_harness import (
     leaf_page,
     open_page,
     write,
 )
+
+from leaf import data as data_model
+from leaf.render_checks import rendered
 
 
 @pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
@@ -129,14 +130,14 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
 
     def geometry():
         return buttons.evaluate_all("""buttons => buttons.map(button => {
-          const number = button.parentElement.querySelector('[data-line-number-content]');
-          const ink = new Range(); ink.selectNodeContents(number);
-          const bounds = button.querySelector('.lf-diff-line-plus').getBoundingClientRect();
-          return {right: bounds.right, number: ink.getBoundingClientRect().left,
+          const ink = new Range(); ink.selectNodeContents(button);
+          const plus = getComputedStyle(button, '::before');
+          const box = button.getBoundingClientRect();
+          return {right: box.left + parseFloat(plus.left) + parseFloat(plus.width), number: ink.getBoundingClientRect().left,
                   height: button.parentElement.getBoundingClientRect().height,
                   hitHeight: button.getBoundingClientRect().height,
                   background: getComputedStyle(button).backgroundColor,
-                  opacity: getComputedStyle(button).opacity};
+                  opacity: plus.opacity};
         })""")
 
     before = geometry()
@@ -144,13 +145,13 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
         assert reading["right"] <= reading["number"], reading
         assert reading["hitHeight"] == reading["height"], reading
         assert reading["opacity"] == "0", reading
-    native = page.locator("#native [data-gutter] > [data-line-index]").first
+    native = page.locator("#native .lf-diff-line").first
     assert before[0]["height"] == native.bounding_box()["height"]
     assert (
-        diff.locator("[data-gutter]").bounding_box()["width"]
-        == page.locator("#native [data-gutter]").bounding_box()["width"]
+        buttons.first.bounding_box()["width"]
+        == page.locator("#native .lf-diff-line-comment").first.bounding_box()["width"]
     )
-    diff.locator("[data-content] > [data-line]").first.hover()
+    diff.locator(".lf-diff-line > [data-line]").first.hover()
     after = geometry()
     assert after[0]["opacity"] == "1"
     assert after[0]["background"] == "rgba(0, 0, 0, 0)"
@@ -158,7 +159,7 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
         {k: v for k, v in r.items() if k != "opacity"} for r in before
     ]
     # Moving to the next line retires the previous gutter highlight.
-    diff.locator("[data-content] > [data-line]").nth(1).hover()
+    diff.locator(".lf-diff-line > [data-line]").nth(1).hover()
     assert geometry()[0]["opacity"] == "0"
     assert geometry()[1]["opacity"] == "1"
     buttons.first.hover()

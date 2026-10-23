@@ -6,7 +6,6 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_harness import (
     INPUT_WORK_WATCH_SOURCE,
@@ -19,6 +18,8 @@ from render_harness import (
     open_page,
     take_browser_errors,
 )
+
+from leaf.render_checks import rendered
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.
@@ -206,19 +207,19 @@ def test_a_press_its_host_carries_into_an_opaque_frame_owns_what_it_moves(
         script.lfDocumentPort = port;
         port.onmessage = () => {
           above.style.height = '40px';
-          port.postMessage('grown');
+          port.postMessage({ type: 'grown' });
         };
-        port.postMessage('ready');
+        port.postMessage({ type: 'ready' });
       });
     </script>"""
     parent = """<button id=grow>Grow</button><script>
       const channel = new MessageChannel();
       const port = channel.port1;
       document.currentScript.lfDocumentPort = port;
-      window.passive = lfInputWork.capture(() => port.postMessage('grow'));
-      port.onmessage = event => { window[event.data] = true; };
+      window.passive = lfInputWork.capture(() => port.postMessage({ type: 'grow' }));
+      port.onmessage = event => { window[event.data.type] = true; };
       frame.onload = () => frame.contentWindow.postMessage(null, '*', [channel.port2]);
-      grow.onclick = () => port.postMessage('grow');
+      grow.onclick = () => port.postMessage({ type: 'grow' });
     </script>"""
     page = browser.new_page()
     page.goto(
@@ -841,6 +842,11 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         in {"tail_growth", "region_growth", "tail_and_region_growth", "tail_replaced"}
         else ""
     )
+    hidden = (
+        '<div id="hidden" hidden>Earlier progress.</div>'
+        if fault.endswith("tail_replaced")
+        else ""
+    )
     page = browser.new_page()
     page.goto(
         "data:text/html,"
@@ -850,7 +856,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
             'padding:5px;box-sizing:border-box;overflow:auto;overflow-anchor:none">'
             '<section style="overflow:clip">'
             '<div id="source" data-lf-reflow="append">'
-            f'<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
+            f'{hidden}<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
             '<button id="reply" style="display:block;position:sticky;bottom:0">Reply</button></section>'
             '<article><p style="margin:0">Another conversation.</p>'
             '<button id="later">Later thread</button></article></div>'
@@ -880,6 +886,8 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           next.style.cssText = `margin:0;height:${fault.startsWith('sticky_') ? 400 : 40}px`;
           if (fault === 'prepend') source.prepend(next);
           else if (fault.endsWith('tail_replaced')) {
+            // Completing the tail removes its boxless progress checkpoint too.
+            document.getElementById('hidden').remove();
             next.style.height = '80px';
             document.getElementById('old').replaceWith(next);
             next.id = 'old';
@@ -2332,9 +2340,8 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # press's rendering is still open when the news lands. What moves the line is the
 # page's `data-motion`: the news growing a box above it (none), the news beginning a
 # bar's slide above it (`news`), or the press beginning that slide, which runs on past
-# news that moves nothing (`press`). The height slide is a conservative sensor
-# boundary: native height-induced sibling flow has no exact translation proof.
-# The matched marginTop arm proves press/news ownership with supported displacement.
+# news that moves nothing (`press`). The matched marginTop arm checks the same
+# ownership with translation instead of size-induced flow.
 NEWS = """<!doctype html><body style="margin:0">
 <script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <button id="press">Press</button>
@@ -2388,8 +2395,8 @@ def test_news_just_after_a_press_moves_nothing(browser, motion, work_ms):
     consume_browser_errors(page, moved_within("div#below"))
 
 
-def test_native_height_sibling_flow_without_displacement_proof_is_reported(browser):
-    """The sensor reports genuine native flow it cannot attribute, rather than guessing."""
+def test_press_owned_native_height_flow_is_credited(browser):
+    """A press-owned size animation carries a later box in the same flow."""
     page = news_page(browser, "press")
     assert page.evaluate("parseFloat(getComputedStyle(bar).height)") > 0
     assert (
@@ -2397,7 +2404,117 @@ def test_native_height_sibling_flow_without_displacement_proof_is_reported(brows
         > page.locator("#bar").bounding_box()["y"]
     )
     judge_watches()
-    consume_browser_errors(page, moved_within("div#below"))
+    assert take_browser_errors(page) == []
+
+
+def test_absolute_size_animation_cannot_credit_an_independent_control_move(browser):
+    """Matching travel does not join an out-of-flow effect to a later control."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div id="size" style="position:absolute;height:0;width:20px"></div>'
+            '<button id="control" style="position:relative">Control</button>'
+            '<script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
+            '{duration:400, fill:"forwards"});'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate("""() => {
+      effect.currentTime = 400;
+      control.style.top = '120px';
+    }""")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
+
+
+def test_flex_row_size_animation_cannot_credit_independent_vertical_move(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div style="display:flex;align-items:start">'
+            '<div id="size" style="height:0;width:20px"></div>'
+            '<button id="control" style="position:relative">Control</button>'
+            '</div><script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
+            '{duration:400, fill:"forwards"});'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate("""() => {
+      effect.currentTime = 400;
+      control.style.top = '120px';
+    }""")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
+
+
+def test_inline_siblings_cannot_credit_independent_vertical_move(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div style="display:block">'
+            '<div id="size" style="display:inline-block;vertical-align:top;height:0;width:20px"></div>'
+            '<button id="control" style="position:relative;vertical-align:top">Control</button>'
+            '</div><script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{height:"0px"}, {height:"120px"}],'
+            '{duration:400, fill:"forwards"});'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate("""() => {
+      effect.currentTime = 400;
+      control.style.top = '120px';
+    }""")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
+
+
+def test_width_animation_cannot_credit_a_script_height_change(browser):
+    """A native effect cannot claim a size change on an axis it does not animate."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div id="size" style="display:block;height:0;width:20px"></div>'
+            '<button id="control" style="display:block">Control</button>'
+            '<script>start.addEventListener("pointerdown", () => {'
+            'window.effect = size.animate([{width:"20px"}, {width:"40px"}],'
+            '{duration:400, fill:"forwards"});'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    paint(page)
+    page.evaluate(
+        """() => { effect.currentTime = 400; size.style.height = '120px'; }"""
+    )
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
 
 
 @pytest.mark.parametrize("motion", ["press", "news"])
@@ -3249,6 +3366,35 @@ grow.addEventListener('click',()=>room.style.height='40px')</script>""")
         consume_browser_errors(page, moved_within("div#menu"))
 
 
+def test_registered_property_translation_credits_the_box_it_carries(browser):
+    """A native animation can move translate through a registered property."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --slide { syntax: '<length>'; inherits: false; initial-value: 0px; }
+</style><body style="margin:0">
+<button id="start">Start</button>
+<div id="panel" style="translate:var(--slide) 0px"><p>Reading</p></div>
+<div id="room"></div><p id="below">Below</p>
+<script>start.onclick=()=>{
+  window.motion=panel.animate([{'--slide':'200px'},{'--slide':'0px'}], {duration:3000});
+}</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    page.wait_for_function("panel.getBoundingClientRect().left < 180")
+    assert page.evaluate("motion.playState") == "running"
+    before = page.locator("#panel").bounding_box()["x"]
+    page.evaluate("() => { room.style.height = '40px'; }")
+    paint(page)
+    assert before - page.locator("#panel").bounding_box()["x"] > 1
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert not names_move(errors, "div#panel"), errors
+    assert names_move(errors, "p#below"), errors
+
+
 @pytest.mark.parametrize("mode", ["static", "fallback"])
 def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
     page = browser.new_page()
@@ -3296,6 +3442,90 @@ def gesture_motion_page(browser):
     page.goto("data:text/html," + quote(GESTURE_MOTION))
     paint(page)
     return page
+
+
+@pytest.mark.parametrize(
+    "fault,finish",
+    [("", False), ("child", False), ("consumer", False), ("", True), ("child", True)],
+)
+def test_a_direct_custom_property_translation_keeps_only_its_own_motion(
+    browser, fault, finish
+):
+    """A native custom-property tween carries its directly bound translation. It
+    cannot excuse an independent child move or replacement of that binding."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --travel { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="panel" style="margin-left:350px;translate:var(--travel)">
+<button id="control">Retained control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>start.onclick=()=>{
+window.motion=panel.animate([{'--travel':'-200px 0px'},{'--travel':'0px 0px'}],
+  {duration:1000});
+motion.onfinish=()=>panel.style.translate='';
+motion.pause();motion.currentTime=150;
+}</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    page.evaluate(
+        """({fault, finish}) => {
+          if (fault === 'child') control.style.marginLeft = '55px';
+          if (fault === 'consumer') panel.style.translate = '80px 0px';
+          if (finish) motion.finish();
+          else motion.currentTime = 800;
+          trigger.style.left = '40px';
+        }""",
+        {"fault": fault, "finish": finish},
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == bool(fault), errors
+
+
+@pytest.mark.parametrize("fault", [False, True])
+def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
+    browser, fault
+):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="start">Start</button>
+<button id="source" style="position:absolute;left:350px;top:100px;anchor-name:--source">Anchor</button>
+<div id="tip" style="position:fixed;position-anchor:--source;left:anchor(left);top:anchor(bottom)">
+<button id="control">Attached control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>start.onclick=()=>{
+window.motion=source.animate([{translate:'-200px 0px'},{translate:'0px 0px'}],
+  {duration:1000,fill:'forwards'});
+motion.pause();motion.currentTime=150;
+}</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    page.evaluate(
+        """fault => {
+          motion.currentTime = 800;
+          if (fault) tip.style.marginLeft = '55px';
+          trigger.style.left = '40px';
+        }""",
+        fault,
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == fault, errors
 
 
 def test_immediate_native_opening_and_typing(browser):
@@ -3914,6 +4144,55 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
                 for comparison in evidence["comparisons"]
             ), evidence
         assert {error.code for error in errors} == {"moved-without-input"}, errors
+    else:
+        assert not errors, errors
+
+
+@pytest.mark.parametrize(
+    "property,fault",
+    [("marginLeft", False), ("marginLeft", True), ("translate", False)],
+    ids=["layout-native", "layout-authored", "translate-native"],
+)
+def test_cancelled_native_translation_credits_its_return_to_layout(
+    browser, property, fault
+):
+    """Cancelling a no-fill effect returns its subject to the underlying layout."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="start">Start</button>
+<div id="panel" style="margin-left:350px"><p>Retained words</p></div>
+<script>start.onclick=()=>{
+  const keyframes = window.effectProperty === 'translate'
+    ? [{translate:'200px 0px'},{translate:'0px 0px'}]
+    : [{marginLeft:'550px'},{marginLeft:'350px'}];
+  window.motion=panel.animate(keyframes, {duration:1000});
+  motion.playbackRate=0;
+  motion.currentTime=500;
+}</script></body>""")
+    )
+    paint(page)
+    page.evaluate("property => window.effectProperty = property", property)
+    page.locator("#start").click()
+    paint(page)
+    before = page.locator("#panel p").bounding_box()
+    assert before["x"] > 400
+    page.evaluate(
+        """fault => {
+          if (fault) panel.style[window.effectProperty] =
+            window.effectProperty === 'translate' ? '80px 0px' : '430px';
+          motion.cancel();
+        }""",
+        fault,
+    )
+    paint(page)
+    after = page.locator("#panel p").bounding_box()
+    assert after["x"] == (430 if fault else 350)
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert names_move(errors, "div#panel"), errors
     else:
         assert not errors, errors
 

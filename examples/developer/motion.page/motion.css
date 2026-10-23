@@ -1,0 +1,40 @@
+/* Keep drawings aligned and text at its authored scale. The module adapts each
+   viewBox to this width so the entire path remains visible on a phone. */
+.study-pair {
+  display: grid;
+  gap: 1rem;
+  padding-block: 1rem;
+}
+.study-pair figure {
+  --lf-block-frame: trim;
+  margin: 0;
+  min-width: 0;
+  overflow-x: auto;
+}
+.study-pair figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--ink);
+  font: 600 13px/1.5 var(--sans);
+}
+.study-pair figcaption span {
+  color: var(--muted);
+  font-weight: 400;
+}
+.study-pair svg {
+  display: block;
+  width: min(560px, 100%);
+  height: 110px;
+  fill: var(--ink);
+  font: 13px var(--sans);
+}
+.study-pair svg .quiet {
+  fill: var(--muted);
+  font-size: 12px;
+}
+.study-pair figure:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}

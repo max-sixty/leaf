@@ -25,9 +25,11 @@ survive a rewrite (`page-authoring.md`, "Stable anchors").
 
 Page modules follow `module-authoring.md`, "What a behavior module owes", whose rules
 keep page controls working after a reconnect and inside quoted threads.
+For text that changes during an interaction, read `page-layout.md`, "Space for
+changing text".
 
 A page module that shows the obligations in each card or section of its own layout reads them
-from Leaf: `readObligations()` in a `watchProjection` paint, with `obligationsIn(region)` selecting
+from Leaf: `readObligations()` in a `LeafElement.render()`, with `obligationsIn(region)` selecting
 each region's obligations and `obligationActions.next({within})` moving to the next one waiting on
 the user (`module-reading.md`, "Reading obligations and the On lists").
 
@@ -37,8 +39,11 @@ check opens: a data widget such as a chart, or a screenshot pair's images. It fa
 uncaught exception or rejected promise, naming the source location, and on any widget
 that couldn't draw. A module that throws on first paint, or a chart whose data doesn't
 parse, therefore fails before you hand over the URL. Code that runs only after a gesture
-or a timer isn't reached, so operate it in your review before handover. On a host
-without a browser, the check skips this step with a note.
+or a timer isn't reached. Operate those paths through their final result before
+handover. Compare the positions and sizes of the controls and content the reader is using
+through those states, including at a narrow width; a settled screenshot cannot show
+whether changing feedback moved them. On a host without a browser, the check skips
+this step with a note.
 
 `page/registry.json` adds declarations in the package registry format; an element entry
 there replaces the layer's entry for that tag. `page/widgets/<tag>.js` replaces a

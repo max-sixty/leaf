@@ -28,19 +28,7 @@ from urllib.parse import urljoin, urlsplit
 import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
-from interact_support import running_http_server
-from leaf import data as data_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import schema as schema_model
-from leaf.event_log import CURSOR, _parse_events, read_events
-from leaf.events import bare_reaction, build_threads
-from leaf.passages import enclosing_ids
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.revision_artifact import read_artifact
-from leaf.structure import SourceDocument
+from interact_support import declared, running_http_server
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
@@ -71,6 +59,19 @@ from render_harness import (
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "Waits".
 from journeys import expect_showing
+from leaf import data as data_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import layer as layer_model
+from leaf import schema as schema_model
+from leaf.event_log import _parse_events, read_events
+from leaf.events import bare_reaction, build_threads
+from leaf.passages import enclosing_ids
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.revision_artifact import read_artifact
+from leaf.service import acknowledged
+from leaf.structure import SourceDocument
 
 ROOT = Path(__file__).parents[2]
 DOCS = ROOT / "docs"
@@ -142,12 +143,10 @@ def example_title(stem: str) -> str:
 
 
 def authored_examples():
-    """The public examples, with the one generated browser-stress fixture removed."""
+    """The public examples, excluding any generated browser-stress snapshot."""
     pages = pages_under(EXAMPLES)
-    corpus = [page for page in pages if page.stem == "corpus"]
     authored = [page for page in pages if page.stem != "corpus"]
-    assert len(corpus) == 1, f"expected one internal corpus, found {corpus}"
-    assert authored, "excluding the corpus left no examples to publish"
+    assert authored, "no authored examples to publish"
     return authored
 
 
@@ -364,22 +363,17 @@ def test_product_pages_are_published_as_complete_page_records(site):
         for name in (
             *schema_model.VENDORED_FILES,
             "events.jsonl",
-            "status.json",
         ):
             assert (page / name).is_file(), f"{source.name}: no {name}"
-        for name in (
-            "instructions",
-            "revisions",
-            "runtime",
-            "vendor",
-            "widgets",
-        ):
+        # The runtime is the serving Leaf's, which the release publishes beside each
+        # revision rather than the page vendoring it (`runtime_selection`).
+        for name in ("instructions", "revisions", "vendor", "widgets"):
             assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
         artifact = read_artifact(page, files_model.latest_revision(page))
         for path, resource in artifact.resources.items():
             if path.startswith("/media/"):
                 assert (page / path.lstrip("/")).read_bytes() == resource.data
-        assert json.loads((page / "status.json").read_text())["state"] == "idle"
+        assert declared(page)["state"] == "idle"
 
 
 def test_page_layers_stay_inside_their_page_directories(site):
@@ -388,7 +382,6 @@ def test_page_layers_stay_inside_their_page_directories(site):
         *schema_model.VENDORED_FILES,
         "session.js",
         "runtime.js",
-        "data.json",
         "events.jsonl",
     ):
         assert not (site / name).exists(), f"unscoped runtime asset: {name}"
@@ -434,7 +427,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     assert (example_layer / "registry.json").is_file()
     assert list((example_root / "versions").glob("v*.html"))
     assert list((example_root / "revisions").glob("r*.html"))
-    for private in ("data.json", "events.jsonl", "status.json", "cursor.json"):
+    for private in ("data", "events.jsonl", "stream.json"):
         assert not (example_root / private).exists()
 
     notification_root = assets / "examples" / "notification-playground"
@@ -598,9 +591,11 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         seed = source.with_suffix(".jsonl")
         if seed.exists():
             assert seed.read_text() in (page_dir / "events.jsonl").read_text()
-            assert CURSOR.read(page_dir / "cursor.json") == {"seq": len(events)}
+            # The seed is history, so the page acknowledges all of it.
+            receipt = next(event for event in events if event["kind"] == "receipt")
+            assert acknowledged(events) == receipt["seq"] - 1
         else:
-            assert not (page_dir / "cursor.json").exists()
+            assert acknowledged(events) == 0
         assert set(contracts) == {operation["source"] for operation in operations}
         for operation in operations:
             stored = data_model.source_file(page_dir, operation["source"])
@@ -609,22 +604,15 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         for name in (
             "events.jsonl",
             "icon.svg",
-            "leaf.js",
             "registry.json",
-            "status.json",
             "theme.css",
         ):
             assert (page_dir / name).is_file(), f"{source.name}: no {name}"
-        for sub in (
-            "instructions",
-            "media",
-            "revisions",
-            "runtime",
-            "vendor",
-            "widgets",
-        ):
+        # The runtime is the serving Leaf's, which the release publishes beside each
+        # revision rather than the page vendoring it (`runtime_selection`).
+        for sub in ("instructions", "media", "revisions", "vendor", "widgets"):
             assert list((page_dir / sub).iterdir()), f"{source.name}: {sub}/ is empty"
-        assert json.loads((page_dir / "status.json").read_text())["state"] == "idle"
+        assert declared(page_dir)["state"] == "idle"
         assert not (page_dir / "service.json").exists()
         assert not (page_dir / "preview.json").exists()
         assert not (page_dir / "versions").exists()
@@ -717,16 +705,11 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
     _, url = served_example("visual-review-gallery")
     page = open_page(browser, url)
     review = page.locator("#visual-review-run")
-    case_select = review.locator(".lf-vr-case-select")
     for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
-        option = review.locator(f'wa-option[value="{case_id}"]')
-        case_select.click()
-        expect(option).to_be_visible()
-        option.click()
-        # Web Awesome finishes hiding the listbox after it records the selection.
-        expect(case_select.locator('[part~="listbox"]')).to_have_attribute("hidden", "")
-        expect(case_select).to_have_js_property("value", case_id)
-        comparison = review.locator(".lf-vr-case[data-selected] lf-shot")
+        review.locator(
+            f'.lf-vr-case-button[aria-controls="visual-review-run-{case_id}"]'
+        ).click()
+        comparison = review.locator('.lf-vr-case[aria-hidden="false"] lf-shot')
         expect(comparison).to_be_visible()
         images = comparison.locator("img")
         expect(images).to_have_count(2)
@@ -1348,7 +1331,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         newest = len(example_versions(source))
         expect_showing(page, newest)
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-            "aria-label", "Page menu · Agent revises your private copy"
+            "aria-label", "Page menu · Agent awaits — comment to revise this copy"
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
@@ -1465,17 +1448,17 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page = open_page(browser, url)
     state_head = panel_menu(page).locator(".lf-fp-state")
     expect(state_head).to_contain_text(
-        "This is an example on the Leaf website. Agent replies and revises "
-        "this private copy."
+        "This is an example on the Leaf website, and this copy is private to this browser."
     )
     assert state_head.locator("a").evaluate_all(
         "links => links.map(link => link.getAttribute('href'))"
     ) == ["/examples/", "/#install"]
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(".sitenote")).to_have_count(0)
+    # Unclaimed, the copy's agent is still on call: a comment starts it.
     assert page.locator(".lf-fp-leaf .lf-dot").evaluate(
         "dot => [...dot.classList]"
-    ) == ["lf-dot"]
+    ) == ["lf-dot", "listening"]
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
@@ -1552,7 +1535,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     # Painted, not merely resolved: the mark is what puts the user at the passage.
     assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
     # The question Claude asks in that thread is a widget, upgraded from the
-    # same canonical state a user can answer where they are standing.
+    # same canonical state a user can answer where they are located.
     item = page.locator("#off-slip")
     expect(item).to_be_visible()
     assert item.locator("[data-lf-offer]").count() > 0, (

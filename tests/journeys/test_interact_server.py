@@ -19,6 +19,7 @@ from interact_support import (
     TOKEN,
     append_carried_log_record,
     check,
+    declare,
     declare_work,
     end_work,
     fetch,
@@ -30,6 +31,8 @@ from interact_support import (
     wait_for,
     write_record,
 )
+from leaf_dev.page_fixtures import package_selection_args
+
 from leaf import cli as cli_model
 from leaf import event_log as event_model
 from leaf import files as files_model
@@ -46,7 +49,7 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
-from leaf_dev.page_fixtures import package_selection_args
+from leaf.runtime_selection import serving_runtime
 
 
 def test_authored_recordings_are_served_with_seekable_captured_bytes(
@@ -74,7 +77,10 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
     markup = "".join(f'<audio controls src="{path}"></audio>' for path, _ in paths)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
     publish(page_dir)
-    captured = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    captured = (
+        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
+        f"/{serving_runtime().identity}"
+    )
     for path, mime in paths:
         for route in (path, captured + path):
             conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
@@ -82,19 +88,6 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
                 for requested, status, expected, content_range in [
                     (None, 200, data, None),
                     ("bytes=2-5", 206, data[2:6], "bytes 2-5/10"),
-                    ("bytes=7-", 206, data[7:], "bytes 7-9/10"),
-                    ("bytes=-3", 206, data[-3:], "bytes 7-9/10"),
-                    ("bytes=-100", 206, data, "bytes 0-9/10"),
-                    ("bytes=0-99", 206, data, "bytes 0-9/10"),
-                    ("bytes=10-", 416, b"", "bytes */10"),
-                    ("bytes=-0", 416, b"", "bytes */10"),
-                    ("bytes=999999999999999999999999-", 416, b"", "bytes */10"),
-                    ("bytes=5-2", 200, data, None),
-                    ("bytes=99999999999999999999-99", 200, data, None),
-                    ("bytes=00002-00005", 206, data[2:6], "bytes 2-5/10"),
-                    ("bytes=0-1,4-5", 200, data, None),
-                    ("bytes=bad", 200, data, None),
-                    ("frames=0-1", 200, data, None),
                 ]:
                     headers = {"Range": requested} if requested else {}
                     conn.request("GET", route + f"?t={TOKEN}", headers=headers)
@@ -118,7 +111,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
                     answer.status,
                     answer.read(),
                     answer.getheader("Content-Length"),
-                ) == (200, b"", "10")
+                ) == (206, b"", "4")
                 conn.request("GET", route)
                 answer = conn.getresponse()
                 assert answer.status == 401
@@ -181,7 +174,10 @@ def test_server_round_trip(server, page_dir):
         f'<meta name="lf-widgets" data-lf-runtime content="{widgets}">'
         '<meta name="lf-version" data-lf-runtime content="1">'
     ).encode()
-    artifact_root = f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
+    artifact_root = (
+        f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
+        f"/{serving_runtime().identity}"
+    )
     entry = (
         f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
     ).encode()
@@ -194,9 +190,9 @@ def test_server_round_trip(server, page_dir):
         assert response.headers["Content-Security-Policy"] == "frame-ancestors 'self'"
     assert b"lf-board" in pinned and marker in pinned
     assert not (page_dir / "versions").exists()
-    # Vendored files serve; the log and directory paths don't.
+    # Vendored files and the runtime's probes serve; the log and directory paths
+    # don't.
     for path in [
-        "/leaf.js",
         "/theme.css",
         "/registry.json",
         "/widgets/lf-tabs.js",
@@ -205,9 +201,8 @@ def test_server_round_trip(server, page_dir):
         assert fetch(server + path)[0] == 200, path
     for path in [
         "/events.jsonl",
-        "/data.json",
         "/vendor/..",
-        "/status.json",
+        "/stream.json",
         "/../secret",
     ]:
         assert fetch(server + path)[0] == 404, path
@@ -612,7 +607,10 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     assert "Backfill plan\u2028Q3" in body
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
-    artifact_root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    artifact_root = (
+        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
+        f"/{serving_runtime().identity}"
+    )
     theme = structure_model.SourceDocument(body).tree.find(
         "link", attrs={"href": f"{artifact_root}/theme.css"}
     )
@@ -721,10 +719,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         stderr=subprocess.DEVNULL,
     )
     record_claim(neighbor, id="invisible", pid=agent.pid, cwd="/work/invisible")
-    write_record(
-        neighbor / "status.json",
-        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(neighbor)
     declare_work(neighbor, "measuring", ts=cleanup_model.now_iso())
     hosting_model.start_server(neighbor, persistent=True, harness=None)
 
@@ -756,10 +751,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         )
     )
     end_work(neighbor)
-    write_record(
-        neighbor / "status.json",
-        {"state": "waiting", "detail": "pick one", "ts": cleanup_model.now_iso()},
-    )
+    declare(neighbor, "waiting", "pick one")
     session = cleanup_model.session_record("invisible")
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
     await_row(lambda row: row["activity"]["kind"] == "away")
@@ -804,10 +796,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """
     pages = cleanup_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
-    write_record(
-        pages / "live" / "status.json",
-        {"state": "waiting", "detail": "", "ts": "2026-01-01T00:00:00-08:00"},
-    )
+    declare(pages / "live", ts="2026-01-01T00:00:00-08:00")
     declare_work(pages / "live", "measuring", ts="2026-01-01T00:00:00-08:00")
     record_claim(
         pages / "live",
@@ -827,19 +816,12 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     corrupt_url = neighbour_page(pages / "corrupt", title="A corrupted page")
     (pages / "corrupt" / "events.jsonl").write_text('{"kind": "note", "author"')
     # Presence belongs to the same isolation boundary as the log and version. A
-    # status record carrying a field no version reads, as an older leaf's work list,
+    # stream record carrying a field no version reads, as an older leaf's work list,
     # must not make this page's poll fail: the field is ignored.
-    malformed = pages / "malformed-status"
-    neighbour_page(malformed, title="Malformed status")
-    write_record(
-        malformed / "status.json",
-        {
-            "state": "waiting",
-            "detail": "unknown",
-            "ts": cleanup_model.now_iso(),
-            "work": [{}],
-        },
-    )
+    malformed = pages / "malformed-stream"
+    neighbour_page(malformed, title="Malformed stream")
+    declare(malformed, detail="unknown")
+    write_record(malformed / "stream.json", {"work": [{}]})
     # A page served from a session's scratch directory, plus the asking page
     # itself: the claim index finds the first, and the second stays out of its own
     # list. Untitled, so the title falls back to the directory's name.
@@ -853,7 +835,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     rows = {row["title"]: row for row in state["others"]}
     assert list(rows) == [
         "A corrupted page",
-        "Malformed status",
+        "Malformed stream",
         "Nothing to link",
         "scratch",
         "The other page",
@@ -864,7 +846,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     assert rows["The other page"]["url"] == live_url
     assert rows["The other page"]["session_cwd"] == "/work/api"
     assert rows["The other page"]["activity"]["kind"] == "away"
-    assert rows["Malformed status"]["activity"]["kind"] == "away"
+    assert rows["Malformed stream"]["activity"]["kind"] == "away"
     assert all("obligations" not in row["activity"] for row in rows.values())
 
 

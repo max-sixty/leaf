@@ -1,8 +1,7 @@
 # Codex handoff and delivery
 
-Use this reference when the main skill's "Harness selection" picks ordinary Codex,
-whether in the desktop app, an IDE or a terminal. Leaf brings the user's input back to
-this task through Codex's queue.
+Use this reference for Codex in the desktop app, an IDE, a terminal or leaf.page.
+Follow each event's `handling` and, for a thread reply, its `answer.writer`.
 
 ## Full Leaf handoff
 
@@ -12,7 +11,8 @@ user the URL. Follow `conversation-loop.md`, "Status and handoff".
 
 `server start` connects delivery before it prints the URL, even when the server is
 already running; if it refuses, follow its message before handing the page over. If
-this task already runs `leaf wait` itself, serving leaves that in place.
+this task already runs `leaf wait` itself, serving leaves that in place. A harness
+that starts the task, such as leaf.page, has already handed the page over.
 
 ## Delivery
 
@@ -21,28 +21,81 @@ watches every page this task owns, and keeps running when a turn ends. Serving a
 again restarts an adapter that stopped. To connect delivery for a page you claim
 without serving it, run `leaf codex start <page>`.
 
-While your turn runs, Leaf's hooks offer new input between steps and when the turn tries
-to end. Run the `leaf delivery read <id>` it names, read every part, then follow its
-confirmation instruction.
+While your turn runs, Leaf's hooks offer new input between steps. Input that arrives
+as the turn ends comes either when the turn tries to end or in a turn of its own. The hook carries the complete delivery
+as one line of JSON, or a pointer when it exceeds Codex's context limit. Read inline input directly; for a pointer,
+run its `leaf delivery read <id>` and read every part. Follow the delivery's
+`acknowledge` instruction before handling the input.
 
 When the task is idle, or a hook's input wasn't confirmed before the turn ended, the
-adapter sends the input through `codex queue` as the task's next user message: a
-`leaf-delivery` element naming `leaf delivery read <id>`. The adapter acknowledges it, so
-don't run `leaf wait` or `leaf wait --ack`. The same delivery id can come back after an
-uncertain queue response; that is the retry `event-batches.md` describes. Input
-confirmed during a turn isn't queued again.
+adapter either queues a `leaf-delivery` pointer as the task's next user message or
+starts an App Server turn with a `leaf_delivery` tool output, one slice per turn.
+Leaf acknowledges input it queues or starts. A pointer still needs complete reading
+and the confirmation on its last part; inline tool output needs no acknowledgement
+command. On the macOS desktop, the adapter also wakes the queued chat in the
+background, avoiding Codex's ten-second check for external queue writes.
+Run no `leaf wait` or `leaf wait --ack`.
+The same delivery id can come back in a later turn after an uncertain queue
+response; its `leaf delivery ack` then says an earlier turn already picked it up and
+names any answer it still owes. Don't redo that turn's work. Input confirmed during a
+turn isn't queued again.
 
-Answer each update with the command its delivered `handling` names, such as
-`leaf response reply <answer.ref>` for a reply. Your final message stays in the Codex
-chat and never reaches the page.
+The desktop app's own App Server exposes no endpoint Leaf can use. A terminal can
+connect to a separate App Server (`codex-setup.md`). A Codex without `codex queue`
+refuses a queue connection because it can't receive later turns.
 
-A Codex without the `codex queue` command can't receive later turns, so serving refuses
-to connect delivery there.
+## Replies
+
+Follow every event's `handling`. For a thread reply, use its supplied `answer.writer`:
+
+- `"agent"`: post with `leaf thread reply <answer.ref>`. Your final message stays
+  in the Codex chat and never reaches the page.
+- `"turn"`: the delivery reserves at most one thread reply for this turn. Before
+  your first tool call, write a short message to the user: the answer, or what you
+  are about to do. Leaf posts this opening in the thread as your progress line once
+  you finish it; later working messages stay in Codex. When the turn completes,
+  your final message posts as the reply and folds the opening behind it. A turn
+  with no final message posts no reply.
+
+For a `"turn"` reply that needs widgets, a request for the user (`--obligation`), work
+promised beyond this turn (`--todo`), a title or a changed anchor, use
+`leaf thread reply <answer.ref>` with the options in `threads.md`. The command
+checks the reply and posts it at once, and your final message then posts nothing.
+Leaf may title an untitled thread from your opening message, and that title stays.
+
+If the user resolves the thread before the turn completes, the reserved reply still
+posts and reopens it. Your final message publishes your saved page edits with it,
+so end the turn without running `leaf page check` first. If Leaf refuses to post it,
+as it does over a saved edit with errors, it starts a correction turn with the error
+and the same reply address; fix the problem and complete the answer. Leaf also
+withholds the final message of a turn that carries a message the user sent in Codex,
+since that answer was written for the user's message too, and starts a correction
+turn for the delivery the same way.
+
+A hook or queued pointer can carry an `"agent"` reply even in a task connected to
+App Server. The supplied writer determines the reply route for that delivery.
+
+## Activity
+
+When connected to App Server, Leaf shows the task's current step, such as a tool
+call or a wait for approval, in the status of Leaf's panel as what the agent is doing on the page as a whole.
+If you started an update or to-do with `leaf task start`, its line stays the status's
+sentence and the step appears in the status's full text, which the user reads by
+pointing at it.
+
+## Sandbox
+
+In Codex's `workspace-write` sandbox, run `leaf` commands with the `run` tool of the
+`leaf` MCP server, which runs them outside the sandbox. Your own edits to a page
+stay inside it, and it lets them write a page in Leaf's state home only once the
+user adds the state home's `pages` directory to Codex's writable roots ("Agent
+sandboxes" in Leaf's `README.md`). Where that is missing, the tool's first result
+in a task says so and gives the line; pass it to the user.
 
 ## Routes without the adapter
 
 Two routes bring input without the adapter. On both, answer with
-`leaf response reply <answer.ref>`.
+`leaf thread reply <answer.ref>`.
 
 - This task runs `leaf wait` in unified exec, polls it with `write_stdin`, and
   acknowledges each batch with `leaf wait --ack <delivery-id>`, which then waits for the

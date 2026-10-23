@@ -16,12 +16,13 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     PLUGIN_ROOT,
     STATED_TIMEOUT,
+    acknowledged_through,
     append_carried_log_record,
     record_claim,
     serving,
     wait_for,
 )
-from leaf import event_log as events_model
+
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
@@ -121,16 +122,15 @@ def _registered_hook_arguments(harness, event):
     return words[words.index("hook") : words.index("||")]
 
 
-def _registered_watch_arguments():
-    """What Claude Code's background Stop registration passes its supervisor."""
+def _registered_watch():
+    """Claude Code's background Stop registration."""
     [hook] = [
         hook
         for registration in _registrations("claude-code")["Stop"]
         for hook in registration["hooks"]
         if hook.get("asyncRewake")
     ]
-    words = shlex.split(hook["command"])
-    return words[words.index("hook") :]
+    return hook
 
 
 def test_each_harness_registration_names_its_harness():
@@ -180,14 +180,13 @@ def test_every_carrying_hook_has_time_to_confirm_what_it_hands_over():
                 if not hook.get("asyncRewake")
             ]
             assert hook["timeout"] >= floor, (harness, event)
-    # The modules that run the hook themselves bound it with their own copy.
-    for module in ("pi.ts", "claude-code.ts"):
-        [timeout] = re.findall(
-            r"const HOOK_TIMEOUT_MS = ([\d_]+);?$",
-            (PLUGIN_ROOT / "hooks" / module).read_text(),
-            re.MULTILINE,
-        )
-        assert int(timeout.replace("_", "")) >= floor * 1000, module
+    # Pi's extension runs the hook itself and bounds it with its own copy.
+    [timeout] = re.findall(
+        r"const HOOK_TIMEOUT_MS = ([\d_]+);?$",
+        (PLUGIN_ROOT / "hooks" / "pi.ts").read_text(),
+        re.MULTILINE,
+    )
+    assert int(timeout.replace("_", "")) >= floor * 1000
 
 
 def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
@@ -195,12 +194,7 @@ def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
     with stderr is the whole wake. Driven the way Claude Code drives it, through a
     shell with the payload on stdin, because the wiring (the watch supervisor, uv,
     the exit status it passes through) is the subject."""
-    [hook] = [
-        hook
-        for entry in _registrations("claude-code")["Stop"]
-        for hook in entry["hooks"]
-        if hook.get("asyncRewake")
-    ]
+    command = _registered_watch()["command"]
     env = os.environ | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)}
     leases_model.mark_hooks("s1")  # its harness runs Leaf's hooks
     serving(claimed, 1)
@@ -210,9 +204,9 @@ def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
     )
 
-    def run():
+    def run(env):
         return subprocess.run(
-            ["sh", "-c", hook["command"]],
+            ["sh", "-c", command],
             input=json.dumps({"hook_event_name": "Stop", "session_id": "s1"}),
             env=env,
             capture_output=True,
@@ -221,7 +215,7 @@ def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
             check=False,
         )
 
-    woke = run()
+    woke = run(env)
     assert (woke.returncode, woke.stdout) == (2, ""), woke.stderr
     assert woke.stderr.startswith(f"{claimed} has new input")
 
@@ -236,8 +230,7 @@ def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
     )
     (broken / "bin").mkdir()
     shutil.copy(PLUGIN_ROOT / "bin/leaf", broken / "bin/leaf")
-    env["CLAUDE_PLUGIN_ROOT"] = str(broken)
-    failed = run()
+    failed = run(env | {"CLAUDE_PLUGIN_ROOT": str(broken)})
     assert (failed.returncode, failed.stdout) == (1, "")
     assert "pyproject.toml" in failed.stderr
 
@@ -315,7 +308,7 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
             )
         )
         assert (worker.returncode, worker.stdout, worker.stderr) == (0, "", "")
-        assert events_model.read_cursor(claimed) == 0
+        assert acknowledged_through(claimed) == 0
     answered = run(payload)
     assert answered.returncode == 0, answered.stderr
     assert answered.stdout, "nothing came back: the CLI never answered under uv"
@@ -364,37 +357,28 @@ def test_registered_hook_failures_remain_nonblocking_and_visible(harness, tmp_pa
 
 
 @pytest.mark.parametrize(
-    "harness,event,watch",
+    "harness,event",
     [
-        ("claude-code", "SessionStart", False),
-        ("claude-code", "PostToolBatch", False),
-        ("claude-code", "Stop", False),
-        ("claude-code", "Stop", True),
-        ("claude-code", "UserPromptSubmit", False),
-        ("codex", "SessionStart", False),
-        ("codex", "Stop", False),
-        ("codex", "UserPromptSubmit", False),
-        ("codex", "PostToolUse", False),
-        ("codex", "Interrupt", False),
+        ("claude-code", "SessionStart"),
+        ("claude-code", "PostToolBatch"),
+        ("claude-code", "Stop"),
+        ("claude-code", "UserPromptSubmit"),
+        ("codex", "SessionStart"),
+        ("codex", "Stop"),
+        ("codex", "UserPromptSubmit"),
+        ("codex", "PostToolUse"),
+        ("codex", "Interrupt"),
     ],
 )
-def test_the_registered_hook_leaves_library_execution_to_uv(
-    harness, event, watch, tmp_path
-):
+def test_the_registered_hook_leaves_library_execution_to_uv(harness, event, tmp_path):
     """Turn hooks need no system Python; the shell launcher owns uv.
 
     This plugin copy has no library, and system python3 refuses to run. A recording
     uv witnesses the selected project, application command and unchanged payload.
-    Only the async watch needs a stdlib supervisor to translate its wake result.
     """
     project = tmp_path / "plugin"
-    supervisor = project / "hooks/scripts/background-watch.py"
-    supervisor.parent.mkdir(parents=True)
-    supervisor.write_bytes(
-        (PLUGIN_ROOT / "hooks/scripts/background-watch.py").read_bytes()
-    )
     launcher = project / "bin/leaf"
-    launcher.parent.mkdir()
+    launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
     tools = tmp_path / "tools"
@@ -411,11 +395,7 @@ def test_the_registered_hook_leaves_library_execution_to_uv(
     called, received = tmp_path / "uv-called", tmp_path / "uv-input"
     payload = json.dumps({"hook_event_name": event, "session_id": "hook-harness"})
     done = subprocess.run(
-        (
-            [sys.executable, "-S", str(supervisor), *_registered_watch_arguments()]
-            if watch
-            else ["/bin/sh", "-c", _registered_hook_command(harness, event)]
-        ),
+        ["/bin/sh", "-c", _registered_hook_command(harness, event)],
         input=payload,
         env=os.environ
         | {
@@ -441,11 +421,7 @@ def test_the_registered_hook_leaves_library_execution_to_uv(
         "python",
         "-m",
         "leaf",
-        *(
-            _registered_watch_arguments()
-            if watch
-            else _registered_hook_arguments(harness, event)
-        ),
+        *_registered_hook_arguments(harness, event),
     ]
     assert received.read_text() == payload
     assert not python_called.exists()
@@ -464,11 +440,9 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
-    program = project / "skills/leaf/scripts/leaf/state.py"
+    program = project / "src/leaf/state.py"
     program.parent.mkdir(parents=True)
-    program.write_bytes(
-        (PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py").read_bytes()
-    )
+    program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())
     interpreter = project / ".venv/bin/python"
     interpreter.parent.mkdir(parents=True)
     interpreter.symlink_to(sys.executable)
@@ -526,26 +500,19 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
 ):
     """A fresh install releases another checkout's claims within harness shutdown.
 
-    Only the launcher, standalone stdlib cleanup and the registry naming the
-    protocol its records carry exist in this install. No package can be imported
-    and uv refuses to run; macOS's system Python 3.9 exercises the same entry
-    without site packages.
+    Only the launcher and standalone stdlib cleanup exist in this install, since
+    each record's format names its own `since`. No package can be imported and uv
+    refuses to run; macOS's system Python 3.9 exercises the same entry without
+    site packages.
     """
     project = tmp_path / "cold-plugin"
     launcher = project / "bin/leaf"
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
-    program = project / "skills/leaf/scripts/leaf/state.py"
+    program = project / "src/leaf/state.py"
     program.parent.mkdir(parents=True)
-    program.write_bytes(
-        (PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py").read_bytes()
-    )
-    registry = project / "skills/leaf/assets/registry.json"
-    registry.parent.mkdir(parents=True)
-    registry.write_bytes(
-        (PLUGIN_ROOT / "skills/leaf/assets/registry.json").read_bytes()
-    )
+    program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())
     tools = tmp_path / "tools"
     tools.mkdir()
     system_python = Path("/usr/bin/python3")
@@ -559,12 +526,7 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
 
     record_claim(page_dir, id="ended-session")
     marker_files = [
-        cleanup_model.session_file("ended-session", suffix)
-        for suffix in (
-            cleanup_model.HOOKS_SUFFIX,
-            cleanup_model.STEP_HOOK_SUFFIX,
-            cleanup_model.TITLES_SUFFIX,
-        )
+        cleanup_model.session_file("ended-session", cleanup_model.HOOKS_SUFFIX)
     ]
     for marker in marker_files:
         marker.parent.mkdir(parents=True, exist_ok=True)
@@ -706,3 +668,69 @@ print(json.dumps(imported))
     )
     for loaded in json.loads(done.stdout):
         assert [module for module in heavy if module in loaded] == []
+
+
+@pytest.mark.parametrize(
+    ("native_session", "started"),
+    [("dispatched-chat", True), ("dispatched-chat", False), ("another-chat", True)],
+)
+def test_codex_startup_can_claim_its_first_page_without_a_prompt(
+    page_dir, tmp_path, monkeypatch, native_session, started
+):
+    """A dispatched desktop chat begins with tool input, not a user prompt.
+
+    Run its registered startup hooks with no prior lifecycle or claim. Only a
+    native transcript naming this chat can establish the first page's owner.
+    """
+    from leaf.hooks import cmd_hook
+    from leaf.refusals import Refused
+
+    sid = "dispatched-chat"
+    source = tmp_path / "native.jsonl"
+    opened = cleanup_model.now_iso()
+    source.write_text(
+        json.dumps({"type": "session_meta", "payload": {"id": native_session}})
+        + "\n"
+        + (
+            json.dumps(
+                {
+                    "type": "event_msg",
+                    "timestamp": opened,
+                    "payload": {"type": "task_started", "turn_id": "first-turn"},
+                }
+            )
+            + "\n"
+            if started
+            else ""
+        )
+    )
+    assert cleanup_model.session_record(sid) is None
+    for registration in _registrations("codex")["SessionStart"]:
+        if re.search(registration.get("matcher", ""), "startup"):
+            cmd_hook(
+                "codex",
+                {
+                    "hook_event_name": "SessionStart",
+                    "source": "startup",
+                    "session_id": sid,
+                    "transcript_path": str(source),
+                },
+            )
+    harness = harness_model.CodexHarness(sid, "Codex")
+    monkeypatch.setattr(harness_model.CodexHarness, "process_pid", lambda _: 123)
+    monkeypatch.setattr(
+        harness_model, "process_argv", lambda _: ["codex", "app-server"]
+    )
+    if native_session != sid:
+        assert cleanup_model.session_record(sid) is None
+        with pytest.raises(Refused, match="validated native transcript"):
+            harness.lifetime()
+        return
+    with service_model.PageTransaction(page_dir) as page:
+        page.take_claim(harness)
+    claim = service_model.page_claim(page_dir)
+    assert service_model.claim_is_active(claim)
+    assert claim["turn"] == ("first-turn" if started else None)
+    assert claim["turn_opened"] == (opened if started else None)
+    assert claim["turn_closed"] is None
+    assert cleanup_model.session_record(sid)["transcript_path"] == str(source)

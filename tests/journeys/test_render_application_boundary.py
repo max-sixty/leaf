@@ -17,8 +17,6 @@ from browser.test_render_application_boundary import (
 )
 from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
@@ -45,6 +43,9 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 
 @pytest.mark.parametrize("while_pending", ["stay", "choose-earlier"])
@@ -83,7 +84,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     reader = page.locator("#reader")
     expect(reader).to_contain_text("Decision")
     record = reader.evaluate("""node => {
-      const reading = node.reading;
+      const reading = node.collection;
       const cloned = structuredClone(reading);
       const allFrozen = value => !value || typeof value !== 'object' ||
         (Object.isFrozen(value) && Object.values(value).every(allFrozen));
@@ -113,7 +114,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
         page.locator("#direction").evaluate("node => node.getBoundingClientRect().top")
         == message_top
     )
-    assert reader.evaluate("""node => node.reading.threads[0].msgs[1].body.units
+    assert reader.evaluate("""node => node.collection.threads[0].msgs[1].body.units
       .find(unit => unit.id === 'direction').state.choose.value""") == ["north"]
 
     held = []
@@ -125,14 +126,14 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     holding(page, held, 1, "the shared collection's pending root")
     expect(reader).to_contain_text("Pending words")
     pending = reader.evaluate(
-        "node => node.reading.threads.find(thread => thread.root.pending)"
+        "node => node.collection.threads.find(thread => thread.root.pending)"
     )
     # The send opens the pending thread's view in the panel.
     expect(page.locator(PANEL_THREAD)).to_contain_text("Pending words")
     held.pop().continue_()
     round_trip(page)
     admitted = reader.evaluate(
-        "(node, key) => node.reading.threads.find(thread => thread.key === key)",
+        "(node, key) => node.collection.threads.find(thread => thread.key === key)",
         pending["key"],
     )
     assert admitted["id"] != pending["id"]
@@ -228,7 +229,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     for widget, count in zip((first, second), before):
         assert widget.evaluate("node => node.updates") > count
         assert widget.evaluate(
-            "node => node.reading.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
+            "node => node.collection.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
         )
 
     # Clear the user's filter before this lifecycle test removes its widget.
@@ -247,7 +248,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     assert removed.evaluate("node => node.updates") == stopped_at
 
     thread_id = first.evaluate(
-        "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
+        "node => node.collection.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
     )
     # The widget's route through core opens the thread's view in the panel.
     first.locator("button", has_text="Delta").click()
@@ -272,7 +273,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     first_document = page.evaluate("performance.timeOrigin")
     page.evaluate("window.__pageModuleState.oldDocumentOnly = true")
 
-    write(page_comment(page), "Keep this recoverable draft in the page instance.")
+    write(page_comment(page), "Keep this recoverable draft in the page.")
     page.keyboard.press("Escape")
 
     page.locator("#live-reading").evaluate(
@@ -280,9 +281,9 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     )
     page.locator("#activation-go .lf-pick").click()
     holding(page, held, 1, "the unresolved option pick")
-    standing = page.locator("#standing-control")
-    standing.click()
-    expect(standing).to_be_focused()
+    focused_control = page.locator("#focused-control")
+    focused_control.click()
+    expect(focused_control).to_be_focused()
     reading_top = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -299,7 +300,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
         assert page.evaluate("performance.timeOrigin") == first_document
         expect(page).to_have_title("Live first")
-        expect(standing).to_be_focused()
+        expect(focused_control).to_be_focused()
         assert len(held) == 1
 
         # The explicit door may release a composition hold, but it cannot release the
@@ -331,7 +332,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     )
     assert abs(restored_top - reading_top) < 2, (reading_top, restored_top)
     expect(page_comment(page)).to_have_js_property(
-        "value", "Keep this recoverable draft in the page instance."
+        "value", "Keep this recoverable draft in the page."
     )
 
     historical = open_page(browser, version_url, pin=True)
@@ -452,16 +453,18 @@ def test_panel_authored_message_button_reaches_primary_reader(browser, serve, wi
 
 
 @pytest.mark.parametrize(
-    ("primary", "travel", "source_top", "cross_boundary"),
+    ("primary", "travel", "source_top", "cross_boundary", "back_before_frame"),
     [
-        (True, True, 200, False),
-        (True, False, 200, False),
+        (True, True, 200, False, False),
+        (True, False, 200, False, False),
+        # Back interrupts the native trip before its first compositor frame.
+        (False, True, 1000, False, True),
         # A contextual card's travel, slowed until it crosses into the viewport.
-        (False, True, 1000, True),
+        (False, True, 1000, True, False),
     ],
 )
 def test_primary_arrival_records_a_return_place_only_when_travelling(
-    browser, serve, primary, travel, source_top, cross_boundary
+    browser, serve, primary, travel, source_top, cross_boundary, back_before_frame
 ):
     """Back restores the working place left by a jump to the primary reader."""
     url = package_workspace(
@@ -488,6 +491,10 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         """(node, top) => {
       node.tabIndex = -1;
       node.focus({preventScroll:true});
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
       window.scrollTo({top, behavior:'instant'});
     }""",
         source_top,
@@ -498,6 +505,19 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         page.context.new_cdp_session(page).send(
             "Emulation.setCPUThrottlingRate", {"rate": 6}
         )
+    if back_before_frame:
+        page.evaluate("""() => {
+          const scrollBy = Element.prototype.scrollBy;
+          Element.prototype.scrollBy = function(options) {
+            const result = scrollBy.call(this, options);
+            if (this === document.scrollingElement && options.behavior === 'smooth') {
+              Element.prototype.scrollBy = scrollBy;
+              window.backRequestedAt = scrollY;
+              queueMicrotask(() => history.back());
+            }
+            return result;
+          };
+        }""")
     entries = page.evaluate("history.length")
     assert page.evaluate(
         """async ({travel, primary}) => {
@@ -508,23 +528,27 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         }""",
         {"travel": travel, "primary": primary},
     )
-    assert page.evaluate("""() => {
-      let active = document.activeElement;
-      while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
-      return active === returnTripDestination;
-    }""")
+    if not back_before_frame:
+        assert page.evaluate("""() => {
+          let active = document.activeElement;
+          while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+          return active === returnTripDestination;
+        }""")
     assert page.evaluate("history.length") == entries + int(travel)
     if travel:
-        # Back is ordinary input as soon as arrival returns, during smooth placement.
-        page.wait_for_function("top => scrollY !== top", arg=source_top)
-        if cross_boundary:
-            page.wait_for_function("scrollY < 200")
-            expect(page.locator("#lf-margin-preview")).to_be_in_viewport()
-
-        page.go_back()
+        if back_before_frame:
+            assert page.evaluate("backRequestedAt") == source_top
+        else:
+            # Back is ordinary input as soon as arrival returns, during smooth placement.
+            page.wait_for_function("top => scrollY !== top", arg=source_top)
+            if cross_boundary:
+                page.wait_for_function("scrollY < 200")
+                expect(page.locator("#lf-margin-preview")).to_be_in_viewport()
+            page.go_back()
         expect(heading).to_be_focused()
         scroll_settled(page)
         assert page.evaluate("scrollY") == source_top
+        assert page.evaluate("getSelection().toString()") == heading.text_content()
     else:
         assert page.evaluate("scrollY") == source_top
 
@@ -710,7 +734,9 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         "async () => await api.threadActions.open('nested-question-key', {message:'nested-question-key'}) !== null"
     )
     expect(workspace.locator('.lf-msg[data-event="nested-question"]')).to_be_focused()
-    assert page.evaluate("api.standingIn(document.querySelector('#workspace').reader)")
+    assert page.evaluate(
+        "api.currentLocationIn(document.querySelector('#workspace').reader)"
+    )
     assert page.evaluate(
         "typeof api.holdFocus(document.querySelector('#workspace').reader) === 'function'"
     )

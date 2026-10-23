@@ -1,20 +1,20 @@
 ---
 name: leaf
-description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes user input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, or a `leaf-delivery` message.
+description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes user input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
 ---
 
-You author a live HTML page for the user. They read it, comment on exact passages
-and act through widgets while you revise it in place. Write the page, check it,
-hand over its URL with a status saying what you want back, and wait. Answer each
-delivered update on the page and in its thread, stamp checkpoints, and idle the
-page when it is finished.
+You work with the user through a live HTML page. They read it, comment on exact
+passages and act through widgets while the work continues. Success means
+completing the task while the user can understand and redirect the work. Their
+questions and changes of direction take priority over work in progress. Keep the
+page current as the work proceeds.
 
 The input is either a subject to present or a delivery from a page already handed
-over: a `leaf-delivery` element, or a delivery envelope that Leaf sent as a message
-or `leaf wait` printed. A delivery starts at step 6 below; don't initialize or hand
+over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the envelope
+`leaf wait` printed. A delivery starts at step 6 below; don't initialize or hand
 the page over again. With no subject in `$ARGUMENTS`, present the work already
 under discussion.
 
@@ -34,23 +34,25 @@ Read [SOUL.md](SOUL.md) before authoring or responding on a Leaf page.
 
 ## Operate
 
-When the harness sets `$LEAF`, use that launcher for every command shown as
-`leaf`. Otherwise use `../../bin/leaf` from the directory holding this
-`SKILL.md`; your harness contract may name that path or put it on `PATH`. If the
+Run commands as `leaf` when the harness puts its launcher on `PATH`. Otherwise
+use `../../bin/leaf` from the directory holding this `SKILL.md`. If the
 file is missing, report that the plugin payload is incomplete. In a checkout the
 launcher is `bin/leaf`. Pages usually live at `~/.local/state/leaf/pages/<slug>/`,
 but every command takes the directory explicitly; export or copy anything that
-must outlive the page directory. A command prints its result on stdout, as JSON
-unless its help names another format. On stderr it prints one JSON object per
-line for each refusal or note, with the words in `error` or `text`.
+must outlive the page directory. A command that takes a body, such as a reply's
+text, a changelog or a plan's JSON, takes it as `--text` inline, from the file
+`--file` names (`-` for stdin), or from a pipe or heredoc on stdin. A command
+prints its result on stdout, as JSON unless its help names another format. On
+stderr it prints one JSON object per line for each refusal or note, with the
+words in `error` or `text`.
 
 1. Read `references/conversation-loop.md`, "When to write", to record the work
    you take on. Run `leaf page init <page>`, adding a package when the page needs
    its vocabulary or instructions: `leaf page init --package diagram --package diff <page>`.
    `references/packages.md`, "Package reach", lists the packages. Use
-   `playground` when the user tunes several values or behaviors before choosing.
-   Drawn candidates the user picks among need no package, since the user selects
-   the candidate itself (`references/authoring-decisions.md`). Running `page init`
+   `playground` when the user explores candidates or tunes a configuration before
+   sending it; its choices can contain the previews themselves. Simple decisions
+   use `lf-options` (`references/authoring-decisions.md`). Running `page init`
    again with a package adds it to a page already written.
 2. Read all of `references/page-authoring.md`, then each reference the page
    needs, listed under "Author a version" below. Choose elements and class idioms
@@ -59,17 +61,16 @@ line for each refusal or note, with the words in `error` or `text`.
    becomes the live immutable revision. An invalid save leaves the last valid one
    live and reports the error in page state and the browser. You write
    `index.html` and `page/`; only Leaf writes revisions and version mappings.
-3. **Check the page.** Before you hand the page over or reply about a revision,
-   run `leaf page check <page>` and fix every failure. That is the whole check for
-   a quick page, one the user reacts to once and then revises or drops: hand it
-   over without stamping or a browser review. It is also the whole check for a
-   revision that answers a user's message, even on a record: each valid save is
-   already live on the user's page, and more checking only delays the answer
+3. **Check the page.** Before you first hand the page over, run
+   `leaf page check <page>` and fix every failure. That is the whole check for a
+   quick page, one the user reacts to once and then revises or drops: hand it over
+   without stamping or a browser review. A revision that answers a user's message,
+   even on a record, goes straight to the reply. The reply checks your saved edits
+   and is refused over an error; fix it and reply again. Each valid save is
+   already live on the user's page, so a separate check only delays the answer
    they are waiting for.
 4. **Review and stamp a record.** A record is a page used beyond this
-   conversation. A page with `<meta name="lf-review" content="sign-off">` is
-   always one, since approval requires a stamped version. Before a record's first
-   handoff, run `leaf page check <page> --render`, do the reading in
+   conversation. Before a record's first handoff, run `leaf page check <page> --render`, do the reading in
    `references/page-checkpoints.md`, "Pre-handover review", then run
    `leaf page stamp <page> --text "<changelog>"`. The render check shows that the
    page renders; the reading shows what you meant.
@@ -89,16 +90,13 @@ line for each refusal or note, with the words in `error` or `text`.
 
 Pick the contract for the session that owns the page:
 
-| Session                                                                            | Contract                                 |
-| ---------------------------------------------------------------------------------- | ---------------------------------------- |
-| Claude Code                                                                        | `references/harness-claude-code.md`      |
-| Pi                                                                                 | `references/harness-pi.md`               |
-| Codex with `LEAF_CODEX_APP_SERVER`, or an App Server endpoint supplied by the user | `references/harness-codex-app-server.md` |
-| Other Codex tasks, including the desktop app and IDE                               | `references/harness-codex.md`            |
+| Session     | Contract                            |
+| ----------- | ----------------------------------- |
+| Claude Code | `references/harness-claude-code.md` |
+| Pi          | `references/harness-pi.md`          |
+| Codex       | `references/harness-codex.md`       |
 
-The desktop Codex app's own App Server exposes no endpoint Leaf can use, so its
-pages follow the ordinary Codex contract. Deliveries keep arriving under the
-contract you picked. `references/codex-setup.md` owns terminal App Server setup.
+`references/codex-setup.md` owns terminal App Server setup.
 
 ## Stay responsive
 
@@ -118,9 +116,10 @@ between bounded steps.
 
 Unless the user sets the page's shape or depth, a Leaf page is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
-state or offers one move, so the user takes it in at a glance and moves on;
-disclosures hold supporting detail out of that path. `references/page-authoring.md`,
-"Show the subject", applies SOUL.md’s "Make the work concrete and playable" principle.
+state or offers one move, so the user takes it in at a glance and moves on.
+`references/page-authoring.md`, "Show the subject", applies SOUL.md’s "Make the
+work concrete and playable" principle; "Reading cost" owns what stays visible
+and what goes in a disclosure. Read it when choosing that presentation.
 
 The page's shape follows the subject: prose read in order, regions read side by
 side on a sidebar page, or a workspace the user moves through instead of
@@ -129,8 +128,10 @@ adjusts it. `references/page-authoring.md`, "Composing a page", owns the choice
 of shape, `references/page-layout.md` each shape's geometry, and
 `references/authoring-decisions.md` where each decision goes.
 
-Include only controls and gestures that advance the user's task. Widget actions,
-resolutions and sign-offs can be undone; sent words stay in the log.
+Choose controls, gestures and options whose benefit to the user's task outweighs
+the attention and effort they require. Remove redundant actions before making
+them visually quieter. Widget actions and resolutions can be undone;
+sent words stay in the log.
 
 ## Keep the user current
 
@@ -166,7 +167,7 @@ never have to follow a chain of references to find one.
 - `references/live-samples.md`: before letting the user operate a Leaf page inside a
   page or a thread message.
 - `references/authoring-decisions.md`: when the page or your reply leaves anything for
-  the user to decide or sign off, before choosing its widgets.
+  the user to decide or approve an action, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising the page's current state.
 - `references/authoring-evidence.md`: for work updates or reviews, before drawing
@@ -197,7 +198,8 @@ never have to follow a chain of references to find one.
 - `references/module-authoring.md`: before writing or changing browser behavior in
   a page script, page-owned widget or package widget. Then, as the behavior needs
   them: `references/module-reading.md` for reading the page, content helpers, obligations
-  and history; `references/module-state.md` for recorded state and data;
+  and history; `references/module-state.md` for recorded state, data, authenticated
+  HTTP connections and LLM generation;
   `references/module-input.md` for commands, focus and text entry;
   `references/module-scroll-and-motion.md` for scrolling, travel and motion; and
   `references/module-annotations.md` for margin entries, visual parts and Threads.

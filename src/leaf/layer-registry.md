@@ -114,7 +114,8 @@ would break under this one: this Leaf refuses what a vendored module sends, a Le
 the number misreads an event another wrote into the log, this Leaf misreads a
 declaration the vendored registry makes, or a vendored module breaks on the public
 package API because a name it imports is gone or renamed or a value it reads changed
-shape or meaning. A change to the served state needs no bump.
+shape or meaning. Additive public APIs and changes to the served state keep the
+number: neither breaks a page vendored before the change.
 
 The browser build holds the schemas to this. It keeps `$events` and
 `schema.VERB_SCHEMA`, the x-state verb a registry declares, as they last stood at the
@@ -125,8 +126,10 @@ kind or a field at any depth, requires a new field, or tightens a constraint, su
 narrower type, enum or constant, a changed pattern or a lower maximum; an event
 record's change either way; and a verb's tightening, until the change takes what it
 took or the number moves. The public package API has no schema there, so whoever
-removes or renames a `widget-api.js` export, or changes what one returns, bumps the
-number. `served_state/state.schema.json` still declares the served state and the
+removes or renames a `widget-api.js` export, or changes what one returns incompatibly,
+bumps the number. A passing schema comparison leaves that JavaScript compatibility
+judgment to the maintainer; it does not establish that a manually chosen bump was needed.
+`served_state/state.schema.json` still declares the served state and the
 `/api/view` answer, for the generated types and the producer's tests, outside the
 comparison.
 
@@ -144,8 +147,10 @@ browser storage, which outlives a re-vendor. Each carries `leaf-<kind>/<number>`
 in its `format`, and a reader at another format leaves it alone: it reads the record
 as absent. Retirement can inspect
 a record's named page paths across formats (`state.named_pages`).
-A record's number is its `since`, the protocol at which its own shape last changed,
-so a bump for another change leaves a session's claim, its deliveries and a
+A new record kind starts with `since` at the current protocol, without a bump:
+earlier Leaves have no reader for that kind. A record's number is its `since`, the
+protocol at which its own shape last changed, so a bump for another change leaves a
+session's claim, its deliveries and a
 page's port readable. A change to a record's shape that a reader at the same format
 would misread sets its `since` to the current protocol, bumping the protocol first
 where `since` already names it. The same build check holds this: the baseline keeps

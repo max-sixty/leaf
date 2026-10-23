@@ -2658,17 +2658,19 @@ export function createFloatingPanel({
         </button>`
       : nothing;
     let answers;
+    let discussHere = true;
     if (list === "done" && !record)
       answers = html`<span class="lf-fp-said"
-          >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
-        >${thread ? discuss : nothing}`;
+        >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
+      >`;
     // What the agent is doing about it: the line its last step wrote, as the status
     // says it of the whole page, else the stage it stands at.
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
-        >${thread ? discuss : nothing}`;
-    else if (answered)
+        >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
+      >`;
+    else if (answered) {
+      discussHere = false;
       answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${
           gesture
             ? html`<button
@@ -2680,7 +2682,7 @@ export function createFloatingPanel({
               </button>`
             : nothing
         }`;
-    else if (choices?.length)
+    } else if (choices?.length)
       answers = html`${choices.map(
         (choice) =>
           html`<button
@@ -2694,16 +2696,17 @@ export function createFloatingPanel({
           >
             ${capital(choice.label)}
           </button>`,
-      )}${discuss}`;
+      )}`;
     else if (item.offers?.done)
       answers = html`<button
-          type="button"
-          class="lf-fp-answer"
-          @click=${() => queueActions.done(queueItemKey(item))}
-        >
-          Done</button
-        >${discuss}`;
-    else if (inWords && thread)
+        type="button"
+        class="lf-fp-answer"
+        @click=${() => queueActions.done(queueItemKey(item))}
+      >
+        Done
+      </button>`;
+    else if (inWords && thread) {
+      discussHere = false;
       answers = html`<button
         type="button"
         class="lf-fp-answer"
@@ -2711,7 +2714,7 @@ export function createFloatingPanel({
       >
         Reply
       </button>`;
-    else answers = discuss;
+    } else answers = nothing;
     const key = queueItemKey(item);
     const stop = queueStop(item);
     // What waits on the user says what it is, in the walk's word for it, so a
@@ -2744,7 +2747,9 @@ export function createFloatingPanel({
                 <p class="lf-fp-prompt">${prompt}</p>`
             : html`<p class="lf-fp-prompt">${heading}</p>`
       }
-      <div class="lf-fp-answers">${answers}${show}</div>
+      <div class="lf-fp-answers">
+        ${answers}${discussHere ? discuss : nothing}${show}
+      </div>
     </section>`;
   }
 

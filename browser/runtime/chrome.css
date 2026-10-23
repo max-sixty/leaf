@@ -695,16 +695,20 @@
     gap: 2px;
   }
   .lf-fp-filters {
+    --lf-fp-tab: 26px;
+    --lf-fp-filter-reach: max(0px, (var(--aim-floor) - var(--lf-fp-tab)) / 2);
     display: flex;
     min-width: 0;
     overflow-x: auto;
     gap: 2px;
+    padding-block: var(--lf-fp-filter-reach);
+    margin-block: calc(-1 * var(--lf-fp-filter-reach));
   }
   .lf-fp-filters button {
     flex-shrink: 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
-    min-height: max(26px, var(--aim-floor));
+    min-height: var(--lf-fp-tab);
   }
   .lf-fp-filters button:hover,
   .lf-fp-filters [aria-pressed=true] {

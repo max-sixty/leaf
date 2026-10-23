@@ -36,7 +36,7 @@ stamped version that answers it (`workflows.handed_over`). It names the turn
 that wrote it and holds its item only for that turn; once that turn ends with the
 item still running, `activity` shows it stalled. A later start on the same item
 replaces it, which is how the next turn takes the item up again. The `status` event
-that `leaf status waiting` and `idle` write puts down every earlier start
+that `leaf page open` and `leaf page close` write puts down every earlier start
 (`item_starts`), leaving their to-dos open with nothing running; admission, which
 reads only the document and the log, sees it there. A start on a page declared
 `idle` reopens the page (`activity.declaration`).

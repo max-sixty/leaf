@@ -19,7 +19,7 @@ that starts the task, such as leaf.page, has already handed the page over.
 `leaf server start` and `leaf server run` start, or join, a background adapter that
 watches every page this task owns, and keeps running when a turn ends. Serving a page
 again restarts an adapter that stopped. To connect delivery for a page you claim
-without serving it, run `leaf codex start <page>`.
+without serving it, run `leaf page claim <page>`.
 
 While your turn runs, Leaf's hooks offer new input between steps. Input that arrives
 as the turn ends comes either when the turn tries to end or in a turn of its own. The hook carries the complete delivery

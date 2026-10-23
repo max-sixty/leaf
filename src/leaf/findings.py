@@ -1828,12 +1828,11 @@ _TEXT = {
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
     ),
-    # What other commands note beside their result (`note`). `status waiting` over
+    # What other commands note beside their result (`note`). `page open` over
     # updates it still owes an answer, each named by the command that answers it:
-    "waiting-owes": lambda at, v: (
+    "page-open-owes": lambda at, v: (
         f"{len(v['answers'])} user update{'s' if len(v['answers']) != 1 else ''} with"
-        f" no answer ({'; '.join(v['answers'])}); the page reads waiting once each"
-        " has one"
+        f" no answer ({'; '.join(v['answers'])}); opening the page does not answer them"
     ),
     # `delivery ack` of a delivery an earlier turn already picked up
     # (`delivery.earlier_pickup`), with the answers its updates still owe:

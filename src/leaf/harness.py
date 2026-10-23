@@ -577,7 +577,7 @@ class CodexHarness(EnvironmentHarness):
         if listening:
             return f"Poll {_POLL_UNIFIED_EXEC}."
         return (
-            f"Start `leaf codex start {page_dir}` so later updates reach this "
+            f"Start `leaf page claim {page_dir}` so later updates reach this "
             "task in new turns."
         )
 
@@ -647,9 +647,9 @@ class CodexHarness(EnvironmentHarness):
                 f"{_POLL_UNIFIED_EXEC}."
             )
         return (
-            f"no delivery adapter. Start `leaf codex start {page_dir}` so this "
+            f"no delivery adapter. Start `leaf page claim {page_dir}` so this "
             "turn can finish and later updates start new turns; or run `leaf "
-            "status <page> idle` if the page is done."
+            "page close <page>` if the page is done."
         )
 
 

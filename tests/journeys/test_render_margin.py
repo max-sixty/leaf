@@ -873,7 +873,7 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     def statuses():
         for name, command in (
             ("working", ["task", "start", str(serve.page_dir), "c" * 32, "Reading"]),
-            ("waiting", ["status", str(serve.page_dir), "waiting"]),
+            ("waiting", ["page", "open", str(serve.page_dir)]),
         ):
             result = CliRunner().invoke(cli_model.cli, command)
             assert result.exit_code == 0, result.output

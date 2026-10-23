@@ -54,7 +54,7 @@ assert:
   - type: llm-rubric
     metric: handoff
     value: |
-      Pass if the agent sets the page to waiting and hands over its URL after
+      Pass if the agent leaves the page available for feedback and hands over its URL after
       answering the comment and finishing the work. Re-running `leaf server start`
-      is optional. Fail if it adds a separate `leaf codex start` to prepare this
+      is optional. Fail if it adds a separate adapter-start command to prepare this
       ordinary handoff, or keeps the turn open to run or poll `leaf wait`.

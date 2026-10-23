@@ -357,11 +357,26 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     offered = selection_field(page)
     composer = page.locator(".lf-fab-input")
     select("#first")
-    offered.click()
-    expect(composer).to_be_focused()
-    composer.blur()
-    select("#second")
     expect(offered).to_be_visible()
+    # A native selectionchange can deliver the next passage before the preceding
+    # press's handoff timer runs. Hold that ordering so the offer cannot depend on
+    # a second notification after the handoff ends.
+    page.clock.install(time=0)
+    page.clock.pause_at(1)
+    offered.click()
+    # Focus the native editor while its scheduled landing is also held.
+    composer.focus()
+    composer.blur()
+    page.evaluate("""async () => {
+      await new Promise(resolve => {
+        document.addEventListener('selectionchange', resolve, {once: true});
+        getSelection().selectAllChildren(document.querySelector('#second'));
+      });
+    }""")
+    page.clock.resume()
+    expect(offered).to_have_attribute(
+        "placeholder", "“A second passage comes after it.”"
+    )
     offered.click()
     expect(composer).to_be_focused()
     expect(page.locator("#lf-composer-quote")).to_contain_text("A second passage")

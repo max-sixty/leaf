@@ -39,8 +39,16 @@ any tab strip, takes at most the window's height below them, and scrolls what it
 beyond that. In a window shorter than 480px, where that height would show a few lines
 of what it holds, the track flows with the page. Inside a box that scrolls on its own,
 the track flows with that box. Where the module stacks the track with what it serves,
-as on a phone, it declares `--lf-track-posture: flow` on the track's parent, and the
+as on a phone, it declares `--lf-track-scroll-behavior: flow` on the track's parent, and the
 track flows with the page. Register the track as a reading region, since it may scroll.
+
+A horizontal scroll surface uses the shared `scroll` class on its actual
+viewport and declares overflow in its CSS. The class supplies containment. Leaf adds
+keyboard access and continuation cues, inspecting these surfaces for overflow instead
+of reading every descendant's styles. A reading region's body receives this class when
+it registers; its CSS still decides whether the region scrolls or flows.
+Sticky headers set `--lf-head-inset: 0px` beside their `position: sticky` rule so
+keyboard focus counts the header's own inset as visible.
 
 Register the pane's body, and any other box the widget may scroll, with
 `registerReadingRegion({id, host, body})` inside `whileConnected`, returning the
@@ -51,7 +59,7 @@ throws. A widget whose parts scroll independently registers each, with an id fro
 `compoundReadingRegionId(owner, localName)`.
 
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
-page's (`pageScroller`). `readingPosture(node)` is `"bounded"` while the region's body
+page's (`pageScroller`). `regionScrollBehavior(node)` is `"bounded"` while the region's body
 scrolls itself, and `"flow"` otherwise.
 
 When a change hides or shows regions, such as switching tabs, run it through

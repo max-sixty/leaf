@@ -5,7 +5,7 @@ import { dispatchKey, keyReady } from "./dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
 import { quickShortcuts } from "./bindings.js";
 import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
-import { onStanding, takesLetters, typesText, focused } from "../focus.js";
+import { onCurrentLocation, takesLetters, typesText, focused } from "../focus.js";
 import { nextFrame } from "../rendering.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
@@ -27,7 +27,7 @@ export function mountKeyboard({
     if (ev.isComposing) return;
     if (run(ev)) return;
     // Any other key disarms the sequence and keeps its ordinary meaning, so a mistyped g costs
-    // nothing: g T is a panel trip and g g re-arms. A key naming no destination disarms the
+    // nothing: g T is a panel navigation step and g g re-arms. A key naming no destination disarms the
     // same way. Spelled as walking
     // again rather than as a rule, so the meaning a key keeps is the meaning the register
     // gives it. A modifier alone is half a press rather than a key: the Shift that
@@ -105,10 +105,10 @@ export function mountKeyboard({
   // digit typed in a box is text, and a chip left blooming would promise a cancel the
   // control would consume. The paint that answers the move is repaint.js's. A chrome
   // placement handing the user straight back to the node it moved moves no one, so it
-  // publishes nothing to disarm (focus.js, `onStanding`).
-  onStanding(() => {
+  // publishes nothing to disarm (focus.js, `onCurrentLocation`).
+  onCurrentLocation(() => {
     // The same question `setGoToSequence` asks before arming, so it takes the same answer: two
-    // readings of where the user is standing would refuse to arm somewhere they then
+    // readings of where the user is would refuse to arm somewhere they then
     // failed to disarm.
     const active = focused();
     if (reactArmed() && (takesLetters(active) || claimsEsc(active))) setReact(false);

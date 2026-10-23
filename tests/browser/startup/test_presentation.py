@@ -84,6 +84,51 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         page.unroute_all(behavior="wait")
 
 
+def test_external_link_geometry_is_complete_before_runtime_startup(browser, serve):
+    """The inline mark must not rewrap prose when the module graph arrives."""
+    source = leaf_page(
+        "External link",
+        '<h1>Read the change</h1><p id="copy">'
+        '<a id="link" href="https://example.com/change" target="_self" rel="author">'
+        "Pull request with <strong>evidence</strong></a> "
+        '<span id="after">adopted the boundary. The runner checkout remains stable, '
+        "the supervisor owns the sandbox process tree, and bounded files cross back."
+        "</span></p>",
+    )
+    boot = []
+    page = browser.new_page(viewport={"width": 678, "height": 900})
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    geometry = """() => {
+      const range = document.createRange();
+      range.selectNodeContents(document.querySelector('#after'));
+      return [...range.getClientRects()].map(rect => rect.toJSON());
+    }"""
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        expect(page.locator("#copy")).to_be_visible()
+        before = page.evaluate(geometry)
+        assert before, "the authored words did not have visible geometry"
+        assert boot, "the positive control did not hold the boot module"
+        authored = page.locator("#link").evaluate(
+            "link => document.documentElement.lfInitial.authoredCopy(link).outerHTML"
+        )
+        assert authored == (
+            '<a id="link" href="https://example.com/change" target="_self" rel="author">'
+            "Pull request with <strong>evidence</strong></a>"
+        )
+        boot.pop().continue_()
+        wait_until_ready(page)
+        expect(page.locator("#link > svg.lf-external-mark")).to_be_visible()
+        expect(page.locator("#link")).to_have_attribute("target", "_blank")
+        assert page.evaluate(geometry) == before
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
 def test_a_later_map_only_sidebar_keeps_its_flow_spacing_before_startup(browser, serve):
     source = leaf_page(
         "Later contents",
@@ -444,12 +489,12 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
     )
 
 
-def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
+def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a_shift(
     browser, serve
 ):
     """A region is bounded exactly when the stylesheet makes its body scroll, a flowing
     region is carried by the one containing it, and a scroller change is announced once
-    the new geometry exists. Nothing is told the posture: a class stands in for the
+    the new geometry exists. Nothing is told the scroll behavior: a class stands in for the
     container query that decides it on a page."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
@@ -496,7 +541,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
           const flow = {
             outer: scrollerName(leaf.effectiveScroller('outer-pane')),
             preview: scrollerName(leaf.effectiveScroller(previewId)),
-            posture: leaf.readingPosture(previewId),
+            scroll_behavior: leaf.regionScrollBehavior(previewId),
           };
 
           // Each change waits out the frame its shift was announced in, so the next
@@ -508,7 +553,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
           const held = {
             outer: scrollerName(leaf.effectiveScroller('outer-pane')),
             preview: scrollerName(leaf.effectiveScroller(previewId)),
-            posture: leaf.readingPosture(previewId),
+            scroll_behavior: leaf.regionScrollBehavior(previewId),
             focusRegion: leaf.readingRegionFor(outer.querySelector('#pane-heading')).id,
           };
 
@@ -518,7 +563,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
           await frames();
           const previewFlows = {
             preview: scrollerName(leaf.effectiveScroller(previewId)),
-            posture: leaf.readingPosture(previewId),
+            scroll_behavior: leaf.regionScrollBehavior(previewId),
           };
 
           // Hidden until it is removed below.
@@ -571,15 +616,18 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
     assert readings["flow"] == {
         "outer": "document",
         "preview": "document",
-        "posture": "flow",
+        "scroll_behavior": "flow",
     }
     assert readings["held"] == {
         "outer": "outer-body",
         "preview": "preview-body",
-        "posture": "bounded",
+        "scroll_behavior": "bounded",
         "focusRegion": "outer-pane",
     }
-    assert readings["previewFlows"] == {"preview": "outer-body", "posture": "flow"}
+    assert readings["previewFlows"] == {
+        "preview": "outer-body",
+        "scroll_behavior": "flow",
+    }
     preview = "lf-region:outer-host:preview"
     assert readings["shifts"] == [
         [

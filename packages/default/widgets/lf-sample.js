@@ -1,4 +1,6 @@
-/* lf-sample: quoted content, or a complete live page authored in a template.
+/* lf-sample: inline content (quoted by default, interactive on the parent page
+ * when declared), or a complete live page authored in a template. The inline modes
+ * need no controller; the registry owns their quotation semantics.
  * The shared host owns the child page and its independent event log. The frame
  * takes its child's height, so the surrounding page scrolls the sample like any
  * other block and focus moves into it the way it moves into any iframe. A `window`
@@ -93,8 +95,8 @@ customElements.define(
       return this.#focusedContent;
     }
 
-    restoreStanding() {
-      return this.#host?.call("restore-standing");
+    restoreCurrentLocation() {
+      return this.#host?.call("restore-current-location");
     }
 
     connectedCallback() {
@@ -150,7 +152,7 @@ customElements.define(
             this.#focusedContent = false;
             this.#track(host.ready);
           });
-          host.on("standing", ({ focused }) => {
+          host.on("current-location", ({ focused }) => {
             this.#focusedContent = focused;
           });
           // The departed document's frame shows the browser's destination, which

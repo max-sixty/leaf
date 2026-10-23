@@ -406,7 +406,7 @@ customElements.define(
           returnDuration(),
         );
       if (discard) clearEdit(this.id);
-      // Only where the user was standing in it. A close this tab's own gesture made
+      // Only where the user was in it. A close this tab's own gesture made
       // has focus in the box that is going, and the draft's one persistent control is
       // where it lands so a keyboard user isn't dropped back at the page top; a close
       // another tab's settlement brings takes focus from wherever they actually are.

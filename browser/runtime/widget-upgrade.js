@@ -73,8 +73,8 @@ const widgetOf = (el) => {
 };
 
 // An owner that keeps the nodes it drew through a failure places the box itself, beside
-// them, rather than have them replaced by it: a `LeafElement` (leaf-element.js), whose
-// render may paint retained nodes that no later draw would make again. Its placer
+// them, rather than have them replaced by it. LeafElement and native renderers can
+// retain nodes that no later draw would make again. The owner's placer
 // answers whether it placed the box; otherwise the box goes where it would for any
 // widget.
 const placers = new WeakMap();

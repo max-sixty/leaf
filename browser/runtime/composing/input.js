@@ -403,7 +403,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       sendBtn.replaceChildren(word.charAt(0).toUpperCase() + word.slice(1));
     }
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
-    mediaShelf.className = "lf-composer-media";
+    mediaShelf.className = "lf-composer-media scroll";
     mediaShelf.setAttribute("role", "group");
     mediaShelf.setAttribute("aria-label", "Attachments");
     if (mediaBelow) field.after(mediaShelf);
@@ -520,12 +520,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // what stands: a text node replaced inside the chrome restyles far more than the node.
     const paint = (contextualHint) => {
       // Read the shared logical focus so this hint agrees with the key chips and rings.
-      const standing = focused() === ta;
+      const currentLocation = focused() === ta;
       const advertising = advertisesKeys();
       const sendKeys = advertising ? submitLabel() : "";
       const suffix = !advertising
         ? ""
-        : standing
+        : currentLocation
           ? sendKeys
           : contextualHint?.box === ta
             ? contextualHint.label
@@ -663,7 +663,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     };
     inputDrafts.set(ta, sync);
     // The box's first paint names its send button and placeholder, and keeps the focus
-    // bookkeeping if a caller wires one the user already stands in.
+    // bookkeeping if a caller wires one the user is already in.
     refresh();
     const submit = async (sender) => {
       if (sending || uploading || held()) return;
@@ -877,7 +877,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // send hands them on to, as a reply does to its thread (`landSent`), never on the
     // control, where the next letters would fall on nothing. A pointer press never takes
     // the focus (moving it is mousedown's default), so the box keeps it until the send
-    // moves it. A keyboard press on the control, or a pointer press while the user stood
+    // moves it. A keyboard press on the control, or a pointer press while the user was
     // elsewhere, puts the user in the box before the submission, so what the send does
     // next starts from the state Enter starts it from.
     //

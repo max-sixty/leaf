@@ -27,7 +27,7 @@
      retracted) and lost a selection inside them in every engine; and, before that,
      nesting such a container in a `repeat` inside the transcript's `repeat`, which
      rebuilt a gathered message's row.
-   - An explicit summary that arrives over a message the user stands on or reads stays
+   - An explicit summary that arrives over a message the user is on or reads stays
      open. Completed progress disappears even if the reader had opened it. */
 import { setChildren } from "../dom-children.js";
 import { focusDestination, focused } from "../focus.js";
@@ -200,19 +200,19 @@ export class Transcript {
    * card's does (`data-lf-reflow`, tests/shift_watch.js). `notice` is a node the reader
    * stands at the head of the transcript's first message in sight, as a primary
    * reader's thread notice (primary-reader.js). Returns the disclosure that took over
-   * the one the user stood on, where this draw replaced it, as the answer's head takes
+   * the one the user was on, where this draw replaced it, as the answer's head takes
    * progress over from the working message.
    * @returns {HTMLElement | null}
    */
   present(model, { arrived = false, appends = false, notice = null } = {}) {
     const prior = this.#model;
-    const standing = focused();
+    const currentLocation = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
     // Only a summary that was not present before can swallow what the user
     // holds or is reading, and reading geometry here forces layout.
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
       const heldMessage = prior.messages.find(({ key }) =>
-        this.#messages.get(key)?.node.contains(standing),
+        this.#messages.get(key)?.node.contains(currentLocation),
       )?.id;
       // Being read is being on screen, on whichever surface holds the thread.
       const clips = new Map();
@@ -265,7 +265,7 @@ export class Transcript {
         .map((range) => [range.summary.id, range.summary.covers]),
     );
     /** @type {HTMLElement | null} */
-    const standingToggle = this.node.querySelector(".lf-summary-expand:focus");
+    const currentLocationToggle = this.node.querySelector(".lf-summary-expand:focus");
     const rangeState = describedRanges.map((range) => {
       if (range.kind === "message") return range;
       const forced = Boolean(range.summary.protected?.length);
@@ -386,13 +386,13 @@ export class Transcript {
     }
     keeps(this.node, "data-lf-reflow", appends ? "append" : null);
     setChildren(this.node, transcript);
-    if (!standingToggle || standingToggle.isConnected) return null;
+    if (!currentLocationToggle || currentLocationToggle.isConnected) return null;
     /** @type {(id: string) => HTMLElement | null} */
     const toggleFor = (id) =>
       this.node.querySelector(
         `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`,
       );
-    const succeeded = standingToggle.dataset.summaryToggle;
+    const succeeded = currentLocationToggle.dataset.summaryToggle;
     return (
       [succeeded, ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)]
         .map(toggleFor)
@@ -482,7 +482,7 @@ export class Transcript {
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
       ${iconTemplate("down", "lf-disclosure-icon")}
-      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
+      <span data-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
 

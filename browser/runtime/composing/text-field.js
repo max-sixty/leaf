@@ -134,13 +134,17 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
-  /* An owner moving the field's edges can carry the words from where they stood with
+  /* An owner moving the field's edges can carry the words from where they were with
      them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
      --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
      its layout. The field's content box cuts off what the field doesn't hold yet,
      such as a new line and its caret, and keeps the travel from widening the host's
-     scrolling. A cut naming none is invalid, which leaves the words uncut. */
-  .lf-field { overflow: clip; }
+     scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
+     reaches 2px past that box, the caret's width at a line's end: Firefox paints the
+     caret from its offset onward and pulls it inside only a scroll container, so a
+     caret after a line that fills the box, as a trailing space beside Send can, was
+     cut away whole. */
+  .lf-field { overflow: clip; overflow-clip-margin: 2px; }
   .lf-field > * {
     translate: var(--lf-field-carry);
     clip-path: inset(var(--lf-field-cut));
@@ -157,6 +161,12 @@ sheet.replaceSync(`
      word under the action. */
   .cm-line.lf-field-last::after { content: ""; display: inline-block;
     inline-size: var(--lf-field-end-room); }
+  /* In a narrow field, the spacer can wrap by itself after the last word and leave
+     that word under Send. Keep both together where the field asks for it. */
+  :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after {
+    content: "\\00a0"; display: inline; inline-size: auto;
+    padding-inline-end: var(--lf-field-end-room); white-space: nowrap;
+  }
   /* The placeholder is a single line, so it stands where a last line would. */
   .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
   /* The action stands beside more than the last line under a finger, whose hit box is
@@ -164,10 +174,14 @@ sheet.replaceSync(`
   @media (pointer: coarse) {
     .lf-field { padding-inline-end: var(--lf-field-end-room); }
     .lf-field-placeholder { padding-inline-end: 0; }
-    .cm-line.lf-field-last::after { content: none; }
+    .cm-line.lf-field-last::after,
+    :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after { content: none; }
   }
   :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host([data-scrolls]) .cm-line.lf-field-last::after { content: none; }
+  :host([data-scrolls]) .cm-line.lf-field-last::after,
+  :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
+    content: none;
+  }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -207,11 +221,13 @@ sheet.replaceSync(`
     padding-inline: var(--pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--code-border);
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  .lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
+  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
+  .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
+    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
+    padding-block-end: 8px; }
   /* Code with no fence lines takes the message's padding at its ends instead. */
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-last { padding-block-end: var(--pre-pad-block); }
+  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 
 // A step an owner recorded in the words' history (`record`): `run` makes it happen when
@@ -677,6 +693,7 @@ class LeafText extends HTMLElement {
   }
 
   connectedCallback() {
+    this.classList.toggle("scroll", true);
     // A move by `insertBefore` reconnects within the task, keeping the view
     // (`disconnectedCallback`); the hold that returns the user restores the caret.
     if (this.#view) return;

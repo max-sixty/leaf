@@ -220,7 +220,6 @@ diff --git a/gateway/limits.py b/gateway/limits.py
     f"""<lf-shot id="stable-shot" alt="the release card"
          before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>
 """,
-    head='<meta name="lf-review" content="sign-off">',
 )
 
 
@@ -253,18 +252,14 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-playground .lf-playground-submit",
     },
     {
-        # The comparison rail: Before and After stand beside each other above the frames,
-        # and each caption chooses its own frame. Pressing After is the transition with
-        # something to prove — the caption the user leaves and the one they arrive at
-        # both change their active paint, and a rule that spent width on the active word
-        # would move the other caption under the user's pointer.
-        "name": "shot-caption",
-        "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
+        # Switching views must not move the buttons under the pointer.
+        "name": "shot-view",
+        "target": "#stable-shot .lf-shot-views button:nth-child(2)",
     },
     {
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-mode-button:nth-child(2)',
+        "target": '.lf-vr-case[aria-hidden="false"] .lf-shot-views button:nth-child(2)',
     },
     {
         "name": "visual-review-approval",
@@ -317,11 +312,13 @@ RING_CASES = (
             "notification-playground": (
                 ("lf-playground input[type=radio]", ".choice:has"),
             ),
-            "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
+            "review-a-plan": (
+                ("main details > summary", ":where([data-lf-focus-visible])"),
+            ),
             "pr-walkthrough": (
                 (
                     "#pr-flow-tab",
-                    ".lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus])::after",
+                    ".lf-rendered:has(> :is(lf-tab, lf-part)",
                 ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
@@ -332,9 +329,9 @@ RING_CASES = (
                 ("main p.lf-mark-el", ".lf-mark-el"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
-                    "wa-comparison::part(lf-focus)",
+                    "wa-comparison::part(",
                 ),
-                (".lf-shotcap", "[data-lf-offer]"),
+                (".lf-shot-views button", "button"),
             ),
             "wt-merge": (
                 (
@@ -380,7 +377,7 @@ RING_CASES = (
     # The Tab in front of both sequences is a stop, not a gesture in the mode: target hints
     # claim Tab for browsing themselves, so the sample below moves nothing once the mode
     # is open, and with the document under it the sample would stand on nothing and read no
-    # page at all. Standing on a control first leaves the hint the keyboard is browsing on
+    # page at all. Located on a control first leaves the hint the keyboard is browsing on
     # screen for the sweep, which is where its band is read — the chips are a layer nothing
     # can focus, so the user's place in that mode is not a stop.
     (
@@ -440,7 +437,7 @@ RING_CASES = (
     ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, PANEL_RING),)}),
     # The leaf's menu, opened by its press; the walk's step lands on a row.
     ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, PANEL_RING),)}),
-    # The menu's Versions, which `g V` opens standing on the version being read; the
+    # The menu's Versions, which `g V` opens focused on the version being read; the
     # walk's step lands on the earlier one.
     (
         "the versions menu",
@@ -2376,12 +2373,12 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # Read mid-slide, the panel's words stand past the window's edge, where axe reads no
     # contrast for them and the sweep passes them unread.
     panel_settled(page, view="threads")
-    sweep("standing in Threads")
+    sweep("focused in Threads")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
     panel_settled(page, view="thread")
     expect(panel_field(page)).to_be_focused()
-    sweep("standing in a thread's reply box")
+    sweep("focused in a thread's reply box")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -2389,7 +2386,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # The page comment, which `c` puts the user in with nothing on the page to comment on.
     page.keyboard.press("c")
     expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
-    sweep("standing in the page comment")
+    sweep("focused in the page comment")
     page.keyboard.press("Escape")
 
     # All pages and On me, the panel's other views. Waited out rather than pressed past:
@@ -2398,13 +2395,13 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
-    sweep("standing in All pages")
+    sweep("focused in All pages")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    sweep("standing in On me")
+    sweep("focused in On me")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
@@ -2619,6 +2616,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             expect(page.locator('#merge-steps-pane > [tabindex="0"]')).to_have_count(1)
         if name == "release-notes":
+            page.locator("lf-shot").get_by_role(
+                "button", name="Slider", exact=True
+            ).click()
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
                 "node => { node.classList.add('lf-mark-el'); node.tabIndex = 0; }"
@@ -2673,7 +2673,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 # Opening a collapsed file and loading its hunk finish after the key
                 # handler returns. Read the ring once the walk has actually landed.
                 expect(
-                    page.locator("#pr-exact-patch [data-content] > [data-line]:focus")
+                    page.locator("#pr-exact-patch .lf-diff-line > [data-line]:focus")
                 ).to_have_count(1)
             page_at_rest(page)
             if surface := RING_SCOPE_SURFACE.get(scope):

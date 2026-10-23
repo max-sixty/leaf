@@ -237,16 +237,13 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
     assert not (page_dir / "versions").exists()
 
 
-def test_page_events_name_revisions_stamps_name_both_and_signoff_a_version(page_dir):
+def test_page_events_name_revisions_and_stamps_name_both(page_dir):
     kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
     required = kinds["note"]["record"]["required"]
     assert "revision" in required and "version" in required
-    # A sign-off names the stamp it approves; the note already maps that to a revision.
-    required = kinds["done"]["record"]["required"]
-    assert "version" in required and "revision" not in required
     result = CliRunner().invoke(cli_model.cli, ["page", "--help"])
     assert result.exit_code == 0
     assert "\n  stamp " in result.output and "\n  publish " not in result.output
@@ -492,7 +489,6 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 
 PAGE_FIXTURES = (
     *CORPUS_SOURCES,
-    ROOT / "examples" / "corpus.html",
     *sorted((ROOT / "notes").glob("**/*.html")),
 )
 
@@ -860,7 +856,7 @@ def test_reply_validates_widget_markup(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, "c1"),
@@ -903,7 +899,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, "c1"),
@@ -938,7 +934,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
 
     def reply(markup, *, for_event=None, to="c1"):
         route = (
-            ["response", "reply", "--done", response_reference(page_dir, for_event)]
+            ["thread", "reply", "--done", response_reference(page_dir, for_event)]
             if for_event
             else ["thread", "reply", str(page_dir), to]
         )
@@ -1039,7 +1035,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1139,7 +1135,7 @@ def test_every_body_takes_text_and_file():
         for name, params in _commands(cli_model.cli)
         if params & {"text", "body_file"}
     }
-    assert "response reply" in bodies
+    assert "thread reply" in bodies
     assert {name for name, given in bodies.items() if len(given) < 2} == set()
 
 
@@ -1205,7 +1201,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1251,7 +1247,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "The work is ready."],
+        ["thread", "reply", "--done", reference, "--text", "The work is ready."],
     )
     assert answered.exit_code == 0, answered.output
     assert json.loads(answered.output)["responds"] == "c1"
@@ -1305,7 +1301,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
         route = (
             ["thread", "reply", str(claimed), root["id"]]
             if proactive
-            else ["response", "reply", reference]
+            else ["thread", "reply", reference]
         )
         return CliRunner().invoke(
             cli_model.cli,
@@ -1339,7 +1335,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     answer = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -1377,7 +1373,7 @@ def test_an_agent_reply_asks_the_user_only_through_a_widget_in_its_markup(page_d
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root["id"]),
@@ -1432,7 +1428,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, user["id"]),
@@ -1571,7 +1567,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         result = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, event_id),
@@ -1649,7 +1645,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     asking = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             response_reference(page_dir, again["id"]),
             "--text",
@@ -1711,7 +1707,7 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
         result = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, said["id"]),
@@ -2008,7 +2004,7 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -2212,7 +2208,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     named = runner.invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root),

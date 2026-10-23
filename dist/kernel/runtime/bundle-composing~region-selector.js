@@ -3,7 +3,7 @@ import {
 } from "./bundle-composing~page-image-2.js";
 import "./bundle-sample-2.js";
 import "./bundle-dress.js";
-import "./bundle-stylesheets.js";
+import "./bundle-keyboard~disclosure.js";
 import "./bundle-initial-render.js";
 import "./bundle-passage-facts.js";
 import {
@@ -39,8 +39,8 @@ function createRegionSelector({
   returnTo = null
 }) {
   const { promise: done, resolve: settled } = Promise.withResolvers();
-  const standing = focused();
-  const origin = standing === document.body ? returnTo : standing;
+  const currentLocation = focused();
+  const origin = currentLocation === document.body ? returnTo : currentLocation;
   const overlay = el("div", "lf-ui lf-region-capture");
   overlay.setAttribute("role", "region");
   overlay.setAttribute("aria-label", "Capture area");

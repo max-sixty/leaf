@@ -5,6 +5,40 @@ Leaf's current companion workflow is documented in
 [Session lifetime, “Watchers”](../src/leaf/session-lifetime.md#watchers)
 owns the delivery and connection lifecycle. This note holds open design work.
 
+## User-opened conversation panel
+
+Leaf already has a Codex plugin and an MCP server. The current handoff serves a
+page, then the agent calls Codex's `open_in_codex` with its URL to open a browser
+tab beside the chat. The MCP server's `run` tool executes Leaf commands; it
+registers no UI resource or panel entrypoint.
+
+An MCP App could add a Leaf entry to the conversation's panel picker. Its main
+benefit would be letting the user find and reopen this chat's pages without an
+agent turn or locating their URLs. A single panel could also let the user switch
+among those pages. These are discovery and navigation benefits; the existing tab
+already renders Leaf and carries live revisions and comments. Faster replies,
+less transcript clutter and removal of the HTTP server do not follow from a
+panel registration.
+
+The extension would add a view tool, an HTML MCP resource, and a `thread`
+entrypoint. Codex invokes the entrypoint when the user selects it; the panel can
+call app-visible tools through the MCP Apps bridge. Model access is a separate
+visibility choice. The installed Inbox 0.2.10 keeps its view tool app-only and
+notes that model-called UI tools appear inline in the transcript. Its panel
+registration is a useful example, independent of its full-text queued messages.
+See OpenAI's [conversation panel registration](https://developers.openai.com/plugins/build/extensions)
+and [tool visibility reference](https://developers.openai.com/plugins/reference).
+This is source inspection as of 22 October 2026, not a tested Leaf integration.
+
+Revisit this when user-controlled page discovery warrants another host surface.
+The first experiment would open an existing page from the picker without a model
+turn, then exercise page switching, live revisions, comments and reopening. It
+would establish how the existing Leaf renderer and server fit the host's iframe
+and resource policy before choosing embedding or a transport adaptation. Keep
+the page's event log, admission and delivery owners; adding the panel supplies no
+reason to replace them. Delivering input without user messages remains the
+separate capability below.
+
 ## Delivery without user messages
 
 An idle desktop chat receives Leaf input through `codex queue` as a

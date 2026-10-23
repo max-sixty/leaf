@@ -159,24 +159,25 @@ user lands on the same item, or the nearest survivor.
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
 
-`focused()` is the focused element across shadow trees, and `standingIn(scope)` says
+`focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
 whether focus is in a scope. `whenLeft(element, leave)` runs `leave` once when focus
 leaves an element. A group the user moves through with arrow keys offers one Tab stop
 with `rove(items, stop)`.
 
-`onStanding(read)` calls `read(node, cause, left)` synchronously when focus changes,
+`onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus changes,
 including inside a declared shadow root, and returns its unsubscribe function. Register
 it inside `whileConnected` and call that function in the connection's cleanup. The
 causes are `return`, `press`, `step`, `move`, and `drop`; a dropped place is `null`.
 
-Logical standing is marked by `data-lf-focus` and its composed ancestry by
+The current location is marked by `data-lf-focus` and its composed ancestry by
 `data-lf-focus-within`. Use `data-lf-focus-visible` and
 `data-lf-focus-visible-within` for focus rings; the same names without `data-`
-are public shadow parts. Ordinary controls follow the browser's `:focus-visible`
-reading, text editors show their entry cue, and reading destinations retain a
-location ring. A pointer-focused control can therefore reveal its actions without
-wearing a keyboard ring. Shared `.choice` labels contain their ring inside the
-hit target so a clipping parent cannot cut it off.
+are public shadow parts. Controls and reading destinations follow the browser's
+`:focus-visible` reading; keyboard routes request visible focus, and text editors
+show their entry cue. A pointer-focused control can therefore reveal its actions
+without wearing a keyboard ring. Shared
+`.choice` labels contain their ring inside the hit target so a clipping parent
+cannot cut it off.
 
 ### Layers
 

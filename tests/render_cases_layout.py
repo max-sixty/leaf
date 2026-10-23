@@ -391,8 +391,8 @@ UNMARKABLE_PAGE = LONG_PAGE.replace(
 # margin carries it: far enough and the whole box is out in the margin, which is what a
 # sidenote is; not far enough and the box straddles the edge, which is a spill. The
 # fourth says the same side in the logical spelling, and the fifth is the run of prose a
-# resident holds — every one of which inherits the box its parent put out there. The
-# compact posture has no margin for these synthetic residents, so it removes them.
+# margin element holds — every one of which inherits the box its parent put out there. The
+# compact posture has no margin for these synthetic margin elements, so it removes them.
 FLOATING_PAGE = LONG_PAGE.replace(
     "</main>",
     "<style>@media (max-width: 1199px) { .fixture-margin-float { display: none; } }</style>"
@@ -420,7 +420,7 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
 
 
 # A note written level with a change, which is the one restore case that puts two
-# residents of the right margin on the same line.
+# elements in the right margin on the same line.
 NOTE_BESIDE_A_CHANGE = LONG_PAGE.replace(
     "</main>",
     """<aside class="sidenote" id="level-note">Measured over a quarter, and the number
@@ -518,10 +518,10 @@ customElements.define('lf-test-drawing-control', class extends HTMLElement {
 # the near end lands inside the window and escapes nothing anyone can measure.
 LOOSE_SCROLLER_PAGE = LONG_PAGE.replace(
     "</main>",
-    "<div id='loose' style='width: 300px; overflow-x: auto'>"
+    "<div id='loose' class='scroll' style='width: 300px; overflow-x: auto'>"
     "<div id='far' style='width: 700px; text-align: right'>A row wider than the box "
     "that scrolls it.</div></div>"
-    "<div id='held' style='width: 300px; overflow-x: auto; position: relative'>"
+    "<div id='held' class='scroll' style='width: 300px; overflow-x: auto; position: relative'>"
     "<div style='width: 700px'>The same row, in a box that holds its own.</div></div>"
     "\n</main>",
 )
@@ -533,7 +533,7 @@ HIDDEN_SCROLLER_STYLE = """<style>
 .row { width: 700px; }
 </style>"""
 HIDDEN_SCROLLER_ROW = (
-    '<div id="unfolded"><div class="row">A row wider than the box that scrolls it.'
+    '<div id="unfolded" class="scroll"><div class="row">A row wider than the box that scrolls it.'
     "</div></div>"
 )
 HIDDEN_SCROLLERS = {
@@ -1576,8 +1576,8 @@ def rings_drawn(page):
     return drawn
 
 
-def standing_ring(page):
-    """The ring on the control the keyboard is standing on, or None if it wears none."""
+def current_location_ring(page):
+    """The ring on the control at the current keyboard location, or None if it wears none."""
     return next((seen for seen in rings_drawn(page) if seen["focused"]), None)
 
 

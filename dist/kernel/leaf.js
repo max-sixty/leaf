@@ -4,15 +4,15 @@ import {
 } from "./runtime/bundle-composing~page-image-2.js";
 import "./runtime/bundle-sample-2.js";
 import {
+  shownScheme
+} from "./runtime/bundle-color-scheme.js";
+import {
   aimLayer,
   mountTargetPaint,
   paintSet,
   targetTraceLayer,
   target_paint_exports
 } from "./runtime/bundle-target-paint.js";
-import {
-  shownScheme
-} from "./runtime/bundle-color-scheme.js";
 import {
   DRAWING_COORDINATE_LIMIT,
   LeafElement,
@@ -30,6 +30,7 @@ import {
   createSelectionComposer,
   createThreadLanding,
   createVersionController,
+  currentLocationThread,
   declareThreadKeys,
   fabBar,
   fabInput,
@@ -58,7 +59,6 @@ import {
   readQueues,
   returnPlace,
   sendReaction,
-  standingThread,
   textField,
   threadInput,
   versionPicker,
@@ -104,12 +104,12 @@ import {
   allThreads,
   anchorLabel,
   answeredInWords,
-  approvalBlockingObligations,
   beginWalk,
   bringBackSurfaceOf,
-  copyControl,
   createPassageSelection,
   createWritingResume,
+  currentLocationOrigin,
+  currentLocationThreadId,
   declareSide,
   declareThreadParts,
   designName,
@@ -167,8 +167,6 @@ import {
   settleThread,
   showHeld,
   snapSelection,
-  standingOrigin,
-  standingThreadId,
   stepFrom,
   tabStore,
   tellDraft,
@@ -186,13 +184,13 @@ import {
 import {
   DISCLOSE,
   DISCLOSURE_SELECTOR,
-  annotationSheets,
-  chromeSheet,
   disclosed,
-  marksSheet,
   setChildren,
   watchDisclosures
-} from "./runtime/bundle-stylesheets.js";
+} from "./runtime/bundle-keyboard~disclosure.js";
+import {
+  copyControl
+} from "./runtime/bundle-copy-control.js";
 import {
   mediaViewer,
   readAttachedMedia,
@@ -206,14 +204,14 @@ import {
 import {
   PAGE_CONTROL_RANK,
   livePoint,
-  openResidency,
+  openMarginContentLayout,
   pageControls,
   pageControlsChanged,
   placePoints,
   pointInto,
   railStands,
   registerPageControl,
-  scheduleResidency,
+  scheduleMarginContentLayout,
   visibleTargetParts
 } from "./runtime/bundle-page-controls.js";
 import {
@@ -225,8 +223,6 @@ import {
   anchorFor,
   anchoringIsReady,
   annotationAt,
-  chromeForeground,
-  chromeRoot,
   designPressAt,
   elementFrame,
   exactTarget,
@@ -249,10 +245,14 @@ import {
   visualAt,
   visualParts,
   visualSelector
-} from "./runtime/bundle-chrome.js";
+} from "./runtime/bundle-visual-parts.js";
 import {
   fragmentId
 } from "./runtime/bundle-initial-render.js";
+import {
+  chromeForeground,
+  chromeRoot
+} from "./runtime/bundle-chrome.js";
 import {
   JUST_NOW,
   PRESENTATION,
@@ -321,10 +321,12 @@ import {
   PRESSABLE,
   advertisesKeys,
   allBindings,
+  annotationSheets,
   announce,
   bindingEnabled,
   bindings,
   buttonCommand,
+  chromeSheet,
   claimsEsc,
   clamp,
   clampedRow,
@@ -364,6 +366,7 @@ import {
   layoutWindow,
   live,
   liveEl,
+  marksSheet,
   merge,
   mountRepaint,
   nativeLayers,
@@ -442,6 +445,7 @@ import {
   byRenderedOrder,
   cancelRender,
   closeLayer,
+  currentLocationIn,
   declareReading,
   deepFocus,
   drawn,
@@ -460,7 +464,7 @@ import {
   nextFrame,
   nextRender,
   observePreparations,
-  onStanding,
+  onCurrentLocation,
   onUserInput,
   openLayer,
   openerOf,
@@ -473,14 +477,14 @@ import {
   selectsAll,
   shadowHost,
   sizeObserver,
-  standingIn,
   takesLetters,
   typesText,
   under,
   upFrom
 } from "./runtime/bundle-frame-visibility.js";
 import {
-  PRESENTATION_ORDER,
+  DELIVERY,
+  PRESENTATION_DOM,
   SHARE_ROOT,
   WEBSITE_DELIVERY,
   agentName,
@@ -916,7 +920,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       sendBtn.replaceChildren(word2.charAt(0).toUpperCase() + word2.slice(1));
     }
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
-    mediaShelf.className = "lf-composer-media";
+    mediaShelf.className = "lf-composer-media scroll";
     mediaShelf.setAttribute("role", "group");
     mediaShelf.setAttribute("aria-label", "Attachments");
     if (mediaBelow) field.after(mediaShelf);
@@ -1012,10 +1016,10 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     let uploading = false;
     const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
     const paint = (contextualHint) => {
-      const standing = focused() === ta;
+      const currentLocation = focused() === ta;
       const advertising = advertisesKeys();
       const sendKeys = advertising ? submitLabel() : "";
-      const suffix = !advertising ? "" : standing ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
+      const suffix = !advertising ? "" : currentLocation ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
       const status = dictationStatus();
       const word2 = status || label2();
       const placeholder = suffix && !status ? `${word2} ${suffix}` : word2;
@@ -1810,11 +1814,11 @@ var commandReferenceItems = () => {
         title: heading.title,
         order: heading.order
       });
-  for (const presentation2 of commandReferenceView.entryPresentations)
+  for (const presentation of commandReferenceView.entryPresentations)
     visible.push({
       kind: "entry",
-      key: `entry:${presentation2.entry.id}`,
-      ...presentation2
+      key: `entry:${presentation.entry.id}`,
+      ...presentation
     });
   visible.sort((left, right) => left.order - right.order);
   const visibleKeys = new Set(visible.map(({ key }) => key));
@@ -1950,7 +1954,7 @@ var commandReferenceReturn = null;
 function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
   const fresh = open && !commandReferenceIsOpen;
   const preserveSelection = fresh && Boolean(pageSelection());
-  const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
+  const handingBack = !open && restoreFocus && currentLocationIn(commandReferenceDialog);
   const restore = handingBack ? commandReferenceReturn : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
@@ -1991,7 +1995,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (standingIn(commandReferenceDialog))
+        if (currentLocationIn(commandReferenceDialog))
           deepFocus()?.blur();
         repaint();
       },
@@ -2143,10 +2147,10 @@ function createResponseSurface({
   rememberSelection,
   landIn,
   threadHere,
-  threadAtStanding,
-  replyThreadAtStanding,
+  threadAtCurrentLocation,
+  replyThreadAtCurrentLocation,
   threadTarget,
-  standingTarget: standingTarget2,
+  currentTarget: currentTarget2,
   markAt,
   scrollToElement,
   scrollToRange,
@@ -2401,7 +2405,7 @@ function createResponseSurface({
     openComment(anchor, "", { carry: true, point });
     setTimeout(() => {
       targetActivation = false;
-      observeSelection();
+      selectionChanged();
     });
   }
   function focusFabComment() {
@@ -2438,8 +2442,8 @@ function createResponseSurface({
   };
   function commentOnOfferedSelection(settled = offeredSelection) {
     const selection = anchoringIsReady() ? pageSelection() : null;
-    const standing = selection ? selectionAnchor(selection) : null;
-    commentOnSelection(hasQuote(standing) ? standing : settled);
+    const currentLocation = selection ? selectionAnchor(selection) : null;
+    commentOnSelection(hasQuote(currentLocation) ? currentLocation : settled);
   }
   const commentOnSelection = (anchor) => {
     offerSelection(null);
@@ -2584,7 +2588,9 @@ function createResponseSurface({
   const finishPointerSelection = (ev) => {
     if (drawModeActive()) return;
     const releasePress = () => setTimeout(() => {
+      if (!actionPress) return;
       actionPress = false;
+      selectionChanged();
     });
     if (offeredSelection && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
@@ -2644,6 +2650,27 @@ function createResponseSurface({
     wireInput,
     drawingEdits: drawingEdits2
   });
+  function selectionChanged() {
+    const automatic = programmaticSelection(getSelection());
+    if (primaryPointerPressed && selectionPressIntent?.()) {
+      rememberPointerSelection();
+      if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
+        rememberSelection();
+      reflectSelection();
+      return;
+    }
+    if (takesLetters(focused())) {
+      offerSelection(null);
+      return;
+    }
+    if (actionPress || targetActivation) return;
+    const selection = pageSelection();
+    if (coarsePointer.matches && selection && !automatic) rememberSelection(selection);
+    observeSelection();
+    if (!selection && fabAnchor.value?.quote && !fabHoldsCapturedPassage() && !composer.composerHolds())
+      putAwayFab();
+    reflectSelection();
+  }
   function mount() {
     composer.mount();
     placement?.mount();
@@ -2693,28 +2720,7 @@ function createResponseSurface({
     });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
-    document.addEventListener("selectionchange", () => {
-      const automatic = programmaticSelection(getSelection());
-      if (primaryPointerPressed && selectionPressIntent?.()) {
-        rememberPointerSelection();
-        if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
-          rememberSelection();
-        reflectSelection();
-        return;
-      }
-      if (takesLetters(focused())) {
-        offerSelection(null);
-        return;
-      }
-      if (actionPress || targetActivation) return;
-      const selection = pageSelection();
-      if (coarsePointer.matches && selection && !automatic)
-        rememberSelection(selection);
-      observeSelection();
-      if (!selection && fabAnchor.value?.quote && !fabHoldsCapturedPassage() && !composer.composerHolds())
-        putAwayFab();
-      reflectSelection();
-    });
+    document.addEventListener("selectionchange", selectionChanged);
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;
       const selectedOnPage = pointerSelecting && selectionPressIntent?.();
@@ -2793,14 +2799,14 @@ function createResponseSurface({
         box: null,
         go: commentOnOfferedSelection
       };
-    const here = standingTarget2();
+    const here = currentTarget2();
     const anchor = fabAnchorAt();
     const inline = threadHere();
-    const threadId = threadAtStanding();
-    const replyId = replyThreadAtStanding();
+    const threadId = threadAtCurrentLocation();
+    const replyId = replyThreadAtCurrentLocation();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
-    const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
+    const inlineBox = inline && (!here || currentLocationIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
+    const said = currentLocationThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject = threadId && (!here || target && under(target, heldObligation() ?? here.element));
     const replySubject = subject && replyId;
     if (anchor && (pageSelection() || fabHoldsCapturedPassage() || !said && !subject && (!here || here.element === fabTargetAt())))
@@ -3499,7 +3505,7 @@ function createRegionCapture({
       },
       { capture: true }
     );
-  onStanding((node) => {
+  onCurrentLocation((node) => {
     if (selector && node && node !== document.body && !closestAcross(
       node,
       ".lf-floating-panel, .lf-command-reference, .lf-region-capture"
@@ -3516,7 +3522,7 @@ function createRegionCapture({
     title: "Capture area",
     touch: "Capture area",
     menu: "annotate",
-    retainStanding: true,
+    retainCurrentLocation: true,
     when: () => anchoringIsReady() && !offlineInteractive && !opening,
     run: async () => {
       const intent = retainUserIntent();
@@ -4394,8 +4400,9 @@ function createTargetPicker({
   searchInPanel
 }) {
   const canChoose = () => anchoringIsReady() && !pointerModeActive();
-  let pickerOpen = false;
-  let pageSearchOpen = false;
+  const pickerMode = Z("closed");
+  const targetPickerOpen = () => pickerMode.value !== "closed";
+  const pageSearchOpen = () => pickerMode.value === "search";
   const matches = Z([]);
   let matchesIn = null;
   let active = -1;
@@ -4442,7 +4449,7 @@ function createTargetPicker({
       paintTargetPicker(on, withHints);
       return;
     }
-    const landing2 = restore && pickerOpen;
+    const landing2 = restore && targetPickerOpen();
     const opener = openerOf(pageSearchInput);
     closeLayer(
       () => paintTargetPicker(on, withHints),
@@ -4450,11 +4457,9 @@ function createTargetPicker({
     );
   }
   function paintTargetPicker(on, withHints) {
-    pickerOpen = on;
-    pageSearchOpen = false;
+    pickerMode.value = on ? "hints" : "closed";
+    if (on) clearMatches();
     searchReturnsToHints = false;
-    matches.value = [];
-    active = -1;
     pageSearchInput.value = "";
     presentSearchField();
     if (on && withHints) {
@@ -4472,11 +4477,15 @@ function createTargetPicker({
     searchInPanel({
       input: pageSearchInput,
       controls: pageSearchControls,
-      open: pageSearchOpen
+      open: pageSearchOpen()
     });
   }
+  function clearMatches() {
+    matches.value = [];
+    active = -1;
+  }
   function setPageSearch(on) {
-    pageSearchOpen = on;
+    pickerMode.value = on ? "search" : "hints";
     presentSearchField();
     if (on) {
       focusDestination(pageSearchInput, "move");
@@ -4484,8 +4493,7 @@ function createTargetPicker({
       announce("Search the page.");
     } else {
       pageSearchInput.value = "";
-      matches.value = [];
-      active = -1;
+      clearMatches();
       releaseFocus();
       hints.invalidate();
       announce(
@@ -4496,8 +4504,8 @@ function createTargetPicker({
     repaint();
   }
   function openPageSearch() {
-    const fromHints = pickerOpen;
-    if (!pickerOpen) setTargetPicker(true, false, false);
+    const fromHints = targetPickerOpen();
+    if (!targetPickerOpen()) setTargetPicker(true, false, false);
     searchReturnsToHints = fromHints;
     setPageSearch(true);
   }
@@ -4551,7 +4559,7 @@ function createTargetPicker({
   function matchWalkPosition(query) {
     if (!query || active < 0 || active >= matches.value.length) return null;
     if (!matchIsRangeable(matches.value[active])) return null;
-    if (!pageSearchOpen && !selectionIs(matches.value[active])) return null;
+    if (!pageSearchOpen() && !selectionIs(matches.value[active])) return null;
     return {
       target: matchIdentity(query, matches.value[active]),
       position: active + 1,
@@ -4564,19 +4572,20 @@ function createTargetPicker({
     return findText(matchesIn, query);
   }
   function refreshMatches() {
-    const query = pageSearchOpen ? pageSearchInput.value.trim() : repeatedSearch?.query;
+    const query = pageSearchOpen() ? pageSearchInput.value.trim() : repeatedSearch?.query;
     const current = matches.value[active];
     if (!query || !current || pageText() === matchesIn) return false;
     const found = find(query);
     const same5 = found.findIndex((candidate) => sameMatch(candidate, current));
     active = same5 >= 0 ? same5 : found.length ? Math.min(active, found.length - 1) : -1;
     matches.value = found;
-    if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
+    if (repeatedSearch && !pageSearchOpen() && active >= 0)
+      repeatedSearch.index = active;
     return true;
   }
   function refreshMatchWalk() {
     if (walkPosition()?.kind !== "page-search") return;
-    if (refreshMatches() && pageSearchOpen) presentSearchStatus();
+    if (refreshMatches() && pageSearchOpen()) presentSearchStatus();
     repaint();
   }
   function search() {
@@ -4613,7 +4622,7 @@ function createTargetPicker({
   }
   function chooseTarget(candidate) {
     const target = candidate.capture ? candidate.capture() : candidate;
-    setTargetPicker(false);
+    closeTargetPicker();
     releaseFocus();
     commentOnTarget(target);
     announce(`Chosen ${target.label}.`);
@@ -4625,19 +4634,21 @@ function createTargetPicker({
     const quote = quoteFrom(matches.value[active]);
     repeatedSearch = { query: pageSearchInput.value.trim(), index: active };
     setTargetPicker(false);
-    selectMatch(segments);
+    landOnMatch();
     announce(
       `Selected match: ${quote}. ${coarsePointer.matches || !bindingEnabled("c") ? "A press on the comment field comments on it." : "Press n for next, Shift+n for previous, or c to comment."}`
     );
   }
-  function selectMatch(segments) {
+  function landOnMatch(wrapped = false) {
     releaseFocus();
-    const range = rangeOf(segments);
+    const range = rangeOf(matches.value[active]);
     selectEnds(
       [range.startContainer, range.startOffset],
       [range.endContainer, range.endOffset]
     );
     updateFab();
+    const query = repeatedSearch.query;
+    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
   }
   function repeatSearch(direction) {
     matches.value = find(repeatedSearch.query);
@@ -4652,22 +4663,20 @@ function createTargetPicker({
     active = matches.value.indexOf(row);
     repeatedSearch.index = active;
     showMatch();
-    selectMatch(matches.value[active]);
-    const query = repeatedSearch.query;
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    landOnMatch(wrapped);
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`
     );
   }
   function back() {
-    if (pageSearchOpen) {
+    if (pageSearchOpen()) {
       if (searchReturnsToHints) return setPageSearch(false);
-      setTargetPicker(false, true);
+      closeTargetPicker(true);
       announce("Page search closed.");
       return;
     }
     if (hints.backOneLetter()) return;
-    setTargetPicker(false, true);
+    closeTargetPicker(true);
     announce("Target picker closed.");
   }
   const hintTemplate = (model) => html`<span class=${model.className} data-lf-hint-code=${model.hintCode}
@@ -4738,7 +4747,7 @@ function createTargetPicker({
     );
   }
   function paintTargetPickerHints() {
-    if (pickerOpen && pageSearchOpen) return paintSearchMatches();
+    if (pageSearchOpen()) return paintSearchMatches();
     marks.place([]);
     hints.paint();
   }
@@ -4749,7 +4758,7 @@ function createTargetPicker({
     menu: "navigate",
     keys: ["/"],
     title: "search page",
-    when: () => anchoringIsReady() && !pageSearchOpen,
+    when: () => anchoringIsReady() && !pageSearchOpen(),
     run: openPageSearch
   };
   const REPEAT_PAGE_SEARCH = {
@@ -4776,7 +4785,7 @@ function createTargetPicker({
   const TARGETING_BACK = {
     id: "targeting.back",
     keys: ["Escape"],
-    title: () => pageSearchOpen ? searchReturnsToHints ? "back to hints" : "close search" : hints.prefix() ? "back one letter" : "close picker",
+    title: () => pageSearchOpen() ? searchReturnsToHints ? "back to hints" : "close search" : hints.prefix() ? "back one letter" : "close picker",
     // The ✕ of both stances (keyboard/AGENTS.md, "Touch routes"). While the user
     // has typed part of a hint it takes back a letter, as its words say; a finger,
     // which types none, always closes.
@@ -4796,7 +4805,7 @@ function createTargetPicker({
   const TARGET_PICKER_SCOPE = {
     title: "In the target picker",
     escape: "inner",
-    at: () => pickerOpen && !pageSearchOpen,
+    at: () => pickerMode.value === "hints",
     // The page owns search, even when target hints are standing over it. Exempt the
     // binding read from that row so one declaration drives both entry routes and every
     // keyboard projection.
@@ -4815,7 +4824,7 @@ function createTargetPicker({
   const PAGE_SEARCH_SCOPE = {
     title: "In page search",
     escape: "inner",
-    at: () => pageSearchOpen,
+    at: () => pageSearchOpen(),
     claims: targetingClaims,
     rows: [
       {
@@ -4853,12 +4862,14 @@ function createTargetPicker({
       TARGETING_BACK
     ]
   };
-  const targetPickerOpen = () => pickerOpen;
   const openTargetPicker = () => setTargetPicker(true);
-  const closeTargetPicker = () => setTargetPicker(false);
+  const closeTargetPicker = (restore = false) => {
+    clearMatches();
+    setTargetPicker(false, restore);
+  };
   let pressOnMatch = false;
   function onMarkedMatch(ev) {
-    if (!pageSearchOpen || ev.button !== 0) return false;
+    if (!pageSearchOpen() || ev.button !== 0) return false;
     refreshMatches();
     const segments = matches.value[active];
     if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
@@ -4883,7 +4894,7 @@ function createTargetPicker({
       document.addEventListener(type, pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
-      if (pageSearchOpen) repaint();
+      if (pageSearchOpen()) repaint();
     });
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }
@@ -4905,7 +4916,7 @@ function createTargetPicker({
     visibleTargets,
     chooseTarget,
     // The map, not the mode: a direct slash opens the mode for search alone.
-    choosing: () => hints.armed() && !pageSearchOpen,
+    choosing: () => hints.armed() && !pageSearchOpen(),
     paintTargetPickerHints,
     targetPickerOpen,
     openTargetPicker,
@@ -4914,16 +4925,16 @@ function createTargetPicker({
   };
 }
 
-// runtime/composing/standing.js
-function createStandingTarget({ isObligationControl, standingIn: standingIn2 }) {
-  return function standingTarget2() {
+// runtime/composing/current-target.js
+function createCurrentTarget({ isObligationControl, currentLocationIn: currentLocationIn2 }) {
+  return function currentTarget2() {
     const held = focused();
     if (!held || held === document.body) return null;
     if (inChrome(held) && heldThread()) return null;
     const place3 = placeOf(held);
     if (!place3 || inChrome(place3)) return null;
     if (place3 !== held) return aimTargetAt(place3);
-    const working = isObligationControl(held) ? standingIn2() : null;
+    const working = isObligationControl(held) ? currentLocationIn2() : null;
     return aimTargetAt(working ?? held);
   };
 }
@@ -5321,9 +5332,9 @@ function createAnchorControls({
               return;
             }
             record.surface = context2.surface ?? null;
-            const standing = focused2();
+            const currentLocation = focused2();
             setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
-              focus: context2.input === "keyboard" && context2.origin === standing,
+              focus: context2.input === "keyboard" && context2.origin === currentLocation,
               surface: record.surface
             });
           }
@@ -5761,7 +5772,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
 }
 var QUEUE_WORDS = Object.freeze({
   widget: ["to answer", "to answer"],
-  approval: ["approval", "approvals"],
+  message: ["to answer", "to answer"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
@@ -5773,7 +5784,7 @@ function queueKinds(items2) {
     byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    return kind === "todo" ? `${words} (${all.map((row) => row.todo.title).join(" \xB7 ")})` : words;
+    return kind === "todo" ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" \xB7 ")})` : words;
   });
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
@@ -5914,65 +5925,7 @@ function paintStatus(current) {
   saidActionableWork = actionableWork;
   if (changed) announce(model.explanation);
 }
-var REVIEW = "lf-review";
-var SIGN_OFF = "sign-off";
-var isSignoffDeclared = () => (
-  /** @type {HTMLMetaElement | null} */
-  document.querySelector(`meta[name="${REVIEW}"]`)?.content === SIGN_OFF
-);
-var signoff = false;
-var approving = false;
-var approveVersion = null;
-var presentation = null;
-var AWAITING_STATE = "Approval waits until this page has read its current state";
-function registerApprovalPresentation(next) {
-  presentation = next;
-}
-var presentedApproval = () => presentation;
-var paintApproval = () => presentation?.repaint();
-var approvalTarget = () => signoff ? presentation?.target() ?? null : null;
-var versionApproved = readPart(
-  (root) => root.effective.obligations.all.some(
-    (item) => item.source.kind === "approval" && item.status === "answered"
-  )
-);
-var approvalReading = () => {
-  if (!signoff) return null;
-  const approved = versionApproved();
-  const blockingObligations = approvalBlockingObligations();
-  const reason = approved ? "Approved. Press z to undo while approval is still the latest update" : runtime.currentStamp === null ? "There is no stamped version to approve yet" : !pagePresented() || blockingObligations === null ? AWAITING_STATE : blockingObligations.length ? "Answer every open widget before approving this work" : null;
-  return {
-    text: approved ? "\u2713 Version approved" : "Approve version",
-    // A press already in flight is refused silently: its busy state says so.
-    reason: reason ?? (approving ? "Approving this version" : null),
-    approved
-  };
-};
-async function approve() {
-  if (approving || !approveVersion) return;
-  const reason = approvalReading()?.reason;
-  if (reason) {
-    raiseError(reason);
-    return;
-  }
-  approving = true;
-  const busyPaint = nextRender(paintApproval);
-  try {
-    await approveVersion();
-  } finally {
-    approving = false;
-    cancelRender(busyPaint);
-    paintApproval();
-  }
-}
-function stateSignoff(next) {
-  if (next === signoff) return;
-  signoff = next;
-  presentation?.repaint();
-}
-function mountPageStatus({ approveVersion: post }) {
-  approveVersion = post;
-  signoff = isSignoffDeclared();
+function mountPageStatus() {
   chromeRoot.append(toneProbe);
   x(() => {
     const current = currentStatus();
@@ -6038,16 +5991,20 @@ var WITHIN = "waiting on me here";
 var NOUNS = Object.freeze({
   thread: "Thread",
   widget: "Update",
-  page: "To-do",
-  approval: "Approval"
+  page: "To-do"
 });
-var nounOf = (item, stop) => carriesObligation(item) && stop.kind !== "approval" ? obligationWord(item.obligation) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
-var stopOf = (item) => item.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation)) ? {
+var nounOf = (item, stop) => carriesObligation(item) ? obligationWord(item.obligation) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+var stopOf = (item) => item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation)) ? {
   kind: "obligation",
   id: item.id,
   thread: item.thread,
   obligation: item.obligation
-} : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
+} : item.thread !== null ? {
+  kind: "thread",
+  id: item.thread,
+  thread: item.thread,
+  message: answeredInWords(item.obligation) ? item.obligation.message : null
+} : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
 var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 function queueStop(item) {
   const stop = stopOf(item);
@@ -6059,13 +6016,13 @@ function createQueueWalk({
   arriveAtThread: arriveAtThread2,
   threadHere,
   threadPlace,
-  prepareTrip,
+  prepareNavigationStep,
   arrive,
   readableDestination,
   announce: announce2,
   actions
 }) {
-  const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
+  const stopElement = (stop) => stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
   const pagePlace = (stop) => {
     const at = stopElement(stop);
     return at?.isConnected && !inChrome(at) ? at : null;
@@ -6087,9 +6044,7 @@ function createQueueWalk({
     return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
-  function standingStop(list, origin = standingOrigin()) {
-    if (focused(document) === approvalTarget())
-      return list.find((stop) => stop.kind === "approval") ?? null;
+  function currentLocationStop(list, origin = currentLocationOrigin()) {
     const held = threadHere();
     const thread = drawnThreadId(held);
     if (thread) {
@@ -6098,7 +6053,7 @@ function createQueueWalk({
       );
       if (stop) return stop;
     }
-    if (origin?.kind !== "standing") return null;
+    if (origin?.kind !== "current-location") return null;
     const { place: here } = origin;
     if (!here) return null;
     const item = obligationHolding(readObligations().all, placeOf(here));
@@ -6117,15 +6072,15 @@ function createQueueWalk({
   }
   function step(list, dir, region, origin) {
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
-    const standing = standingStop(list, origin);
-    if (standing) return cycledRow(list, standing, dir);
+    const currentLocation = currentLocationStop(list, origin);
+    if (currentLocation) return cycledRow(list, currentLocation, dir);
     return stepFrom(list, origin, dir, (stop) => stop.place);
   }
   function arriveAtElement(find) {
     const intent = retainUserIntent({ available: () => Boolean(find()) });
     const where = find();
     if (!where) return Promise.resolve(false);
-    const departure = prepareTrip({ landing: find, intent });
+    const departure = prepareNavigationStep({ landing: find, intent });
     departure.plan(where);
     return arrive(
       () => {
@@ -6144,14 +6099,12 @@ function createQueueWalk({
       const record = readObligations().all.find((item) => item.id === stop.id);
       return record ? arriveAtRecord(record) : Promise.resolve(false);
     }
-    if (stop.kind === "thread") return arriveAtThread2(stop.id);
-    if (stop.kind === "approval" && presentedApproval())
-      return presentedApproval().arrive();
+    if (stop.kind === "thread") return arriveAtThread2(stop.id, stop.message);
     return arriveAtElement(() => stopElement(stop));
   }
   function position(region) {
     const list = stopsOf(region);
-    const here = standingStop(list);
+    const here = currentLocationStop(list);
     const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
     return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} \xB7 ${here.noun}` };
   }
@@ -6178,7 +6131,7 @@ function createQueueWalk({
   const doneAt = (stop) => stop ? readQueues().on_user.find(
     (item) => item.offers.done && sameStop(stopOf(item), stop)
   ) ?? null : null;
-  const doneTodo = () => doneAt(standingStop(stops()));
+  const doneTodo = () => doneAt(currentLocationStop(stops()));
   function endTodo(id) {
     return actions.done(queueItemKey({ kind: "todo", id }));
   }
@@ -6217,7 +6170,7 @@ function createQueueWalk({
     when: offered,
     repeat: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
-    // down a level, so the standing scope lets go of whichever one they end on. An item
+    // down a level, so the current scope lets go of whichever one they end on. An item
     // reached through the panel leaves the panel a level of its own on the way out,
     // whether this walk opened it or the user already had it.
     run: (binding) => walk(binding === "m" ? 1 : -1)
@@ -6243,10 +6196,10 @@ function createQueueWalk({
   const arriveAtItem = (item) => arriveAt(stopOf(item));
   const arrivesAt = (item) => {
     const stop = stopOf(item);
-    return Boolean(pagePlace(stop)) || stop.kind === "obligation" && stop.thread !== null;
+    return Boolean(pagePlace(stop)) || Boolean(stop.message) || stop.kind === "obligation" && stop.thread !== null;
   };
   let wentTo = null;
-  onStanding((node, cause) => {
+  onCurrentLocation((node, cause) => {
     if (cause === "step") return;
     const place3 = node && placeOf(node);
     wentTo = (place3 && obligationHolding(readObligations().all, place3)?.id) ?? null;
@@ -6262,7 +6215,7 @@ function createQueueWalk({
     if (kept)
       return walk(toward, within, {
         place: obligationPlace(kept).source,
-        kind: "standing"
+        kind: "current-location"
       });
     const clips = /* @__PURE__ */ new Map();
     const shown = items2.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
@@ -6342,6 +6295,18 @@ function boxMotion({
   let rests = null;
   let motions = /* @__PURE__ */ new Map();
   let running = [];
+  let shapeUntil = 1;
+  let rtl = false;
+  const interpolate = (from, to, progress) => {
+    const rect2 = between(from, to, progress);
+    const shape = Math.min(1, progress / shapeUntil);
+    const w = width(from) + (width(to) - width(from)) * shape;
+    const h = height(from) + (height(to) - height(from)) * shape;
+    if (rtl) rect2.left = rect2.right - w;
+    else rect2.right = rect2.left + w;
+    rect2.top = rect2.bottom - h;
+    return rect2;
+  };
   const translations = /* @__PURE__ */ new Map();
   const restoreTranslations = (keep = /* @__PURE__ */ new Set()) => {
     for (const [element, { value, priority }] of translations) {
@@ -6380,6 +6345,7 @@ function boxMotion({
       return;
     }
     if (!element.checkVisibility()) return;
+    if (style.positionAnchor.startsWith("--")) return;
     const [dx, dy] = carried(element);
     const part = {
       element,
@@ -6405,7 +6371,7 @@ function boxMotion({
       if (motion?.revealed && progress < 1) continue;
       at.set(
         element,
-        motion ? between(motion.from, motion.to, progress) : shifted(rest, ...carried(element))
+        motion ? (element === box ? interpolate : between)(motion.from, motion.to, progress) : shifted(rest, ...carried(element))
       );
     }
     return at;
@@ -6430,7 +6396,7 @@ function boxMotion({
         if (node instanceof Element && !insideWhole(node)) arrived.add(node);
     watch();
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
-  function follow(timing) {
+  function follow(timing, compact = false) {
     const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     const parts = [];
@@ -6486,8 +6452,19 @@ function boxMotion({
       return;
     }
     const boxFrom = was.get(box);
-    const rtl = getComputedStyle(box).direction === "rtl";
+    shapeUntil = compact ? 0.55 : 1;
+    rtl = getComputedStyle(box).direction === "rtl";
     const start = (element, keyframes) => running.push(element.animate(keyframes, timing));
+    const contour = (from, to, grow2, radius, compact2 = false) => {
+      const frames = [clipFrame(...outline(from, grow2, radius))];
+      if (compact2)
+        frames.push({
+          ...clipFrame(...outline(interpolate(from, to, shapeUntil), grow2, radius)),
+          offset: shapeUntil
+        });
+      frames.push(clipFrame(...outline(to, grow2, radius)));
+      return frames;
+    };
     const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
     const translated = /* @__PURE__ */ new Set();
     const move2 = (element, dx, dy) => {
@@ -6619,10 +6596,7 @@ function boxMotion({
             // The fill meets the outline's inner edge, including an inward ring.
             [ringFill, offset]
           ])
-            start(layer, [
-              clipFrame(...outline(from, grown, radius)),
-              clipFrame(...outline(to, grown, radius))
-            ]);
+            start(layer, contour(from, to, grown, radius));
         } else if (!sized && paints(style) && !part.holdsWindow)
           carries ? carryContent(part, from) : grow(part, from);
         if (!same3(from, to))
@@ -6638,10 +6612,7 @@ function boxMotion({
     if (running.length === 0 && same3(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach2] of surface())
-      start(layer, [
-        clipFrame(...outline(boxFrom, reach2, boxRadius)),
-        clipFrame(...outline(boxAt, reach2, boxRadius))
-      ]);
+      start(layer, contour(boxFrom, boxAt, reach2, boxRadius, compact));
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
     const animations = running;
@@ -6662,6 +6633,8 @@ function boxMotion({
 var prefs = () => document.documentElement.lfChrome;
 var EASE = "cubic-bezier(.23, 1, .32, 1)";
 var RESIZE_MS = 300;
+var FOLD_MS = 280;
+var FOLD_EASE = "cubic-bezier(.77, 0, .175, 1)";
 var VIEW_RESIZE_MS = 120;
 var FADE_MS = 90;
 var OUT_MS = 60;
@@ -6685,9 +6658,12 @@ var coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
   const notice2 = noticeReading();
   if (notice2.visible) return { message: notice2.message, visible: true };
-  const { goTo, walk } = statusContextReading();
-  const message = goTo ?? (walk?.shown ? walk.text : "");
+  const message = navigationWords();
   return { message, visible: Boolean(message) };
+}
+function navigationWords() {
+  const { goTo, walk } = statusContextReading();
+  return goTo ?? (walk?.shown ? walk.text : "");
 }
 var WORKING = ".lf-thread-working";
 var FACE = "face:";
@@ -6737,7 +6713,7 @@ function createFloatingPanel({
   const controls = el("div", "lf-fp-controls");
   opened.append(head, stage, controls);
   const row = el("div", "lf-fp-row");
-  const menu = el("div", "lf-fp-menu");
+  const menu = el("div", "lf-fp-menu scroll");
   menu.id = "lf-fp-menu";
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", "Page");
@@ -6751,7 +6727,7 @@ function createFloatingPanel({
   let peekReading = null;
   inner.append(opened, row);
   card.append(inner);
-  host.append(card, menu, badge, newsDot, peek);
+  host.append(card, menu, peek);
   const minimize = el("button", "lf-corner-mark lf-fp-minimize");
   minimize.type = "button";
   minimize.tabIndex = -1;
@@ -6791,7 +6767,7 @@ function createFloatingPanel({
   const mark = el("span", "lf-dot");
   const errorDot = el("span", "lf-fp-error-dot");
   errorDot.setAttribute("aria-hidden", "true");
-  leaf.append(mark, errorDot);
+  leaf.append(mark, errorDot, badge, newsDot);
   const field = el("div", "lf-fp-field");
   const editorSeat = el("div", "lf-fp-editors");
   const expand = el("button", "lf-fp-expand");
@@ -6904,9 +6880,12 @@ function createFloatingPanel({
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
-    if (!key && selectedWords)
-      return { says: "selection", words: `\u201C${excerptWords(selectedWords.quote, 60)}\u201D` };
     const stance2 = key ? null : statusContextReading().stance;
+    if (!key && selectedWords)
+      return {
+        says: "selection",
+        words: [stance2, navigationWords(), `\u201C${excerptWords(selectedWords.quote, 60)}\u201D`].filter(Boolean).join(" \xB7 ")
+      };
     const notice2 = passing();
     if (notice2.visible)
       return {
@@ -7079,7 +7058,7 @@ function createFloatingPanel({
       close();
       return;
     }
-    if (route.view === "thread" && presentation2 && !presentation2.primary) {
+    if (route.view === "thread" && presentation && !presentation.primary) {
       openInPackage(route.thread, { focus });
       return;
     }
@@ -7181,8 +7160,8 @@ function createFloatingPanel({
     transition(before);
   }
   function putAwayThen(run) {
-    const inside = standingIn(host);
-    close();
+    const inside = currentLocationIn(host);
+    if (!menuOpen.value) close();
     setMenu(false);
     if (inside) focusDestination(leaf, "return");
     run();
@@ -7277,8 +7256,12 @@ function createFloatingPanel({
       layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0)
     );
     const moving = !reducedMotion() && pagePresented();
-    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    motion.follow(moving ? { duration, easing: EASE } : null);
+    const compact = host.dataset.rest === "mark";
+    const duration = compact ? FOLD_MS : performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
+    motion.follow(
+      moving ? { duration, easing: compact ? FOLD_EASE : EASE } : null,
+      compact
+    );
   }
   addEventListener("resize", () => {
     motion.forget();
@@ -7347,7 +7330,7 @@ function createFloatingPanel({
   stage.addEventListener("click", judgePress);
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
   const overPanel = (node) => Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
-  onStanding((node, cause) => {
+  onCurrentLocation((node, cause) => {
     const top = trail.value.at(-1);
     if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
@@ -7637,7 +7620,7 @@ function createFloatingPanel({
       () => {
         if (view === "versions") showMenuAt({ view });
         else if (view) open({ view });
-        else putAwayThen(() => entry.press(heldStanding));
+        else putAwayThen(() => entry.press(heldCurrentLocation));
       },
       {
         urgent: Boolean(entry.urgent),
@@ -7783,12 +7766,10 @@ function createFloatingPanel({
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
-    const approval = approvalReading();
-    const approved = approval?.approved;
     return html`
       ${latest.failed ? html`<div class="lf-fp-failed" role="none">
               <b>${latest.label}</b>
-              <p class="lf-fp-failed-error">${latest.error}</p>
+              <p class="lf-fp-failed-error scroll">${latest.error}</p>
             </div>` : nothing}
       ${repeat(
       versions,
@@ -7814,19 +7795,6 @@ function createFloatingPanel({
           </div>`
     )}
       ${versions.length ? nothing : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`}
-      ${approval ? html`<hr />
-              <div
-                class="lf-fp-approval"
-                role="none"
-                title=${approval.reason ?? nothing}
-              >
-                ${menuItem(
-      approval.text,
-      approval.reason ? html`<span class="lf-fp-value">${approval.reason}</span>` : nothing,
-      () => approve(),
-      { disabled: Boolean(approval.reason) && !approved }
-    )}
-              </div>` : nothing}
     `;
   }
   function errorsList() {
@@ -7845,9 +7813,9 @@ function createFloatingPanel({
       const next = dismissed === null ? null : presses2[after2 >= 0 ? after2 : before];
       focusDestination(next ?? menu.querySelector(".lf-fp-menu-back"), "move");
     };
-    const standing = focused()?.closest(".lf-fp-error");
-    const standingId = Number(standing?.dataset.key);
-    if (standing && !live2.has(standingId)) movePast(standingId);
+    const currentLocation = focused()?.closest(".lf-fp-error");
+    const currentLocationId = Number(currentLocation?.dataset.key);
+    if (currentLocation && !live2.has(currentLocationId)) movePast(currentLocationId);
     const dismiss = (dismissed) => {
       movePast(dismissed);
       menuAt.value = {
@@ -7936,7 +7904,7 @@ function createFloatingPanel({
             </p>`}
     </div>`;
   }
-  let presentation2 = null;
+  let presentation = null;
   const newsOutlet = () => controls.querySelector(".lf-fp-news-outlet");
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   const LIST_ROWS = Object.freeze({
@@ -7978,8 +7946,8 @@ function createFloatingPanel({
       parts.reply(thread.key, replyOutlet, replyOptionsFor(thread.key));
   }
   function present({ release: release2 = false } = {}) {
-    if (!presentation2) return Promise.resolve();
-    return presentation2.update({ release: release2 }).then(() => {
+    if (!presentation) return Promise.resolve();
+    return presentation.update({ release: release2 }).then(() => {
       if (holdRoom()) paint();
       landReader();
     }).catch(() => {
@@ -8196,7 +8164,7 @@ function createFloatingPanel({
     const thread = item.thread ? threadByKey(item.thread) : null;
     const inWords = record !== null && answeredInWords(record);
     const asking = inWords && thread ? thread.msgs.find((candidate) => candidate.id === record.message) : null;
-    const message = asking && presentation2?.primary !== false ? asking : null;
+    const message = asking && presentation?.primary !== false ? asking : null;
     const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
     const said = message ? "" : asking ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
@@ -8215,8 +8183,10 @@ function createFloatingPanel({
           type="button"
           class="lf-fp-quiet lf-fp-show"
           @click=${() => {
-      close();
-      void queueActions.open(queueItemKey(item));
+      const route = trail.value.at(-1);
+      void queueActions.open(queueItemKey(item)).then((arrived) => {
+        if (arrived && trail.value.at(-1) === route) close();
+      });
     }}
         >
           Show
@@ -8238,18 +8208,7 @@ function createFloatingPanel({
               >
                 Undo
               </button>` : nothing}`;
-    else if (record?.source.kind === "approval") {
-      const approval2 = approvalReading();
-      answers = html`<button
-        type="button"
-        class="lf-fp-answer"
-        aria-disabled=${approval2?.reason ? "true" : nothing}
-        title=${approval2?.reason ?? nothing}
-        @click=${() => approve()}
-      >
-        ${approval2?.text ?? "Approve version"}
-      </button>`;
-    } else if (choices?.length)
+    else if (choices?.length)
       answers = html`${choices.map(
         (choice) => html`<button
             type="button"
@@ -8281,7 +8240,6 @@ function createFloatingPanel({
       </button>`;
     else answers = discuss;
     const key = queueItemKey(item);
-    const approval = record?.source.kind === "approval";
     const stop = queueStop(item);
     const about = queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
     return html`<section
@@ -8289,7 +8247,6 @@ function createFloatingPanel({
       data-list=${list}
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
-      ?data-approval=${approval}
       ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
@@ -8316,20 +8273,6 @@ function createFloatingPanel({
     },
     { beside: true }
   );
-  const approvalControl = () => {
-    const card2 = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
-    return card2?.querySelector("button") ?? card2;
-  };
-  function arriveAtApproval() {
-    chooseQueueTab("you");
-    open({ view: "queue" }, { reopen: true, focus: false });
-    paint();
-    const target = approvalControl();
-    if (!target) return Promise.resolve(false);
-    scrollIntoView(target, { block: "nearest" });
-    focusDestination(target, "move");
-    return Promise.resolve(true);
-  }
   function onView() {
     if (queueTab === "plan") {
       const cards = planCards();
@@ -8391,7 +8334,7 @@ function createFloatingPanel({
     }
     return nothing;
   }
-  const tabs = (names, current, label2, choose, count) => html`<div class="lf-fp-filters" role="group" aria-label="Show">
+  const tabs = (names, current, label2, choose, count) => html`<div class="lf-fp-filters scroll" role="group" aria-label="Show">
       ${names.map((name2) => {
     const counted = count(name2);
     return html`<button
@@ -8541,7 +8484,7 @@ function createFloatingPanel({
   }
   function setRest(rest) {
     const before = trail.value.at(-1);
-    const inside = standingIn(host);
+    const inside = currentLocationIn(host);
     prefs().setRest(rest);
     trail.value = [];
     menuOpen.value = false;
@@ -8714,7 +8657,7 @@ function createFloatingPanel({
     keepsHidden(searchSurface, !search);
     const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
     if (editorSeat.firstElementChild !== shown[0]) {
-      const had = standingIn(editorSeat);
+      const had = currentLocationIn(editorSeat);
       editorSeat.replaceChildren(...shown);
       if (had && !replying && !search) focusDestination(leaf, "return");
     }
@@ -8726,7 +8669,10 @@ function createFloatingPanel({
     keepsHidden(resolvedLine, !resting);
     keepsHidden(replyOutlet, resting);
     const input = fieldInput();
-    if (input) syncInput(input);
+    if (input) {
+      keeps(input, "data-lf-end-room-glued", "");
+      syncInput(input);
+    }
     keeps(host, "data-writing", writing ? "" : null);
     const words = Boolean(draftOf(input));
     if (postureMoved || !words) drafted = words;
@@ -8762,10 +8708,13 @@ function createFloatingPanel({
     keeps(fieldMode, "title", search ? searchLabel : selection ? reading.words : null);
     keepsHidden(fieldMode, !search && !selection);
     paintPeek();
-    const standing = search ? null : rowNotice();
-    keepsHidden(rowNoticeSeat, !standing);
-    render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
-    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : rows().find((entry) => entry.exit) ?? (top ? { label: "Close", press: close, disabled: false } : null);
+    const currentLocation = search ? null : olderVersion();
+    keepsHidden(rowNoticeSeat, !currentLocation);
+    render(
+      currentLocation ? rowNoticeTemplate(currentLocation) : nothing,
+      rowNoticeSeat
+    );
+    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : top && !search ? { label: "Close", press: close, disabled: false } : rows().find((entry) => entry.exit) ?? null;
     render(
       exit ? html`<button
             type="button"
@@ -8780,7 +8729,6 @@ function createFloatingPanel({
           </button>` : nothing,
       exitSeat
     );
-    keepsHidden(exitSeat, !exit);
     const threadsOpen = top?.view === "threads" || top?.view === "thread";
     const onUserName = onUser ? `On me: ${onUser}` : "On me";
     const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";
@@ -8834,18 +8782,6 @@ function createFloatingPanel({
       }
     };
   }
-  function approvedVersion() {
-    if (!approvalReading()?.approved) return null;
-    return { says: `\u2713 ${versionsReading().picker.token} approved`, tone: "ok" };
-  }
-  const ROW_NOTICES = [olderVersion, approvedVersion];
-  const rowNotice = () => {
-    for (const read of ROW_NOTICES) {
-      const notice2 = read();
-      if (notice2) return notice2;
-    }
-    return null;
-  };
   function rowNoticeTemplate({ says: says2, tone: tone2, press = null }) {
     const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone2}
       >${says2}${press ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
@@ -9046,20 +8982,20 @@ function createFloatingPanel({
     menu: "page",
     run: () => setRest(prefs().rest === "mark" ? "row" : "mark")
   });
-  let heldStanding = null;
+  let heldCurrentLocation = null;
   host.addEventListener(
     "pointerdown",
     () => {
-      if (!standingIn(host)) heldStanding = readPlace();
+      if (!currentLocationIn(host)) heldCurrentLocation = readPlace();
     },
     true
   );
-  onStanding((node, _cause, left) => {
+  onCurrentLocation((node, _cause, left) => {
     if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
       setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
     if (inside && left?.isConnected && !renderedUnder(left, host))
-      heldStanding = readPlace(left);
+      heldCurrentLocation = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
@@ -9107,7 +9043,7 @@ function createFloatingPanel({
     if (thread && !wanted) return Promise.resolve(false);
     const top = trail.value.at(-1);
     const shown = top?.view === "thread" ? threadByKey(top.thread)?.key : null;
-    if ((wanted?.key ?? null) !== (shown ?? null) && (standingIn(field) || draftOf(fieldInput()).trim()))
+    if ((wanted?.key ?? null) !== (shown ?? null) && (currentLocationIn(field) || draftOf(fieldInput()).trim()))
       return Promise.resolve(false);
     if (wanted) {
       open({ view: "thread", thread: wanted.key }, { reopen: true, focus: false });
@@ -9120,7 +9056,7 @@ function createFloatingPanel({
     }
     return present({ release: true }).then(() => true);
   }
-  function captureStanding() {
+  function captureCurrentLocation() {
     const top = trail.value.at(-1);
     const view = openView();
     if (top?.view !== "thread" || !view) return null;
@@ -9129,8 +9065,8 @@ function createFloatingPanel({
       scroll: view.scrollTop
     };
   }
-  function restoreStanding(standing) {
-    const thread = standing && threadByKey(standing.thread);
+  function restoreCurrentLocation(currentLocation) {
+    const thread = currentLocation && threadByKey(currentLocation.thread);
     if (!thread) return false;
     if (trail.value.at(-1)?.thread === thread.key && openView()) return true;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
@@ -9138,7 +9074,7 @@ function createFloatingPanel({
     void present({ release: true }).then(() => {
       const view = openView();
       if (view && trail.value.at(-1)?.thread === thread.key)
-        moveScrollerBy(view, standing.scroll - view.scrollTop);
+        moveScrollerBy(view, currentLocation.scroll - view.scrollTop);
     });
     return true;
   }
@@ -9160,18 +9096,18 @@ function createFloatingPanel({
     host.draw = paintPanel;
     parent.append(ground, host);
     follow.observe(card);
-    presentation2 = registerChromeThreadPresentation(host, {
+    presentation = registerChromeThreadPresentation(host, {
       render: nominate,
       // The view makes room for the agent's answer to the user's last turn itself
       // (`fitAnswer`), so the reader hands it over at once.
       answersAtOnce: true,
       // A reader the page's package registers later takes the thread open here, and
-      // the user's place in it where they stood in the panel, read before the panel's
-      // reader, and the message they stood on, goes.
+      // the user's place in it where they were in the panel, read before the panel's
+      // reader, and the message they were on, goes.
       yielded: () => {
         const top = trail.value.at(-1);
         if (top?.view !== "thread") return null;
-        const focus = standingIn(host);
+        const focus = currentLocationIn(host);
         const message = focus ? closestAcross(focused(), ".lf-msg")?.dataset.message ?? null : null;
         return () => openInPackage(top.thread, { focus, message });
       },
@@ -9201,11 +9137,6 @@ function createFloatingPanel({
       }
     });
     document.addEventListener(UPGRADE, () => paint(), { once: true });
-    registerApprovalPresentation({
-      target: approvalControl,
-      arrive: arriveAtApproval,
-      repaint: () => paint()
-    });
     x(() => {
       const { visible } = noticeReading();
       d(() => visible ? paint() : afterScript(paint));
@@ -9234,8 +9165,8 @@ function createFloatingPanel({
     searchPage,
     doors,
     showForSample,
-    captureStanding,
-    restoreStanding,
+    captureCurrentLocation,
+    restoreCurrentLocation,
     // The anchored comment box opening in its home (`responseSeat`) clears the row for
     // it, where the composer then takes the caret (composing/surface.js,
     // `finishPlacement`).
@@ -9243,7 +9174,7 @@ function createFloatingPanel({
     revealResponse: clearRow,
     // Where the reader stood before stepping into the panel, while they are in it
     // (navigation.js, `currentItem`).
-    heldPlace: () => standingIn(host) ? heldStanding : null,
+    heldPlace: () => currentLocationIn(host) ? heldCurrentLocation : null,
     // The thread whose row in Threads the pointer is on, and the row Threads draws for
     // a thread, through which hover links a row and its passage both ways
     // (anchor-paint.js, `markRow`).
@@ -9337,7 +9268,7 @@ var dialogSearch = searchField("lf-page-map-search", {
   label: "Find an action, status, or location in Page Map",
   placeholder: "Find an action, status, or location"
 });
-var dialogList = el("div", "lf-page-map-list");
+var dialogList = el("div", "lf-page-map-list scroll");
 var place = placeKeeper(dialogList, {
   items: ".lf-page-map-action",
   identity: (row) => row.dataset.lfMapKey,
@@ -9646,7 +9577,7 @@ var OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])"
 
 // runtime/obligations/view.js
 function createObligationView({
-  prepareTrip,
+  prepareNavigationStep,
   arrive,
   openPageThread,
   focusForNavigation: focusForNavigation2,
@@ -9704,7 +9635,7 @@ function createObligationView({
   let mounted = false;
   const presenter = applicationPresenter({
     region: "obligations",
-    order: PRESENTATION_ORDER.obligations,
+    after: PRESENTATION_DOM.thread,
     reading: () => mounted ? true : null,
     paint: () => {
       readObligations();
@@ -9739,7 +9670,7 @@ function createObligationView({
     return false;
   }
   const obligationAt = (items2, node) => obligationHolding(items2, placeOf(node));
-  function standingObligation(held = focused()) {
+  function currentLocationObligation(held = focused()) {
     if (!held || held === document.body) return null;
     const record = obligationAt(readObligations().all, held);
     if (!record) return null;
@@ -9749,7 +9680,7 @@ function createObligationView({
     const item = obligationNode(answered);
     return held === item || inChrome(held) && placeOf(held) === item || hasReviewedFocus() ? answered : null;
   }
-  const standingIn2 = () => obligationNode(standingObligation());
+  const currentLocationIn2 = () => obligationNode(currentLocationObligation());
   const actionsFor = (source, owner = source) => decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(
     ({ source: commandSource, control }) => ownedObligationControl(owner, commandSource) && (source === owner || under(control, source)) && control.getAttribute("aria-busy") !== "true"
   );
@@ -9789,7 +9720,7 @@ function createObligationView({
     };
   }
   function markHere() {
-    const record = standingObligation();
+    const record = currentLocationObligation();
     const here = obligationNode(record);
     const wearing = new Set(here ? [here, ...shownParts(here)] : []);
     for (const marked of document.querySelectorAll(
@@ -9808,21 +9739,21 @@ function createObligationView({
     reviewedThrough = review ? target : null;
     return target;
   }
-  function captureStanding() {
+  function captureCurrentLocation() {
     const held = focused(document);
     if (!held || held === document.body || inChrome(held)) return null;
-    return standingObligation()?.id ?? null;
+    return currentLocationObligation()?.id ?? null;
   }
-  function restoreStanding(item) {
-    if (!item || standingObligation()?.id === item) return;
+  function restoreCurrentLocation(item) {
+    if (!item || currentLocationObligation()?.id === item) return;
     const record = readObligations().all.find((candidate) => candidate.id === item);
     const target = record && arrivalFocus(record);
     if (target) focusForNavigation2(target, "return");
   }
   const HEADING = "h1,h2,h3,h4,h5,h6";
-  function arrivalRegion(item, context2, standing) {
+  function arrivalRegion(item, context2, currentLocation) {
     const declared = context2 && registry[context2.localName]?.["x-awaits"]?.encloses;
-    if (declared && context2 === standing) return context2;
+    if (declared && context2 === currentLocation) return context2;
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
@@ -9875,7 +9806,7 @@ function createObligationView({
     };
     const initial = destination();
     if (!initial) return false;
-    const departure = prepareTrip({
+    const departure = prepareNavigationStep({
       landing: () => obligationNode(next),
       intent: mayArrive
     });
@@ -9957,9 +9888,9 @@ function createObligationView({
     destroy,
     buildBulkAnswers,
     syncObligations,
-    standingIn: standingIn2,
-    captureStanding,
-    restoreStanding,
+    currentLocationIn: currentLocationIn2,
+    captureCurrentLocation,
+    restoreCurrentLocation,
     markHere,
     arriveAtRecord,
     goToObligation,
@@ -10445,7 +10376,7 @@ function createPageLayout({
 }) {
   function syncLayout() {
     syncLayoutRegion();
-    scheduleResidency();
+    scheduleMarginContentLayout();
     scheduleThreadPreviewPosition?.();
     if (syncReactLayout()) return;
     refreshFab();
@@ -10468,6 +10399,20 @@ function createPageLayout({
 }
 
 // runtime/page-about.js
+registerPageControl({
+  key: "inspection",
+  rank: PAGE_CONTROL_RANK.inspection,
+  label: "Page diagnostics",
+  group: "page",
+  press: () => {
+    const intent = retainUserIntent();
+    void import("./runtime/bundle-page-inspection.js").then(({ openPageInspection }) => openPageInspection(intent)).catch(
+      (error) => raiseError(
+        `Page diagnostics could not open: ${error.message}. Open the menu to retry.`
+      )
+    );
+  }
+});
 var payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
 var payloadDateLines = (provenance) => ["committed", "installed"].filter((kind) => provenance[kind]).map((kind) => `${kind}: ${provenance[kind]}`);
 var shortCommit = (provenance) => provenance.commit ? `${provenance.commit.slice(0, 8)}${provenance.dirty ? "+" : ""}` : "unknown";
@@ -10523,6 +10468,7 @@ function previewDiagnostics() {
     ...payloadDateLines(producer),
     ...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
     `started: ${started}`,
+    ...runtimeLines(),
     `layer generation: ${state.layer.generation}`,
     ...state.layer.fingerprint ? [`layer fingerprint: ${state.layer.fingerprint}`] : [],
     ...state.active ? [`revision: ${state.active.revision}`] : [],
@@ -10539,6 +10485,9 @@ registerPageControl({
   offered: () => Boolean(preview()),
   group: "page"
 });
+function runtimeLines() {
+  return DELIVERY.runtime ? [`runtime: ${DELIVERY.runtime}`] : [];
+}
 function layerIdentity(state) {
   const producer = state.layer.producer ?? {};
   const fingerprint = state.layer.fingerprint;
@@ -10575,6 +10524,7 @@ function layerDiagnostics() {
     ...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
     ...fingerprint ? [`fingerprint: ${fingerprint}`] : [],
     `generation: ${state.layer.generation}`,
+    ...runtimeLines(),
     ...state.active ? [`revision: ${state.active.revision}`] : [],
     `url: ${pageUrl()}`
   ].join("\n");
@@ -10906,7 +10856,7 @@ function createGoToSequence({
         // to the page edges below: k/j place the card inside its panel rather than moving
         // the document to the passage the card is about. It leads while live, after
         // only the door to the open surface, because it is the one offer specific to
-        // where the user stands; list members wear their Go-to hints directly when the
+        // where the user is; list members wear their Go-to hints directly when the
         // sequence starts.
         keys: THREAD_EDGE_KEYS,
         routes: [
@@ -11076,7 +11026,7 @@ function createGoToSequence({
 }
 
 // runtime/keyboard/page.js
-function standingOn(name2, title, sel, rows) {
+function currentLocationOn(name2, title, sel, rows) {
   pageScope(name2, {
     title,
     root: focused,
@@ -11091,10 +11041,10 @@ function standingOn(name2, title, sel, rows) {
     rows
   });
 }
-standingOn("link", "On a link", LINK, [
+currentLocationOn("link", "On a link", LINK, [
   { id: "link.follow", keys: ["Enter"], title: "Follow", touch: false }
 ]);
-standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
+currentLocationOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
   {
     id: "disclosure.toggle",
     touch: false,
@@ -11124,9 +11074,9 @@ var holding = () => {
   const active = focused(document);
   return Boolean(active) && active !== document.body;
 };
-var standingFloor = () => null;
-function declareStanding({ pageState }) {
-  standingFloor = () => {
+var currentLocationFloor = () => null;
+function declareCurrentLocation({ pageState }) {
+  currentLocationFloor = () => {
     if (!holding()) return null;
     if (nativeLayers().length) return null;
     if (leavesBox()) return null;
@@ -11136,8 +11086,8 @@ function declareStanding({ pageState }) {
     if (pageSelection() || pageState()) return null;
     return thread || heldObligation() || !inUi(focused()) ? document.body : null;
   };
-  pageScope("standing", {
-    title: "Standing on something",
+  pageScope("current-location", {
+    title: "Current location",
     root: focused,
     escape: "inner",
     at: holding,
@@ -11147,7 +11097,7 @@ function declareStanding({ pageState }) {
         touch: false,
         keys: ["Escape"],
         title: "let go",
-        when: () => Boolean(standingFloor()),
+        when: () => Boolean(currentLocationFloor()),
         run: release
       }
     ]
@@ -11156,7 +11106,7 @@ function declareStanding({ pageState }) {
 pageRung("page", () => {
   if (nativeLayers().length) return null;
   if (holding())
-    return standingFloor() ? null : {
+    return currentLocationFloor() ? null : {
       title: "back to the page",
       out: letGo
     };
@@ -11237,7 +11187,7 @@ function mountKeyboard({
   document.addEventListener(UPGRADE, takeHeldKeys, { once: true });
   document.addEventListener(PRESENTATION, takeHeldKeys, { once: true });
   watchCommandAvailability(takeHeldKeys);
-  onStanding(() => {
+  onCurrentLocation(() => {
     const active = focused();
     if (reactArmed() && (takesLetters(active) || claimsEsc(active))) setReact(false);
     if (goToSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
@@ -11272,7 +11222,7 @@ function place2(press) {
     // A command that acts on where the reader stood gets that place back before it runs.
     press: (held) => {
       const current = presses.get(press.id);
-      if (current.row.retainStanding && held) returnPlace(held);
+      if (current.row.retainCurrentLocation && held) returnPlace(held);
       if (live(current.row)) invokePress(current);
     }
   });
@@ -11343,11 +11293,11 @@ async function arriveAtThread(id, { openPageThread }, intent) {
   return Boolean(await openPageThread(id, { part: "thread", intent }));
 }
 function stepThread(dir, destinations, placedAt) {
-  const { threadHere, threadAtStanding, threadPlace } = destinations;
+  const { threadHere, threadAtCurrentLocation, threadPlace } = destinations;
   const threads = openThreads(placedAt);
   const origin = walkOrigin();
   const current = currentThread(threads, threadHere);
-  const targetId = !current && origin.kind === "standing" && threadAtStanding();
+  const targetId = !current && origin.kind === "current-location" && threadAtCurrentLocation();
   const atTarget = targetId && threads.includes(targetId) ? targetId : null;
   const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : stepFrom(threads, origin, dir, threadPlace);
   if (!next) return;
@@ -11472,7 +11422,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     title: "Align current item at top",
     touch: "Align current item at top",
     menu: "keys",
-    retainStanding: true,
+    retainCurrentLocation: true,
     run: () => {
       const item = currentItem();
       if (!item) return;
@@ -11556,7 +11506,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     repeat: true,
     run: (binding) => move2(binding === "j" ? 60 : -60, "pixel")
   });
-  const arriveAtThreadById = (id) => arriveAtThread(id, threadDestinations, retainUserIntent());
+  const arriveAtThreadById = (id, message = null) => message ? threadDestinations.openPageThread(message, { part: "message", intent: retainUserIntent() }).then(Boolean) : arriveAtThread(id, threadDestinations, retainUserIntent());
   return {
     alignTop,
     arriveAtThread: arriveAtThreadById,
@@ -11617,7 +11567,7 @@ var navigation = createNavigation({
     openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
     scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
     threadHere: () => app.threadDestinations.threadHere(),
-    threadAtStanding: () => app.threadDestinations.threadAtStanding(),
+    threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
     threadPlace: (...args) => app.threadDestinations.threadPlace(...args)
   }
 });
@@ -11627,7 +11577,7 @@ var visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
 var anchorPaint = annotationRenderer?.createAnchorPaint({
   targetPaint: visualMarkPaint,
   pointer: pointerAt,
-  standingThreadId,
+  currentLocationThreadId,
   rowThread: () => floatingPanel?.hoveredThread() ?? null,
   threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
   marginThread: () => app?.overlay?.pointedThread() ?? null
@@ -11712,16 +11662,16 @@ var version = createVersionController({
   readAndApply: (...args) => app.readAndApply(...args),
   syncLayout: () => layout.syncLayout(),
   // The chrome the reader stands in: a margin card or entry, and the panel's thread.
-  captureRetainedStanding: () => ({
-    margin: app?.overlay?.captureStanding() ?? null,
-    panel: floatingPanel.captureStanding()
+  captureRetainedCurrentLocation: () => ({
+    margin: app?.overlay?.captureCurrentLocation() ?? null,
+    panel: floatingPanel.captureCurrentLocation()
   }),
-  restoreRetainedStanding: ({ margin, panel }) => {
-    const panelShown = floatingPanel.restoreStanding(panel);
-    return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
+  restoreRetainedCurrentLocation: ({ margin, panel }) => {
+    const panelShown = floatingPanel.restoreCurrentLocation(panel);
+    return (app?.overlay?.restoreCurrentLocation(margin) ?? false) || panelShown;
   },
-  captureObligationStanding: () => items.captureStanding(),
-  restoreObligationStanding: (standing) => items.restoreStanding(standing),
+  captureObligationCurrentLocation: () => items.captureCurrentLocation(),
+  restoreObligationCurrentLocation: (currentLocation) => items.restoreCurrentLocation(currentLocation),
   versions: { press: () => floatingPanel.doors.versions.press() }
 });
 var inputs = createCompositionInputs({
@@ -11775,14 +11725,12 @@ app = mountApplication({
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
     acceptData,
-    notifyDataSubscribers,
-    isSignoffDeclared,
-    stateSignoff
+    notifyDataSubscribers
   }
 });
 if (offlineInteractive) applicationState.setHostAvailable(false);
 declareReading(landingPlace);
-declareStanding({
+declareCurrentLocation({
   pageState: () => Boolean(
     responseSurface.fabAnchorAt() || designMode.active() || drawing.drawModeActive() || app.overlay?.optionsRung()
   )
@@ -11796,7 +11744,7 @@ pageMapDialog = createPageMapDialog({
 items = createObligationView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
-  prepareTrip: anchorTravel.prepareTrip,
+  prepareNavigationStep: anchorTravel.prepareNavigationStep,
   arrive: anchorTravel.arrive,
   openPageThread: app.threadDestinations.openPageThread,
   announce,
@@ -11808,7 +11756,7 @@ var queueWalk = createQueueWalk({
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
   threadPlace: (id) => app.threadDestinations.threadPlace(id),
-  prepareTrip: anchorTravel.prepareTrip,
+  prepareNavigationStep: anchorTravel.prepareNavigationStep,
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce
@@ -11816,9 +11764,9 @@ var queueWalk = createQueueWalk({
 var commandHints = createCommandHints({
   presentedControl: (control) => app.overlay?.presentedControl(control) ?? control
 });
-var standingTarget = createStandingTarget({
+var currentTarget = createCurrentTarget({
   isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
-  standingIn: items.standingIn
+  currentLocationIn: items.currentLocationIn
 });
 floatingPanel = createFloatingPanel({
   wireInput: inputs.wireInput,
@@ -11845,10 +11793,10 @@ responseSurface = createResponseSurface({
   createPlacement: annotationRenderer?.createFloatingResponsePlacement,
   landIn: landing.landIn,
   threadHere: () => app.threadDestinations.threadHere(),
-  threadAtStanding: () => app.threadDestinations.threadAtStanding(),
-  replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
+  threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
+  replyThreadAtCurrentLocation: () => app.threadDestinations.replyThreadAtCurrentLocation(),
   threadTarget: (id) => app.threadDestinations.threadTarget(id),
-  standingTarget,
+  currentTarget,
   markAt: anchorPaint?.markAt,
   scrollToElement: anchorTravel.scrollToElement,
   scrollToRange: anchorTravel.scrollToRange,
@@ -11886,8 +11834,8 @@ reactions = createReactionController({
   showFab: responseSurface.showFab,
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
-  standingThread,
-  standingTarget
+  currentLocationThread,
+  currentTarget
 });
 targets = createTargetPicker({
   scrollToRange: anchorTravel.scrollToRange,
@@ -11985,14 +11933,14 @@ goToSequence = createGoToSequence({
   placeThreadEdge,
   stopGlide
 });
-var standingPainters = {
+var currentLocationPainters = {
   markHere: items.markHere,
-  paintStanding: anchorPaint?.paintStanding,
+  paintCurrentLocation: anchorPaint?.paintCurrentLocation,
   paintSelectedMarginEntries: () => app.overlay?.paintSelectedMarginEntries([
-    { kind: "on-me", target: items.standingIn() },
+    { kind: "on-me", target: items.currentLocationIn() },
     {
       kind: "comment",
-      target: anchorPlacement.placedAt(standingThreadId())?.place
+      target: anchorPlacement.placedAt(currentLocationThreadId())?.place
     }
   ]),
   paintTouchControls,
@@ -12027,9 +11975,7 @@ if (!offlineInteractive) {
   );
   document.body.append(chromeRoot);
   version.mount();
-  mountPageStatus({
-    approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp })
-  });
+  mountPageStatus();
   floatingPanel.mount(chromeForeground);
   responseSurface.mount();
   holdToRead();
@@ -12059,7 +12005,7 @@ if (!offlineInteractive) {
   });
   watchDisclosures(document);
   mountRepaint({
-    ...standingPainters,
+    ...currentLocationPainters,
     reflectFirstScopes,
     reflectKeys,
     syncLayout: layout.syncLayout,
@@ -12117,7 +12063,6 @@ async function presentPage() {
     return;
   }
   paintKeys();
-  paintApproval();
   repaint();
   app.overlay?.flushLayout();
   landFragment();
@@ -12139,7 +12084,7 @@ async function startPage() {
   ]);
   if (!upgraded2) return;
   app.watchThreadSurfaces();
-  openResidency({ onRead: annotationRenderer?.syncMarginResidency });
+  openMarginContentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
   if (!offlineInteractive) {
     layout.syncLayout();
     items.buildBulkAnswers();

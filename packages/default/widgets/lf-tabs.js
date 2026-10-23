@@ -30,7 +30,7 @@
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (theme.css says where it stacks); a side list is a box even as
  * the root set, which keeps the root's history, and Back or Forward there lands the
- * set's start when the user stood below it. Where a side list fills a height it is
+ * set's start when the user was below it. Where a side list fills a height it is
  * given, as a full-height workspace's body (theme.css), its list and its open item each
  * scroll on their own. Its panels are reading regions, and so is its list while it
  * scrolls on its own, so reading keys and the user's place follow the list or the item
@@ -204,7 +204,7 @@ export class TabSet extends LeafElement {
     //
     // A press is a span wearing the role rather than a <button> (see `offer`), which
     // is what makes a drag across the name possible at all.
-    const strip = offer("div", "lf-tabstrip");
+    const strip = offer("div", "lf-tabstrip scroll");
     this.#strip = strip;
     strip.setAttribute("role", "tablist");
     if (down) strip.setAttribute("aria-orientation", "vertical");
@@ -512,7 +512,7 @@ export class TabSet extends LeafElement {
       const from = pageScroller.scrollTop;
       if (this.#pageFlow && previous) this.#leave(previous);
       if (this.#root && reason === "ordinary") this.#pushLocation(active);
-      // Whatever opened another view, the entry the user stands on names it, so
+      // Whatever opened another view, the entry the user is on names it, so
       // Back and Forward to that entry return to this view. A fragment already
       // inside it (a link's target) says so and stays.
       else if (

@@ -78,7 +78,8 @@
 // Continuing translation is credited from sampled animated property values, not
 // the ancestor's whole box: independent movement of it or its children still fails.
 // This proof supports unique replace effects with pure transform translation, a
-// `translate` in pixels or percentages of the border box, or pixel
+// `translate` in pixels or percentages of the border box (including a directly bound
+// inline custom property), or pixel
 // left/top/marginLeft/marginTop. Scale, rotation and
 // composed effects receive no inferred translation credit.
 //
@@ -151,6 +152,32 @@
   const GEOMETRY =
     /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|blockSize|inlineSize|minBlockSize|minInlineSize|maxBlockSize|maxInlineSize|margin|padding)/;
   const SIZE_GEOMETRY = new Set(["blockSize", "height", "inlineSize", "width"]);
+  // Retain the consumer through finish cleanup. Replacing it while the effect is
+  // active cannot borrow the animation's input ownership.
+  const translationBindings = new WeakMap();
+  const animationProperties = (animation) => {
+    const keys = [
+      ...new Set((animation.effect?.getKeyframes() ?? []).flatMap(Object.keys)),
+    ];
+    const properties = keys.filter((key) => GEOMETRY.test(key));
+    // A registered property can drive a native translate indirectly. Read the
+    // resulting translate, rather than treating its custom-property value as
+    // geometry; the box motion uses this to keep translate and clip in one clock.
+    if (!translationBindings.has(animation)) {
+      const consumer = animation.effect?.target?.style.translate ?? "";
+      const vars = new Set(
+        [...consumer.matchAll(/var\(\s*(--[-\w]+)/g)].map((match) => match[1]),
+      );
+      translationBindings.set(
+        animation,
+        !properties.includes("translate") && keys.some((key) => vars.has(key))
+          ? consumer
+          : null,
+      );
+    }
+    if (translationBindings.get(animation)) properties.push("translate");
+    return properties;
+  };
   // Use the runtime's rendered ancestry, including forwarding slots and shadow hosts.
   const up = renderedParent;
   // Decorative media is not an independent reading. Hidden accessibility trees
@@ -189,9 +216,7 @@
       .updatesSettled ?? true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
-    animation.effect
-      ?.getKeyframes()
-      .some((keyframe) => Object.keys(keyframe).some((key) => GEOMETRY.test(key))) ||
+    animationProperties(animation).length > 0 ||
     GEOMETRY.test(animation.transitionProperty ?? "");
   // Every animation in the composed tree: the document's own list leaves out those
   // whose targets are in shadow trees, so each connected shadow root adds its own.
@@ -205,11 +230,15 @@
   // Native timeline startTime changes when playback rate changes. Input ownership
   // follows the operation that began motion, not that mutable clock coordinate.
   const beganAt = new WeakMap();
+  // Pausing keeps the gesture's effect; seeking changes only its sampled native
+  // displacement and never credits independent layout or a replaced consumer.
+  const activeMotion = (animation) =>
+    ["running", "paused"].includes(animation.playState);
   // Motion begun since `start` that moves a box; one still pending begins now.
   const begun = (start) =>
     allAnimations().filter(
       (animation) =>
-        animation.playState === "running" &&
+        activeMotion(animation) &&
         (beganAt.get(animation)?.at ?? animation.startTime ?? Infinity) >= start &&
         moves(animation),
     );
@@ -370,8 +399,9 @@
     unread = fresh = true;
   };
   // Chrome animates native details' ::details-content without exposing that
-  // transition through getAnimations(). Keep its closing interval as a motion
-  // source so following boxes are read and credited by their actual size change.
+  // transition through getAnimations(). Keep the closure through its final painted
+  // frame: a loaded browser can paint the last size change after the nominal CSS
+  // duration, and the layout-shift observer reports that paint later still.
   const nativeClosures = new Map();
   const durationMs = (value) =>
     Math.max(
@@ -404,7 +434,7 @@
       )
         continue;
       const duration = durationMs(style.transitionDuration);
-      if (duration) nativeClosures.set(node, at + duration);
+      if (duration) nativeClosures.set(node, { until: at + duration, settledAt: null });
     }
     announce();
   };
@@ -610,13 +640,6 @@
   const animated = new WeakMap();
   const floating = new WeakMap();
   let floatingOwners = new Set();
-  const animationProperties = (animation) => [
-    ...new Set(
-      animation.effect
-        .getKeyframes()
-        .flatMap((frame) => Object.keys(frame).filter((key) => GEOMETRY.test(key))),
-    ),
-  ];
   // An animated property's value as a translation reads it. The individual `translate`
   // keeps its percentages in its computed value, each of the target's border box (an
   // HTML element's transform reference box), so the reading resolves them to pixels.
@@ -862,12 +885,17 @@
       const returning =
         animation === ending && effect.getComputedTiming().progress === null;
       const origin = origins.get(animation);
+      const binding = translationBindings.get(animation);
       const values = Object.fromEntries(
         animationProperties(animation)
           .filter(
             (property) =>
               replace &&
               uses.get(effect.target)?.get(property) === 1 &&
+              (property !== "translate" ||
+                !binding ||
+                effect.target.style.translate === binding ||
+                returning) &&
               (!returning ||
                 origin?.[property] === animatedValue(effect.target, style, property)),
           )
@@ -954,8 +982,18 @@
     // its scroller scrolls or its layout changes, which announce themselves, so it
     // reads completely only on those frames, as the contents' window does in lf-toc.
     const animations = allAnimations();
-    for (const [node, until] of nativeClosures)
-      if (!node.isConnected || at > until + 100) nativeClosures.delete(node);
+    for (const [node, closure] of nativeClosures) {
+      if (!node.isConnected) {
+        nativeClosures.delete(node);
+        continue;
+      }
+      if (
+        closure.settledAt === null &&
+        at >= closure.until &&
+        parseFloat(getComputedStyle(node, "::details-content").blockSize) === 0
+      )
+        closure.settledAt = at;
+    }
     const running =
       animations.some(
         ({ playState, timeline }) =>
@@ -964,7 +1002,7 @@
             typeof window.ScrollTimeline === "function" &&
             timeline instanceof ScrollTimeline
           ),
-      ) || [...nativeClosures.values()].some((until) => at <= until);
+      ) || [...nativeClosures.values()].some(({ settledAt }) => settledAt === null);
     observeWrites(writes.takeRecords());
     // A child frame reads completely on every frame, since its embedding page can
     // hide or move it without telling it; only a hidden tab announces itself here.
@@ -1437,7 +1475,7 @@
     const motion = frames.at(-1).motion;
     for (const rendering of renderings)
       for (const animation of rendering.own)
-        if (animation.playState === "running") motion.push(animation);
+        if (activeMotion(animation)) motion.push(animation);
     audit();
     judge(waiting.splice(0));
     nativeFrame(tick);
@@ -1467,7 +1505,7 @@
         ),
         moving: holding
           .flatMap((node) => node.getAnimations())
-          .filter((animation) => animation.playState === "running" && moves(animation)),
+          .filter((animation) => activeMotion(animation) && moves(animation)),
         until: Infinity,
       },
       new Set(),
@@ -2076,7 +2114,7 @@
     (selection.edges[axis] === axis
       ? 0
       : selection.size[axis === "left" ? "width" : "height"]);
-  const scrollMotion = (node, from, to) => {
+  const scrollMotion = (node, from, to, animations = []) => {
     const motion = nativeScrollMotion(node, from, to);
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const anchored = { left: false, top: false };
@@ -2187,19 +2225,30 @@
         afterLayout = layoutAt(anchor, to);
       if (!before || !after || !beforeLayout || !afterLayout) continue;
       const carried = nativeScrollMotion(anchor, start, to);
+      // An anchored surface follows its source's owned native translation too.
+      // Effects on a shared ancestor already carry the surface itself, so only the
+      // source's independent effects belong to this placement credit.
+      const owners = ancestryAt(owner, to);
+      const translated = animationMotion(
+        anchor,
+        start,
+        to,
+        animations.filter((animation) => !owners.includes(animation.effect.target)),
+      );
       for (const [axis, held] of [
         ["left", "anchorX"],
         ["top", "anchorY"],
       ]) {
         if (!prior[held] || !next[held] || anchored[axis]) continue;
         anchored[axis] = true;
-        const layoutStable = Math.abs(afterLayout[axis] - beforeLayout[axis]) < 1;
+        const layoutStable =
+          Math.abs(afterLayout[axis] - beforeLayout[axis] - translated[axis]) < 1;
         credit(
           motion,
           "native_anchor",
           owner,
           axis,
-          layoutStable ? after[axis] - before[axis] : carried[axis],
+          layoutStable ? after[axis] - before[axis] : carried[axis] + translated[axis],
           {
             anchor,
             pose_at: start,
@@ -2209,6 +2258,7 @@
             after_layout: afterLayout,
             layout_stable: layoutStable,
             sticky_terms: carried.terms,
+            animation_terms: translated.terms,
           },
         );
       }
@@ -2340,8 +2390,8 @@
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0, terms: [] };
     if (!element) return motion;
-    for (const [details, until] of nativeClosures) {
-      if (to > until + 100 || details.getRootNode() !== element.getRootNode()) continue;
+    for (const details of nativeClosures.keys()) {
+      if (details.getRootNode() !== element.getRootNode()) continue;
       const before = boxAt(details, from),
         after = boxAt(details, to),
         first = layoutAt(element, from),
@@ -2521,12 +2571,18 @@
         // A changed text node is a new reading, even when Lit retained its DOM
         // identity. Its old and new glyph fragments are not the same landmark.
         if (node.nodeType === Node.TEXT_NODE && prior.words !== next.words) continue;
-        const scroll = scrollMotion(node, around[before].at, around[after].at);
+        const animations = around.flatMap((frame) => frame.motion);
+        const scroll = scrollMotion(
+          node,
+          around[before].at,
+          around[after].at,
+          animations,
+        );
         const motion = animationMotion(
           node,
           around[before].at,
           around[after].at,
-          around.flatMap((frame) => frame.motion),
+          animations,
         );
         for (
           let i = 0;
@@ -2688,7 +2744,7 @@
       const from = layoutAt(node, typing.at),
         to = layoutAt(node, painted);
       if (!from || !to) continue;
-      const scroll = scrollMotion(node, typing.at, painted);
+      const scroll = scrollMotion(node, typing.at, painted, typing.moving);
       const motion = animationMotion(node, typing.at, painted, typing.moving);
       const x =
         carried(before, after, "left", "right") &&
@@ -2797,6 +2853,11 @@
   // can outlive any number of paint checkpoints. Unadmitted movement before this
   // checkpoint was not painted as a layout shift (e.g. a transform-only move).
   const retire = (through) => {
+    // `drained` judges native shift records before retiring their closing motion.
+    // A settled closure can leave only after the paint checkpoint that followed
+    // its final size has passed.
+    for (const [node, { settledAt }] of nativeClosures)
+      if (settledAt !== null && settledAt <= through) nativeClosures.delete(node);
     for (let i = pendingMotion.length - 1; i >= 0; i--)
       if (
         pendingMotion[i].after <= through &&
@@ -2833,7 +2894,7 @@
         !landing.has(rendering) &&
         rendering.through < retainedFrom &&
         (rendering.typing?.until ?? -Infinity) < retainedFrom &&
-        ![...rendering.own].some(({ playState }) => playState === "running")
+        ![...rendering.own].some(activeMotion)
       )
         renderings.splice(i, 1);
     }

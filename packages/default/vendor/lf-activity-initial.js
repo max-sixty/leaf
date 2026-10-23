@@ -83,7 +83,7 @@
           ${shown.label}
         </button>
         <ol
-          class="lf-activity-list"
+          class="lf-activity-list scroll"
           data-lf-gen="1"
           ?hidden=${hidden}
           ${ref((node) => {

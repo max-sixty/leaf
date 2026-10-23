@@ -11,7 +11,7 @@ import {
   whenWidgetsPresented,
   presentDocument,
   applicationPresenter,
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
@@ -285,15 +285,9 @@ export function mountApplication(dependencies) {
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
-      order: PRESENTATION_ORDER.annotations,
+      after: PRESENTATION_DOM.obligations,
       reading: () => annotationInputs(),
-      paint: async (_reading, current, resume) => {
-        const ready = await whenApplicationRegionsPresented(
-          ["projection:chrome"],
-          current,
-        );
-        if (ready === "presented" && current()) resume(renderAnnotations)();
-      },
+      paint: renderAnnotations,
     });
     void presentation.present();
     // A paint on paper read no ages, so the return to screen paints through the
@@ -328,7 +322,7 @@ export function mountApplication(dependencies) {
     placedAt: dependencies.anchorPlacement.placedAt,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
     arrive: dependencies.anchorTravel.arrive,
-    prepareTrip: dependencies.anchorTravel.prepareTrip,
+    prepareNavigationStep: dependencies.anchorTravel.prepareNavigationStep,
     preview: overlay?.threadPreview,
   });
 
@@ -372,8 +366,6 @@ export function mountApplication(dependencies) {
     prepareActivation: dependencies.state.prepareActivation,
     acceptData: dependencies.state.acceptData,
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
-    isSignoffDeclared: dependencies.state.isSignoffDeclared,
-    stateSignoff: dependencies.state.stateSignoff,
     accountPending,
   });
 
@@ -615,7 +607,7 @@ export function mountApplication(dependencies) {
     openObligation(id) {
       const item = readObligations().all.find((item) => item.id === id);
       if (!item) return Promise.resolve(false);
-      if (item.source.kind === "approval" || item.source.kind === "update")
+      if (item.source.kind === "update" || item.source.kind === "todo")
         return queueActions.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);

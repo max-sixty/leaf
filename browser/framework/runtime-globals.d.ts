@@ -23,7 +23,7 @@ interface LeafStore {
   keys(): string[];
 }
 
-/** Whether a residency or breakout reading changed what it writes (`prepaint.js`). */
+/** Whether a margin element layout or breakout reading changed what it writes (`prepaint.js`). */
 interface LeafReading {
   changed: boolean;
 }
@@ -46,6 +46,12 @@ interface LeafInitial {
   /** Initial insertion, replaced by dom-move.js before live module rendering. */
   move(parent: Node, node: Node, before: Node | null): Node;
   fragmentId(fragment: string): string;
+  externalLinks: {
+    attributes: string[];
+    matches(link: Element): boolean;
+    arrive(link: Element): void;
+    leave(link: Element): void;
+  };
   keepsAttribute(node: Element, name: string, value: unknown): void;
   setRuntimeRootAttribute(node: Element, name: string, value: unknown): void;
   runtimeRootAttributes(node: Element): Set<string>;
@@ -59,7 +65,7 @@ interface LeafInitial {
   wear(node: Element, dress: LeafDress): void;
   runtimeRootStyles(node: Element): Set<string>;
   authoredShell(node: Node): Node;
-  residency(): LeafReading;
+  marginContentLayout(): LeafReading;
   breakouts(): LeafReading;
   layoutBox(): Element | null;
   skipped(element: Element, parent?: (node: Element) => Element | null): boolean;

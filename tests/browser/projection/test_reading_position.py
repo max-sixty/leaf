@@ -22,7 +22,7 @@ from render_harness import (
     LANDING_TOP,
     leaf_page,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     panel_field,
     panel_menu,
     panel_settled,
@@ -167,7 +167,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     ],
 )
 def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where):
-    """A content revision keeps the reader on a page that still asks for approval.
+    """A content revision keeps the reader on the same passage.
 
     Native scroll anchoring is disabled by this page's layout, so it cannot conceal
     a broken semantic carry when five paragraphs arrive above the reader. Where the
@@ -180,7 +180,7 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where)
     anchoring = "<style>html { overflow-anchor: none; }</style>"
     first = LIVE_V1.replace(
         "</head>",
-        '<meta name="lf-review" content="sign-off">' + anchoring + "</head>",
+        anchoring + "</head>",
     )
     second = LIVE_V2.replace("</head>", anchoring + "</head>")
     if where == "inside":
@@ -446,8 +446,8 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
     declares its landable top through scroll-padding, so a heading landmark must honor
     that edge while ordinary passage landmarks retain their exact coordinate.
     """
-    title = "The page instance should own the complete one-off playground"
-    revised_title = "The complete one-off playground belongs to the page instance"
+    title = "The page should own the complete one-off playground"
+    revised_title = "The complete one-off playground belongs to the page"
     first = leaf_page(
         "Heading continuity",
         f"""
@@ -646,7 +646,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
     right_pane = page.locator("#right-reading")
-    pane_posture(page, right_pane, "bounded")
+    pane_scroll_behavior(page, right_pane, "bounded")
     left = page.locator("#left-reading > div")
     right = page.locator("#right-reading > div")
     left.evaluate("el => el.scrollTop = 180")
@@ -664,7 +664,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     )
     stamp_page(serve.page_dir, revised, "put the workspace in the document")
     wait_for_revision(page, 2)
-    pane_posture(page, right_pane, "flow")
+    pane_scroll_behavior(page, right_pane, "flow")
     # The page's band starts where scroll-padding says; the landmark
     # keeps its distance below the top of what the user can see.
     after = page.locator("#right-landmark").evaluate(
@@ -697,7 +697,7 @@ def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(
     )
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
-    pane_posture(page, page.locator("#right-reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#right-reading"), "bounded")
     page.locator("#right-subject").click()
 
     revised = leaf_page(
@@ -707,7 +707,7 @@ def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(
     )
     stamp_page(serve.page_dir, revised, "put the workspace in the document")
     wait_for_revision(page, 2)
-    pane_posture(page, page.locator("#right-reading"), "flow")
+    pane_scroll_behavior(page, page.locator("#right-reading"), "flow")
     visible = page.locator("#right-subject").evaluate(
         """el => {
           const rect = el.getBoundingClientRect();
@@ -722,13 +722,13 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
     content = """
 <h1 id="reading-title">The page landmark surrounding these controls remains stable.</h1>
 <lf-pane id="controls-pane" label="Controls">
-  <button id="standing-control">Change setting</button>
+  <button id="focused-control">Change setting</button>
 </lf-pane>
 <div style="height: 1000px"></div>
     """
     first = leaf_page("Empty active region continuity", content)
     page = open_page(browser, live_url(serve(first)))
-    page.locator("#standing-control").focus()
+    page.locator("#focused-control").focus()
     before = page.locator("#reading-title").evaluate(
         "heading => heading.getBoundingClientRect().top"
     )
@@ -750,7 +750,7 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
     # The revision wrapped the control, so the element the user was on is gone and
     # focus went to the page with it. What the region still owes them is the way back
     # to it: revealed rather than shut inside a disclosure they never closed.
-    expect(page.locator("#standing-control")).to_be_visible()
+    expect(page.locator("#focused-control")).to_be_visible()
     after = page.locator("#reading-title").evaluate(
         "heading => heading.getBoundingClientRect().top"
     )
@@ -761,13 +761,13 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     """A surviving active region remains reachable even when no passage names it."""
     content = """
 <lf-pane id="controls-pane" label="Controls">
-  <button id="standing-control">Change setting</button>
+  <button id="focused-control">Change setting</button>
 </lf-pane>
 <div style="height: 1000px"></div>
     """
     first = leaf_page("Textless active region continuity", content)
     page = open_page(browser, live_url(serve(first)))
-    page.locator("#standing-control").focus()
+    page.locator("#focused-control").focus()
 
     revised = leaf_page(
         "Textless active region continuity",
@@ -783,8 +783,8 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
     expect(page.locator("#prior-controls")).to_have_attribute("open", "")
     # Reachable, not focused: the revision wrapped the control, so the element the
-    # user stood on is gone and the region owes them the way back to its replacement.
-    expect(page.locator("#standing-control")).to_be_visible()
+    # user was located on is gone and the region owes them the way back to its replacement.
+    expect(page.locator("#focused-control")).to_be_visible()
 
 
 def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
@@ -821,7 +821,7 @@ def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
     page.wait_for_function("() => window.readLaterObligations")
     scroll_settled(page, list_selector)
     reading = view.evaluate("list => list.scrollTop")
-    assert reading > 100, "painting the standing card must not undo scrolling the list"
+    assert reading > 100, "painting the current card must not undo scrolling the list"
 
     resized(page, 1180, 900)
     scroll_settled(page, list_selector)
@@ -829,7 +829,7 @@ def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
 
 
 @pytest.mark.parametrize("newer_reading", [False, True])
-def test_a_panes_posture_change_keeps_the_reading_after_scrolling_past_focus(
+def test_a_panes_scroll_behavior_change_keeps_the_reading_after_scrolling_past_focus(
     browser, serve, newer_reading
 ):
     """An automatic scroll-container change preserves reading rather than stale focus."""
@@ -877,20 +877,20 @@ def test_a_panes_posture_change_keeps_the_reading_after_scrolling_past_focus(
         }""")
 
     resized(page, 520, 900)
-    pane_posture(page, page.locator("#reading"), "flow")
+    pane_scroll_behavior(page, page.locator("#reading"), "flow")
     scroll_settled(page)
 
     expect(control).to_be_focused()
     if newer_reading:
         assert page.evaluate("() => window.laterReading") > 1000
         assert page.evaluate("() => scrollY === window.laterReading"), (
-            "a queued posture restore must yield to the user's later reading"
+            "a queued scroll behavior restore must yield to the user's later reading"
         )
         return
     landmark = page.locator(f"#{landmark_id}")
     assert landmark.evaluate(
         "paragraph => paragraph.getBoundingClientRect().top < innerHeight"
-    ), "changing posture must keep the passage being read on screen"
+    ), "changing scroll behavior must keep the passage being read on screen"
     assert control.evaluate("control => control.getBoundingClientRect().bottom") < 0
 
 
@@ -901,9 +901,11 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
     so the scroll the user left on the page has no place in the pane that now scrolls.
     """
 
-    def pane(name, *, standing=False):
+    def pane(name, *, with_control=False):
         control = (
-            '<button id="standing-control">Change setting</button>' if standing else ""
+            '<button id="focused-control">Change setting</button>'
+            if with_control
+            else ""
         )
         return f"""
 <lf-pane id="{name}-pane" label="{name.title()}">
@@ -913,7 +915,7 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
 
     workspace_markup = f"""
 <div id="all-panes">
-  {pane("active", standing=True)}
+  {pane("active", with_control=True)}
   {pane("second")}
 </div>
 """
@@ -926,8 +928,8 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
     active = page.locator("#active-pane")
-    pane_posture(page, active, "flow")
-    page.locator("#standing-control").evaluate(
+    pane_scroll_behavior(page, active, "flow")
+    page.locator("#focused-control").evaluate(
         "control => control.focus({preventScroll: true})"
     )
     page.evaluate("document.scrollingElement.scrollTop = 300")
@@ -940,7 +942,7 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
     stamp_page(serve.page_dir, revised, "make the workspace the page")
     wait_for_revision(page, 2)
 
-    pane_posture(page, active, "bounded")
+    pane_scroll_behavior(page, active, "bounded")
     assert page.locator("#active-pane > div").evaluate("pane => pane.scrollTop") == 0
 
 
@@ -983,7 +985,7 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
     <section id="removed-landmark">
       <p>The nested region landmark disappears in the arriving revision.</p>
     </section>
-    <button id="standing-control">Change setting</button>
+    <button id="focused-control">Change setting</button>
   </div>
 </lf-owned-scroll>
 """
@@ -1021,7 +1023,7 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
     left = page.locator("#left-region > [data-scroll-body]")
     right = page.locator("#right-region > [data-scroll-body]")
     left.evaluate("scroller => scroller.scrollTop = 150")
-    page.locator("#standing-control").evaluate(
+    page.locator("#focused-control").evaluate(
         "control => control.focus({preventScroll: true})"
     )
     assert left.evaluate("scroller => scroller.scrollTop") == 150
@@ -1036,7 +1038,7 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
 
     assert right.evaluate("scroller => scroller.scrollTop") == 0
     # The region moved parents, so its control is a new element under the other one.
-    expect(page.locator("#right-region #standing-control")).to_be_visible()
+    expect(page.locator("#right-region #focused-control")).to_be_visible()
 
 
 def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser, serve):

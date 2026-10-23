@@ -11,7 +11,7 @@
    a message's frozen markup is bound when it is prepared, before the thread mounts
    it, so what the projection paints on it arrives with the node. */
 import { runtime } from "./context.js";
-import { elementDeclarations } from "./registry.js";
+import { elementDeclarations, exhibits } from "./registry.js";
 import { isElementName } from "./registry-contract.js";
 import { authoredParents } from "./projection/authored.js";
 import { elementById } from "./passages.js";
@@ -63,7 +63,7 @@ const declaredAncestors = (element) => {
 // written.
 const quotedBy = (element) => {
   for (let node = parentOf(element); node; node = parentOf(node))
-    if (runtime.registry[node.localName]?.["x-exhibit"]) return true;
+    if (exhibits(node, runtime.registry[node.localName])) return true;
   return false;
 };
 

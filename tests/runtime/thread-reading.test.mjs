@@ -25,7 +25,7 @@ test("Thread destinations without a page preview retain canonical targets and sh
   });
   control.focus();
   assert.equal(destinations.threadHere(), thread);
-  assert.equal(destinations.threadAtStanding(), thread.dataset.thread);
+  assert.equal(destinations.threadAtCurrentLocation(), thread.dataset.thread);
   assert.equal(destinations.threadTarget(thread.dataset.thread), owner);
   assert.equal(destinations.threadTarget("detached"), null);
   assert.equal(destinations.threadFocusTarget(thread.dataset.thread), null);
@@ -132,7 +132,7 @@ test("attention names the outstanding question rather than the latest message", 
     seq: 2,
   });
   const source = servedThread([question, followup], {
-    attention: { kind: "needs_user", reason: "widget", workflow: null },
+    attention: { kind: "needs_user", reason: "obligation", workflow: null },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
   const attention = threadAttention(thread);

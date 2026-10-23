@@ -15,7 +15,7 @@
 
    A send moves the box it was sent from, once the user saw it, by no more than the turn
    it adds above it, and no lower than the line typing keeps it within, even once the
-   user stands outside the box; a box out of view lands the turn around it
+   user is outside the box; a box out of view lands the turn around it
    (`sendLanding`). A box growing under the user's keystrokes keeps its controls in
    the band and the words just above it beside it. Growth reveals the writing area
    alone; earlier turns the reader has passed stay out of view. Every box a thread or a
@@ -59,8 +59,8 @@ const replyRowOf = (held, control) => {
 // the row standing on its foot line at the thread's very end (geometry.js, `stuckBox`).
 export const replyPinned = (reply) => Boolean(reply) && stuckBox(reply) === reply;
 // The common transcript is a separate reading region only when its container bounds it.
-// This asks the transcript the test `readingPosture` asks a region's body rather than
-// asking `readingPosture`: the transcript is a registered region only in a floating
+// This asks the transcript the test `regionScrollBehavior` asks a region's body rather than
+// asking `regionScrollBehavior`: the transcript is a registered region only in a floating
 // card, and elsewhere that reading would answer for the threads list around it.
 const separateTranscript = (held) => {
   const transcript = held.querySelector(":scope > .lf-thread-transcript");
@@ -158,7 +158,7 @@ export function scrollThreadIntoView(
 }
 
 // Taken as the user sends, before the send draws anything; the step it returns is taken
-// once the send has left the user `standing`: on the conversation's card or title
+// once the send has left the user `currentLocation`: on the conversation's card or title
 // (`landSent`), or on the seat holding a persistent box. The box the user sent from is
 // under their aim, and Send and the caret stand at its foot. In flow, its new turn
 // grows the thread just above it, so the box goes down by what the turn adds, less what
@@ -171,7 +171,7 @@ export function scrollThreadIntoView(
 // carried every turn above it up by the new one even with room below. A row pinned to
 // its scroller's foot, or below a separate transcript, stands still by itself and its
 // turn lands at the transcript's end; a box out of view lands the thread around it.
-// Nothing lands once a newer gesture has taken the user away from `standing`, and a box
+// Nothing lands once a newer gesture has taken the user away from `currentLocation`, and a box
 // the send removed has handed the user on already.
 // The sent turn lands without animation: fitting can change the transcript's room in
 // the next update, and an in-flight pixel destination would outlive the room it named.
@@ -182,16 +182,16 @@ export function sendLanding(input) {
   const reply = replyRowOf(held, input);
   // The row's foot on screen, and below the top of the thread it grows in.
   const read = () => ({
-    foot: standingAt(reply, "bottom"),
+    foot: currentLocationAt(reply, "bottom"),
     within: reply.getBoundingClientRect().bottom - held.getBoundingClientRect().top,
   });
   const stood =
     reply && !replyPinned(reply) && !separateTranscript(held) && alreadyShown(reply)
       ? read()
       : null;
-  return (standing = held) => {
+  return (currentLocation = held) => {
     const mayLand = retainUserIntent({
-      source: standing,
+      source: currentLocation,
       available: () => held.isConnected,
     });
     void whenDocumentPresented()
@@ -202,7 +202,7 @@ export function sendLanding(input) {
         // Where the send's own growth takes the foot, whatever scrolled meanwhile.
         returnTo(reply, "bottom", stood.foot + read().within - stood.within);
         revealWritingArea(held, input, reply);
-        if (standingAt(reply, "bottom") < stood.foot)
+        if (currentLocationAt(reply, "bottom") < stood.foot)
           returnTo(reply, "bottom", stood.foot);
       })
       .catch(() => {});
@@ -210,7 +210,7 @@ export function sendLanding(input) {
 }
 
 // A box growing or shrinking under the user's own keystrokes keeps two things: its
-// controls in the band, and the words just above it where they stood beside it. A row in
+// controls in the band, and the words just above it where they were beside it. A row in
 // flow grows downward, so the words above stay put and only its foot can leave the band,
 // which the landing brings back. A pinned row keeps its foot and grows upward: into the
 // room between it and the words above it first (the panel card's, standing at the list's
@@ -306,23 +306,23 @@ export function readBoxPlace(input) {
 // Where `node`'s `edge` stands on screen, read as though each box scrolling it stood
 // where Leaf last aimed it (scrolling.js, `aimedTop`): a hold read after a hold then
 // carries no rounding of the first.
-const standingAt = (node, edge) => {
+const currentLocationAt = (node, edge) => {
   let at = node.getBoundingClientRect()[edge];
   for (const box of scrollersOf(node)) at += box.scrollTop - aimedTop(box);
   return at;
 };
-// Put `node`'s `edge` at `at` (`standingAt`). The box scrolling it takes the move first
+// Put `node`'s `edge` at `at` (`currentLocationAt`). The box scrolling it takes the move first
 // and the boxes around it whatever it cannot: a bounded block not yet full grows in the
 // page instead.
 function returnTo(node, edge, at) {
   for (const box of scrollersOf(node)) {
-    const moved = standingAt(node, edge) - at;
+    const moved = currentLocationAt(node, edge) - at;
     if (Math.abs(moved) < 0.5) return;
     moveScrollerBy(box, moved);
   }
 }
 
-// A render that inserts above the control the user stands on, such as an edit growing a
+// A render that inserts above the control the user is on, such as an edit growing a
 // turn above the box they are writing in, moves it by what it inserted; an agent's turn
 // arriving there waits behind its thread's notice instead (held-news.js). `holdBox`
 // reads where the focused control stands and returns the step that puts it back, so
@@ -333,7 +333,7 @@ function returnTo(node, edge, at) {
 export function holdBox(control) {
   const held = control?.closest?.(SAYS_IN);
   if (!held || control !== focusedInView()) return () => {};
-  const top = standingAt(control, "top");
+  const top = currentLocationAt(control, "top");
   return () => {
     if (focused() !== control || !control.isConnected || !held.contains(control))
       return;

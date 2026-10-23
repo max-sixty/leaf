@@ -48,7 +48,7 @@ refuses a queue connection because it can't receive later turns.
 
 Follow every event's `handling`. For a thread reply, use its supplied `answer.writer`:
 
-- `"agent"`: post with `leaf response reply <answer.ref>`. Your final message stays
+- `"agent"`: post with `leaf thread reply <answer.ref>`. Your final message stays
   in the Codex chat and never reaches the page.
 - `"turn"`: the delivery reserves at most one thread reply for this turn. Before
   your first tool call, write a short message to the user: the answer, or what you
@@ -57,9 +57,9 @@ Follow every event's `handling`. For a thread reply, use its supplied `answer.wr
   your final message posts as the reply and folds the opening behind it. A turn
   with no final message posts no reply.
 
-For a `"turn"` reply that needs widgets, a question for the user (an `lf-ask`), work
+For a `"turn"` reply that needs widgets, a request for the user (`--obligation`), work
 promised beyond this turn (`--todo`), a title or a changed anchor, use
-`leaf response reply <answer.ref>` with the options in `threads.md`. The command
+`leaf thread reply <answer.ref>` with the options in `threads.md`. The command
 checks the reply and posts it at once, and your final message then posts nothing.
 Leaf may title an untitled thread from your opening message, and that title stays.
 
@@ -95,7 +95,7 @@ in a task says so and gives the line; pass it to the user.
 ## Routes without the adapter
 
 Two routes bring input without the adapter. On both, answer with
-`leaf response reply <answer.ref>`.
+`leaf thread reply <answer.ref>`.
 
 - This task runs `leaf wait` in unified exec, polls it with `write_stdin`, and
   acknowledges each batch with `leaf wait --ack <delivery-id>`, which then waits for the

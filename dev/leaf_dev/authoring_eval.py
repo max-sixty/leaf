@@ -24,6 +24,7 @@ from leaf_dev import ROOT
 from leaf_dev.arms import (
     blocks,
     completed,
+    environment,
     instruction_context,
     run_agent,
     run_leaf,
@@ -34,8 +35,10 @@ from leaf_dev.eval_cases import definition
 from leaf_dev.leaf_assets import pinned_copy
 
 
-def capture_evidence(page: Path, inputs: Path | None, shots: Path) -> dict:
-    """Give the visual judge original captures and actual page media, without traces."""
+def capture_evidence(
+    page: Path, inputs: Path | None, screens: Path, shots: Path
+) -> dict:
+    """Keep the judge's captures, page media and rendered screens after scratch exits."""
     sources, media = {}, {}
     shots.mkdir(parents=True, exist_ok=True)
     if inputs is not None and inputs.is_dir():
@@ -66,7 +69,16 @@ def capture_evidence(page: Path, inputs: Path | None, shots: Path) -> dict:
             for name, source_digest in source_hashes.items()
             if source_digest == digest
         ]
-    return {"inputs": sources, "media": media, "exact_inputs": exact_inputs}
+    rendered = []
+    if screens.is_dir():
+        shutil.copytree(screens, shots / "screens")
+        rendered = [str(path) for path in sorted((shots / "screens").rglob("*.png"))]
+    return {
+        "inputs": sources,
+        "media": media,
+        "exact_inputs": exact_inputs,
+        "screens": rendered,
+    }
 
 
 def check_log(trace: list[dict]) -> list[dict]:
@@ -143,7 +155,10 @@ def execute(
                 out=evidence / "stream.jsonl",
                 err=evidence / "err.txt",
                 dirs=[payload],
-                env={"LEAF": str(payload / "bin/leaf"), "XDG_STATE_HOME": str(state)},
+                env={
+                    "PATH": environment(payload=payload)["PATH"],
+                    "XDG_STATE_HOME": str(state),
+                },
                 harness=harness,
             )
             plain = run_leaf(payload, state, "page", "check", str(page))
@@ -170,7 +185,11 @@ def execute(
                     "setup_seconds": setup_seconds,
                     "input_media": inputs,
                     **(
-                        {"capture_evidence": capture_evidence(page, images, shots)}
+                        {
+                            "capture_evidence": capture_evidence(
+                                page, images, state / "leaf" / "screens", shots
+                            )
+                        }
                         if shots is not None
                         else {}
                     ),

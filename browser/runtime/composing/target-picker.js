@@ -119,8 +119,10 @@ const searchCount = (position, total) => `${position}/${total}`;
 // `/` opens a real search input over the whole page reading, either directly from the
 // page or from the visible target hints. Tab walks repeated occurrences, as the box's
 // arrows do, and Enter or a press on the active match makes a native browser Selection
-// from it. Once the prompt closes, n repeats that
-// accepted search and N reverses it. Escape returns to the surface that opened search:
+// from it. Accepting a match keeps its live position after the prompt closes; n repeats
+// that accepted search and N reverses it. Starting or canceling a search, or entering
+// another page mode, retires that position without forgetting the accepted query.
+// Escape returns to the surface that opened search:
 // the page after a direct `/`, or the visible hints after `s` then `/`. The interaction keeps
 // `?` available and claims the rest of the page's keyboard while it stands.
 
@@ -137,8 +139,11 @@ export function createTargetPicker({
 }) {
   const canChoose = () => anchoringIsReady() && !pointerModeActive();
 
-  let pickerOpen = false;
-  let pageSearchOpen = false;
+  // Mode predicates feed tracked keyboard controls and the shared panel, so mode
+  // changes publish themselves even when accepting a match retains its list.
+  const pickerMode = signal("closed");
+  const targetPickerOpen = () => pickerMode.value !== "closed";
+  const pageSearchOpen = () => pickerMode.value === "search";
   // The search's matches are a signal because the walk's rows read them for the arrows'
   // availability, which follows the signals it reads (keyboard/scopes.js): a query
   // that arrives with no key, as a paste does, offers the arrows all the same.
@@ -226,7 +231,7 @@ export function createTargetPicker({
   // `withHints` opens the shared mode without a target map: a direct slash is page
   // search over the whole document, and reading a viewport-local map it would then hide
   // is work for nobody.
-  // The picker's opener is the control the user stood on as it opened (focus.js,
+  // The picker's opener is the control the user was on as it opened (focus.js,
   // `openLayer`); a close that restores hands them back to it as it closes.
   function setTargetPicker(on, restore = false, withHints = true) {
     if (on && (!anchoringIsReady() || (withHints && !canChoose()))) return;
@@ -236,7 +241,7 @@ export function createTargetPicker({
       return;
     }
     // An opener of nowhere hands back nothing, and `handBack` lets the user go.
-    const landing = restore && pickerOpen;
+    const landing = restore && targetPickerOpen();
     const opener = openerOf(pageSearchInput);
     closeLayer(
       () => paintTargetPicker(on, withHints),
@@ -244,11 +249,9 @@ export function createTargetPicker({
     );
   }
   function paintTargetPicker(on, withHints) {
-    pickerOpen = on;
-    pageSearchOpen = false;
+    pickerMode.value = on ? "hints" : "closed";
+    if (on) clearMatches();
     searchReturnsToHints = false;
-    matches.value = [];
-    active = -1;
     pageSearchInput.value = "";
     presentSearchField();
     if (on && withHints) {
@@ -269,11 +272,15 @@ export function createTargetPicker({
     searchInPanel({
       input: pageSearchInput,
       controls: pageSearchControls,
-      open: pageSearchOpen,
+      open: pageSearchOpen(),
     });
   }
+  function clearMatches() {
+    matches.value = [];
+    active = -1;
+  }
   function setPageSearch(on) {
-    pageSearchOpen = on;
+    pickerMode.value = on ? "search" : "hints";
     presentSearchField();
     if (on) {
       focusDestination(pageSearchInput, "move");
@@ -281,8 +288,7 @@ export function createTargetPicker({
       announce("Search the page.");
     } else {
       pageSearchInput.value = "";
-      matches.value = [];
-      active = -1;
+      clearMatches();
       releaseFocus();
       // Search may have travelled to a match, so the map the user comes back to is read
       // again rather than being the one search covered.
@@ -296,8 +302,8 @@ export function createTargetPicker({
   }
 
   function openPageSearch() {
-    const fromHints = pickerOpen;
-    if (!pickerOpen) setTargetPicker(true, false, false);
+    const fromHints = targetPickerOpen();
+    if (!targetPickerOpen()) setTargetPicker(true, false, false);
     searchReturnsToHints = fromHints;
     setPageSearch(true);
   }
@@ -387,9 +393,9 @@ export function createTargetPicker({
   function matchWalkPosition(query) {
     if (!query || active < 0 || active >= matches.value.length) return null;
     if (!matchIsRangeable(matches.value[active])) return null;
-    // An open search owns its highlighted match. A repeated n/N search owns a native
+    // An open search owns its highlighted match. An accepted search owns a native
     // selection instead; leaving that selection retires both its readout and refresh.
-    if (!pageSearchOpen && !selectionIs(matches.value[active])) return null;
+    if (!pageSearchOpen() && !selectionIs(matches.value[active])) return null;
     return {
       target: matchIdentity(query, matches.value[active]),
       position: active + 1,
@@ -408,14 +414,17 @@ export function createTargetPicker({
   // makes a new reading with no position for the old nodes. So each reader finds the
   // matches again first, keeping the active one where it still stands.
   function refreshMatches() {
-    const query = pageSearchOpen ? pageSearchInput.value.trim() : repeatedSearch?.query;
+    const query = pageSearchOpen()
+      ? pageSearchInput.value.trim()
+      : repeatedSearch?.query;
     const current = matches.value[active];
     if (!query || !current || pageText() === matchesIn) return false;
     const found = find(query);
     const same = found.findIndex((candidate) => sameMatch(candidate, current));
     active = same >= 0 ? same : found.length ? Math.min(active, found.length - 1) : -1;
     matches.value = found;
-    if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
+    if (repeatedSearch && !pageSearchOpen() && active >= 0)
+      repeatedSearch.index = active;
     return true;
   }
 
@@ -424,7 +433,7 @@ export function createTargetPicker({
   // way. The read handed to the shared walk remains a cheap cached lookup.
   function refreshMatchWalk() {
     if (walkPosition()?.kind !== "page-search") return;
-    if (refreshMatches() && pageSearchOpen) presentSearchStatus();
+    if (refreshMatches() && pageSearchOpen()) presentSearchStatus();
     repaint();
   }
 
@@ -466,7 +475,7 @@ export function createTargetPicker({
 
   function chooseTarget(candidate) {
     const target = candidate.capture ? candidate.capture() : candidate;
-    setTargetPicker(false);
+    closeTargetPicker();
     releaseFocus();
     commentOnTarget(target);
     announce(`Chosen ${target.label}.`);
@@ -478,8 +487,10 @@ export function createTargetPicker({
     if (!segments) return;
     const quote = quoteFrom(matches.value[active]);
     repeatedSearch = { query: pageSearchInput.value.trim(), index: active };
+    // Closing the prompt transfers the match to a native selection. Its position stays
+    // live until that selection is left, just as a subsequent n/N landing does.
     setTargetPicker(false);
-    selectMatch(segments);
+    landOnMatch();
     announce(
       `Selected match: ${quote}. ${
         coarsePointer.matches || !bindingEnabled("c")
@@ -489,14 +500,16 @@ export function createTargetPicker({
     );
   }
 
-  function selectMatch(segments) {
+  function landOnMatch(wrapped = false) {
     releaseFocus();
-    const range = rangeOf(segments);
+    const range = rangeOf(matches.value[active]);
     selectEnds(
       [range.startContainer, range.startOffset],
       [range.endContainer, range.endOffset],
     );
     updateFab();
+    const query = repeatedSearch.query;
+    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
   }
 
   function repeatSearch(direction) {
@@ -512,23 +525,21 @@ export function createTargetPicker({
     active = matches.value.indexOf(row);
     repeatedSearch.index = active;
     showMatch();
-    selectMatch(matches.value[active]);
-    const query = repeatedSearch.query;
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    landOnMatch(wrapped);
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`,
     );
   }
 
   function back() {
-    if (pageSearchOpen) {
+    if (pageSearchOpen()) {
       if (searchReturnsToHints) return setPageSearch(false);
-      setTargetPicker(false, true);
+      closeTargetPicker(true);
       announce("Page search closed.");
       return;
     }
     if (hints.backOneLetter()) return;
-    setTargetPicker(false, true);
+    closeTargetPicker(true);
     announce("Target picker closed.");
   }
 
@@ -616,7 +627,7 @@ export function createTargetPicker({
   }
 
   function paintTargetPickerHints() {
-    if (pickerOpen && pageSearchOpen) return paintSearchMatches();
+    if (pageSearchOpen()) return paintSearchMatches();
     marks.place([]);
     hints.paint();
   }
@@ -628,7 +639,7 @@ export function createTargetPicker({
     menu: "navigate",
     keys: ["/"],
     title: "search page",
-    when: () => anchoringIsReady() && !pageSearchOpen,
+    when: () => anchoringIsReady() && !pageSearchOpen(),
     run: openPageSearch,
   };
 
@@ -658,7 +669,7 @@ export function createTargetPicker({
     id: "targeting.back",
     keys: ["Escape"],
     title: () =>
-      pageSearchOpen
+      pageSearchOpen()
         ? searchReturnsToHints
           ? "back to hints"
           : "close search"
@@ -688,7 +699,7 @@ export function createTargetPicker({
   const TARGET_PICKER_SCOPE = {
     title: "In the target picker",
     escape: "inner",
-    at: () => pickerOpen && !pageSearchOpen,
+    at: () => pickerMode.value === "hints",
     // The page owns search, even when target hints are standing over it. Exempt the
     // binding read from that row so one declaration drives both entry routes and every
     // keyboard projection.
@@ -708,7 +719,7 @@ export function createTargetPicker({
   const PAGE_SEARCH_SCOPE = {
     title: "In page search",
     escape: "inner",
-    at: () => pageSearchOpen,
+    at: () => pageSearchOpen(),
     claims: targetingClaims,
     rows: [
       {
@@ -747,9 +758,11 @@ export function createTargetPicker({
     ],
   };
 
-  const targetPickerOpen = () => pickerOpen;
   const openTargetPicker = () => setTargetPicker(true);
-  const closeTargetPicker = () => setTargetPicker(false);
+  const closeTargetPicker = (restore = false) => {
+    clearMatches();
+    setTargetPicker(false, restore);
+  };
 
   // A press on the marked match selects it, as Enter does: the match is what the user is
   // looking at, and a phone's keyboard may offer no Enter. The press's mouse events are
@@ -761,7 +774,7 @@ export function createTargetPicker({
   // keeps its own.
   let pressOnMatch = false;
   function onMarkedMatch(ev) {
-    if (!pageSearchOpen || ev.button !== 0) return false;
+    if (!pageSearchOpen() || ev.button !== 0) return false;
     refreshMatches();
     const segments = matches.value[active];
     if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
@@ -789,7 +802,7 @@ export function createTargetPicker({
       document.addEventListener(type, pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
-      if (pageSearchOpen) repaint();
+      if (pageSearchOpen()) repaint();
     });
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }
@@ -818,7 +831,7 @@ export function createTargetPicker({
     visibleTargets,
     chooseTarget,
     // The map, not the mode: a direct slash opens the mode for search alone.
-    choosing: () => hints.armed() && !pageSearchOpen,
+    choosing: () => hints.armed() && !pageSearchOpen(),
     paintTargetPickerHints,
     targetPickerOpen,
     openTargetPicker,

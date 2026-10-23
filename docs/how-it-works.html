@@ -816,34 +816,36 @@
 
             <p id="practice-caption">
               Choose a policy, then open <strong>Show activity</strong> below it to see
-              the recorded choice. Open the sample’s leaf menu and choose
+              the recorded choice. Open the page’s leaf menu and choose
               <strong>Undo</strong>; press <strong>Activity changed</strong> in the feed
-              to see the choice marked undone. Choices and comments stay in this
-              practice page; no agent answers them.
+              to see the choice marked undone. This example uses the page’s activity log
+              and Undo; its queue policy is fictional.
             </p>
-            <lf-sample id="queue-example" label="Practice: choose a queue policy">
-              <template id="queue-example-page" data-sample>
-                <h2>Importer queue policy</h2>
-                <p id="queue-premise">
-                  The importer receives bursts of records faster than it can process
-                  them. Its queue has room for 1,000 records.
-                </p>
-                <lf-ask id="queue-question">
-                  <h3>When the queue fills, what should happen?</h3>
-                  <lf-options id="queue-policy" choose>
-                    <lf-option id="block-producer"
-                      ><strong>Pause the producer</strong> Keep every queued record;
-                      wait for space before accepting more.</lf-option
-                    >
-                    <lf-option id="drop-oldest"
-                      ><strong>Drop the oldest record</strong> Accept the newest record
-                      immediately; discard the oldest queued one.</lf-option
-                    >
-                  </lf-options>
-                </lf-ask>
-                <h3>Recorded actions</h3>
-                <lf-activity id="queue-activity"></lf-activity>
-              </template>
+            <lf-sample
+              id="queue-example"
+              label="Practice: choose a queue policy"
+              interactive
+            >
+              <h2>Importer queue policy</h2>
+              <p id="queue-premise">
+                The importer receives bursts of records faster than it can process them.
+                Its queue has room for 1,000 records.
+              </p>
+              <lf-ask id="queue-question">
+                <h3>When the queue fills, what should happen?</h3>
+                <lf-options id="queue-policy" choose>
+                  <lf-option id="block-producer"
+                    ><strong>Pause the producer</strong> Keep every queued record; wait
+                    for space before accepting more.</lf-option
+                  >
+                  <lf-option id="drop-oldest"
+                    ><strong>Drop the oldest record</strong> Accept the newest record
+                    immediately; discard the oldest queued one.</lf-option
+                  >
+                </lf-options>
+              </lf-ask>
+              <h3>Recorded actions</h3>
+              <lf-activity id="queue-activity"></lf-activity>
             </lf-sample>
 
             <ol class="steps" id="exchange-steps">
@@ -970,7 +972,7 @@
                   </td>
                   <td>
                     What is recorded, what is derived, and what survives edits, Undo,
-                    reloads, and version approval?
+                    reloads, and approval requests?
                   </td>
                 </tr>
                 <tr>
@@ -1029,14 +1031,14 @@
               </p>
               <p id="handoff-reading">
                 The agent creates a page directory and writes
-                <code>index.html</code> with ordinary HTML and Leaf components. Here,
+                <code>index.html</code> with ordinary HTML and Leaf elements. Here,
                 <code>./review</code> names that directory, relative to the commands’
                 working directory.
               </p>
               <p id="handoff-runtime">
                 <code>leaf page init</code> installs the page’s
                 <a href="#layer">runtime and selected packages</a>. The agent then
-                authors its content using the HTML and components described in
+                authors its content using the HTML and Leaf elements described in
                 <a href="#page">Pages</a>.
               </p>
               <p id="handoff-serving">
@@ -1065,7 +1067,7 @@ leaf server start ./review</code></pre>
               <details id="handoff-packages">
                 <summary>Package instructions, evals, and an existing page</summary>
                 <p id="package-instructions">
-                  Each package adds instructions for its components, written for an
+                  Each package adds instructions for its elements, written for an
                   audience such as the page's author.
                   <code>leaf page instructions ./review</code> prints the packages'
                   shared instructions as JSON, keyed by audience;
@@ -1117,11 +1119,11 @@ leaf server start ./review</code></pre>
               </p>
               <pre
                 id="response-commands"
-              ><code class="language-bash">leaf response reply &lt;answer.ref&gt; --ephemeral --text "Checking the importer's queue policy."
+              ><code class="language-bash">leaf thread reply &lt;answer.ref&gt; --ephemeral --text "Checking the importer's queue policy."
 leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
-leaf response reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
+leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
 leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A decision widget creates an
@@ -1171,7 +1173,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                 </p>
                 <p id="answer-kinds-details">
                   A user comment requires a reply in its thread. A decision on a page
-                  widget requires a stamped revision. If the obligation's component
+                  widget requires a stamped revision. If the obligation's widget
                   declares a record form, the revised HTML uses it to show the decision,
                   such as the chosen option. An obligation embedded in a thread message
                   receives a thread reply, because that message's HTML is fixed.
@@ -1237,7 +1239,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   </tbody>
                 </table>
                 <p id="delivery-handling">
-                  The registry is Leaf's machine-readable definition of components and
+                  The registry is Leaf's machine-readable definition of elements and
                   events. It declares event instructions under
                   <code>$events.handling</code> and response instructions under
                   <code>$events.answering</code>. Leaf combines the applicable clauses
@@ -1252,7 +1254,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   <pre id="handling-json"><code class="language-json">{
   "handling": {
     "h1": "Read the thread context before answering.",
-    "h2": "Write the answer with leaf response reply using its answer.ref."
+    "h2": "Write the answer with leaf thread reply using its answer.ref."
   },
   "events": [
     {
@@ -1280,8 +1282,8 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
             <section id="agent">
               <h3>Change the live page</h3>
               <p id="agent-changes-reading">
-                The agent can save HTML, replace a component’s data source, or report a
-                component state change while the user reads. The browser fetches the
+                The agent can save HTML, replace a widget’s data source, or report a
+                widget state change while the user reads. The browser fetches the
                 revised document and state when the server reports a change (<a
                   href="#browser-freshness"
                   >Freshness checks and state reads</a
@@ -1292,14 +1294,14 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
               ><code class="language-bash">leaf data set ./review queue-metrics --file ./metrics.json</code></pre>
               <p id="change-commands-reading">
                 Here, the declared source <code>queue-metrics</code> receives the
-                complete value in <code>metrics.json</code>. For a component state
-                change, <code>leaf page report</code> records its declared operation and
-                fields. Saving HTML changes the live document; stamping adds a version
-                address and changelog entry.
+                complete value in <code>metrics.json</code>. For a widget state change,
+                <code>leaf page report</code> records its declared operation and fields.
+                Saving HTML changes the live document; stamping adds a version address
+                and changelog entry.
               </p>
               <p id="answers-preservation">
                 These changes preserve the user's recorded choices. If an edit changes
-                what a decision was about, the author marks the component
+                what a decision was about, the author marks the widget
                 <code>restated</code> to invalidate that decision. The
                 <a href="/how-it-works/#revisions">Revisions</a> view explains how
                 decisions survive page edits.
@@ -1537,12 +1539,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                     of messages.
                   </td>
                   <td>
-                    <code>leaf thread open</code><br /><code>leaf response reply</code
-                    ><br /><code>leaf thread reply</code><br /><code
-                      >leaf thread edit</code
-                    ><br /><code>leaf thread resolve</code><br /><code
-                      >leaf thread summarize</code
-                    >
+                    <code>leaf thread open</code><br /><code>leaf thread reply</code
+                    ><br /><code>leaf thread edit</code><br /><code
+                      >leaf thread resolve</code
+                    ><br /><code>leaf thread summarize</code>
                   </td>
                 </tr>
                 <tr>
@@ -1690,7 +1690,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             </table>
             <p id="route-instructions">
               On every route the agent can answer with
-              <code>leaf response reply &lt;answer.ref&gt;</code>. One task can receive
+              <code>leaf thread reply &lt;answer.ref&gt;</code>. One task can receive
               updates by several routes, and each delivery says how to confirm it and
               how to answer.
             </p>
@@ -1808,9 +1808,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <code>ol.steps</code> for a numbered sequence like this list.
               </li>
               <li id="src-widgets">
-                <strong>Widgets.</strong> Leaf widgets are custom HTML elements, such as
-                <code>&lt;lf-options&gt;</code> for choices and
-                <code>&lt;lf-board&gt;</code> for cards in columns. Other
+                <strong>Widgets.</strong> A widget is a complete page feature, authored
+                as a custom HTML element, such as <code>&lt;lf-options&gt;</code> for
+                choices and <code>&lt;lf-board&gt;</code> for cards in columns. Other
                 <code>lf-*</code> elements provide structure, such as
                 <code>&lt;lf-pane&gt;</code> for a pane. The
                 <a href="/registry/">registry</a> declares each element’s attributes and
@@ -1826,11 +1826,11 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </li>
             </ol>
             <p id="boundaries">
-              Interactive components load their JavaScript modules when the page uses
-              them. Behavior specific to one page can use inline module scripts or local
+              Leaf elements load their JavaScript modules when the page uses them.
+              Behavior specific to one page can use inline module scripts or local
               modules under
               <code>page/</code>. Reusable behavior belongs in a package, a directory
-              containing components and their supporting files. The
+              containing element declarations and their supporting files. The
               <a
                 href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/page-behavior.md"
                 >page-behavior reference</a
@@ -1858,9 +1858,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               Leaf's core, called the kernel, supplies the browser runtime, shared
               controls, and collaboration protocol. Packages supply reusable elements,
               JavaScript modules, styles, and authoring instructions. The default
-              package provides common components; optional packages add capabilities
-              such as diagrams and diffs. Project packages use the same format and can
-              replace or extend the page's selected layer. The
+              package provides common widgets and structural elements; optional packages
+              add capabilities such as diagrams and diffs. Project packages use the same
+              format and can replace or extend the page's selected layer. The
               <a href="/extending/">extension guide</a> lists the bundled packages and
               demonstrates a small custom package.
             </p>
@@ -1868,56 +1868,51 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           <section id="widgets">
             <h2>Widgets</h2>
             <p id="dogfood">
-              These examples run in separate practice pages with their own event logs.
-              Their choices and comments never become decisions on this specification.
-              The activity feed in each example shows the actions it records; no agent
-              answers these practice pages.
+              These examples are interactive parts of this page. Their choices, card
+              moves, and comments share its event log, Undo, and On me. Each activity
+              feed shows the same page history, including actions in other examples.
             </p>
             <figure id="options-demo">
               <p id="options-practice">
                 Choose an importer strategy, then one job. Open
                 <strong>Show activity</strong> to inspect both selections. Choose
-                <strong>Undo</strong> in the sample’s leaf menu to withdraw the job
+                <strong>Undo</strong> in the page’s leaf menu to withdraw the job
                 choice, then press <strong>Activity changed</strong> in the feed. The
                 strategy remains selected.
               </p>
-              <lf-sample id="spec-options-frame" label="Practice: options">
-                <template id="spec-options-page" data-sample>
-                  <p>I'd migrate in stages, which keeps the rollback boundary small.</p>
-                  <lf-options id="spec-options" choose>
-                    <lf-option id="so-rewrite"
-                      ><small class="tag">effort: high</small
-                      ><small class="tag">risk: med</small
-                      ><strong>Rewrite the importer</strong> A clean slate on the new
-                      schema; the old importer keeps running until parity.</lf-option
-                    >
-                    <lf-option id="so-shim"
-                      ><small class="tag">effort: low</small
-                      ><small class="tag">risk: high</small
-                      ><strong>Shim the old schema</strong> Fastest to ship; every
-                      future field pays the translation tax.</lf-option
-                    >
-                    <lf-option id="so-stage"
-                      ><small class="tag">effort: med</small
-                      ><small class="tag">risk: low</small
-                      ><small class="tag ok">recommended</small
-                      ><strong>Migrate in stages</strong> New fields land on the new
-                      schema while reads fall back, table by table.</lf-option
-                    >
-                  </lf-options>
-                  <h3>Which job should start first?</h3>
-                  <lf-options id="spec-jobs" choose>
-                    <lf-option id="sj-backfill">Backfill last month's rows</lf-option>
-                    <lf-option id="sj-contract"
-                      >Contract tests against the old schema</lf-option
-                    >
-                    <lf-option id="sj-fallback"
-                      >A read fallback behind a flag</lf-option
-                    >
-                  </lf-options>
-                  <h3>Recorded actions</h3>
-                  <lf-activity id="options-activity"></lf-activity>
-                </template>
+              <lf-sample id="spec-options-frame" label="Practice: options" interactive>
+                <p>I'd migrate in stages, which keeps the rollback boundary small.</p>
+                <lf-options id="spec-options" choose>
+                  <lf-option id="so-rewrite"
+                    ><small class="tag">effort: high</small
+                    ><small class="tag">risk: med</small
+                    ><strong>Rewrite the importer</strong> A clean slate on the new
+                    schema; the old importer keeps running until parity.</lf-option
+                  >
+                  <lf-option id="so-shim"
+                    ><small class="tag">effort: low</small
+                    ><small class="tag">risk: high</small
+                    ><strong>Shim the old schema</strong> Fastest to ship; every future
+                    field pays the translation tax.</lf-option
+                  >
+                  <lf-option id="so-stage"
+                    ><small class="tag">effort: med</small
+                    ><small class="tag">risk: low</small
+                    ><small class="tag ok">recommended</small
+                    ><strong>Migrate in stages</strong> New fields land on the new
+                    schema while reads fall back, table by table.</lf-option
+                  >
+                </lf-options>
+                <h3>Which job should start first?</h3>
+                <lf-options id="spec-jobs" choose>
+                  <lf-option id="sj-backfill">Backfill last month's rows</lf-option>
+                  <lf-option id="sj-contract"
+                    >Contract tests against the old schema</lf-option
+                  >
+                  <lf-option id="sj-fallback">A read fallback behind a flag</lf-option>
+                </lf-options>
+                <h3>Recorded actions</h3>
+                <lf-activity id="options-activity"></lf-activity>
               </lf-sample>
               <figcaption>
                 Options with explanations render as cards; options containing only
@@ -1935,36 +1930,34 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 keyboard, focus the grip, press Enter to grab, Right to move, and Enter
                 to drop. On a narrow touch screen, use the card’s Move to buttons. Open
                 <strong>Show activity</strong> to inspect the recorded move. Choose
-                <strong>Undo</strong> in the sample’s leaf menu to return the card to
+                <strong>Undo</strong> in the page’s leaf menu to return the card to
                 Incoming; press <strong>Activity changed</strong> in the feed to see the
                 move marked undone.
               </p>
-              <lf-sample id="spec-board-frame" label="Practice: board">
-                <template id="spec-board-page" data-sample>
-                  <lf-board id="spec-board">
-                    <lf-column id="sb-incoming" label="Incoming">
-                      <lf-card id="sc-flaky"
-                        ><strong>Flaky auth test</strong> Fails one run in twenty on CI
-                        only.</lf-card
-                      >
-                      <lf-card id="sc-contrast"
-                        ><strong>Dark-mode contrast pass</strong></lf-card
-                      >
-                    </lf-column>
-                    <lf-column id="sb-sprint" label="This week">
-                      <lf-card id="sc-ratelimit"
-                        ><strong>Rate-limit the export</strong></lf-card
-                      >
-                    </lf-column>
-                    <lf-column id="sb-done" label="Done">
-                      <lf-card id="sc-tokens"
-                        ><strong>Tokenize the palette</strong></lf-card
-                      >
-                    </lf-column>
-                  </lf-board>
-                  <h3>Recorded actions</h3>
-                  <lf-activity id="board-activity"></lf-activity>
-                </template>
+              <lf-sample id="spec-board-frame" label="Practice: board" interactive>
+                <lf-board id="spec-board">
+                  <lf-column id="sb-incoming" label="Incoming">
+                    <lf-card id="sc-flaky"
+                      ><strong>Flaky auth test</strong> Fails one run in twenty on CI
+                      only.</lf-card
+                    >
+                    <lf-card id="sc-contrast"
+                      ><strong>Dark-mode contrast pass</strong></lf-card
+                    >
+                  </lf-column>
+                  <lf-column id="sb-sprint" label="This week">
+                    <lf-card id="sc-ratelimit"
+                      ><strong>Rate-limit the export</strong></lf-card
+                    >
+                  </lf-column>
+                  <lf-column id="sb-done" label="Done">
+                    <lf-card id="sc-tokens"
+                      ><strong>Tokenize the palette</strong></lf-card
+                    >
+                  </lf-column>
+                </lf-board>
+                <h3>Recorded actions</h3>
+                <lf-activity id="board-activity"></lf-activity>
               </lf-sample>
               <figcaption>
                 In a live Leaf, cards drag between columns by a grip, and each drop
@@ -1972,9 +1965,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </figcaption>
             </figure>
             <p id="catalog">
-              The component catalog also includes diagrams, charts, diffs with
-              collapsible files, annotated code, editable drafts, playgrounds, and
-              recorded browser traces. The
+              The widget catalog also includes diagrams, charts, diffs with collapsible
+              files, annotated code, editable drafts, playgrounds, and recorded browser
+              traces. The
               <a href="/examples/">examples gallery</a> opens complete pages using them.
             </p>
           </section>
@@ -2692,8 +2685,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <ul id="column-widths">
               <li id="width-column">
                 <code>column</code> is the text measure. In a wider region, such as a
-                sidebar page's body, a <code>column</code> component starts at the same
-                left edge as the text.
+                sidebar page's body, a <code>column</code> block starts at the same left
+                edge as the text.
               </li>
               <li id="width-wide">
                 <code>wide</code> extends up to 1080px. Wide blocks share this width so
@@ -2705,7 +2698,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </li>
             </ul>
             <p id="column-widths-declared">
-              The <a href="/registry/">registry</a>, which declares each component's
+              The <a href="/registry/">registry</a>, which declares each element's
               behavior, also gives it a default width. For example,
               <code>lf-options</code> uses <code>column</code>,
               <code>lf-board</code> uses <code>wide</code>, and
@@ -2820,7 +2813,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               <code>layout-workspace</code> fits the page to the window above Leaf's
               panel. A single-row <code>header</code> holds the title and status tags.
               The body takes the remaining height and contains an <code>lf-pane</code>,
-              a component that arranges its own panes, or a grid of panes defined by the
+              a widget that arranges its own panes, or a grid of panes defined by the
               page's CSS. Each pane scrolls its content beneath its own
               <code>header</code>. A pane's footer stays visible, keeping its actions
               within reach.
@@ -3555,8 +3548,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                       elsewhere or withdrawn.
                     </td>
                     <td>
-                      <code>widget:</code>, <code>approval:</code> or
-                      <code>update:</code>, followed by its source
+                      <code>widget:</code> or <code>update:</code>, followed by its
+                      source
                     </td>
                   </tr>
                   <tr id="ontology-todo">
@@ -3654,9 +3647,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <div id="relations-obligation-sources">
                     <strong>A request for an answer</strong>
                     <ul>
-                      <li>A widget question or decision</li>
+                      <li>A widget question, decision or approval</li>
                       <li>An update handed to the agent</li>
-                      <li>Sign-off on a stamped version</li>
                     </ul>
                   </div>
                   <span class="coherence-arrow" aria-hidden="true">→</span>
@@ -3692,8 +3684,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   </div>
                 </div>
                 <figcaption>
-                  The page-wide lists include sign-off even though it is not a thread.
-                  The same records supply each thread’s attention and the page’s lists.
+                  The page-wide lists include widget approvals alongside other
+                  obligations. The same records supply each thread’s attention and the
+                  page’s lists.
                 </figcaption>
               </figure>
             </section>
@@ -3942,26 +3935,43 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               disappears. If neither can be identified, the thread detaches rather than
               choosing unrelated text.
             </p>
-            <p id="review-meta">
-              A page requests version approval with
-              <code>&lt;meta name="lf-review" content="sign-off"&gt;</code>. Each
-              stamped version then offers an approval obligation in On me and Versions.
-              Approval waits for every widget obligation on the page and in unresolved
-              threads, including questions answered in words, to be answered or
-              withdrawn. Widgets in resolved threads do not block it. Undo withdraws
-              approval and reopens that version's obligation.
+            <p id="approval-requests">
+              An <code>lf-approval</code> widget requests permission for the action its
+              heading and prose describe. Its <code>approve</code> action answers an
+              ordinary widget obligation on On me; Undo approval reopens it. Each
+              request is independent of other unanswered widgets and page stamps.
+              Approval persists with the widget's id across unrelated edits. When the
+              action or evidence changes enough to invalidate that permission, the
+              author explains the change and marks the widget <code>restated</code>. A
+              request that depends on another decision is presented after that decision,
+              once the action to authorize is concrete.
             </p>
+            <p id="approval-sample-guide">
+              Try Approve, then Undo approval. The request changes immediately, and the
+              activity feed records the action and its withdrawal.
+            </p>
+            <lf-sample
+              id="approval-sample"
+              label="Approval of a sample report"
+              interactive
+            >
+              <lf-approval id="sample-publish-report">
+                <h2>Publish the sample report?</h2>
+                <p>Publish the park survey to the sample team's shared workspace.</p>
+              </lf-approval>
+              <lf-activity id="sample-approval-history"></lf-activity>
+            </lf-sample>
           </section>
 
           <section id="gate">
             <h2>Checks before a revision goes live</h2>
             <p>
               Before making a revision live or stamping a version, Leaf validates the
-              HTML structure, component declarations, dependencies, and recorded user
+              HTML structure, element declarations, dependencies, and recorded user
               decisions. An invalid save keeps the last valid revision live and reports
               the error. <code>leaf page check --render</code> additionally opens the
               page in Chrome in both color schemes to check for console errors,
-              invisible components, and horizontal overflow.
+              invisible widgets, and horizontal overflow.
             </p>
           </section>
 
@@ -4110,8 +4120,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <time>5s</time> <small>intervention</small> <strong>Working</strong> The
                 agent posts
                 <code
-                  >leaf response reply &lt;answer.ref&gt; --ephemeral --text "Cutting
-                  the lede to two sentences."</code
+                  >leaf thread reply &lt;answer.ref&gt; --ephemeral --text "Cutting the
+                  lede to two sentences."</code
                 >. The comment reads Working, and the same sentence becomes the page’s
                 status.
               </li>
@@ -4208,7 +4218,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>Answered (label clears)</td>
                   <td>
                     The answer required by the delivery is recorded: a
-                    <code>leaf response reply</code>, a turn’s final message when
+                    <code>leaf thread reply</code>, a turn’s final message when
                     <code>answer.writer</code> is <code>turn</code>, or a version whose
                     markup records the update. The supplied writer determines the reply
                     route, including within a Codex task connected to App Server.
@@ -4283,8 +4293,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>On me</td>
                   <td>
                     Open widget decisions and questions, including <code>lf-ask</code>;
-                    required version sign-off; user to-dos; and updates the user needs
-                    to send again.
+                    user to-dos; and updates the user needs to send again.
                   </td>
                 </tr>
                 <tr>
@@ -4487,9 +4496,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <ul id="updates-written">
               <li id="updates-written-progress">
                 <strong
-                  ><code
-                    >leaf response reply &lt;answer.ref&gt; --ephemeral</code
-                  ></strong
+                  ><code>leaf thread reply &lt;answer.ref&gt; --ephemeral</code></strong
                 >
                 Names the upcoming work in the user’s thread before reads or edits. It
                 sets the page’s status and the comment’s Working label, then folds
@@ -4519,21 +4526,21 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 says when Leaf refuses it).
               </li>
               <li id="updates-written-reply">
-                <strong><code>leaf response reply &lt;answer.ref&gt;</code></strong>
+                <strong><code>leaf thread reply &lt;answer.ref&gt;</code></strong>
                 Answers the user’s comment and clears its label.
-                <code>--done</code> delivers the result; an <code>lf-ask</code> asks the
-                user back; <code>--todo</code> promises work that stays on On Claude
+                <code>--done</code> delivers the result; <code>--obligation</code> asks
+                the user back; <code>--todo</code> promises work that stays on On Claude
                 until ended.
               </li>
               <li id="updates-written-followup">
-                <strong><code>leaf thread reply … &lt;thread&gt;</code></strong> A later
-                message in a thread already answered, such as the result of work the
-                first reply promised.
+                <strong
+                  ><code>leaf thread reply &lt;page&gt; &lt;thread&gt;</code></strong
+                >
+                A later message in a thread already answered, such as the result of work
+                the first reply promised.
               </li>
               <li id="updates-written-question">
-                <strong
-                  ><code>leaf response reply … --markup '&lt;lf-ask&gt;…'</code></strong
-                >
+                <strong><code>leaf thread reply … --obligation</code></strong>
                 Opens a question on On me and makes the thread read
                 <em>My turn to answer</em>. A reply or settling reaction answers it. The
                 agent can end it with <code>leaf task end</code> as answered elsewhere
@@ -4561,9 +4568,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </li>
             </ul>
             <p id="updates-written-report">
-              <code>leaf page report</code> records a component state change. A
-              component supplied by an optional package can use these reports to show a
-              background worker's progress.
+              <code>leaf page report</code> records a widget state change. A widget
+              supplied by an optional package can use these reports to show a background
+              worker's progress.
             </p>
           </section>
 
@@ -5042,11 +5049,10 @@ EOF</code></pre>
               <summary>The On me walk can leave the panel's filtered list</summary>
               <p id="navigation-queue-rule">
                 <kbd>m</kbd> / <kbd>Shift</kbd> + <kbd>m</kbd> walk work waiting on the
-                user: open obligations, version sign-off, to-dos and updates to send
-                again. The walk reveals closed tabs or disclosures and can leave a
-                filtered panel list. A single-choice obligation ends when answered; a
-                multi-select choice waits for Done. Later presses walk the remaining
-                work.
+                user: open obligations, to-dos and updates to send again. The walk
+                reveals closed tabs or disclosures and can leave a filtered panel list.
+                A single-choice obligation ends when answered; a multi-select choice
+                waits for Done. Later presses walk the remaining work.
               </p>
               <p id="navigation-tab-rule">
                 Page walks through open threads (<kbd>t</kbd>), On me (<kbd>m</kbd>) and
@@ -5150,11 +5156,12 @@ EOF</code></pre>
           <section id="navigation-history">
             <h2>Back and Forward</h2>
             <p id="navigation-history-rule">
-              A successful trip to a destination that is not fully readable adds a
-              return stop. Consecutive trips share it while part of the preceding
-              landing remains visible and the user has not clicked or Tabbed onto
-              another passage. Back returns to the journey’s start. A fully readable
-              destination adds no stop.
+              A successful navigation step to a destination that is not fully readable
+              adds a return stop. Consecutive navigation steps form a navigation group
+              and share that stop while part of the preceding landing remains visible
+              and the user has not clicked or Tabbed onto another passage. Back returns
+              to the navigation group’s start. A fully readable destination adds no
+              stop.
             </p>
             <details id="navigation-history-cases">
               <summary>Which actions create a history entry?</summary>
@@ -5172,25 +5179,27 @@ EOF</code></pre>
                       destination
                     </td>
                     <td>
-                      A successful trip pushes an entry, or replaces the current
-                      journey's entry. Changing focus alone adds none.
+                      A successful navigation step pushes an entry, or replaces the
+                      current navigation group's entry. Changing focus alone adds none.
                     </td>
                   </tr>
                   <tr>
                     <td>
-                      Click or Tab onto a different passage, then take another trip
+                      Click or Tab onto a different passage, then take another
+                      navigation step
                     </td>
                     <td>
-                      The reading choice ends the journey; the next offscreen trip saves
-                      that passage. Controls and runtime focus handoffs do not end it.
+                      The reading choice ends the navigation group; the next offscreen
+                      navigation step saves that passage. Controls and runtime focus
+                      handoffs do not end it.
                     </td>
                   </tr>
                   <tr>
                     <td>
                       Scroll completely away from the last landing, then take another
-                      trip
+                      navigation step
                     </td>
-                    <td>The new trip adds a separate return stop.</td>
+                    <td>The new navigation step adds a separate return stop.</td>
                   </tr>
                   <tr>
                     <td>Follow a #fragment link</td>
@@ -5253,10 +5262,10 @@ EOF</code></pre>
               <p id="phone-panel-menu">
                 The leaf’s menu includes Search page and Page Map under Navigate, Undo,
                 and Select element, Draw mode, Design mode and Hide annotations under
-                Annotations. Version approval appears in On me and Versions. An active
-                mode or search names itself in the panel and provides a ✕ exit. Search
-                arrows stand beside the match count; tapping the marked match selects
-                it.
+                Annotations. Approval requests appear in On me and in their widgets. An
+                active mode or search names itself in the panel and provides a ✕ exit.
+                Search arrows stand beside the match count; tapping the marked match
+                selects it.
               </p>
             </section>
             <section id="phone-comments">
@@ -5337,7 +5346,7 @@ EOF</code></pre>
           <section id="browser-state">
             <h2>Browser runtime</h2>
             <p id="browser-lede">
-              The browser runtime upgrades components, draws threads and shared
+              The browser runtime upgrades Leaf elements, draws threads and shared
               controls, sends updates, and keeps the page current. Its inputs meet in
               one read-only state.
             </p>
@@ -5361,12 +5370,12 @@ EOF</code></pre>
               <div class="runtime-connector" aria-hidden="true">↓</div>
               <div class="runtime-current">
                 <strong>Current state</strong
-                ><span>Component values · threads · obligations · On lists</span>
+                ><span>Widget values · threads · obligations · On lists</span>
               </div>
               <div class="runtime-connector" aria-hidden="true">↓</div>
               <div class="runtime-output">
                 <strong>Renderers</strong
-                ><span>Components · threads · Leaf panel · page marks</span>
+                ><span>Widgets · threads · Leaf panel · page marks</span>
               </div>
               <figcaption id="browser-one-reading">
                 Each input change produces one state. Renderers read it through
@@ -5393,8 +5402,8 @@ EOF</code></pre>
               <li id="browser-startup-receipt">
                 <strong>Before first paint</strong>
                 <p>
-                  Small scripts reserve component geometry and panel space, capture
-                  early key presses, and provide a startup-failure notice. Late-arriving
+                  Small scripts reserve element geometry and panel space, capture early
+                  key presses, and provide a startup-failure notice. Late-arriving
                   controls do not shift the page.
                 </p>
               </li>
@@ -5402,7 +5411,7 @@ EOF</code></pre>
                 <strong>Initialize and upgrade</strong>
                 <p>
                   Start the state request, restore control arrangements and load the
-                  registry. Capture each component’s authored values before its module
+                  registry. Capture each element’s authored values before its module
                   changes the DOM, then import modules for the tags the page uses.
                 </p>
               </li>
@@ -5428,7 +5437,7 @@ EOF</code></pre>
                 </li>
                 <li id="loading-javascript">
                   <strong>JavaScript initializes the interface</strong>
-                  <p>Components and comment controls are being prepared.</p>
+                  <p>Widgets and comment controls are being prepared.</p>
                   <span class="runtime-status">Panel: Loading…</span>
                 </li>
                 <li id="loading-comments">
@@ -5520,10 +5529,9 @@ EOF</code></pre>
               <p id="browser-updates-obligations">
                 The server computes obligation completion from the whole log. A user’s
                 answer changes the widget and its answer in the On view immediately; the
-                obligation leaves the list when server state arrives. Version approval
-                and replies to thread questions take effect locally at once. Thread
-                turns also come from the server, with local adjustments for a comment
-                being sent or refused.
+                obligation leaves the list when server state arrives. Replies to thread
+                questions take effect locally at once. Thread turns also come from the
+                server, with local adjustments for a comment being sent or refused.
               </p>
             </details>
           </section>
@@ -5588,7 +5596,7 @@ EOF</code></pre>
           <section id="browser-drawing">
             <h2>Drawing current state</h2>
             <p id="browser-drawing-proof">
-              Computing state and drawing it are separate. Components, threads, the
+              Computing state and drawing it are separate. Widgets, threads, the
               obligation view, panel and page marks register as renderers. Each state
               has an epoch number. Renderers report when they have presented it; those
               reports stay outside state, so a slow or failed paint cannot change the
@@ -5668,7 +5676,7 @@ EOF</code></pre>
                   <th scope="row">Node replaced</th>
                   <td>
                     The renderer’s existing identity matches its replacement. Threads
-                    keep reply text and caret; surviving component children keep focus.
+                    keep reply text and caret; surviving widget children keep focus.
                   </td>
                 </tr>
                 <tr>
@@ -5696,7 +5704,7 @@ EOF</code></pre>
                   <strong>Identity unchanged</strong>
                   <h3>Patch the document</h3>
                   <p>
-                    Keep unchanged nodes; changed components recapture authored values.
+                    Keep unchanged nodes; changed elements recapture authored values.
                     Prose, styles and media can update this way.
                   </p>
                 </div>

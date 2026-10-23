@@ -105,8 +105,7 @@ when you start one: they now own a process that only `leaf server stop <page>` e
 
 A watcher restarts an enabled server whose process dies, at the same URL. `leaf server
 stop <page>` disables the server; a watcher keeps watching a stopped page until it is
-idle. To end the page's conversation, follow `page-checkpoints.md`, "Sign-off and
-ending".
+idle. To end the page's conversation, follow `page-checkpoints.md`, "Ending".
 
 ## Resuming a persistent or foreign page
 

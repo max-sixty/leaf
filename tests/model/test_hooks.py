@@ -815,7 +815,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
         result = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 envelope["batches"][0]["events"][0]["answer"]["ref"],
@@ -834,7 +834,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
         leases_model.release_lease(lease)
     snapshot.check(
         yaml_document(
-            "Complete agent-facing outputs through real hooks, wait and response commands.\n"
+            "Complete agent-facing outputs through real hooks, wait and thread reply commands.\n"
             "Only page paths, event/delivery/attempt and claim identities, and timestamps are normalized.\n"
             "A null hook output means the turn can end without a reminder.",
             _interaction_prompt_evidence(
@@ -925,7 +925,7 @@ def test_a_new_owners_prompt_delivers_the_update_its_predecessor_left_unanswered
         for event in fresh
     )
     reply = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", "--done", ref, "--text", "Because."]
+        cli_model.cli, ["thread", "reply", "--done", ref, "--text", "Because."]
     )
     assert reply.exit_code == 0, reply.output
     assert asked["id"] not in {item["input"] for item in owed_answers(claimed)}

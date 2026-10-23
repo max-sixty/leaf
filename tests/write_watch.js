@@ -363,7 +363,7 @@
     record.oldValue === null &&
     through.some((value) => value !== null) &&
     focusGuards.has(record.target);
-  // Residency verifies that authored CSS actually supplies a requested grid shift.
+  // Margin layout verifies that authored CSS actually supplies a requested grid shift.
   // An ignored request is withdrawn in the same reading; every other style member
   // must remain unchanged. A settled failed placement must not probe again (the
   // authored-track browser test separately asserts zero subsequent mutations).

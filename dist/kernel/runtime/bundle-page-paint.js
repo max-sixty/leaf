@@ -16,7 +16,7 @@ import {
   nativeLayerHolding,
   nativeLayerKind,
   nextRender,
-  onStanding,
+  onCurrentLocation,
   releaseFocus,
   renderedParent,
   renderedUnder,
@@ -64,9 +64,7 @@ var PAGE_PAINT_ATTRIBUTE = Object.freeze({
   presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
-  holds: "data-lf-holds",
   scrolls: "data-lf-scrolls",
-  sticks: "data-lf-sticks",
   moreBefore: "data-lf-more-before",
   moreAfter: "data-lf-more-after",
   scrollDirection: "data-lf-scroll-direction",
@@ -541,6 +539,10 @@ var matchesWhen = (el2, when) => Object.entries(when ?? {}).every(
     (value) => typeof value === "boolean" ? el2.hasAttribute(attr) === value : el2.getAttribute(attr) === value
   )
 );
+var exhibits = (el2, entry) => {
+  const rule = entry?.["x-exhibit"];
+  return typeof rule === "object" && rule !== null ? matchesWhen(el2, rule.when) : !!rule;
+};
 
 // runtime/pointer.js
 var x2 = -1;
@@ -1290,7 +1292,7 @@ var frame = 0;
 var movePage = false;
 function mountRepaint(slots) {
   painters = slots;
-  onStanding(requestFrame);
+  onCurrentLocation(requestFrame);
   requestFrame();
 }
 function requestFrame() {
@@ -1302,7 +1304,7 @@ function requestFrame() {
     const p = painters;
     p.reflectFirstScopes?.();
     p.markHere?.();
-    p.paintStanding?.();
+    p.paintCurrentLocation?.();
     p.paintSelectedMarginEntries?.();
     p.paintTouchControls?.();
     p.paintStatusContext?.();
@@ -1969,6 +1971,37 @@ var claimsEsc = (node) => scopesFor(node).some(
   (scope) => scope.rows.some((row) => live(row) && bindings(row).includes("Escape"))
 );
 
+// runtime/stylesheets.js
+var sheets = JSON.parse(
+  document.querySelector(
+    'script[type="application/json"][data-lf-runtime][data-lf-sheets]'
+  ).textContent
+);
+var inBaseLayer = (text) => `@layer lf-base {
+${text}
+}`;
+function constructSheet(text) {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(text);
+  return sheet;
+}
+var chromeSheet = constructSheet(sheets.chrome);
+var chromeSharedClasses = Object.freeze([
+  "lf-aiming",
+  "lf-btn",
+  "lf-ins-block",
+  "lf-over-item",
+  "lf-react-mark",
+  "lf-mark-note",
+  "lf-ui",
+  "lf-version-inline",
+  "lf-version-inline-deletion",
+  "lf-visual-action"
+]);
+var marksSheet = constructSheet(sheets.marks);
+var annotationMarkSheets = sheets.annotations ? [constructSheet(sheets.annotations.marks)] : [];
+var annotationSheets = sheets.annotations ? [constructSheet(sheets.annotations.chrome), ...annotationMarkSheets] : [];
+
 // runtime/keyboard/layer-stack.js
 var entries = [];
 var watchedRoots = /* @__PURE__ */ new WeakSet();
@@ -2051,23 +2084,53 @@ function showNativeLayer(layer, { source, modal = true } = {}) {
 }
 var modalHomes = /* @__PURE__ */ new WeakMap();
 function seatModal(dialog, source) {
-  let home = modalHomes.get(dialog);
-  if (!home) {
-    modalHomes.set(dialog, home = dialog.parentNode);
+  let place = modalHomes.get(dialog);
+  if (!place) {
+    place = {
+      home: dialog.parentNode,
+      chrome: Boolean(dialog.closest(".lf-chrome")),
+      scope: null
+    };
+    modalHomes.set(dialog, place);
+    const restore = () => {
+      if (dialog.parentNode !== place.home) move(place.home, dialog);
+      place.scope?.remove();
+    };
     dialog.addEventListener("close", () => {
-      if (!dialog.open && dialog.parentNode !== home) move(home, dialog);
+      if (!dialog.open) restore();
+    });
+    watchOwner(dialog, {
+      disconnect() {
+        if (dialog.parentNode === place.home) return;
+        closeNativeLayer(dialog);
+        restore();
+      }
     });
   }
   const holder = nativeLayerHolding(source);
-  const seat = nativeLayerKind(holder) === "popover" && renderedUnder(holder, home) ? holder : home;
+  let seat = place.home;
+  if (nativeLayerKind(holder) === "popover") {
+    if (renderedUnder(holder, place.home)) seat = holder;
+    else if (place.chrome) {
+      if (!place.scope) {
+        place.scope = document.createElement("div");
+        place.scope.className = "lf-chrome";
+      }
+      const root2 = holder.getRootNode();
+      if (root2 instanceof ShadowRoot && !root2.adoptedStyleSheets.includes(chromeSheet))
+        root2.adoptedStyleSheets = [...root2.adoptedStyleSheets, chromeSheet];
+      if (place.scope.parentNode !== holder) move(holder, place.scope);
+      seat = place.scope;
+    }
+  }
   if (dialog.parentNode !== seat) move(seat, dialog);
 }
 function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
   if (dialog ? !layer.open : !isNativeLayer(layer)) return;
-  const standing = focused();
+  const currentLocation = focused();
   const returnTo = entries.find((entry) => entry.root === layer)?.opener;
-  const returnLocally = document.documentElement.lfSample && standing && renderedUnder(standing, layer);
+  const returnLocally = document.documentElement.lfSample && currentLocation && renderedUnder(currentLocation, layer);
   const inhibited = document.documentElement.lfSample ? [
     document.documentElement,
     ...nativeLayers().filter((entry) => entry.kind === "modal").map((entry) => entry.root)
@@ -2664,6 +2727,10 @@ function uncovered(rect, box) {
   return sides.length ? sides.reduce((most, side) => area(side) > area(most) ? side : most) : null;
 }
 
+// runtime/motion-icon-paths.js
+var PLAY = '<path d="m5 3 7 5-7 5z"/>';
+var PAUSE = '<path d="M5 3v10M11 3v10"/>';
+
 // runtime/icons.js
 var SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
 var ICONS = {
@@ -2685,8 +2752,8 @@ var ICONS = {
   inbox: '<path d="M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z"/>',
   microphone: '<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4"/><path class="lf-mic-slash" d="M2.5 2.5l11 11"/>',
   next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
-  pause: '<path d="M5 3v10M11 3v10"/>',
-  play: '<path d="m5 3 7 5-7 5z"/>',
+  pause: PAUSE,
+  play: PLAY,
   previous: '<path d="m10 3.5-4.5 4.5 4.5 4.5"/>',
   all: '<path d="M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4"/>',
   pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',
@@ -3113,16 +3180,7 @@ function dismissErrors() {
 }
 
 // runtime/layer-client.js
-import { layerGeneration } from "/runtime/layer-generation.js";
-var { layer: documentLayer, release, probe } = DELIVERY;
-if (documentLayer && documentLayer !== layerGeneration) {
-  window.dispatchEvent(
-    new CustomEvent("lf-startup-failed", {
-      detail: { reason: "document and runtime belong to different layers" }
-    })
-  );
-  throw new Error("Leaf's document and runtime belong to different layers");
-}
+var { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 async function sourceMovedOn() {
   if (!probe) return true;
   let response;
@@ -3135,6 +3193,7 @@ async function sourceMovedOn() {
   if (!response.ok) return void 0;
   const servedRelease = response.headers.get("Leaf-Release");
   if (release && servedRelease) return servedRelease !== release;
+  if (!sameRuntime(response)) return true;
   const generation = response.headers.get("Leaf-Layer");
   return generation ? generation !== layerGeneration : void 0;
 }
@@ -3164,9 +3223,14 @@ function reloadDelivery(message) {
     }
   })();
 }
+var sameRuntime = (response) => {
+  const served = response.headers.get("Leaf-Runtime");
+  return !runtimeIdentity || !served || served === runtimeIdentity;
+};
 function layerHeaders(headers = {}) {
   return {
     "Leaf-Layer": layerGeneration,
+    ...runtimeIdentity && { "Leaf-Runtime": runtimeIdentity },
     ...runtime.currentRevision && {
       "Leaf-View-Revision": String(runtime.currentRevision)
     },
@@ -3208,14 +3272,20 @@ function sameLayer(generation) {
   reloadDelivery("Leaf has been updated \u2014 reloading this page.");
   return false;
 }
-function admitResponse(response) {
+var admitResponse = (response) => admitted(response, true);
+var admitReading = (response) => admitted(response, false);
+function admitted(response, ofThisLayer) {
   observeSession(response);
   observeKey(response);
   if (!response.ok) return true;
   if (layerReloading) return false;
   const generation = response.headers.get("Leaf-Layer");
   const responseRelease = response.headers.get("Leaf-Release");
-  if (generation && !sameLayer(generation)) return false;
+  if (ofThisLayer && generation && !sameLayer(generation)) return false;
+  if (!sameRuntime(response)) {
+    reloadDelivery("Leaf has been updated \u2014 reloading this page.");
+    return false;
+  }
   if (release && responseRelease && responseRelease !== release) {
     reloadDelivery("Leaf has been updated \u2014 reloading this page.");
     return false;
@@ -3383,6 +3453,7 @@ export {
   elementsDeclaring,
   tagsDeclaring,
   matchesWhen,
+  exhibits,
   pointerAt,
   coarsePointer,
   hoveringPointer,
@@ -3484,6 +3555,12 @@ export {
   saying,
   scopesFor,
   claimsEsc,
+  inBaseLayer,
+  chromeSheet,
+  chromeSharedClasses,
+  marksSheet,
+  annotationMarkSheets,
+  annotationSheets,
   showNativeLayer,
   closeNativeLayer,
   watchLayers,
@@ -3583,6 +3660,7 @@ export {
   requestJson,
   sameLayer,
   admitResponse,
+  admitReading,
   sessionIsActive,
   revealLayer,
   postEvent,

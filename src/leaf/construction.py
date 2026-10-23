@@ -249,19 +249,4 @@ def constructed_content(
             result.append(node)
         return result
 
-    if thread is None:
-        main = next((node for node in by_id.values() if node["tag"] == "main"), None)
-
-        # Main need not carry an id; find it in the already parsed tree.
-        def main_content(items):
-            for node in items:
-                if isinstance(node, dict):
-                    if node["tag"] == "main":
-                        return node["content"]
-                    found = main_content(node["content"])
-                    if found is not None:
-                        return found
-            return None
-
-        roots = main["content"] if main else (main_content(roots) or [])
     return visible(roots)

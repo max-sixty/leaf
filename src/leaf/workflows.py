@@ -11,7 +11,7 @@ settled, and emits two readings of them, each the one home of its facts:
 
   - `{"kind": "reply", "parent": <message>, "responds": <event>}` — a thread message, or an
     action in an answered obligation in frozen thread markup. The agent answers it with
-    `leaf response reply <answer.ref>`.
+    `leaf thread reply <answer.ref>`.
   - `{"kind": "markup", "action": <action>}` — a page action that is part of its
     widget's answered obligation and the authored markup does not yet record, answered
     by a stamped version that writes it in. An option the user added stays in the log,
@@ -47,7 +47,7 @@ none.
 
 Whether an update needs delivering is decided apart from its workflow. Admission
 records whether the update changes the user's outstanding obligations, owed answers, work
-in hand or approvals (`obligation_reading`), and delivery keeps that decision after
+in hand (`obligation_reading`), and delivery keeps that decision after
 the workflow settles.
 
 An action on a widget whose obligation the user is still answering, such as a pick before
@@ -96,7 +96,6 @@ def obligation_reading(readings) -> dict:
     page = work.page
     thread = work.thread
     workflows = work.workflows
-    thread_obligations = work.widget_obligations
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
@@ -114,26 +113,11 @@ def obligation_reading(readings) -> dict:
         if source["author"] == "user"
     ]
     return {
-        "on_user": {
-            "page": [
-                item["id"]
-                for item in work.document.items["unanswered"]
-                if item["next_actor"] is not None
-            ]
-            if page is not None
-            else [],
-            "thread": [
-                item["id"]
-                for item in thread_obligations["unanswered"]
-                if item["next_actor"] is not None
-            ],
-            # The to-dos the agent put on the user, which their Done ends.
-            "todos": [
-                todo["id"]
-                for todo in work.log.todos
-                if todo["owner"] == "user" and todo["state"] == "open"
-            ],
-        },
+        "on_user": [
+            item["id"]
+            for item in work.all_obligations["unanswered"]
+            if item["next_actor"] is not None
+        ],
         # The updates the agent owes an answer, by their records.
         "answers": [
             record["id"]
@@ -156,7 +140,6 @@ def obligation_reading(readings) -> dict:
             }
             for identity, subject in in_hand
         ],
-        "approvals": [event["id"] for event in work.approvals],
     }
 
 
@@ -244,9 +227,9 @@ def handed_over(
     threads: dict,
     thread_reading,
     *,
-    page: PageReading | None = None,
-    events: list | None = None,
-    todo_reading: TodoReading | None = None,
+    page: PageReading | None,
+    events: list,
+    todo_reading: TodoReading,
     items: dict,
 ) -> Handover:
     """The unsettled user inputs and strongest evidence held for each, and the record
@@ -269,11 +252,6 @@ def handed_over(
     distinct workflows even though the thread's single response obligation is
     addressed to the newest one, whose record each of them names.
     """
-    if page is not None:
-        events = page.events
-    elif events is None:
-        raise TypeError("events are required without a page reading")
-
     deliveries: dict[str, dict[str, dict]] = {}
     responses = {
         event["responds"]: event
@@ -298,7 +276,7 @@ def handed_over(
         for event_id, ref in event.get("refs", {}).items():
             refs.setdefault(event_id, {})[ref["claim"]] = ref["ref"]
 
-    log = todo_reading or TodoReading(events)
+    log = todo_reading
     starts = log.starts
     widget_starts: dict[str, list[dict]] = {}
     for todo in log.owed:

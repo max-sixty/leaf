@@ -50,8 +50,8 @@ export function createRegionSelector({
 }) {
   /** @type {PromiseWithResolvers<void>} */
   const { promise: done, resolve: settled } = Promise.withResolvers();
-  const standing = focused();
-  const origin = standing === document.body ? returnTo : standing;
+  const currentLocation = focused();
+  const origin = currentLocation === document.body ? returnTo : currentLocation;
   const overlay = el("div", "lf-ui lf-region-capture");
   overlay.setAttribute("role", "region");
   overlay.setAttribute("aria-label", "Capture area");

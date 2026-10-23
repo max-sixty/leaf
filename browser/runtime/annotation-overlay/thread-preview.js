@@ -37,7 +37,7 @@
    A new/growing agent turn follows only at the tail. Landing, Send and stepping may
    move the reading; keepThreadLanding retains their destination through fitting until
    a newer reading gesture ends that authority. Size is fitted before paint, so a sent
-   reply does not grow twice. Margin standing and its keyboard ladder own dismissal
+   reply does not grow twice. Margin location and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it. */
 import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { cancelRender, nextRender } from "../rendering.js";
@@ -48,7 +48,7 @@ import {
   focusDestination,
   holdFocus,
   inputCount,
-  onStanding,
+  onCurrentLocation,
   onUserInput,
   focused,
   tabStops,
@@ -114,8 +114,8 @@ export function createThreadPreview({
   const { targetFor, entryPoint, entryPlace, sourceItem } = inventory;
   // The card is the margin's, as the cluster it hangs from is, rather than a layer over
   // the page: a top-layer popover made every press on the page a light dismissal and
-  // tiered the keyboard over it, so standing on the passage it discusses took it down.
-  // It shows while the user stands at its target (`followStanding`).
+  // tiered the keyboard over it, so being on the passage it discusses took it down.
+  // It shows while the user is at its target (`followCurrentLocation`).
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = THREAD_CARD;
   preview.hidden = true;
@@ -166,7 +166,7 @@ export function createThreadPreview({
   // stop, or Shift+Tab from the entry, goes on from the entry as though the card weren't
   // there. The browser's own order doesn't: the card stands in the chrome after the
   // page and just before the margin, so Shift+Tab out of it reached the page's last
-  // stop, which scrolled the page there and, standing away from the card's target,
+  // stop, which scrolled the page there and, being away from the card's target,
   // closed the card. To pass over the card, a row puts the user on the entry, or on the
   // card's own box just before the margin, and leaves the browser to take the step from
   // there, as the floating panel's menu does.
@@ -493,7 +493,7 @@ export function createThreadPreview({
     const thread = threadCardThread(session);
     const latest = thread && turns(thread).at(-1);
     const replyEditor = previewList.querySelector(REPLY_BOX);
-    // Drafting is standing anywhere in the reply's row, Send included, holding words in
+    // Drafting is being anywhere in the reply's row, Send included, holding words in
     // it, or a send of the user's still on its way. The send takes the user out of the
     // box it empties (`landSent`), and the turn it adds must not move the reply row or
     // Send from under the press.
@@ -653,7 +653,7 @@ export function createThreadPreview({
       if (previewSession === session) placeThreadPreview();
     });
   }
-  // The card hangs from another entry, and a user standing on the entry it hung from goes
+  // The card hangs from another entry, and a user on the entry it hung from goes
   // with it: the same place, the thread's own entry, under a new control.
   function transferThreadCard(button, carry = focused() === previewSession?.control) {
     if (previewSession?.control === button) return;
@@ -984,7 +984,7 @@ export function createThreadPreview({
     previewClose.onclick = onDismiss;
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    onStanding((node, cause, left) => {
+    onCurrentLocation((node, cause, left) => {
       const row =
         left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
       if (row && !(node && under(node, row)) && !row.querySelector(REPLY_BOX)?.value)
@@ -1020,11 +1020,11 @@ export function createThreadPreview({
         ? previewList.querySelector(".lf-page-thread")
         : null,
     closeFocused: () => focused() === previewClose,
-    // Whether the user stands in the card's reply box.
+    // Whether the user is in the card's reply box.
     replying: () =>
       under(focused(), preview) && Boolean(closestAcross(focused(), REPLY_BOX)),
-    // Whether the open card has somewhere to stand (`threadCardPlace`).
-    stands: () => Boolean(previewSession && threadCardPlace(previewSession)),
+    // Whether the open card has a placement (`threadCardPlace`).
+    hasPlacement: () => Boolean(previewSession && threadCardPlace(previewSession)),
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount,

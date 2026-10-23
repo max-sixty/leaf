@@ -759,7 +759,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     )
     result = page.locator("#probe output")
     page.locator("#outside").focus()
-    for standing in ["outside", "question"]:
+    for current_location in ["outside", "question"]:
         page.keyboard.press("?")
         for command_id, title in [
             ("probe.apply", "Apply operation"),
@@ -772,10 +772,12 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             expect(row).to_contain_text(title)
             expect(row.locator(".lf-command-reference-command")).to_have_attribute(
                 "data-lf-available",
-                str(standing == "question" and command_id == "probe.apply").lower(),
+                str(
+                    current_location == "question" and command_id == "probe.apply"
+                ).lower(),
             )
         page.keyboard.press("Escape")
-        if standing == "outside":
+        if current_location == "outside":
             page.keyboard.press("m")
             expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("1")

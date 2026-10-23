@@ -406,7 +406,7 @@ document.documentElement.dataset.pageModule = `${label}:${state.loads}`;
 
 ACTIVATION_READING = f"""\
 <p id="live-reading">{LIVE_READING}</p>
-<button id="standing-control" type="button">Inspect continuity</button>
+<button id="focused-control" type="button">Inspect continuity</button>
 <lf-ask id="activation-decision"><h2>Activate the revision?</h2>
 <lf-options id="activation-choice" choose>
   <lf-option id="activation-go">Continue</lf-option>
@@ -595,8 +595,8 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     assert ready["pending"] == []
 
 
-APPROVAL_PAGE = leaf_page(
-    "approval waits for admission",
+OBLIGATION_PAGE = leaf_page(
+    "obligations wait for admission",
     """
 <lf-ask id="release-decision"><h1>Ship this release?</h1>
   <lf-options id="release-options" choose>
@@ -605,36 +605,36 @@ APPROVAL_PAGE = leaf_page(
   </lf-options>
 </lf-ask>
 """,
-    head='<meta name="lf-review" content="sign-off">',
 )
 
 
-def test_approval_waits_for_a_reading_of_the_log(browser, serve):
+def test_versions_wait_for_a_reading_of_the_log(browser, serve):
     """An offline page that never read its log cannot say its obligations are answered.
 
     The first state read is refused, so presentation releases the authored page under an
     offline status with no admitted reading. Nothing then says whether the authored obligation
-    still stands, and approval stays shut rather than reading that silence as every obligation
-    answered."""
+    still stands, and version navigation waits for the saved reading."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route("**/api/state*", refuse)
-    page.goto(serve(APPROVAL_PAGE), wait_until="load")
+    page.goto(serve(OBLIGATION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
         "aria-label", re.compile("Server offline")
     )
-    # Versions, which holds the approval, waits for a reading of the log too.
+    # Versions waits for a reading of the log too.
     versions = panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
     expect(versions).to_be_disabled()
 
 
-def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve):
-    """An answer the log has not taken in cannot open the irreversible approval.
+def test_admission_keeps_the_obligation_open_until_the_answer_is_in_the_log(
+    browser, serve
+):
+    """An answer the log has not taken in leaves its obligation open.
 
     The pick is the user's at once — that is their own gesture drawn on their own
-    widget. Which obligations still stand is the server's fold, so the count and the gate
-    move when the state this POST returns is adopted, and not before."""
-    page = open_page(browser, serve(APPROVAL_PAGE))
+    widget. Which obligations still stand is the server's fold, so the count
+    moves when the state this POST returns is adopted, and not before."""
+    page = open_page(browser, serve(OBLIGATION_PAGE))
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -645,22 +645,10 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
         "aria-checked", "true"
     )
     expect_obligations_answered(page, "0/1")
-    # The leaf's menu holds the rows it opened with, so each reading is an opening.
-    expect(panel_control(page, "approval")).to_be_disabled()
-    expect(page.locator(".lf-fp-approval")).to_have_attribute(
-        "title", "Answer every open widget before approving this work"
-    )
-    page.locator(".lf-fp-leaf").click()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
-
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect_obligations_answered(page, "1/1")
-    expect(panel_control(page, "approval")).to_be_enabled()
-    expect(page.locator(".lf-fp-approval")).not_to_have_attribute(
-        "title", re.compile(".")
-    )
 
 
 PAGE_DECLARATION = {

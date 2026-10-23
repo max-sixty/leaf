@@ -28,8 +28,9 @@ from .schema import (
     INSTRUCTIONS_FILE,
     JAVASCRIPT_SUFFIXES,
     KERNEL,
-    LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
+    RUNTIME_DIRS,
+    RUNTIME_ENTRY,
     VENDORED_FILES,
 )
 from .state import PLUGIN_ROOT
@@ -358,79 +359,12 @@ def checked_layer_inputs(inputs: list[Path]) -> list[Path]:
 
 def kernel_runtime_paths() -> set[str]:
     """Private kernel paths packages cannot replace: the source modules and the
-    compiled kernel's, so one boundary holds whichever a page vendors."""
+    compiled kernel's, so one boundary holds whichever a page runs."""
     return {
         path.relative_to(root / "runtime").as_posix()
         for root in (ASSETS, KERNEL)
         for path in (root / "runtime").rglob("*.js")
     }
-
-
-class Kernel(NamedTuple):
-    """The compiled kernel: its files by layer path, and the source modules it holds."""
-
-    files: dict[str, bytes]
-    replaces: list[str]
-
-
-def current_kernel() -> Kernel | None:
-    """The committed kernel, where it was compiled from the modules ASSETS holds now.
-
-    Installs follow `main` and serve whatever tree it holds, so this is the one place
-    that chooses between the compiled kernel and the source modules. The build
-    (`build/runtime-bundle.mjs`, `kernelOutputs`) records in `kernel.json` the
-    SHA-256 of every module it read, `leaf.js` and each `.js` under the layer's
-    browser directories. Where any differs from the tree's, or a module has been
-    added or removed since, the kernel is stale and a page vendors the source
-    modules, so an install never serves a runtime other than the one its tree holds.
-    That happens on a branch whose runtime edit has not been rebuilt, or on a `main`
-    two green pull requests left stale together until it is rebuilt there. A tree
-    without the kernel, such as a model test's, also vendors source modules.
-
-    Reading and hashing the roughly 6 MB of modules takes about 12 ms, once for each
-    composition; serving a page reads its vendored copy and never asks again.
-    """
-    record = KERNEL / "kernel.json"
-    if not record.is_file():
-        return None
-    built = json.loads(record.read_text())
-    modules = [
-        ASSETS / "leaf.js",
-        *(path for sub in BROWSER_DIRS for path in (ASSETS / sub).rglob("*.js")),
-    ]
-    digests = {
-        path.relative_to(ASSETS).as_posix(): hashlib.sha256(
-            path.read_bytes()
-        ).hexdigest()
-        for path in modules
-    }
-    if digests != built["inputs"]:
-        return None
-    files = {
-        path.relative_to(KERNEL).as_posix(): path.read_bytes()
-        for path in KERNEL.rglob("*")
-        if path.is_file() and path != record
-    }
-    return Kernel(files, built["replaces"])
-
-
-def _with_kernel(
-    kernel: Kernel,
-    top_files: dict[str, bytes],
-    directory_files: dict[str, dict[str, bytes]],
-) -> None:
-    """Swap the modules compiled into the kernel for the kernel's own files."""
-
-    def split(path: str) -> tuple[dict[str, bytes], str]:
-        sub, _, name = path.partition("/")
-        return (directory_files[sub], name) if name else (top_files, sub)
-
-    for path in kernel.replaces:
-        files, name = split(path)
-        del files[name]
-    for path, data in kernel.files.items():
-        files, name = split(path)
-        files[name] = data
 
 
 class LayerComposition(NamedTuple):
@@ -473,9 +407,22 @@ def layer_fingerprint(composition: LayerComposition) -> str:
 
 
 def payload_server_inputs(root: Path) -> list[Path]:
-    """The serving code and dependency manifests an init must restart to adopt."""
+    """The serving code, the browser runtime it serves (`runtime_selection`), and the
+    dependency manifests an init must restart to adopt."""
+    runtime = [
+        root / "browser" / RUNTIME_ENTRY,
+        *(root / "browser" / name for name in RUNTIME_DIRS),
+        root / "dist/kernel",
+        root / "src/leaf/render-checks",
+    ]
     return [
         *sorted((root / "src").rglob("*.py")),
+        *sorted(
+            path
+            for top in runtime
+            for path in ([top] if top.is_file() else top.rglob("*"))
+            if path.is_file()
+        ),
         root / "pyproject.toml",
         root / "uv.lock",
     ]
@@ -757,7 +704,12 @@ def provenance_label(provenance: dict) -> str:
 
 
 def compose_layer(roots: list[Path]) -> LayerComposition:
-    """Read and validate the complete layer produced by checked inputs."""
+    """Read and validate the complete layer produced by checked inputs.
+
+    The kernel's own runtime, `leaf.js` and its `runtime/` and `vendor/` files, is
+    not part of it: the Leaf serving a page supplies that (`runtime_selection`), so
+    the layer holds what packages add beside it, and the registry, theme and widgets
+    every root contributes."""
     from .revision_artifact import (
         dependency_reference,
         javascript_imports,
@@ -797,7 +749,17 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
                             "use /runtime/widget-api.js"
                         )
     incoming = incoming_registry(roots)
-    directory_sources = {sub: composed_dir_files(roots, sub) for sub in BROWSER_DIRS}
+    directory_sources = {
+        sub: composed_dir_files(
+            [
+                root
+                for root in roots
+                if sub not in RUNTIME_DIRS or root.resolve() != ASSETS.resolve()
+            ],
+            sub,
+        )
+        for sub in BROWSER_DIRS
+    }
     missing_modules = sorted(
         tag
         for tag, entry in incoming.items()
@@ -829,23 +791,5 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         }
         for sub in BROWSER_DIRS
     }
-    # A package may replace a vendor module the kernel compiled in; that page keeps
-    # the source modules, so the replacement is the one it loads.
-    if (
-        roots[0].resolve() == ASSETS.resolve()
-        and (kernel := current_kernel())
-        and all(
-            directory_sources[sub][name].is_relative_to(roots[0])
-            for sub, _, name in (path.partition("/") for path in kernel.replaces)
-            if name
-        )
-    ):
-        _with_kernel(kernel, top_files, directory_files)
-    client = directory_files["runtime"].get("layer-generation.js", b"")
-    if client.count(LAYER_PLACEHOLDER) != 1:
-        raise Refused(
-            "the incoming runtime/layer-generation.js must contain exactly one "
-            "layer-generation placeholder"
-        )
     directory_files[INSTRUCTIONS_DIR] = composed_instructions(roots)
     return LayerComposition(incoming, top_files, directory_files)

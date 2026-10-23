@@ -30,9 +30,9 @@ below owns its own:
 - `esbuild.mjs`: esbuild's `build` as every script here calls it, blind to any
   `tsconfig.json` in the tree.
 - `runtime-bundle.mjs`: runs last and compiles the runtime into the kernel, readable
-  and with stable chunk names so branches rarely conflict in it. An install vendors the
-  kernel into pages only while `kernel.json` matches the tree's modules, and the source
-  modules otherwise (`leaf.layer.current_kernel`). The website, the suite and developer
+  and with stable chunk names so branches rarely conflict in it. An install serves pages
+  the kernel only while `kernel.json` matches the tree's modules, and the source
+  modules otherwise (`leaf.runtime_selection.read_runtime`). The website, the suite and developer
   previews compile it again for their own tree (`leaf_dev.commands.distribution`).
 
 After `pnpm install --frozen-lockfile`, a build reproduces the committed bytes, so a

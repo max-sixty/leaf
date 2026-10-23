@@ -46,7 +46,7 @@ def undelivered(page_dir, input_id: str) -> str:
     this session has not claimed: no reference exists yet, so it names the wait that
     delivers one, after the claim that wait's receipt needs."""
     return (
-        "`leaf response reply <answer.ref>` with the `answer.ref` that "
+        "`leaf thread reply <answer.ref>` with the `answer.ref` that "
         f"`leaf wait {page_dir}` delivers for {input_id} (`leaf page claim "
         f"{page_dir}` first, since this session does not hold the page)"
     )
@@ -341,7 +341,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, asked["id"]),
@@ -355,7 +355,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
 def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     """A route is only worth naming where the writer it names takes the value. What a
     writer takes is what the log still owes, not the event's kind: a resolve is owed
-    nothing, so sending the agent to a response command hands it a second refusal with no
+    nothing, so sending the agent to an addressed reply hands it a second refusal with no
     route at all."""
     root = append_carried_log_record(
         published(page_dir),
@@ -390,7 +390,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
 
     refused = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "I checked it."],
+        ["thread", "reply", "--done", reference, "--text", "I checked it."],
     )
 
     assert refused.exit_code != 0
@@ -421,7 +421,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -451,7 +451,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     mistaken = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, pressed["id"]),
@@ -1058,7 +1058,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     moved = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root["id"]),
@@ -1075,7 +1075,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     detached = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, root["id"]),
@@ -1530,7 +1530,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
         .invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, root["id"]),
@@ -1719,7 +1719,7 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, user),
@@ -1888,7 +1888,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     clash = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1903,7 +1903,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     plain_clash = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),

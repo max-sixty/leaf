@@ -7,7 +7,7 @@
 
    Only the direction that changes something is bound: → over a shut section, ← over an
    open one, mirrored in right-to-left text, where the marker points left; and both where
-   the user is standing on no disclosure at all, which is the question the reference asks.
+   the user is on no disclosure at all, which is the question the reference asks.
    So every key a surface names is a key that works, and the row's one word covers the
    three keys it binds.
 
@@ -18,8 +18,8 @@
    keeps the platform's pair alone.
 
    One scope covers both spellings, `details > summary` and ARIA's disclosure pattern
-   (`aria-expanded` on a button), because a user standing on a settled group cannot see
-   which of the two they are standing on. A widget keeping the pattern is covered by
+   (`aria-expanded` on a button), because a user on a settled group cannot see
+   which of the two they are on. A widget keeping the pattern is covered by
    keeping it rather than by being named. The attribute alone would be too wide: a
    combobox wears it over a box words are typed into, and a treeitem in a walk of its own,
    where the arrows belong to the caret and the walk.

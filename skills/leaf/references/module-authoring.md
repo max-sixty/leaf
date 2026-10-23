@@ -65,7 +65,8 @@ the element's first connection, so the element is never built twice. Use
 grab or removing hoisted UI, and hold everything else in `whileConnected`. A
 `LeafElement` that overrides either callback calls the `super` method.
 
-`quoted(element)` is true for a widget inside one the registry marks `x-exhibit`, such
+`quoted(element)` is true for a widget inside one whose `x-exhibit` declaration applies
+(including its optional `when` condition), such
 as `lf-sample`. A quoted widget never takes the user's edits, so
 check `quoted` before wiring a choice, a drag grip or anything else that sends input
 back. Its presentation and view state still work.
@@ -74,7 +75,10 @@ When an upgrade fails, or one part of it, `failSoft(element, error, source)` rep
 the widget or part with an error box naming it, shows `source` beneath when given, and
 reports a page error, which fails `page check`. The next `render` into the same
 container, or the next `shadowStage` call, replaces the box; a `LeafElement` shows the
-box beside what it drew, and its next draw takes it away. Where the widget shows a
+box beside what it drew, and its next draw takes it away. A native renderer that
+retains its nodes can register `placesFailure(element, place)` to place the box
+beside them: `place(box)` returns true when it handles the box, and the renderer
+removes it when the failed content recovers. Where the widget shows a
 failed part its own way and the rest keeps working, as `lf-diff` does for a file whose
 patch it cannot draw, call `reportFailure(element, error)`, which only reports.
 
@@ -308,11 +312,8 @@ A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a
 box.
 
-A label whose words change, such as a count, keeps one width so nothing beside it moves.
-Put the words in the only child of an element whose `data-lf-room` lists every wording it
-can show, one per line; the theme sizes the element to the widest, drawing the list
-invisibly in its `::before`. Longer words are cut with an ellipsis, though the accessible
-name keeps them whole.
+For changing text, use `page-layout.md`, "Space for changing text";
+the same `data-room` layout applies to authored and generated controls.
 
 After a view swap that rearranges a widget's contents without resizing it, await
 `layoutChanged(element)` before restoring scroll. It dispatches `LAYOUT` to widgets that

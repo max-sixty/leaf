@@ -1,16 +1,16 @@
 # Threads
 
-Open a thread when the answer depends on the user. Put the question in an `lf-ask`
-in its `--markup`, which keeps it on the user's On me list until they answer; words
-in `--text` alone wait on nobody. Anchor it with a quote for a passage, a section id
+Open a thread when the answer depends on the user. Add `--obligation` to put the
+message on their On me list until they answer. The message itself supplies the
+request; no widget or markup is needed. Anchor it with a quote for a passage, a section id
 for a diagram or image, a declared part for one box within a visual, or nothing for
 the page as a whole:
 
 ```bash
-leaf thread open <page> --quote "<passage in the current page>" --text "…" --markup '<lf-ask id="<new-id>">…?</lf-ask>'
+leaf thread open <page> --quote "<passage in the current page>" --obligation --text "…?"
 leaf thread open <page> --section <element-id> --text "…"
 leaf thread open <page> --section <diagram-id> --part node:<source-id> --text "…"
-leaf thread open <page> --text "…"
+leaf thread open <page> --obligation --text "…?"
 ```
 
 For a diagram, percent-encode the entire source id in the part token:
@@ -35,7 +35,7 @@ if it is still untitled when you answer, the event's `handling` asks you to add
 
 ```bash
 leaf thread open <page> --section <element-id> --title "Afternoon workshop" --text "…"
-leaf response reply <answer.ref> --done --title "Afternoon workshop" --text "…"
+leaf thread reply <answer.ref> --done --title "Afternoon workshop" --text "…"
 ```
 
 Titles are plain text, at most 80 characters. Keep a title stable. When it no
@@ -51,7 +51,7 @@ stylesheet for the whole page. An `lf-sample` template gives the user a live
 practice page in the thread (`live-samples.md`).
 
 ```bash
-leaf response reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
+leaf thread reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
 ```
 
 Leaf checks markup when you post it but does not draw it. If a data widget, such as a
@@ -70,16 +70,25 @@ A reply renders as Markdown. Use `--text` for a one-liner, and `--file`, or a
 heredoc on stdin, for anything longer:
 
 ```bash
-leaf response reply <answer.ref> --done --text "…"
-leaf response reply <answer.ref> --done --file reply.md
+leaf thread reply <answer.ref> --done --text "…"
+leaf thread reply <answer.ref> --done --file reply.md
 ```
 
 A user's message can carry a pasted image or a **Capture area** of the page; the
 delivery says how to read it. To send an image, run `leaf page media <page> <file>`
 and put the `path` it prints in your text as a Markdown image.
 
-Pass a delivered answer's whole `ref` to `leaf response reply <answer.ref>`; it needs
-no page path or message id. While the session it was delivered to holds the page,
+`leaf thread reply` takes either a delivered `answer.ref` or a page and message id:
+
+```bash
+leaf thread reply <answer.ref> --done --text "The deploy passed."
+leaf thread reply <page> <message-id> --text "The monitoring window has ended."
+```
+
+Use the whole `answer.ref` when answering a delivered update or posting progress on
+it. The reference identifies the page, thread and exact input being answered.
+Use the page and message id to add a message when the thread owes no reply.
+While the session an update was delivered to holds the page,
 `leaf page state` shows the same `ref` on the update's `answer`. A reply on a `ref`
 delivered before the user's newer correction does not answer that correction.
 
@@ -92,7 +101,7 @@ When no answer is coming, `--failure <code>` posts a failure receipt, which sett
 the input without reopening a resolved thread.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
-"Replies"). Use `leaf response reply` instead when the answer needs markup, a question
+"Replies"). Use `leaf thread reply` instead when the answer needs markup, a question
 back, a to-do, a title, or a moved anchor. To have a command hub worker answer, forward
 it the `answer.ref` as that package's coordinator instructions say.
 
@@ -109,16 +118,16 @@ reports the change, with `--section`, narrowed by `--quote` or, in a diagram,
 `--part`:
 
 ```bash
-leaf response reply <answer.ref> --done --section <element-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
-leaf response reply <answer.ref> --done --section <element-id> --text "Updated this and moved the thread here."
-leaf response reply <answer.ref> --done --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
+leaf thread reply <answer.ref> --done --section <element-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
+leaf thread reply <answer.ref> --done --section <element-id> --text "Updated this and moved the thread here."
+leaf thread reply <answer.ref> --done --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
 ```
 
 When the subject itself leaves the page, detach the thread rather than moving it onto
 nearby content:
 
 ```bash
-leaf response reply <answer.ref> --done --detach --text "Removed this; the thread no longer has a page target."
+leaf thread reply <answer.ref> --done --detach --text "Removed this; the thread no longer has a page target."
 ```
 
 A detached thread stays open in Threads, its quote marked as gone from this
@@ -134,39 +143,32 @@ Every answer declares what it leaves the thread with:
 - `--todo "<what you owe>"`: it promises work it does not deliver, and opens that
   to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
-- A question back: put it in an `lf-ask` in `--markup`. It is an obligation on the user's
-  On me list, `widget:<its id>` in `page state`'s `obligations`, until their next message in
-  the thread answers it or you end it
-  ([The On lists](conversation-loop.md#the-on-lists)). An answer that asks this way
-  needs no flag.
+- `--obligation`: the message needs the user's answer, decision, permission or review.
+  It creates `message:<its id>` on On me until their next reply or a settling
+  reaction answers it. A widget in `--markup` can instead register the answer it
+  captures ([The On lists](conversation-loop.md#the-on-lists)).
 
 ```bash
-leaf response reply <answer.ref> --text "One choice first." --markup '<lf-ask id="store-owner">Which store should own it?</lf-ask>'
-leaf response reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
+leaf thread reply <answer.ref> --obligation --text "Which store should own it?"
+leaf thread reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
 ```
 
 The answer's head shows what it leaves: **Waiting on me** while its question is open,
 and **To-do open** until you end the to-do. A promise declared `--done` reads as
 finished work.
 
-To post in a thread that owes no reply, use
-`leaf thread reply <page> <message-id>`. It takes the same content and anchor
-options, and `--todo`. While the thread owes a reply, Leaf refuses an
-ordinary `leaf thread reply`; answer with `leaf response reply <answer.ref>`, and
-post progress on that input the same way.
-
 ### Progress messages
 
 Use `--ephemeral` for progress while work is underway:
 
 ```bash
-leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route."
+leaf thread reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 ```
 
 It does not answer the update, but on an update you owe it starts the update, and
 its text becomes the **Working** status in Leaf's panel, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
-thread that owes no reply, use `leaf thread reply --ephemeral`.
+thread that owes no reply, use `leaf thread reply <page> <message-id> --ephemeral`.
 
 The thread shows the latest progress as one dim working message where you posted it,
 with its author and posting time, so a message the user sends after it follows it.
@@ -179,8 +181,9 @@ their own.
 
 Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
 `lf-options` or an `lf-ask`, waits on the user and keeps its thread at "My turn to answer"
-until they answer it. A thread you open waits on nobody by itself: to wait on the
-user's answer, its markup holds an `lf-ask`.
+until they answer it. A thread you open waits on nobody by itself: `--obligation` registers the
+message's request without markup. A user task attached to the thread instead waits
+for Done; discussing it does not complete it.
 
 Correct a message you or an earlier agent wrote, without adding a turn:
 

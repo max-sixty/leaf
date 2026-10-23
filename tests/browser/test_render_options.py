@@ -1254,7 +1254,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         )
 
 
-def test_one_band_says_where_the_user_is_standing(browser, serve):
+def test_one_band_says_where_the_user_is_located(browser, serve):
     """The user's band is drawn once, on the exact option row being worked.
 
     The obligation retains its semantic location marker, but its exterior outline would
@@ -1591,34 +1591,31 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     """The group takes the pick on the whole option, and the case the user decides on
     is argued inside the option. So the two gestures land in the same box, and the
     evidence has to win the ones aimed at it: clicking the comparison once chose that
-    option, and its label-routed follow-up cleared it again — two decisions in the log,
+    option, and changing its view cleared it again — two decisions in the log,
     no state on the page to show for either, and nothing the user could have seen. The
     disclosure and the draft chose it outright.
 
     Each gesture is read against its own effect rather than against the absence of a
-    pick, because a click that never arrived would satisfy the absence: the frame changes
-    both ways, the disclosure opens, the editor takes the draft's place, and only then is
-    the question still open. The log is asked once at the end, since the failure that
-    costs the most puts a decision there while leaving the page looking untouched."""
+    pick, because a click that never arrived would satisfy the absence: the comparison
+    and its view change, the disclosure opens, the editor takes the draft's place, and
+    only then is the question still open. The log is asked once at the end, since the
+    failure that costs the most puts a decision there while leaving the page looking
+    untouched."""
     page = open_page(browser, serve(INLINE_CASE_PAGE))
     option = page.locator("#ro-column")
     picked = "el => el.hasAttribute('chosen')"
 
+    page.locator("#ro-shot").get_by_role("button", name="Slider", exact=True).click()
     comparison = page.locator("#ro-shot wa-comparison")
     comparison.scroll_into_view_if_needed()
     bounds = comparison.bounding_box()
     assert bounds is not None
     page.mouse.click(bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
-    expect(comparison).to_have_attribute("position", "0")
-    expect(page.locator("#ro-shot input[type=checkbox]")).to_be_checked()
+    expect(comparison).to_have_attribute("position", "100")
     assert not option.evaluate(picked), "clicking the shot answered the question"
-    page.get_by_role(
-        "button",
-        name="before — the run list, before and after the status column",
-        exact=True,
-    ).click()
-    expect(page.locator("#ro-shot input[type=checkbox]")).not_to_be_checked()
-    assert not option.evaluate(picked), "choosing a shot caption answered the question"
+    page.locator("#ro-shot").get_by_role("button", name="Pair", exact=True).click()
+    expect(page.locator("#ro-shot")).to_have_attribute("data-lf-shot-mode", "compare")
+    assert not option.evaluate(picked), "changing the shot view answered the question"
 
     page.locator("#ro-numbers summary").click()
     expect(page.locator("#ro-numbers")).to_have_attribute("open", "")

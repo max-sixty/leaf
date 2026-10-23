@@ -307,7 +307,8 @@
 }
 .lf-diff-file-actions {
   position: relative;
-  z-index: 3;
+  /* Stay above the pinned name while its path box covers numbered line controls. */
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -338,43 +339,68 @@
 .lf-diff-fold-all[inert] {
   visibility: hidden;
 }
-/* Keep Pierre's compact gutter and row height. The whole number row is a press,
-   while its hover mark fits the existing 2ch blank margin, clear of the number.
-   Touch can tap that same number; keyboard commenting also has the target picker. */
-[data-gutter] > :has(> .lf-diff-line-comment) {
+/* One row owns its source and numbered comment button. The source's gutter space
+   leaves selection/copy entirely in the source; the button is native chrome. */
+.lf-diff-line {
   position: relative;
+}
+.lf-diff-line > [data-line] {
+  display: block;
+  min-block-size: 1lh;
+  padding-inline: calc(var(--lf-diff-gutter) + 2ch) 8px;
+}
+.lf-diff-line > [data-line]::before {
+  position: absolute;
+  /* Paper removes control padding, so the marker owns its gap from the number. */
+  inset-inline-start: calc(var(--lf-diff-gutter) + 0.5ch);
+  user-select: none;
+}
+.lf-diff-line > [data-line-type="change-addition"]::before {
+  content: "+";
+  color: var(--ok-ink);
+}
+.lf-diff-line > [data-line-type="change-deletion"]::before {
+  content: "-";
+  color: var(--danger-ink);
 }
 .lf-diff-line-comment {
   position: absolute;
   z-index: 2;
-  inset: 0;
-  width: 100%;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: var(--lf-diff-gutter);
   height: 100%;
   --aim-floor: 0px;
-  cursor: pointer;
   min-width: 0;
   min-height: 0;
-  padding: 0;
+  padding: 0 1ch 0 2ch;
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--accent);
-  opacity: 0;
+  color: var(--code-muted);
+  font: inherit;
+  display: flex;
+  align-items: start;
+  justify-content: end;
+  text-align: right;
+  user-select: none;
+  cursor: pointer;
 }
-.lf-diff-line-plus {
+.lf-diff-line-comment::before {
+  content: "+";
   position: absolute;
   inset-inline-start: 1px;
-  inset-block-start: 50%;
-  translate: 0 -50%;
+  inset-block-start: 0;
   width: calc(2ch - 2px);
   border-radius: 3px;
   background: var(--accent-tint);
-  font: 700 13px/1.2 var(--mono);
+  color: var(--accent);
+  font-weight: 700;
   text-align: center;
+  opacity: 0;
 }
-[data-gutter] > :hover > .lf-diff-line-comment,
-[data-gutter] > .lf-diff-line-hover > .lf-diff-line-comment,
-.lf-diff-line-comment[data-lf-focus] {
+.lf-diff-line:hover > .lf-diff-line-comment::before,
+.lf-diff-line-comment[data-lf-focus]::before {
   opacity: 1;
 }
 .lf-diff-filtered {
@@ -401,7 +427,7 @@
    sides there; each row is positioned, so the row after painted over its lower run; and
    a landing puts the row flush under the pinned header, which covered its upper run.
    Outset, a landed row showed no ring at all. */
-:scope:host(.lf-rendered) [data-content] > [data-line][data-lf-focus-visible] {
+:scope:host(.lf-rendered) .lf-diff-line > [data-line][data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
@@ -428,9 +454,11 @@
   }
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary {
     position: sticky;
+    --lf-head-inset: 0px;
     --lf-top: var(--lf-top-outer);
     top: var(--lf-top, 0px);
-    z-index: 2;
+    /* Keep a focused path's full-name box above numbered line controls. */
+    z-index: 3;
   }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap
      less the 1px border the summary's box starts inside. */
@@ -470,113 +498,98 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-:scope:host(.lf-rendered) {
-  /* Pierre's sheets style `:host` as one file's box, and here the host is the whole
-     diff, so what they paint on it is restated for the diff. Each file's box and code
-     state their own paper and ink above; the host keeps the page's, which it has until
-     the first file opens and brings the sheets. Their paper filled the gaps between
-     files and around the tools row, and their ink reached the threads beside the code.
-     Their single-theme default pins the host to its nominal scheme, where the token
-     theme uses the page's light-dark() palette. */
-  background: none;
-  color: inherit;
-  color-scheme: inherit;
-  --diffs-font-family: var(--mono);
-  --diffs-font-size: var(--code-size);
-  --diffs-line-height: var(--code-line);
-  --diffs-bg: var(--pre-bg);
-  --diffs-bg-buffer: var(--pre-bg);
-  --diffs-bg-context: var(--pre-bg);
-  --diffs-bg-context-gutter: color-mix(in srgb, var(--code-ink) 4%, var(--pre-bg));
-  --diffs-bg-separator: var(--code-chrome);
-  --diffs-fg: var(--code-ink);
-  --diffs-fg-number: var(--code-muted);
-  /* A changed row's number is drawn in that row's own base by default, which is the
-     ink the fill beside it is mixed from: green on green at 4.03:1 in the light
-     palette. The tinted-surface inks are the layer's answer to exactly that question
-     and keep the number the same statement, legibly. */
-  --diffs-fg-number-addition-override: var(--ok-ink);
-  --diffs-fg-number-deletion-override: var(--danger-ink);
-  --diffs-addition-base: var(--ok);
-  --diffs-deletion-base: var(--danger);
-  --diffs-bg-addition: var(--lf-code-add-fill);
-  --diffs-bg-deletion: var(--lf-code-del-fill);
-  --diffs-bg-addition-emphasis: color-mix(in srgb, var(--ok) 34%, var(--pre-bg));
-  --diffs-bg-deletion-emphasis: color-mix(in srgb, var(--danger) 34%, var(--pre-bg));
-}
-/* A changed row's fill stops where the scrollport does. Pierre gives the code column
-   `1fr`, which is the width of the box that scrolls, so a line running past that box
-   paints its green or red only as far as the user could already see: scrolling right
-   ran the fill out mid-line and left the rest of the row on the file's plain paper,
-   with the added or removed text sitting on nothing. The track takes its floor from the
-   longest line instead, and keeps `1fr` over it so a file whose lines all fit still
-   fills the box rather than ending at its longest line. Print drops that floor so
-   lines wrap within the paper. */
-:scope:host(.lf-rendered) code[data-code] {
-  /* A file can sit inside another horizontal reader. Pierre's
-                             overscroll trap swallows that reader's gesture even when
-                             every line fits this file, so let the native scroll chain
-                             reach the enclosing box when this one has no more room. */
-  overscroll-behavior-x: auto;
-  --diffs-code-grid: var(--diffs-grid-number-column-width)
-    minmax(var(--lf-diff-row-fill, max-content), 1fr);
-}
-/* A wrapping file uses its reader width for line breaks, rather than the widest
-   unwrapped line that gives scrolling files their full-width change fill. */
-:scope:host(.lf-rendered) pre[data-overflow="wrap"] code[data-code] {
-  --lf-diff-row-fill: 0;
-}
-/* Leaf replaces Pierre's file header, which normally removes this top padding. */
-:scope:host(.lf-rendered) .lf-diff-fold > pre code[data-code] {
-  padding-top: 0;
-}
+/* Highlighted tokens use Leaf's syntax palette. Native blocks own layout, so
+   source rows and conversations need no synchronized columns or measurements. */
 :scope:host(.lf-rendered) .lf-diff-fold > pre {
+  position: relative;
   margin: 0;
+  padding: 0;
   border: none;
   border-top: 1px solid var(--code-border);
   border-radius: 0;
-  /* Sideways only: `hidden` down rather than `visible`, which would compute to `auto`
-     beside it and make the box one that scrolls down, which starts the landing band
-     again and cuts the rows off from the file header over them (state.css, `across`). */
-  overflow: auto hidden;
+  overflow: visible;
   color: var(--code-ink);
+  background: var(--pre-bg);
 }
-/* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
-   show where it landed, or the stop reads as Tab going nowhere. */
-:scope:host(.lf-rendered) code[data-code][data-lf-focus-visible] {
-  outline: var(--focus-ring);
+:scope:host(.lf-rendered) code[data-code] {
+  isolation: isolate;
+  display: block;
+  overflow: auto hidden;
+  overscroll-behavior-x: auto;
+  container-type: inline-size;
+  font: var(--code-size)/var(--code-line) var(--mono);
+  white-space: pre;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+}
+.lf-diff-rows {
+  width: max-content;
+  min-width: 100%;
+}
+pre[data-overflow="wrap"] .lf-diff-rows {
+  width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lf-diff-line[data-line-type="change-deletion"] {
+  background: var(--lf-code-del-fill);
+}
+.lf-diff-line[data-line-type="change-addition"] {
+  background: var(--lf-code-add-fill);
+}
+.lf-diff-line[data-line-type="change-deletion"] > button {
+  color: var(--danger-ink);
+}
+.lf-diff-line[data-line-type="change-addition"] > button {
+  color: var(--ok-ink);
+}
+[data-line-type="change-deletion"] [data-diff-span] {
+  background: color-mix(in srgb, var(--danger) 34%, var(--pre-bg));
+}
+[data-line-type="change-addition"] [data-diff-span] {
+  background: color-mix(in srgb, var(--ok) 34%, var(--pre-bg));
+}
+[data-separator],
+[data-no-newline] {
+  padding-inline: calc(var(--lf-diff-gutter) + 2ch) 8px;
+  color: var(--code-muted);
+  background: var(--code-chrome);
+  white-space: pre-wrap;
+}
+[data-separator] svg {
+  display: none;
+}
+/* A sibling carries the viewport's ring above its positioned rows without
+   scrolling with them. Unlike a parent's :has() pseudo-element, its selector
+   also invalidates reliably in Firefox when focus moves into a source row. */
+.lf-diff-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-/* A Thread occupies one additional Pierre subgrid row. The widget inserts a content
-   outlet and a paired gutter spacer at the same line index; matching fills and borders
-   make them one full-width review row while preserving the renderer's two columns. */
-.lf-diff-thread-outlet,
-.lf-diff-thread-gutter {
+[data-lf-focus-visible] + .lf-diff-frame {
+  outline: var(--focus-ring);
+}
+/* Container units are the visible reader width, while max-content lets source rows
+   extend horizontally. Inline-size containment keeps a long remark from widening
+   the source; sticky positioning keeps the conversation in view while it scrolls. */
+.lf-diff-thread-outlet {
   min-width: 0;
   border-block: 1px solid var(--rule);
   background: var(--paper);
-}
-.lf-diff-thread-gutter {
-  border-inline-end: 1px solid var(--rule);
-}
-/* The outlet stands in the code column with the lines, so the floor above measures it
-   too, and what it measures is not the remark's own length: the thread inside caps
-   itself at 760px (below), which with this padding is a 796px contribution from any
-   remark long enough to reach that cap. On the fixture this was measured on that is
-   wider than the file's own 671px of rows, so one ordinary remark on a file that fit
-   its box set it scrolling sideways, 843px of content in 718px of room. Inline-size
-   containment takes the outlet out of the measure; it still stretches to whatever the
-   code settles on, and wraps inside it. */
-.lf-diff-thread-outlet {
   padding: 10px clamp(10px, 2vw, 18px);
   white-space: normal;
+  font: var(--t-4)/1.5 var(--sans);
   contain: inline-size;
 }
 .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
   box-sizing: border-box;
   position: sticky;
-  inset-inline-start: var(--diffs-column-number-width);
-  max-inline-size: var(--diffs-column-content-width);
+  inset-inline-start: 0;
+  inline-size: 100cqw;
 }
 .lf-diff-file-thread-outlet {
   padding: 0;
@@ -606,6 +619,9 @@
 }
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */
 @media print {
+  .lf-diff-line-comment::before {
+    display: none;
+  }
   .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) {
     margin-top: 0 !important;
   }
@@ -649,10 +665,13 @@
   }
   code[data-code] {
     overflow-x: visible !important;
-    --lf-diff-row-fill: 0;
+    container-type: normal;
+  }
+  .lf-diff-rows {
+    width: 100%;
   }
   .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
     position: static;
-    max-inline-size: none;
+    inline-size: 100%;
   }
 }

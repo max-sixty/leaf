@@ -1,7 +1,7 @@
 /* What an item on On me or On <agent> offers and what a row calls it. The server selects
  * the queues (`served_state.queues`) and the application publisher places this tab's sends
  * against them; an obligation is answered through its source, and only a to-do on the
- * user, one the agent opened on them, offers Done. Every row but a to-do's names an
+ * user, one the agent opened on them, offers Done. Every row but an agent to-do's names an
  * obligation record and carries it (`obligation`). */
 
 export const queueOffers = (item, ready, onUser) => ({
@@ -9,11 +9,13 @@ export const queueOffers = (item, ready, onUser) => ({
   done: ready && onUser && item.kind === "todo",
 });
 
-// Whether a list item asks something of the user's own on the page, a widget's or an
-// approval's, whose row draws its record's prompt and the controls that answer it. An
+// Whether a list item asks something of the user, whose row draws its record's
+// prompt and the controls that answer or complete it. An
 // update's record is answered by a reply or a version, or by the user sending again.
 export const carriesObligation = (item) =>
-  item.kind === "widget" || item.kind === "approval";
+  item.kind === "widget" ||
+  item.kind === "message" ||
+  (item.kind === "todo" && item.owner === "user");
 
 // What a row names its item as: an update handed back to the user is one to send
 // again; one the agent owes is a reply when it stands in a thread, else an answer the
@@ -28,7 +30,7 @@ export const itemNoun = (item) =>
         : "answer";
 
 // How a finished list item other than an obligation the page asked ended, in the words its
-// row says: a reply the agent sent, or a to-do's outcome. A widget's or approval's
+// row says: a reply the agent sent, or a to-do's outcome. A widget's
 // obligation says its own ending (obligations/answer.js).
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 export const itemOutcome = (item) =>

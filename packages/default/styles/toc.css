@@ -100,23 +100,23 @@
   color: var(--accent);
 }
 
-/* The core sidebar states its actual posture after viewport and room decisions.
+/* The core sidebar states its actual placement after viewport and room decisions.
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
  * their sticky behavior and an in-flow ToC keeps its native disclosure.
  *
  * The two questions are asked of two boxes, for the reason the core theme states beside
- * the declarations. The page answers the posture, because a page is always there to
+ * the declarations. The page answers the placement, because a page is always there to
  * answer; the wrapper answers only which slot it is, which is a fact that never changes
  * while the page is open, so the answer is the same one whether or not the box has been
- * away. Asking the wrapper for the posture instead cost the map: an author who hides the
+ * away. Asking the wrapper for the placement instead cost the map: an author who hides the
  * sidebar on a narrow shell — the feature gallery does — got a ToC that never came back,
- * because the wrapper was still repeating the posture it left with. Keeping the slot in
+ * because the wrapper was still repeating the placement it left with. Keeping the slot in
  * the question is also what leaves an lf-toc written into ordinary prose alone; the
- * posture reaches every box on the page, and only the sidebar's map wants it. */
+ * placement reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
   /* The contents map reserves no document room. At rest its spine is the only box
    * over the page; the labeled surface opens when the spine is hovered or focused. */
-  @container lf-content-frame style(--lf-sidebar-posture: margin) {
+  @container lf-content-frame style(--lf-sidebar-placement: margin) {
     @container style(--lf-sidebar-slot: margin) {
       :scope:is(lf-toc) {
         position: fixed;

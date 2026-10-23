@@ -532,11 +532,11 @@
   .lf-fp-exit-seat {
     flex: none;
     display: flex;
-  }
-  .lf-fp-exit-seat[hidden] {
-    display: none;
+    width: var(--lf-fp-aim);
   }
   .lf-floating-panel[data-rest=mark] {
+    --lf-fp-fold-pad-inline: calc((var(--lf-fp-folded) - var(--lf-fp-aim)) / 2);
+    --lf-fp-fold-pad-block: calc((var(--lf-fp-folded) - var(--lf-fp-line)) / 2);
     width: var(--lf-fp-folded);
     left: auto;
     right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
@@ -548,26 +548,15 @@
     .lf-fp-opened {
       display: none;
     }
+    .lf-fp-card {
+      overflow: visible;
+    }
     .lf-fp-row {
       min-height: 0;
-      padding: 0;
+      padding: var(--lf-fp-fold-pad-block) var(--lf-fp-fold-pad-inline);
     }
-    .lf-fp-leaf {
-      width: var(--lf-fp-folded);
-      height: var(--lf-fp-folded);
-      min-height: 0;
-      border-radius: var(--lf-fp-radius);
-    }
-    .lf-fp-leaf .lf-dot {
-      --lf-mark-w: 20px;
-    }
-    :is(.lf-fp-badge, .lf-fp-news-dot) {
-      animation: lf-fp-arrive 160ms linear 140ms backwards;
-    }
-  }
-  @keyframes lf-fp-arrive {
-    from {
-      opacity: 0;
+    .lf-fp-leaf::after {
+      inset: calc(-1 * var(--lf-fp-fold-pad-block)) calc(-1 * var(--lf-fp-fold-pad-inline));
     }
   }
   .lf-fp-minimize {
@@ -808,6 +797,7 @@
   }
   .lf-fp-foot {
     position: sticky;
+    --lf-head-inset: 0px;
     bottom: -6px;
     margin: 0 -6px -6px;
     padding: 10px 0 6px;
@@ -1077,17 +1067,6 @@
     color: var(--lf-fp-muted);
     font-weight: 400;
   }
-  .lf-fp-approval .lf-fp-item {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-  .lf-fp-approval .lf-fp-end {
-    min-width: 0;
-    justify-content: end;
-  }
-  .lf-fp-approval .lf-fp-value {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .lf-fp-compare {
     flex: none;
     font-size: 12px;
@@ -1175,6 +1154,10 @@
   .lf-fp-messages > .lf-primary-part {
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
+  }
+  .lf-fp-messages .lf-msg.user .lf-msg-text {
+    box-sizing: border-box;
+    padding-inline-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
   }
   .lf-fp-messages .lf-msg-editor {
     margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
@@ -1389,6 +1372,9 @@
     position-anchor: --lf-fp-leaf;
     bottom: calc(anchor(top) + 14px);
     right: anchor(right);
+    left: 16px;
+    justify-self: safe right;
+    width: max-content;
     max-width: min(320px, calc(100vw - 32px));
     box-sizing: border-box;
     padding: 6px 10px;
@@ -1429,9 +1415,6 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .lf-floating-panel[data-rest=mark] :is(.lf-fp-badge, .lf-fp-news-dot) {
-      animation: none;
-    }
     .lf-fp-peek,
     .lf-floating-panel[data-menu] .lf-fp-menu {
       transition: none;
@@ -2107,12 +2090,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     outline: var(--focus-ring);
     outline-offset: 1px;
   }
-  .lf-page-map-head {
+  .lf-page-map-head,
+  .lf-inspection-head {
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .lf-page-map-head > strong {
+  .lf-page-map-head > strong,
+  .lf-inspection-head > strong {
     flex: 1;
   }
   .lf-page-map-action {
@@ -2167,7 +2152,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
-  .lf-page-map-dialog {
+  .lf-page-map-dialog,
+  .lf-inspection-dialog {
     --lf-page-map-top: max(10dvh, calc(var(--lf-safe-top) + 12px));
     position: fixed;
     inset: var(--lf-page-map-top) 0 auto;
@@ -2181,12 +2167,54 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--ink);
     box-shadow: var(--raise-3);
   }
-  .lf-page-map-dialog[open] {
+  .lf-page-map-dialog[open],
+  .lf-inspection-dialog[open] {
     display: flex;
     flex-direction: column;
   }
-  .lf-page-map-dialog::backdrop {
+  .lf-page-map-dialog::backdrop,
+  .lf-inspection-dialog::backdrop {
     background: color-mix(in srgb, var(--ink) 26%, transparent);
+  }
+  .lf-inspection-body {
+    overflow: auto;
+    min-height: 0;
+    overflow-wrap: anywhere;
+    overscroll-behavior: contain;
+    padding: var(--focus-ring-room);
+    scroll-padding: var(--focus-ring-room);
+  }
+  .lf-inspection-body h2 {
+    font-size: var(--t-4);
+    margin-block: 18px 8px;
+  }
+  .lf-inspection-body h3 {
+    font-size: var(--t-5);
+  }
+  .lf-inspection-body details {
+    margin-block: 10px;
+  }
+  .lf-inspection-body summary {
+    cursor: pointer;
+    padding-block: 4px;
+  }
+  .lf-inspection-body pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: var(--t-6);
+  }
+  .lf-inspection-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
+  .lf-inspection-metrics dt {
+    color: var(--muted);
+    font-size: var(--t-6);
+  }
+  .lf-inspection-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
   }
   .lf-page-map-search {
     width: 100%;
@@ -2219,7 +2247,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     gap: 2px;
   }
   @media (forced-colors: active) {
-    .lf-page-map-dialog {
+    .lf-page-map-dialog,
+    .lf-inspection-dialog {
       border: 1px solid CanvasText;
       box-shadow: none;
     }
@@ -2344,7 +2373,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     display: block;
   }
   @media screen and (width <= 840px) {
-    .lf-page-map-dialog {
+    .lf-page-map-dialog,
+    .lf-inspection-dialog {
       inset-inline: 8px;
       width: calc(100vw - 16px);
       margin-inline: 0;

@@ -7,7 +7,7 @@ import {
   cutFrames,
   nameAnchor,
   scrollsWith
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   inChrome
 } from "./bundle-passage-facts.js";

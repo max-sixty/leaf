@@ -56,7 +56,6 @@ import {
   heldGrowth,
   highlightBlocks,
   inlineMarkdownFragment,
-  isPagePaint,
   keepView,
   langForPath,
   listWalkPosition,
@@ -95,15 +94,16 @@ import {
   bodyText,
   dataBody,
   failSoft,
-  inBaseLayer,
   once,
+  placesFailure,
   quoted,
   reportFailure,
   setChildLists,
   setChildren,
   setRenderedChildren,
   shadowStage
-} from "./bundle-stylesheets.js";
+} from "./bundle-keyboard~disclosure.js";
+import "./bundle-copy-control.js";
 import {
   isCanonicalMediaUrl,
   scopedMediaUrl
@@ -127,10 +127,11 @@ import {
   fragmentTarget,
   projectedDatum,
   registerVisualParts
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   initialRender
 } from "./bundle-initial-render.js";
+import "./bundle-chrome.js";
 import {
   PAGE_INTERFACE,
   PRESENTATION,
@@ -143,7 +144,7 @@ import {
   pageScroller,
   preserveReadingRegions,
   quietSince,
-  readingPosture,
+  regionScrollBehavior,
   registerReadingRegion,
   scrollLimit,
   scrollerFor,
@@ -181,6 +182,7 @@ import {
   growthIsSeen,
   iconElement,
   iconTemplate,
+  inBaseLayer,
   keys,
   labelOf,
   landingInsets,
@@ -221,6 +223,7 @@ import {
   cancelAnimation,
   cancelRender,
   closeLayer,
+  currentLocationIn,
   focusDestination,
   focused,
   handBack,
@@ -234,13 +237,12 @@ import {
   nextAnimation,
   nextFrame,
   nextRender,
-  onStanding,
+  onCurrentLocation,
   onUserInput,
   openLayer,
   openerOf,
   rove,
   sizeObserver,
-  standingIn,
   under,
   whenLeft
 } from "./bundle-frame-visibility.js";
@@ -1147,6 +1149,42 @@ function boundFile(binding) {
   };
 }
 
+// runtime/llm-api.js
+var live3 = readPart((root) => root.document.live);
+async function generate(request) {
+  if (offlineInteractive || !live3())
+    throw new Error("LLM generation is available in live pages.");
+  return requestJson(
+    pageUrl("api/llm"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    },
+    "LLM generation"
+  );
+}
+
+// runtime/http-api.js
+var live4 = readPart((root) => root.document.live);
+function connection(name) {
+  return {
+    async fetch(path) {
+      if (offlineInteractive || !live4())
+        throw new Error("HTTP connections are available in live pages.");
+      return requestJson(
+        pageUrl(`api/connections/${encodeURIComponent(name)}`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path })
+        },
+        "HTTP connection"
+      );
+    }
+  };
+}
+
 // runtime/widget-api.js
 async function mountSample(frame, options) {
   const owner = await import("./bundle-sample.js");
@@ -1202,12 +1240,14 @@ export {
   compareImages,
   comparisonChanges,
   compoundReadingRegionId,
+  connection,
   consumeAnnotations,
   contributionEntry,
   contributionItemKey,
   copyBlock,
   countAreas,
   createRef,
+  currentLocationIn,
   dataBody,
   declarationFor,
   deferredArrival,
@@ -1229,6 +1269,7 @@ export {
   foldDuration,
   fragmentTarget,
   frameFor,
+  generate,
   growthIsSeen,
   guard,
   handBack,
@@ -1245,7 +1286,6 @@ export {
   inlineMarkdownFragment,
   isCanonicalMediaUrl,
   isNativeLayer,
-  isPagePaint,
   keepView,
   keeps,
   keepsHidden,
@@ -1283,8 +1323,8 @@ export {
   obligationsIn,
   offer,
   offered,
+  onCurrentLocation,
   onMotionPreferenceChange,
-  onStanding,
   onUserInput,
   once,
   openLayer,
@@ -1295,6 +1335,7 @@ export {
   paintMarkdown,
   placeKeeper,
   placePageThreads,
+  placesFailure,
   plainPress,
   presentContributionEntry,
   presentContributionReceipts,
@@ -1318,9 +1359,9 @@ export {
   readQueues,
   readThreads,
   readWork,
-  readingPosture,
   reducedMotion,
   ref,
+  regionScrollBehavior,
   registerContribution,
   registerReadingRegion,
   registerThreadPresentation,
@@ -1370,7 +1411,6 @@ export {
   shownWindow,
   Z as signal,
   sizeObserver,
-  standingIn,
   styleMap,
   synNodes,
   syntax,

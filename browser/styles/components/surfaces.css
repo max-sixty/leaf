@@ -110,9 +110,8 @@
    escape the box it sits in, which it did — an out-of-flow box with no positioned
    ancestor is positioned against the page, so a word on a cell of a table scrolling
    inside itself stood three hundred pixels past the window with the page scrolling
-   sideways to reach it. The scroller answers for it, and the runtime sees to that:
-   reachScrollers marks every static box that scrolls, and the theme positions the
-   mark ([data-lf-holds]).
+   sideways to reach it. The scroll surface contains it: the shared `scroll` primitive positions
+   the surface without moving it.
 
    Here and not in runtime/chrome.css, because content widgets write it into the page
    and into declared trees, and the chrome's sheet is the one an exported page never
@@ -305,9 +304,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
 /* A visible focus destination wears the layer's band unless its own rule supplies
-   a carrier. Ordinary controls follow the browser's focus-visible reading; an
-   explicit reading destination also shows where a route landed. Logical standing
-   remains separate, so pointer focus can reveal controls without drawing a ring.
+   a carrier. Controls and reading destinations follow browser focus visibility.
+   Current location remains separate, so pointer focus can reveal controls without
+   drawing a ring.
    At no weight, each control's own band wins. Retargeting shadow hosts and a
    label press's intermediate nodes get no band. */
 :where([data-lf-focus-visible]) {
@@ -325,7 +324,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :where(*) {
   scroll-margin-top: max(0px, var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
 }
-/* Where the user stands wears a ring outside its box, so a scroll that brings the focus
+/* Where the user is wears a ring outside its box, so a scroll that brings the focus
    into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
    room at the scroller's edge: an item landed at the top of a scrolling pane stood flush
    with it, the top of its ring cut off under the pane's header rule. On every side,
@@ -345,14 +344,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    So the margin is read from the slot. `--lf-top` less what the band covers whole
    (`--lf-top-covered`, theme.css) is the headers stacked over the focused box that the
    band does not count, so a landing clears them. A box in a header that sticks at its
-   top (reach.js marks it, `paintSlot`) stands at its own slot when stuck, so its margin
+   top (its sticky rule sets `--lf-head-inset: 0px`) stands at its own slot when stuck, so its margin
    also takes the band's room back (`--lf-head-inset`, none) and a control focused there
    counts as shown; anywhere else the margin keeps the focus ring's landing room. A page tab
    strip, which the band covers whole, comes out negative by its height, so its names
    count as shown too. */
-:where([data-lf-sticks]) {
-  --lf-head-inset: 0px;
-}
 :where(:focus, [data-lf-focus]) {
   scroll-margin-top: calc(
     var(--lf-top) - var(--lf-top-covered, var(--lf-top)) +
@@ -497,7 +493,8 @@ summary {
 .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
-  background: var(--focus-surface);
+  --lf-ground: var(--focus-surface);
+  background: var(--lf-ground);
 }
 /* The thread itself holding focus wears the ring, inset over the quiet
    ground its containing state paints; chrome.css says the same of the panel's card.
@@ -835,7 +832,7 @@ summary {
    — the state ending, or the shared reduced-motion guard's single near-instant pass —
    the words are left in their own face with nothing to undo. The words keep their
    fill, so a line cut short keeps its ellipsis: Firefox drew no ellipsis under the
-   glyph-clipped background this replaced (notes/browser-support.md). Forced colours
+   glyph-clipped background. Forced colours
    drop the mask but keep the animation, so there the words stay whole. */
 @keyframes lf-sheen {
   from,
@@ -1047,7 +1044,7 @@ button.lf-thread-notice[data-lf-focus-visible] {
 /* A room measures its news as one line and the facts measure it in pieces, which can
    sum a fraction of a pixel wider, so the news the room was made for would drop its
    last fact. The first fact yields a pixel of the line to keep them on it. */
-.lf-thread-news[data-lf-room] > span > :first-child {
+.lf-thread-news[data-room] > span > :first-child {
   margin-inline-end: -1px;
 }
 /* While facts are dropped, the notice counts them on the words' line, in a room just

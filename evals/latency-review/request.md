@@ -32,9 +32,6 @@ count is not a cap on simultaneous requests. Error values below are percentages:
 | C             |       2 |                    1100 |              660 |       0.08 |
 | C             |       4 |                    1420 |             1460 |       0.25 |
 
-The working note is: **A with 4 workers has p99 180 ms.** Keep this note near the
-chart so it can be corrected during review.
-
 For this screening exercise, a run is feasible when p99 is at most 700 ms and errors
 are at most 0.1%. Prefer the highest throughput among feasible measured runs. Show the
 current assessment and why higher-throughput alternatives do or do not qualify.

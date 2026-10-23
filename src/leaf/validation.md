@@ -51,9 +51,9 @@ active revision, including for markup and anchor moves. Detaching a thread still
 checks saved source, and completed successful replies retain the
 source-publication checks below.
 
-The publisher additionally preflights the admitted reply or stamp's complete
-prospective log, so every thread it reopens is covered, and reads candidate
-passages at the candidate revision's cutoff. Required transitions journal the
+The publisher derives anchor moves from the log after admitting the reply or
+stamp, so every thread it reopens is covered, and reads candidate passages at the
+candidate revision's cutoff. Required transitions journal the
 exact staged bundle before its marker appears. Every transaction completes
 interrupted publication from that bundle before it exposes page readings.
 
@@ -143,9 +143,9 @@ those samples reads it, with the widths the run spans and its reading at the
 narrowest: a version holds at every width from the narrowest phone to a wide
 desktop, not only at the two the gate renders (`version._render_version_attempt`
 says why the phone height and the other renders count). The sweep also finds each
-width where the page's own margin residents change (`data-lf-margin` on `main`, less
+width where the page's own margin content changes (`data-lf-margin` on `main`, less
 the rail), and the gate renders the page there in the light scheme, where each
-resident has the least room it will ever have. It reads, too, how each flex or grid
+element has the least room it will ever have. It reads, too, how each flex or grid
 box the page wrote splits its children into rows, and the swept widths where that
 changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws
@@ -184,14 +184,11 @@ A decision in force may paint over a changed authored baseline; this is the
 state fold's behavior, not a reason to refuse the revision. `restated` explicitly
 retracts a decision when the agent needs a fresh answer.
 
-The render gate serves its probe modules from the Leaf running the command, whichever
-Leaf captured the revision it reads, since its own readers call them, and the runtime
-those modules import from the page. A page another Leaf vendored at the same protocol
-is read whenever its runtime has every name the probes import
-(`layer-registry.md`, "Page protocol"). Where it lacks one, the probes fail to link,
-and the gate refuses with the browser's reason and the re-vendor that cures it, rather
-than reporting a missing export as if the page were at fault. The vendored layer is the page's to keep, so
-the gate does not re-vendor on its behalf. `page picture` loads no probe module.
+The render gate serves its probe modules and the runtime they import from the Leaf
+running the command, whichever Leaf captured the revision it reads
+(`runtime_selection.py`), so the probes always meet the runtime they were written
+for. The vendored layer is the page's to keep, so the gate does not re-vendor on its
+behalf. `page picture` loads no probe module.
 
 ## Passages
 

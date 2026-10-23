@@ -209,7 +209,10 @@ one named structured slice with `playground.registerContributor(name, defaults)`
 The returned handle's `get()` reads its immutable current value; `set(next)` replaces
 that slice. Update it on input, so a later control change or submission sees the edit.
 Names are unique and distinct from control names. Retain the handle rather than a
-second configuration object; Reset and Undo replace the values it reads.
+second configuration object. Reset restores the authored defaults, and a new choice
+loads its configuration. Undo withdraws a submitted decision while keeping the current
+working values, including edits made since submission, so the user can adjust and
+resubmit them.
 
 Register slices, one optional `registerInstructionProvider(values => instruction)`,
 and required views during `PAGE_INTERFACE` (`references/module-authoring.md`, "Startup and presentation").

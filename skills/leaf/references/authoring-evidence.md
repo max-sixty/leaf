@@ -101,10 +101,9 @@ sed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill
 wt step diff | jq -Rs . | leaf data set <page> review-patch
 ```
 
-Run the pipeline again to refresh the open page. `lf-diff` takes text changes with `@@`
-hunks and pure renames; describe binary, mode-only and copied files in prose and leave
-them out. For a large patch whose files should load only when opened, read the
-contract's producer instructions:
+Run the pipeline again to refresh the open page. Keep the complete Git patch, including
+file-operation metadata: files without textual hunks still have commentable rows.
+For a large patch, use the manifest producer described by the contract:
 
 ```bash
 leaf page instructions <page> --contract unified-diff | jq -er '.producer'

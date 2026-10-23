@@ -624,7 +624,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      in the row, whole (thread-card.js); the card keeps its width while it holds news
      (thread-preview.js), so the notice takes its room from the heads' track, and the
      actions after it keep their places. */
+  /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
+     Resolve was. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
+    --lf-line: var(--lf-msg-head-height);
     grid-column: 2;
     grid-row: 2;
     align-self: start;

@@ -10,7 +10,7 @@
   margin: var(--sp-3) 0;
   container: lf-shot / inline-size;
   --lf-shot-gap: var(--sp-2);
-  --lf-shot-label-height: max(30px, var(--aim-floor));
+  --lf-shot-label-height: var(--lf-line);
 }
 .lf-shot-toolbar {
   display: grid;
@@ -18,7 +18,7 @@
   grid-template-areas: "before actions after";
   align-items: center;
   gap: var(--sp-1);
-  padding-block: var(--sp-1);
+  padding-block: max(var(--sp-1), var(--lf-reach-room));
   flex: none;
   min-inline-size: 0;
   anchor-scope: --lf-shot-options;

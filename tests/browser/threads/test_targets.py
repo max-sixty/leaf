@@ -467,7 +467,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
         result = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(d, root),

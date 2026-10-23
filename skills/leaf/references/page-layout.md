@@ -159,10 +159,12 @@ grid of panes:
 }
 ```
 
-Keep enough space to read each region's evidence and reach its decision. Stacked panes
-share the remaining height while the workspace is bounded; in a flowing layout they
-can grow with their content. Each pane's body can scroll on its own, which helps with
-a long file or log but cannot make a cramped working region usable.
+Keep enough space to read each region's evidence and reach its decision. Readers often
+open a workspace on a laptop, in a window about 720px tall, so aim to keep each
+region's decision in view at that height. Stacked panes share the remaining height
+while the workspace is bounded; in a flowing layout they can grow with their content.
+Each pane's body can scroll on its own, which helps with a long file or log but cannot
+make a cramped working region usable.
 
 `density-working` is a style, not a Layout. It sets smaller type, tighter spacing and
 options as rows on any block, for a surface the reader operates. A workspace usually

@@ -2689,7 +2689,7 @@ def test_a_codex_delivery_queued_twice_tells_its_second_turn_it_repeats(
     assert [args[2] for args in queued] == [pointer, pointer]
 
     assert _ack_in("first-queued-turn", path.stem, capsys) == []
-    owed = f"`leaf response reply {delivered_ref(page_dir, comment['id'])}`"
+    owed = f"`leaf thread reply {delivered_ref(page_dir, comment['id'])}`"
     if answered:
         thread_model.post_reply(
             page_dir, {"parent": comment["id"], "responds": comment["id"]}, "Named it."

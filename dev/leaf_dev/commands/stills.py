@@ -943,6 +943,33 @@ def diff_path_by_keyboard(page: Page) -> None:
     head.focus()
 
 
+def diff_source_by_pointer(page: Page) -> None:
+    """A click stands on the scrolling source without a keyboard ring."""
+    file = page.locator("#pr-exact-patch .lf-diff-file").filter(
+        has=page.locator("summary", has_text="benches/picker_preview.rs")
+    )
+    file.locator("summary").click()
+    source = file.locator("code[data-code]")
+    source.click(position={"x": 150, "y": 25})
+    expect(source).to_be_focused()
+    page.mouse.move(0, 0)
+
+
+def diff_source_by_keyboard(page: Page) -> None:
+    """Tab returns to the source; its ring stays over shaded, scrolled rows."""
+    diff_source_by_pointer(page)
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    source = page.locator(
+        '#pr-exact-patch code[data-code][aria-label="benches/picker_preview.rs"]'
+    )
+    expect(source).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function(
+        "document.querySelector('#pr-exact-patch').shadowRoot.querySelector('code[data-code][aria-label=\"benches/picker_preview.rs\"]').scrollLeft > 0"
+    )
+
+
 def diff_file_reply(page: Page) -> None:
     """A reply to the first of two conversations under a collapsed diff file."""
     threads = page.frame_locator("#dfg-sample iframe").locator(
@@ -2088,6 +2115,20 @@ STATES = (
         "pr-walkthrough",
         diff_path_by_keyboard,
         viewport=(390, 844),
+    ),
+    State(
+        "walkthrough-diff-source-pointer",
+        "pr-walkthrough",
+        diff_source_by_pointer,
+        viewport=(600, 900),
+        region="#pr-exact-patch .lf-diff-file:has(code[data-code])",
+    ),
+    State(
+        "walkthrough-diff-source-keyboard",
+        "pr-walkthrough",
+        diff_source_by_keyboard,
+        viewport=(600, 900),
+        region="#pr-exact-patch .lf-diff-file:has(code[data-code])",
     ),
     State(
         "walkthrough-source-touch",

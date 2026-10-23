@@ -19,7 +19,7 @@ const {
   handBack,
   holdFocus,
   layerLanding,
-  onStanding,
+  onCurrentLocation,
   openLayer,
   openerOf,
   rove,
@@ -29,7 +29,7 @@ const {
 const { retainUserIntent } = await import("/runtime/user-intent.js");
 
 const heard = [];
-onStanding((node, cause) => heard.push([node, cause]));
+onCurrentLocation((node, cause) => heard.push([node, cause]));
 
 function scene() {
   document.body.replaceChildren();
@@ -65,10 +65,10 @@ const click = (target) =>
   );
 const settled = () => new Promise((resolve) => setTimeout(resolve));
 
-test("a departing package releases its standing reader", () => {
+test("a departing package releases its current location reader", () => {
   const { first, second } = scene();
   const places = [];
-  const stop = onStanding((node) => places.push(node));
+  const stop = onCurrentLocation((node) => places.push(node));
   focusDestination(first, "move");
   stop();
   focusDestination(second, "move");

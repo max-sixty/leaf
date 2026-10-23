@@ -83,7 +83,7 @@ import {
   arrivals,
   inSeatingOrder,
   packRows,
-  rowPosture,
+  rowPlacement,
   seatRows,
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, union } from "../rect.js";
@@ -364,7 +364,7 @@ function samePassage(passage, words) {
   );
 }
 
-export function syncMarginResidency(changed) {
+export function syncMarginContentLayout(changed) {
   if (changed) scheduleMarginLayout();
 }
 
@@ -976,16 +976,12 @@ export function registerMarginRow(row, options = {}) {
 }
 
 export function unregisterMarginRow(row) {
+  // The projection discards this host. Clear retained references without
+  // repainting a face that will leave the document in the same turn.
   rows.delete(row);
   anchors.delete(row);
-  if (row) {
-    row.classList.toggle("lf-withheld", false);
-    row.removeAttribute("data-lf-place");
-    for (const property of ["--lf-margin-x", "--lf-margin-y"])
-      setStyle(row, property, null);
-    pushes.delete(row);
-    folded.delete(row);
-  }
+  pushes.delete(row);
+  folded.delete(row);
   if (!rows.size) {
     observer?.disconnect();
     observer = null;
@@ -1206,7 +1202,7 @@ export function layoutMarginRows() {
     const level = line ? top : box.top;
     const besideRail = railBeside(scroller);
     const size = stands && besideRail ? railEntrySize() : 0;
-    const place = rowPosture({
+    const place = rowPlacement({
       railStands: stands,
       besideRail,
       blockRight: reach(anchor, box, main, reaches),

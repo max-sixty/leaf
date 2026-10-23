@@ -9,8 +9,9 @@ import {
   marginSpot
 } from "../bundle-annotation-overlay~margin-placement.js";
 import "../bundle-page-controls.js";
-import "../bundle-chrome.js";
+import "../bundle-visual-parts.js";
 import "../bundle-initial-render.js";
+import "../bundle-chrome.js";
 import "../bundle-presence.js";
 import "../bundle-passage-facts.js";
 import "../bundle-page-paint.js";

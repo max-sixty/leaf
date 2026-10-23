@@ -16,7 +16,7 @@ import {
   nativeLayerHolding,
   nativeLayerKind,
   nextRender,
-  onStanding,
+  onCurrentLocation,
   releaseFocus,
   renderedParent,
   renderedUnder,
@@ -1292,7 +1292,7 @@ var frame = 0;
 var movePage = false;
 function mountRepaint(slots) {
   painters = slots;
-  onStanding(requestFrame);
+  onCurrentLocation(requestFrame);
   requestFrame();
 }
 function requestFrame() {
@@ -1304,7 +1304,7 @@ function requestFrame() {
     const p = painters;
     p.reflectFirstScopes?.();
     p.markHere?.();
-    p.paintStanding?.();
+    p.paintCurrentLocation?.();
     p.paintSelectedMarginEntries?.();
     p.paintTouchControls?.();
     p.paintStatusContext?.();
@@ -2128,9 +2128,9 @@ function seatModal(dialog, source) {
 function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
   if (dialog ? !layer.open : !isNativeLayer(layer)) return;
-  const standing = focused();
+  const currentLocation = focused();
   const returnTo = entries.find((entry) => entry.root === layer)?.opener;
-  const returnLocally = document.documentElement.lfSample && standing && renderedUnder(standing, layer);
+  const returnLocally = document.documentElement.lfSample && currentLocation && renderedUnder(currentLocation, layer);
   const inhibited = document.documentElement.lfSample ? [
     document.documentElement,
     ...nativeLayers().filter((entry) => entry.kind === "modal").map((entry) => entry.root)
@@ -2727,6 +2727,10 @@ function uncovered(rect, box) {
   return sides.length ? sides.reduce((most, side) => area(side) > area(most) ? side : most) : null;
 }
 
+// runtime/motion-icon-paths.js
+var PLAY = '<path d="m5 3 7 5-7 5z"/>';
+var PAUSE = '<path d="M5 3v10M11 3v10"/>';
+
 // runtime/icons.js
 var SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
 var ICONS = {
@@ -2748,8 +2752,8 @@ var ICONS = {
   inbox: '<path d="M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z"/>',
   microphone: '<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4"/><path class="lf-mic-slash" d="M2.5 2.5l11 11"/>',
   next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
-  pause: '<path d="M5 3v10M11 3v10"/>',
-  play: '<path d="m5 3 7 5-7 5z"/>',
+  pause: PAUSE,
+  play: PLAY,
   previous: '<path d="m10 3.5-4.5 4.5 4.5 4.5"/>',
   all: '<path d="M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4"/>',
   pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',

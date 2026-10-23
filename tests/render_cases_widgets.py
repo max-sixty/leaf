@@ -985,7 +985,7 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# How far the exhibit stands into the room a margin resident states it takes
+# How far the exhibit stands into the room margin content states it takes
 # (`--lf-taken-l`, `--lf-taken-r`, layouts.css), on both edges, since a room read too
 # wide spends itself on whichever side is free. The room the page states comes with it,
 # so a test waiting for the box to be read again has the reading it is waiting to see
@@ -1243,7 +1243,7 @@ SCROLLED = "() => document.scrollingElement.scrollTop > 0"
 WHERE_I_STAND_PAGE = leaf_page(
     "where i stand",
     """
-<h1 id="t">Standing</h1>
+<h1 id="t">Current location</h1>
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not a decision.</p>
 <lf-ask id="shape-decision"><h2>Which material?</h2>

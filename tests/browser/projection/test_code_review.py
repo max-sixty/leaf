@@ -753,7 +753,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
 
 
 def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
-    """A capture that reorders the roots moves the group the user stands in, and one
+    """A capture that reorders the roots moves the group the user is located in, and one
     that reorders a root's calls moves the row: either way they stay on its location."""
     url = serve(
         leaf_page(

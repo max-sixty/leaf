@@ -240,7 +240,7 @@ Leaf's own share was 1.2–4.9 s on average:
   every tool call. Each took 120–620 ms at this load, and a claimed session's
   PostToolBatch hook runs Leaf whole, past the launcher's gate. A `leaf` command
   that matches more than one of the PreToolUse registrations' `if` patterns, as
-  `L=…/bin/leaf; $L response reply` does, runs the hook once per match, in parallel.
+  `L=…/bin/leaf; $L thread reply` does, runs the hook once per match, in parallel.
 - **Leaf's commands**, 0.3–1.2 s, except where Claude Code ran
   `leaf page check --render` before replying, which took 8.1 s in one of three
   waiting replies here and 7.5–12.8 s in 6 of the 47 earlier. A call that reads

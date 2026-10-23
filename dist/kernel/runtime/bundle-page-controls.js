@@ -2,7 +2,7 @@ import {
   marks,
   resolveAnchor,
   targetSegments
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   inChrome,
   layoutBox,
@@ -34,6 +34,7 @@ var PAGE_CONTROL_RANK = Object.freeze({
   session: 10,
   preview: 20,
   layer: 30,
+  inspection: 32,
   share: 35,
   leaves: 40,
   latest: 50,
@@ -44,7 +45,7 @@ var PAGE_CONTROL_RANK = Object.freeze({
   blanket: 80,
   versions: 90,
   keyboard: 95,
-  // The way out of the stance the user stands in.
+  // The way out of the stance the user is in.
   exit: 120
 });
 var GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
@@ -90,31 +91,31 @@ function tell() {
 }
 
 // runtime/content-layout.js
-var residencyOpen = false;
+var marginContentLayoutOpen = false;
 var readFinished = null;
-var residencyPending = 0;
-var residencyRead = -1;
-function residencyPass(time) {
-  residencyPending = 0;
-  if (time === residencyRead) {
-    residencyPending = nextFrame(residencyPass);
+var marginContentLayoutPending = 0;
+var marginContentLayoutRead = -1;
+function marginContentLayoutPass(time) {
+  marginContentLayoutPending = 0;
+  if (time === marginContentLayoutRead) {
+    marginContentLayoutPending = nextFrame(marginContentLayoutPass);
     return;
   }
-  residencyRead = time;
-  readResidency();
+  marginContentLayoutRead = time;
+  readMarginContentLayout();
 }
 var headSizes = null;
 var watchedHead = null;
 function watchHead() {
   const header = document.documentElement.lfInitial.layoutBox()?.querySelector(":scope > header") ?? null;
   if (header === watchedHead) return;
-  headSizes ??= sizeObserver(() => scheduleResidency());
+  headSizes ??= sizeObserver(() => scheduleMarginContentLayout());
   if (watchedHead) headSizes.unobserve(watchedHead);
   if (header) headSizes.observe(header);
   watchedHead = header;
 }
-function readResidency() {
-  const { changed } = document.documentElement.lfInitial.residency();
+function readMarginContentLayout() {
+  const { changed } = document.documentElement.lfInitial.marginContentLayout();
   watchHead();
   if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);
@@ -123,11 +124,12 @@ function readResidency() {
   pageControlsChanged();
 }
 var railStands = (main = layoutBox()) => (main?.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
-function scheduleResidency() {
-  if (residencyOpen) residencyPending ||= nextRender(residencyPass);
+function scheduleMarginContentLayout() {
+  if (marginContentLayoutOpen)
+    marginContentLayoutPending ||= nextRender(marginContentLayoutPass);
 }
-function settleResidency() {
-  if (residencyOpen) readResidency();
+function settleMarginContentLayout() {
+  if (marginContentLayoutOpen) readMarginContentLayout();
 }
 var ROOM = marks["x-space"].paint;
 var BREAKOUT = `[${ROOM}]`;
@@ -138,21 +140,21 @@ function readBreakouts() {
   layoutChanged(pageDocument());
   repaintPage();
 }
-var mayChangeResidency = (node) => node.matches(
+var mayChangeMarginContentLayout = (node) => node.matches(
   'body > main > *, body > main > [data-lf-views="parts"] > *, [data-lf-views-flow="page"] > *'
 );
-function openResidency({ onRead }) {
+function openMarginContentLayout({ onRead }) {
   readFinished = onRead;
-  residencyOpen = true;
-  document.addEventListener("toggle", scheduleResidency, { capture: true });
-  window.addEventListener("resize", scheduleResidency);
+  marginContentLayoutOpen = true;
+  document.addEventListener("toggle", scheduleMarginContentLayout, { capture: true });
+  window.addEventListener("resize", scheduleMarginContentLayout);
   const main = pageDocument();
   if (main)
     new MutationObserver((records) => {
       if (records.some(
-        (record) => record.type === "attributes" && record.attributeName === "hidden" && mayChangeResidency(record.target)
+        (record) => record.type === "attributes" && record.attributeName === "hidden" && mayChangeMarginContentLayout(record.target)
       ))
-        readResidency();
+        readMarginContentLayout();
       else if (records.some(
         (record) => record.type === "attributes" ? bringsBreakout(record.target) : [...record.addedNodes].some(bringsBreakout)
       ))
@@ -163,7 +165,7 @@ function openResidency({ onRead }) {
       attributes: true,
       attributeFilter: [ROOM, "hidden", "open"]
     });
-  readResidency();
+  readMarginContentLayout();
 }
 
 // runtime/pointed-place.js
@@ -254,8 +256,8 @@ export {
   pageControls,
   pageControlsChanged,
   railStands,
-  scheduleResidency,
-  settleResidency,
-  openResidency,
+  scheduleMarginContentLayout,
+  settleMarginContentLayout,
+  openMarginContentLayout,
   visibleTargetParts
 };

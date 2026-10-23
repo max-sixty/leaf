@@ -1,23 +1,23 @@
 import { sampleNotice } from "../sample-child.js";
-/* The page's own parts: what the user is standing on when it belongs to no feature,
+/* The page's own parts: what the user is on when it belongs to no feature,
    the one press that lets go of it, and the foot of the Escape ladder.
 
    Everything else the page answers is declared by the owner that implements it and joins
    the stack through `register.js`. This file keeps the document's own parts — a link, a
    disclosure — and the presses that are nobody's capability: the browser's caret
-   browsing, letting go of whatever the user is standing on, and backing out of the
+   browsing, letting go of whatever the user is on, and backing out of the
    chrome onto the page.
 
    Importing this module is what puts the page's parts in the register. The let-go is the
    one declaration that reads other owners' state — the modes, the captured target, the
-   Page Map's rung — so `declareStanding` is the one export, and the boot entry calls it
+   Page Map's rung — so `declareCurrentLocation` is the one export, and the boot entry calls it
    once those owners stand. */
 import { letGo, release, focused } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
-import { heldObligation } from "../standing-target.js";
+import { heldObligation } from "../current-target.js";
 import { leavesBox } from "../thread/landing.js";
 import { claimsEsc } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
@@ -25,7 +25,7 @@ import { nativeLayers } from "./layer-stack.js";
 import { LINK } from "./text-entry.js";
 import { pageCommand, pageRung, pageScope } from "./register.js";
 
-// Where the user is standing, when what they are standing on is one of the page's own
+// Where the user is , when what they are on is one of the page's own
 // parts rather than a widget's own declaration. A widget's control scope cannot cover
 // these: it works a span `offer` made pressable, where these arrive with platform keys
 // already bound. Enter follows an <a> while Space scrolls the page out from under it; both
@@ -41,7 +41,7 @@ import { pageCommand, pageRung, pageScope } from "./register.js";
 // stand on. One derivation and not a copy apiece: what a scope here asks is the same pair
 // of questions of a different selector, and the day the chrome rule changes is the day a
 // second copy of it is wrong.
-function standingOn(name, title, sel, rows) {
+function currentLocationOn(name, title, sel, rows) {
   pageScope(name, {
     title,
     root: focused,
@@ -60,15 +60,15 @@ function standingOn(name, title, sel, rows) {
 // A link's press is the browser's whole answer, so this row binds no `run`: it promises
 // nothing the browser does not already do, and what it adds is the promise being on
 // screen. Enter alone, Space under a link being the page's own scroll.
-standingOn("link", "On a link", LINK, [
+currentLocationOn("link", "On a link", LINK, [
   { id: "link.follow", keys: ["Enter"], title: "Follow", touch: false },
 ]);
 
 // A disclosure, in either spelling the page has for one. The platform's <details> keeps the
 // state on itself; a control a widget built out of a span says the same thing through
 // ARIA's own attribute, which it already writes for the theme and the screen reader. Two
-// vocabularies, one capability — and a user standing on a settled group cannot see which
-// of the two they are standing on, so a scope apiece would be the same press answered on
+// vocabularies, one capability — and a user on a settled group cannot see which
+// of the two they are on, so a scope apiece would be the same press answered on
 // one of them and not the other.
 //
 // ARIA's disclosure pattern and not the attribute at large. A combobox wears aria-expanded
@@ -76,7 +76,7 @@ standingOn("link", "On a link", LINK, [
 // belong to the caret and the walk there. The pattern is the pair, so the selector asks for
 // the button half too — which is what `offer` writes, and what a real <button> brings with
 // it.
-standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
+currentLocationOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
   {
     id: "disclosure.toggle",
     touch: false,
@@ -104,7 +104,7 @@ pageCommand({
   description: "Select text with the keyboard caret to comment on it",
 });
 
-// Standing is a destination on the page. Releasing it lands at its floor, the document.
+// Current location is a destination on the page. Releasing it lands at its floor, the document.
 // A thread in the floating panel has no floor of its own: what stands open there, the
 // menu and then a view, is a step of this ladder (floating-panel.js), so putting the
 // view away is the way out of a panel thread.
@@ -116,9 +116,9 @@ const holding = () => {
   const active = focused(document);
   return Boolean(active) && active !== document.body;
 };
-let standingFloor = () => null;
-export function declareStanding({ pageState }) {
-  standingFloor = () => {
+let currentLocationFloor = () => null;
+export function declareCurrentLocation({ pageState }) {
+  currentLocationFloor = () => {
     if (!holding()) return null;
     if (nativeLayers().length) return null;
     if (leavesBox()) return null;
@@ -128,8 +128,8 @@ export function declareStanding({ pageState }) {
     if (pageSelection() || pageState()) return null;
     return thread || heldObligation() || !inUi(focused()) ? document.body : null;
   };
-  pageScope("standing", {
-    title: "Standing on something",
+  pageScope("current-location", {
+    title: "Current location",
     root: focused,
     escape: "inner",
     at: holding,
@@ -139,7 +139,7 @@ export function declareStanding({ pageState }) {
         touch: false,
         keys: ["Escape"],
         title: "let go",
-        when: () => Boolean(standingFloor()),
+        when: () => Boolean(currentLocationFloor()),
         run: release,
       },
     ],
@@ -158,13 +158,13 @@ export function declareStanding({ pageState }) {
 pageRung("page", () => {
   if (nativeLayers().length) return null;
   if (holding())
-    return standingFloor()
+    return currentLocationFloor()
       ? null
       : {
           title: "back to the page",
           out: letGo,
         };
-  // A sample has one more containing page. Its own controls and standing unwind
+  // A sample has one more containing page. Its own controls and current location unwind
   // first; the frame's owner takes the focus back, not another keyboard listener
   // competing with this register.
   return document.documentElement.lfSample

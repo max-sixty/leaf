@@ -6,9 +6,9 @@ import json
 import pytest
 from playwright.sync_api import expect
 from render_cases_layout import (
+    current_location_ring,
     ring_faults,
     solid_png,
-    standing_ring,
 )
 from render_harness import (
     CORPUS_SOURCES,
@@ -147,7 +147,7 @@ def assert_keyboard_focus(page, control):
         "unobscured": True,
         "inViewport": True,
     }, f"the keyboard destination has no visible, reachable focus treatment: {focus}"
-    ring = standing_ring(page)
+    ring = current_location_ring(page)
     assert ring, "the focused destination paints no keyboard ring"
     assert not (faults := ring_faults([ring], "the focused destination")), "\n".join(
         faults

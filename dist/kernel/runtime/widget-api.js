@@ -103,6 +103,7 @@ import {
   setRenderedChildren,
   shadowStage
 } from "./bundle-keyboard~disclosure.js";
+import "./bundle-copy-control.js";
 import {
   isCanonicalMediaUrl,
   scopedMediaUrl
@@ -126,10 +127,11 @@ import {
   fragmentTarget,
   projectedDatum,
   registerVisualParts
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   initialRender
 } from "./bundle-initial-render.js";
+import "./bundle-chrome.js";
 import {
   PAGE_INTERFACE,
   PRESENTATION,
@@ -142,7 +144,7 @@ import {
   pageScroller,
   preserveReadingRegions,
   quietSince,
-  readingPosture,
+  regionScrollBehavior,
   registerReadingRegion,
   scrollLimit,
   scrollerFor,
@@ -221,6 +223,7 @@ import {
   cancelAnimation,
   cancelRender,
   closeLayer,
+  currentLocationIn,
   focusDestination,
   focused,
   handBack,
@@ -234,13 +237,12 @@ import {
   nextAnimation,
   nextFrame,
   nextRender,
-  onStanding,
+  onCurrentLocation,
   onUserInput,
   openLayer,
   openerOf,
   rove,
   sizeObserver,
-  standingIn,
   under,
   whenLeft
 } from "./bundle-frame-visibility.js";
@@ -1245,6 +1247,7 @@ export {
   copyBlock,
   countAreas,
   createRef,
+  currentLocationIn,
   dataBody,
   declarationFor,
   deferredArrival,
@@ -1320,8 +1323,8 @@ export {
   obligationsIn,
   offer,
   offered,
+  onCurrentLocation,
   onMotionPreferenceChange,
-  onStanding,
   onUserInput,
   once,
   openLayer,
@@ -1356,9 +1359,9 @@ export {
   readQueues,
   readThreads,
   readWork,
-  readingPosture,
   reducedMotion,
   ref,
+  regionScrollBehavior,
   registerContribution,
   registerReadingRegion,
   registerThreadPresentation,
@@ -1408,7 +1411,6 @@ export {
   shownWindow,
   Z as signal,
   sizeObserver,
-  standingIn,
   styleMap,
   synNodes,
   syntax,

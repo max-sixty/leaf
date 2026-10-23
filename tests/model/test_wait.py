@@ -220,18 +220,18 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessi
 
     progress = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", first_ref, "--ephemeral", "--text", "Checking"],
+        ["thread", "reply", first_ref, "--ephemeral", "--text", "Checking"],
     )
     assert progress.exit_code == 0, progress.output
     assert json.loads(progress.output)["parent"] == event["id"]
     answered = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", "--done", retry_ref, "--text", "Hello"]
+        cli_model.cli, ["thread", "reply", "--done", retry_ref, "--text", "Hello"]
     )
     assert answered.exit_code == 0, answered.output
     reply = json.loads(answered.output)
     assert reply["responds"] == event["id"]
     retried = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", "--done", retry_ref, "--text", "Hello"]
+        cli_model.cli, ["thread", "reply", "--done", retry_ref, "--text", "Hello"]
     )
     assert retried.exit_code == 0, retried.output
     assert json.loads(retried.output) == reply
@@ -1731,7 +1731,7 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
     claim = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
     assert claim.exit_code == 0, claim.output
     refused = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", "--done", stale, "--text", "Here."]
+        cli_model.cli, ["thread", "reply", "--done", stale, "--text", "Here."]
     )
     assert "no longer matches its delivery" in refused.output
 
@@ -1743,7 +1743,7 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
         assert delivery_model.deliverable(page) == []
     reply = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", event["answer"]["ref"], "--text", "Here."],
+        ["thread", "reply", "--done", event["answer"]["ref"], "--text", "Here."],
     )
     assert reply.exit_code == 0, reply.output
     assert owed_answers(page_dir) == []

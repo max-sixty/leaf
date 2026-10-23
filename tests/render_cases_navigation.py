@@ -354,8 +354,8 @@ item, which the page's rule gives room below.</p></div>
 )
 
 
-def standing_mark(page):
-    """Which passage the page is painting as the comment the user is standing in, and
+def current_location_mark(page):
+    """Which passage the page is painting as the comment the user is located in, and
     which elements wear the same fact as an outline. One reading, because the two are one
     paint over two kinds of anchor and a test that asked for only the text half would go
     green on a page whose element marks had stopped answering."""
@@ -367,7 +367,7 @@ def standing_mark(page):
     }
 
 
-STANDING = """([text, ids]) => {
+CURRENT_LOCATION = """([text, ids]) => {
     const h = CSS.highlights.get('lf-mark-here');
     const said = (h ? [...h].map(r => r.toString()).join('') : '').split(/\\s+/)
         .filter(Boolean).join(' ');
@@ -376,7 +376,7 @@ STANDING = """([text, ids]) => {
 }"""
 
 
-def wait_standing(page, text, ids=()):
+def wait_current_location(page, text, ids=()):
     """Wait for the page to be marking exactly this comment's passage.
 
     The paint follows focus through the runtime's one coalesced repaint,
@@ -385,11 +385,11 @@ def wait_standing(page, text, ids=()):
     is. The failure carries what was painted instead, since a timeout on a predicate says
     only that it never came true."""
     try:
-        page.wait_for_function(STANDING, arg=[text, list(ids)])
+        page.wait_for_function(CURRENT_LOCATION, arg=[text, list(ids)])
     except PlaywrightTimeout:
         raise AssertionError(
             f"the page should be marking {text or list(ids)!r} as the comment the user"
-            f" is standing in; it is marking {standing_mark(page)}"
+            f" is located in; it is marking {current_location_mark(page)}"
         ) from None
 
 
@@ -797,7 +797,7 @@ def compose(page, passage, text=None):
     """Open the composer on a passage the way a user does, and type into it.
 
     Without text it only opens, which is how a second tab meets a draft already
-    standing on that passage: the two gestures are the same one, so the anchor the
+    attached to that passage: the two gestures are the same one, so the anchor the
     key is built from is the same in both tabs."""
     page.locator(passage).scroll_into_view_if_needed()
     page.locator(passage).click(click_count=3)
@@ -813,7 +813,7 @@ def compose(page, passage, text=None):
 # mark (a thing to do that becomes a thing the page says once it is pressed).
 # Both spellings a page has for a folded section: the platform's <details>, and a settled
 # option group, which is a span the widget wrote `aria-expanded` onto. They stand together
-# because a user standing on one cannot see which of the two it is — a fixture holding
+# because a user located on one cannot see which of the two it is — a fixture holding
 # one of them proves the scope for that spelling and says nothing about the other.
 DISCLOSED_PAGE = leaf_page(
     "disclosed",

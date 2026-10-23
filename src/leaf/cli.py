@@ -191,7 +191,7 @@ class LeafGroup(click.Group):
             record_command(self.command_name(sys.argv[1:] if args is None else args))
 
     def command_name(self, args: list[str]) -> str:
-        """The command words `args` begin with, such as `response reply`."""
+        """The command words `args` begin with, such as `thread reply`."""
         words, group = [], self
         for word in args:
             if not isinstance(group, click.Group) or word not in group.commands:
@@ -462,6 +462,28 @@ def check(dir: str, render: bool) -> Reported:
     return Reported(report, report["status"])
 
 
+@page.command(
+    "inspect", short_help="Read page source metrics and browser observations."
+)
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--revision",
+    type=click.IntRange(min=1),
+    metavar="N",
+    help="inspect captured revision N instead of mutable source",
+)
+def inspect_page(dir: str, revision: int | None) -> dict:
+    """Report attributed CSS counts and retained browser views as JSON.
+
+    Metrics are observations, not a quality score or a pass/fail check. Opens no
+    browser and changes no page state. Browser observations name their own revision,
+    viewport and freshness; matches_source says whether they describe these inputs.
+    """
+    from leaf.page_inspection import cmd_inspect
+
+    return cmd_inspect(resolve_dir(dir, renew=False), revision)
+
+
 @page.command()
 @click.argument("dir", metavar="PAGE")
 @click.argument(
@@ -485,7 +507,7 @@ def media(dir: str, files) -> list[dict]:
     ]
 
 
-@page.command(short_help="Read selected-component instructions by audience as JSON.")
+@page.command(short_help="Read selected vocabulary instructions by audience as JSON.")
 @click.argument("dir", metavar="PAGE")
 @click.option("--use", "entries", multiple=True, metavar="ENTRY")
 @click.option("--contract", "contracts", multiple=True, metavar="ID")
@@ -1201,45 +1223,11 @@ def thread_open(
     )
 
 
-def _reply_options(command):
-    """The one complete author interface for addressed and proactive replies."""
-    for option in (
-        click.option("--quote", help="new passage text to move this thread onto"),
-        click.option(
-            "--section", metavar="ID", help="new element ID, or scope for --quote"
-        ),
-        click.option(
-            "--part", metavar="ID", help="new declared visual part within --section"
-        ),
-        click.option("--detach", is_flag=True, help="remove the thread's page target"),
-        body_options("the reply's text"),
-        click.option(
-            "--markup", default="", help="frozen HTML fragment after the text"
-        ),
-        click.option(
-            "--todo",
-            metavar="TITLE",
-            help="the reply promises work it doesn't deliver; opens that to-do on the "
-            "thread, ended by `leaf task end` with the reply's id",
-        ),
-        click.option(
-            "--ephemeral", is_flag=True, help="one-line progress, without answering"
-        ),
-        _title_option,
-        _obligation_option,
-    ):
-        command = option(command)
-    return command
-
-
-@cli.group(short_help="Reply to an update by the reference its delivery gave.")
-def response() -> None:
-    """Reply to a user update with the reference its delivery printed as
-    `answer.ref`."""
-
-
-@response.command("reply", short_help="Reply to the update a reference names.")
-@click.argument("reference", metavar="REFERENCE")
+@thread.command(
+    "reply", short_help="Reply using an answer reference or a page and thread."
+)
+@click.argument("destination", metavar="REFERENCE_OR_PAGE")
+@click.argument("thread", required=False)
 @click.option(
     "--attempt",
     help="retry key: a rerun with the same key posts nothing new (default: the "
@@ -1253,16 +1241,37 @@ def response() -> None:
 @click.option(
     "--done", is_flag=True, help="the reply delivers what the message asked for"
 )
-@_reply_options
-def response_reply(
-    reference: str, attempt: str | None, failure: str | None, done: bool, **options
+@body_options("the reply's text")
+@click.option("--markup", default="", help="frozen HTML fragment after the text")
+@click.option(
+    "--todo",
+    metavar="TITLE",
+    help="the reply promises work it doesn't deliver; opens that to-do on the "
+    "thread, ended by `leaf task end` with the reply's id",
+)
+@click.option("--ephemeral", is_flag=True, help="one-line progress, without answering")
+@_title_option
+@_obligation_option
+@click.option("--quote", help="new passage text to move this thread onto")
+@click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
+@click.option("--part", metavar="ID", help="new declared visual part within --section")
+@click.option("--detach", is_flag=True, help="remove the thread's page target")
+def thread_reply(
+    destination: str,
+    thread: str | None,
+    attempt: str | None,
+    failure: str | None,
+    done: bool,
+    **options,
 ) -> dict | None:
-    """Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
+    """Reply to a delivered update using its `answer.ref` as the only argument, or
+    post an agent-initiated message using PAGE THREAD. A page and thread cannot
+    bypass an owed answer: use its delivered reference instead.
 
-    Mark every answer with --done (it delivers what the message asked for) or
-    --todo TITLE (it promises work it doesn't deliver, which stays on you as a
-    to-do), or --obligation when the next move is the user's. A widget in
-    --markup can also register its own obligation. A progress line
+    With a reference, mark every answer with --done (it delivers what the message
+    asked for) or --todo TITLE (it promises work it doesn't deliver, which stays
+    on you as a to-do), or --obligation when the next move is the user's. A widget
+    in --markup can also register its own obligation. A progress line
     (--ephemeral) or a failure (--failure) takes none of them.
 
     The reply can also set frozen HTML, the thread's title and a new anchor. It
@@ -1270,12 +1279,40 @@ def response_reply(
     without a browser: an error refuses the reply, and the first reply on a revision
     notes the advice `page check` gives on its source. Nothing runs in a browser,
     where `page check` runs a page's scripts and data widgets; one that fails for
-    the user arrives as an `error` event. After an answer posts,
-    your turn's final message is not posted as a second reply; an --ephemeral line
-    does not change that. Rerunning a reply that already posted prints the earlier
-    one; give a retried --ephemeral line an --attempt so it posts once.
+    the user arrives as an `error` event.
+
+    With a reference, an answer suppresses your turn's final message as a second
+    reply; an --ephemeral line does not. Rerunning a reply that already posted
+    prints the earlier one; give a retried --ephemeral line an --attempt so it
+    posts once. --done, --failure and --attempt require a reference.
+    PAGE THREAD accepts --obligation when the message needs the user's next move,
+    or --todo for promised work.
     """
-    from leaf.thread import post_response
+    from leaf.thread import post_reply, post_response
+
+    text = read_body(options.pop("text"), options.pop("body_file"))
+    if thread is not None:
+        addressed = [
+            flag
+            for flag, given in (
+                ("--done", done),
+                ("--failure", failure is not None),
+                ("--attempt", attempt is not None),
+            )
+            if given
+        ]
+        if addressed:
+            raise click.UsageError(
+                f"use an answer reference with {' and '.join(addressed)}; "
+                "use `leaf thread reply <answer.ref>`"
+            )
+        return post_reply(
+            resolve_dir(destination),
+            {"parent": thread},
+            text,
+            validate_source=True,
+            **options,
+        )
 
     declared = [
         flag
@@ -1303,27 +1340,7 @@ def response_reply(
     options["asks_back"] = not declared and answers
     if attempt is not None:
         options["attempt"] = attempt
-    text = read_body(options.pop("text"), options.pop("body_file"))
-    return post_response(reference, text, failure=failure, **options)
-
-
-@thread.command("reply", short_help="Add an agent-initiated reply to a thread.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("thread", metavar="THREAD")
-@_reply_options
-def thread_reply(dir: str, thread: str, **options) -> dict | None:
-    """Post a new agent message to THREAD.
-
-    A message is refused while the thread owes a response; answer it with
-    `leaf response reply <answer.ref>`. --ephemeral posts progress. Saved page
-    edits are checked and published as `leaf response reply` says.
-    """
-    from leaf.thread import post_reply
-
-    text = read_body(options.pop("text"), options.pop("body_file"))
-    return post_reply(
-        resolve_dir(dir), {"parent": thread}, text, validate_source=True, **options
-    )
+    return post_response(destination, text, failure=failure, **options)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")

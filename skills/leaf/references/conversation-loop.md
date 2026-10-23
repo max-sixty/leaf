@@ -7,12 +7,12 @@ event's `handling`. A chat response does not change the page.
 
 The user follows your work on the page:
 
-| Surface                   | What it shows                                                                                                                                                           | Written by                                                                |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Leaf's panel              | one sentence for the whole page, in the empty comment field: the line of the item you started last, or what you want back; the leaf beside it takes the status's colour | `leaf task start`, `leaf status <page> waiting "<detail>"`                |
-| Beside a thread or widget | **Working** and your line: the thread's working message, where you posted it, or on the control the work answers                                                        | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread                    | your answer to the user's message, replacing the progress before it                                                                                                     | the response operation named by delivered `handling`                      |
-| Page                      | the revised content in place, and a stamp's changelog                                                                                                                   | saving `index.html`, `leaf page stamp`                                    |
+| Surface                   | What it shows                                                                                                                                                           | Written by                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Leaf's panel              | one sentence for the whole page, in the empty comment field: the line of the item you started last, or what you want back; the leaf beside it takes the status's colour | `leaf task start`, `leaf status <page> waiting "<detail>"`              |
+| Beside a thread or widget | **Working** and your line: the thread's working message, where you posted it, or on the control the work answers                                                        | `leaf thread reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
+| Thread                    | your answer to the user's message, replacing the progress before it                                                                                                     | the response operation named by delivered `handling`                    |
+| Page                      | the revised content in place, and a stamp's changelog                                                                                                                   | saving `index.html`, `leaf page stamp`                                  |
 
 Leaf's panel floats at the foot of the window. Leaf marks each update **Sent**,
 **Queued**, and **Delivered** by itself. Your harness may add its current step to the
@@ -35,7 +35,8 @@ the page at its last report, `freshness` turns `stale` after 45 seconds without 
 and `matches_active_revision` says whether it shows your latest revision. Each
 entry's `checks` lists layout problems that browser measured, such as sideways
 overflow, with their own `freshness` and `matches_view`. They are context, not a
-substitute for `leaf page check --render`. An empty list means no browser has
+substitute for `leaf page check --render`, which reads the desktop at the latest
+entry's viewport. An empty list means no browser has
 reported, and a region on screen does not mean the user read it.
 
 ## When to write
@@ -46,7 +47,7 @@ your turn's opening message is that line (your harness's "Replies"). Otherwise r
 first:
 
 ```bash
-leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
+leaf thread reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
 ```
 
 The line shows at once as the thread's working message and the panel's **Working**
@@ -171,7 +172,7 @@ For work that outlasts the turn, such as a worker's build, a wait on CI, or a ch
 you promise for the next version, answer the thread with a to-do:
 
 ```bash
-leaf response reply <answer.ref> --todo "<what you owe>" --text "<what is under way>"
+leaf thread reply <answer.ref> --todo "<what you owe>" --text "<what is under way>"
 ```
 
 The reply answers the message and opens a to-do on the thread, under the reply's id.
@@ -208,7 +209,7 @@ press lands where the obligation is answered; on a widget's obligation, its numb
 | Request                                                                         | Register it                                                                                                             | What answers it                                                                       |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence                 | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
-| A conversational answer                                                         | `--obligation` on `thread open`, `thread reply`, or `response reply` (`threads.md`)                                     | The user's next message there or a settling reaction                                  |
+| A conversational answer                                                         | `--obligation` on `thread open` or `thread reply` (`threads.md`)                                                        | The user's next message there or a settling reaction                                  |
 | Approval of a stated action                                                     | Write `lf-approval` with the exact subject (`authoring-decisions.md`, "Approval")                                       | The widget's recorded approval and its row in On me                                   |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its thread, widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 

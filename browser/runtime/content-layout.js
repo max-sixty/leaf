@@ -1,6 +1,6 @@
-/* Authored sidebar, sidenote and contents-outline residency after initial parsing, and
+/* Authored sidebar, sidenote and contents-outline margin content layout after initial parsing, and
    the height of a Layout's sticky header.
-   The initial coordinator owns the one computed residency reading, used before first
+   The initial coordinator owns the one computed margin content layout reading, used before first
    paint and adopted here after upgrade. This owner schedules later reads and informs
    annotation geometry and reading-region discovery when that composition changes.
    Imports are inert; boot opens it once for every interactive document. */
@@ -11,28 +11,28 @@ import { layoutBox, pageDocument } from "./passages.js";
 import { marks } from "./marks.js";
 import { pageControlsChanged } from "./page-controls.js";
 // One computed reading seats the rail first without moving the column, then each
-// authored resident on its preferred side, or in flow when there is no room. The
+// authored margin element on its preferred side, or in flow when there is no room. The
 // column's runtime grid offset is removed before measuring, including RTL, while an
-// authored offset remains part of its room. --lf-resident (layouts.css) declares posture
+// authored offset remains part of its room. --lf-margin-content (layouts.css) declares placement
 // preferences; data-lf-margin and the shell's --lf-column-shift publish their geometry,
 // and data-lf-beside whether a sidebar page's track stands beside its body.
 // Read at most once per frame after widgets upgrade. Every completed read notifies
 // the selected annotation owner, including an unchanged or missing column; only a
 // changed reading repaints page geometry. Imports never start this document owner.
-let residencyOpen = false;
+let marginContentLayoutOpen = false;
 let readFinished = null;
-let residencyPending = 0;
-let residencyRead = -1;
-function residencyPass(time) {
-  residencyPending = 0;
-  if (time === residencyRead) {
-    residencyPending = nextFrame(residencyPass);
+let marginContentLayoutPending = 0;
+let marginContentLayoutRead = -1;
+function marginContentLayoutPass(time) {
+  marginContentLayoutPending = 0;
+  if (time === marginContentLayoutRead) {
+    marginContentLayoutPending = nextFrame(marginContentLayoutPass);
     return;
   }
-  residencyRead = time;
-  readResidency();
+  marginContentLayoutRead = time;
+  readMarginContentLayout();
 }
-// The Layout's header is read with the residents, and its height can change with no
+// The Layout's header is read with the margin elements, and its height can change with no
 // resize or toggle, as a web font arriving rewraps its title, so its size is watched.
 let headSizes = null;
 let watchedHead = null;
@@ -41,13 +41,13 @@ function watchHead() {
     document.documentElement.lfInitial.layoutBox()?.querySelector(":scope > header") ??
     null;
   if (header === watchedHead) return;
-  headSizes ??= sizeObserver(() => scheduleResidency());
+  headSizes ??= sizeObserver(() => scheduleMarginContentLayout());
   if (watchedHead) headSizes.unobserve(watchedHead);
   if (header) headSizes.observe(header);
   watchedHead = header;
 }
-function readResidency() {
-  const { changed } = document.documentElement.lfInitial.residency();
+function readMarginContentLayout() {
+  const { changed } = document.documentElement.lfInitial.marginContentLayout();
   watchHead();
   if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);
@@ -60,16 +60,17 @@ function readResidency() {
 // leaving its rows to pin over the content where the window has no room for it.
 export const railStands = (main = layoutBox()) =>
   (main?.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
-export function scheduleResidency() {
-  if (residencyOpen) residencyPending ||= nextRender(residencyPass);
+export function scheduleMarginContentLayout() {
+  if (marginContentLayoutOpen)
+    marginContentLayoutPending ||= nextRender(marginContentLayoutPass);
 }
 // A revision returns the reader to their place once its document stands, and where that
-// place is depends on the residents' postures: a sidebar page's track that a revision
+// place is depends on the margin elements' placements: a sidebar page's track that a revision
 // replaced is not yet marked beside its body, so its block would not yet scroll and the
 // place would land in the page. The revision reads them first (version.js, `land`); a
 // scheduled pass still follows.
-export function settleResidency() {
-  if (residencyOpen) readResidency();
+export function settleMarginContentLayout() {
+  if (marginContentLayoutOpen) readMarginContentLayout();
 }
 // The same read also says whether each breakout keeps to its holder (prepaint.js,
 // `breakouts`). A breakout a revision or a widget inserts, or one a holder reveals (a panel
@@ -87,16 +88,16 @@ function readBreakouts() {
   repaintPage();
 }
 // A part can replace the Layout box, and a page view can replace its margin
-// residents. Read either before the frame paints, so its margins stand immediately.
-const mayChangeResidency = (node) =>
+// margin elements. Read either before the frame paints, so its margins stand immediately.
+const mayChangeMarginContentLayout = (node) =>
   node.matches(
     'body > main > *, body > main > [data-lf-views="parts"] > *, [data-lf-views-flow="page"] > *',
   );
-export function openResidency({ onRead }) {
+export function openMarginContentLayout({ onRead }) {
   readFinished = onRead;
-  residencyOpen = true;
-  document.addEventListener("toggle", scheduleResidency, { capture: true });
-  window.addEventListener("resize", scheduleResidency);
+  marginContentLayoutOpen = true;
+  document.addEventListener("toggle", scheduleMarginContentLayout, { capture: true });
+  window.addEventListener("resize", scheduleMarginContentLayout);
   const main = pageDocument();
   if (main)
     new MutationObserver((records) => {
@@ -105,10 +106,10 @@ export function openResidency({ onRead }) {
           (record) =>
             record.type === "attributes" &&
             record.attributeName === "hidden" &&
-            mayChangeResidency(record.target),
+            mayChangeMarginContentLayout(record.target),
         )
       )
-        readResidency();
+        readMarginContentLayout();
       else if (
         records.some((record) =>
           record.type === "attributes"
@@ -123,5 +124,5 @@ export function openResidency({ onRead }) {
       attributes: true,
       attributeFilter: [ROOM, "hidden", "open"],
     });
-  readResidency();
+  readMarginContentLayout();
 }

@@ -53,7 +53,7 @@ from render_harness import (
     nudge,
     open_page,
     page_comment,
-    pane_posture,
+    pane_scroll_behavior,
     panel_control,
     panel_settled,
     refuse,
@@ -676,7 +676,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
 
     The card is told where it goes rather than the board being rebuilt around it,
     because that state can be stated: the user watches it travel back, and the
-    grip they were standing on is still under their hands."""
+    grip they were located on is still under their hands."""
     page = open_page(browser, live_url(serve(BOARD_PAGE)))
     grip = page.locator("#card-baffle .lf-grip")
     grip.focus()
@@ -2371,7 +2371,7 @@ def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     expect(elsewhere).to_be_focused()
 
 
-def test_undo_leaves_a_user_standing_elsewhere_where_they_are(browser, serve):
+def test_undo_leaves_a_user_located_elsewhere_where_they_are(browser, serve):
     """Undo from elsewhere changes the decision without moving the user's focus."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     suggestion_control(page, "sug-refill", "accept").click()
@@ -2677,7 +2677,7 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     )
     resized(page, 1440, 900)
     if scroller == "pane":
-        pane_posture(page, page.locator("#reading"), "bounded")
+        pane_scroll_behavior(page, page.locator("#reading"), "bounded")
     paragraph = page.locator("#p30")
     paragraph.scroll_into_view_if_needed()
     if target == "passage":
@@ -2725,7 +2725,7 @@ def test_a_comment_field_follows_when_its_pane_scrolls_past_the_target(browser, 
     """A bounded pane carries the field away while retaining its draft and caret."""
     page = open_page(browser, serve(PANED_LONG_PAGE))
     resized(page, 1440, 900)
-    pane_posture(page, page.locator("#reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#reading"), "bounded")
     paragraph = page.locator("#p30")
     paragraph.scroll_into_view_if_needed()
     paragraph.click(modifiers=["Alt"])

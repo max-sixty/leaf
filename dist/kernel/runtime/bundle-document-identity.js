@@ -178,7 +178,7 @@ import {
   commitPoint,
   livePoint,
   registerPageControl,
-  settleResidency,
+  settleMarginContentLayout,
   visibleTargetParts
 } from "./bundle-page-controls.js";
 import {
@@ -218,10 +218,10 @@ import {
   pageScroller,
   placeKept,
   reachScrollers,
-  readingPosture,
   readingRegionFor,
   readingRegions,
   recentReadingRegion,
+  regionScrollBehavior,
   regionsSettled,
   saidNow,
   scrollChainOf,
@@ -364,8 +364,8 @@ import {
   move,
   nextAnimation,
   nextRender,
+  onCurrentLocation,
   onFrameVisibility,
-  onStanding,
   onUserInput,
   openLayer,
   openerOf,
@@ -884,7 +884,7 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
-  /* An owner moving the field's edges can carry the words from where they stood with
+  /* An owner moving the field's edges can carry the words from where they were with
      them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
      --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
      its layout. The field's content box cuts off what the field doesn't hold yet,
@@ -2095,7 +2095,7 @@ function createSelectionComposer({
     fabOptions.addEventListener("toggle", () => {
       if (!isNativeLayer(fabOptions)) setResponseOptions(false);
     });
-    onStanding((node) => {
+    onCurrentLocation((node) => {
       if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);
     });
@@ -2280,18 +2280,18 @@ function createAnchorTravel({
     const intent = ++travelIntent;
     return restrictUserIntent(retained, () => intent === travelIntent);
   };
-  const journeyPrefix = `${performance.timeOrigin}:`;
-  let trips = 0;
-  let journey = null;
+  const navigationGroupPrefix = `${performance.timeOrigin}:`;
+  let navigationSteps = 0;
+  let navigationGroup = null;
   onReadingInput((node) => {
-    if (!journey || closestAcross(node, `${PRESSES},${PRESSABLE}`) || typesText(node))
+    if (!navigationGroup || closestAcross(node, `${PRESSES},${PRESSABLE}`) || typesText(node))
       return;
     const passage = passageBlock(node);
     if (!passage) return;
-    if (passage !== journey.passage()) journey = null;
+    if (passage !== navigationGroup.passage()) navigationGroup = null;
   });
   function stillLanded() {
-    const where = journey && history.state?.lfJourney === journey.token && journey.landing();
+    const where = navigationGroup && history.state?.lfNavigationGroup === navigationGroup.token && navigationGroup.landing();
     return Boolean(where && seenOf(where));
   }
   async function arrive(resolve, { intent, present = null, departure = null }) {
@@ -2357,7 +2357,7 @@ function createAnchorTravel({
     const destination = resolve();
     const source = anchor.datum && sectionOf(anchor);
     if (!destination && !source) return false;
-    const departure = prepareTrip({
+    const departure = prepareNavigationStep({
       intent: mayArrive,
       landing: () => resolve()?.where
     });
@@ -2375,7 +2375,7 @@ function createAnchorTravel({
     const mayArrive = retainTravel(intent);
     const destination = resolve();
     if (!destination?.where) return null;
-    const departure = prepareTrip({
+    const departure = prepareNavigationStep({
       intent: mayArrive,
       landing: () => resolve()?.where
     });
@@ -2421,7 +2421,7 @@ function createAnchorTravel({
     if (typeof release === "function") release();
     return mayArrive() ? resolve()?.input() ?? null : void 0;
   }
-  function prepareTrip({ landing = null, url, intent }) {
+  function prepareNavigationStep({ landing = null, url, intent }) {
     const write2 = prepareEntry();
     const continuing = landing && stillLanded();
     const arrival = landing && {
@@ -2437,16 +2437,16 @@ function createAnchorTravel({
       commit() {
         if (moving === void 0) return;
         if (!moving) {
-          if (continuing) Object.assign(journey, arrival);
+          if (continuing) Object.assign(navigationGroup, arrival);
           return;
         }
-        journey = arrival && {
-          token: journeyPrefix + ++trips,
+        navigationGroup = arrival && {
+          token: navigationGroupPrefix + ++navigationSteps,
           ...arrival
         };
         write2(
           url ?? window.location.href,
-          journey && { lfJourney: journey.token },
+          navigationGroup && { lfNavigationGroup: navigationGroup.token },
           continuing
         );
       }
@@ -2454,13 +2454,13 @@ function createAnchorTravel({
   }
   function followFragment(url) {
     const where = fragmentTarget(url.hash);
-    return where && fragmentTrip(url, true);
+    return where && fragmentNavigationStep(url, true);
   }
   function returnToFragment(url) {
     const where = fragmentTarget(url.hash);
-    return where && !where.checkVisibility() ? fragmentTrip(url, false) : null;
+    return where && !where.checkVisibility() ? fragmentNavigationStep(url, false) : null;
   }
-  function fragmentTrip(url, focus) {
+  function fragmentNavigationStep(url, focus) {
     const mayArrive = retainTravel();
     return () => arrive(
       () => {
@@ -2486,7 +2486,7 @@ function createAnchorTravel({
     }
     const url = new URL(window.location.href);
     url.hash = source.id;
-    const departure = prepareTrip({ url, intent: mayArrive });
+    const departure = prepareNavigationStep({ url, intent: mayArrive });
     const hydration = revealAddressed(source, key);
     if (hydration?.then) await hydration;
     if (!mayArrive()) return false;
@@ -2576,7 +2576,7 @@ function createAnchorTravel({
     const hydrating = anchor?.datum && status !== "outdated" || anchor?.visual;
     const destination = threadDestination(id);
     const landing = () => threadDestination(id);
-    const departure = prepareTrip({ landing, intent: mayArrive });
+    const departure = prepareNavigationStep({ landing, intent: mayArrive });
     if (destination || hydrating) departure.plan(destination);
     if (hydrating) {
       const source = sectionOf(anchor);
@@ -2611,7 +2611,7 @@ function createAnchorTravel({
     );
   }
   return {
-    prepareTrip,
+    prepareNavigationStep,
     arrive,
     arriveEditor,
     restoreSelection,
@@ -3240,10 +3240,10 @@ function createVersionController({
   hasPending,
   readAndApply,
   syncLayout,
-  captureRetainedStanding = () => null,
-  restoreRetainedStanding = () => false,
-  captureObligationStanding = () => null,
-  restoreObligationStanding = () => {
+  captureRetainedCurrentLocation = () => null,
+  restoreRetainedCurrentLocation = () => false,
+  captureObligationCurrentLocation = () => null,
+  restoreObligationCurrentLocation = () => {
   },
   // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
   versions
@@ -3413,9 +3413,9 @@ function createVersionController({
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
-      // Obligation standing is the fallback for unnamed controls. An exact editor already
+      // Obligation location is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent obligation does not also own focus.
-      obligationStanding: draftEditing ? null : captureObligationStanding()
+      obligationCurrentLocation: draftEditing ? null : captureObligationCurrentLocation()
     };
   }
   async function landContinuity(land) {
@@ -3427,8 +3427,8 @@ function createVersionController({
   }
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, obligationStanding } = continuity;
-    restoreObligationStanding(obligationStanding);
+    const { draftEditing, replyThread, replyInView, obligationCurrentLocation } = continuity;
+    restoreObligationCurrentLocation(obligationCurrentLocation);
     const mayRestore = restrictUserIntent(
       currentIntent,
       () => draftEditingStands(draftEditing)
@@ -3448,7 +3448,7 @@ function createVersionController({
   async function activateRevision(doc, target) {
     const currentIntent = retainUserIntent();
     const view = captureView();
-    const retainedStanding = captureRetainedStanding();
+    const retainedCurrentLocation = captureRetainedCurrentLocation();
     const editingContinuity = captureEditingContinuity();
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
@@ -3565,11 +3565,11 @@ function createVersionController({
       // This continuation never enters the semantic document snapshot.
       land: () => landContinuity(async () => {
         releaseHolds();
-        settleResidency();
+        settleMarginContentLayout();
         syncLayout();
         if (currentIntent()) {
           restoreView(view, currentIntent);
-          restoreRetainedStanding(retainedStanding);
+          restoreRetainedCurrentLocation(retainedCurrentLocation);
           restoreCarryScroll();
           await restoreEditingContinuity(editingContinuity, currentIntent);
         }
@@ -3623,7 +3623,7 @@ function createVersionController({
         revision: target.revision,
         url: location.href,
         view,
-        retainedStanding: captureRetainedStanding(),
+        retainedCurrentLocation: captureRetainedCurrentLocation(),
         ...editingContinuity,
         carry: captureCarry(pageDocument(), authoredSource).records,
         comparison: selectedBase(),
@@ -3652,7 +3652,7 @@ function createVersionController({
     });
     for (const region of readingRegions()) {
       if (!shownRegionBounds(region)) continue;
-      if (readingPosture(region) === "bounded" || region.id === active?.id)
+      if (regionScrollBehavior(region) === "bounded" || region.id === active?.id)
         view.regions[region.id] = capturePlace(region, blocks);
     }
     return view;
@@ -3764,7 +3764,7 @@ function createVersionController({
     ) ?? innermost;
   };
   const regionForBox = (box) => box === pageScroller ? null : readingRegions().find(
-    (region) => region.body === box && readingPosture(region) === "bounded"
+    (region) => region.body === box && regionScrollBehavior(region) === "bounded"
   );
   const boxOf = (node) => effectiveScroller(containingReadingRegionFor(node));
   const dropGonePlaces = () => {
@@ -3772,7 +3772,7 @@ function createVersionController({
     for (const map of [places2, subjectPlaces])
       for (const id of map.keys()) if (id !== PAGE && !present.has(id)) map.delete(id);
   };
-  function recordPlaces(boxes, { standing = false } = {}) {
+  function recordPlaces(boxes, { currentLocation = false } = {}) {
     if (shifting || compositionChanges.size || !regionsSettled()) return;
     dropGonePlaces();
     for (const box of boxes) {
@@ -3781,7 +3781,7 @@ function createVersionController({
       if (region && !(under(region.host, pageDocument()) && shownRegionBounds(region)))
         continue;
       const before = places2.get(region ? region.id : PAGE);
-      const acted = standing || readerChose(box, before?.choices ?? 0) || inputSince(box, before?.inputs ?? 0);
+      const acted = currentLocation || readerChose(box, before?.choices ?? 0) || inputSince(box, before?.inputs ?? 0);
       if (before && !acted) continue;
       const reading = capturePlace(region);
       places2.set(reading.scroller, {
@@ -3900,7 +3900,7 @@ function createVersionController({
   }
   const compositionChanges = /* @__PURE__ */ new Map();
   const ownBoxes = (owner) => readingRegions().filter(
-    (region) => readingPosture(region) === "bounded" && under(region.body, owner) && shownRegionBounds(region)
+    (region) => regionScrollBehavior(region) === "bounded" && under(region.body, owner) && shownRegionBounds(region)
   ).map((region) => region.body);
   function showSubject(phase, region) {
     const box = region.body;
@@ -4012,17 +4012,17 @@ function createVersionController({
       { capture: true, passive: true }
     );
     for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
-    const recordStanding = () => {
+    const recordCurrentLocation = () => {
       const at = focused();
       if (!at || !under(at, pageDocument())) return;
       const box = boxOf(at);
-      recordPlaces([box], { standing: true });
-      nextRender(() => recordPlaces([box], { standing: true }));
+      recordPlaces([box], { currentLocation: true });
+      nextRender(() => recordPlaces([box], { currentLocation: true }));
     };
-    onStanding(recordStanding);
-    onReadingInput(recordStanding);
+    onCurrentLocation(recordCurrentLocation);
+    onReadingInput(recordCurrentLocation);
     onUserInput((event) => {
-      if (event.type === "keydown" || event.type === "input") recordStanding();
+      if (event.type === "keydown" || event.type === "input") recordCurrentLocation();
       if (!["wheel", "touchstart", "keydown", "pointerdown"].includes(event.type))
         return;
       const at = event.type === "keydown" ? focused() : event.composedPath()[0];
@@ -4034,7 +4034,7 @@ function createVersionController({
     nextRender(
       () => recordPlaces([
         pageScroller,
-        ...readingRegions().filter((region) => readingPosture(region) === "bounded").map((region) => region.body)
+        ...readingRegions().filter((region) => regionScrollBehavior(region) === "bounded").map((region) => region.body)
       ])
     );
   }
@@ -4072,7 +4072,7 @@ function createVersionController({
       if (handoff) {
         restorePointer(handoff.pointer);
         restoreView(handoff.view, currentIntent);
-        restoreRetainedStanding(handoff.retainedStanding);
+        restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
         restoreCarryScroll();
         await restoreEditingContinuity(handoff, currentIntent);
         if (handoff.comparison !== null && stamped(handoff.comparison))
@@ -4621,8 +4621,8 @@ function createReactionController({
   showFab,
   showFabOptions,
   updateFab,
-  standingThread: standingThread2,
-  standingTarget
+  currentLocationThread: currentLocationThread2,
+  currentTarget
 }) {
   const surfaces = /* @__PURE__ */ new WeakMap();
   const marginSurface = /* @__PURE__ */ Symbol("margin reactions");
@@ -4697,12 +4697,12 @@ function createReactionController({
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
   const pickerFor = (surface) => surfaces.get(surface);
   function reactionTarget() {
-    const said = standingThread2();
+    const said = currentLocationThread2();
     const strip = said && latestAgentStrip(said.held);
     if (strip) return { kind: "surface", surface: strip };
     if (fabAnchorAt()) return { kind: "anchor" };
     if (hasPageSelectionTarget()) return { kind: "selection" };
-    const target = standingTarget();
+    const target = currentTarget();
     return target ? { kind: "target", target } : null;
   }
   const hasReactionTarget = () => Boolean(reactionTarget());
@@ -6219,7 +6219,7 @@ function createThreadDestinations({
   threadIdsAt,
   scrollToThread,
   arrive,
-  prepareTrip,
+  prepareNavigationStep,
   preview = null
 }) {
   let presentation = null;
@@ -6253,14 +6253,14 @@ function createThreadDestinations({
     ].filter((thread) => thread && ids.includes(drawnThreadId(thread)));
     return drawn2.length === 1 ? drawn2[0] : null;
   };
-  const threadAtStanding = () => {
+  const threadAtCurrentLocation = () => {
     const here = drawnThreadId(threadHere());
     if (here) return here;
     const active = focused();
     return (active && threadIdsAt(active)[0]) ?? null;
   };
-  const replyThreadAtStanding = () => {
-    const id = threadAtStanding();
+  const replyThreadAtCurrentLocation = () => {
+    const id = threadAtCurrentLocation();
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread && replyAvailable(thread) ? id : null;
   };
@@ -6277,7 +6277,7 @@ function createThreadDestinations({
     origin = null
   } = {}) {
     if (!intent()) return null;
-    const trip = travel2 && scroll;
+    const navigationStep = travel2 && scroll;
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
@@ -6299,7 +6299,7 @@ function createThreadDestinations({
       };
       const mayPresent = () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
-      const departure = focus !== false && trip ? prepareTrip({
+      const departure = focus !== false && navigationStep ? prepareNavigationStep({
         landing: () => selected.reader.destination(thread.key, request),
         intent: arriving
       }) : null;
@@ -6330,7 +6330,7 @@ function createThreadDestinations({
               return current && {
                 where: current,
                 focus: current,
-                scroll: trip ? [{ at: current, block: "nearest" }] : []
+                scroll: navigationStep ? [{ at: current, block: "nearest" }] : []
               };
             },
             { intent: arriving, departure }
@@ -6345,7 +6345,7 @@ function createThreadDestinations({
       if (part === "message") showHeld(id);
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
-        if (trip) {
+        if (navigationStep) {
           if (!await scrollToThread(id, { part: localPart, focus, intent }))
             return null;
         } else if (focus === false) {
@@ -6368,7 +6368,7 @@ function createThreadDestinations({
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
       if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
-      const place = preview && !trip ? threadTarget(id) : null;
+      const place = preview && !navigationStep ? threadTarget(id) : null;
       const placeDrawn = () => visibleTargetParts(place).length > 0;
       if (place && scroll && !placeDrawn()) {
         await reveal(place, intent).ready;
@@ -6380,7 +6380,7 @@ function createThreadDestinations({
           opened = preview.open(id, { origin });
         });
       if (opened) {
-        if (trip) {
+        if (navigationStep) {
           if (!await scrollToThread(id, {
             part: part ?? "thread",
             focus,
@@ -6464,8 +6464,8 @@ function createThreadDestinations({
     holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,
     threadHere,
-    threadAtStanding,
-    replyThreadAtStanding,
+    threadAtCurrentLocation,
+    replyThreadAtCurrentLocation,
     threadTarget,
     threadPlace: threadPlace2
   };
@@ -7900,7 +7900,7 @@ function mountApplication(dependencies) {
     placedAt: dependencies.anchorPlacement.placedAt,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
     arrive: dependencies.anchorTravel.arrive,
-    prepareTrip: dependencies.anchorTravel.prepareTrip,
+    prepareNavigationStep: dependencies.anchorTravel.prepareNavigationStep,
     preview: overlay?.threadPreview
   });
   threadPresenter = createThreadPresentation({
@@ -8192,7 +8192,7 @@ function threadInput(node) {
   return threadReplyInput(held);
 }
 var heldThreadOrSeat = () => focused() && closestAcross(focused(), SAYS_IN);
-var standingThread = () => {
+var currentLocationThread = () => {
   const held = heldThreadOrSeat();
   const box = threadReplyInput(held);
   return box ? { held: wholeThread(held), box } : null;
@@ -8235,12 +8235,12 @@ pageScope("text entry", {
           scrollIntoView(target, { block: "nearest" });
           return;
         }
-        standOnThread(target);
+        returnToThread(target);
       }
     }
   ]
 });
-function standOnThread(thread) {
+function returnToThread(thread) {
   const shown = alreadyShown(thread);
   if (!fitsWhole(thread) && shown) {
     focusThread(thread, "return");
@@ -8275,7 +8275,7 @@ function createThreadLanding() {
     return true;
   };
   const landInThread2 = (box, route = null) => landIn({ box, route });
-  const landSent = standOnThread;
+  const landSent = returnToThread;
   return { landIn, landInThread: landInThread2, landSent };
 }
 function declareThreadKeys(landIn, threadHere) {
@@ -9049,7 +9049,7 @@ export {
   queueActions,
   wireInput,
   threadInput,
-  standingThread,
+  currentLocationThread,
   leavesBox,
   createThreadLanding,
   declareThreadKeys,

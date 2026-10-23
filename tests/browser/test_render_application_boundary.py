@@ -406,7 +406,7 @@ document.documentElement.dataset.pageModule = `${label}:${state.loads}`;
 
 ACTIVATION_READING = f"""\
 <p id="live-reading">{LIVE_READING}</p>
-<button id="standing-control" type="button">Inspect continuity</button>
+<button id="focused-control" type="button">Inspect continuity</button>
 <lf-ask id="activation-decision"><h2>Activate the revision?</h2>
 <lf-options id="activation-choice" choose>
   <lf-option id="activation-go">Continue</lf-option>

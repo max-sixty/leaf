@@ -23,7 +23,7 @@ register only while the widget exists. Element scopes are declared with
 A key press goes to scopes from the focused element outward: the exact control or an
 active mode, native editing and activation, the nearest widget and the widgets around
 it, Leaf's contextual and page scopes, and last the browser. A scope owns every binding
-it declares while the user is in it and the page has it (`standing` in `dispatch.js`),
+it declares while the user is in it and the page has it (`currentLocation` in `dispatch.js`),
 so when its command is unavailable the press reaches no other Leaf command.
 
 A text field keeps characters, composition, caret movement and deletion ahead of any
@@ -100,7 +100,7 @@ words. Suggest and reactions share an anchored Other responses picker, reached b
 button, Tab from the field, or the contextual reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.
 
-A command that should leave the user where they are declares `retainStanding`: the
+A command that should leave the user where they are declares `retainCurrentLocation`: the
 floating panel saves focus, caret and selection as the user steps into it, and the
 row's press restores them before running the command.
 

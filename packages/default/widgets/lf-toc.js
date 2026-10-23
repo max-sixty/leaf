@@ -67,7 +67,7 @@ import {
   whileConnected,
   wrote,
   focused,
-  standingIn,
+  currentLocationIn,
 } from "/runtime/widget-api.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
@@ -225,7 +225,7 @@ customElements.define(
         this.#flowOpen ??= disclosure.open;
         if (!disclosure.open) disclosure.open = true;
       } else if (this.#flowOpen !== undefined) {
-        const open = this.#flowOpen || standingIn(this.#rows);
+        const open = this.#flowOpen || currentLocationIn(this.#rows);
         if (disclosure.open !== open) disclosure.open = open;
         this.#flowOpen = undefined;
       }
@@ -347,7 +347,7 @@ customElements.define(
         this.removeAttribute("data-lf-compact");
         this.setAttribute("data-lf-outline", "");
         if (
-          standingIn(this.#nav) &&
+          currentLocationIn(this.#nav) &&
           this.#focusedLink === focused(document) &&
           this.#focusedVisible &&
           this.#nav.getBoundingClientRect().height < this.#navHeight - 1

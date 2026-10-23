@@ -322,7 +322,7 @@ export function mountApplication(dependencies) {
     placedAt: dependencies.anchorPlacement.placedAt,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
     arrive: dependencies.anchorTravel.arrive,
-    prepareTrip: dependencies.anchorTravel.prepareTrip,
+    prepareNavigationStep: dependencies.anchorTravel.prepareNavigationStep,
     preview: overlay?.threadPreview,
   });
 

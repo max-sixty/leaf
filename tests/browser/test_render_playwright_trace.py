@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
-from render_cases_layout import ring_faults, standing_ring
+from render_cases_layout import current_location_ring, ring_faults
 from render_harness import (
     at_rest,
     holding,
@@ -1257,7 +1257,7 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
         && document.elementFromPoint(x, y) !== node;
     }""")
     expect(canvas).to_be_focused()
-    ring = standing_ring(user)
+    ring = current_location_ring(user)
     assert ring, "the canvas has no focus ring"
     assert not (faults := ring_faults([ring], "the panned trace canvas")), "\n".join(
         faults

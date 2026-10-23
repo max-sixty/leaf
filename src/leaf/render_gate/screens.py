@@ -71,7 +71,7 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
 # the walk puts the user on an update handed back to them. Those are the walk's other
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step
 # past it.
-STANDING_OBLIGATION = """() => {
+CURRENT_OBLIGATION = """() => {
   const item = [...document.querySelectorAll('[data-lf-obligation]')]
     .find((el) => !el.parentElement?.closest('[data-lf-obligation]'))?.id;
   if (item) return {obligation: true, id: item};
@@ -96,7 +96,7 @@ def _obligations_in_turn(page, into: Path) -> tuple[list[Path], bool]:
     while True:
         page.keyboard.press("m")
         rendered(page)
-        here = page.evaluate(STANDING_OBLIGATION)
+        here = page.evaluate(CURRENT_OBLIGATION)
         if here is None or (here["obligation"], here["id"]) in seen:
             return shots, False
         seen.add((here["obligation"], here["id"]))

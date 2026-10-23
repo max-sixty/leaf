@@ -28,7 +28,7 @@ import {
 } from "./bundle-page-paint.js";
 import {
   move,
-  watchStandingIn
+  watchCurrentLocationIn
 } from "./bundle-frame-visibility.js";
 import {
   readPart,
@@ -340,7 +340,7 @@ function shadowStage(host, nodes) {
   ];
   watchDisclosures(root);
   watchLayers(root);
-  watchStandingIn(root);
+  watchCurrentLocationIn(root);
   const rules = SHADOW_LEADING_CSS + shadowRules;
   let style = stageStyles.get(root);
   if (style?.textContent !== rules) {

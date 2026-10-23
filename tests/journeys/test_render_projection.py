@@ -52,6 +52,7 @@ from render_harness import (
     example_media,
     expect_obligations_answered,
     expect_panel_offers,
+    expect_panel_says,
     holding,
     leaf_page,
     names,
@@ -60,6 +61,7 @@ from render_harness import (
     page_registry,
     panel_control,
     panel_field,
+    panel_view,
     resized,
     root_overflow,
     round_trip,
@@ -91,7 +93,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.threads import open_panel_thread
 
-from journeys import expect_panel_says, first_thread_quote
+from journeys import first_thread_quote
 
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
@@ -1629,7 +1631,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     page.locator("#tq-one .lf-pick").first.focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
     expect(threads).to_be_visible()
     page.keyboard.press("1")
     expect(threads).to_be_visible()

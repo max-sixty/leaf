@@ -207,7 +207,7 @@ import {
 } from "./errors.js";
 import { move } from "./dom-move.js";
 import { statusContextReading } from "./keyboard/status-context.js";
-import { reducedMotion } from "./motion.js";
+import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
 import {
@@ -235,23 +235,6 @@ import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { closestAcross } from "./passages.js";
 
 const prefs = () => document.documentElement.lfChrome;
-// The Codex panel's tween: one strong ease-out for every change of size and fade.
-const EASE = "cubic-bezier(.23, 1, .32, 1)";
-// The box growing as the words do, a line at a time, takes the tween's full length, which
-// the user singled out as the panel's best motion (15 October).
-const RESIZE_MS = 300;
-// The row gathers into its leaf before that one object finishes travelling. Its
-// layout is already final, so the two visual phases never delay input.
-const FOLD_MS = 280;
-const FOLD_EASE = "cubic-bezier(.77, 0, .175, 1)";
-// A view the user opened, or put away, is what they asked to see, so it arrives almost at
-// once, as the menu does: its outline in a third of the tween, its words faded in at
-// once after the leaving view's. The user found the full tween slow here (15 October).
-const VIEW_RESIZE_MS = 120;
-const FADE_MS = 90;
-// The view leaving is gone before the one arriving shows, so the two never read
-// through each other.
-const OUT_MS = 60;
 
 // The menu's groups, each a list of the page's controls declaring it, in the menu's place.
 const GROUPS = Object.freeze({
@@ -344,6 +327,16 @@ export function createFloatingPanel({
 }) {
   const host = new FloatingPanel();
   host.className = "lf-ui lf-floating-panel";
+  // The panel's durations and curves, which its stylesheet declares on it and says why
+  // each is what it is (floating-panel.css, "The panel's motion"), read live as every
+  // `--lf-motion-*` is.
+  const ease = () => motionEasing("--lf-motion-panel-ease", host);
+  const foldEase = () => motionEasing("--lf-motion-panel-fold-ease", host);
+  const resizeMs = () => motionTime("--lf-motion-panel-resize", host);
+  const foldMs = () => motionTime("--lf-motion-panel-fold", host);
+  const viewResizeMs = () => motionTime("--lf-motion-disclosure", host);
+  const fadeMs = () => motionTime("--lf-motion-view-in", host);
+  const outMs = () => motionTime("--lf-motion-view-out", host);
   host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
   // The surface the box stands on: a layer of its own over the whole window, cut to the
@@ -1184,15 +1177,16 @@ export function createFloatingPanel({
       paint();
     }
     const page = menu.firstElementChild;
-    if (before !== undefined && page && !reducedMotion()) {
+    if (before !== undefined && page) {
       const side =
         (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
-      page.animate(
+      playMotion(
+        page,
         [
           { translate: `${side * 16}px 0`, opacity: 0 },
           { translate: "0 0", opacity: 1 },
         ],
-        { duration: VIEW_RESIZE_MS, easing: EASE },
+        { duration: viewResizeMs(), easing: ease() },
       );
     }
     // A press on a menu row leaves focus on that row. A command-reference press
@@ -1233,7 +1227,7 @@ export function createFloatingPanel({
     readCorner();
     followBox();
   });
-  const motion = boxMotion({
+  const following = boxMotion({
     root: host,
     box: card,
     room: ground,
@@ -1290,20 +1284,16 @@ export function createFloatingPanel({
       "--lf-panel-reach",
       layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0),
     );
-    const moving = !reducedMotion() && pagePresented();
     const compact = host.dataset.rest === "mark";
     const duration = compact
-      ? FOLD_MS
+      ? foldMs()
       : performance.now() < viewMovingUntil
-        ? VIEW_RESIZE_MS
-        : RESIZE_MS;
-    motion.follow(
-      moving ? { duration, easing: compact ? FOLD_EASE : EASE } : null,
-      compact,
-    );
+        ? viewResizeMs()
+        : resizeMs();
+    following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
   }
   addEventListener("resize", () => {
-    motion.forget();
+    following.forget();
     followBox();
   });
 
@@ -1485,7 +1475,7 @@ export function createFloatingPanel({
   let refitting = false;
   function refit() {
     room = null;
-    viewMovingUntil = performance.now() + VIEW_RESIZE_MS;
+    viewMovingUntil = performance.now() + viewResizeMs();
     if (refitting) return;
     refitting = true;
     nextRender(() => {
@@ -1689,31 +1679,32 @@ export function createFloatingPanel({
     // The view going away fades where it stood, closing included, so the box shrinking
     // under it never shows an empty ground.
     leaving = changed && before && after ? before : null;
-    if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
+    if (changed) viewMovingUntil = performance.now() + outMs() + viewResizeMs();
     paint();
     // The reader draws what the view arriving holds, and lets go of what the one
     // leaving held: a thread's messages, or the obligations On shows as messages.
     const drawn =
       reading || viewOf(before)?.nominate ? present({ release: reading }) : null;
-    if (!changed || reducedMotion() || !pagePresented()) {
+    if (!changed || !motionPlays()) {
       leaving = null;
       paint();
       if (focus) focusView(after, drawn, stoodIn);
       return;
     }
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-    arriving?.animate([{ opacity: 0 }, { opacity: 1 }], {
-      duration: FADE_MS,
-      delay: leaving ? OUT_MS : 0,
-      easing: "linear",
-      fill: "backwards",
-    });
+    if (arriving)
+      playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
+        duration: fadeMs(),
+        delay: leaving ? outMs() : 0,
+        easing: "linear",
+      });
     const gone = stage.querySelector(".lf-fp-view[data-leaving]");
-    const fade = gone?.animate([{ opacity: 1 }, { opacity: 0 }], {
-      duration: OUT_MS,
-      easing: "linear",
-      fill: "forwards",
-    });
+    const fade =
+      gone &&
+      playMotion(gone, [{ opacity: 1 }, { opacity: 0 }], {
+        duration: outMs(),
+        easing: "linear",
+      });
     // The view leaving goes once its fade ends, which is still the gesture's rendering,
     // so the box moving then moves as the user's change (`followBox`).
     const release = fade ? holdRendering() : null;

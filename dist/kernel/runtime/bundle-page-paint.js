@@ -953,11 +953,10 @@ var clampedRow = (rows, current, dir, entry = dir > 0 ? 0 : rows.length - 1) => 
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
 };
 var cycledRow = (rows, current, dir) => {
-  if (!rows.length) return { row: void 0, wrapped: false };
+  if (!rows.length) return void 0;
   const at = rows.indexOf(current);
   const next = at < 0 ? dir > 0 ? 0 : rows.length - 1 : at + dir;
-  const wrapped = next < 0 || next >= rows.length;
-  return { row: rows[(next + rows.length) % rows.length], wrapped };
+  return rows[(next + rows.length) % rows.length];
 };
 
 // runtime/keyboard/text-entry.js

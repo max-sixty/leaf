@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 
 from leaf.files import stamped_version
-from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
 from leaf.refusals import Refused
@@ -146,7 +145,6 @@ def _stamp_event(
     event = {
         "kind": "note",
         "author": "agent",
-        **message_identity(),
         "version": version,
         "revision": revision,
         "text": body,

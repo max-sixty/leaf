@@ -21,6 +21,7 @@ from render_harness import (
     open_page,
     pane_scroll_behavior,
     panel_settled,
+    panel_view,
     resized,
     round_trip,
     scroll_settled,
@@ -248,7 +249,7 @@ def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
     page.locator("#p8").evaluate("p => p.scrollIntoView({block: 'start'})")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("p")
     page.keyboard.press("Tab")
@@ -301,7 +302,7 @@ def test_a_let_go_never_lands_in_a_closed_fold(browser, serve):
     scroll_settled(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")

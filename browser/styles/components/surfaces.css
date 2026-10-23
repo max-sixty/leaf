@@ -205,7 +205,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   color: var(--ink-2);
   font-family: var(--mono);
   font-size: var(--t-6);
-  line-height: 1.478;
+  /* The line box the size token is built from: the badge less its border. */
+  line-height: calc(var(--lf-key-badge-size) - 2px);
   text-align: center;
   white-space: nowrap;
   display: inline-flex;
@@ -515,11 +516,12 @@ summary {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
+/* A forced palette paints every ground in Canvas, so the quiet ground of a thread
+   holding focus would vanish; the thread wears the ring instead. */
 @media (forced-colors: active) {
   .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
-    box-shadow: none;
+    outline: var(--focus-ring);
+    outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
 .lf-say {

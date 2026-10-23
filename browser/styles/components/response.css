@@ -122,8 +122,6 @@
 .lf-action-icon {
   position: relative;
   z-index: 1;
-  inline-size: 16px;
-  block-size: 16px;
   pointer-events: none;
 }
 /* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
@@ -245,8 +243,12 @@
    stands 120px tall (`--lf-media-h`), enough to tell a pasted screenshot by its
    content, which 56px was not. A surface whose ground is not the paper sets the
    ground and ring its pictures meet it with. */
-.lf-composer-media {
+/* How far a picture's corner marks stand out past it, in a draft's shelf and on a
+   rewrite's pictures alike. */
+:is(.lf-composer-media, .lf-msg-media) {
   --lf-media-mark-overhang: 6px;
+}
+.lf-composer-media {
   --lf-media-room: max(
     calc(var(--raise-1-drop) + var(--raise-1-blur)),
     calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2)
@@ -342,6 +344,14 @@ button.lf-media-open {
     outline: 1px solid CanvasText;
   }
 }
+/* A rewrite's pictures are its message's (`sentMedia`, input.js), each a paragraph
+   holding the picture the message draws (`.lf-message-media`, integration.css), below
+   the words: the item fits its picture, so the removal mark stands on the picture's
+   corner. */
+.lf-msg-media > .lf-composer-media-item {
+  inline-size: fit-content;
+  max-inline-size: 100%;
+}
 /* A drawing's picture is its canvas over the page it was drawn on, at the shelf's
    height and half again as wide, on the paper the canvas letterboxes onto so the page
    behind the box never shows through. Its undo mark shows in and out of Draw mode
@@ -416,16 +426,59 @@ button.lf-media-open {
 :is(.lf-thread-reply, .lf-fab-bar, .lf-msg-editor) .lf-compose-field {
   --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
 }
-/* A message's rewrite is a comment box, the field the thread's reply box is, as wide as
-   the reply box: in a transcript, which insets its messages, it reaches back over that
-   inset, so its words keep the message's. Discard and Save stand at the message's head
-   (`.lf-msg-edit-actions`). */
+/* A message's rewrite is a comment box standing where the message stood (browser/
+   AGENTS.md, "Editing in place"): every line of its words keeps its place and its
+   breaks, its pictures stand under them as the message draws them (`sentMedia`,
+   input.js), and the field's frame goes around both, in the room around the message's
+   content. The frame reaches back over the words' inset, and past their column's end
+   (`--lf-msg-text-end`) to the message's edge, or by the inset where the words keep
+   less room than that; and past their first line and last line or picture by
+   its padding and frame, a comment box line's (`--lf-response-height`), less the room
+   those lines already keep (`--lf-thread-text-pad-block`, as a margin card's do). So
+   opening it adds nothing to the message's height. Discard and Save stand at the
+   message's head (`.lf-msg-edit-actions`). Rejected by the user on 2026-10-22: the
+   reply box's own field, its padding inside the words' box, under a draft's cropped
+   shelf of the pictures, which moved and rewrapped the words. */
 .lf-msg-editor {
   display: block;
   min-width: 0;
+  /* The message's face, whose line its frame's room is reckoned in. */
+  font: var(--msg-font);
 }
-.lf-thread-transcript .lf-msg-editor {
-  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
+/* The body holds the field's reach past it, so the message's box is the room it takes. */
+.lf-msg-body:has(> .lf-msg-editor) {
+  display: flow-root;
+}
+.lf-msg-editor > .lf-compose-field {
+  --lf-compose-pad-block: calc(
+    (var(--lf-response-height, max(32px, var(--aim-floor))) - 2px - 1lh) / 2
+  );
+  --lf-msg-edit-past-end: max(
+    var(--lf-thread-text-inset) - var(--lf-msg-text-end, 0px),
+    0px
+  );
+  margin-inline: calc(-1 * var(--lf-thread-text-inset))
+    calc(-1 * var(--lf-msg-edit-past-end));
+  margin-block: calc(
+    var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px
+  );
+}
+.lf-msg-editor > .lf-compose-field > leaf-text {
+  min-height: 0;
+  padding-inline-end: calc(
+    var(--lf-msg-text-end, 0px) + var(--lf-msg-edit-past-end) - 1px
+  );
+}
+.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
+  margin-block-end: calc(-1 * var(--lf-compose-pad-block) - 1px);
+}
+.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) > leaf-text {
+  padding-block-end: var(--lf-thread-text-pad-block, 0px);
+}
+.lf-msg-editor > .lf-compose-field > .lf-msg-media {
+  margin-inline: calc(var(--lf-thread-text-inset) - 1px)
+    calc(var(--lf-msg-edit-past-end) - 1px);
+  padding-block-end: var(--lf-compose-pad-block);
 }
 /* Its foot stands for its last line, whose height a reveal clears above it. */
 .lf-msg-edit-foot {
@@ -483,22 +536,15 @@ button.lf-media-open {
   );
   --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
 }
-.lf-margin-preview .lf-msg-text {
-  padding-inline-end: var(--lf-comment-text-end);
+.lf-margin-preview .lf-msg {
+  --lf-msg-text-end: var(--lf-comment-text-end);
 }
-/* A rewrite in the card is the comment box the card grew from: its words keep the card's
-     text column, and its frame and padding stand in the room each line of the message
-     already keeps, so opening it on plain words moves none of them and changes no
-     height; Markdown still opens as its longer source. Rejected: the
-     reply box's taller field, with the message keeping its height from first paint
-     (#2985), which made every short card taller than the box it came from for a rewrite
-     the user may never open. */
-.lf-margin-preview .lf-msg-editor .lf-compose-field > leaf-text {
-  min-height: 0;
-  padding-inline-end: calc(var(--lf-comment-text-end) - 1px);
-}
+/* A rewrite in the card is the comment box the card grew from, its frame and padding in
+   the room each line of the message already keeps (`.lf-msg-editor`). Rejected: the
+   reply box's taller field, with the message keeping its height from first paint
+   (#2985), which made every short card taller than the box it came from for a rewrite
+   the user may never open. */
 .lf-fab-bar .lf-compose-field,
-.lf-margin-preview .lf-msg-editor .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
 }
@@ -661,15 +707,5 @@ leaf-text.lf-fab-input {
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] {
     display: none !important;
-  }
-}
-
-/* Forced-colour palettes suppress elevation shadows. The same control keeps a
- * visible platform ring when seated outside the private chrome scope as well. */
-@media (forced-colors: active) {
-  .lf-response-control[data-lf-focus-visible] {
-    outline: var(--focus-ring-w) solid Highlight;
-    outline-offset: 2px;
-    filter: none;
   }
 }

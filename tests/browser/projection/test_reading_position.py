@@ -26,6 +26,7 @@ from render_harness import (
     panel_field,
     panel_menu,
     panel_settled,
+    panel_view,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -808,7 +809,7 @@ def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    list_selector = '.lf-fp-view[data-view="queue"]:not([data-leaving])'
+    list_selector = panel_view("queue")
     view = page.locator(list_selector)
     view.evaluate(
         """list => list.addEventListener('scroll', () => {

@@ -56,7 +56,7 @@ def color_cue_markup():
 
 
 # The keyboard walk's position, the reading the panel says in its field's place
-# (walk-position.js, `walkPosition`): `{text, kind, boundary}`, or null with no walk
+# (walk-position.js, `walkPosition`): `{text, kind, target}`, or null with no walk
 # under way. Evaluating it leaves a synchronous reader for `wait_for_function`.
 WALK_POSITION = """async () => {
   const {walkPosition} = await window.__lfCheckApi();

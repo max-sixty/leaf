@@ -392,7 +392,17 @@ def claude_code_transcript(session: str) -> list[dict] | None:
     found = sorted(Path(config).glob(f"projects/*/{session}.jsonl"))
     if not found:
         return None
-    return [json.loads(line) for line in found[0].read_text().splitlines()]
+    return transcript_records(found[0])
+
+
+def transcript_records(path: Path) -> list[dict]:
+    """The records of the Claude Code transcript at `path`, one JSON object a line.
+    Lines split only at the newline Claude Code writes after each record: its strings
+    can hold U+2028 and U+2029 raw, which `splitlines` would split on. A record it
+    is still writing is no record yet, so the bytes after the last newline, which
+    can end inside a character, are left out."""
+    written, _, _ = path.read_bytes().rpartition(b"\n")
+    return [json.loads(line) for line in written.decode().split("\n") if line]
 
 
 def ends_turn(record: dict) -> bool:

@@ -107,17 +107,14 @@ class Harness:
     # again if the turn ends first (`delivery.confirm_turn`).
     commits_hook_context: ClassVar[bool] = True
     # The most UTF-8 bytes of hook context the harness shows the model whole, or
-    # None where it shows any size. A delivery whose context would exceed it goes
-    # as its pointer (`fits_hook_context`).
+    # None where it shows any size.
     hook_context_bytes: ClassVar[int | None] = None
 
     @classmethod
     def fits_hook_context(cls, context: str) -> bool:
         """Whether the harness shows `context`, a hook's whole output to the turn,
-        to the model whole. A delivery whose context doesn't fit goes as
-        `delivery.delivery_pointer_prompt`, which `leaf delivery read` resolves in
-        parts, both from Claude Code's and Pi's hooks (`hook_transport.render`)
-        and from Codex's (`codex.offer_hook_delivery`)."""
+        to the model whole. Every hook hands a delivery whose context doesn't fit
+        over as its pointer (`delivery.delivery_pointer_prompt`)."""
         return (
             cls.hook_context_bytes is None
             or len(context.encode("utf-8")) <= cls.hook_context_bytes

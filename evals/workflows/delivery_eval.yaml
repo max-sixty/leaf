@@ -26,7 +26,8 @@ cases:
     inputs:
       injection:
         - idle
-      # Long enough that every harness's hook hands the delivery over by pointer.
+      # Long enough that Claude Code's and Codex's hooks hand the delivery over
+      # by pointer.
       comments:
         - anchor:
             section: triage-why

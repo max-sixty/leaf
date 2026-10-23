@@ -188,9 +188,12 @@ sheet.replaceSync(`
      heading is bold, as the platform draws one, at the size of the words around it. A
      block is drawn line by line, so a code block's frame is each line's sides, closed
      above its first line and below its last. Syntax that holds its room while the
-     caret is away, as a code fence's line does, is there unseen and unspoken. */
+     caret is away, as a code fence's line does, is there unseen and unspoken. Its
+     glyphs go unfilled while its colour stays the words', because the caret can stand
+     at the end of unseen text, as just past a new item's marker, and the browser draws
+     it in that text's colour. */
   .lf-md-mark { color: var(--muted); }
-  .lf-md-unseen { color: transparent; }
+  .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
     background: var(--code-bg); border-radius: var(--code-inline-r);
     padding: var(--code-inline-pad); box-decoration-break: slice; }

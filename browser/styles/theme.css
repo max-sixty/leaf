@@ -1665,17 +1665,9 @@ th.num,
 td.num {
   text-align: right;
 }
-/* A list of steps keeps the browser's own numbers, which sit on each step's first line
-   in any direction and at any size, and dresses them in the accent. A disc behind the
-   number is out of reach: `::marker` takes no background, and a box placed by hand has
-   to recompute the first line the marker already stands on. */
+/* Steps keep native list numbers and add space between entries. */
 ol.steps > li {
   margin: 10px 0;
-}
-ol.steps > li::marker {
-  color: var(--accent);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 /* A schematic drawing the page makes itself: every mark takes a theme token, so the

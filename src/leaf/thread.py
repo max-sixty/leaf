@@ -259,7 +259,6 @@ def cmd_comment(
         event = {
             "kind": "comment",
             "author": "agent",
-            **message_identity(),
             "revision": revision,
             "text": body,
         }
@@ -940,12 +939,11 @@ def _fail_markup_answer(
         return record_pickup(page, [update], phase="failed", failure=failure)
 
 
-def title_event(thread: str, title: str, identity: dict) -> dict:
-    """The `thread_title` event naming `thread`, in the voice of `identity`."""
+def title_event(thread: str, title: str) -> dict:
+    """The `thread_title` event naming `thread`."""
     return {
         "kind": "thread_title",
         "author": "agent",
-        **identity,
         "thread": thread,
         "title": title,
     }
@@ -960,7 +958,7 @@ def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
         is not None
     ):
         return None
-    return append_admitted(page, title_event(thread, title, identity))[0]
+    return append_admitted(page, {**title_event(thread, title), **identity})[0]
 
 
 @contract_writer
@@ -977,7 +975,7 @@ def cmd_edit(
     A rename adds no turn and changes no obligation. Under one lease, the rename is
     admitted before the edit is appended, so a refused title leaves the text unedited.
     """
-    from leaf.event_contracts import admitted_event
+    from leaf.event_contracts import admitted_event, voiced
     from leaf.page_view import PageView
     from leaf.registry.storage import require_registry
 
@@ -987,14 +985,13 @@ def cmd_edit(
         named = None
         if title is not None:
             thread = thread_named(page_dir, page.events, message)
-            named = title_event(thread, title, message_identity())
-            admitted_event(PageView(page_dir), page.events, named)
+            named = title_event(thread, title)
+            admitted_event(PageView(page_dir), page.events, voiced(named))
         records = []
         if body is not None:
             edit = {
                 "kind": "edit",
                 "author": "agent",
-                **message_identity(),
                 "message": message,
                 "text": body,
             }
@@ -1025,7 +1022,6 @@ def cmd_summarize(
             {
                 "kind": "summary",
                 "author": "agent",
-                **message_identity(),
                 "thread": thread_named(page_dir, page.events, from_message),
                 "from": from_message,
                 "through": through_message,
@@ -1046,7 +1042,6 @@ def cmd_resolve(page_dir: Path, parent: str) -> dict:
         event = {
             "kind": "resolve",
             "author": "agent",
-            **message_identity(),
             "parent": parent,
         }
         return append_admitted(page, event)[0]
@@ -1080,7 +1075,6 @@ def cmd_report(
         event = {
             "kind": "report",
             "author": "agent",
-            **message_identity(),
             "widget": widget,
             "action": verb,
             "detail": detail,

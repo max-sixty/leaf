@@ -136,12 +136,14 @@ the same way, from the moment it is sent, and its refusal brings the reaction ba
 The server stamps every browser-posted event `author=user`, except `error`, which it
 stamps `author=page`. `leaf thread open`,
 `leaf thread reply`, `leaf thread edit`, `leaf page report`, and
-`page stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
-name, and `session`, its harness session id. Several agent sessions can write to one
-page, so the voice is read from the poster's environment rather than from the
-watcher's claim record, and identity is the session id, because a display name is
-anyone's to choose. A command run outside a harness session has no voice, so its
-event carries neither field. Every reading that shows an agent's event names it
+`page stamp` stamp `author=agent`. Admission (`event_contracts.append_admitted`)
+gives an agent's event that names no voice the posting session's own: `agent`, its
+display name, and `session`, its harness session id. Several agent sessions can
+write to one page, so the voice is read from the poster's environment rather than
+from the watcher's claim record, and identity is the session id, because a display
+name is anyone's to choose. A writer speaking for another session names that voice
+itself, as the page server does when it titles a thread for its claimant. A command
+run outside a harness session has no voice, so its event carries neither field. Every reading that shows an agent's event names it
 through `schema.agent_name`, which gives such an event the name `Agent`. Every
 agent-authored thread message, closing event, margin entry, and activity row the
 browser receives carries that name as `agent`, and the browser shows it as served.

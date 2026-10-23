@@ -450,14 +450,12 @@ class PageTransaction:
         stream the harness observes carries across a `waiting`, and `idle` clears it
         with the leaf."""
         from leaf.event_contracts import append_admitted
-        from leaf.harness import message_identity
 
         record, _ = append_admitted(
             self,
             {
                 "kind": "status",
                 "author": "agent",
-                **message_identity(),
                 "state": state,
                 "detail": detail,
             },

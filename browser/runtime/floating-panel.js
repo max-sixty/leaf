@@ -216,6 +216,7 @@ import {
   holdFocus,
   letGo,
   onCurrentLocation,
+  onPressAway,
   onUserInput,
   rove,
   currentLocationIn,
@@ -825,10 +826,10 @@ export function createFloatingPanel({
   // the field says (an error the field says instead hides the words, and the press
   // writes on the page). The press's mousedown is cancelled, so the editor never takes
   // focus, a phone raises no keyboard for it, and the page's selection stands until the
-  // comment takes it. The comment opens as the press completes, since that mousedown
-  // still reaches the page, which puts away whatever comment box it finds open
-  // (composing/surface.js, `standDown`). A Tab through the row, or the runtime putting
-  // the caret there, writes on the page.
+  // comment takes it. The comment opens as the press completes, since the press is
+  // still one away from whatever comment box stands open on the page, which goes as it
+  // completes (composing/surface.js, `standDown`). A Tab through the row, or the runtime
+  // putting the caret there, writes on the page.
   let pressedWords = null;
   const quotedWords = () =>
     general &&
@@ -3779,16 +3780,17 @@ export function createFloatingPanel({
     writing = next;
     paint();
   });
-  // A press on the page puts away what stands open above the row. A press in a modal
-  // over the panel is not on the page (`overPanel`).
-  document.addEventListener(
-    "pointerdown",
-    (event) => {
-      if (event.composedPath().includes(host) || !nativeModalAdmits(host)) return;
+  // A press away from the panel puts away what stands open above the row (focus.js,
+  // `onPressAway`). A press in a modal over the panel is not on the page (`overPanel`).
+  onPressAway(
+    (path) =>
+      (menuOpen.value || trail.value.length > 0) &&
+      !path.includes(host) &&
+      nativeModalAdmits(host),
+    () => {
       if (menuOpen.value) setMenu(false);
       if (trail.value.length) close();
     },
-    true,
   );
 
   // The doors to the panel's views and to Versions, as Go-to's named destinations

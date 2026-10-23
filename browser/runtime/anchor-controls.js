@@ -12,7 +12,7 @@
  */
 import { scrollIntoView } from "./landing-scroll.js";
 import { nextRender } from "./rendering.js";
-import { holdFocus } from "./focus.js";
+import { holdFocus, onPressAway } from "./focus.js";
 import { fragmentId } from "./initial-render.js";
 import { sameAnchor } from "./anchor-coordinate.js";
 import { sectionLabel } from "./addressable-names.js";
@@ -452,27 +452,32 @@ export function createAnchorControls({
     raiseError(missingReference(fragmentId(href)));
   };
 
-  const onOutsideReaction = (event) => {
-    for (const record of reactionSeats.values())
-      if (
-        record.expanded &&
-        !event.composedPath().some((node) => record.margin.contains(node))
-      )
-        setReactionRemoval(record, null);
-  };
+  // A press away from a reaction whose removal stands offered takes the offer back
+  // (focus.js, `onPressAway`).
+  const offeredAway = (path) =>
+    [...reactionSeats.values()].filter(
+      (record) => record.expanded && !path.some((node) => record.margin.contains(node)),
+    );
+  let stopPressAway = null;
 
   function mount() {
     if (mounted) return;
     mounted = true;
     document.addEventListener("lf-layout", onLayoutInvalidated);
-    document.addEventListener("pointerdown", onOutsideReaction, { capture: true });
+    stopPressAway = onPressAway(
+      (path) => offeredAway(path).length > 0,
+      (end) => {
+        for (const record of offeredAway(end.composedPath()))
+          setReactionRemoval(record, null);
+      },
+    );
     messageReferenceRoot.addEventListener("click", onMessageReference);
   }
 
   function destroy() {
     if (mounted) {
       document.removeEventListener("lf-layout", onLayoutInvalidated);
-      document.removeEventListener("pointerdown", onOutsideReaction, { capture: true });
+      stopPressAway();
       messageReferenceRoot.removeEventListener("click", onMessageReference);
     }
     mounted = false;

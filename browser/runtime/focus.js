@@ -816,7 +816,28 @@ export const recentPlaceInput = () => placeInput;
 let press = null;
 export const pressing = () => press;
 const pressReaders = new Set();
-export const onPress = (read) => pressReaders.add(read);
+// Returns what stops hearing presses, for an owner torn down before the page is.
+export const onPress = (read) => {
+  pressReaders.add(read);
+  return () => pressReaders.delete(read);
+};
+// A press away from a surface puts it away: one that begins outside it and completes
+// outside it, `away(path)` reading each end's composed path. That is how the platform
+// judges its own light dismissal (a popover's, a dialog's `closedby`), so a drag that
+// starts outside and ends inside, or inside and ends outside, leaves the surface open,
+// a touch scroll the browser cancels puts nothing away, and a finger and a mouse are
+// one route. The surface goes as the press completes, after the press's own handlers
+// have read the scene it began in, and before its click, which may open what replaces
+// it. Every surface that goes on a press elsewhere goes by this, rather than by its own
+// listener on `pointerdown` or `mousedown`, each of which judged a different press.
+export const onPressAway = (away, dismiss) =>
+  onPress((_start, path) =>
+    away(path)
+      ? (end, completed) => {
+          if (completed && away(end.composedPath())) dismiss(end);
+        }
+      : null,
+  );
 addEventListener(
   "pointerdown",
   (event) => {

@@ -1,7 +1,7 @@
 {
   "lf-suggestion": {
     "description": "One proposed change to content the user has already seen, with accept and reject controls.",
-    "x-instructions": "Copy the current markup verbatim into lf-old and put the proposed markup in lf-new. Both slots replace, lf-new alone inserts, and lf-old alone deletes; a change to a widget also uses its complete old and new markup. Write new content directly, and use lf-draft for words the user owns. Suggestions cannot nest, contain a draft, or appear in a reply. Set `resolves` to the comment whose thread should close when the user accepts. To withdraw an undecided suggestion, replace the whole `lf-suggestion` with `lf-old`'s contents. Keeping `lf-new`'s contents instead would accept it without the user's decision.",
+    "x-instructions": "Copy the current markup verbatim into lf-old and put the proposed markup in lf-new. Both slots replace, lf-new alone inserts, and lf-old alone deletes; a change to a widget also uses its complete old and new markup. Suggestions cannot nest, contain a draft, or appear in a reply. Set `resolves` to the comment whose thread should close when the user accepts. To withdraw an undecided suggestion, replace the whole `lf-suggestion` with `lf-old`'s contents. Keeping `lf-new`'s contents instead would accept it without the user's decision.",
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },

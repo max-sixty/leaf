@@ -14,6 +14,26 @@ from ..findings import Finding, Rejected, element_at
 from .kernel import verb_writers
 
 
+def matches_when(attrs: dict, when: dict) -> bool:
+    """Every attribute `when` names holds one of the matching values, a flag's
+    two values being its presence and its absence."""
+    return all(
+        any(
+            (attr in attrs) == value
+            if isinstance(value, bool)
+            else attrs.get(attr) == value
+            for value in values
+        )
+        for attr, values in (when or {}).items()
+    )
+
+
+def exhibits(attrs: dict, entry: dict) -> bool:
+    """Whether this occurrence quotes its descendants."""
+    rule = entry.get("x-exhibit", False)
+    return matches_when(attrs, rule["when"]) if isinstance(rule, dict) else rule
+
+
 def is_element_name(name: str) -> bool:
     """Whether a vocabulary key names one Leaf custom element rather than a selector.
 

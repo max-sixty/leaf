@@ -326,8 +326,28 @@ function normalizedObligations(
   widgets                                     ,
   document                  ,
   projection                                   ,
+  todos                               ,
 )                  {
+  const todoRecords = new Map(
+    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo]),
+  );
   const all = (view?.obligations ?? []).map((item)                   => {
+    // Done and its Undo decide the user's task directly. Reuse the pending to-do
+    // reading so the canonical inventory and its queue row show the same gesture.
+    if (item.source.kind === "todo") {
+      const todo = todoRecords.get(item.source.id) ;
+      if (todo.state === "open" && item.status !== "open")
+        return { ...item, answer: null, status: "open", next_actor: "user", end: null };
+      if (todo.state !== "open" && item.status === "open")
+        return {
+          ...item,
+          answer: { value: todo.state, event: null },
+          status: "answered",
+          next_actor: null,
+          end: null,
+        };
+      return item;
+    }
     if (item.source.kind !== "widget") return item;
     const sourceId = item.source.id;
     const sourceUnit = item.source.unit;
@@ -500,7 +520,7 @@ function localQueues(
   // record still on the list's side, unless it is an update in a thread this tab has
   // sent to since, whose own record stands for it.
   const standsOpen = (item           ) => {
-    if (item.kind === "todo") return open.has(item.id);
+    if (!namesRecord(item)) return open.has(item.id);
     const current = obligationOf(item);
     return (
       current.next_actor === item.owner &&
@@ -633,9 +653,8 @@ function localUpdates(workflows                     ) {
 const onUserRank = (item           ) =>
   item.kind === "todo" ? 1 : item.kind === "update" ? 2 : 0;
 
-// Whether a list item names an obligation record, which it carries: every row but a
-// to-do's.
-const namesRecord = (item           ) => item.kind !== "todo";
+// Every row but an agent-owned to-do names the canonical obligation inventory.
+const namesRecord = (item           ) => item.kind !== "todo" || item.owner === "user";
 
 
 
@@ -918,10 +937,10 @@ export function createSemanticApplication({
       widgets,
       projection,
     );
-    const servedItems = ready
-      ? normalizedObligations(view, widgets, document, projection)
-      : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
+    const servedItems = ready
+      ? normalizedObligations(view, widgets, document, projection, todos)
+      : NO_OBLIGATIONS;
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
     // whose Retry it is.

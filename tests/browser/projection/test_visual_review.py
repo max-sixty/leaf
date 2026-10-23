@@ -245,7 +245,24 @@ def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, ser
     )
     context = browser.new_context(viewport={"width": 1200, "height": 900})
     held = []
-    context.route("**/media/slow-*.svg", lambda route: held.append(route))
+    context.route("**/media/111111111111111*.svg", lambda route: held.append(route))
+    # Pending images stay off-document while the current evidence remains readable.
+    # Wait for their native load callbacks before asserting a stale load had no effect.
+    context.add_init_script("""(() => {
+      window.delayedEvidence = [];
+      const source = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+      Object.defineProperty(HTMLImageElement.prototype, 'src', {
+        ...source,
+        set(value) {
+          if (value.includes('/media/111111111111111')) {
+            const evidence = {loaded: false};
+            window.delayedEvidence.push(evidence);
+            this.addEventListener('load', () => evidence.loaded = true, {once: true});
+          }
+          source.set.call(this, value);
+        },
+      });
+    })();""")
     page = None
     try:
         page = open_page(browser, url, context=context)
@@ -253,16 +270,17 @@ def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, ser
             serve.page_dir,
             "docs-run",
             run(
-                "/media/slow-before.svg",
-                "/media/slow-after.svg",
+                "/media/1111111111111110.svg",
+                "/media/1111111111111111.svg",
                 viewport_width=900,
             ),
         )
         told(page)
         shot = page.locator("#visual-run lf-shot")
-        expect(shot).to_have_attribute("before", "/media/slow-before.svg")
+        expect(shot).to_have_attribute("before", "/media/1111111111111110.svg")
         images = shot.locator("img")
         expect(images).to_have_count(2)
+        page.wait_for_function("() => window.delayedEvidence.length >= 2")
         # Replacement evidence stays on screen until both new images have loaded.
         expect(images.first).to_have_attribute("src", "/media/3cf0e3efe80c6b01.png")
         assert len(held) == 2
@@ -291,6 +309,9 @@ def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, ser
         )
         while held:
             held.pop(0).fulfill(content_type="image/svg+xml", body=stale_svg)
+        page.wait_for_function(
+            "() => window.delayedEvidence.every(evidence => evidence.loaded)"
+        )
         rendered(page)
         expect(images.first).to_have_attribute("src", "/media/3cf0e3efe80c6b01.png")
         expect(images.first).to_have_js_property("naturalWidth", 780)

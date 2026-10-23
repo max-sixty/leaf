@@ -197,7 +197,7 @@ import {
   nextAnimation,
   nextRender,
   onCurrentLocation,
-  onPress,
+  onPressAway,
   onUserInput,
   pressLed,
   renderedOrder,
@@ -2328,9 +2328,6 @@ function createMarginProjection({
     if (currentTargets.some((node) => node && path.includes(node))) return false;
     return !path.some(inRetainedContext);
   };
-  const pressAway = (start, path) => pressedAway(path) ? (end, completed) => {
-    if (completed && pressedAway(end.composedPath())) closePreview();
-  } : null;
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
   const accompaniedThreadHere = () => card.accompanied();
   declareSide((node) => {
@@ -2428,17 +2425,14 @@ function createMarginProjection({
       scheduleMarginEntryLabels();
       queueMicrotask(followCurrentLocation);
     });
-    onPress(pressAway);
-    document.addEventListener(
-      "pointerdown",
-      (event) => {
-        if (!expandedOptionsKey) return;
-        const host = hosts.get(expandedOptionsKey);
-        if (!host || event.composedPath().includes(host) || event.composedPath().some(inRetainedContext))
-          return;
-        setOptionsOpen(host.lfEntry, false);
+    onPressAway(pressedAway, () => closePreview());
+    const unfolded = () => hosts.get(expandedOptionsKey) ?? null;
+    onPressAway(
+      (path) => {
+        const host = unfolded();
+        return Boolean(host) && !path.includes(host) && !path.some(inRetainedContext);
       },
-      { capture: true }
+      () => setOptionsOpen(unfolded().lfEntry, false)
     );
     watchRoom(() => scheduleRoving());
     window.addEventListener("resize", () => scheduleWidthRender());

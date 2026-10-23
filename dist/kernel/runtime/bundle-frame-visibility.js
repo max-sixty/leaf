@@ -752,7 +752,16 @@ var recentPlaceInput = () => placeInput;
 var press = null;
 var pressing = () => press;
 var pressReaders = /* @__PURE__ */ new Set();
-var onPress = (read2) => pressReaders.add(read2);
+var onPress = (read2) => {
+  pressReaders.add(read2);
+  return () => pressReaders.delete(read2);
+};
+var onPressAway = (away, dismiss) => onPress(
+  (start, from) => start.button === 0 && away(from) ? (end, completed) => {
+    const path = end.composedPath();
+    if (completed && away(path)) dismiss(path, from);
+  } : null
+);
 addEventListener(
   "pointerdown",
   (event) => {
@@ -1182,6 +1191,7 @@ export {
   recentPlaceInput,
   pressing,
   onPress,
+  onPressAway,
   recoveredLabelFocus,
   ringBox,
   drawn,

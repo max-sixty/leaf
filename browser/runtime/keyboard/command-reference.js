@@ -1013,12 +1013,12 @@ function activateSelectedCommand() {
   return true;
 }
 
-export const commandReferenceOpen = () => commandReferenceIsOpen;
+const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
 const openCommandReference = (invokeCommand, returnTo = null) =>
   showCommandReference(true, true, invokeCommand, returnTo);
-export const closeCommandReference = (restoreFocus = true) =>
+const closeCommandReference = (restoreFocus = true) =>
   showCommandReference(false, restoreFocus, null, null);
 
 // The dialog's own keys. It is a modal search context and claims the whole keyboard while

@@ -203,7 +203,7 @@ export function createAim({
           : null;
     }
     if (!claimedPress && ev.type === "mousedown" && ev.detail > 1 && previousPress)
-      claimedPress = { continuing: true };
+      claimedPress = { continuing: previousPress.continuing ?? previousPress };
     if (!claimedPress) return;
     // Keyboard activation belongs to the control it is on, whatever the last pointer
     // did, and every captured press mode reads that the one way (pointer.js).
@@ -214,7 +214,11 @@ export function createAim({
     if (["mousedown", "click", "auxclick"].includes(ev.type)) ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
-    if (claimedPress.aim && claimedPress.choosing)
+    if (claimedPress.continuing?.aim && claimedPress.continuing.choosing)
+      // The continuation is a new pointer input to the focus handoff, though it
+      // belongs to the choice already made. Renew that choice's field landing.
+      commentOnTarget(claimedPress.continuing.aim);
+    else if (claimedPress.aim && claimedPress.choosing)
       targetPicker.choose(claimedPress.aim);
     else if (claimedPress.aim) commentOnTarget(claimedPress.aim);
     else if (claimedPress.designMode) designMode.open(claimedPress.designMode);

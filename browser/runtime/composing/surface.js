@@ -899,7 +899,9 @@ export function createResponseSurface({
     // The node pressed, not the widget host a shadow tree retargets it to: core controls
     // seated in a widget surface stay inside their own composer or reaction layer.
     const [target] = path;
-    const visual = visualAt(target);
+    // A release outside the document can begin its path at window, which has no
+    // visual place to compare with the open composer.
+    const visual = target?.nodeType === Node.ELEMENT_NODE ? visualAt(target) : null;
     const sameVisual =
       visual &&
       !fabAnchor.value?.quote &&
@@ -913,7 +915,7 @@ export function createResponseSurface({
   }
   function standDown() {
     if (composerOpen) composer.hideComposer();
-    letGoOfFab();
+    if (fabAnchor.value) letGoOfFab();
     // The armed react press goes with the bar it was armed on.
     setReact(false);
   }

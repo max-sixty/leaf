@@ -27,11 +27,13 @@
       if (at.nodeType === 1 && at.matches(sel)) return at;
     return null;
   };
-  // The chrome stands over the page, so a press of the chrome's over a page control's
-  // edge is the chrome's to take; a page control over a page control, or chrome over
-  // chrome, is one control lying over another.
+  // The chrome stands over the page, and an open popover or dialog over everything, so
+  // a press of theirs over a control's edge is theirs to take; a page control over a
+  // page control, or chrome over chrome, is one control lying over another.
+  const TOP = ":popover-open, dialog[open]";
   const overlay = (el, over) =>
-    !!closestAcross(over, ".lf-chrome") !== !!closestAcross(el, ".lf-chrome");
+    !!closestAcross(over, ".lf-chrome") !== !!closestAcross(el, ".lf-chrome") ||
+    closestAcross(over, TOP) !== closestAcross(el, TOP);
   const reachedBy = (el, x, y) => {
     for (let at = pressed(x, y); at; at = at.parentNode || at.host) {
       if (at === el) return false;
@@ -41,19 +43,20 @@
     return false;
   };
   // Whether a reach that takes a press at a point lies over a field there, which then
-  // loses that press: a control's reach is for room nothing else uses. A field's own
-  // action, standing in the field's box as Send does, is the field's to place, and its
-  // reach over the room the field keeps for it is not judged here.
+  // loses that press: a control's reach is for room nothing else uses. What would take
+  // the press without the reach is the first box beneath the control, so a field a
+  // surface already covers, as the panel covers the page, loses nothing to it. A
+  // field's own action, standing in the field's box as Send does, is the field's to
+  // place, and its reach over the room the field keeps for it is not judged here.
   const overField = (el, x, y) => {
     const face = el.getBoundingClientRect();
     const [cx, cy] = [face.left + face.width / 2, face.top + face.height / 2];
-    return document.elementsFromPoint(x, y).some((at) => {
-      const field = closestAcross(at, FIELD);
-      if (!field || field === el || el.contains(field) || field.contains(el))
-        return false;
-      const b = field.getBoundingClientRect();
-      return !(cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom);
-    });
+    const beneath = document.elementsFromPoint(x, y).find((at) => !el.contains(at));
+    const field = beneath && closestAcross(beneath, FIELD);
+    if (!field || field === el || el.contains(field) || field.contains(el))
+      return false;
+    const b = field.getBoundingClientRect();
+    return !(cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom);
   };
   // Whether a press at the end of a control's reach misses it because the reach is cut
   // short: clipped by a box that holds the control, so the press lands on that box, or
@@ -63,6 +66,7 @@
     if (takes(el, x, y)) return false;
     const at = pressed(x, y);
     if (!at) return true;
+    if (overlay(el, at)) return false;
     for (let up = el.parentNode || el.host; up; up = up.parentNode || up.host)
       if (up === at) return true;
     for (let up = at; up; up = up.parentNode || up.host)

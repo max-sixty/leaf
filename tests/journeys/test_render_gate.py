@@ -1305,10 +1305,10 @@ def test_the_runtime_holds_a_declared_scroll_surface(browser, serve):
     # from reading as a clean sweep of nothing.
     diffed = page.evaluate(
         """() => [...document.querySelectorAll('lf-diff')]
-            .map((d) => d.shadowRoot.querySelector('pre'))
+            .map((d) => d.shadowRoot.querySelector('.lf-text-scroller'))
             .filter(Boolean)
-            .map((pre) => ({ scrolls: getComputedStyle(pre).overflowX,
-                             position: getComputedStyle(pre).position }))"""
+            .map((box) => ({ scrolls: getComputedStyle(box).overflowX,
+                             position: getComputedStyle(box).position }))"""
     )
     assert diffed, "no diff drew its lines here, so nothing stands in a shadow tree"
     assert all(d == {"scrolls": "auto", "position": "relative"} for d in diffed), (

@@ -939,11 +939,14 @@ def _fail_markup_answer(
         return record_pickup(page, [update], phase="failed", failure=failure)
 
 
-def title_event(thread: str, title: str) -> dict:
-    """The `thread_title` event naming `thread`."""
+def title_event(thread: str, title: str, identity: dict | None = None) -> dict:
+    """The `thread_title` event naming `thread`, in the voice of `identity` where one
+    is given; without one, admission gives it the posting session's
+    (`event_contracts.voiced`)."""
     return {
         "kind": "thread_title",
         "author": "agent",
+        **(identity or {}),
         "thread": thread,
         "title": title,
     }
@@ -958,7 +961,7 @@ def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
         is not None
     ):
         return None
-    return append_admitted(page, {**title_event(thread, title), **identity})[0]
+    return append_admitted(page, title_event(thread, title, identity))[0]
 
 
 @contract_writer

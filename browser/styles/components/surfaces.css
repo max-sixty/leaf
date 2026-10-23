@@ -474,14 +474,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   position: relative;
 }
 :is(
-    .lf-btn,
-    .button,
-    .lf-icon-action,
-    .lf-msg-control,
-    .lf-code-copy,
-    .lf-draft-action,
-    .lf-corner-mark
-  )::after {
+  .lf-btn,
+  .button,
+  .lf-icon-action,
+  .lf-msg-control,
+  .lf-code-copy,
+  .lf-draft-action,
+  .lf-corner-mark
+)::after {
   content: "";
   position: absolute;
   inset: min(0px, (100% - var(--aim-floor)) / 2);

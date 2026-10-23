@@ -429,19 +429,14 @@ customElements.define(
                 @change=${(event) => this.#review(record, event.currentTarget.checked)}
               />Looks right</label
             >
-            <button
-              type="button"
-              ${offered("lf-btn lf-quiet-action lf-vr-feedback")}
-            >
+            <button type="button" ${offered("lf-btn lf-quiet-action lf-vr-feedback")}>
               Add feedback
             </button>
             ${
               threads.length
                 ? html`<button
                       type="button"
-                      ${offered(
-                        "lf-btn lf-quiet-action lf-vr-open-threads",
-                      )}
+                      ${offered("lf-btn lf-quiet-action lf-vr-open-threads")}
                       popovertarget=${`${this.id}-${record.id}-threads`}
                     >
                       ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
@@ -484,10 +479,7 @@ customElements.define(
                 : nothing
             }
           </div>
-          <button
-            type="button"
-            ${offered("lf-btn lf-quiet-action lf-vr-next")}
-          >
+          <button type="button" ${offered("lf-btn lf-quiet-action lf-vr-next")}>
             Next unchecked <span aria-hidden="true">→</span>
           </button>
         </div>

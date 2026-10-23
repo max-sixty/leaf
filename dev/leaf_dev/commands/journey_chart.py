@@ -2,16 +2,16 @@
 
 The chart draws when each sign of the release ask came. The table (`--replies`)
 gives, for each target and case (`journey.CASES`, the harness waiting or working
-when the release ask reaches it), the whole reply and Leaf's share of it, beside
-the harness's other work before it took the comment, the reply after that, and the
-model calls the reply took (`reply_phases.reply_breakdown`), as ranges over the
-kept samples of the latest version each target ran in each case, or with `--since`
-over every sample kept since then, for a batch whose commits leave the plugin
-unchanged.
+when the release ask reaches it), the time of the whole reply and the parts it went
+to (`reply_phases.reply_breakdown`), over the kept samples of the latest version
+each target ran in each case, or with `--since` over every sample kept since then,
+for a batch whose commits leave the plugin unchanged. The benchmark is the time;
+the model calls and their output tokens only say where it went.
 """
 
 import json
 import re
+import statistics
 from datetime import datetime
 
 import click
@@ -72,40 +72,94 @@ def chosen(samples: list[dict], since: datetime | None) -> list[dict]:
     ]
 
 
+# The parts of a reply (`reply_phases.reply_breakdown`) the table attributes it to,
+# each moment once, in the order they come.
+PARTS = (
+    ("Harness busy first", "busyMs"),
+    ("Delivery", "deliveryMs"),
+    ("Leaf's commands", "leafCommandsMs"),
+    ("Leaf's hooks", "leafHooksMs"),
+    ("Harness", "harnessMs"),
+    ("Model: wait", "waitMs"),
+    ("Model: generation", "generationMs"),
+    ("Model: unsplit", None),
+    ("Other tools", "otherToolsMs"),
+    ("Idle", "idleMs"),
+)
+
+
 def reply_table(samples: list[dict], since: datetime | None = None) -> str:
-    """A Markdown table of each target's replies in each case, in seconds."""
+    """A Markdown table of where each target's replies in each case went: the whole
+    reply's mean and range, in seconds, then each part's mean and its share of the
+    whole, which add up to it. Model time a harness reports no first output for stays
+    unsplit. Leaf's share, the model calls and their output tokens follow as
+    diagnostics."""
     replies: dict[tuple[str, str], list[dict]] = {}
     for sample in chosen(samples, since):
         if "case" in sample and (reply := sample["comment"].get("reply")):
             key = (chart_target(sample), sample["case"])
             replies.setdefault(key, []).append(reply)
+    groups = sorted(
+        replies.items(), key=lambda item: (item[0][0], CASES.index(item[0][1]))
+    )
 
-    def span(values: list[float]) -> str:
+    def part(reply: dict, key: str | None) -> float:
+        if key is None:
+            # Samples kept before the model's time was split have no parts.
+            split = reply.get("waitMs", 0) + reply.get("generationMs", 0)
+            return (reply["modelMs"] - split) / 1000
+        return reply.get(key, 0) / 1000
+
+    def row(name: str, cell) -> str:
+        return f"| {name} | " + " | ".join(cell(group) for _, group in groups) + " |"
+
+    def share(key: str | None):
+        def cell(group: list[dict]) -> str:
+            mean = statistics.fmean(part(reply, key) for reply in group)
+            whole = statistics.fmean(reply["wholeMs"] / 1000 for reply in group)
+            return f"{mean:.1f} ({mean / whole:.0%})"
+
+        return cell
+
+    def span(values: list[float], digits: int = 1) -> str:
         low, high = min(values), max(values)
         return (
-            f"{low:.1f}" if f"{low:.1f}" == f"{high:.1f}" else f"{low:.1f}–{high:.1f}"
+            f"{low:.{digits}f}"
+            if low == high
+            else f"{low:.{digits}f}–{high:.{digits}f}"
         )
 
-    def seconds(group: list[dict], key: str) -> str:
-        return span([reply[key] / 1000 for reply in group])
+    def whole(less: str | None = None):
+        """The whole reply's mean and range, less the `less` part."""
+
+        def cell(group: list[dict]) -> str:
+            values = [
+                (reply["wholeMs"] - (reply[less] if less else 0)) / 1000
+                for reply in group
+            ]
+            return f"**{statistics.fmean(values):.1f}** ({span(values)})"
+
+        return cell
+
+    def tokens(group: list[dict]) -> str:
+        known = [r["outputTokens"] for r in group if r.get("outputTokens") is not None]
+        return span(known, 0) if known else "–"
 
     lines = [
-        (
-            "| Target | Case | Runs | Whole reply | Leaf's share | Harness busy first "
-            "| After the boundary | Model calls | Model time |"
+        "| Seconds, mean (share) | "
+        + " | ".join(f"{target}, {case}" for (target, case), _ in groups)
+        + " |",
+        "| --- |" + " --: |" * len(groups),
+        row("Runs", lambda group: str(len(group))),
+        row("Whole reply (range)", whole()),
+        row("After the boundary (range)", whole("busyMs")),
+        *(row(name, share(key)) for name, key in PARTS),
+        row("Leaf's share", share("leafMs")),
+        row(
+            "Model calls", lambda group: span([len(r["modelCalls"]) for r in group], 0)
         ),
-        "| --- | --- | --: | --: | --: | --: | --: | --: | --: |",
+        row("Output tokens", tokens),
     ]
-    for (target, case), group in sorted(
-        replies.items(), key=lambda item: (item[0][0], CASES.index(item[0][1]))
-    ):
-        calls = [len(reply["modelCalls"]) for reply in group]
-        lines.append(
-            f"| {target} | {case} | {len(group)} | {seconds(group, 'wholeMs')} "
-            f"| {seconds(group, 'leafMs')} | {seconds(group, 'busyMs')} "
-            f"| {span([(r['wholeMs'] - r['busyMs']) / 1000 for r in group])} "
-            f"| {min(calls)}–{max(calls)} | {seconds(group, 'modelMs')} |"
-        )
     return "\n".join(lines)
 
 
@@ -172,7 +226,8 @@ def chart_markup(rows: list[dict]) -> str:
 @click.option(
     "--replies",
     is_flag=True,
-    help="Print a Markdown table of each target's replies in each case instead.",
+    help="Print a Markdown table of where each target's replies went in each case "
+    "instead.",
 )
 @click.option(
     "--since",

@@ -544,15 +544,10 @@
   align-items: center;
   gap: var(--sp-2);
   inline-size: 100%;
-  block-size: var(--lf-trace-control-size);
+  min-block-size: var(--lf-trace-control-size);
   padding: var(--sp-2);
   text-align: start;
   font: inherit;
-}
-.lf-trace-moment-label {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 .lf-trace-bookmark[aria-current] {
   color: var(--accent);

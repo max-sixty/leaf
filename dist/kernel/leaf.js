@@ -33,6 +33,7 @@ import {
   declareThreadKeys,
   fabBar,
   fabInput,
+  fabOptionsTrigger,
   inPageOrder,
   initializeServedDocument,
   keepPageRulesOffLayer,
@@ -185,13 +186,10 @@ import {
 import {
   DISCLOSE,
   DISCLOSURE_SELECTOR,
-  annotationSheets,
-  chromeSheet,
   disclosed,
-  marksSheet,
   setChildren,
   watchDisclosures
-} from "./runtime/bundle-stylesheets.js";
+} from "./runtime/bundle-keyboard~disclosure.js";
 import {
   mediaViewer,
   readAttachedMedia,
@@ -320,10 +318,12 @@ import {
   PRESSABLE,
   advertisesKeys,
   allBindings,
+  annotationSheets,
   announce,
   bindingEnabled,
   bindings,
   buttonCommand,
+  chromeSheet,
   claimsEsc,
   clamp,
   clampedRow,
@@ -363,6 +363,7 @@ import {
   layoutWindow,
   live,
   liveEl,
+  marksSheet,
   merge,
   mountRepaint,
   nativeLayers,
@@ -479,6 +480,7 @@ import {
   upFrom
 } from "./runtime/bundle-frame-visibility.js";
 import {
+  DELIVERY,
   PRESENTATION_ORDER,
   SHARE_ROOT,
   WEBSITE_DELIVERY,
@@ -2872,10 +2874,13 @@ function createResponseSurface({
   const composerOptions = commandScope("In the comment box", [
     {
       id: "comment.options",
-      keys: ["Tab"],
+      keys: () => composer.responseOptionsAreOpen() ? [] : ["Tab"],
       title: "other responses",
-      when: () => fabOptionsAvailable() && !composer.responseOptionsAreOpen(),
-      run: () => showFabOptions()
+      control: fabOptionsTrigger,
+      when: fabOptionsAvailable,
+      run: () => composer.setResponseOptions(!composer.responseOptionsAreOpen(), {
+        focus: "first"
+      })
     }
   ]);
   projectCommandScope(fabInput, composerOptions, composerOptions);
@@ -4349,17 +4354,15 @@ targetPickerHintLayer.setAttribute("aria-hidden", "true");
 var hintRoot = el("div", "lf-key-chips");
 var markRoot = el("div", "lf-key-chips");
 targetPickerHintLayer.append(hintRoot, markRoot);
-var pageSearchSurface = el("div", "lf-ui lf-page-search");
-pageSearchSurface.setAttribute("role", "search");
-pageSearchSurface.hidden = true;
 var pageSearchInput = searchField("lf-page-search-box", {
   name: "page-search",
-  label: "Search page text"
+  label: "Search page text",
+  placeholder: "Find text"
 });
 pageSearchInput.maxlength = 160;
+pageSearchInput.withClear = false;
 var pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
-pageSearchStatus.slot = "end";
 var pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
 var matchStep = (icon, name2) => {
@@ -4369,7 +4372,6 @@ var matchStep = (icon, name2) => {
   );
   control.type = "button";
   control.tabIndex = -1;
-  control.slot = "end";
   control.append(iconElement(icon, "lf-action-icon"));
   control.setAttribute("aria-label", name2);
   control.title = name2;
@@ -4378,10 +4380,9 @@ var matchStep = (icon, name2) => {
 };
 var previousMatchControl = matchStep("up", "Previous match");
 var nextMatchControl = matchStep("down", "Next match");
-pageSearchInput.append(pageSearchStatus, previousMatchControl, nextMatchControl);
-pageSearchSurface.append(pageSearchInput);
+var pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
 var noMatches = "No matches";
-var searchCount = (position, total) => `${position} of ${total}`;
+var searchCount = (position, total) => `${position}/${total}`;
 function createTargetPicker({
   scrollToRange,
   hintChrome: hintChrome2,
@@ -4390,7 +4391,8 @@ function createTargetPicker({
   fabAnchorAt,
   pointerModeActive,
   readTargets,
-  armChanged
+  armChanged,
+  searchInPanel
 }) {
   const canChoose = () => anchoringIsReady() && !pointerModeActive();
   let pickerOpen = false;
@@ -4437,12 +4439,12 @@ function createTargetPicker({
   function setTargetPicker(on, restore = false, withHints = true) {
     if (on && (!anchoringIsReady() || withHints && !canChoose())) return;
     if (on) {
-      openLayer(pageSearchSurface);
+      openLayer(pageSearchInput);
       paintTargetPicker(on, withHints);
       return;
     }
     const landing2 = restore && pickerOpen;
-    const opener = openerOf(pageSearchSurface);
+    const opener = openerOf(pageSearchInput);
     closeLayer(
       () => paintTargetPicker(on, withHints),
       landing2 && (() => handBack(opener))
@@ -4455,7 +4457,7 @@ function createTargetPicker({
     matches.value = [];
     active = -1;
     pageSearchInput.value = "";
-    keepsHidden(pageSearchSurface, true);
+    presentSearchField();
     if (on && withHints) {
       const found = hints.arm();
       announce(
@@ -4467,17 +4469,17 @@ function createTargetPicker({
     armChanged();
     repaint();
   }
+  function presentSearchField() {
+    searchInPanel({
+      input: pageSearchInput,
+      controls: pageSearchControls,
+      open: pageSearchOpen
+    });
+  }
   function setPageSearch(on) {
     pageSearchOpen = on;
-    keepsHidden(pageSearchSurface, !on);
+    presentSearchField();
     if (on) {
-      const maximum = pageText().raw.length;
-      keeps(
-        pageSearchStatus,
-        "data-lf-room",
-        `${noMatches}
-${searchCount(maximum, maximum)}`
-      );
       focusDestination(pageSearchInput, "move");
       presentSearchStatus();
       announce("Search the page.");
@@ -4516,7 +4518,10 @@ ${searchCount(maximum, maximum)}`
   }
   function presentSearchStatus() {
     const query = pageSearchInput.value.trim();
-    const status = !query ? nothing : matches.value.length ? searchCount(active + 1, matches.value.length) : noMatches;
+    const status = !query ? nothing : matches.value.length ? searchCount(active + 1, matches.value.length) : "0/0";
+    const label2 = !query ? null : matches.value.length ? `Match ${active + 1} of ${matches.value.length}` : noMatches;
+    keeps(pageSearchStatus, "aria-label", label2);
+    keeps(pageSearchStatus, "title", label2);
     render(html`${status}`, pageSearchWords);
   }
   function sameMatch(left, right) {
@@ -4873,6 +4878,7 @@ ${searchCount(maximum, maximum)}`
     chooseMatch();
   }
   function mount() {
+    presentSearchField();
     pageSearchInput.addEventListener("input", search);
     for (const type of ["mousedown", "mouseup", "click"])
       document.addEventListener(type, pressMatch, true);
@@ -6316,6 +6322,10 @@ var shifted = (box, dx, dy) => ({
   bottom: box.bottom + dy
 });
 var insetOf = ([top, right, bottom, left], radius = 0) => `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
+var clipFrame = (sides, radius = 0) => ({
+  clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
+  "--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
+});
 var radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 var paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || ["Top", "Right", "Bottom", "Left"].some(
   (side) => Number.parseFloat(style[`border${side}Width`]) > 0
@@ -6333,6 +6343,14 @@ function boxMotion({
   let rests = null;
   let motions = /* @__PURE__ */ new Map();
   let running = [];
+  const translations = /* @__PURE__ */ new Map();
+  const restoreTranslations = (keep = /* @__PURE__ */ new Set()) => {
+    for (const [element, { value, priority }] of translations) {
+      if (keep.has(element)) continue;
+      element.style.setProperty("translate", value, priority);
+      translations.delete(element);
+    }
+  };
   let observed = /* @__PURE__ */ new Set();
   let wholes = /* @__PURE__ */ new WeakSet();
   const insideWhole = (node) => {
@@ -6344,22 +6362,16 @@ function boxMotion({
     const offsets = /* @__PURE__ */ new Map();
     const offset = (carrier) => {
       if (!offsets.has(carrier)) {
-        const { from, to } = motions.get(carrier);
+        const { from, to, carries: edge } = motions.get(carrier);
         const now = between(from, to, progress);
-        offsets.set(carrier, [now.left - to.left, now.top - to.top]);
+        offsets.set(carrier, [now[edge] - to[edge], now.top - to.top]);
       }
       return offsets.get(carrier);
     };
     return (element) => {
-      let dx = 0;
-      let dy = 0;
       for (let up = element; up && up !== root; up = up.parentElement)
-        if (motions.get(up)?.carries) {
-          const [x2, y] = offset(up);
-          dx += x2;
-          dy += y;
-        }
-      return [dx, dy];
+        if (motions.get(up)?.carries) return offset(up);
+      return [0, 0];
     };
   }
   function read(element, into, carried) {
@@ -6439,6 +6451,7 @@ function boxMotion({
     for (const animation of running) animation.cancel();
     running = [];
     if (!next.has(box)) {
+      restoreTranslations();
       rests = null;
       motions = /* @__PURE__ */ new Map();
       return;
@@ -6452,7 +6465,7 @@ function boxMotion({
     motions = /* @__PURE__ */ new Map();
     rests = next;
     const space = boxOf(room.getBoundingClientRect());
-    const outline = (at, grow2, radius) => insetOf(
+    const outline = (at, grow2, radius) => [
       [
         at.top - space.top - grow2,
         space.right - at.right - grow2,
@@ -6460,26 +6473,47 @@ function boxMotion({
         at.left - space.left - grow2
       ],
       radius + grow2
-    );
+    ];
     const boxAt = rests.get(box);
     const boxRadius = radiusOf(getComputedStyle(box));
     for (const [layer, reach2] of surface())
-      keeps(layer, "style", `clip-path: ${outline(boxAt, reach2, boxRadius)}`);
-    if (!was?.has(box)) return;
+      keeps(
+        layer,
+        "style",
+        `clip-path: ${insetOf(...outline(boxAt, reach2, boxRadius))}`
+      );
+    if (!was?.has(box)) {
+      restoreTranslations();
+      return;
+    }
     const boxFrom = was.get(box);
     const rtl = getComputedStyle(box).direction === "rtl";
     const start = (element, keyframes) => running.push(element.animate(keyframes, timing));
     const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
-    const move2 = (element, dx, dy) => start(element, [{ translate: `${dx}px ${dy}px` }, { translate: "0px 0px" }]);
-    const cutFrom = (element, cut, radius = 0) => start(element, [
-      { clipPath: insetOf(cut, radius) },
-      { clipPath: insetOf([0, 0, 0, 0], radius) }
-    ]);
+    const translated = /* @__PURE__ */ new Set();
+    const move2 = (element, dx, dy) => {
+      const [carriedX, carriedY] = carriedBy(0)(element.parentElement);
+      dx -= carriedX;
+      dy -= carriedY;
+      if (!translations.has(element))
+        translations.set(element, {
+          value: element.style.getPropertyValue("translate"),
+          priority: element.style.getPropertyPriority("translate")
+        });
+      translated.add(element);
+      element.style.setProperty("translate", "var(--lf-box-carry)");
+      start(element, [
+        { "--lf-box-carry": `${dx}px ${dy}px` },
+        { "--lf-box-carry": "0px 0px" }
+      ]);
+    };
+    const cutFrom = (element, cut, radius = 0) => start(element, [clipFrame(cut, radius), clipFrame([0, 0, 0, 0], radius)]);
     function carry(part, from) {
       const dx = from.left - part.box.left;
       const dy = from.top - part.box.top;
-      if (near(dx, 0) && near(dy, 0)) return;
-      motions.set(part.element, { from, to: part.box, carries: true });
+      const [carriedX, carriedY] = carriedBy(0)(part.element.parentElement);
+      if (near(dx, carriedX) && near(dy, carriedY)) return;
+      motions.set(part.element, { from, to: part.box, carries: "left" });
       move2(part.element, dx, dy);
     }
     function carryContent(part, from) {
@@ -6487,15 +6521,15 @@ function boxMotion({
       if (part.scrolls && !part.element.matches(TEXT_FIELD)) return grow(part, from);
       let dx = rtl ? from.right - to.right : from.left - to.left;
       let dy = from.top - to.top;
-      const end = Math.max(0, width(to) - width(from));
-      const foot = Math.max(0, height(to) - height(from));
+      const end = width(to) - width(from);
+      const foot = height(to) - height(from);
       const cut = rtl ? [0, 0, foot, end] : [0, end, foot, 0];
       const editor = part.element.matches(TEXT_FIELD);
       const inside = (rtl ? dx <= 0 : dx >= 0) && dy >= 0;
       if (!editor || !inside && gesture !== "typing") {
-        motions.set(part.element, { from, to, carries: true });
+        motions.set(part.element, { from, to, carries: rtl ? "right" : "left" });
         move2(part.element, dx, dy);
-        cutFrom(part.element, cut);
+        cutFrom(part.element, cut, radiusOf(part.style));
         return;
       }
       motions.set(part.element, { from, to });
@@ -6530,12 +6564,13 @@ function boxMotion({
         for (const inner of part.parts) reveal2(inner, frame, siblings);
         return;
       }
+      const carriedTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
       const side = (inset, beyond) => beyond ? 0 : Math.max(0, inset);
       const from = [
-        side(frame.from.top - to.top, to.top < frame.to.top - 0.5),
-        side(to.right - frame.from.right, to.right > frame.to.right + 0.5),
-        side(to.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
-        side(frame.from.left - to.left, to.left < frame.to.left - 0.5)
+        side(frame.from.top - carriedTo.top, to.top < frame.to.top - 0.5),
+        side(carriedTo.right - frame.from.right, to.right > frame.to.right + 0.5),
+        side(carriedTo.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
+        side(frame.from.left - carriedTo.left, to.left < frame.to.left - 0.5)
       ];
       const end = [0, 0, 0, 0];
       const overlaps2 = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
@@ -6546,10 +6581,10 @@ function boxMotion({
         const across = overlaps2(at, to, "top", "bottom");
         const along = overlaps2(at, to, "left", "right");
         [
-          along && { then: then.bottom - to.top, rest: at.bottom - to.top },
-          across && { then: to.right - then.left, rest: to.right - at.left },
-          along && { then: to.bottom - then.top, rest: to.bottom - at.top },
-          across && { then: then.right - to.left, rest: at.right - to.left }
+          along && { then: then.bottom - carriedTo.top, rest: at.bottom - to.top },
+          across && { then: carriedTo.right - then.left, rest: to.right - at.left },
+          along && { then: carriedTo.bottom - then.top, rest: to.bottom - at.top },
+          across && { then: then.right - carriedTo.left, rest: at.right - to.left }
         ].forEach((reach2, index) => {
           if (reach2 && reach2.rest <= 0.5 && reach2.then > from[index]) {
             from[index] = reach2.then;
@@ -6559,7 +6594,7 @@ function boxMotion({
       }
       if (from.every((inset) => near(inset, 0))) return;
       motions.set(part.element, { from: to, to, revealed: true });
-      start(part.element, [{ clipPath: insetOf(from) }, { clipPath: insetOf(end) }]);
+      start(part.element, [clipFrame(from), clipFrame(end)]);
     }
     function place3(part, frame, siblings = []) {
       const { element, style, box: to } = part;
@@ -6575,20 +6610,24 @@ function boxMotion({
         if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
         if (!same3(from, to)) within = { from, to };
         if (!sized && rings(style)) {
-          const reach2 = Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset);
+          const offset = Number.parseFloat(style.outlineOffset);
+          const reach2 = Number.parseFloat(style.outlineWidth) + offset;
           const radius = radiusOf(style);
           keeps(ringLayer, "style", `background: ${style.outlineColor}`);
           hold(element, "outlineColor", "transparent");
           for (const [layer, grown] of [
             [ringLayer, reach2],
-            [ringFill, 0]
+            // The fill meets the outline's inner edge, including an inward ring.
+            [ringFill, offset]
           ])
             start(layer, [
-              { clipPath: outline(from, grown, radius) },
-              { clipPath: outline(to, grown, radius) }
+              clipFrame(...outline(from, grown, radius)),
+              clipFrame(...outline(to, grown, radius))
             ]);
-        } else if (!sized && paints(style) && !part.holdsWindow) grow(part, from);
-        if (!same3(from, to)) motions.set(element, { from, to, frames: true });
+        } else if (!sized && paints(style) && !part.holdsWindow)
+          carries ? carryContent(part, from) : grow(part, from);
+        if (!same3(from, to))
+          motions.set(element, { ...motions.get(element), from, to, frames: true });
       }
       const placed = [...part.parts].sort(
         (a, b) => Number(!was.has(a.element)) - Number(!was.has(b.element))
@@ -6596,15 +6635,20 @@ function boxMotion({
       for (const inner of placed) place3(inner, within, part.parts);
     }
     for (const part of parts) place3(part, { from: boxFrom, to: boxAt });
+    restoreTranslations(translated);
     if (running.length === 0 && same3(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach2] of surface())
       start(layer, [
-        { clipPath: outline(boxFrom, reach2, boxRadius) },
-        { clipPath: outline(boxAt, reach2, boxRadius) }
+        clipFrame(...outline(boxFrom, reach2, boxRadius)),
+        clipFrame(...outline(boxAt, reach2, boxRadius))
       ]);
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
+    const animations = running;
+    animations.at(-1).onfinish = () => {
+      if (running === animations) restoreTranslations();
+    };
   }
   return {
     follow,
@@ -6693,8 +6737,6 @@ function createFloatingPanel({
   const stage = el("div", "lf-fp-stage");
   const controls = el("div", "lf-fp-controls");
   opened.append(head, stage, controls);
-  const context2 = el("div", "lf-fp-context");
-  const contextWords = el("span", "lf-fp-context-words");
   const row = el("div", "lf-fp-row");
   const menu = el("div", "lf-fp-menu");
   menu.id = "lf-fp-menu";
@@ -6708,8 +6750,7 @@ function createFloatingPanel({
   peek.setAttribute("role", "tooltip");
   let peekAsked = false;
   let peekReading = null;
-  context2.append(contextWords);
-  inner.append(opened, context2, row);
+  inner.append(opened, row);
   card.append(inner);
   host.append(card, menu, badge, newsDot, peek);
   const minimize = el("button", "lf-corner-mark lf-fp-minimize");
@@ -6753,6 +6794,7 @@ function createFloatingPanel({
   errorDot.setAttribute("aria-hidden", "true");
   leaf.append(mark, errorDot);
   const field = el("div", "lf-fp-field");
+  const editorSeat = el("div", "lf-fp-editors");
   const expand = el("button", "lf-fp-expand");
   expand.type = "button";
   let expanded = false;
@@ -6772,6 +6814,11 @@ function createFloatingPanel({
   let fieldRests = false;
   const markRoom = () => keeps(host, "data-long", (long || expanded) && !fieldRests ? "" : null);
   lengthWatch.observe(field);
+  const searchSurface = el("div", "lf-fp-search-surface");
+  searchSurface.setAttribute("role", "search");
+  const fieldMode = el("span", "lf-fp-mode");
+  const fieldActions = el("div", "lf-fp-actions");
+  field.append(editorSeat, searchSurface, fieldMode, fieldActions);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   const exitSeat = el("div", "lf-fp-exit-seat");
@@ -6815,6 +6862,32 @@ function createFloatingPanel({
   let filter = "open";
   let query = "";
   let searching = false;
+  let pageSearch = null;
+  const threadSearchInput = el("input", "lf-fp-search");
+  searchSurface.prepend(threadSearchInput);
+  threadSearchInput.type = "search";
+  threadSearchInput.name = "thread-search";
+  threadSearchInput.placeholder = "Find a thread or message";
+  threadSearchInput.setAttribute("aria-label", "Find a thread or message");
+  threadSearchInput.addEventListener("input", () => {
+    query = threadSearchInput.value;
+    refit();
+    paint();
+  });
+  const threadSearch = { input: threadSearchInput, controls: [] };
+  const activeSearch = () => pageSearch?.open ? pageSearch : searching && trail.value.at(-1)?.view === "threads" ? threadSearch : null;
+  function searchPage(search) {
+    if (pageSearch?.input !== search.input) searchSurface.prepend(search.input);
+    pageSearch = search;
+    paint();
+  }
+  function closeThreadSearch() {
+    searching = false;
+    query = "";
+    refit();
+    paint();
+    focusDestination(shownView(), "return");
+  }
   let writing = false;
   let drafted = false;
   let postureMoved = true;
@@ -6911,7 +6984,6 @@ function createFloatingPanel({
   }
   const replyOutlet = el("div", "lf-fp-reply");
   const resolvedLine = el("p", "lf-fp-resolved");
-  resolvedLine.textContent = "Resolved \xB7 reopen to reply";
   const replyInput = () => replyOutlet.querySelector(`.lf-thread-reply ${TEXT_FIELD}`);
   const replyOptions = /* @__PURE__ */ new Map();
   const replyOptionsFor = (key) => {
@@ -6929,7 +7001,7 @@ function createFloatingPanel({
       });
     return replyOptions.get(key);
   };
-  const fieldInput = () => field.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
+  const fieldInput = () => activeSearch() ? null : editorSeat.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
   function retype() {
     postureMoved = true;
     if (Boolean(draftOf(fieldInput())) !== drafted) paint();
@@ -7187,14 +7259,17 @@ function createFloatingPanel({
   });
   let gesture = null;
   let gestures = 0;
-  onUserInput((event) => {
-    if (!["keydown", "pointerdown", "input", "touchstart"].includes(event.type)) return;
+  const beginGesture = (event) => {
+    if (!["keydown", "pointerdown", "input", "touchstart", "click"].includes(event.type))
+      return;
     gesture = event.type === "input" ? "typing" : "press";
     const own = ++gestures;
     afterSettling(() => {
       if (gestures === own) gesture = null;
     });
-  });
+  };
+  onUserInput(beginGesture);
+  window.addEventListener("click", beginGesture, { capture: true, passive: true });
   function followBox() {
     const box = card.getBoundingClientRect();
     setRuntimeRootStyle(
@@ -8141,8 +8216,10 @@ function createFloatingPanel({
           type="button"
           class="lf-fp-quiet lf-fp-show"
           @click=${() => {
-      close();
-      void queueActions.open(queueItemKey(item));
+      const route = trail.value.at(-1);
+      void queueActions.open(queueItemKey(item)).then((arrived) => {
+        if (arrived && trail.value.at(-1) === route) close();
+      });
     }}
         >
           Show
@@ -8341,7 +8418,7 @@ function createFloatingPanel({
       refit();
       paint();
     }
-    focusDestination(controls.querySelector(".lf-fp-search"), "move");
+    focusDestination(threadSearchInput, "move");
   }
   const headTemplate = (top) => {
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -8379,10 +8456,7 @@ function createFloatingPanel({
           findThreads();
           return;
         }
-        searching = false;
-        query = "";
-        refit();
-        paint();
+        closeThreadSearch();
       }}
         >
           ${iconTemplate("search", "lf-action-icon")}
@@ -8453,42 +8527,20 @@ function createFloatingPanel({
           ${iconTemplate("check", "lf-action-icon")}
         </button>`;
     }
-    const crumb = top.view === "threads" && searching ? html`<input
-            class="lf-fp-search"
-            type="search"
-            placeholder="Find a thread or message"
-            aria-label="Find a thread or message"
-            .value=${query}
-            @input=${(event) => {
-      query = event.target.value;
-      refit();
-      paint();
-    }}
-          />` : html`${parent ? html`<button
-                  type="button"
-                  class="lf-fp-back"
-                  aria-label=${`Back to ${titleOf2(parent)}`}
-                  @click=${back}
-                >
-                  ${iconTemplate("next", "lf-fp-chevron")}${titleOf2(parent)}
-                </button>` : nothing}
-          ${named}${thread ? html`<span class="lf-fp-facts"
-                  >${keyed(
-      thread.key,
-      html`<span class="lf-fp-news-outlet"></span>`
-    )}</span
-                >` : nothing}`;
+    const crumb = html`${parent ? html`<button
+            type="button"
+            class="lf-fp-back"
+            aria-label=${`Back to ${titleOf2(parent)}`}
+            @click=${back}
+          >
+            ${iconTemplate("next", "lf-fp-chevron")}${titleOf2(parent)}
+          </button>` : nothing}
+    ${named}${thread ? html`<span class="lf-fp-facts"
+            >${keyed(thread.key, html`<span class="lf-fp-news-outlet"></span>`)}</span
+          >` : nothing}`;
+    if (!parent && named === nothing && aux === nothing && !thread) return nothing;
     return html`<div class="lf-fp-crumb">${crumb}</div>
-      <div class="lf-fp-aux">${aux}</div>
-      ${expand}
-      <button
-        type="button"
-        class="lf-fp-icon-btn lf-fp-close"
-        aria-label="Close"
-        @click=${close}
-      >
-        ${iconTemplate("down", "lf-action-icon")}
-      </button>`;
+      <div class="lf-fp-aux">${aux}</div>`;
   }
   function setRest(rest) {
     const before = trail.value.at(-1);
@@ -8560,7 +8612,9 @@ function createFloatingPanel({
   }
   function paintNow() {
     const top = trail.value.at(-1) ?? null;
-    const folded = prefs().rest === "mark" && !top && !menuOpen.value;
+    const search = activeSearch();
+    const folded = prefs().rest === "mark" && !top && !menuOpen.value && !search;
+    keeps(host, "data-search", search ? pageSearch?.open ? "page" : "threads" : null);
     keeps(host, "data-rest", folded ? "mark" : "row");
     keeps(host, "data-open", top ? top.view : null);
     keeps(host, "data-menu", menuOpen.value ? "" : null);
@@ -8636,7 +8690,7 @@ function createFloatingPanel({
     );
     render(top ? headTemplate(top) : nothing, head);
     render(top ? controlsTemplate(top) : nothing, controls);
-    if (!top) move(row, expand, leaf);
+    move(row, expand, leaf);
     const heading = top ? shows(top) : null;
     for (const drawing2 of [controls, replyOutlet]) {
       keeps(drawing2, "data-thread", heading);
@@ -8644,13 +8698,30 @@ function createFloatingPanel({
     }
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     const replying = top?.view === "thread";
-    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
-    if (field.firstElementChild !== shown[0]) {
-      const had = standingIn(field);
-      field.replaceChildren(...shown);
-      if (had && !replying) focusDestination(leaf, "return");
+    if (threadSearchInput.value !== query) threadSearchInput.value = query;
+    keepsHidden(threadSearchInput, search !== threadSearch);
+    if (pageSearch) keepsHidden(pageSearch.input, !pageSearch.open);
+    if (search) {
+      const label2 = pageSearch?.open ? "Search page" : "Search threads";
+      keeps(searchSurface, "aria-label", label2);
+      keeps(
+        searchSurface,
+        "class",
+        `lf-fp-search-surface${pageSearch?.open ? " lf-page-search" : ""}`
+      );
     }
-    if (caretToField && !replying) {
+    render(search?.controls ?? nothing, fieldActions);
+    keepsHidden(fieldActions, !search?.controls.length);
+    if (searchSurface.hidden !== !search) postureMoved = true;
+    keepsHidden(editorSeat, Boolean(search));
+    keepsHidden(searchSurface, !search);
+    const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
+    if (editorSeat.firstElementChild !== shown[0]) {
+      const had = standingIn(editorSeat);
+      editorSeat.replaceChildren(...shown);
+      if (had && !replying && !search) focusDestination(leaf, "return");
+    }
+    if (caretToField && !replying && !search) {
       caretToField = false;
       focusDestination(pageEditor().input, "move");
     }
@@ -8666,7 +8737,7 @@ function createFloatingPanel({
     keeps(host, "data-drafted", drafted ? "" : null);
     keeps(host, "data-words", words ? "" : null);
     if (!words) expanded = false;
-    fieldRests = resting;
+    fieldRests = resting || Boolean(search);
     markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
     keeps(expand, "aria-pressed", String(expanded));
@@ -8674,25 +8745,34 @@ function createFloatingPanel({
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-offers", reading.says === "selection" ? "" : null);
+    keepsText(
+      resolvedLine,
+      reading.says === "notice" ? reading.words : "Resolved \xB7 reopen to reply"
+    );
+    keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
-    const notice2 = passing();
-    const hidden = !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
-    keepsText(
-      contextWords,
-      !hidden ? "" : reading.says === "selection" ? reading.words : notice2.visible ? notice2.message : ""
+    const selection = !search && reading.says === "selection" && words;
+    const searchLabel = pageSearch?.open ? "Search page" : "Search threads";
+    render(
+      search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate(
+        "search",
+        "lf-fp-mode-icon"
+      )}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing,
+      fieldMode
     );
-    keepsHidden(context2, !contextWords.textContent);
+    keeps(fieldMode, "aria-label", search ? searchLabel : null);
+    keeps(fieldMode, "title", search ? searchLabel : selection ? reading.words : null);
+    keepsHidden(fieldMode, !search && !selection);
     paintPeek();
-    const standing = rowNotice();
+    const standing = search ? null : rowNotice();
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
-    const exit = rows().find((entry) => entry.exit);
+    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : rows().find((entry) => entry.exit) ?? (top ? { label: "Close", press: close, disabled: false } : null);
     render(
       exit ? html`<button
             type="button"
-            class="lf-fp-chip lf-fp-exit"
+            class=${`lf-fp-chip lf-fp-exit${exit.press === close ? " lf-fp-close" : ""}`}
             aria-label=${exit.label}
             title=${exit.label}
             ?disabled=${exit.disabled}
@@ -8834,11 +8914,7 @@ function createFloatingPanel({
       } : {
         root: host,
         title: "close search",
-        out: () => {
-          focusDestination(shownView(), "return");
-          searching = false;
-          paint();
-        }
+        out: closeThreadSearch
       };
     if (menuOpen.value && menuAt.value)
       return {
@@ -8955,7 +9031,7 @@ function createFloatingPanel({
       }
     }
   );
-  keys(field, "In the comment field", [
+  keys(editorSeat, "In the comment field", [
     {
       id: "panel.floating.leave",
       keys: ["Escape"],
@@ -9158,6 +9234,7 @@ function createFloatingPanel({
     open,
     close,
     pageComment,
+    searchPage,
     doors,
     showForSample,
     captureStanding,
@@ -10449,6 +10526,7 @@ function previewDiagnostics() {
     ...payloadDateLines(producer),
     ...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
     `started: ${started}`,
+    ...runtimeLines(),
     `layer generation: ${state.layer.generation}`,
     ...state.layer.fingerprint ? [`layer fingerprint: ${state.layer.fingerprint}`] : [],
     ...state.active ? [`revision: ${state.active.revision}`] : [],
@@ -10465,6 +10543,9 @@ registerPageControl({
   offered: () => Boolean(preview()),
   group: "page"
 });
+function runtimeLines() {
+  return DELIVERY.runtime ? [`runtime: ${DELIVERY.runtime}`] : [];
+}
 function layerIdentity(state) {
   const producer = state.layer.producer ?? {};
   const fingerprint = state.layer.fingerprint;
@@ -10501,6 +10582,7 @@ function layerDiagnostics() {
     ...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
     ...fingerprint ? [`fingerprint: ${fingerprint}`] : [],
     `generation: ${state.layer.generation}`,
+    ...runtimeLines(),
     ...state.active ? [`revision: ${state.active.revision}`] : [],
     `url: ${pageUrl()}`
   ].join("\n");
@@ -11823,7 +11905,8 @@ targets = createTargetPicker({
   fabAnchorAt: responseSurface.fabAnchorAt,
   pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
   readTargets: () => designMode.active() ? designMode.targets() : aimTargets(),
-  armChanged: () => aim.armChanged()
+  armChanged: () => aim.armChanged(),
+  searchInPanel: floatingPanel.searchPage
 });
 drawing = createDrawingController({
   anchors: { aimTargetAt, resolveAnchor },
@@ -11956,7 +12039,6 @@ if (!offlineInteractive) {
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp })
   });
   floatingPanel.mount(chromeForeground);
-  chromeForeground.append(pageSearchSurface);
   responseSurface.mount();
   holdToRead();
   reactions.mount();

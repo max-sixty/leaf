@@ -19,7 +19,8 @@ whichever Leaf wrote it (`state.retire_if_gone`).
 - `revisions/rN-H.html` — immutable valid-save marker; N is activation order and H is
   the first 16 hex characters of the artifact-manifest digest. Its sibling
   revisions/rN-H/ captures index.html, manifest.json, registry, and every dependency
-  needed to deliver that revision. The complete bundle is durable before the marker
+  needed to deliver that revision but the browser runtime, which the Leaf delivering
+  it supplies (`runtime_selection.py`). The complete bundle is durable before the marker
   appears. Identical artifacts reuse a revision; changed inputs create one. A bundle
   hard-links each resource whose bytes the previous revision captured, so its files
   share inodes and are never written in place. See
@@ -31,8 +32,6 @@ whichever Leaf wrote it (`state.retire_if_gone`).
   materialize the same responses beside a copied record as disposable delivery output;
   those files are never an authority. A pinned version therefore never moves while later
   source saves become live.
-
-- `leaf.js` — the browser entry, served at /leaf.js
 
 - `theme.css` — tokens, element styles, class idioms, element-widget CSS
 
@@ -50,12 +49,13 @@ whichever Leaf wrote it (`state.retire_if_gone`).
 - `icon.svg` — tab icon; its lf-tone element follows the page's status colour, as the
   panel's leaf does
 
-- `runtime/` — private browser owners plus the public widget-api.js module
+- `runtime/` — the browser modules a selected package adds beside the runtime's own,
+  which the serving Leaf supplies (`runtime_selection.py`)
 
 - `widgets/` — one ES module per upgraded widget (lf-tabs.js, lf-board.js)
 
-- `vendor/` — vendored third-party assets (sortable.esm.js, plot.esm.js), and whatever a
-  selected package brings (pele.esm.js)
+- `vendor/` — the third-party assets packages bring (sortable.esm.js, plot.esm.js,
+  pele.esm.js), beside the runtime's own, which the serving Leaf supplies
 
 - `page/` — mutable page-specific browser-ready modules, styles, assets,
   page/registry.json declarations, and page/widgets/ modules. These are candidate inputs
@@ -247,8 +247,9 @@ fingerprint, server identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error, including the refusal of a layer this Leaf cannot serve
 (`layer.incompatible_layer`). `active.file` names the immutable revision the live
-root actually shows when one exists; `data` names the contract file, the value directory, and any source whose
-value fails its contract or whose publication format this Leaf cannot read.
+root actually shows when one exists; `data` names the value directory and any source
+whose value fails its contract. `data_bindings` names each source's contract and
+the widgets that consume it.
 `active.executable`, shared with `/api/state`, gives the active revision's
 nullable executable digest. Delivery emits `<meta name="lf-executable">` when a
 digest is available; `../../browser/runtime/version.js` owns the resulting install choice.

@@ -21,8 +21,7 @@ the claim and its evidence. Only a decision about the whole record comes last.
 Keep the question, its evidence and the options on screen together. Where a table,
 chart or playground inside the decision, or the pictures in its options, can't be read
 at the prose's width, give that block, or the `lf-options`, its own `data-width`
-(`page-layout.md`, "Bounds and widths"). A page whose subject is
-that surface is a workspace instead (`page-authoring.md`, "Composing a page").
+(`page-layout.md`, "Bounds and widths").
 
 Write decisions the user can answer independently in page order. If a later one depends
 on an earlier answer, pose it in the next turn rather than writing every branch.
@@ -44,11 +43,8 @@ Each option is a result the user can pick, so its title says what choosing it do
 the subject, keeping today's behavior included: “Generate shared types” and “Keep
 handwritten types”, rather than “Accept” and “Not now”. A compact title can be the
 whole option. The user should be able to compare the options down the group without
-reading their prose: where the options take different values of a fact the user
-weighs, such as effort, risk or cost, label it with a `small.tag` before every
-option's title, in the same order (“effort: small”, “risk: low”), and state a value
-they all share in the decision's context. Add words only for a consequence that no
-title or label shows.
+reading their prose, as through `small.tag` labels for the facts they weigh, such as
+effort or risk. Add words only for a consequence that no title or label shows.
 
 Let the user judge each option by its result rather than a description of it, on plans
 and work-item lists too: an interaction they can try, a drawing of an arrangement or

@@ -92,8 +92,8 @@ describe("published runtime bundle", () => {
   it("collapses the production runtime's static modules", async () => {
     const directory = await mkdtemp(join(tmpdir(), "leaf-runtime-"));
     try {
-      // The production layer is a prepared installation's kernel composed with its
-      // bundled packages, as the site build vendors it.
+      // The production layer is a page's bundled packages beside the runtime a
+      // prepared installation serves, as the live shell publishes a revision.
       const install = join(directory, "install");
       execFileSync("uv", ["run", "leaf-dev", "distribution", "--output", install], {
         cwd: fileURLToPath(new URL("../..", import.meta.url)),
@@ -102,6 +102,29 @@ describe("published runtime bundle", () => {
       execFileSync(join(install, "bin", "leaf"), ["page", "init", runtime], {
         env: { ...process.env, XDG_STATE_HOME: join(directory, "state") },
       });
+      execFileSync(
+        "uv",
+        [
+          "run",
+          "--quiet",
+          "--no-dev",
+          "--project",
+          install,
+          "python",
+          "-c",
+          [
+            "import sys",
+            "from pathlib import Path",
+            "from leaf.runtime_selection import serving_runtime",
+            "for path, resource in serving_runtime().resources({}).items():",
+            "    target = Path(sys.argv[1]) / path.lstrip('/')",
+            "    target.parent.mkdir(parents=True, exist_ok=True)",
+            "    target.write_bytes(resource.data)",
+          ].join("\n"),
+          runtime,
+        ],
+        { env: { ...process.env, XDG_STATE_HOME: join(directory, "state") } },
+      );
 
       const output = join(directory, "bundled");
       await bundleLayer(runtime, "/published/layer", output);

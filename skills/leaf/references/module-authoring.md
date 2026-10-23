@@ -74,7 +74,10 @@ When an upgrade fails, or one part of it, `failSoft(element, error, source)` rep
 the widget or part with an error box naming it, shows `source` beneath when given, and
 reports a page error, which fails `page check`. The next `render` into the same
 container, or the next `shadowStage` call, replaces the box; a `LeafElement` shows the
-box beside what it drew, and its next draw takes it away. Where the widget shows a
+box beside what it drew, and its next draw takes it away. A native renderer that
+retains its nodes can register `placesFailure(element, place)` to place the box
+beside them: `place(box)` returns true when it handles the box, and the renderer
+removes it when the failed content recovers. Where the widget shows a
 failed part its own way and the rest keeps working, as `lf-diff` does for a file whose
 patch it cannot draw, call `reportFailure(element, error)`, which only reports.
 
@@ -109,20 +112,10 @@ may hold, such as `registerReadingRegion`, passes to the replacement.
 
 A `LeafElement` draws nothing while it is away. On return, Lit updates it once to
 reconnect its dependencies and draw the current reading, keeping unchanged template
-nodes. `LeafElement` pauses its dependencies while away and paints once
-on return. Data and comparison callbacks instead run again only if their reading
-changed, or if their returned promise had not settled when the element left. A callback
-that throws or rejects is reported once and stays subscribed. So return the promise of
-any paint that finishes later, drop unfinished work when the element leaves but keep
-finished nodes, and have `start` restore what its cleanup removed.
-
-For a reading the module computes itself, build `const paint = readingPaint(element,
-draw)` once, before `whileConnected`, and call `paint(key, ...args)` from `start`. It
-calls `draw(...args)` only when `key` differs from the last key it drew or the last draw
-was cut short; key authored content that never changes by its text. A failing `draw` is
-reported as above and never makes `start` throw. `paint.refresh()` redraws the last
-reading, `paint.forget()` makes the next call draw, `paint.owes(key)` says whether it
-would, and `paint.stop()` retires it.
+nodes. Put asynchronous rendering in `updated()` and pass its promise to
+`this.drawing(work)` so presentation waits for it and reports a rejection. Drop
+unfinished work when the element leaves but keep finished nodes, and have `start`
+restore what its cleanup removed.
 
 `Promise.race([work, aborted(signal)])` ends work when its signal aborts.
 

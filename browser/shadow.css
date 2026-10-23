@@ -1753,19 +1753,37 @@ leaf-text.lf-fab-input {
 .lf-response-action[data-lf-collapse] > :is(.lf-response-action-space, .lf-response-action-label) {
   display: none;
 }
-.lf-fab-bar:not([data-lf-target-only]) > .lf-fab,
-.lf-fab-bar:not(.lf-response-open) > .lf-response-options {
+.lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
   display: none !important;
 }
-.lf-fab-bar.lf-response-open {
-  flex-wrap: wrap;
+.lf-response-trigger {
+  anchor-name: --lf-response-trigger;
+  flex: none;
+  min-height: var(--lf-response-height);
 }
-.lf-fab-bar.lf-response-open > .lf-response-options {
-  display: inline-flex;
+.lf-response-options {
+  position: fixed;
+  position-anchor: --lf-response-trigger;
+  position-visibility: anchors-visible;
+  position-area: block-start span-all;
+  position-try-fallbacks: flip-block;
+  justify-self: anchor-center;
+  inset: auto;
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  margin: 4px 8px;
+  padding: 4px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--raise-2);
+}
+.lf-response-options:popover-open {
+  display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-  max-width: 100%;
 }
 .lf-response-options .lf-response-action {
   min-height: var(--lf-response-height);
@@ -1818,9 +1836,6 @@ leaf-text.lf-fab-input {
   max-height: 50vh;
   margin: 0;
 }
-.lf-fab-bar[data-lf-presentation=inline].lf-response-open > .lf-response-options {
-  flex-basis: 100%;
-}
 .lf-fab-bar[data-lf-presentation=inline] > .lf-surface-grip {
   display: none;
 }
@@ -1844,7 +1859,7 @@ leaf-text.lf-fab-input {
   max-height: min(60vh, 480px);
   border-radius: var(--r);
 }
-:is(.lf-btn, .button)[aria-pressed=true] {
+:is(.lf-btn, .button):is([aria-pressed=true], [aria-checked=true]) {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);

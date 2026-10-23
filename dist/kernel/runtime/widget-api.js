@@ -95,15 +95,15 @@ import {
   bodyText,
   dataBody,
   failSoft,
-  inBaseLayer,
   once,
+  placesFailure,
   quoted,
   reportFailure,
   setChildLists,
   setChildren,
   setRenderedChildren,
   shadowStage
-} from "./bundle-stylesheets.js";
+} from "./bundle-keyboard~disclosure.js";
 import {
   isCanonicalMediaUrl,
   scopedMediaUrl
@@ -143,7 +143,6 @@ import {
   pageScroller,
   preserveReadingRegions,
   quietSince,
-  readingPaint,
   readingPosture,
   registerReadingRegion,
   scrollLimit,
@@ -182,6 +181,7 @@ import {
   growthIsSeen,
   iconElement,
   iconTemplate,
+  inBaseLayer,
   keys,
   labelOf,
   landingInsets,
@@ -1296,6 +1296,7 @@ export {
   paintMarkdown,
   placeKeeper,
   placePageThreads,
+  placesFailure,
   plainPress,
   presentContributionEntry,
   presentContributionReceipts,
@@ -1319,7 +1320,6 @@ export {
   readQueues,
   readThreads,
   readWork,
-  readingPaint,
   readingPosture,
   reducedMotion,
   ref,

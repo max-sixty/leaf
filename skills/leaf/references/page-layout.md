@@ -125,8 +125,9 @@ with a status tone (`warn`, `danger`, `ok`) when it reports a status.
 
 ## A workspace
 
-`<main class="layout-workspace">` fills the window above Leaf's panel, and the reader
-works in its regions rather than scrolling the page. The `header` and `footer` take
+`<main class="layout-workspace">` fills the window behind Leaf's floating panel, and the reader
+works in its regions rather than scrolling the page. Pane scrollers leave room at their
+ends so the panel does not cover their last lines. The `header` and `footer` take
 their content's height and the body takes the rest. Keep the header to one row: the
 title, `.tag` chips for the page's state, and an `lf-tally` for the obligations left. Put what
 a lede would say at the top of the region it is about.
@@ -177,9 +178,10 @@ grouping and counting.
 
 ## Bounds and widths
 
-Prefer one page scroll: let content grow in place, with supporting detail in
-disclosures. Bound a region's height only when the reader keeps it in view while its
-content changes, as in a workspace or a live stream. Length alone is no reason.
+Keep related content easy to read and compare without managing several scroll
+positions. A shared page scroll lets content grow together; separate regions help
+when the task needs independent positions kept in view. Live updates should preserve
+the reader's place and input as content grows.
 
 For a live stream, set `data-bound` to the end where new entries arrive:
 `data-bound="end"` for a list that grows downward, which follows the last line while

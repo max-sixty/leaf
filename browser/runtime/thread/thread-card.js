@@ -33,8 +33,8 @@ import {
   holdFocus,
   focusDestination,
   focused,
-  standsOn,
-  standingIn,
+  currentLocationTouches,
+  currentLocationIn,
 } from "../focus.js";
 import { html, render, nothing, share, signal } from "/vendor/browser-runtime.js";
 import { turns, threadKey } from "./model.js";
@@ -422,10 +422,11 @@ export class ThreadView {
     if (this.#fold) return false;
     const pinned = replyPinned(this.#reply?.node);
     // An answer's own fold of the progress run at the thread's end changes only the
-    // thread's foot, as the answer's arrival does, unless the user stands on a message
+    // thread's foot, as the answer's arrival does, unless the user is on a message
     // the fold would put away, by focus or by a selection reaching into it.
     const foot =
-      footFold && !folds.messages.some((key) => standsOn(this.#messageNode(key)));
+      footFold &&
+      !folds.messages.some((key) => currentLocationTouches(this.#messageNode(key)));
     // The margin's floating card grows at one of its own edges: the one its placement
     // does not hold (comment-placement.js, `edgeFor`, which a turn joining may change).
     // News shows at once only where it changes the thread's end and the card holds its
@@ -592,7 +593,7 @@ export class ThreadView {
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
-    // A progress disclosure the user stood on that this render replaced hands them to
+    // A progress disclosure the user was on that this render replaced hands them to
     // its successor (transcript.js).
     restoreFocus?.(
       handedOn
@@ -815,7 +816,7 @@ export class ThreadView {
       // An existing resolved group survives when this card returns. Its summary
       // cannot hand focus back by disappearing, so the reversal owns that handoff.
       if (reverse) may.handoff(() => focusDestination(place, "return"));
-      if (!standingIn(place)) return false;
+      if (!currentLocationIn(place)) return false;
       scrollThreadIntoView(place, focused());
       return true;
     };

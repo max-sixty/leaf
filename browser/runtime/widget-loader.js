@@ -201,7 +201,7 @@ async function installDocument(scope) {
   }
 }
 
-// The same lifecycle for a revision patched into the document a user is standing in.
+// The same lifecycle for a revision patched into the document a user is in.
 // What arrives is scattered through the page rather than being one subtree, so each step
 // takes the nodes it applies to. The pre-upgrade readings belong to each arrival, before
 // insertion hands a widget's children to its controller, so `patch` makes them as it goes

@@ -38,12 +38,12 @@
  * Narrower than 43.5rem, a document's column included, a rail would be too narrow for
  * the controls it holds, so it draws no box and its panes stack with the stage in
  * reading order: the stage, the controls, the instruction. They flow with the page
- * (`--lf-track-posture: flow`), as a sidebar page's stacked track does. */
+ * (`--lf-track-scroll-behavior: flow`), as a sidebar page's stacked track does. */
 .lf-playground-split {
   display: grid;
   gap: var(--sp-4);
   grid-template-columns: minmax(0, 1fr);
-  --lf-track-posture: flow;
+  --lf-track-scroll-behavior: flow;
 }
 
 .lf-playground-rail {
@@ -53,7 +53,7 @@
 @container (min-width: 43.5rem) {
   .lf-playground-split:has(> .lf-playground-rail > .lf-playground-controls-region) {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    --lf-track-posture: inherit;
+    --lf-track-scroll-behavior: inherit;
   }
 
   .lf-playground-rail:has(> .lf-playground-controls-region) {

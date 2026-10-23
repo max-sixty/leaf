@@ -306,7 +306,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * be a floor the newest kind of widget is the one to fall through. */
 /* A visible focus destination wears the layer's band unless its own rule supplies
    a carrier. Ordinary controls follow the browser's focus-visible reading; an
-   explicit reading destination also shows where a route landed. Logical standing
+   explicit reading destination also shows where a route landed. Current location
    remains separate, so pointer focus can reveal controls without drawing a ring.
    At no weight, each control's own band wins. Retargeting shadow hosts and a
    label press's intermediate nodes get no band. */
@@ -325,7 +325,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :where(*) {
   scroll-margin-top: max(0px, var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
 }
-/* Where the user stands wears a ring outside its box, so a scroll that brings the focus
+/* Where the user is wears a ring outside its box, so a scroll that brings the focus
    into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
    room at the scroller's edge: an item landed at the top of a scrolling pane stood flush
    with it, the top of its ring cut off under the pane's header rule. On every side,

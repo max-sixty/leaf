@@ -465,12 +465,12 @@ function landLabelPress() {
     if (at && at !== document.body) return reconcile(null, pressedPath);
     if (!drawn(published?.deref())) return;
     placements += 1;
-    stood = null;
+    lastLocation = null;
     publish2(null, cause(null));
   });
 }
-var standing = Z(0);
-var focusRevision = () => standing.value;
+var currentLocation = Z(0);
+var focusRevision = () => currentLocation.value;
 var focused = (tree = null) => {
   let at = heldByLabel() ?? deepFocus();
   if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
@@ -484,7 +484,7 @@ var selectionOf = (node) => {
   );
   return root instanceof ShadowRoot && own.getSelection?.() || getSelection();
 };
-function standingNodes() {
+function currentLocationNodes() {
   const at = focused();
   const selection = getSelection();
   return [
@@ -493,17 +493,18 @@ function standingNodes() {
     selection?.anchorNode ?? null
   ].filter(Boolean);
 }
-function standsOn(node) {
+function currentLocationTouches(node) {
   if (!node) return false;
-  if (standingNodes().some((at) => at === node || node.contains(at))) return true;
+  if (currentLocationNodes().some((at) => at === node || node.contains(at)))
+    return true;
   const selection = selectionOf(node);
   return Boolean(selection?.rangeCount && selection.getRangeAt(0).intersectsNode(node));
 }
 var restoring = false;
 var placements = 0;
-var stood = null;
+var lastLocation = null;
 var readers = /* @__PURE__ */ new Set();
-var onStanding = (read2) => {
+var onCurrentLocation = (read2) => {
   readers.add(read2);
   return () => readers.delete(read2);
 };
@@ -558,7 +559,7 @@ function paintFocus(node) {
 var refreshFocusPaint = () => {
   const node = paintDestination?.deref();
   if (node?.isConnected && node !== deepFocus() && node !== heldByLabel()) return;
-  if (node?.isConnected) watchStandingAround(node);
+  if (node?.isConnected) watchCurrentLocationAround(node);
   paintFocus(node?.isConnected ? node : null);
 };
 var returnPaintPending = false;
@@ -586,7 +587,7 @@ function watchFocusPaintIn(root) {
   root.addEventListener("slotchange", queueFocusPaint);
 }
 function publish2(node, cause2) {
-  watchStandingAround(node);
+  watchCurrentLocationAround(node);
   paintDestination = node && new WeakRef(node);
   if (cause2 === "return") queueReturnFocusPaint();
   else {
@@ -597,7 +598,7 @@ function publish2(node, cause2) {
   departed = false;
   const left = published?.deref() ?? null;
   const reading = ++readings2;
-  standing.value = reading;
+  currentLocation.value = reading;
   if (cause2 === "drop") departed = true;
   else published = node && new WeakRef(node);
   if (node) placeInput = "focus";
@@ -629,7 +630,7 @@ var leftClosedLayer = (left) => {
 };
 var cause = (node, left = null) => placing ?? (leftClosedLayer(left) ? "return" : pressedOn(node) ? "press" : stepping ? "step" : "move");
 var read = /* @__PURE__ */ new WeakSet();
-function stand(event) {
+function readFocusEvent(event) {
   if (read.has(event)) return;
   read.add(event);
   if (closing) return;
@@ -640,24 +641,25 @@ function stand(event) {
   if (!restoring && !(placing === null && leftClosedLayer(event.relatedTarget)))
     placements += 1;
   const at = deepFocus();
-  stood = at && new WeakRef(at);
+  lastLocation = at && new WeakRef(at);
   publish2(at, cause(at, event.relatedTarget));
 }
-function watchStandingAround(node) {
-  for (let at = node; at; at = renderedParent(at)) watchStandingIn(at.getRootNode());
+function watchCurrentLocationAround(node) {
+  for (let at = node; at; at = renderedParent(at))
+    watchCurrentLocationIn(at.getRootNode());
 }
 function enter(event) {
   if (read.has(event)) return;
   read.add(event);
-  watchStandingAround(deepFocus());
+  watchCurrentLocationAround(deepFocus());
 }
-function watchStandingIn(root) {
+function watchCurrentLocationIn(root) {
   root.addEventListener("focus", enter, true);
-  root.addEventListener("focusin", stand, true);
+  root.addEventListener("focusin", readFocusEvent, true);
   watchFocusPaintIn(root);
 }
-watchStandingIn(document);
-watchStandingAround(deepFocus());
+watchCurrentLocationIn(document);
+watchCurrentLocationAround(deepFocus());
 document.addEventListener(
   "focusout",
   (event) => {
@@ -666,7 +668,7 @@ document.addEventListener(
       return;
     }
     const left = event.composedPath()[0];
-    stood = new WeakRef(left);
+    lastLocation = new WeakRef(left);
     if (restoring) return;
     queueMicrotask(() => {
       const at = document.activeElement;
@@ -674,7 +676,7 @@ document.addEventListener(
       if (heldByLabel()) return;
       if (!drawn(left)) return publish2(null, "drop");
       if (left !== document.body) placements += 1;
-      if (stood?.deref() === left) stood = null;
+      if (lastLocation?.deref() === left) lastLocation = null;
       publish2(null, cause(null));
     });
   },
@@ -686,7 +688,7 @@ function reconcile(step, pressed) {
   const at = deepFocus();
   if (!at || at === document.body || at === published?.deref()) return;
   placements += 1;
-  stood = new WeakRef(at);
+  lastLocation = new WeakRef(at);
   const was = [stepping, pressedPath];
   [stepping, pressedPath] = [step, pressed];
   try {
@@ -833,7 +835,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
       }
       const at = deepFocus();
       if (at && at !== document.body || heldByLabel()) return;
-      stood = null;
+      lastLocation = null;
       publish2(null, cause(null));
     },
     { capture: true, passive: true }
@@ -848,7 +850,7 @@ var drawn = (node) => node?.isConnected && node.checkVisibility({ visibilityProp
 var dropped = () => {
   const at = deepFocus();
   if (at && at !== document.body) return null;
-  const node = stood?.deref();
+  const node = lastLocation?.deref();
   return node && !drawn(node) ? node : null;
 };
 function holdFocus(scope, { key = null } = {}) {
@@ -910,15 +912,15 @@ function holdFocus(scope, { key = null } = {}) {
 var heldIn = (scope) => {
   const held = heldByLabel();
   if (held) return renderedUnder(held, scope) ? held : null;
-  const standing2 = deepFocus(
+  const currentLocation2 = deepFocus(
     scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement
   );
-  if (standing2 && standing2 !== document.body && renderedUnder(standing2, scope))
-    return standing2;
-  const node = stood?.deref();
+  if (currentLocation2 && currentLocation2 !== document.body && renderedUnder(currentLocation2, scope))
+    return currentLocation2;
+  const node = lastLocation?.deref();
   return node && renderedUnder(node, scope) ? dropped() : null;
 };
-var standingIn = (scope) => {
+var currentLocationIn = (scope) => {
   const at = focused();
   return Boolean(at) && at !== document.body && renderedUnder(at, scope);
 };
@@ -968,10 +970,10 @@ function closeLayer(close, land2 = null) {
   }
   const at = deepFocus();
   if (!at || at === document.body || at === published?.deref()) return;
-  stood = new WeakRef(at);
+  lastLocation = new WeakRef(at);
   publish2(at, "return");
 }
-function holdStanding() {
+function holdCurrentLocation() {
   const at = focused();
   const node = at && at !== document.body ? at : dropped();
   return node ? { node, restore: holdOn(node) } : null;
@@ -1102,7 +1104,7 @@ function handBack(...destinations) {
 function move(parent, node, before) {
   if (node.parentNode === parent && (before === node || node.nextSibling === before))
     return node;
-  if (parent.isConnected) watchStandingIn(parent.getRootNode());
+  if (parent.isConnected) watchCurrentLocationIn(parent.getRootNode());
   if (parent.moveBefore && node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true }))
     parent.moveBefore(node, before);
   else {
@@ -1165,11 +1167,11 @@ export {
   deepFocus,
   focusRevision,
   focused,
-  standingNodes,
-  standsOn,
-  onStanding,
+  currentLocationNodes,
+  currentLocationTouches,
+  onCurrentLocation,
   pressLed,
-  watchStandingIn,
+  watchCurrentLocationIn,
   inputCount,
   onUserInput,
   caretAtKey,
@@ -1180,13 +1182,13 @@ export {
   ringBox,
   drawn,
   holdFocus,
-  standingIn,
+  currentLocationIn,
   rove,
   openLayer,
   openerOf,
   layerLanding,
   closeLayer,
-  holdStanding,
+  holdCurrentLocation,
   carriedFrom,
   typesText,
   takesLetters,

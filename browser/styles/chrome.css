@@ -26,7 +26,7 @@
    choice on one baseline with one type, border, corner and elevation; the bar keeps its
    DOM owner and accessible name while its contents change. */
 /* Page-attached chrome is absolute against the initial containing block, not against
-   body. Body is the page shell and may move or narrow, as a margin resident moves it;
+   body. Body is the page shell and may move or narrow, as margin content moves it;
    the document coordinate system does neither, and root scrolling still carries
    absolute chrome with the passage it stands beside. */
 /* Shared vocabulary. This sheet is adopted after the theme and every package, so a
@@ -182,7 +182,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-/* The unanswered decision the user is standing in (markHere), worn by the decision
+/* The unanswered decision the user is in (markHere), worn by the decision
    rather than whichever control has focus. Unanswered and not open: a widget whose seat
    holds a thread waiting on the agent has left the user's list. One decision wears it at
    a time; a widget a page styles boxless hangs it on its contents' boxes (shownParts).
@@ -1054,7 +1054,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-in {
     transform: translate(-50%, 0);
   }
-  /* The hint the keyboard is browsing is where the user is standing in this mode, so
+  /* The hint the keyboard is browsing is where the user is in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-current {

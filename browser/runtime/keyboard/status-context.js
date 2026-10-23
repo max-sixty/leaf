@@ -1,6 +1,6 @@
 /* What the page says between notices about where the keyboard has the user: the Go-to
  * filter's word while a `g` sequence holds one, a walk's position ("1 of 3 threads")
- * after a list walk, and the title of the stance the user stands in ("In Draw mode",
+ * after a list walk, and the title of the stance the user is in ("In Draw mode",
  * dispatch.js, `innermostStance`). The floating panel says the first two in its seat for
  * passing words (floating-panel.js, `passing`) and the stance in its empty page field,
  * in the agent's status's place. Its reads subscribe to their signal. A retired walk

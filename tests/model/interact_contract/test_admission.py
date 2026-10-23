@@ -438,7 +438,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
 
     # The old handler validated outside the append transaction. Hold its first
     # validation until the second request states where it is: on that shape both
-    # requests read the same standing target, so the second validates too, while
+    # requests read the same current target, so the second validates too, while
     # the transactional handler keeps the second waiting on the log the first holds
     # until the first append is visible.
     real_undo_error = event_contracts_model.undo_error

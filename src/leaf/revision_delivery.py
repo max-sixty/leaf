@@ -856,12 +856,12 @@ def compose_document(
     if delivery.runtime is not None:
         # A classic parser checkpoint waits for every preceding stylesheet, including
         # the author's head overrides. The initial observer then receives styled body
-        # nodes before their first paint, rather than seating residents on CSS load's
-        # later task. It shares the same residency computation used after upgrade.
+        # nodes before their first paint, rather than placing margin content on CSS load's
+        # later task. It shares the same margin layout computation used after upgrade.
         insertions.append(
             (
                 document.authoring.wrapper_tags["body"][1],
-                "<script data-lf-runtime>document.documentElement.lfInitial.residency()</script>",
+                "<script data-lf-runtime>document.documentElement.lfInitial.marginContentLayout()</script>",
             )
         )
     root = dict(delivery.html_attributes)

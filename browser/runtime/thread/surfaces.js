@@ -32,7 +32,7 @@ import { readThreads, threadIdNamed } from "./state.js";
 import { threadFocusDestination } from "./focus.js";
 import { HeldArrivals } from "./held-news.js";
 import { under } from "../shadow.js";
-import { declareSide } from "../standing-target.js";
+import { declareSide } from "../current-target.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 
 const registrations = new Map();
@@ -116,9 +116,9 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     reconcileQueued: false,
     cancelRender: () => {},
   };
-  // The outlet lifetime also owns its source standing. A page rail's card stands
+  // The outlet lifetime also owns its source location. A page rail's card stands
   // at the source it shows, while its unrelated controls keep their authored place.
-  // The standing reader gives an innermost reply obligation priority over this relation.
+  // The current location reader gives an innermost reply obligation priority over this relation.
   registration.stopSide = declareSide((node) => {
     const outlet = [...registration.outlets].find((outlet) => under(node, outlet));
     if (!outlet) return null;

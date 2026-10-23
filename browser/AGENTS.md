@@ -32,7 +32,7 @@ representative desktop viewport.
   theme's tokens, so it behaves the same in a shipped Layout as on a hand-written page
   that gives it the same box. Where one must react to another, the owner sets a token
   describing the box and the reader matches it with a style query, as with
-  `--lf-full-height`, `--lf-wide-page`, `--lf-resident` and `--lf-density`
+  `--lf-full-height`, `--lf-wide-page`, `--lf-margin-content` and `--lf-density`
   (`layouts.css` and `theme.css` define them). A width needs no token: a size query on the reader's
   container answers it. Before adding a token, ask whether a hand-written page with the
   same box would want the same answer; if not, the token describes a Layout, not a box.
@@ -45,7 +45,7 @@ representative desktop viewport.
   the window is wide enough, and never moves or narrows the column
   (`content-layout.js`); `data-rail` on `body` withholds or reserves it
   (`../skills/leaf/references/page-layout.md`, "The rail and the margin"). Otherwise only the left
-  margin resident and sidenotes move the column, through `residency` in
+  margin content and sidenotes move the column, through `marginContentLayout` in
   `prepaint.js`. Checks: `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the
   shift watch. Owner: `annotation-overlay/margin-placement.js`.
 - **A control takes only its own room.** Leaf never reserves a strip, a row or
@@ -212,7 +212,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `page-controls.js`                                                                                                    |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                                        |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                                      |
-| Focus and navigation                                                                                        | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                                    |
+| Focus and navigation                                                                                        | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                                     |
 | Obligations                                                                                                 | `obligations/`                                                                                                                                                            |
 | Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                                     |
 | Threads                                                                                                     | `thread/`                                                                                                                                                                 |
@@ -305,7 +305,7 @@ it. Call an API every engine ships directly, with no fallback, and record the ch
 
 Two script answers already exist. `focus.js` sets `data-lf-focus` and
 `data-lf-focus-within`, because native `:focus` also matches retargeted shadow hosts
-and a held label press. Those attributes express logical standing; style rings with
+and a held label press. Those attributes express current location; style rings with
 `data-lf-focus-visible` and `data-lf-focus-visible-within`, which also account for
 the browser's focus visibility. `geometry.js` decides
 whether the user can see a box (`seenRect`, `declareOccluder`), because Leaf's chrome
@@ -362,10 +362,10 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Question                                                                                              | Owner                                                                              |
 | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | What is focused, inside open shadow trees or through a held label press                               | `focus.js` `focused`, `focused(tree)` (_lint_)                                     |
-| Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `standingIn` (_lint_)                                                   |
+| Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                            |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
-| The page place focus or selection identifies, or none                                                 | `standing-target.js` `standingOrigin`                                              |
-| Where a page walk starts, falling back to visible reading, and which item it steps to                 | `standing-target.js` `walkOrigin`, `stepFrom`                                      |
+| The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
+| Where a page walk starts, falling back to visible reading, and which item it steps to                 | `current-target.js` `walkOrigin`, `stepFrom`                                       |
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |

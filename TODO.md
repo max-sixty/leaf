@@ -284,7 +284,7 @@ and its chrome coordinate.
   pane is empty, and whether a reader reaches every pane by key. The arrangement
   judge sees only the first screen of a pane that scrolls and is told not to infer
   interaction, so no case yet measures whether a workspace works as a screen.
-- **Layout values that wait for a task:** a selection-and-detail component whose phone
+- **Layout values that wait for a task:** a selection-and-detail widget whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
 - **Make a sidebar built from several blocks stick.** A sidebar's track sticks only
@@ -730,7 +730,7 @@ export` writes a file that boots the page's own runtime offline, and that file
   `elementById(id, root)` (`passages.js`): about 31 `elementById` and 9
   `getElementById` calls in the runtime and the package widgets' own lookups
   (`lf-board`, `lf-options-addition`). The lookups that arrive with no drawing
-  each need a rule: obligation standing, `m` walks, an anchor on an element in a
+  each need a rule: the current obligation, `m` walks, an anchor on an element in a
   reply, and the presentation regions keyed `widget:<id>:render`. A 2026-10-20
   trial of per-drawing copies without that broke all four (reverted within
   PR #3436). Revisit if seeing a question in the page and the panel at once is

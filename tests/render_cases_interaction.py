@@ -646,12 +646,12 @@ OBLIGATION_IN_A_CARD_PAGE = leaf_page(
 {"".join(f"<p id='ac-tail-{i}'>Later note {i}. " + "Background. " * 14 + "</p>" for i in range(6))}
 """,
 )
-# The decision the walk is standing on. One decision wears the mark, on however many boxes it
+# The decision at the current location. One decision wears the mark, on however many boxes it
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the On panel's row mirrors the same fact in the chrome.
-STANDING_OBLIGATION = (
+CURRENT_OBLIGATION = (
     "main [data-lf-obligation]:not([data-lf-obligation] [data-lf-obligation])"
 )
 # The shipped board measures its grip from a live box. Author it into the page and

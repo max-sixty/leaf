@@ -51,7 +51,7 @@ export function clippedControls() {
     if (b.width < 1 && b.height < 1) continue;
     // Where the clip is escaped rather than suffered. An absolutely-positioned
     // control whose containing block is above the clipping ancestor is painted
-    // outside it on purpose, exactly as MISPLACED_BOXES' own resident is.
+    // outside it on purpose, exactly as MISPLACED_BOXES' own margin content is.
     if (getComputedStyle(el).position === "absolute") continue;
     // Up to the body and no further: the document's own scrolling arrangement is
     // the page's, not a widget's. The runtime scrolls body rather than the
@@ -132,7 +132,7 @@ export function clippedControls() {
 //
 // An overlay at rest (`restsOverPage`) is held to the height floor alone, as the
 // contents map is: in the margin its box is a 24px spine, and its labels reveal over
-// the page from it. Its posture says so in its computed style, which a widget that
+// the page from it. Its scroll behavior says so in its computed style, which a widget that
 // lost its rules doesn't take on, so a map dropped into the flow at that width is
 // still caught.
 export function tinyBoxes(declarations) {

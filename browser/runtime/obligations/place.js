@@ -2,7 +2,7 @@
    obligations a region of the page holds.
 
    The source owns its answer; the context supplies its prompt. A unique context is
-   also its standing node. When several obligations share that context each stands at
+   also its current node. When several obligations share that context each stands at
    its own source, so focus, rings, markers and arrival all name the same request.
    A record unit stands at its projected datum, even when it is the widget's only
    obligation; the owning widget still supplies its commands and answer formatter.
@@ -19,8 +19,8 @@
    with the agent counts as unanswered and on the agent; and a goal's
    interventions (work.js) are the members whose next actor is the user, since only those
    stop work on the user.
-   Which obligation holds a node the user stands in is the converse question, standing rather
-   than membership (`obligationHolding`, standing-target.js), and it also falls back to an
+   Which obligation holds a node the user is in is the converse question, current location rather
+   than membership (`obligationHolding`, current-target.js), and it also falls back to an
    obligation's unique context. */
 import { projectedDatum } from "../anchor-resolution.js";
 import { elementById } from "../passages.js";

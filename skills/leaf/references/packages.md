@@ -206,7 +206,7 @@ role on the page:
 | Key                | Shipped example                                                |
 | ------------------ | -------------------------------------------------------------- |
 | `x-reading-role`   | `lf-pane`                                                      |
-| `x-resident`       | `lf-toc`                                                       |
+| `x-margin-content` | `lf-toc`                                                       |
 | `x-visual`         | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
 | `x-bound`          | `lf-activity`                                                  |
 | `x-height`         | `lf-chart`                                                     |

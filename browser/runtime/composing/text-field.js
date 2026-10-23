@@ -134,7 +134,7 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
-  /* An owner moving the field's edges can carry the words from where they stood with
+  /* An owner moving the field's edges can carry the words from where they were with
      them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
      --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
      its layout. The field's content box cuts off what the field doesn't hold yet,

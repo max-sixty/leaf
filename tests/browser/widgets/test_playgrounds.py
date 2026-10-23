@@ -603,8 +603,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         controlsId: region(controls).id,
         previewId: region(preview).id,
         instructionId: region(instruction).id,
-        postures: [controls, preview, instruction].map((body) =>
-          leaf.readingPosture(region(body))),
+        scroll_behaviors: [controls, preview, instruction].map((body) =>
+          leaf.regionScrollBehavior(region(body))),
         scrollers: [controls, preview, instruction].map((body) =>
           leaf.scrollerFor(body) === body ? 'own' :
           leaf.scrollerFor(body) === document.scrollingElement ? 'page' :
@@ -633,7 +633,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "controlsId": "lf-region:notification-playground:controls",
         "previewId": "lf-region:notification-playground:preview",
         "instructionId": "lf-region:notification-playground:instruction",
-        "postures": ["bounded", "bounded", "bounded"],
+        "scroll_behaviors": ["bounded", "bounded", "bounded"],
         "scrollers": ["own", "own", "own"],
         "sideBySide": True,
         "presetsHeadControls": True,
@@ -742,7 +742,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         assert flow["stacked"] is (width < 1100), (width, height, flow)
         assert flow == {
             **flow,
-            "postures": ["flow", "flow", "flow"],
+            "scroll_behaviors": ["flow", "flow", "flow"],
             "scrollers": ["page", "page", "page"],
             "pageScrolls": True,
             "obligationDisplay": "block",

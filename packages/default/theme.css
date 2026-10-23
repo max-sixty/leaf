@@ -2171,7 +2171,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   color: var(--accent);
 }
 @media screen and (hover: hover) and (pointer: fine) {
-  @container lf-content-frame style(--lf-sidebar-posture: margin) {
+  @container lf-content-frame style(--lf-sidebar-placement: margin) {
     @container style(--lf-sidebar-slot: margin) {
       :scope:is(lf-toc) {
         position: fixed;

@@ -52,6 +52,7 @@ import {
   carryingThreadPlace,
   claimSeatReplies,
   claimed,
+  currentLocationThreadId,
   declareOffFlowSurface,
   declareSide,
   keepThreadLanding,
@@ -68,7 +69,6 @@ import {
   rowWalk,
   selectionAnchor,
   showLatestTurn,
-  standingThreadId,
   strongestWorkflow,
   tabStore,
   threadFocusDestination,
@@ -103,7 +103,7 @@ import {
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
   standsFolded,
-  syncMarginResidency,
+  syncMarginContentLayout,
   unregisterMarginRow
 } from "./bundle-annotation-overlay~margin-placement.js";
 import {
@@ -173,6 +173,7 @@ import {
   cancelAnimation,
   cancelRender,
   closeLayer,
+  currentLocationIn,
   declareRelease,
   drawn,
   focusDestination,
@@ -190,15 +191,14 @@ import {
   nativeLayerHolding,
   nextAnimation,
   nextRender,
+  onCurrentLocation,
   onPress,
-  onStanding,
   onUserInput,
   pressLed,
   renderedOrder,
   renderedUnder,
   roomPx,
   rove,
-  standingIn,
   tabStops,
   under
 } from "./bundle-frame-visibility.js";
@@ -962,7 +962,7 @@ function createThreadPreview({
     previewClose.onclick = onDismiss;
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    onStanding((node, cause, left) => {
+    onCurrentLocation((node, cause, left) => {
       const row = left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
       if (row && !(node && under(node, row)) && !row.querySelector(REPLY_BOX)?.value)
         scheduleThreadPreviewPosition();
@@ -992,7 +992,7 @@ function createThreadPreview({
     thread: () => previewList.querySelector(".lf-page-thread"),
     accompanied: () => previewSession && !previewSession.away ? previewList.querySelector(".lf-page-thread") : null,
     closeFocused: () => focused() === previewClose,
-    // Whether the user stands in the card's reply box.
+    // Whether the user is in the card's reply box.
     replying: () => under(focused(), preview) && Boolean(closestAcross(focused(), REPLY_BOX)),
     // Whether the open card has somewhere to stand (`threadCardPlace`).
     stands: () => Boolean(previewSession && threadCardPlace(previewSession)),
@@ -1474,9 +1474,15 @@ function createMarginProjection({
       "move"
     );
     beginWalk("margin-entry", "Action", () => {
-      const standing = focused();
-      const standingHost2 = closestAcross(standing, "[data-lf-margin-for]");
-      return listWalkPosition(clusterMarginEntries(standingHost2), standing);
+      const currentLocation = focused();
+      const currentLocationHost2 = closestAcross(
+        currentLocation,
+        "[data-lf-margin-for]"
+      );
+      return listWalkPosition(
+        clusterMarginEntries(currentLocationHost2),
+        currentLocation
+      );
     });
   }
   const landOnToggle = (entry) => layerLanding(() => handBack(hosts.get(entry.key)?.more));
@@ -1584,7 +1590,7 @@ function createMarginProjection({
       holdTabStop(null);
       return;
     }
-    const standing = available.find((row) => row === focused());
+    const currentLocation = available.find((row) => row === focused());
     const candidates = visible.length ? visible : available;
     const held = visible.find((row) => row.tabIndex === 0);
     const room = shownWindow();
@@ -1594,7 +1600,7 @@ function createMarginProjection({
       if (box.top > room.bottom) return box.top - room.bottom;
       return 0;
     };
-    const next = standing ?? held ?? candidates.reduce((best, row) => distance(row) < distance(best) ? row : best);
+    const next = currentLocation ?? held ?? candidates.reduce((best, row) => distance(row) < distance(best) ? row : best);
     holdTabStop(next);
   }
   function scheduleRoving() {
@@ -1612,7 +1618,7 @@ function createMarginProjection({
     revealed = shows;
     revealed?.setAttribute("data-lf-revealed", "");
   }
-  function standingHost(node) {
+  function currentLocationHost(node) {
     const own = closestAcross(node, ".lf-margin-cluster");
     if (own) return own;
     let found = null;
@@ -1621,8 +1627,8 @@ function createMarginProjection({
         found = host;
     return found;
   }
-  const reveal = (node) => revealHost(annotationsHidden() ? standingHost(node) : null);
-  onStanding((node) => {
+  const reveal = (node) => revealHost(annotationsHidden() ? currentLocationHost(node) : null);
+  onCurrentLocation((node) => {
     if (node && revealed && !revealed.contains(node) && !(revealed.lfTarget && under(node, revealed.lfTarget)))
       revealHost(null);
   });
@@ -1649,12 +1655,12 @@ function createMarginProjection({
       focusOption: control === host.more ? standsFoldedNow && !back ? "first" : "last" : null
     });
   }
-  onStanding((node, cause, left) => {
+  onCurrentLocation((node, cause, left) => {
     if (!node) return;
     for (const host of hosts.values())
       if (host.contains(node)) return arriveAtCluster(host, node, cause, left);
   });
-  onStanding((node, cause, left) => {
+  onCurrentLocation((node, cause, left) => {
     if (!left) return;
     for (const host of hosts.values()) {
       if (!under(left, host) || node && under(node, host)) continue;
@@ -1805,8 +1811,8 @@ function createMarginProjection({
   function presentCluster(host, marker, more, entry, projection, focus) {
     const primary = host.present(projection);
     const options = host.options;
-    const lostOptionFocus = focus.focusedOption && !standingIn(options);
-    const lostPrimaryFocus = focus.focusedPrimary && !standingIn(host);
+    const lostOptionFocus = focus.focusedOption && !currentLocationIn(options);
+    const lostPrimaryFocus = focus.focusedPrimary && !currentLocationIn(host);
     if (!projection.hasOptions && (focused() === more || lostOptionFocus)) {
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
@@ -1922,9 +1928,9 @@ function createMarginProjection({
       host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;
       const focus = {
-        focusedPrimary: Boolean(host.primary && standingIn(host.primary)),
-        focusedOption: Boolean(host.options && standingIn(host.options)),
-        // The entry the user stands on, by its contribution's key, across the projection
+        focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
+        focusedOption: Boolean(host.options && currentLocationIn(host.options)),
+        // The entry the user is on, by its contribution's key, across the projection
         // that may replace its control (focus.js, keyed `holdFocus`).
         restore: holdFocus(host, { key: "data-lf-margin-entry-identity" })
       };
@@ -1999,11 +2005,11 @@ function createMarginProjection({
     const drawingOnly = entry?.items.length && entry.items.every(
       (item) => item.kind === "comment" && Boolean(sourceItem(item).thread?.root.drawing)
     );
-    const standing = standingThreadId();
-    const standingShown = !marker && entry && marksFor(standing).length > 0 && threadReading(entry)?.items.some(
-      (item) => sourceItem(item).thread.id === standing
+    const currentLocation = currentLocationThreadId();
+    const currentLocationShown = !marker && entry && marksFor(currentLocation).length > 0 && threadReading(entry)?.items.some(
+      (item) => sourceItem(item).thread.id === currentLocation
     );
-    highlight(drawingOnly || standingShown ? null : targetFor(entry) ?? null);
+    highlight(drawingOnly || currentLocationShown ? null : targetFor(entry) ?? null);
   }
   function previewChanged() {
     refreshHighlight();
@@ -2050,7 +2056,7 @@ function createMarginProjection({
   function closePreview(land = letGo) {
     const button = card.selection()?.control;
     const at = focused();
-    const heldInside = standingIn(preview) && !carryingThreadPlace(at);
+    const heldInside = currentLocationIn(preview) && !carryingThreadPlace(at);
     closeLayer(() => card.close(), heldInside && (() => land(button)));
     paintKeys();
   }
@@ -2096,7 +2102,7 @@ function createMarginProjection({
       // leaves the margin, so the close hands them back to the entry the card hangs
       // from and the fold is the next press. With no such cluster — the walk's own
       // reveal folds with the card, and a bare marker has none — the entry is a control
-      // they may never have stood on, a `t` from the page having put the card up
+      // they may never have focused, a `t` from the page having put the card up
       // without going near the margin, so the landing is the page it is anchored to.
       //
       // Under it means on the entry this card would land on. A cluster left unfolded on
@@ -2106,12 +2112,15 @@ function createMarginProjection({
       // press a fold that teleports focus somewhere third. So the question goes to
       // `optionsRung`, the step that would actually answer next, which also declines
       // for a host that has gone or an entry whose own state holds its actions open.
-      // The step lands the user wherever they stood, the page their press displaced
+      // The step lands the user wherever they were, the page their press displaced
       // included, so its landing is the close's own rather than one for a user inside.
       out: () => {
-        const standing = unfoldedUnder();
+        const currentLocation = unfoldedUnder();
         const button = card.selection()?.control;
-        closeLayer(() => closePreview(), standing ? () => landOnEntry(button) : letGo);
+        closeLayer(
+          () => closePreview(),
+          currentLocation ? () => landOnEntry(button) : letGo
+        );
       }
     };
   }
@@ -2244,12 +2253,12 @@ function createMarginProjection({
     const shown = previewOpen() && card.selection()?.entry?.key;
     return pageInventory.find((entry) => entry.key === shown && here(entry)) ?? pageInventory.find(here) ?? null;
   };
-  let standingUnfolded = null;
+  let currentLocationUnfolded = null;
   const byKeyboard = () => !pressLed();
-  function unfoldStanding(active) {
+  function unfoldCurrentLocation(active) {
     const host = active && closestAcross(active, "[data-lf-margin-for]");
-    if (host?.lfEntry?.key === standingUnfolded) {
-      standingUnfolded = null;
+    if (host?.lfEntry?.key === currentLocationUnfolded) {
+      currentLocationUnfolded = null;
       return;
     }
     const state = {
@@ -2260,13 +2269,13 @@ function createMarginProjection({
     const entry = place ? pageInventory.find(
       (candidate) => folded(candidate) && canFold(candidate, state) && under(place, targetFor(candidate))
     ) : null;
-    if (entry?.key === standingUnfolded) return;
-    if (standingUnfolded && expandedOptionsKey === standingUnfolded)
+    if (entry?.key === currentLocationUnfolded) return;
+    if (currentLocationUnfolded && expandedOptionsKey === currentLocationUnfolded)
       setOptionsOpen(null, false, { preservePreview: true });
-    standingUnfolded = null;
+    currentLocationUnfolded = null;
     if (!entry || expandedOptionsKey === entry.key) return;
     setOptionsOpen(entry, true, { preservePreview: true });
-    standingUnfolded = entry.key;
+    currentLocationUnfolded = entry.key;
   }
   function accompany(node, entry) {
     awaitingRow = null;
@@ -2282,11 +2291,11 @@ function createMarginProjection({
     const entry = arrivalOf(node) && threadEntryAt(node);
     if (entry) accompany(node, entry);
   }
-  function followStanding() {
+  function followCurrentLocation() {
     awaitingRow = null;
     refreshHighlight();
     const active = focused();
-    unfoldStanding(active);
+    unfoldCurrentLocation(active);
     if (!active || active === document.body || renderedUnder(active, preview) || designModeActive())
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
@@ -2309,12 +2318,12 @@ function createMarginProjection({
   });
   const pressedAway = (path) => {
     if (!previewOpen()) return false;
-    const stands = pointerModeActive() ? [preview] : [
+    const currentTargets = pointerModeActive() ? [preview] : [
       preview,
       hosts.get(card.selection()?.entry?.key),
       targetFor(card.selection()?.entry)
     ];
-    if (stands.some((node) => node && path.includes(node))) return false;
+    if (currentTargets.some((node) => node && path.includes(node))) return false;
     return !path.some(inRetainedContext);
   };
   const pressAway = (start, path) => pressedAway(path) ? (end, completed) => {
@@ -2328,14 +2337,14 @@ function createMarginProjection({
     if (under(node, preview)) return targetFor(card.selection()?.entry);
     return null;
   });
-  function captureStanding() {
+  function captureCurrentLocation() {
     const active = focused();
     const host = closestAcross(active, "[data-lf-margin-for]");
     const control = active?.closest?.(".lf-margin-entry");
     const selected = card.selection();
     const entry = selected?.entry ?? host?.lfEntry;
     if (!entry) return null;
-    const standing = {
+    const currentLocation = {
       entry: entry.key,
       preview: previewOpen() && !card.replying() ? { thread: selected.threadItem, accompanies: selected.accompanies } : null,
       focus: card.closeFocused() ? { kind: "preview-close" } : under(active, preview) ? { kind: "preview" } : control && host?.contains(control) ? {
@@ -2344,14 +2353,16 @@ function createMarginProjection({
         owner: contributionEntryRecord(control)?.owner ?? null
       } : null
     };
-    return standing.preview || standing.focus?.kind === "entry" ? standing : null;
+    return currentLocation.preview || currentLocation.focus?.kind === "entry" ? currentLocation : null;
   }
-  function restoreStanding(standing) {
-    if (!standing || typeof standing.entry !== "string") return false;
-    const entry = pageInventory.find((candidate) => candidate.key === standing.entry);
+  function restoreCurrentLocation(currentLocation) {
+    if (!currentLocation || typeof currentLocation.entry !== "string") return false;
+    const entry = pageInventory.find(
+      (candidate) => candidate.key === currentLocation.entry
+    );
     if (!entry) return false;
-    const shown = standing.preview ? restoreCard(entry, standing) : false;
-    return standing.focus?.kind === "entry" ? restoreEntryFocus(entry, standing) : shown;
+    const shown = currentLocation.preview ? restoreCard(entry, currentLocation) : false;
+    return currentLocation.focus?.kind === "entry" ? restoreEntryFocus(entry, currentLocation) : shown;
   }
   function restoreCard(entry, { preview: { thread, accompanies }, focus }) {
     const items = entry.items.filter((item2) => item2.kind === "comment");
@@ -2360,7 +2371,7 @@ function createMarginProjection({
     const id = sourceItem(item).thread.id;
     const selected = card.selection();
     const kept = selected?.entry.key === entry.key && selected.threadItem === item.id;
-    if (kept && card.stands()) return true;
+    if (kept && card.currentTargets()) return true;
     if (kept) closePreview();
     const inCard = focus?.kind === "preview" || focus?.kind === "preview-close";
     if (accompanies && !inCard) return Boolean(openInlineThread(id, { unfold: false }));
@@ -2382,10 +2393,10 @@ function createMarginProjection({
       });
     return true;
   }
-  function restoreEntryFocus(entry, standing) {
+  function restoreEntryFocus(entry, currentLocation) {
     const host = hosts.get(entry.key);
     const control = clusterMarginEntries(host).find(
-      (candidate) => contributionEntryRecord(candidate)?.key === standing.focus.key && (contributionEntryRecord(candidate)?.owner ?? null) === standing.focus.owner
+      (candidate) => contributionEntryRecord(candidate)?.key === currentLocation.focus.key && (contributionEntryRecord(candidate)?.owner ?? null) === currentLocation.focus.owner
     );
     if (!control) return false;
     if (focused() === control) return true;
@@ -2410,10 +2421,10 @@ function createMarginProjection({
     document.addEventListener("pointerout", scheduleMarginEntryLabels, {
       capture: true
     });
-    onStanding((node, cause) => {
+    onCurrentLocation((node, cause) => {
       if (cause === "drop") return;
       scheduleMarginEntryLabels();
-      queueMicrotask(followStanding);
+      queueMicrotask(followCurrentLocation);
     });
     onPress(pressAway);
     document.addEventListener(
@@ -2470,8 +2481,8 @@ function createMarginProjection({
     },
     paintSelectedMarginEntries,
     marginEntryChoices,
-    captureStanding,
-    restoreStanding,
+    captureCurrentLocation,
+    restoreCurrentLocation,
     mount
   };
 }
@@ -2485,7 +2496,7 @@ var HERE = "lf-mark-here";
 function createAnchorPaint({
   targetPaint,
   pointer,
-  standingThreadId: standingThreadId2,
+  currentLocationThreadId: currentLocationThreadId2,
   rowThread,
   threadRow,
   marginThread
@@ -2575,8 +2586,8 @@ function createAnchorPaint({
     row?.classList.toggle(HOVER, true);
     hoveredRow = row;
   }
-  function paintStanding(repaintVisuals = true) {
-    const where = marksFor(standingThreadId2());
+  function paintCurrentLocation(repaintVisuals = true) {
+    const where = marksFor(currentLocationThreadId2());
     const parts = where.filter((mark) => mark instanceof Element);
     for (const part of hereParts)
       if (!parts.includes(part)) part.classList.toggle(HERE, false);
@@ -2659,7 +2670,7 @@ function createAnchorPaint({
       PENDING,
       Object.assign(new Highlight(...pending), { priority: 3 })
     );
-    paintStanding(false);
+    paintCurrentLocation(false);
     if (hovering) paintHover(hovering, hoverFromRow, false);
     paintVisualStates();
     refreshHover();
@@ -2696,7 +2707,7 @@ function createAnchorPaint({
     mount,
     destroy,
     paint,
-    paintStanding,
+    paintCurrentLocation,
     refreshHover,
     markAt,
     marksFor
@@ -3208,5 +3219,5 @@ export {
   mountAnnotationControls,
   postedDrawings,
   restoreAnnotations,
-  syncMarginResidency
+  syncMarginContentLayout
 };

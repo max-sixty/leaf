@@ -444,12 +444,12 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
     )
 
 
-def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
+def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a_shift(
     browser, serve
 ):
     """A region is bounded exactly when the stylesheet makes its body scroll, a flowing
     region is carried by the one containing it, and a scroller change is announced once
-    the new geometry exists. Nothing is told the posture: a class stands in for the
+    the new geometry exists. Nothing is told the scroll behavior: a class stands in for the
     container query that decides it on a page."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
@@ -496,7 +496,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
           const flow = {
             outer: scrollerName(leaf.effectiveScroller('outer-pane')),
             preview: scrollerName(leaf.effectiveScroller(previewId)),
-            posture: leaf.readingPosture(previewId),
+            scroll_behavior: leaf.regionScrollBehavior(previewId),
           };
 
           // Each change waits out the frame its shift was announced in, so the next
@@ -508,7 +508,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
           const held = {
             outer: scrollerName(leaf.effectiveScroller('outer-pane')),
             preview: scrollerName(leaf.effectiveScroller(previewId)),
-            posture: leaf.readingPosture(previewId),
+            scroll_behavior: leaf.regionScrollBehavior(previewId),
             focusRegion: leaf.readingRegionFor(outer.querySelector('#pane-heading')).id,
           };
 
@@ -518,7 +518,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
           await frames();
           const previewFlows = {
             preview: scrollerName(leaf.effectiveScroller(previewId)),
-            posture: leaf.readingPosture(previewId),
+            scroll_behavior: leaf.regionScrollBehavior(previewId),
           };
 
           // Hidden until it is removed below.
@@ -571,15 +571,18 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
     assert readings["flow"] == {
         "outer": "document",
         "preview": "document",
-        "posture": "flow",
+        "scroll_behavior": "flow",
     }
     assert readings["held"] == {
         "outer": "outer-body",
         "preview": "preview-body",
-        "posture": "bounded",
+        "scroll_behavior": "bounded",
         "focusRegion": "outer-pane",
     }
-    assert readings["previewFlows"] == {"preview": "outer-body", "posture": "flow"}
+    assert readings["previewFlows"] == {
+        "preview": "outer-body",
+        "scroll_behavior": "flow",
+    }
     preview = "lf-region:outer-host:preview"
     assert readings["shifts"] == [
         [

@@ -83,7 +83,7 @@ import {
   arrivals,
   inSeatingOrder,
   packRows,
-  rowPosture,
+  rowPlacement,
   seatRows,
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, union } from "../rect.js";
@@ -364,7 +364,7 @@ function samePassage(passage, words) {
   );
 }
 
-export function syncMarginResidency(changed) {
+export function syncMarginContentLayout(changed) {
   if (changed) scheduleMarginLayout();
 }
 
@@ -1206,7 +1206,7 @@ export function layoutMarginRows() {
     const level = line ? top : box.top;
     const besideRail = railBeside(scroller);
     const size = stands && besideRail ? railEntrySize() : 0;
-    const place = rowPosture({
+    const place = rowPlacement({
       railStands: stands,
       besideRail,
       blockRight: reach(anchor, box, main, reaches),

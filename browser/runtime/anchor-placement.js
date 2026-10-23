@@ -2,7 +2,7 @@
 
    Each read resolves durable anchors and pointed rows before selected presentation:
    initial admission and the final cohort move share this directory. Surface admission,
-   inventory, standing and travel consume it;
+   inventory, current location and travel consume it;
    decoration consumes its resolved targets and never supplies their existence. These
    nodes and records are mechanical readings, outside the application snapshot.
 

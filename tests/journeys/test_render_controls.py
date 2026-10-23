@@ -378,7 +378,7 @@ RING_CASES = (
     # The Tab in front of both sequences is a stop, not a gesture in the mode: target hints
     # claim Tab for browsing themselves, so the sample below moves nothing once the mode
     # is open, and with the document under it the sample would stand on nothing and read no
-    # page at all. Standing on a control first leaves the hint the keyboard is browsing on
+    # page at all. Located on a control first leaves the hint the keyboard is browsing on
     # screen for the sweep, which is where its band is read — the chips are a layer nothing
     # can focus, so the user's place in that mode is not a stop.
     (
@@ -438,7 +438,7 @@ RING_CASES = (
     ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, PANEL_RING),)}),
     # The leaf's menu, opened by its press; the walk's step lands on a row.
     ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, PANEL_RING),)}),
-    # The menu's Versions, which `g V` opens standing on the version being read; the
+    # The menu's Versions, which `g V` opens focused on the version being read; the
     # walk's step lands on the earlier one.
     (
         "the versions menu",
@@ -2374,12 +2374,12 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # Read mid-slide, the panel's words stand past the window's edge, where axe reads no
     # contrast for them and the sweep passes them unread.
     panel_settled(page, view="threads")
-    sweep("standing in Threads")
+    sweep("focused in Threads")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
     panel_settled(page, view="thread")
     expect(panel_field(page)).to_be_focused()
-    sweep("standing in a thread's reply box")
+    sweep("focused in a thread's reply box")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -2387,7 +2387,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # The page comment, which `c` puts the user in with nothing on the page to comment on.
     page.keyboard.press("c")
     expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
-    sweep("standing in the page comment")
+    sweep("focused in the page comment")
     page.keyboard.press("Escape")
 
     # All pages and On me, the panel's other views. Waited out rather than pressed past:
@@ -2396,13 +2396,13 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
-    sweep("standing in All pages")
+    sweep("focused in All pages")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    sweep("standing in On me")
+    sweep("focused in On me")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 

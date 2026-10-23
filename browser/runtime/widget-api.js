@@ -55,7 +55,7 @@ export { placeKeeper } from "./user-place.js";
 export { under } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
-// list; where they stand and whether it is in a scope; recording where a layer opened
+// list; their current location and whether it is in a scope; recording where a layer opened
 // from and handing them back as it closes; running something once they move off an
 // element; and a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
@@ -65,11 +65,11 @@ export {
   focused,
   handBack,
   holdFocus,
-  onStanding,
+  onCurrentLocation,
   openLayer,
   openerOf,
   rove,
-  standingIn,
+  currentLocationIn,
   whenLeft,
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
@@ -169,7 +169,7 @@ export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export {
   compoundReadingRegionId,
   preserveReadingRegions,
-  readingPosture,
+  regionScrollBehavior,
   registerReadingRegion,
   scrollerFor,
   showReadingSubject,

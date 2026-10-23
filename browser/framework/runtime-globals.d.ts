@@ -23,7 +23,7 @@ interface LeafStore {
   keys(): string[];
 }
 
-/** Whether a residency or breakout reading changed what it writes (`prepaint.js`). */
+/** Whether a margin element layout or breakout reading changed what it writes (`prepaint.js`). */
 interface LeafReading {
   changed: boolean;
 }
@@ -59,7 +59,7 @@ interface LeafInitial {
   wear(node: Element, dress: LeafDress): void;
   runtimeRootStyles(node: Element): Set<string>;
   authoredShell(node: Node): Node;
-  residency(): LeafReading;
+  marginContentLayout(): LeafReading;
   breakouts(): LeafReading;
   layoutBox(): Element | null;
   skipped(element: Element, parent?: (node: Element) => Element | null): boolean;

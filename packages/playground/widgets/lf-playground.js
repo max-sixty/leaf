@@ -238,17 +238,17 @@ customElements.define(
               // Native range focus and track operation share a browser default.
               // Return focus after that default takes it, so dragging remains native
               // while the preview keeps showing its focused state. An opaque sample
-              // restores its own standing through its private port.
-              let standing = focused(document);
-              while (standing?.contentDocument)
-                standing = standing.contentDocument.activeElement;
+              // restores its current location through its private port.
+              let currentLocation = focused(document);
+              while (currentLocation?.contentDocument)
+                currentLocation = currentLocation.contentDocument.activeElement;
               range.addEventListener(
                 "focus",
                 () => {
-                  const sample = standing?.closest?.("lf-sample");
-                  focusDestination(standing, "return");
-                  if (sample && standing?.localName === "iframe")
-                    void sample.restoreStanding()?.catch(() => {});
+                  const sample = currentLocation?.closest?.("lf-sample");
+                  focusDestination(currentLocation, "return");
+                  if (sample && currentLocation?.localName === "iframe")
+                    void sample.restoreCurrentLocation()?.catch(() => {});
                 },
                 { once: true },
               );
@@ -287,9 +287,9 @@ customElements.define(
       this.#initial.paintPresets(this.#values);
     }
 
-    // Whether the user stands in the preview, where a candidate can draw on the element
+    // Whether the user is in the preview, where a candidate can draw on the element
     // they stand at: a sample child's focus treatment, for one. Pressing a control face
-    // that changes the candidate in one gesture leaves them standing there: taking focus
+    // that changes the candidate in one gesture leaves them there: taking focus
     // to the control would put that state away as the candidate changed.
     // Readable labels allow the browser's selection gesture. Text and colour controls
     // take focus to be operated, and a key reaches any control by moving focus onto it

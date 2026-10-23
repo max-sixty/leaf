@@ -370,8 +370,8 @@ def _overflow(overflow: int, misplaced: list) -> dict[tuple[str, str], Finding]:
 # The widths the sweep takes a loaded page through: a version holds at every width from
 # the narrowest phone to a wide desktop window, not only at the gate's fixed viewports. A
 # grid that stacks at one width can leave its narrow track narrower than what it holds
-# just above it, a band neither fixed viewport lands in, and the margin's residents
-# arrive above the desktop viewport.
+# just above it, a band neither fixed viewport lands in, and the margin content
+# arrives above the desktop viewport.
 SWEEP_WIDTHS = range(360, 1921, 40)
 
 
@@ -474,7 +474,7 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
     For each sweep step across which what stands in the margin differs, the narrowest
     width at which the wider reading holds, found by halving the step on the loaded
-    page. That is where each resident first stands in the margin, with the least room it
+    page. That is where each element first appears in the margin, with the least room it
     will ever have there, so the gate renders the page at each."""
     stepped = sorted((width, reading["margin"]) for width, reading in readings)
     changes = []
@@ -484,7 +484,7 @@ def margin_changes(page, readings, height: int) -> list[int]:
         while high - low > 1:
             middle = (low + high) // 2
             settle_at(page, middle, height)
-            if evaluate_probe(page, "marginResidents") == above:
+            if evaluate_probe(page, "marginContent") == above:
                 high = middle
             else:
                 low = middle

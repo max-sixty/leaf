@@ -613,7 +613,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
         serve.page_dir, "review-patch", patch + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
-    # Tab is a newer standing intent while the same native editing generation remains
+    # Tab is a newer location intent while the same native editing generation remains
     # alive: the reply's continuation does not take it back.
     expect(after).to_be_focused()
     page.keyboard.press("Tab")

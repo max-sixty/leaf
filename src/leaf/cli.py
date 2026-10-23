@@ -485,7 +485,7 @@ def media(dir: str, files) -> list[dict]:
     ]
 
 
-@page.command(short_help="Read selected-component instructions by audience as JSON.")
+@page.command(short_help="Read selected vocabulary instructions by audience as JSON.")
 @click.argument("dir", metavar="PAGE")
 @click.option("--use", "entries", multiple=True, metavar="ENTRY")
 @click.option("--contract", "contracts", multiple=True, metavar="ID")

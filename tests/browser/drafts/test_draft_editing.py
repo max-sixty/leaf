@@ -332,7 +332,7 @@ def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
 def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
     browser, serve
 ):
-    """A draft lends its obligation no digits, so a digit typed while standing on the obligation
+    """A draft lends its obligation no digits, so a digit typed while focused on the obligation
     or in the editor is not a command; the user Tabs to Edit and saves with
     Mod+Enter."""
     original = "Keep **this** source editable."

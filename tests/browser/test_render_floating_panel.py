@@ -220,7 +220,7 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
 
 
 def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
-    """Standing anywhere in the thread open in the panel, `c` comments on that thread:
+    """Located anywhere in the thread open in the panel, `c` comments on that thread:
     from the view an Escape left the user on, and from a message in it, the caret
     returns to the thread's reply with its words, and the thread stays open."""
     url = serve(LONG_PAGE)
@@ -367,7 +367,7 @@ def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
 
 def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     """Resolving the thread open from Threads moves the user on to the next open
-    thread, standing on its view, while the field says the thread was resolved, so a
+    thread, focused on its view, while the field says the thread was resolved, so a
     second `r` resolves that one; taking a resolve back leaves the user where they moved on to;
     with none left, the user is back at Threads. Escape there puts
     the view away and returns the user to the page."""
@@ -377,7 +377,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     page = floating(browser, url)
     page.locator(".lf-fp-threads").click()
     page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first.click()
-    # The thread standing open: moving on to the next thread fades the one it leaves.
+    # The thread current location open: moving on to the next thread fades the one it leaves.
     thread = page.locator(".lf-fp-view[data-view=thread]:not([data-leaving])")
     expect(thread).to_be_visible()
     first = page.locator(".lf-fp-head .lf-fp-title").inner_text()
@@ -1973,7 +1973,7 @@ def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, ser
 def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, serve):
     """A page's own reader registered while the panel shows a thread takes that thread
     (application.js, `yielded`): the panel's view goes and the reader is asked to show
-    it, at the message the user stood on, rather than the panel standing open on a
+    it, at the message the user was located on, rather than the panel standing open on a
     conversation it no longer draws."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
@@ -1982,7 +1982,7 @@ def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, ser
     page.keyboard.press("t")
     view = page.locator(".lf-fp-view[data-view=thread]")
     expect(view.locator(".lf-msg")).to_contain_text("Is the window long enough?")
-    # The user stands on a message, which goes with the panel's reader.
+    # The user is located on a message, which goes with the panel's reader.
     view.get_by_role("button", name="Edit message").focus()
     stood_on = view.locator(".lf-msg").first.get_attribute("data-message")
     assert stood_on
@@ -3310,7 +3310,7 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
 
 def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
     """The version's approval waits on the user in On me, and `m` arrives at it where
-    this chrome shows it: the panel's On view, standing on its Approve."""
+    this chrome shows it: the panel's On view, focused on its Approve."""
     url = serve(SIGN_OFF)
     stamp_page(serve.page_dir, SIGN_OFF, "one")
     page = floating(browser, url)
@@ -3344,7 +3344,7 @@ def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
 
 def test_the_approval_is_arrived_at_in_sight_below_many_obligations(browser, serve):
     """With more obligations than On me shows at once, arriving at the approval
-    scrolls its card into the view, so the Approve the user stands on is in sight."""
+    scrolls its card into the view, so the Approve the user is located on is in sight."""
     items = "".join(
         f'<lf-ask id="ask-{n}"><h3>Question {n}?</h3><lf-options id="o-{n}" choose>'
         f'<lf-option id="y-{n}">Yes</lf-option><lf-option id="n-{n}">No</lf-option>'
@@ -3433,7 +3433,7 @@ def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out
 def test_a_list_the_menu_leads_to_takes_its_place_and_goes_back(browser, serve):
     """A menu row that opens a list turns the menu to that list in the same box, under
     its name, with no view rising from the field; Menu, standing last at the list's foot
-    over the leaf, ← and Escape go back to the menu, standing a keyboard user on the row
+    over the leaf, ← and Escape go back to the menu, placing a keyboard user on the row
     that led there, and → on that row goes in again, onto the list's first row."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     menu = page.locator(".lf-fp-menu")
@@ -3676,7 +3676,7 @@ def test_a_resolved_thread_s_error_waits_in_the_leaf_menu(browser, serve):
 
 
 def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser, serve):
-    """A row's press takes its row away with the menu, so the user stands on the leaf
+    """A row's press takes its row away with the menu, so the user is located on the leaf
     that opened it: a row in a list the menu turned to does too, and folding stands on
     the folded leaf."""
     page = floating(browser, serve(LONG_PAGE, comments=1))

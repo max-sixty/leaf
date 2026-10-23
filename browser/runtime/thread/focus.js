@@ -1,5 +1,11 @@
 /* Focus readings shared by thread paint and commands. */
-import { drawn, focusDestination, holdStanding, focused, onPress } from "../focus.js";
+import {
+  drawn,
+  focusDestination,
+  holdCurrentLocation,
+  focused,
+  onPress,
+} from "../focus.js";
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { closestAcross } from "../passages.js";
@@ -11,7 +17,7 @@ import { allThreads } from "./state.js";
 import { replyAvailable, replyControlDestination, replyThreadKey } from "./replies.js";
 import { threadKey } from "./model.js";
 
-// A drawn thread's root is where the user stands on it.
+// A drawn thread's root is where the user is on it.
 export function focusThread(thread, cause) {
   focusDestination(thread, cause);
 }
@@ -96,13 +102,13 @@ export const heldThread = () => closestAcross(focused(), THREAD);
 // Its logged id.
 export const heldThreadId = () => drawnThreadId(heldThread());
 
-// The thread every painter of standing draws — the page's contour and wash, the margin
+// The thread every painter of current location draws — the page's contour and wash, the margin
 // entry's selection — which is the held thread except across a pointer press. A press
 // moves focus to the page at mousedown, and only the gesture as a whole says where it
 // leaves the user: a press on the thread's own mark lands them back in it at its click.
-// Read from focus alone, standing blinked off under the hand for the length of every
-// such press. So the thread held at pointerdown stays the standing until the frame after
-// the press ends, when the standing repaint reads focus again. This is standing as drawn,
+// Read from focus alone, the current location blinked off under the hand for the length of every
+// such press. So the thread held at pointerdown stays the current location until the frame after
+// the press ends, when the current location repaint reads focus again. This is current location as drawn,
 // which lags focus across a press; a command acts on the held thread (`heldThreadId`).
 // The press is focus.js's (`onPress`), which ends it every way it can end.
 let pressed = null;
@@ -121,7 +127,7 @@ onPress((start) => {
   return releasePress;
 });
 
-export const standingThreadId = () => heldThreadId() ?? pressed;
+export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 
 // The intent restricted to the thread `id` still present with a reply to write.
 const mayReplyTo = (id, intent) =>
@@ -130,8 +136,8 @@ const mayReplyTo = (id, intent) =>
     return Boolean(thread && replyAvailable(thread));
   });
 
-// A pass that redraws threads hands the user standing on a thread across itself, under
-// the thread's identity. A surface that stops drawing a thread takes what the user stood
+// A pass that redraws threads hands the user on a thread across itself, under
+// the thread's identity. A surface that stops drawing a thread takes what the user was
 // on with it: a widget rebuilding its tree, a thread leaving a widget for the margin
 // because its anchor no longer lands there, or coming back, which closes its margin card
 // and takes its marker away. The thread still stands somewhere, and the user goes on
@@ -140,12 +146,12 @@ const mayReplyTo = (id, intent) =>
 // undo history (replies.js), or where the view there cannot take it, that view's own box
 // with the draft and the caret. From anywhere else on the thread or its marker, holding
 // no words to put up, they go on with it only to a seat the pass drew it in, on the
-// thread itself, since the node they stood on has no like there; otherwise the surface
+// thread itself, since the node they had focused has no like there; otherwise the surface
 // that closed lands them, as it would any user.
 //
-// Read before the pass (`holdThreadPlace`): the node the user stands on in a drawn thread,
+// Read before the pass (`holdThreadPlace`): the node the user is on in a drawn thread,
 // or on a node standing for one, as a margin marker does (`threadAt`), or the one a
-// change took out from under them before the pass began (focus.js, `holdStanding`). The
+// change took out from under them before the pass began (focus.js, `holdCurrentLocation`). The
 // step it returns runs once the pass has drawn every surface. Where the node is still
 // drawn, they stay on it. Otherwise it lands them through `open`, which puts the thread
 // up where it stands. Typing on in the box during the pass keeps them in it; standing
@@ -206,7 +212,7 @@ export const carryingThreadPlace = (node) =>
       allThreads().some((thread) => thread.id === carrying.id && !thread.resolved));
 export function holdThreadPlace(open, { threadAt, seated }) {
   carrying = null;
-  const held = holdStanding();
+  const held = holdCurrentLocation();
   const node = held?.node;
   if (!node || carried.has(node)) return null;
   const destination = replyControlDestination(node);

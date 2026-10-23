@@ -471,12 +471,12 @@
     const held = source.localName === "template" ? source.content : source;
     for (const child of held.childNodes) rememberSource(child);
   };
-  // Margin residency is initial document geometry, not a widget upgrade. The parser
-  // observer seats authored residents before a frame can paint them in another
-  // posture; content-layout adopts this same computation for subsequent changes.
+  // Margin content layout is initial document geometry, not a widget upgrade. The parser
+  // observer seats authored margin elements before a frame can paint them in another
+  // placement; content-layout adopts this same computation for subsequent changes.
   // The body's authored annotation declaration is the same executable fact the
   // module graph reads, so rail admission needs no second delivery configuration.
-  const POSTURES = {
+  const PLACEMENTS = {
     sidebar: ["left", "--sidebar"],
     map: ["left", "--map"],
     note: ["right", "--note"],
@@ -591,7 +591,7 @@
     const shellWritten =
       parseFloat(body.style.getPropertyValue("--lf-column-shift")) || 0;
     const column = box.getBoundingClientRect();
-    // Inside the shell's border and scrollbar gutters. A resident may stand in its
+    // Inside the shell's border and scrollbar gutters. A margin element may stand in its
     // padding, as the rail does in the strip `data-rail="right"` pads `body` with
     // (annotation-theme.css). The client box is in the shell's own pixels, so it is
     // scaled to the window's by any transform on the shell or around it.
@@ -599,7 +599,7 @@
     const scale = shellRect.width / shellNode.offsetWidth || 1;
     const shellLeft = shellRect.left + shellNode.clientLeft * scale;
     const shell = { left: shellLeft, right: shellLeft + shellNode.clientWidth * scale };
-    // A resident fixed to the window, as the contents map is (toc.css), stands from the
+    // A margin element fixed to the window, as the contents map is (toc.css), stands from the
     // shell's left edge rather than the window's, which differ where the page puts
     // something before the shell, as a page's list of parts does.
     const left = Math.round(shellLeft) ? `${Math.round(shellLeft)}px` : "";
@@ -611,8 +611,8 @@
       right: shell.right - column.right + gridShift,
     };
     const declared = new Map();
-    // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
-    // room. One the page hides itself stays a resident, since a page may hide it until it
+    // A margin element a box around it hides (a closed disclosure, a tab not chosen) needs no
+    // room. One the page hides itself stays a margin element, since a page may hide it until it
     // stands in the margin.
     for (const aside of box.querySelectorAll("aside")) {
       if (skipped(aside)) continue;
@@ -620,13 +620,13 @@
       const hiddenItself =
         own.display === "none" && aside.parentElement.checkVisibility();
       if (!aside.checkVisibility() && !hiddenItself) continue;
-      const postures = own
-        .getPropertyValue("--lf-resident")
+      const placements = own
+        .getPropertyValue("--lf-margin-content")
         .split(" ")
-        .filter((posture) => posture in POSTURES);
-      if (postures.length) declared.set(postures.join(" "), postures);
+        .filter((placement) => placement in PLACEMENTS);
+      if (placements.length) declared.set(placements.join(" "), placements);
     }
-    const side = (postures) => POSTURES[postures[0]][0];
+    const side = (placements) => PLACEMENTS[placements[0]][0];
     const preferences = [...declared.values()].sort(
       (a, b) => (side(a) === "left" ? 0 : 1) - (side(b) === "left" ? 0 : 1),
     );
@@ -646,7 +646,7 @@
       root.className,
       document.body.dataset.annotations,
       document.body.dataset.rail,
-      ...Object.values(POSTURES).map(([, token]) => need(token)),
+      ...Object.values(PLACEMENTS).map(([, token]) => need(token)),
       need("--rail"),
       preferences.flat().join(" "),
       ...authoredSheets(),
@@ -670,14 +670,14 @@
         granted.push("rail");
         taken.right = need("--rail");
       }
-      for (const postures of preferences)
-        for (const posture of postures) {
-          const [at, token] = POSTURES[posture];
+      for (const placements of preferences)
+        for (const placement of placements) {
+          const [at, token] = PLACEMENTS[placement];
           const wants = { ...taken, [at]: Math.max(taken[at], need(token)) };
           if (wants.left + wants.right > room.left + room.right + 0.5) continue;
           if (!movable && (wants.left > room.left || wants.right > room.right))
             continue;
-          granted.push(posture);
+          granted.push(placement);
           Object.assign(taken, wants);
           break;
         }
@@ -862,7 +862,7 @@
     }
     return { changed };
   };
-  // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
+  // Whether each track (`--lf-margin-content: track`, a sidebar page's `aside`, layouts.css)
   // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
   // block it holds in view only there. Flex wrapping places it, from the window's width,
   // the shares the page gives the track and the body, and the minimum the body's content
@@ -887,7 +887,7 @@
     return [
       {
         element,
-        track: style.getPropertyValue("--lf-resident").trim() === "track",
+        track: style.getPropertyValue("--lf-margin-content").trim() === "track",
         left,
         right,
         width,
@@ -901,7 +901,8 @@
     if (!box) return false;
     const tracks = [...box.children].filter(
       (child) =>
-        getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track",
+        getComputedStyle(child).getPropertyValue("--lf-margin-content").trim() ===
+        "track",
     );
     if (!tracks.length) return false;
     const laid = [...box.children].flatMap((child) => items(child));
@@ -973,7 +974,7 @@
     else removeRuntimeRootStyle(body, HEAD);
     return true;
   };
-  const residency = () => {
+  const marginContentLayout = () => {
     const seated = seat();
     const titled = title();
     const headed = head();
@@ -1013,7 +1014,7 @@
     wear,
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
-    residency,
+    marginContentLayout,
     breakouts,
     layoutBox,
     skipped,
@@ -1148,7 +1149,7 @@
   };
   const initialLayout = () => {
     mark();
-    residency();
+    marginContentLayout();
     if (root.hasAttribute("data-lf-interactive")) trade("controls", PLAYER);
   };
   const parsing = new MutationObserver(initialLayout);

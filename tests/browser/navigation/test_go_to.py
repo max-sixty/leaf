@@ -154,7 +154,7 @@ def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
 
 
 def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
-    """A link hint's trip may wait on what holds its destination. A press made
+    """A link hint's navigation step may wait on what holds its destination. A press made
     meanwhile is the user's newer word: neither the landing nor the hint's focus
     takes them back from it."""
     page = open_page(
@@ -551,7 +551,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
 def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     """A tab can be selected from elsewhere on the page through its generated hint.
 
-    Arrow keys serve a user already standing in the tab strip. The page-level route
+    Arrow keys serve a user already focused in the tab strip. The page-level route
     names every visible tab, then selects and focuses the requested one so its
     local keyboard pattern is immediately available."""
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))

@@ -390,7 +390,7 @@ def test_a_field_names_no_key_to_a_finger(browser, serve):
 # page, since the command reference is a modal scope that shadows the page once open:
 # `runs`, what the page's enabled keys run from here; `runs_any`, what the reference can
 # run from here, a command whose shortcut the user turned off included; `dead`, the
-# commands of a scope the reference filters by liveness (one the user stands in, or one
+# commands of a scope the reference filters by liveness (one the user is located in, or one
 # that asks to be) that cannot run now, by the liveness each row declares for the
 # reference (`commandReferenceWhen`, else `when`); and `absent`, the commands of scopes
 # this page has not got. A command id another present scope also declares, where the
@@ -490,7 +490,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         return register, reference
 
     # No threads and one version: there is nothing to walk, so the walks are dead
-    # where the user stands, and the page has no thread scope and no link.
+    # the current location, and the page has no thread scope and no link.
     register, reference = surfaces_name_what_runs()
     assert {"thread.next", "thread.previous"} <= register["dead"]
     assert {"thread.primary", "link.follow"} <= register["absent"]

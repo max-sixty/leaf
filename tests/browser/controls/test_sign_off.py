@@ -222,7 +222,7 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
 def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     """The user's own remark must not lock the control it is a remark about.
 
-    A thread standing in the widget's seat takes the decision off the user's
+    A thread current location in the widget's seat takes the decision off the user's
     list — On me stops counting it — but answers nothing, so the press that would
     answer it is still live. This is the browser half of the split, and the half the
     user meets first: the POST door only sees a hand-posted event, while here

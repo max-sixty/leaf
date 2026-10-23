@@ -16,13 +16,13 @@
 
    thread-preview.js owns the contextual card and its selected conversation's
    lifetime. The margin supplies its anchor control and manages cluster disclosure.
-   A card accompanies the page target the user arrives at (standing-target.js,
+   A card accompanies the page target the user arrives at (current-target.js,
    `arrivalOf`), an obligation included: `m` lands
    on an obligation and its discussion opens beside it, clear of its options. Keeping the card
    shut while the user works an obligation was tried and rejected, since the user walks to an
-   obligation to read its discussion with it. followStanding and the
+   obligation to read its discussion with it. followCurrentLocation and the
    shared keyboard ladder decide when that relationship ends. It is margin chrome:
-   target, cluster and card are one place. Standing elsewhere on the page, releasing the target,
+   target, cluster and card are one place. Being elsewhere on the page, releasing the target,
    or pressing outside that place dismisses it. Escape inside lands on the target;
    Send keeps focus on its thread. The card shows
    the threads of the innermost target holding the user's place that has any (its own,
@@ -96,12 +96,12 @@ import {
   layerLanding,
   letGo,
   onPress,
-  onStanding,
+  onCurrentLocation,
   pressLed,
   focused,
   closeLayer,
   rove,
-  standingIn,
+  currentLocationIn,
 } from "../focus.js";
 
 import { el, offer } from "../widget-elements.js";
@@ -119,13 +119,13 @@ import { nativeLayerHolding } from "../shadow-tree.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
-import { arrivalOf, declareSide } from "../standing-target.js";
+import { arrivalOf, declareSide } from "../current-target.js";
 import { closestAcross, inChrome } from "../passages.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
 
 import { threadNamed } from "../thread/state.js";
-import { carryingThreadPlace, standingThreadId } from "../thread/focus.js";
+import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
 
@@ -457,13 +457,19 @@ export function createMarginProjection({
       "move",
     );
     beginWalk("margin-entry", "Action", () => {
-      const standing = focused();
-      const standingHost = closestAcross(standing, "[data-lf-margin-for]");
-      return listWalkPosition(clusterMarginEntries(standingHost), standing);
+      const currentLocation = focused();
+      const currentLocationHost = closestAcross(
+        currentLocation,
+        "[data-lf-margin-for]",
+      );
+      return listWalkPosition(
+        clusterMarginEntries(currentLocationHost),
+        currentLocation,
+      );
     });
   }
 
-  // Folding a cluster the user stood in hands them back to its toggle.
+  // Folding a cluster the user was in hands them back to its toggle.
   const landOnToggle = (entry) =>
     layerLanding(() => handBack(hosts.get(entry.key)?.more));
   function setOptionsOpen(
@@ -623,7 +629,7 @@ export function createMarginProjection({
       holdTabStop(null);
       return;
     }
-    const standing = available.find((row) => row === focused());
+    const currentLocation = available.find((row) => row === focused());
     const candidates = visible.length ? visible : available;
     // A stop in view stays where it is. With none in view the stop is the row nearest
     // the window, whatever held it before, so the way in follows from the page as it
@@ -637,7 +643,7 @@ export function createMarginProjection({
       return 0;
     };
     const next =
-      standing ??
+      currentLocation ??
       held ??
       candidates.reduce((best, row) => (distance(row) < distance(best) ? row : best));
     holdTabStop(next);
@@ -652,13 +658,13 @@ export function createMarginProjection({
   }
 
   // `o`: the annotation layer (annotation-layer.js). Hiding it takes off what it hides
-  // that the user could be standing in: the card closes through its ordinary close, an
+  // that the user could be in: the card closes through its ordinary close, an
   // unfolded cluster folds, and focus held by a pin goes to the pin's target, since the
   // browser would otherwise put it on body. An explicit request still shows what it asks
   // for without bringing the layer back: `t`, a Threads row and a Page Map pick open the
   // card at their target, and an arrival that walks to a target or to one of its row's
   // controls (`m`, `focusForNavigation`) shows that one row, so what decides the target
-  // is in reach, until the user stands somewhere else. Tabbing or pressing onto a target
+  // is in reach, until the user is somewhere else. Tabbing or pressing onto a target
   // reveals nothing: the layer stays as the user left it.
   let revealed = null;
   function revealHost(host) {
@@ -669,7 +675,7 @@ export function createMarginProjection({
     revealed?.setAttribute("data-lf-revealed", "");
   }
   // The row a node stands in, or the row of the innermost target holding it.
-  function standingHost(node) {
+  function currentLocationHost(node) {
     const own = closestAcross(node, ".lf-margin-cluster");
     if (own) return own;
     let found = null;
@@ -682,8 +688,9 @@ export function createMarginProjection({
         found = host;
     return found;
   }
-  const reveal = (node) => revealHost(annotationsHidden() ? standingHost(node) : null);
-  onStanding((node) => {
+  const reveal = (node) =>
+    revealHost(annotationsHidden() ? currentLocationHost(node) : null);
+  onCurrentLocation((node) => {
     if (
       node &&
       revealed &&
@@ -692,7 +699,7 @@ export function createMarginProjection({
     )
       revealHost(null);
   });
-  // A cluster the user comes to stand in. Any arrival there outranks a pointer parked on
+  // A cluster the user enters. Any arrival there outranks a pointer parked on
   // the previous target, which real pointer movement can take back without a press. The
   // keyboard arriving on one of its controls, a step or a route a key began, also opens
   // what it offers; a press opens it at its click, and a return opens nothing. A folded
@@ -729,7 +736,7 @@ export function createMarginProjection({
         control === host.more ? (standsFoldedNow && !back ? "first" : "last") : null,
     });
   }
-  onStanding((node, cause, left) => {
+  onCurrentLocation((node, cause, left) => {
     if (!node) return;
     for (const host of hosts.values())
       if (host.contains(node)) return arriveAtCluster(host, node, cause, left);
@@ -739,7 +746,7 @@ export function createMarginProjection({
   // as its blur did. A node removed from under them is in no cluster any more, and the
   // render that removed it hands them on to its replacement, often a frame later, so it
   // folds nothing. A window losing focus moves no one.
-  onStanding((node, cause, left) => {
+  onCurrentLocation((node, cause, left) => {
     if (!left) return;
     for (const host of hosts.values()) {
       if (!under(left, host) || (node && under(node, host))) continue;
@@ -921,11 +928,11 @@ export function createMarginProjection({
   function presentCluster(host, marker, more, entry, projection, focus) {
     // Retiring a focused projection drops focus to the body, which reaches no reader
     // while the transfer below puts the user back in the same script, and a drop where
-    // none does (focus.js, `onStanding`).
+    // none does (focus.js, `onCurrentLocation`).
     const primary = host.present(projection);
     const options = host.options;
-    const lostOptionFocus = focus.focusedOption && !standingIn(options);
-    const lostPrimaryFocus = focus.focusedPrimary && !standingIn(host);
+    const lostOptionFocus = focus.focusedOption && !currentLocationIn(options);
+    const lostPrimaryFocus = focus.focusedPrimary && !currentLocationIn(host);
     if (!projection.hasOptions && (focused() === more || lostOptionFocus)) {
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
@@ -1059,9 +1066,9 @@ export function createMarginProjection({
       host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;
       const focus = {
-        focusedPrimary: Boolean(host.primary && standingIn(host.primary)),
-        focusedOption: Boolean(host.options && standingIn(host.options)),
-        // The entry the user stands on, by its contribution's key, across the projection
+        focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
+        focusedOption: Boolean(host.options && currentLocationIn(host.options)),
+        // The entry the user is on, by its contribution's key, across the projection
         // that may replace its control (focus.js, keyed `holdFocus`).
         restore: holdFocus(host, { key: "data-lf-margin-entry-identity" }),
       };
@@ -1144,8 +1151,8 @@ export function createMarginProjection({
     const active = focused();
     const focusedHost = closestAcross(active, "[data-lf-margin-for]");
     const pointerHost = hoveredHost?.isConnected ? hoveredHost : null;
-    // A user standing on the card's target itself already has its ring there; the
-    // trace would paint over the one mark that says where they stand.
+    // A user on the card's target itself already has its ring there; the
+    // trace would paint over the one mark that says where they are.
     const onTarget =
       previewOpen() && active && active === targetFor(card.selection()?.entry);
     const marker = pointerHost ?? focusedHost;
@@ -1165,22 +1172,22 @@ export function createMarginProjection({
         (item) =>
           item.kind === "comment" && Boolean(sourceItem(item).thread?.root.drawing),
       );
-    // So does the thread the user stands in, where anchor paint marks it: its words lit,
-    // or its element's contour (anchor-paint.js, `paintStanding`). A card whose thread
-    // the user stands in draws no box round its block. One the user stepped out of while
+    // So does the thread the user is in, where anchor paint marks it: its words lit,
+    // or its element's contour (anchor-paint.js, `paintCurrentLocation`). A card whose thread
+    // the user is in draws no box round its block. One the user stepped out of while
     // it stays open, into the floating panel or with a press on the block, keeps the
     // trace as its only mark, as does one on a thread anchor paint leaves unmarked, such
     // as a resolved thread whose reply is still being written. A marker under the
     // pointer or the keyboard still traces its block.
-    const standing = standingThreadId();
-    const standingShown =
+    const currentLocation = currentLocationThreadId();
+    const currentLocationShown =
       !marker &&
       entry &&
-      marksFor(standing).length > 0 &&
+      marksFor(currentLocation).length > 0 &&
       threadReading(entry)?.items.some(
-        (item) => sourceItem(item).thread.id === standing,
+        (item) => sourceItem(item).thread.id === currentLocation,
       );
-    highlight(drawingOnly || standingShown ? null : (targetFor(entry) ?? null));
+    highlight(drawingOnly || currentLocationShown ? null : (targetFor(entry) ?? null));
   }
 
   function previewChanged() {
@@ -1232,7 +1239,7 @@ export function createMarginProjection({
     card.focusThread(showPreview(entry, button));
   }
 
-  // Closing the card hands a user who stood in it on (focus.js, `closeLayer`). A close
+  // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close
   // aimed at the card itself, its Close or its Escape, hands them back to the margin
   // entry it hangs from (`landOnEntry`); any other, a mode or a rerender, lets them go.
   // A user the thread pass is carrying with its thread to where it now stands is that
@@ -1244,7 +1251,7 @@ export function createMarginProjection({
   function closePreview(land = letGo) {
     const button = card.selection()?.control;
     const at = focused();
-    const heldInside = standingIn(preview) && !carryingThreadPlace(at);
+    const heldInside = currentLocationIn(preview) && !carryingThreadPlace(at);
     closeLayer(() => card.close(), heldInside && (() => land(button)));
     paintKeys();
   }
@@ -1276,7 +1283,7 @@ export function createMarginProjection({
   // surface holds focus and as page-anchored for where the user lands.
   //
   // Inside it, the thread's parent is the target it is about: the press steps out onto
-  // that target and the card stays up beside it, since the user still stands there,
+  // that target and the card stays up beside it, since the user is still there,
   // and letting go of the target is the next press. From the entry it hangs from, the
   // press takes the card down.
   // A cluster the user unfolded themselves and opened the card from is a level of
@@ -1327,7 +1334,7 @@ export function createMarginProjection({
       // leaves the margin, so the close hands them back to the entry the card hangs
       // from and the fold is the next press. With no such cluster — the walk's own
       // reveal folds with the card, and a bare marker has none — the entry is a control
-      // they may never have stood on, a `t` from the page having put the card up
+      // they may never have focused, a `t` from the page having put the card up
       // without going near the margin, so the landing is the page it is anchored to.
       //
       // Under it means on the entry this card would land on. A cluster left unfolded on
@@ -1337,18 +1344,21 @@ export function createMarginProjection({
       // press a fold that teleports focus somewhere third. So the question goes to
       // `optionsRung`, the step that would actually answer next, which also declines
       // for a host that has gone or an entry whose own state holds its actions open.
-      // The step lands the user wherever they stood, the page their press displaced
+      // The step lands the user wherever they were, the page their press displaced
       // included, so its landing is the close's own rather than one for a user inside.
       out: () => {
-        const standing = unfoldedUnder();
+        const currentLocation = unfoldedUnder();
         const button = card.selection()?.control;
-        closeLayer(() => closePreview(), standing ? () => landOnEntry(button) : letGo);
+        closeLayer(
+          () => closePreview(),
+          currentLocation ? () => landOnEntry(button) : letGo,
+        );
       },
     };
   }
 
   // The cluster the user unfolded is page-side state rather than a layer of the card,
-  // so it answers from the ladder wherever they are standing — the card they opened from
+  // so it answers from the ladder wherever they are — the card they opened from
   // it lands them out on the page, and the fold would otherwise be reachable only by
   // Tabbing back into the margin. It comes off after anything standing over the page and
   // before the page itself, beside the selection, and lands on the entry it hangs from,
@@ -1357,7 +1367,7 @@ export function createMarginProjection({
   // Once a contribution is engaged, its complete and escape controls are open because of
   // semantic state rather than because the user disclosed the secondary drawer. That
   // state consumes the earlier disclosure step: Escape leaves the action the user is
-  // standing on instead of first pretending to close controls that remain open by
+  // being on instead of first pretending to close controls that remain open by
   // contract.
   function optionsRung() {
     const host = hosts.get(expandedOptionsKey);
@@ -1442,7 +1452,7 @@ export function createMarginProjection({
     togglePinned(entry, button);
   }
 
-  // `unfold: false` is a card that accompanies where the user stands rather than one
+  // `unfold: false` is a card that accompanies where the user is rather than one
   // they asked for: it hangs from the cluster's visible marker instead of unfolding the
   // cluster to reach the thread's own entry. Where the cluster shows but holds neither
   // on its face, as a suggestion's shows its Accept, the card unfolds it and folds it
@@ -1489,7 +1499,7 @@ export function createMarginProjection({
   // visible marker and which is an unfolded option, then paint one shared state on the
   // compact projection. An open disclosure continues to use aria-expanded instead.
   function paintSelectedMarginEntries(selections) {
-    // The trace reads standing as drawn too (`refreshHighlight`), which a press's end
+    // The trace reads current location as drawn too (`refreshHighlight`), which a press's end
     // moves with no focus change to say so.
     refreshHighlight();
     const selected = new Set();
@@ -1506,11 +1516,11 @@ export function createMarginProjection({
     selectedReadingCarriers = selected;
   }
 
-  // ---------- the card goes where the user stands ----------
-  // A thread belongs to the target it is about, so a user stands at that target from
+  // ---------- the card goes where the user is ----------
+  // A thread belongs to the target it is about, so a user is at that target from
   // any side of it: the target or anything inside it, its margin cluster, or the card
-  // showing its threads. The card shows the threads of the target the user stands at,
-  // which is what lets both be up at once, and goes when they stand anywhere else on the
+  // showing its threads. The card shows the threads of the target the user is at,
+  // which is what lets both be up at once, and goes when they move anywhere else on the
   // page, let go, or press outside all three. Keyboard focus passing through the chrome
   // at large — the floating panel, its views — is working on the page rather than a place on it,
   // and leaves the card; a press anywhere else is the user's attention moving, and
@@ -1551,17 +1561,17 @@ export function createMarginProjection({
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
-  // inside it and never from outside: after `m` the user stands on the obligation element, so
+  // inside it and never from outside: after `m` the user is on the obligation element, so
   // the card shows a thread on the obligation but not one on its options or a phrase in its
   // heading. Treating an obligation as one target for its threads is a possible refinement. It
   // belongs where a thread's target is decided (anchor-placement), so every
   // reader keeps one definition, not in this or any other single reader.
-  // Read from where the node stands (standing-target.js), so chrome that shows a page
+  // Read the page target represented by the node (current-target.js), so chrome that shows a page
   // target, such as a comment note, arrives at that target as its own content does.
   // A target with pointed threads or quoted passages (groupFor) has a row for each:
-  // standing inside a pointed row takes that thread, and standing elsewhere on the
+  // being inside a pointed row takes that thread, and being elsewhere on the
   // target takes the row the card already shows for it, else its own row, or a pointed
-  // or quoting one where it has none. Focus cannot stand on a passage, so the card's
+  // or quoting one where it has none. A passage cannot receive focus, so the card's
   // row is what keeps returning to the target from switching which passage it shows.
   // Subject identity comes from the inventory even where a widget owns its seat.
   const threadEntryAt = (node) => {
@@ -1578,18 +1588,18 @@ export function createMarginProjection({
     );
   };
   // A folded cluster opens while the keyboard arrives at its target, as it does when
-  // the keyboard arrives on its toggle: what the user stands at offers its actions, and
-  // an obligation's digits name them. It folds again when they stand anywhere else but in the
-  // cluster itself, where standing keeps it open (the fold beside `arriveAtCluster`).
-  let standingUnfolded = null;
+  // the keyboard arrives on its toggle: what the user is at offers its actions, and
+  // an obligation's digits name them. It folds again when they move anywhere else but in the
+  // cluster itself, where focus keeps it open (the fold beside `arriveAtCluster`).
+  let currentLocationUnfolded = null;
   // The arrivals below are the keyboard's: the user's latest input was a key, not a
   // press (focus.js, `pressLed`), since a press asks only for what it lands on. A Tab is
   // one, and so is any route a key began, or the runtime putting them back after one.
   const byKeyboard = () => !pressLed();
-  function unfoldStanding(active) {
+  function unfoldCurrentLocation(active) {
     const host = active && closestAcross(active, "[data-lf-margin-for]");
-    if (host?.lfEntry?.key === standingUnfolded) {
-      standingUnfolded = null;
+    if (host?.lfEntry?.key === currentLocationUnfolded) {
+      currentLocationUnfolded = null;
       return;
     }
     const state = {
@@ -1605,13 +1615,13 @@ export function createMarginProjection({
             under(place, targetFor(candidate)),
         )
       : null;
-    if (entry?.key === standingUnfolded) return;
-    if (standingUnfolded && expandedOptionsKey === standingUnfolded)
+    if (entry?.key === currentLocationUnfolded) return;
+    if (currentLocationUnfolded && expandedOptionsKey === currentLocationUnfolded)
       setOptionsOpen(null, false, { preservePreview: true });
-    standingUnfolded = null;
+    currentLocationUnfolded = null;
     if (!entry || expandedOptionsKey === entry.key) return;
     setOptionsOpen(entry, true, { preservePreview: true });
-    standingUnfolded = entry.key;
+    currentLocationUnfolded = entry.key;
   }
   // A keyboard arrival whose row the page still withholds, as one in a pane the arrival
   // is scrolling to, has nothing to hang its card from yet, so the card it replaces
@@ -1637,11 +1647,11 @@ export function createMarginProjection({
     const entry = arrivalOf(node) && threadEntryAt(node);
     if (entry) accompany(node, entry);
   }
-  function followStanding() {
+  function followCurrentLocation() {
     awaitingRow = null;
     refreshHighlight();
     const active = focused();
-    unfoldStanding(active);
+    unfoldCurrentLocation(active);
     if (
       !active ||
       active === document.body ||
@@ -1664,7 +1674,7 @@ export function createMarginProjection({
     if (byKeyboard()) accompany(active, entry);
     else if (previewOpen()) closePreview();
   }
-  // Letting go of where the user stands leaves them standing nowhere, which takes the
+  // Letting go of where the user is leaves them nowhere, which takes the
   // card with it (`declareRelease`). A landing on the page that is not a let-go — `g p`,
   // a surface closing — leaves the card beside the target it is about.
   declareRelease(() => {
@@ -1676,15 +1686,15 @@ export function createMarginProjection({
   const pressedAway = (path) => {
     if (!previewOpen()) return false;
     // A pointer mode reinterprets a press on the page as a stroke or an interface
-    // comment, so there a press stands nowhere but in the card itself.
-    const stands = pointerModeActive()
+    // comment, so only a press inside the card retains its current location.
+    const currentTargets = pointerModeActive()
       ? [preview]
       : [
           preview,
           hosts.get(card.selection()?.entry?.key),
           targetFor(card.selection()?.entry),
         ];
-    if (stands.some((node) => node && path.includes(node))) return false;
+    if (currentTargets.some((node) => node && path.includes(node))) return false;
     return !path.some(inRetainedContext);
   };
   const pressAway = (start, path) =>
@@ -1698,7 +1708,7 @@ export function createMarginProjection({
   // The conversation accompanying a page target while no Thread holds focus.
   // Core reads held identity first, including inside widget shadow roots.
   const accompaniedThreadHere = () => card.accompanied();
-  // The page target this owner's chrome shows (standing-target.js): a margin cluster
+  // The page target this owner's chrome shows (current-target.js): a margin cluster
   // control's and the card's — its threads and its own controls.
   declareSide((node) => {
     const projected = marginTargetAt(node);
@@ -1707,22 +1717,22 @@ export function createMarginProjection({
     return null;
   });
   // A live revision may replace the browser document, and DOM identity cannot carry a
-  // user standing in margin chrome across that. Carry the target and margin-entry keys
+  // user in margin chrome across that. Carry the target and margin-entry keys
   // instead; this owner alone can revalidate those keys against the new projection. An
   // open card's thread opens again where any thread opens (thread/destination.js),
   // which takes the card only while the arriving revision draws its passage. A card
-  // that accompanied the target the user stood on, with the user outside the card,
+  // that accompanied the target the user was on, with the user outside the card,
   // comes back only beside that target's marker (`openInlineThread`, `unfold: false`).
   // A reply being written in the card carries its thread back itself (version.js,
   // `restoreEditingContinuity`), so the card is left to it.
-  function captureStanding() {
+  function captureCurrentLocation() {
     const active = focused();
     const host = closestAcross(active, "[data-lf-margin-for]");
     const control = active?.closest?.(".lf-margin-entry");
     const selected = card.selection();
     const entry = selected?.entry ?? host?.lfEntry;
     if (!entry) return null;
-    const standing = {
+    const currentLocation = {
       entry: entry.key,
       preview:
         previewOpen() && !card.replying()
@@ -1740,16 +1750,20 @@ export function createMarginProjection({
               }
             : null,
     };
-    return standing.preview || standing.focus?.kind === "entry" ? standing : null;
+    return currentLocation.preview || currentLocation.focus?.kind === "entry"
+      ? currentLocation
+      : null;
   }
 
-  function restoreStanding(standing) {
-    if (!standing || typeof standing.entry !== "string") return false;
-    const entry = pageInventory.find((candidate) => candidate.key === standing.entry);
+  function restoreCurrentLocation(currentLocation) {
+    if (!currentLocation || typeof currentLocation.entry !== "string") return false;
+    const entry = pageInventory.find(
+      (candidate) => candidate.key === currentLocation.entry,
+    );
     if (!entry) return false;
-    const shown = standing.preview ? restoreCard(entry, standing) : false;
-    return standing.focus?.kind === "entry"
-      ? restoreEntryFocus(entry, standing)
+    const shown = currentLocation.preview ? restoreCard(entry, currentLocation) : false;
+    return currentLocation.focus?.kind === "entry"
+      ? restoreEntryFocus(entry, currentLocation)
       : shown;
   }
 
@@ -1762,14 +1776,14 @@ export function createMarginProjection({
     // somewhere to stand.
     const selected = card.selection();
     const kept = selected?.entry.key === entry.key && selected.threadItem === item.id;
-    if (kept && card.stands()) return true;
+    if (kept && card.currentTargets()) return true;
     if (kept) closePreview();
     const inCard = focus?.kind === "preview" || focus?.kind === "preview-close";
     if (accompanies && !inCard) return Boolean(openInlineThread(id, { unfold: false }));
     // Where the revision closed a tab or disclosure over the passage, or hid it, the
     // floating panel shows the thread: a reveal would move the page under a reader who
     // asked for nothing, and a card with no passage to stand beside never places. A user
-    // who stood in the card stands in the thread wherever it opens.
+    // who was in the card remains in the thread wherever it opens.
     const intent = retainUserIntent();
     const opened = openPageThread(id, {
       part: "thread",
@@ -1789,12 +1803,13 @@ export function createMarginProjection({
     return true;
   }
 
-  function restoreEntryFocus(entry, standing) {
+  function restoreEntryFocus(entry, currentLocation) {
     const host = hosts.get(entry.key);
     const control = clusterMarginEntries(host).find(
       (candidate) =>
-        contributionEntryRecord(candidate)?.key === standing.focus.key &&
-        (contributionEntryRecord(candidate)?.owner ?? null) === standing.focus.owner,
+        contributionEntryRecord(candidate)?.key === currentLocation.focus.key &&
+        (contributionEntryRecord(candidate)?.owner ?? null) ===
+          currentLocation.focus.owner,
     );
     if (!control) return false;
     if (focused() === control) return true;
@@ -1828,11 +1843,11 @@ export function createMarginProjection({
     document.addEventListener("pointerout", scheduleMarginEntryLabels, {
       capture: true,
     });
-    // A drop is the change's own to put right: the margin follows where the user stands.
-    onStanding((node, cause) => {
+    // A drop is the change's own to put right: the margin follows where the user is.
+    onCurrentLocation((node, cause) => {
       if (cause === "drop") return;
       scheduleMarginEntryLabels();
-      queueMicrotask(followStanding);
+      queueMicrotask(followCurrentLocation);
     });
     // Ahead of the document, where a mode claims its presses before anyone else hears
     // them: whatever a press becomes, it is still the user's attention moving.
@@ -1900,8 +1915,8 @@ export function createMarginProjection({
     },
     paintSelectedMarginEntries,
     marginEntryChoices,
-    captureStanding,
-    restoreStanding,
+    captureCurrentLocation,
+    restoreCurrentLocation,
     mount,
   };
 }

@@ -22,7 +22,7 @@
      passes them on as `--lf-top-over`, which what it holds counts as covered less than
      nothing. A sideways box directly inside one keeps the value it met and passes it on
      the same way. A box that scrolls down restarts everything (below, the later rule),
-     and a sticking block inside it flows (`--lf-track-posture`, layouts.css), since
+     and a sticking block inside it flows (`--lf-track-scroll-behavior`, layouts.css), since
      the block's height is the window's. */
   [data-lf-scrolls="across"] {
     --lf-top-over: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
@@ -35,7 +35,7 @@
     --lf-top: var(--lf-top-start);
     --lf-top-covered: var(--lf-top-start);
     --lf-landing-room: var(--lf-landing-room-start);
-    --lf-track-posture: flow;
+    --lf-track-scroll-behavior: flow;
   }
 
   /* Retiring the only slot leaves its wrapper empty. Keep that wrapper in the

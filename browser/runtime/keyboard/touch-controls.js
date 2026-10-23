@@ -48,14 +48,14 @@ function place(press) {
     // A command that acts on where the reader stood gets that place back before it runs.
     press: (held) => {
       const current = presses.get(press.id);
-      if (current.row.retainStanding && held) returnPlace(held);
+      if (current.row.retainCurrentLocation && held) returnPlace(held);
       if (live(current.row)) invokePress(current);
     },
   });
   return press.id;
 }
 
-// The way out of the stance the user stands in now: its row's words and latest press.
+// The way out of the stance the user is in now: its row's words and latest press.
 let stance = null;
 let stanceRegistered = false;
 

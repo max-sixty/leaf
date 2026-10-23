@@ -1,4 +1,4 @@
-/* The page walks' one step (`stepFrom`, standing-target.js) over the page's rendered
+/* The page walks' one step (`stepFrom`, current-target.js) over the page's rendered
    order (`renderedOrder`, shadow-tree.js): `t` and `m` step from the same place the same
    way, a place holding the user's is where they already are, and words a widget renders
    in a shadow tree keep their order among the places beside them. The threads `t` walks
@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { renderedOrder } from "/runtime/shadow.js";
-import { stepFrom } from "/runtime/standing-target.js";
+import { stepFrom } from "/runtime/current-target.js";
 import { inPageOrder } from "/runtime/thread/placement.js";
 
 // <main><p first/><section><p held/></section><x-widget>#shadow<p inner-a/><p inner-b/></x-widget><p last/></main>
@@ -44,11 +44,20 @@ test("a place holding the user's is the nearest step either way", () => {
   const { main, first, section, held, last } = page();
   const items = [first, section, last];
   const at = (item) => item;
-  assert.equal(stepFrom(items, { place: held, kind: "standing" }, 1, at).row, section);
-  assert.equal(stepFrom(items, { place: held, kind: "standing" }, -1, at).row, section);
+  assert.equal(
+    stepFrom(items, { place: held, kind: "current-location" }, 1, at).row,
+    section,
+  );
+  assert.equal(
+    stepFrom(items, { place: held, kind: "current-location" }, -1, at).row,
+    section,
+  );
   // A place the user's holds is ahead of it, as its words follow where they stand.
-  assert.equal(stepFrom(items, { place: main, kind: "standing" }, 1, at).row, first);
-  assert.deepEqual(stepFrom(items, { place: main, kind: "standing" }, -1, at), {
+  assert.equal(
+    stepFrom(items, { place: main, kind: "current-location" }, 1, at).row,
+    first,
+  );
+  assert.deepEqual(stepFrom(items, { place: main, kind: "current-location" }, -1, at), {
     row: last,
     wrapped: true,
   });
@@ -59,11 +68,13 @@ test("a step from inside a shadow tree goes to its neighbour there", () => {
   const { main, first, innerA, innerB, last } = page();
   const at = (item) => item;
   assert.equal(
-    stepFrom([first, innerB, last], { place: innerA, kind: "standing" }, 1, at).row,
+    stepFrom([first, innerB, last], { place: innerA, kind: "current-location" }, 1, at)
+      .row,
     innerB,
   );
   assert.equal(
-    stepFrom([first, innerA, last], { place: innerB, kind: "standing" }, -1, at).row,
+    stepFrom([first, innerA, last], { place: innerB, kind: "current-location" }, -1, at)
+      .row,
     innerA,
   );
   main.remove();
@@ -74,24 +85,30 @@ test("an unplaced item stands after every place, and a step past the end comes r
   const loose = { name: "general" };
   const at = (item) => (item === loose ? null : item);
   assert.equal(
-    stepFrom([first, loose], { place: last, kind: "standing" }, 1, at).row,
+    stepFrom([first, loose], { place: last, kind: "current-location" }, 1, at).row,
     loose,
   );
   assert.deepEqual(
-    stepFrom([first, loose], { place: last, kind: "standing" }, -1, at),
+    stepFrom([first, loose], { place: last, kind: "current-location" }, -1, at),
     {
       row: first,
       wrapped: false,
     },
   );
-  assert.deepEqual(stepFrom([first], { place: last, kind: "standing" }, 1, at), {
-    row: first,
-    wrapped: true,
-  });
-  assert.deepEqual(stepFrom([first], { place: null, kind: "standing" }, -1, at), {
-    row: first,
-    wrapped: false,
-  });
+  assert.deepEqual(
+    stepFrom([first], { place: last, kind: "current-location" }, 1, at),
+    {
+      row: first,
+      wrapped: true,
+    },
+  );
+  assert.deepEqual(
+    stepFrom([first], { place: null, kind: "current-location" }, -1, at),
+    {
+      row: first,
+      wrapped: false,
+    },
+  );
   main.remove();
 });
 

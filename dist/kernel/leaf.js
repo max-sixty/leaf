@@ -30,6 +30,7 @@ import {
   createSelectionComposer,
   createThreadLanding,
   createVersionController,
+  currentLocationThread,
   declareThreadKeys,
   fabBar,
   fabInput,
@@ -58,7 +59,6 @@ import {
   readQueues,
   returnPlace,
   sendReaction,
-  standingThread,
   textField,
   threadInput,
   versionPicker,
@@ -110,6 +110,8 @@ import {
   copyControl,
   createPassageSelection,
   createWritingResume,
+  currentLocationOrigin,
+  currentLocationThreadId,
   declareSide,
   declareThreadParts,
   designName,
@@ -167,8 +169,6 @@ import {
   settleThread,
   showHeld,
   snapSelection,
-  standingOrigin,
-  standingThreadId,
   stepFrom,
   tabStore,
   tellDraft,
@@ -203,14 +203,14 @@ import {
 import {
   PAGE_CONTROL_RANK,
   livePoint,
-  openResidency,
+  openMarginContentLayout,
   pageControls,
   pageControlsChanged,
   placePoints,
   pointInto,
   railStands,
   registerPageControl,
-  scheduleResidency,
+  scheduleMarginContentLayout,
   visibleTargetParts
 } from "./runtime/bundle-page-controls.js";
 import {
@@ -442,6 +442,7 @@ import {
   byRenderedOrder,
   cancelRender,
   closeLayer,
+  currentLocationIn,
   declareReading,
   deepFocus,
   drawn,
@@ -460,7 +461,7 @@ import {
   nextFrame,
   nextRender,
   observePreparations,
-  onStanding,
+  onCurrentLocation,
   onUserInput,
   openLayer,
   openerOf,
@@ -473,7 +474,6 @@ import {
   selectsAll,
   shadowHost,
   sizeObserver,
-  standingIn,
   takesLetters,
   typesText,
   under,
@@ -1013,10 +1013,10 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     let uploading = false;
     const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
     const paint = (contextualHint) => {
-      const standing = focused() === ta;
+      const currentLocation = focused() === ta;
       const advertising = advertisesKeys();
       const sendKeys = advertising ? submitLabel() : "";
-      const suffix = !advertising ? "" : standing ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
+      const suffix = !advertising ? "" : currentLocation ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
       const status = dictationStatus();
       const word2 = status || label2();
       const placeholder = suffix && !status ? `${word2} ${suffix}` : word2;
@@ -1951,7 +1951,7 @@ var commandReferenceReturn = null;
 function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
   const fresh = open && !commandReferenceIsOpen;
   const preserveSelection = fresh && Boolean(pageSelection());
-  const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
+  const handingBack = !open && restoreFocus && currentLocationIn(commandReferenceDialog);
   const restore = handingBack ? commandReferenceReturn : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
@@ -1992,7 +1992,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (standingIn(commandReferenceDialog))
+        if (currentLocationIn(commandReferenceDialog))
           deepFocus()?.blur();
         repaint();
       },
@@ -2144,10 +2144,10 @@ function createResponseSurface({
   rememberSelection,
   landIn,
   threadHere,
-  threadAtStanding,
-  replyThreadAtStanding,
+  threadAtCurrentLocation,
+  replyThreadAtCurrentLocation,
   threadTarget,
-  standingTarget: standingTarget2,
+  currentTarget: currentTarget2,
   markAt,
   scrollToElement,
   scrollToRange,
@@ -2439,8 +2439,8 @@ function createResponseSurface({
   };
   function commentOnOfferedSelection(settled = offeredSelection) {
     const selection = anchoringIsReady() ? pageSelection() : null;
-    const standing = selection ? selectionAnchor(selection) : null;
-    commentOnSelection(hasQuote(standing) ? standing : settled);
+    const currentLocation = selection ? selectionAnchor(selection) : null;
+    commentOnSelection(hasQuote(currentLocation) ? currentLocation : settled);
   }
   const commentOnSelection = (anchor) => {
     offerSelection(null);
@@ -2794,14 +2794,14 @@ function createResponseSurface({
         box: null,
         go: commentOnOfferedSelection
       };
-    const here = standingTarget2();
+    const here = currentTarget2();
     const anchor = fabAnchorAt();
     const inline = threadHere();
-    const threadId = threadAtStanding();
-    const replyId = replyThreadAtStanding();
+    const threadId = threadAtCurrentLocation();
+    const replyId = replyThreadAtCurrentLocation();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && (!here || standingIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
-    const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
+    const inlineBox = inline && (!here || currentLocationIn(inline) || target && under(target, heldObligation() ?? here.element)) && threadInput(inline);
+    const said = currentLocationThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject = threadId && (!here || target && under(target, heldObligation() ?? here.element));
     const replySubject = subject && replyId;
     if (anchor && (pageSelection() || fabHoldsCapturedPassage() || !said && !subject && (!here || here.element === fabTargetAt())))
@@ -3500,7 +3500,7 @@ function createRegionCapture({
       },
       { capture: true }
     );
-  onStanding((node) => {
+  onCurrentLocation((node) => {
     if (selector && node && node !== document.body && !closestAcross(
       node,
       ".lf-floating-panel, .lf-command-reference, .lf-region-capture"
@@ -3517,7 +3517,7 @@ function createRegionCapture({
     title: "Capture area",
     touch: "Capture area",
     menu: "annotate",
-    retainStanding: true,
+    retainCurrentLocation: true,
     when: () => anchoringIsReady() && !offlineInteractive && !opening,
     run: async () => {
       const intent = retainUserIntent();
@@ -4915,16 +4915,16 @@ function createTargetPicker({
   };
 }
 
-// runtime/composing/standing.js
-function createStandingTarget({ isObligationControl, standingIn: standingIn2 }) {
-  return function standingTarget2() {
+// runtime/composing/current-target.js
+function createCurrentTarget({ isObligationControl, currentLocationIn: currentLocationIn2 }) {
+  return function currentTarget2() {
     const held = focused();
     if (!held || held === document.body) return null;
     if (inChrome(held) && heldThread()) return null;
     const place3 = placeOf(held);
     if (!place3 || inChrome(place3)) return null;
     if (place3 !== held) return aimTargetAt(place3);
-    const working = isObligationControl(held) ? standingIn2() : null;
+    const working = isObligationControl(held) ? currentLocationIn2() : null;
     return aimTargetAt(working ?? held);
   };
 }
@@ -5322,9 +5322,9 @@ function createAnchorControls({
               return;
             }
             record.surface = context2.surface ?? null;
-            const standing = focused2();
+            const currentLocation = focused2();
             setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
-              focus: context2.input === "keyboard" && context2.origin === standing,
+              focus: context2.input === "keyboard" && context2.origin === currentLocation,
               surface: record.surface
             });
           }
@@ -6060,7 +6060,7 @@ function createQueueWalk({
   arriveAtThread: arriveAtThread2,
   threadHere,
   threadPlace,
-  prepareTrip,
+  prepareNavigationStep,
   arrive,
   readableDestination,
   announce: announce2,
@@ -6088,7 +6088,7 @@ function createQueueWalk({
     return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
-  function standingStop(list, origin = standingOrigin()) {
+  function currentLocationStop(list, origin = currentLocationOrigin()) {
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
@@ -6099,7 +6099,7 @@ function createQueueWalk({
       );
       if (stop) return stop;
     }
-    if (origin?.kind !== "standing") return null;
+    if (origin?.kind !== "current-location") return null;
     const { place: here } = origin;
     if (!here) return null;
     const item = obligationHolding(readObligations().all, placeOf(here));
@@ -6118,15 +6118,15 @@ function createQueueWalk({
   }
   function step(list, dir, region, origin) {
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
-    const standing = standingStop(list, origin);
-    if (standing) return cycledRow(list, standing, dir);
+    const currentLocation = currentLocationStop(list, origin);
+    if (currentLocation) return cycledRow(list, currentLocation, dir);
     return stepFrom(list, origin, dir, (stop) => stop.place);
   }
   function arriveAtElement(find) {
     const intent = retainUserIntent({ available: () => Boolean(find()) });
     const where = find();
     if (!where) return Promise.resolve(false);
-    const departure = prepareTrip({ landing: find, intent });
+    const departure = prepareNavigationStep({ landing: find, intent });
     departure.plan(where);
     return arrive(
       () => {
@@ -6152,7 +6152,7 @@ function createQueueWalk({
   }
   function position(region) {
     const list = stopsOf(region);
-    const here = standingStop(list);
+    const here = currentLocationStop(list);
     const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
     return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} \xB7 ${here.noun}` };
   }
@@ -6179,7 +6179,7 @@ function createQueueWalk({
   const doneAt = (stop) => stop ? readQueues().on_user.find(
     (item) => item.offers.done && sameStop(stopOf(item), stop)
   ) ?? null : null;
-  const doneTodo = () => doneAt(standingStop(stops()));
+  const doneTodo = () => doneAt(currentLocationStop(stops()));
   function endTodo(id) {
     return actions.done(queueItemKey({ kind: "todo", id }));
   }
@@ -6218,7 +6218,7 @@ function createQueueWalk({
     when: offered,
     repeat: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
-    // down a level, so the standing scope lets go of whichever one they end on. An item
+    // down a level, so the current scope lets go of whichever one they end on. An item
     // reached through the panel leaves the panel a level of its own on the way out,
     // whether this walk opened it or the user already had it.
     run: (binding) => walk(binding === "m" ? 1 : -1)
@@ -6247,7 +6247,7 @@ function createQueueWalk({
     return Boolean(pagePlace(stop)) || stop.kind === "obligation" && stop.thread !== null;
   };
   let wentTo = null;
-  onStanding((node, cause) => {
+  onCurrentLocation((node, cause) => {
     if (cause === "step") return;
     const place3 = node && placeOf(node);
     wentTo = (place3 && obligationHolding(readObligations().all, place3)?.id) ?? null;
@@ -6263,7 +6263,7 @@ function createQueueWalk({
     if (kept)
       return walk(toward, within, {
         place: obligationPlace(kept).source,
-        kind: "standing"
+        kind: "current-location"
       });
     const clips = /* @__PURE__ */ new Map();
     const shown = items2.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
@@ -7182,7 +7182,7 @@ function createFloatingPanel({
     transition(before);
   }
   function putAwayThen(run) {
-    const inside = standingIn(host);
+    const inside = currentLocationIn(host);
     close();
     setMenu(false);
     if (inside) focusDestination(leaf, "return");
@@ -7348,7 +7348,7 @@ function createFloatingPanel({
   stage.addEventListener("click", judgePress);
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
   const overPanel = (node) => Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
-  onStanding((node, cause) => {
+  onCurrentLocation((node, cause) => {
     const top = trail.value.at(-1);
     if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
@@ -7638,7 +7638,7 @@ function createFloatingPanel({
       () => {
         if (view === "versions") showMenuAt({ view });
         else if (view) open({ view });
-        else putAwayThen(() => entry.press(heldStanding));
+        else putAwayThen(() => entry.press(heldCurrentLocation));
       },
       {
         urgent: Boolean(entry.urgent),
@@ -7846,9 +7846,9 @@ function createFloatingPanel({
       const next = dismissed === null ? null : presses2[after2 >= 0 ? after2 : before];
       focusDestination(next ?? menu.querySelector(".lf-fp-menu-back"), "move");
     };
-    const standing = focused()?.closest(".lf-fp-error");
-    const standingId = Number(standing?.dataset.key);
-    if (standing && !live2.has(standingId)) movePast(standingId);
+    const currentLocation = focused()?.closest(".lf-fp-error");
+    const currentLocationId = Number(currentLocation?.dataset.key);
+    if (currentLocation && !live2.has(currentLocationId)) movePast(currentLocationId);
     const dismiss = (dismissed) => {
       movePast(dismissed);
       menuAt.value = {
@@ -8544,7 +8544,7 @@ function createFloatingPanel({
   }
   function setRest(rest) {
     const before = trail.value.at(-1);
-    const inside = standingIn(host);
+    const inside = currentLocationIn(host);
     prefs().setRest(rest);
     trail.value = [];
     menuOpen.value = false;
@@ -8717,7 +8717,7 @@ function createFloatingPanel({
     keepsHidden(searchSurface, !search);
     const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
     if (editorSeat.firstElementChild !== shown[0]) {
-      const had = standingIn(editorSeat);
+      const had = currentLocationIn(editorSeat);
       editorSeat.replaceChildren(...shown);
       if (had && !replying && !search) focusDestination(leaf, "return");
     }
@@ -8765,9 +8765,12 @@ function createFloatingPanel({
     keeps(fieldMode, "title", search ? searchLabel : selection ? reading.words : null);
     keepsHidden(fieldMode, !search && !selection);
     paintPeek();
-    const standing = search ? null : rowNotice();
-    keepsHidden(rowNoticeSeat, !standing);
-    render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
+    const currentLocation = search ? null : rowNotice();
+    keepsHidden(rowNoticeSeat, !currentLocation);
+    render(
+      currentLocation ? rowNoticeTemplate(currentLocation) : nothing,
+      rowNoticeSeat
+    );
     const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : rows().find((entry) => entry.exit) ?? (top ? { label: "Close", press: close, disabled: false } : null);
     render(
       exit ? html`<button
@@ -9049,20 +9052,20 @@ function createFloatingPanel({
     menu: "page",
     run: () => setRest(prefs().rest === "mark" ? "row" : "mark")
   });
-  let heldStanding = null;
+  let heldCurrentLocation = null;
   host.addEventListener(
     "pointerdown",
     () => {
-      if (!standingIn(host)) heldStanding = readPlace();
+      if (!currentLocationIn(host)) heldCurrentLocation = readPlace();
     },
     true
   );
-  onStanding((node, _cause, left) => {
+  onCurrentLocation((node, _cause, left) => {
     if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
       setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
     if (inside && left?.isConnected && !renderedUnder(left, host))
-      heldStanding = readPlace(left);
+      heldCurrentLocation = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
@@ -9110,7 +9113,7 @@ function createFloatingPanel({
     if (thread && !wanted) return Promise.resolve(false);
     const top = trail.value.at(-1);
     const shown = top?.view === "thread" ? threadByKey(top.thread)?.key : null;
-    if ((wanted?.key ?? null) !== (shown ?? null) && (standingIn(field) || draftOf(fieldInput()).trim()))
+    if ((wanted?.key ?? null) !== (shown ?? null) && (currentLocationIn(field) || draftOf(fieldInput()).trim()))
       return Promise.resolve(false);
     if (wanted) {
       open({ view: "thread", thread: wanted.key }, { reopen: true, focus: false });
@@ -9123,7 +9126,7 @@ function createFloatingPanel({
     }
     return present({ release: true }).then(() => true);
   }
-  function captureStanding() {
+  function captureCurrentLocation() {
     const top = trail.value.at(-1);
     const view = openView();
     if (top?.view !== "thread" || !view) return null;
@@ -9132,8 +9135,8 @@ function createFloatingPanel({
       scroll: view.scrollTop
     };
   }
-  function restoreStanding(standing) {
-    const thread = standing && threadByKey(standing.thread);
+  function restoreCurrentLocation(currentLocation) {
+    const thread = currentLocation && threadByKey(currentLocation.thread);
     if (!thread) return false;
     if (trail.value.at(-1)?.thread === thread.key && openView()) return true;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
@@ -9141,7 +9144,7 @@ function createFloatingPanel({
     void present({ release: true }).then(() => {
       const view = openView();
       if (view && trail.value.at(-1)?.thread === thread.key)
-        moveScrollerBy(view, standing.scroll - view.scrollTop);
+        moveScrollerBy(view, currentLocation.scroll - view.scrollTop);
     });
     return true;
   }
@@ -9169,12 +9172,12 @@ function createFloatingPanel({
       // (`fitAnswer`), so the reader hands it over at once.
       answersAtOnce: true,
       // A reader the page's package registers later takes the thread open here, and
-      // the user's place in it where they stood in the panel, read before the panel's
-      // reader, and the message they stood on, goes.
+      // the user's place in it where they were in the panel, read before the panel's
+      // reader, and the message they were on, goes.
       yielded: () => {
         const top = trail.value.at(-1);
         if (top?.view !== "thread") return null;
-        const focus = standingIn(host);
+        const focus = currentLocationIn(host);
         const message = focus ? closestAcross(focused(), ".lf-msg")?.dataset.message ?? null : null;
         return () => openInPackage(top.thread, { focus, message });
       },
@@ -9237,8 +9240,8 @@ function createFloatingPanel({
     searchPage,
     doors,
     showForSample,
-    captureStanding,
-    restoreStanding,
+    captureCurrentLocation,
+    restoreCurrentLocation,
     // The anchored comment box opening in its home (`responseSeat`) clears the row for
     // it, where the composer then takes the caret (composing/surface.js,
     // `finishPlacement`).
@@ -9246,7 +9249,7 @@ function createFloatingPanel({
     revealResponse: clearRow,
     // Where the reader stood before stepping into the panel, while they are in it
     // (navigation.js, `currentItem`).
-    heldPlace: () => standingIn(host) ? heldStanding : null,
+    heldPlace: () => currentLocationIn(host) ? heldCurrentLocation : null,
     // The thread whose row in Threads the pointer is on, and the row Threads draws for
     // a thread, through which hover links a row and its passage both ways
     // (anchor-paint.js, `markRow`).
@@ -9649,7 +9652,7 @@ var OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])"
 
 // runtime/obligations/view.js
 function createObligationView({
-  prepareTrip,
+  prepareNavigationStep,
   arrive,
   openPageThread,
   focusForNavigation: focusForNavigation2,
@@ -9742,7 +9745,7 @@ function createObligationView({
     return false;
   }
   const obligationAt = (items2, node) => obligationHolding(items2, placeOf(node));
-  function standingObligation(held = focused()) {
+  function currentLocationObligation(held = focused()) {
     if (!held || held === document.body) return null;
     const record = obligationAt(readObligations().all, held);
     if (!record) return null;
@@ -9752,7 +9755,7 @@ function createObligationView({
     const item = obligationNode(answered);
     return held === item || inChrome(held) && placeOf(held) === item || hasReviewedFocus() ? answered : null;
   }
-  const standingIn2 = () => obligationNode(standingObligation());
+  const currentLocationIn2 = () => obligationNode(currentLocationObligation());
   const actionsFor = (source, owner = source) => decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(
     ({ source: commandSource, control }) => ownedObligationControl(owner, commandSource) && (source === owner || under(control, source)) && control.getAttribute("aria-busy") !== "true"
   );
@@ -9792,7 +9795,7 @@ function createObligationView({
     };
   }
   function markHere() {
-    const record = standingObligation();
+    const record = currentLocationObligation();
     const here = obligationNode(record);
     const wearing = new Set(here ? [here, ...shownParts(here)] : []);
     for (const marked of document.querySelectorAll(
@@ -9811,21 +9814,21 @@ function createObligationView({
     reviewedThrough = review ? target : null;
     return target;
   }
-  function captureStanding() {
+  function captureCurrentLocation() {
     const held = focused(document);
     if (!held || held === document.body || inChrome(held)) return null;
-    return standingObligation()?.id ?? null;
+    return currentLocationObligation()?.id ?? null;
   }
-  function restoreStanding(item) {
-    if (!item || standingObligation()?.id === item) return;
+  function restoreCurrentLocation(item) {
+    if (!item || currentLocationObligation()?.id === item) return;
     const record = readObligations().all.find((candidate) => candidate.id === item);
     const target = record && arrivalFocus(record);
     if (target) focusForNavigation2(target, "return");
   }
   const HEADING = "h1,h2,h3,h4,h5,h6";
-  function arrivalRegion(item, context2, standing) {
+  function arrivalRegion(item, context2, currentLocation) {
     const declared = context2 && registry[context2.localName]?.["x-awaits"]?.encloses;
-    if (declared && context2 === standing) return context2;
+    if (declared && context2 === currentLocation) return context2;
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
@@ -9878,7 +9881,7 @@ function createObligationView({
     };
     const initial = destination();
     if (!initial) return false;
-    const departure = prepareTrip({
+    const departure = prepareNavigationStep({
       landing: () => obligationNode(next),
       intent: mayArrive
     });
@@ -9960,9 +9963,9 @@ function createObligationView({
     destroy,
     buildBulkAnswers,
     syncObligations,
-    standingIn: standingIn2,
-    captureStanding,
-    restoreStanding,
+    currentLocationIn: currentLocationIn2,
+    captureCurrentLocation,
+    restoreCurrentLocation,
     markHere,
     arriveAtRecord,
     goToObligation,
@@ -10448,7 +10451,7 @@ function createPageLayout({
 }) {
   function syncLayout() {
     syncLayoutRegion();
-    scheduleResidency();
+    scheduleMarginContentLayout();
     scheduleThreadPreviewPosition?.();
     if (syncReactLayout()) return;
     refreshFab();
@@ -10914,7 +10917,7 @@ function createGoToSequence({
         // to the page edges below: k/j place the card inside its panel rather than moving
         // the document to the passage the card is about. It leads while live, after
         // only the door to the open surface, because it is the one offer specific to
-        // where the user stands; list members wear their Go-to hints directly when the
+        // where the user is; list members wear their Go-to hints directly when the
         // sequence starts.
         keys: THREAD_EDGE_KEYS,
         routes: [
@@ -11084,7 +11087,7 @@ function createGoToSequence({
 }
 
 // runtime/keyboard/page.js
-function standingOn(name2, title, sel, rows) {
+function currentLocationOn(name2, title, sel, rows) {
   pageScope(name2, {
     title,
     root: focused,
@@ -11099,10 +11102,10 @@ function standingOn(name2, title, sel, rows) {
     rows
   });
 }
-standingOn("link", "On a link", LINK, [
+currentLocationOn("link", "On a link", LINK, [
   { id: "link.follow", keys: ["Enter"], title: "Follow", touch: false }
 ]);
-standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
+currentLocationOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
   {
     id: "disclosure.toggle",
     touch: false,
@@ -11132,9 +11135,9 @@ var holding = () => {
   const active = focused(document);
   return Boolean(active) && active !== document.body;
 };
-var standingFloor = () => null;
-function declareStanding({ pageState }) {
-  standingFloor = () => {
+var currentLocationFloor = () => null;
+function declareCurrentLocation({ pageState }) {
+  currentLocationFloor = () => {
     if (!holding()) return null;
     if (nativeLayers().length) return null;
     if (leavesBox()) return null;
@@ -11144,8 +11147,8 @@ function declareStanding({ pageState }) {
     if (pageSelection() || pageState()) return null;
     return thread || heldObligation() || !inUi(focused()) ? document.body : null;
   };
-  pageScope("standing", {
-    title: "Standing on something",
+  pageScope("current-location", {
+    title: "Current location",
     root: focused,
     escape: "inner",
     at: holding,
@@ -11155,7 +11158,7 @@ function declareStanding({ pageState }) {
         touch: false,
         keys: ["Escape"],
         title: "let go",
-        when: () => Boolean(standingFloor()),
+        when: () => Boolean(currentLocationFloor()),
         run: release
       }
     ]
@@ -11164,7 +11167,7 @@ function declareStanding({ pageState }) {
 pageRung("page", () => {
   if (nativeLayers().length) return null;
   if (holding())
-    return standingFloor() ? null : {
+    return currentLocationFloor() ? null : {
       title: "back to the page",
       out: letGo
     };
@@ -11245,7 +11248,7 @@ function mountKeyboard({
   document.addEventListener(UPGRADE, takeHeldKeys, { once: true });
   document.addEventListener(PRESENTATION, takeHeldKeys, { once: true });
   watchCommandAvailability(takeHeldKeys);
-  onStanding(() => {
+  onCurrentLocation(() => {
     const active = focused();
     if (reactArmed() && (takesLetters(active) || claimsEsc(active))) setReact(false);
     if (goToSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
@@ -11280,7 +11283,7 @@ function place2(press) {
     // A command that acts on where the reader stood gets that place back before it runs.
     press: (held) => {
       const current = presses.get(press.id);
-      if (current.row.retainStanding && held) returnPlace(held);
+      if (current.row.retainCurrentLocation && held) returnPlace(held);
       if (live(current.row)) invokePress(current);
     }
   });
@@ -11351,11 +11354,11 @@ async function arriveAtThread(id, { openPageThread }, intent) {
   return Boolean(await openPageThread(id, { part: "thread", intent }));
 }
 function stepThread(dir, destinations, placedAt) {
-  const { threadHere, threadAtStanding, threadPlace } = destinations;
+  const { threadHere, threadAtCurrentLocation, threadPlace } = destinations;
   const threads = openThreads(placedAt);
   const origin = walkOrigin();
   const current = currentThread(threads, threadHere);
-  const targetId = !current && origin.kind === "standing" && threadAtStanding();
+  const targetId = !current && origin.kind === "current-location" && threadAtCurrentLocation();
   const atTarget = targetId && threads.includes(targetId) ? targetId : null;
   const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : stepFrom(threads, origin, dir, threadPlace);
   if (!next) return;
@@ -11480,7 +11483,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     title: "Align current item at top",
     touch: "Align current item at top",
     menu: "keys",
-    retainStanding: true,
+    retainCurrentLocation: true,
     run: () => {
       const item = currentItem();
       if (!item) return;
@@ -11625,7 +11628,7 @@ var navigation = createNavigation({
     openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
     scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
     threadHere: () => app.threadDestinations.threadHere(),
-    threadAtStanding: () => app.threadDestinations.threadAtStanding(),
+    threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
     threadPlace: (...args) => app.threadDestinations.threadPlace(...args)
   }
 });
@@ -11635,7 +11638,7 @@ var visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
 var anchorPaint = annotationRenderer?.createAnchorPaint({
   targetPaint: visualMarkPaint,
   pointer: pointerAt,
-  standingThreadId,
+  currentLocationThreadId,
   rowThread: () => floatingPanel?.hoveredThread() ?? null,
   threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
   marginThread: () => app?.overlay?.pointedThread() ?? null
@@ -11720,16 +11723,16 @@ var version = createVersionController({
   readAndApply: (...args) => app.readAndApply(...args),
   syncLayout: () => layout.syncLayout(),
   // The chrome the reader stands in: a margin card or entry, and the panel's thread.
-  captureRetainedStanding: () => ({
-    margin: app?.overlay?.captureStanding() ?? null,
-    panel: floatingPanel.captureStanding()
+  captureRetainedCurrentLocation: () => ({
+    margin: app?.overlay?.captureCurrentLocation() ?? null,
+    panel: floatingPanel.captureCurrentLocation()
   }),
-  restoreRetainedStanding: ({ margin, panel }) => {
-    const panelShown = floatingPanel.restoreStanding(panel);
-    return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
+  restoreRetainedCurrentLocation: ({ margin, panel }) => {
+    const panelShown = floatingPanel.restoreCurrentLocation(panel);
+    return (app?.overlay?.restoreCurrentLocation(margin) ?? false) || panelShown;
   },
-  captureObligationStanding: () => items.captureStanding(),
-  restoreObligationStanding: (standing) => items.restoreStanding(standing),
+  captureObligationCurrentLocation: () => items.captureCurrentLocation(),
+  restoreObligationCurrentLocation: (currentLocation) => items.restoreCurrentLocation(currentLocation),
   versions: { press: () => floatingPanel.doors.versions.press() }
 });
 var inputs = createCompositionInputs({
@@ -11790,7 +11793,7 @@ app = mountApplication({
 });
 if (offlineInteractive) applicationState.setHostAvailable(false);
 declareReading(landingPlace);
-declareStanding({
+declareCurrentLocation({
   pageState: () => Boolean(
     responseSurface.fabAnchorAt() || designMode.active() || drawing.drawModeActive() || app.overlay?.optionsRung()
   )
@@ -11804,7 +11807,7 @@ pageMapDialog = createPageMapDialog({
 items = createObligationView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
-  prepareTrip: anchorTravel.prepareTrip,
+  prepareNavigationStep: anchorTravel.prepareNavigationStep,
   arrive: anchorTravel.arrive,
   openPageThread: app.threadDestinations.openPageThread,
   announce,
@@ -11816,7 +11819,7 @@ var queueWalk = createQueueWalk({
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
   threadPlace: (id) => app.threadDestinations.threadPlace(id),
-  prepareTrip: anchorTravel.prepareTrip,
+  prepareNavigationStep: anchorTravel.prepareNavigationStep,
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce
@@ -11824,9 +11827,9 @@ var queueWalk = createQueueWalk({
 var commandHints = createCommandHints({
   presentedControl: (control) => app.overlay?.presentedControl(control) ?? control
 });
-var standingTarget = createStandingTarget({
+var currentTarget = createCurrentTarget({
   isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
-  standingIn: items.standingIn
+  currentLocationIn: items.currentLocationIn
 });
 floatingPanel = createFloatingPanel({
   wireInput: inputs.wireInput,
@@ -11853,10 +11856,10 @@ responseSurface = createResponseSurface({
   createPlacement: annotationRenderer?.createFloatingResponsePlacement,
   landIn: landing.landIn,
   threadHere: () => app.threadDestinations.threadHere(),
-  threadAtStanding: () => app.threadDestinations.threadAtStanding(),
-  replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
+  threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
+  replyThreadAtCurrentLocation: () => app.threadDestinations.replyThreadAtCurrentLocation(),
   threadTarget: (id) => app.threadDestinations.threadTarget(id),
-  standingTarget,
+  currentTarget,
   markAt: anchorPaint?.markAt,
   scrollToElement: anchorTravel.scrollToElement,
   scrollToRange: anchorTravel.scrollToRange,
@@ -11894,8 +11897,8 @@ reactions = createReactionController({
   showFab: responseSurface.showFab,
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
-  standingThread,
-  standingTarget
+  currentLocationThread,
+  currentTarget
 });
 targets = createTargetPicker({
   scrollToRange: anchorTravel.scrollToRange,
@@ -11993,14 +11996,14 @@ goToSequence = createGoToSequence({
   placeThreadEdge,
   stopGlide
 });
-var standingPainters = {
+var currentLocationPainters = {
   markHere: items.markHere,
-  paintStanding: anchorPaint?.paintStanding,
+  paintCurrentLocation: anchorPaint?.paintCurrentLocation,
   paintSelectedMarginEntries: () => app.overlay?.paintSelectedMarginEntries([
-    { kind: "on-me", target: items.standingIn() },
+    { kind: "on-me", target: items.currentLocationIn() },
     {
       kind: "comment",
-      target: anchorPlacement.placedAt(standingThreadId())?.place
+      target: anchorPlacement.placedAt(currentLocationThreadId())?.place
     }
   ]),
   paintTouchControls,
@@ -12067,7 +12070,7 @@ if (!offlineInteractive) {
   });
   watchDisclosures(document);
   mountRepaint({
-    ...standingPainters,
+    ...currentLocationPainters,
     reflectFirstScopes,
     reflectKeys,
     syncLayout: layout.syncLayout,
@@ -12147,7 +12150,7 @@ async function startPage() {
   ]);
   if (!upgraded2) return;
   app.watchThreadSurfaces();
-  openResidency({ onRead: annotationRenderer?.syncMarginResidency });
+  openMarginContentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
   if (!offlineInteractive) {
     layout.syncLayout();
     items.buildBulkAnswers();

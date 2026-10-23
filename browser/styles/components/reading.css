@@ -248,7 +248,7 @@
 :where(:root, .lf-thread-transcript) tr > :last-child {
   padding-inline-end: var(--lf-table-edge);
 }
-/* A cell the user stands on, as a thread's target once its card closes, wears the ring
+/* A cell the user is on, as a thread's target once its card closes, wears the ring
  * inside its own box. The table scrolls its columns, so it clips to its own edges, and
  * the outer columns, the header row and the last row stand flush with them: the layer's
  * outward ring there lost the side on the table's edge. Room outside the table would

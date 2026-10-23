@@ -1254,7 +1254,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         )
 
 
-def test_one_band_says_where_the_user_is_standing(browser, serve):
+def test_one_band_says_where_the_user_is_located(browser, serve):
     """The user's band is drawn once, on the exact option row being worked.
 
     The obligation retains its semantic location marker, but its exterior outline would

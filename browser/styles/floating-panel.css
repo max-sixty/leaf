@@ -723,7 +723,7 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
-  /* The way out of the stance the user stands in, after the counts. */
+  /* The way out of the stance the user is in, after the counts. */
   .lf-fp-exit-seat {
     flex: none;
     display: flex;

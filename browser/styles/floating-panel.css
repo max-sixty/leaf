@@ -66,7 +66,10 @@
      words faded in at once after the leaving view's, which is gone before the arriving
      one shows, so the two never read through each other. The row gathers into its
      leaf on a curve of its own before that one object finishes travelling; its layout
-     is already final, so the two visual phases never delay input. They stand here, in
+     is already final, so the two visual phases never delay input. The menu rises into
+     place on the panel's curve as it fades in, a little longer than the fade so its
+     last few pixels settle once it reads (`--lf-motion-menu-slide`). The corner mark
+     and the peek fade in and out in a disclosure's time. They stand here, in
      the runtime's sheet, rather than in the theme a page vendors, since a page served
      by a later runtime keeps its own theme. */
   .lf-floating-panel {
@@ -76,6 +79,7 @@
     --lf-motion-panel-fold: 280ms;
     --lf-motion-view-in: 90ms;
     --lf-motion-view-out: 60ms;
+    --lf-motion-menu-slide: 200ms;
   }
 
   /* The surface: a layer over the whole window, cut to the box's outline by the
@@ -810,14 +814,14 @@
     opacity: 0;
     visibility: hidden;
     transition:
-      opacity 120ms,
-      visibility 0s 120ms;
+      opacity var(--lf-motion-disclosure),
+      visibility 0s var(--lf-motion-disclosure);
   }
   @media (hover: hover) {
     .lf-floating-panel[data-rest="row"][data-corner] .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
-      transition: opacity 120ms;
+      transition: opacity var(--lf-motion-disclosure);
     }
   }
   /* What waits on the user, on the folded leaf: a count, and a dot for news. */
@@ -1644,7 +1648,7 @@
     }
     transition:
       opacity var(--lf-motion-disclosure) linear,
-      translate 200ms var(--lf-motion-panel-ease);
+      translate var(--lf-motion-menu-slide) var(--lf-motion-panel-ease);
   }
   /* Versions' notes and Compare want more of a line than the menu's rows. */
   .lf-fp-menu[data-level="versions"] {
@@ -1754,7 +1758,7 @@
     font-size: 12px;
     pointer-events: none;
     display: none;
-    transition: opacity 120ms;
+    transition: opacity var(--lf-motion-disclosure);
   }
   /* It fades in where it stands: a peek that rose into place would move its words
      under nobody's input. */

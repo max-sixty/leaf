@@ -2,7 +2,10 @@
  *
  * Experimental. Block detection and movement matching are our own; final changed
  * outlines use density-clustering's DBSCAN. Pixelmatch, odiff,
- * BlazeDiff and looks-same compare pixels in place; lcs-image-diff aligns rows, so it
+ * BlazeDiff core and looks-same compare pixels in place. BlazeDiff's separate
+ * interpret-wasm package now classifies regions and detects shifts; it returns
+ * heuristic region labels, not per-pixel ownership or paired before/after regions.
+ * It is a candidate replacement for this experimental analysis. lcs-image-diff aligns rows, so it
  * follows content pushed down but not a move across columns, and returns an image
  * rather than regions; x-img-diff-js, the one built for moved regions, took 7 s on a
  * 1440x900 pair, outlined page-wide bands and crashed on the next pair, and has not
@@ -644,7 +647,10 @@ const FAR = 2 * SLIGHT;
  * changed pixel's alpha rises with how far it moved, from faint for one level to opaque
  * at twice SLIGHT, so the soft edge of a moved mark fades as the image's own edge does
  * rather than stepping, which an enlarged view would draw as blocks. Which mask holds a
- * changed pixel says which image draws something there. Each run of touching changed
+ * changed pixel estimates which image draws something there. This assumes a locally
+ * uniform background: gradients, textures and opacity changes can contradict these
+ * categories, and pixels alone cannot distinguish an added occluder from a removal.
+ * Each run of touching changed
  * pixels stands on a ground, the commonest colour among the unchanged pixels around it:
  * those touching it that an unchanged path joins to the frame's edge. An unchanged
  * pixel the changes enclose, such as a mark that kept its colour inside a recoloured

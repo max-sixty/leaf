@@ -91,7 +91,7 @@
     "runtime/http-api.js": "57012483cb02a2204e224ae7e0d50509d5061ac96a37e47f879cea6ae962339f",
     "runtime/icons.js": "423977a1dc8afd63a25f6cd73517bcca083fc979a931c790a41d8ad49009d9b2",
     "runtime/ids.js": "eb4def53d836be4790db5f4037d5fa780592751beea38a01354378720201cdd3",
-    "runtime/image-difference.js": "5321030b61e7221b37a5b949f578f0ddc25889127689f18e4c2a877d669b8aaa",
+    "runtime/image-difference.js": "b3f4237a25221b4b21e2b457cb654c66c33c05830871a664f8101b9c297f3b1e",
     "runtime/indication.js": "a2ee25405d93e5c51e31ff63bc196b1b8727b4ab530e859187baf4318f8cd985",
     "runtime/initial-render.js": "b94ef06ce3e1ddfcbe1f168d104a341fc7e9d14dc7307d4c9d16193dde166594",
     "runtime/inline-contributions.js": "c597132843b6a3bc193cc799f16fc07938cea774002ec7fdeb821cb69f5155e6",

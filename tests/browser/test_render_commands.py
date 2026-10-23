@@ -162,7 +162,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     captions = toolbar.locator(".lf-shotcap")
     expect(captions).to_have_text(["Before", "After"])
     label_colors = captions.evaluate_all(
-        "nodes => nodes.map(n => getComputedStyle(n).backgroundColor)"
+        "nodes => nodes.map(n => getComputedStyle(n).color)"
     )
     for caption in captions.all():
         caption.tap() if touch else caption.click()
@@ -207,10 +207,8 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         comparison.tap(position=point) if touch else comparison.click(position=point)
         expect(comparison).to_have_attribute("position", endpoint)
         hidden = 1 if endpoint == "100" else 0
-        expect(captions.nth(hidden)).to_have_css("background-color", "rgba(0, 0, 0, 0)")
-        expect(captions.nth(1 - hidden)).to_have_css(
-            "background-color", label_colors[1 - hidden]
-        )
+        expect(captions.nth(hidden)).not_to_have_css("color", label_colors[hidden])
+        expect(captions.nth(1 - hidden)).to_have_css("color", label_colors[1 - hidden])
         expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
             "aria-pressed", "true"
         )
@@ -223,13 +221,15 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
             hidden = (index == 0 and position == "0") or (
                 index == 1 and position == "100"
             )
-            expect(captions.nth(index)).to_have_css(
-                "background-color",
-                "rgba(0, 0, 0, 0)" if hidden else label_colors[index],
-            )
+            if hidden:
+                expect(captions.nth(index)).not_to_have_css(
+                    "color", label_colors[index]
+                )
+            else:
+                expect(captions.nth(index)).to_have_css("color", label_colors[index])
     shot.get_by_role("button", name="Pair", exact=True).click()
     for index in (0, 1):
-        expect(captions.nth(index)).to_have_css("background-color", label_colors[index])
+        expect(captions.nth(index)).to_have_css("color", label_colors[index])
     for view in ("Slider", "Pixels", "Pair"):
         geometry = shot.evaluate(
             """async (node, view) => {
@@ -932,6 +932,10 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
         "nodes => Object.fromEntries(nodes.map(node => [node.dataset.lfShotSide, getComputedStyle(node).backgroundColor]))"
     )
     assert key_colors == mask_colors
+    for side in ("before", "after"):
+        expect(
+            patch.locator(f'.lf-shot-toolbar > [data-lf-state="{side}"]')
+        ).to_have_css("color", key_colors[side])
     expect(options.get_by_role("link")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(options).not_to_be_visible()

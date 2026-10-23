@@ -360,6 +360,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     pointer-events: auto;
     border-radius: 9px;
   }
+  /* The transcript's focus-ring room reaches into this top band. The grip still
+     takes presses there; its clipped centre leaves the messages and controls free. */
+  .lf-margin-preview > .lf-surface-grip {
+    z-index: 1;
+  }
   :is(
     .lf-margin-preview:is(:has(> .lf-surface-grip:hover), [data-lf-carried]),
     .lf-fab-bar:is(:has(> .lf-surface-grip:hover), [data-lf-carried])

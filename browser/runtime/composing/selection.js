@@ -44,7 +44,12 @@ import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
 import { pageScope } from "../keyboard/register.js";
-import { PRESS, rowArrows, savedReadingSettled } from "../keyboard/bindings.js";
+import {
+  PRESS,
+  cycledRow,
+  rowArrows,
+  savedReadingSettled,
+} from "../keyboard/bindings.js";
 import {
   onCurrentLocation,
   takesLetters,
@@ -329,15 +334,8 @@ export function createSelectionComposer({
   function stepResponseOptions(binding) {
     const choices = responseOptionButtons();
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp"].includes(binding);
-    const next =
-      at < 0
-        ? backward
-          ? choices.length - 1
-          : 0
-        : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk("response-option", "Response", () =>
       listWalkPosition(responseOptionButtons(), focused()),
     );

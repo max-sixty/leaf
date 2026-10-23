@@ -127,6 +127,8 @@ function holdBlock(bounded) {
   };
   let stopRegion = null;
   const onScroll = () => {
+    // A hidden tab can reset its scroll position as its contents change.
+    if (bounded.hasAttribute("hidden")) return;
     hold.left = !atEnd(hold.box);
     if (!hold.left) hold.pinned = hold.box.scrollTop;
   };
@@ -155,8 +157,9 @@ function holdBlock(bounded) {
   const sync = (observed) => {
     hold.bound = bounded.getAttribute(BOUND);
     if (!bounded.isConnected || hold.bound === null) return letGo();
-    if (skipped(bounded)) {
+    if (bounded.hasAttribute("hidden") || skipped(bounded)) {
       if (!hold.box) adopt(bounded);
+      hold.pinned = null;
       if (!observed) {
         resize.unobserve(bounded);
         resize.observe(bounded);

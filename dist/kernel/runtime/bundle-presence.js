@@ -248,6 +248,23 @@ var reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box)
 // runtime/reach.js
 var SCROLL_SURFACE = ".scroll";
 var seenDeclarations = /* @__PURE__ */ new WeakMap();
+var scrollAncestors = /* @__PURE__ */ new WeakSet();
+var styleRoots = /* @__PURE__ */ new WeakSet();
+var ancestorStyles = new MutationObserver((records) => {
+  for (const { target } of records)
+    if (scrollAncestors.has(target)) reread(target);
+});
+function watchAncestorStyles(scope) {
+  const tree = scope.getRootNode();
+  const root = tree.nodeType === Node.DOCUMENT_NODE ? tree.documentElement : tree;
+  if (!root || styleRoots.has(root) || !root.isConnected) return;
+  styleRoots.add(root);
+  ancestorStyles.observe(root, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style", "dir"]
+  });
+}
 var watchingSurfaces = false;
 var overflows = (el) => !el.hasAttribute("hidden") && (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
 var holdsOwnStop = (el) => tabStops(el).length > 0;
@@ -354,6 +371,7 @@ var wait = (el) => {
 function sweep(root) {
   const scopes = [root];
   for (const scope of scopes) scopes.push(...shadowRootsIn(scope));
+  for (const scope of scopes) watchAncestorStyles(scope);
   const surfaces = scopes.flatMap((scope) => [
     ...scope.nodeType === Node.ELEMENT_NODE && scope.matches(SCROLL_SURFACE) ? [scope] : [],
     ...scope.querySelectorAll(SCROLL_SURFACE)
@@ -380,6 +398,7 @@ function sweep(root) {
       }
     ]);
     for (let node = el; node?.nodeType === Node.ELEMENT_NODE; node = upFrom(node)) {
+      scrollAncestors.add(node);
       if (containers.has(node)) break;
       containers.add(node);
     }

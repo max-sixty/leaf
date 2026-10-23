@@ -1048,7 +1048,7 @@ button.lf-thread-notice[data-lf-focus-visible] {
 /* A room measures its news as one line and the facts measure it in pieces, which can
    sum a fraction of a pixel wider, so the news the room was made for would drop its
    last fact. The first fact yields a pixel of the line to keep them on it. */
-.lf-thread-news[data-lf-room] > span > :first-child {
+.lf-thread-news[data-room] > span > :first-child {
   margin-inline-end: -1px;
 }
 /* While facts are dropped, the notice counts them on the words' line, in a room just

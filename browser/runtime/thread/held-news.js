@@ -451,7 +451,7 @@ const said = (news) => {
  *  press it to show the thread reopened. A `header` notice stands in a resolved panel
  *  card's title as a node of its own, since the notice in the card's rows may have
  *  stood elsewhere a moment before. The words have a span of their own, so a card that
- *  holds the notice's room (`data-lf-room`, controls.css) keeps it at the width of the
+ *  holds the notice's room (`data-room`, controls.css) keeps it at the width of the
  *  news it first said. Each fact of the news has a span in it, and a fact that would
  *  pass the notice's width drops whole rather than cutting the facts before it, so
  *  "1 new reply" with a message arriving after it still reads "1 new reply", where a cut

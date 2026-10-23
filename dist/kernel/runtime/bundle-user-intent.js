@@ -1181,12 +1181,12 @@ function ensureSyntaxLanguage(lang) {
 }
 async function syntax(source, lang) {
   const shared = await ensureSyntaxLanguage(lang);
-  const tokens3 = await shared.tokenize(source, lang);
-  if (tokens3.map((t) => t.text).join("") !== source)
+  const tokens2 = await shared.tokenize(source, lang);
+  if (tokens2.map((t) => t.text).join("") !== source)
     throw new Error(`the ${lang} tokenizer did not return the source unchanged`);
-  return tokens3;
+  return tokens2;
 }
-var synNodes = (tokens3) => tokens3.map(({ text, style }) => {
+var synNodes = (tokens2) => tokens2.map(({ text, style }) => {
   if (!Object.keys(style).length) return document.createTextNode(text);
   const span = document.createElement("span");
   span.dataset.lfSyn = "";
@@ -1195,9 +1195,9 @@ var synNodes = (tokens3) => tokens3.map(({ text, style }) => {
   span.textContent = text;
   return span;
 });
-function tokenLines(tokens3) {
+function tokenLines(tokens2) {
   const lines = [[]];
-  for (const { text, style } of tokens3) {
+  for (const { text, style } of tokens2) {
     const parts = text.split("\n");
     parts.forEach((part, i) => {
       if (i) lines.push([]);
@@ -1229,16 +1229,16 @@ async function highlightBlocks(root) {
   for (const code of blocks) {
     let lang = languageOf(code);
     try {
-      let tokens3;
+      let tokens2;
       while (lang) {
         const source = code.textContent;
-        tokens3 = await syntax(source, lang);
+        tokens2 = await syntax(source, lang);
         if (code.textContent === source && languageOf(code) === lang) break;
         lang = languageOf(code);
       }
       if (!lang) continue;
-      if (tokens3.some(({ style }) => Object.keys(style).length))
-        code.replaceChildren(...synNodes(tokens3));
+      if (tokens2.some(({ style }) => Object.keys(style).length))
+        code.replaceChildren(...synNodes(tokens2));
       code.dataset.lfSyntax = lang;
     } catch (err) {
       reportPageError(err, `<pre><code class="language-${lang}"> failed to highlight`);
@@ -1267,107 +1267,12 @@ function quietWord(el2, word) {
   span.dataset.lfGen = "1";
   move(el2, span, title ? title.nextSibling : el2.firstChild);
 }
-var EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
-var externalLinkState = /* @__PURE__ */ new WeakMap();
-var externalMarkSequence = 0;
-function isExternalPageLink(link) {
-  if (!(link instanceof HTMLAnchorElement)) return false;
-  try {
-    const href = link.getAttribute("href");
-    const url = href === null ? null : new URL(href, document.baseURI);
-    return ["http:", "https:"].includes(url?.protocol) && url.origin !== location.origin;
-  } catch {
-    return false;
-  }
-}
-var linkAttributes = (link) => Object.fromEntries(
-  EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)])
-);
-var tokens = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
-function withToken(value, token, insensitive = false) {
-  const values = tokens(value);
-  const wanted = insensitive ? token.toLowerCase() : token;
-  if (!values.some((value2) => (insensitive ? value2.toLowerCase() : value2) === wanted))
-    values.push(token);
-  return values.join(" ");
-}
-function withoutToken(value, token, insensitive = false) {
-  if (value === null) return null;
-  const unwanted = insensitive ? token.toLowerCase() : token;
-  return tokens(value).filter((value2) => (insensitive ? value2.toLowerCase() : value2) !== unwanted).join(" ");
-}
-function writeLinkAttributes(link, values) {
-  for (const [name, value] of Object.entries(values)) keeps(link, name, value);
-}
-function rememberExternalLinkChanges(link, state) {
-  if (!state.painted) return;
-  const current = linkAttributes(link);
-  for (const name of EXTERNAL_LINK_ATTRIBUTES) {
-    if (current[name] === state.painted[name]) continue;
-    let value = current[name];
-    if (name === "rel" && state.addedNoopener)
-      value = withoutToken(value, "noopener", true);
-    if (name === "aria-describedby") value = withoutToken(value, state.markId);
-    state.baseline[name] = value;
-  }
-}
-function clearExternalLink(link, state) {
-  rememberExternalLinkChanges(link, state);
-  writeLinkAttributes(link, state.baseline);
-  link.querySelectorAll(':scope > .lf-external-mark[data-lf-gen="1"]').forEach((node) => node.remove());
-  externalLinkState.delete(link);
-}
-function leaveExternalLink(link) {
-  const state = externalLinkState.get(link);
-  if (state) clearExternalLink(link, state);
-}
-function renderExternalLink(link) {
-  if (!(link instanceof HTMLAnchorElement)) return;
-  if (!isExternalPageLink(link)) {
-    leaveExternalLink(link);
-    return;
-  }
-  let state = externalLinkState.get(link);
-  if (!state) {
-    state = {
-      baseline: linkAttributes(link),
-      painted: null,
-      markId: `lf-external-mark-${++externalMarkSequence}`,
-      addedNoopener: false
-    };
-    externalLinkState.set(link, state);
-  } else rememberExternalLinkChanges(link, state);
-  let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
-  if (!mark) {
-    mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    mark.setAttribute("class", "lf-ui lf-external-mark");
-    mark.setAttribute("viewBox", "0 0 16 16");
-    mark.dataset.lfGen = "1";
-    mark.setAttribute("aria-hidden", "true");
-    mark.setAttribute("aria-label", "opens in a new tab");
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    line.setAttribute(
-      "d",
-      "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5"
-    );
-    mark.append(line);
-    link.append(mark);
-  }
-  keeps(mark, "id", state.markId);
-  state.addedNoopener = !tokens(state.baseline.rel).some(
-    (value) => value.toLowerCase() === "noopener"
-  );
-  writeLinkAttributes(link, {
-    target: "_blank",
-    rel: withToken(state.baseline.rel, "noopener", true),
-    "aria-describedby": withToken(state.baseline["aria-describedby"], state.markId)
-  });
-  state.painted = linkAttributes(link);
-}
+var isExternalPageLink = (link) => document.documentElement.lfInitial.externalLinks.matches(link);
 function watchExternalLinks() {
-  watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
-    arrive: renderExternalLink,
-    leave: leaveExternalLink
+  const links = document.documentElement.lfInitial.externalLinks;
+  watchArrivals("a", ["href", ...links.attributes], {
+    arrive: links.arrive,
+    leave: links.leave
   });
 }
 function paintDeclaredWords(root) {
@@ -1779,8 +1684,8 @@ function inlineSourcePositions(source, raw, at, limit) {
   return positions;
 }
 function placedMarkdownTokens(source) {
-  const tokens3 = markdownTokens(source);
-  if (!tokens3) return [];
+  const tokens2 = markdownTokens(source);
+  if (!tokens2) return [];
   const starts = [0];
   for (let at = 0; at < source.length; at++) {
     if (source[at] === "\r" && source[at + 1] === "\n") at++;
@@ -1789,7 +1694,7 @@ function placedMarkdownTokens(source) {
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
-  for (const [index, token] of tokens3.entries()) {
+  for (const [index, token] of tokens2.entries()) {
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
@@ -1803,7 +1708,7 @@ function placedMarkdownTokens(source) {
             starts[line] + b
           ]),
           // A heading's inline token owns its content lines, excluding Setext syntax.
-          contentLines: token.type === "heading_open" ? tokens3[index + 1].map.map((at) => starts[at]) : void 0,
+          contentLines: token.type === "heading_open" ? tokens2[index + 1].map.map((at) => starts[at]) : void 0,
           words: token.nesting ? null : token.content
         });
       continue;
@@ -1984,7 +1889,7 @@ function sourcePositions(markdown) {
       }
     }
   };
-  const snapshot = (tokens3) => tokens3.map((token) => ({
+  const snapshot = (tokens2) => tokens2.map((token) => ({
     token,
     source: token.meta?.source,
     escaped: token.meta?.escapes ?? []
@@ -2111,9 +2016,9 @@ function makeMarkdown(module, breaks) {
   markdown.renderer.rules.softbreak = (_tokens, _at, options) => options.breaks ? "<br>" : "\n";
   markdown.renderer.rules.hardbreak = () => "<br>";
   markdown.validateLink = () => true;
-  const admitLinks = (tokens3) => {
+  const admitLinks = (tokens2) => {
     const links = [];
-    for (const token of tokens3) {
+    for (const token of tokens2) {
       if (token.type === "link_open") {
         token.meta = { ...token.meta, linked: safeUrl(token.attrGet("href")) };
         links.push(token);
@@ -2128,16 +2033,16 @@ function makeMarkdown(module, breaks) {
       if (block.type === "inline") admitLinks(block.children);
   });
   markdown.renderer.rules.text_special = markdown.renderer.rules.text;
-  markdown.renderer.rules.link_open = (tokens3, at, options, env, renderer) => {
-    const token = tokens3[at];
+  markdown.renderer.rules.link_open = (tokens2, at, options, env, renderer) => {
+    const token = tokens2[at];
     if (!token.meta.linked) return "";
     const href = token.attrGet("href");
     if (isCanonicalMediaUrl(href)) token.attrSet("href", scopedMediaUrl(href));
-    return renderer.renderToken(tokens3, at, options);
+    return renderer.renderToken(tokens2, at, options);
   };
-  markdown.renderer.rules.link_close = (tokens3, at, options, env, renderer) => tokens3[at].meta.linked ? renderer.renderToken(tokens3, at, options) : "";
-  markdown.renderer.rules.image = (tokens3, at, options, env, renderer) => {
-    const token = tokens3[at];
+  markdown.renderer.rules.link_close = (tokens2, at, options, env, renderer) => tokens2[at].meta.linked ? renderer.renderToken(tokens2, at, options) : "";
+  markdown.renderer.rules.image = (tokens2, at, options, env, renderer) => {
+    const token = tokens2[at];
     const href = token.attrGet("src");
     const alt = renderedWords(
       renderer.renderInline(token.children, options, env),
@@ -2145,7 +2050,7 @@ function makeMarkdown(module, breaks) {
     );
     token.attrSet("alt", alt);
     if (!safeUrl(href)) return escapeHtml(alt);
-    const markup = renderer.renderToken(tokens3, at, options);
+    const markup = renderer.renderToken(tokens2, at, options);
     if (!isCanonicalMediaUrl(href)) return markup;
     const image = renderedElement(markup, "img");
     const source = scopedMediaUrl(href);
@@ -5229,7 +5134,7 @@ var gestured = (key) => {
   const thread = allThreads().find((each) => threadKey(each) === key);
   return Boolean(thread) && gesturedOn(thread);
 };
-var tokens2 = (reactions) => new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ name }) => name));
+var tokens = (reactions) => new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ name }) => name));
 var symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has(name));
 var fold = (summary, drawn3) => JSON.stringify([
   summary.id,
@@ -5276,7 +5181,7 @@ function difference(was, now, { progressOpen = false } = {}) {
       changed2.add(message.key);
     } else if (settled) changed2.add(message.key);
     else if (message.reactions && prior.reactions) {
-      const turned = symmetric(tokens2(prior.reactions), tokens2(message.reactions));
+      const turned = symmetric(tokens(prior.reactions), tokens(message.reactions));
       news.reactions += turned.length;
       if (turned.length) changed2.add(message.key);
     }
@@ -6450,7 +6355,7 @@ var Transcript = class _Transcript {
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
       ${iconTemplate("down", "lf-disclosure-icon")}
-      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
+      <span data-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
   #setSummaryExpanded(ids, expanded) {
@@ -6849,7 +6754,7 @@ var ThreadView = class {
     if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
     this.#observedHeader = null;
     this.#releaseHeaderItems();
-    this.#news.node.removeAttribute("data-lf-room");
+    this.#news.node.removeAttribute("data-room");
   }
   #releaseHeaderItems() {
     for (const { node } of this.#headerSlot?.items ?? []) {
@@ -6937,8 +6842,8 @@ var ThreadView = class {
     );
     controls2.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (this.#model.news) {
-      if (!this.#news.node.hasAttribute("data-lf-room"))
-        this.#news.node.dataset.lfRoom = this.#model.news.label;
+      if (!this.#news.node.hasAttribute("data-room"))
+        this.#news.node.dataset.room = this.#model.news.label;
       const line = controls2.getBoundingClientRect();
       const shown2 = shownRect(controls2, /* @__PURE__ */ new Map());
       if (shown2)
@@ -6946,7 +6851,7 @@ var ThreadView = class {
           "--lf-thread-news-visible-end",
           layoutPx(Math.max(0, shown2.right - line.left))
         );
-    } else this.#news.node.removeAttribute("data-lf-room");
+    } else this.#news.node.removeAttribute("data-room");
   }
   // Whether the progress behind the working message stood open when last drawn
   // (transcript.js, `progressOpen`).

@@ -62,6 +62,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
+    ROOT,
     TOKEN,
     _traffic,
     _until,
@@ -3478,7 +3479,8 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
     block or table that scrolls sideways keeps 15px clear under its last line, and the
     room costs it none of its width: a block child dropped the code block's inline-end
     padding from what it scrolls, enough to stop a block that overflowed by less than
-    that and loop. One that fits keeps its padding, with no bar to make room for."""
+    that and loop. One that fits keeps the same clearance, so becoming scrollable
+    never moves the following content a frame after layout."""
     url = serve(WIDE_TABLE_PAGE)
     wide = "word " * 60
     root = panel_comment(
@@ -3514,7 +3516,155 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
         assert measured[name]["clear"] >= 15, measured
     assert not measured["fits"]["scrolls"], measured
     assert measured["width"] == measured["bareWidth"], measured
-    assert measured["fits"]["clear"] <= measured["fitsPad"] + 3, measured
+    assert (
+        measured["fitsPad"] + 8 <= measured["fits"]["clear"] <= measured["fitsPad"] + 11
+    ), measured
+
+
+def test_horizontal_scrollbar_clearance_does_not_change_after_layout(
+    browser, serve, subtests
+):
+    """The track's clearance is already present when a box gains horizontal overflow.
+
+    A scroll-state query added it on the next frame, shifting the following control
+    after both the first layout and the layout caused by a resize.
+    """
+    words = "0123456789" * 6
+    boxes = {
+        "code": f"<pre>{words}</pre>",
+        "table": f"<table><tr><td>{words}</td></tr></table>",
+        "widget": f'<div style="overflow:auto hidden;white-space:pre">{words}</div>',
+    }
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Stable scrollbar clearance",
+                "".join(
+                    f'<section id="{name}" style="width:1000px">{box}'
+                    "<button>Following control</button></section>"
+                    for name, box in boxes.items()
+                ),
+            )
+        ),
+    )
+    page.locator("#widget > div").evaluate(
+        "element => element.classList.add('lf-text-scroller')"
+    )
+    for name in boxes:
+        with subtests.test(box=name):
+            readings = page.locator(f"#{name}").evaluate("""async section => {
+              const box=section.firstElementChild, following=section.lastElementChild;
+              const read=()=>({height:box.getBoundingClientRect().height,
+                following:following.getBoundingClientRect().top,
+                scrolls:box.scrollWidth>box.clientWidth});
+              const readings=[read()];
+              section.style.width='200px';
+              readings.push(read());
+              for(let i=0;i<3;i++) {
+                await new Promise(requestAnimationFrame);
+                readings.push(read());
+              }
+              return readings;
+            }""")
+            assert not readings[0]["scrolls"], readings
+            assert all(reading["scrolls"] for reading in readings[1:]), readings
+            assert all(
+                reading["height"] == readings[0]["height"]
+                and reading["following"] == readings[0]["following"]
+                for reading in readings
+            ), readings
+
+
+@pytest.mark.parametrize(
+    ("browser_fixture", "track"),
+    [("browser", 0), ("scrollbar_browser", 15), ("scrollbar_browser", 20)],
+)
+def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
+    request, serve, browser_fixture, track
+):
+    """The diagram fits standard tracks; a wider native track grows without clipping.
+
+    An ample authored reservation is stable through startup on either platform's
+    font metrics. Removing it exposes the natural drawing and native track sizes;
+    the overlay and classic track share the drawing's own blank bottom padding.
+    """
+    source = (ROOT / "examples" / "security-boundary.html").read_text()
+    source = source.replace(
+        'id="security-before-flow" data-height="77"',
+        'id="security-before-flow" data-height="200"',
+    )
+    if track:
+        source = source.replace(
+            "</head>",
+            f"<style>lf-diagram::-webkit-scrollbar {{ height:{track}px }}</style></head>",
+        )
+    page = request.getfixturevalue(browser_fixture).new_page(
+        viewport={"width": 678, "height": 900}
+    )
+    page.add_init_script("""window.diagramFrames = [];
+      function read() {
+        const box = document.querySelector('#security-before-flow');
+        const following = document.querySelector('#security-counterexample');
+        if(box && following) {
+          const svg=box.querySelector('svg');
+          const ink=svg?.getBBox({stroke:true});
+          const bottom=ink && new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
+          window.diagramFrames.push({drawn:!!svg,
+            height:box.getBoundingClientRect().height,
+            following:following.getBoundingClientRect().top,
+            track:box.offsetHeight-box.clientHeight,
+            clear:svg ? box.getBoundingClientRect().bottom-bottom : null});
+        }
+        if(!window.diagramFramesDone) requestAnimationFrame(read);
+      }
+      requestAnimationFrame(read);
+    """)
+    render_checks_model.install_driver(page)
+    assert not render_gate_scheme.start_with_pre_upgrade_proof(page, serve(source))
+    wait_until_ready(page)
+    frames = page.evaluate("""async () => {
+      for(let i=0;i<3;i++) await new Promise(requestAnimationFrame);
+      window.diagramFramesDone=true;
+      return window.diagramFrames;
+    }""")
+    assert any(not frame["drawn"] for frame in frames), frames
+    assert frames[-1]["drawn"], frames
+    assert frames[-1]["track"] == track, frames
+    assert frames[-1]["clear"] >= max(15, track + 1), frames
+    assert {frame["height"] for frame in frames} == {200}, frames
+    assert len({frame["following"] for frame in frames}) == 1, frames
+    # A missing or underestimated reservation must not sacrifice content to the bar;
+    # extra reserved room must not stretch the drawing into it.
+    reservations = page.locator("#security-before-flow").evaluate("""box => {
+      const svg=box.querySelector('svg');
+      const natural=svg.getBoundingClientRect().height;
+      return ['', String(natural - 16), String(natural + 100)].map(height=>{
+        box.setAttribute('data-lf-height',height);
+        const bounds=box.getBoundingClientRect(), ink=svg.getBBox({stroke:true});
+        const bottom=new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
+        return {height:bounds.height,svg:svg.getBoundingClientRect().height,
+          clear:bounds.bottom-bottom};
+      });
+    }""")
+    natural = reservations[0]["svg"]
+    height = natural + max(0, track - 15)
+    assert 0 < height < 200, reservations
+    assert [reading["height"] for reading in reservations] == [
+        height,
+        height,
+        natural + 100,
+    ]
+    assert {reading["svg"] for reading in reservations} == {natural}
+    assert all(reading["clear"] >= max(15, track + 1) for reading in reservations), (
+        reservations
+    )
+    page.emulate_media(media="print")
+    printed = page.locator("#security-before-flow").evaluate("""box => ({
+      height:box.getBoundingClientRect().height,
+      svg:box.querySelector('svg').getBoundingClientRect().height
+    })""")
+    assert printed["height"] == printed["svg"], printed
 
 
 def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
@@ -3610,6 +3760,46 @@ def test_scrollbar_clearance_accepts_room_allocated_to_a_classic_track(
                      track: box.offsetHeight - box.clientHeight})"""
     )
     assert allocated["scrolls"] and allocated["track"] == 20, allocated
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+
+
+def test_scrollbar_clearance_reads_svg_ink_inside_its_scaled_viewport(browser, serve):
+    """SVG has no offsetHeight; its viewport clips ink without erasing it from the
+    reading. Empty space inside that viewport can clear the track just like padding."""
+    source = leaf_page(
+        "Drawing clearance",
+        '<h1 id="t">Drawing clearance</h1>'
+        '<div id="drawing"><svg width="600" height="100" viewBox="0 0 300 50">'
+        '<defs><rect width="300" height="50"/></defs>'
+        '<rect id="ink" width="300" height="50"/></svg></div>',
+        head="""<style>
+          #drawing { width:240px; overflow:auto; transform:scale(.75);
+                     transform-origin:top left; }
+          #drawing svg { display:block; max-width:none; }
+        </style>""",
+    )
+    page = open_page(browser, serve(source))
+    assert page.locator("#drawing").evaluate(
+        "box => box.scrollWidth > box.clientWidth && box.offsetHeight === box.clientHeight"
+    ), "the positive control needs horizontal overflow without a classic track"
+    findings = render_checks_model.evaluate_probe(page, "scrollbarClearance")
+    assert len(findings) == 1, findings
+    assert findings[0]["at"] == "<div id=drawing>", findings
+    assert findings[0]["clear"] == 0, findings
+    # The SVG viewport still reaches the bottom; only its drawing gains 20 CSS px
+    # of room through the viewBox's 2x scale (15 screen pixels after the CSS scale).
+    page.locator("#ink").evaluate("rect => rect.setAttribute('height', '40')")
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+    # A nested clip can hide the same lower ink without adding space to the SVG.
+    page.locator("#drawing").evaluate("""box => {
+      const svg = box.querySelector('svg');
+      svg.querySelector('#ink').setAttribute('height', '50');
+      const clip = document.createElement('div');
+      clip.style.cssText = 'width:600px; height:80px; overflow:hidden';
+      box.style.height = '100px';
+      box.append(clip);
+      clip.append(svg);
+    }""")
     assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
 
 

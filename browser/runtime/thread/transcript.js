@@ -482,7 +482,7 @@ export class Transcript {
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
       ${iconTemplate("down", "lf-disclosure-icon")}
-      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
+      <span data-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
 

@@ -1963,7 +1963,7 @@ def test_the_injected_control_face_is_a_default_in_document_and_shadow_roots():
     assert faces, "no face was read from the layer's sheets — the reading is broken"
     # Public controls and injected controls share this one default; its root boundary
     # and class weight still protect shadow content and win over page element rules.
-    control_face = ":where(:root) :is(.lf-ui-face, .button, .field)"
+    control_face = ":where(:root, :host) :is(.lf-ui-face, .button, .field)"
     assert faces[0] == (schema_model.ASSETS / "shadow.css", control_face), faces[0]
     defaults = [
         face

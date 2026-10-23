@@ -35,7 +35,7 @@
    the dialog returns to its home as it closes, or as the popover does.
    While a modal stands over an owner, the page beneath is inert, so no press then is
    one away from that owner (`nativeModalAdmits`).
-   An owner that reads where the user stands before its modal opens dismisses those same
+   An owner that reads where the user is before its modal opens dismisses those same
    popovers first (`dismissPopoversOutside`), so the reading finds the user already handed
    back from them.
 
@@ -123,7 +123,7 @@ function pushNativeLayer(node, source = null) {
 // so the browser leaves focus on the hidden control it held until the next rendering
 // update drops it, and a key pressed in that frame was dispatched from a control the
 // user can no longer see. Closing such a popover lets go at once, as its opening found
-// the user: standing nowhere. A modal is still modal as it announces its close, with the
+// the user: having no current location. A modal is still modal as it announces its close, with the
 // page behind it inert, so a let-go there lands no one and only takes the body's stop
 // and gives it back; the modal's owner lands the user as it closes it (the Page Map's
 // cancellation returns to its opener or reading position; the command reference closes).
@@ -247,10 +247,12 @@ function seatModal(dialog, source) {
 export function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
   if (dialog ? !layer.open : !isNativeLayer(layer)) return;
-  const standing = focused();
+  const currentLocation = focused();
   const returnTo = entries.find((entry) => entry.root === layer)?.opener;
   const returnLocally =
-    document.documentElement.lfSample && standing && renderedUnder(standing, layer);
+    document.documentElement.lfSample &&
+    currentLocation &&
+    renderedUnder(currentLocation, layer);
   const inhibited = document.documentElement.lfSample
     ? [
         document.documentElement,

@@ -1,5 +1,5 @@
 // `syncLayout` places what floats over the page against the room the page has now, and
-// asks which residents stand in the page's margin (`scheduleResidency`,
+// asks which margin elements stand in the page's margin (`scheduleMarginContentLayout`,
 // content-layout.js), the one posture JavaScript decides for the document: it reads the
 // room beside `main`, which the page's own CSS sets. CSS owns the rest of the shell:
 // `body` is the named `lf-shell` inline-size container, and a query on it may answer a
@@ -20,14 +20,14 @@
 // and browser UI all use that same root. Root scroll events are reported on `document`,
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the view that
-// draws it. `--lf-room` and `--lf-sidebar-posture` are CSS-owned readings resolved on
+// draws it. `--lf-room` and `--lf-sidebar-placement` are CSS-owned readings resolved on
 // the box the page's Layout arranges (`main` or a child of it; layouts.css), which is
-// the named `lf-content-frame` style container a margin resident asks for them.
+// the named `lf-content-frame` style container whose values margin content reads.
 
 // Application composition supplies feature-local geometry. This owner cannot open
 // surfaces, send commands, or reconcile thread DOM.
 import { sizeObserver } from "./rendering.js";
-import { scheduleResidency } from "./content-layout.js";
+import { scheduleMarginContentLayout } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
 export function createPageLayout({
@@ -42,7 +42,7 @@ export function createPageLayout({
   // durable anchor so it cannot overhang the shell.
   function syncLayout() {
     syncLayoutRegion();
-    scheduleResidency();
+    scheduleMarginContentLayout();
     scheduleThreadPreviewPosition?.();
     if (syncReactLayout()) return;
     refreshFab();

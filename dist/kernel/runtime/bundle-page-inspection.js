@@ -21,11 +21,11 @@ import {
 } from "./bundle-page-paint.js";
 import {
   closeLayer,
+  currentLocationIn,
   focusDestination,
   handBack,
   openLayer,
-  openerOf,
-  standingIn
+  openerOf
 } from "./bundle-frame-visibility.js";
 import {
   offlineInteractive,
@@ -198,7 +198,7 @@ async function loadSource() {
   request = attempt;
   sourceError = null;
   loading = true;
-  if (standingIn(body)) focusDestination(close, "move");
+  if (currentLocationIn(body)) focusDestination(close, "move");
   present();
   try {
     const source = await requestJson(

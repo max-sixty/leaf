@@ -29,7 +29,7 @@ const HERE = "lf-mark-here";
 export function createAnchorPaint({
   targetPaint,
   pointer,
-  standingThreadId,
+  currentLocationThreadId,
   rowThread,
   threadRow,
   marginThread,
@@ -60,7 +60,7 @@ export function createAnchorPaint({
   // An element's threads and reactions draw nothing on it at rest: its margin entry
   // already says it holds them, and a contour means "this, now". Only a moment projects
   // one — a draft, an action, the pointer on the thread's row in Threads, the thread the
-  // user stands in.
+  // user is in.
   function paintVisualStates() {
     const pending = new Set(pendingOutline);
     const action = new Set(actionOutline);
@@ -148,11 +148,11 @@ export function createAnchorPaint({
     hoveredRow = row;
   }
 
-  // Standing follows focus, rather than the last travel (thread/focus.js,
-  // `standingThreadId`). Every route into a thread then paints the same fact and leaving
+  // Current location follows focus, rather than the last travel (thread/focus.js,
+  // `currentLocationThreadId`). Every route into a thread then paints the same fact and leaving
   // it clears the mark without another command path.
-  function paintStanding(repaintVisuals = true) {
-    const where = marksFor(standingThreadId());
+  function paintCurrentLocation(repaintVisuals = true) {
+    const where = marksFor(currentLocationThreadId());
     const parts = where.filter((mark) => mark instanceof Element);
     for (const part of hereParts)
       if (!parts.includes(part)) part.classList.toggle(HERE, false);
@@ -262,7 +262,7 @@ export function createAnchorPaint({
       PENDING,
       Object.assign(new Highlight(...pending), { priority: 3 }),
     );
-    paintStanding(false);
+    paintCurrentLocation(false);
     // This pass creates new Range objects. Rebind hover even when the semantic id did
     // not change, then update the shared visual projection once.
     if (hovering) paintHover(hovering, hoverFromRow, false);
@@ -304,7 +304,7 @@ export function createAnchorPaint({
     mount,
     destroy,
     paint,
-    paintStanding,
+    paintCurrentLocation,
     refreshHover,
     markAt,
     marksFor,

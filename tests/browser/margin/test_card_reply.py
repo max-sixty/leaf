@@ -14,7 +14,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     resized,
     round_trip,
     scroll_settled,
@@ -1088,7 +1088,7 @@ def test_resizing_a_focused_editor_keeps_the_pane_the_reader_scrolled_away(
     focus as permission to bring the surrounding reading pane back."""
     page = open_page(browser, serve(PANE_PIN_PAGE))
     resized(page, 1440, 600)
-    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     page.evaluate("""() => {
       const body = document.querySelector('#pin-pane > div');
       body.style.overflowAnchor = 'none';

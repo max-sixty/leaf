@@ -189,7 +189,7 @@ import { shortAgo } from "./presence.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
-import { declareSide } from "./standing-target.js";
+import { declareSide } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -211,10 +211,10 @@ import {
   focused,
   holdFocus,
   letGo,
-  onStanding,
+  onCurrentLocation,
   onUserInput,
   rove,
-  standingIn,
+  currentLocationIn,
 } from "./focus.js";
 import { rowWalk } from "./walk-position.js";
 import { excerptWords } from "./words.js";
@@ -224,7 +224,7 @@ import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
-import { agentName } from "./semantic-state.js";
+import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedUnder, under } from "./shadow.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
@@ -500,7 +500,7 @@ export function createFloatingPanel({
   field.append(editorSeat, searchSurface, fieldMode, fieldActions);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
-  // The way out of the stance the user stands in, at the row's end beside the counts,
+  // The way out of the stance the user is in, at the row's end beside the counts,
   // and there while the user types (touch-controls.js, `stance`). Its seat keeps
   // room after a view closes, so news cannot shift the count chips under the reader.
   const exitSeat = el("div", "lf-fp-exit-seat");
@@ -638,7 +638,7 @@ export function createFloatingPanel({
   // the selected words a press there comments on; a passing notice while one stands; a
   // resolved thread's way back; else on the page what the agent is doing or wants, in
   // the status's words, and in a thread whose turn it is. On the page, the stance the
-  // user stands in, such as Draw mode, heads a passing notice and takes the status's
+  // user is in, such as Draw mode, heads a passing notice and takes the status's
   // place (keyboard/status-context.js); the leaf keeps the status's colour.
   function fieldReading(key, input) {
     const [error] = sayable();
@@ -1054,7 +1054,7 @@ export function createFloatingPanel({
   // returns (focus.js, `openLayer`), folding leaves the user on the leaf it folds to, and
   // a command that places the user elsewhere still does.
   function putAwayThen(run) {
-    const inside = standingIn(host);
+    const inside = currentLocationIn(host);
     if (!menuOpen.value) close();
     setMenu(false);
     if (inside) focusDestination(leaf, "return");
@@ -1070,7 +1070,7 @@ export function createFloatingPanel({
   }
   // A list the menu leads to takes the menu's place, and going back puts the menu back,
   // either sliding in from the side it lies on. The menu stays open across the change, so
-  // a user standing on the row it removes stands on the leaf, its door, meanwhile; one who
+  // a user on the row it removes moves to the leaf, its door, meanwhile; one who
   // came by key, or from outside the panel, as `g V` does, stands on the first row the
   // list offers, and going back, on the row that opened it.
   function showMenuAt(level) {
@@ -1358,7 +1358,7 @@ export function createFloatingPanel({
   // rewrite behind the modal and on the way back.
   const overPanel = (node) =>
     Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
-  onStanding((node, cause) => {
+  onCurrentLocation((node, cause) => {
     const top = trail.value.at(-1);
     if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
@@ -1462,7 +1462,7 @@ export function createFloatingPanel({
     // it takes over a New update the work left waiting.
     if (!waiting && view.scrollHeight <= before.extent + 0.5) return;
     // The answer arriving, or growing as it streams, in a view that has grown to hold
-    // it as far as its cap lets it. Where the user stood at the view's end and their
+    // it as far as its cap lets it. Where the user was at the view's end and their
     // turn and the answer fit in the view, the end follows the answer into sight;
     // otherwise New reply says what waits below the fold, and leads to the reply itself
     // once one follows the work under way, as it takes over the press.
@@ -1505,7 +1505,7 @@ export function createFloatingPanel({
     });
   }
   // Shows the answer waiting below the fold: its start comes into sight. The press that
-  // took New reply away leaves the user standing on the thread, the view, as showing a
+  // took New reply away leaves the user on the thread, the view, as showing a
   // thread's held news does.
   function showAnswer() {
     const answer = waiting;
@@ -1566,7 +1566,7 @@ export function createFloatingPanel({
   function transition(before, { focus = true } = {}) {
     const after = trail.value.at(-1);
     postureMoved = true;
-    // The thread the user stands in as the change begins, on the page or in the panel,
+    // The thread the user is in as the change begins, on the page or in the panel,
     // read before the paint that may take its view away.
     const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
     const reading = [before, after].some((route) => route?.view === "thread");
@@ -1640,8 +1640,8 @@ export function createFloatingPanel({
     const view = shownView();
     // A thread opens with the caret in its reply, as the one field means, once Leaf's
     // reader has drawn the reply there; one taking no reply, as a resolved thread does,
-    // holds focus itself, so the user stands in it. A list stands on the row of the
-    // thread the user stood in, where it lists it, as `g T` from a thread does; else,
+    // holds focus itself, so the user is in it. A list stands on the row of the
+    // thread the user was in, where it lists it, as `g T` from a thread does; else,
     // opened by a key in the panel, on its first row, or its first control where it has
     // none, or itself where it holds neither, as an empty Threads does; opened from
     // anywhere else, as `g T` from the page or a pointer, it holds focus itself.
@@ -1772,7 +1772,7 @@ export function createFloatingPanel({
       () => {
         if (view === "versions") showMenuAt({ view });
         else if (view) open({ view });
-        else putAwayThen(() => entry.press(heldStanding));
+        else putAwayThen(() => entry.press(heldCurrentLocation));
       },
       {
         urgent: Boolean(entry.urgent),
@@ -2048,9 +2048,9 @@ export function createFloatingPanel({
       focusDestination(next ?? menu.querySelector(".lf-fp-menu-back"), "move");
     };
     // An error clearing itself also hands focus off before its control disappears.
-    const standing = focused()?.closest(".lf-fp-error");
-    const standingId = Number(standing?.dataset.key);
-    if (standing && !live.has(standingId)) movePast(standingId);
+    const currentLocation = focused()?.closest(".lf-fp-error");
+    const currentLocationId = Number(currentLocation?.dataset.key);
+    if (currentLocation && !live.has(currentLocationId)) movePast(currentLocationId);
     // The user moves on before the list repaints, so its roving stop lands once.
     const dismiss = (dismissed) => {
       movePast(dismissed);
@@ -2433,6 +2433,9 @@ export function createFloatingPanel({
   // Each list in the `m` walk's order (queue-walk.js, `inWalkOrder`), so the cards the
   // walk outlines (`walkedStop`) follow one another down the list.
   const queueLists = () => {
+    // Page placement determines the list's order, including after a revision
+    // removes the element where an obligation stood.
+    documentChanged();
     const reading = readQueues();
     if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
     return {
@@ -2717,7 +2720,7 @@ export function createFloatingPanel({
   }
 
   // A thread's view, its head and its reply stand at what the thread is about, and an On
-  // card at the obligation it shows (standing-target.js, `declareSide`), as the side
+  // card at the obligation it shows (current-target.js, `declareSide`), as the side
   // panel's thread cards and On rows did. So an ask a thread or card in the panel is
   // about wears its ring and takes its digits there, whether the thread is open or
   // resolved. In a thread's view the thread's own keys stay its own, so only `m`, where
@@ -2930,7 +2933,7 @@ export function createFloatingPanel({
       // Resolve is the check a thread card's head draws, and Reopen in its place is the
       // same check drawn done, so the agent settling the thread moves nothing beside it.
       // Resolve says it is unavailable while a settling is pending rather than leaving
-      // the tab order, so the user who pressed it, or `r` on it, stays standing on it;
+      // the tab order, so the user who pressed it, or `r` on it, stays on it;
       // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
       // Resolving leaves the reply's editing place, as a card's Resolve does, keeping
       // its draft (thread/replies.js), so the thread shows its way back instead.
@@ -3037,9 +3040,9 @@ export function createFloatingPanel({
   // ---------- paint ----------
   function setRest(rest) {
     const before = trail.value.at(-1);
-    // Folding takes away whatever the user stood on in the panel but the leaf, so it
+    // Folding takes away whatever the user was on in the panel but the leaf, so it
     // keeps them on the leaf it folds to; from the page they stay where they are.
-    const inside = standingIn(host);
+    const inside = currentLocationIn(host);
     prefs().setRest(rest);
     trail.value = [];
     menuOpen.value = false;
@@ -3170,14 +3173,14 @@ export function createFloatingPanel({
     }
 
     const views = [leaving, top].filter(Boolean);
-    // A row leaving the list the user stands on, as a page that goes idle leaves All
+    // A row leaving the list the user is on, as a page that goes idle leaves All
     // pages, hands them to the row after it, else before it, else the view that stays
     // open, rather than to the body (focus.js, `holdFocus`). Each list's rows carry
     // their key as `data-key`.
     const heldView = shownView();
     const restoreFocus = heldView && holdFocus(heldView, { key: "data-key" });
     // A thread's view stands for that thread (thread/selectors.js, `THREAD`), so the
-    // user standing anywhere in it is in the thread, as in a card in Threads, and the
+    // user anywhere in it is in the thread, as in a card in Threads, and the
     // thread's keys find its reply and Resolve where the view declares them.
     const shows = (route) =>
       route.view === "thread" ? (threadByKey(route.thread)?.id ?? null) : null;
@@ -3261,7 +3264,7 @@ export function createFloatingPanel({
     keepsHidden(searchSurface, !search);
     const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
     if (editorSeat.firstElementChild !== shown[0]) {
-      const had = standingIn(editorSeat);
+      const had = currentLocationIn(editorSeat);
       editorSeat.replaceChildren(...shown);
       if (had && !replying && !search) focusDestination(leaf, "return");
     }
@@ -3331,11 +3334,14 @@ export function createFloatingPanel({
     keepsHidden(fieldMode, !search && !selection);
     paintPeek();
 
-    const standing = search ? null : olderVersion();
-    keepsHidden(rowNoticeSeat, !standing);
-    render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
+    const currentLocation = search ? null : olderVersion();
+    keepsHidden(rowNoticeSeat, !currentLocation);
+    render(
+      currentLocation ? rowNoticeTemplate(currentLocation) : nothing,
+      rowNoticeSeat,
+    );
 
-    // The way out of the stance the user stands in, beside the counts.
+    // The way out of the stance the user is in, beside the counts.
     const exit =
       search === threadSearch
         ? { label: "Close search", press: closeThreadSearch, disabled: false }
@@ -3681,27 +3687,27 @@ export function createFloatingPanel({
   });
   // Where the reader stood before stepping into the panel, which a row's command that
   // acts on that place gets back (history.js, `readPlace`).
-  let heldStanding = null;
+  let heldCurrentLocation = null;
   host.addEventListener(
     "pointerdown",
     () => {
-      if (!standingIn(host)) heldStanding = readPlace();
+      if (!currentLocationIn(host)) heldCurrentLocation = readPlace();
     },
     true,
   );
   // Writing begins in the field and lasts while the user stays in the panel, so the
   // line naming where the words go stays put while they press Resolve or a filter.
-  onStanding((node, _cause, left) => {
-    // The menu lasts while the user stands in it or on the leaf that opened it, so Tab
+  onCurrentLocation((node, _cause, left) => {
+    // The menu lasts while the user is in it or on the leaf that opened it, so Tab
     // past its row, or a press in the field, puts it away.
     if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
       setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
-    // Stepping in from the page holds where the user stood. A row the panel just took
+    // Stepping in from the page holds where the user was. A row the panel just took
     // away, as a pressed menu row hands the user to the leaf, is no longer under the
     // panel but came from it, and holds nothing.
     if (inside && left?.isConnected && !renderedUnder(left, host))
-      heldStanding = readPlace(left);
+      heldCurrentLocation = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
@@ -3771,7 +3777,7 @@ export function createFloatingPanel({
     const shown = top?.view === "thread" ? threadByKey(top.thread)?.key : null;
     if (
       (wanted?.key ?? null) !== (shown ?? null) &&
-      (standingIn(field) || draftOf(fieldInput()).trim())
+      (currentLocationIn(field) || draftOf(fieldInput()).trim())
     )
       return Promise.resolve(false);
     if (wanted) {
@@ -3787,12 +3793,12 @@ export function createFloatingPanel({
   }
 
   // A live revision carries the thread open here, and where its view was read to,
-  // across it (version.js, `captureRetainedStanding`): the reader is still at it, so
+  // across it (version.js, `captureRetainedCurrentLocation`): the reader is still at it, so
   // the view comes back as they left it, without taking focus, which the reply's own
   // editing continuity hands back. A revision installed in place keeps the view, which
   // still shows the thread, so its restore changes nothing. A view opened by the
   // user's next visit does not come back (restore-state.js); this is not that.
-  function captureStanding() {
+  function captureCurrentLocation() {
     const top = trail.value.at(-1);
     const view = openView();
     if (top?.view !== "thread" || !view) return null;
@@ -3801,8 +3807,8 @@ export function createFloatingPanel({
       scroll: view.scrollTop,
     };
   }
-  function restoreStanding(standing) {
-    const thread = standing && threadByKey(standing.thread);
+  function restoreCurrentLocation(currentLocation) {
+    const thread = currentLocation && threadByKey(currentLocation.thread);
     if (!thread) return false;
     if (trail.value.at(-1)?.thread === thread.key && openView()) return true;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
@@ -3810,7 +3816,7 @@ export function createFloatingPanel({
     void present({ release: true }).then(() => {
       const view = openView();
       if (view && trail.value.at(-1)?.thread === thread.key)
-        moveScrollerBy(view, standing.scroll - view.scrollTop);
+        moveScrollerBy(view, currentLocation.scroll - view.scrollTop);
     });
     return true;
   }
@@ -3842,12 +3848,12 @@ export function createFloatingPanel({
       // (`fitAnswer`), so the reader hands it over at once.
       answersAtOnce: true,
       // A reader the page's package registers later takes the thread open here, and
-      // the user's place in it where they stood in the panel, read before the panel's
-      // reader, and the message they stood on, goes.
+      // the user's place in it where they were in the panel, read before the panel's
+      // reader, and the message they were on, goes.
       yielded: () => {
         const top = trail.value.at(-1);
         if (top?.view !== "thread") return null;
-        const focus = standingIn(host);
+        const focus = currentLocationIn(host);
         const message = focus
           ? (closestAcross(focused(), ".lf-msg")?.dataset.message ?? null)
           : null;
@@ -3913,8 +3919,8 @@ export function createFloatingPanel({
     searchPage,
     doors,
     showForSample,
-    captureStanding,
-    restoreStanding,
+    captureCurrentLocation,
+    restoreCurrentLocation,
     // The anchored comment box opening in its home (`responseSeat`) clears the row for
     // it, where the composer then takes the caret (composing/surface.js,
     // `finishPlacement`).
@@ -3922,7 +3928,7 @@ export function createFloatingPanel({
     revealResponse: clearRow,
     // Where the reader stood before stepping into the panel, while they are in it
     // (navigation.js, `currentItem`).
-    heldPlace: () => (standingIn(host) ? heldStanding : null),
+    heldPlace: () => (currentLocationIn(host) ? heldCurrentLocation : null),
     // The thread whose row in Threads the pointer is on, and the row Threads draws for
     // a thread, through which hover links a row and its passage both ways
     // (anchor-paint.js, `markRow`).

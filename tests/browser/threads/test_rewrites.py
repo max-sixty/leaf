@@ -326,7 +326,7 @@ FIRST_LINE = """n => {
 def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surface):
     """Opening a rewrite with ↑ swapped the message for a bordered box with Cancel on a
     row of its own, pushing every turn and the reply box below it down 55px, and Escape
-    left that room behind and the user standing on the thread rather than in the box
+    left that room behind and the user located on the thread rather than in the box
     they pressed ↑ from. A later box painted around the words, with no padding of its
     own, moved nothing but read as a thinner, narrower field than the reply box beside
     it; the reply box's own field that followed moved the words down by its padding
@@ -403,7 +403,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(thread).to_be_visible()
     expect(reply).to_be_focused()
-    # Saved, the new words take the box's place, and the user stands in the reply box.
+    # Saved, the new words take the box's place, and the user is located in the reply box.
     words.dblclick()
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("Fit the bracket.")

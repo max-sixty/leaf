@@ -370,7 +370,7 @@ def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
     """A column page keeps a rail beside its column and a sidebar page does not: its markers
     stand as pins on their blocks. `data-rail` on `body` turns either round: `right`
     gives up the rail's width at the shell's right edge, and `none` keeps the margin for
-    the page's own residents. Only `right` takes room from the page, and only above a
+    the page's own margin content. Only `right` takes room from the page, and only above a
     phone's width: on a phone every form's markers pin and the page keeps its width."""
     source = (
         leaf_page(

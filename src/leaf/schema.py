@@ -356,7 +356,7 @@ EXTENSION_SCHEMA = {
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
-        "x-resident": {"enum": ["map"]},
+        "x-margin-content": {"enum": ["map"]},
         "x-measured": MEASURED_SCHEMA,
         "x-patch": {"enum": ["members"]},
         "x-owners": {

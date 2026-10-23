@@ -1,11 +1,11 @@
-/* What `architecture/standing-reads` refuses: a raw reading of focus outside focus.js (eslint.config.mjs). eslint lives in pre-commit's environment, so the
+/* What `architecture/current-location-reads` refuses: a raw reading of focus outside focus.js (eslint.config.mjs). eslint lives in pre-commit's environment, so the
    rule's visitors run here over acorn's tree, which is the ESTree eslint hands them. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
-import { standingReadsRule } from "../../eslint.config.mjs";
+import { currentLocationReadsRule } from "../../eslint.config.mjs";
 
 const runtime = (name) =>
   fileURLToPath(new URL(`../../browser/runtime/${name}`, import.meta.url));
@@ -13,7 +13,7 @@ const runtime = (name) =>
 // How many times the rule reports on `code` in `file`.
 function reports(code, file = runtime("probe.js")) {
   let count = 0;
-  const visitors = standingReadsRule.create({
+  const visitors = currentLocationReadsRule.create({
     filename: file,
     options: [["browser/runtime/focus.js"]],
     report: () => (count += 1),
@@ -51,9 +51,9 @@ test("a frame's own document is its page's question", () => {
     assert.equal(reports(code), 0, code);
 });
 
-test("whether the user stands in a scope is standingIn's question", () => {
+test("whether the user stands in a scope is currentLocationIn's question", () => {
   assert.equal(reports("if (panel.contains(focused())) go();"), 1);
   assert.equal(reports("if (panel.contains(focused(document))) go();"), 1);
-  assert.equal(reports("if (standingIn(panel)) go();"), 0);
+  assert.equal(reports("if (currentLocationIn(panel)) go();"), 0);
   assert.equal(reports("if (panel.contains(node)) go();"), 0);
 });

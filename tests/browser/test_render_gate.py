@@ -73,7 +73,7 @@ from render_harness import (
     live_counts,
     names,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     panel_control,
     panel_menu,
     plant_quiet_word,
@@ -139,7 +139,7 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
     the page in the light scheme at each width where its margin content changes. A
     sidebar and a sidenote stand in the margin only where the room beside the column
     holds them, which is above the desktop viewport for a sidebar beside a note, so
-    the gate finds each width where the page's own residents change, the sidebar's and
+    the gate finds each width where the page's own margin content change, the sidebar's and
     the note's, and renders the page there too, where each has the least room it will
     ever have. The rail holds only Leaf's markers, so its width is not one of them.
 
@@ -152,7 +152,7 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
     arm goes on before any route the gate adds and is never taken away, so the list
     the browser consults is never empty and no such transition is sent at all."""
     source = leaf_page(
-        "margin residents in the gate",
+        "margin content in the gate",
         """
 <h1>Migration plan</h1>
 <aside class="sidebar" id="route"><nav aria-label="Route"><a href="#move">Move</a></nav></aside>
@@ -193,11 +193,11 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
     assert len(reading.margin_widths) == 2, reading.margin_widths
     assert reading.margin_widths == sorted(reading.margin_widths)
     assert seen == [
-        (1200, 900, "light"),
-        (1200, 900, "dark"),
+        (1280, 720, "light"),
+        (1280, 720, "dark"),
         (540, 720, "light"),
         (540, 720, "dark"),
-        *((width, 900, "light") for width in reading.margin_widths),
+        *((width, 720, "light") for width in reading.margin_widths),
     ]
     arm = render_gate_scheme.INTERCEPTION_ARM
     assert len(per_page) == len(seen)
@@ -277,7 +277,8 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     the decision's controls under the card's clip: a press nobody can reach, which only
     the sweep's narrowest widths see. A card as tall as the window holds its decision
     below 600px of plan, so a window 720px tall clips it and one 900px tall does not:
-    only the phone render's sweep, at its own height, sees it. A card whose rule for the
+    read at a user's 900px-tall desktop window, only the phone render's sweep, at its
+    own height, sees it. A card whose rule for the
     dark scheme pushes its decision under the clip is clipped only in the two dark
     renders, which each read the geometry once."""
     source = leaf_page(
@@ -319,7 +320,9 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     )
 
     reading = render_gate_model.render_version(
-        browser, serve(source, packages=("default",))
+        browser,
+        serve(source, packages=("default",)),
+        desktop={"width": 1280, "height": 900},
     )
 
     clipped = [f for f in reading.failures if f.code == "clipped-control"]
@@ -327,7 +330,7 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     assert {(f.values["by"], f.widths) for f in clipped} == {
         ("<div id=card>", (360, 440)),
         ("<div id=short>", (360, 540)),
-        ("<div id=dusk>", (1200, 1200)),
+        ("<div id=dusk>", (1280, 1280)),
         ("<div id=dusk>", (540, 540)),
     }, clipped
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
@@ -762,7 +765,7 @@ def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
     page = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
     resized(page, 1200, 700)
     upper = page.locator("#upper")
-    pane_posture(page, upper, "bounded")
+    pane_scroll_behavior(page, upper, "bounded")
     boxes = page.evaluate(
         """() => {
           const box = selector => document.querySelector(selector).getBoundingClientRect();
@@ -776,7 +779,7 @@ def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
     assert abs(boxes["upper"]["height"] - boxes["lower"]["height"]) <= 1, boxes
 
     resized(page, 1200, 420)
-    pane_posture(page, upper, "flow")
+    pane_scroll_behavior(page, upper, "flow")
     flow = page.evaluate(
         """() => {
           const box = selector => document.querySelector(selector).getBoundingClientRect();
@@ -4072,21 +4075,21 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
 ):
     """The column's readings, put on one page beside their controls.
 
-    Content set past the column: the window is the wider of the two boxes, 1200px
+    Content set past the column: the window is the wider of the two boxes, 1280px
     against a 720px column, so content can stand out in the margin with the document
     still not scrolling sideways, and the static lint reads pinned pixels, which a vw
     width is not. The failure names the element and how far out it is.
 
-    Floats: what tells a margin resident from a spill is where its box sits, clear of
+    Floats: what tells a margin content from a spill is where its box sits, clear of
     the column on the side it floats to or across the edge it started inside.
     Exempting floats outright would retire the check for every element that happens to
-    carry one. Both readings run up the ancestors, because a resident answers for what
+    carry one. Both readings run up the ancestors, because an element in the margin answers for what
     it holds, and the side is resolved rather than string-matched, so `inline-start`
     is the same left edge. A float carried off the window's leading edge is drawn
     outside the root scrollport, which never scrolls before that edge, so only the
     clipping reading sees it. Fixed placement answers for a box wholly outside the
     column, not one crossing it; only the desktop leaves an outer gutter wider than
-    the 174px the fixed resident takes.
+    the 174px the fixed margin content takes.
 
     Words no mark can be shown on: an element with `display: contents` generates no
     box, and the runtime hangs a mark on the boxes it shows through instead. `#veiled`
@@ -4097,7 +4100,7 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     A scrolled box, which the runtime scrolls to bring an anchor into view, is read
     from its content rather than from rects that say where it is scrolled to; the
     stand-in `primed` holds the scroll each frame for the whole of the gate's read.
-    A right-margin resident would shift the column and carry the left-margin floats
+    A right-margin content would shift the column and carry the left-margin floats
     off the window, so the clipped sidenote stands on the container-clip page."""
     fixed = """
 <style>
@@ -4160,7 +4163,7 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
         "a float whose own margin carried it clear of the column is where it meant to be"
     )
     assert not naming("inner-word"), (
-        "a resident's own words were named for standing where their parent put them"
+        "an element in the margin's own words were named for standing where their parent put them"
     )
     assert [
         f
@@ -4170,7 +4173,7 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
         f"a float carried off the edge of the window went out with the handover: {failures}"
     )
     assert not naming("fixed-margin"), (
-        f"the fixed margin resident was reported for standing where it was put: {failures}"
+        f"the fixed margin content was reported for standing where it was put: {failures}"
     )
     assert reported("past-column", "<div id=fixed-half>"), (
         f"a fixed box crossing the column escaped the gate: {failures}"
@@ -4321,7 +4324,7 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
-    """Both residents of the right margin stand level with what they belong to — the
+    """Both elements in the right margin stand level with what they belong to — the
     controls with the change they decide, the note with the block it annotates — so the
     controls of a change beside a note would be drawn over the note's first line. The
     note holds the rail's strip there, so the controls stand as a pin on the change
@@ -4357,7 +4360,7 @@ def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
 
 def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve):
     """The other half of the exemption above, put back as a bug: a control the widget
-    hangs out of the flow is answered for, and one standing in the flow is a resident
+    hangs out of the flow is answered for, and one standing in the flow is an element in the margin
     like any other. Written against a control the page positions itself, because the
     predicate is the computed position rather than any widget's name.
 

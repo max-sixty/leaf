@@ -42,7 +42,7 @@
   display: grid;
   gap: var(--sp-4);
   grid-template-columns: minmax(0, 1fr);
-  --lf-track-posture: flow;
+  --lf-track-scroll-behavior: flow;
   --playground-top: var(--lf-top);
 }
 
@@ -92,7 +92,7 @@
 @container (min-width: 43.5rem) {
   .lf-playground-split:has(> .lf-playground-rail > .lf-playground-controls-region) {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    --lf-track-posture: inherit;
+    --lf-track-scroll-behavior: inherit;
   }
 
   .lf-playground-rail:has(> .lf-playground-controls-region) {

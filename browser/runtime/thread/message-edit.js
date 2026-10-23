@@ -161,7 +161,7 @@ export function openMessageEditIn(thread, id) {
  * `views` answers the reader's MessageViews of the thread in its order; `send` posts a
  * rewrite of message `id`; `paint(node)` draws the view at `node` again at once;
  * `box` answers the thread's reply box, or null where the reader shows none; `home(node)`
- * answers the drawn thread around message `node`, which the user stands on once the
+ * answers the drawn thread around message `node`, which the user is on once the
  * editor goes where the box is out of view; `opening(id)` is the reader's own share of
  * a rewrite of `id` opening, such as unfolding the summary that holds it; `thread`
  * answers the thread's key, which every reader of it shares.

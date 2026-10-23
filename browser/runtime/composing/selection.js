@@ -46,7 +46,7 @@ import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS, rowArrows, savedReadingSettled } from "../keyboard/bindings.js";
 import {
-  onStanding,
+  onCurrentLocation,
   takesLetters,
   focusDestination,
   focused,
@@ -769,7 +769,7 @@ export function createSelectionComposer({
     fabOptions.addEventListener("toggle", () => {
       if (!isNativeLayer(fabOptions)) setResponseOptions(false);
     });
-    onStanding((node) => {
+    onCurrentLocation((node) => {
       if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);
     });

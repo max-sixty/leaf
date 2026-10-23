@@ -129,7 +129,11 @@ Words a stylesheet paints with `content` have no text node and are outside these
 `render_gate/readings.py` is the list. A message's widgets render only where its thread
 is drawn, so each thread whose messages carry markup is then opened in turn, where a
 reader would find it, and the widget readings run again (`thread_findings`). Those readings run
-at a desktop and a phone viewport.
+at a desktop and a phone viewport. `page check --render` takes the desktop from the
+window of the browser that last reported viewing the page, or the fixed laptop window
+(`render_checks.RENDER_VIEWPORT`) where none has in the last day or the caller pins it
+(`render_gate.command.desktop_viewport`), and the sweep and screens use that window's
+height.
 
 Geometry that moves with the window is one reading, taken by width: sideways
 overflow, misplaced boxes, room below words and controls for a horizontal overlay
@@ -143,9 +147,9 @@ those samples reads it, with the widths the run spans and its reading at the
 narrowest: a version holds at every width from the narrowest phone to a wide
 desktop, not only at the two the gate renders (`version._render_version_attempt`
 says why the phone height and the other renders count). The sweep also finds each
-width where the page's own margin residents change (`data-lf-margin` on `main`, less
+width where the page's own margin content changes (`data-lf-margin` on `main`, less
 the rail), and the gate renders the page there in the light scheme, where each
-resident has the least room it will ever have. It reads, too, how each flex or grid
+element has the least room it will ever have. It reads, too, how each flex or grid
 box the page wrote splits its children into rows, and the swept widths where that
 changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws

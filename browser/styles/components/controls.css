@@ -389,7 +389,7 @@ svg[data-lf-icon] {
  * so a box cut both ways fades on both. Focus within removes the mask so the scroller's
  * complete ring and controls painted outside its box remain visible, and so does a
  * control focused at the edge: Tab left a playground's radio 3px past its region's end
- * in Firefox, faded to nothing. The user standing there already has the platform's
+ * in Firefox, faded to nothing. The user there already has the platform's
  * scroll affordance.
  *
  * Neither the mask nor its attributes affect layout, so observing the scroller cannot
@@ -595,7 +595,7 @@ svg[data-lf-icon] {
   background: var(--paper);
   border-color: var(--border-2);
 }
-/* Standing on a press, in the band everything else the user stands on is drawn in
+/* Standing on a press, in the band everything else the user is on is drawn in
    (--focus-ring). This was the last place on the product still wearing the browser's own
    ring: a user who backed out of the panel landed on Threads in Chrome's blue, beside
    a decision wearing the page's accent, with nothing saying the two rectangles meant

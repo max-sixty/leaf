@@ -17,7 +17,7 @@
    stay with this controller. Modal entry follows the platform contract rather than
    rebuilding the popovers it dismisses.
 
-   Every row wears one face, whether or not it can run from where the user stands. Its
+   Every row wears one face, whether or not it can run from where the user is. Its
    section heading already says where it applies, and pressing one that cannot run says
    so in the meta line; muting those rows put most of a page's catalog in a second face
    that read as a different font beside the first.
@@ -36,7 +36,7 @@
 
    `?` opens it from anywhere a key reaches, and the page's controls carry the same
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
-   opens it from where the user stood before pressing it, and Escape returns to the row's
+   opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
 import {
   showNativeLayer,
@@ -79,7 +79,7 @@ import {
   openLayer,
   openerOf,
   rove,
-  standingIn,
+  currentLocationIn,
   deepFocus,
 } from "../focus.js";
 import { closeControl, searchField } from "../widget-elements.js";
@@ -871,13 +871,14 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
-  const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
+  const handingBack =
+    !open && restoreFocus && currentLocationIn(commandReferenceDialog);
   const restore = handingBack ? commandReferenceReturn : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     dismissPopoversOutside(commandReferenceDialog);
     // The origin is read off the scene the reference leaves behind: hiding a popover
-    // hands focus back to where the user stood when it opened, and that is the place
+    // hands focus back to where the user was when it opened, and that is the place
     // the reference owes them. A control, or nothing: a user working from the page
     // stands on `body`, which is not a place to be given back — focusing it resets the
     // browser's sequential focus navigation starting point to the top of the document,
@@ -931,7 +932,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (standingIn(commandReferenceDialog))
+        if (currentLocationIn(commandReferenceDialog))
           /** @type {HTMLElement | null} */ (deepFocus())?.blur();
         repaint();
       },
@@ -1098,7 +1099,7 @@ pageCommand({
   run: () => openReference(),
 });
 // The row's press stands where the user pressed it, such as the floating panel's leaf,
-// and is handed the place they stood before stepping in. The reference opens from that
+// and is handed the location they had before stepping in. The reference opens from that
 // place, so its commands act there, as `?` pressed there would; closing it unrun returns
 // to the control that opened it.
 registerPageControl({

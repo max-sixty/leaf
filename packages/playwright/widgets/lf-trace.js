@@ -108,7 +108,7 @@ import {
   showReadingSubject,
   sizeObserver,
   whileConnected,
-  standingIn,
+  currentLocationIn,
 } from "/runtime/widget-api.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
@@ -391,7 +391,7 @@ customElements.define(
           },
           {
             id: "trace.zoom-in",
-            keys: () => (standingIn(timeline) ? ["="] : []),
+            keys: () => (currentLocationIn(timeline) ? ["="] : []),
             title: "zoom the timeline in",
             control: this.#zoomIn.value,
             when: () => this.#timeline.canZoomIn,
@@ -399,7 +399,7 @@ customElements.define(
           },
           {
             id: "trace.zoom-out",
-            keys: () => (standingIn(timeline) ? ["-"] : []),
+            keys: () => (currentLocationIn(timeline) ? ["-"] : []),
             title: "zoom the timeline out",
             control: this.#zoomOut.value,
             when: () => this.#timeline.canZoomOut,
@@ -407,7 +407,7 @@ customElements.define(
           },
           {
             id: "trace.zoom-fit",
-            keys: () => (standingIn(timeline) ? ["0"] : []),
+            keys: () => (currentLocationIn(timeline) ? ["0"] : []),
             title: "show the whole recording",
             control: this.#zoomFit.value,
             when: () => this.#timeline.canZoomOut,
@@ -415,21 +415,21 @@ customElements.define(
           },
           {
             id: "trace.previous-event",
-            keys: () => (standingIn(timeline) ? ["Shift+ArrowLeft"] : []),
+            keys: () => (currentLocationIn(timeline) ? ["Shift+ArrowLeft"] : []),
             title: "previous input or moment",
             when: () => this.#eventStop(-1) !== null,
             run: () => this.#navigate(this.#eventStop(-1)),
           },
           {
             id: "trace.next-event",
-            keys: () => (standingIn(timeline) ? ["Shift+ArrowRight"] : []),
+            keys: () => (currentLocationIn(timeline) ? ["Shift+ArrowRight"] : []),
             title: "next input or moment",
             when: () => this.#eventStop(1) !== null,
             run: () => this.#navigate(this.#eventStop(1)),
           },
           {
             id: "trace.play",
-            keys: () => (standingIn(timeline) ? [" "] : []),
+            keys: () => (currentLocationIn(timeline) ? [" "] : []),
             title: () => (this.#playing ? "pause recording" : "play recording"),
             control: this.#play.value,
             when: () => this.#items().length > 1,
@@ -1422,7 +1422,7 @@ customElements.define(
         const commit = (viewer) => {
           if (!current()) return;
           const retired = this.#picture;
-          const hadFocus = standingIn(this.#viewport.value);
+          const hadFocus = currentLocationIn(this.#viewport.value);
           this.#picture = viewer;
           // Leaf owns container resize so unchanged window signals leave the
           // inspected image alone. Viewer otherwise refits it on every signal.
@@ -1942,7 +1942,9 @@ customElements.define(
                   <div class="lf-trace-transport">
                     ${transport(this.#first, "Start", "start", q)}
                     <button
-                      ${offered("lf-btn lf-quiet-action lf-trace-transport-button lf-trace-play")}
+                      ${offered(
+                        "lf-btn lf-quiet-action lf-trace-transport-button lf-trace-play",
+                      )}
                       ${ref(this.#play)}
                       aria-label=${playLabel}
                       title=${playLabel}

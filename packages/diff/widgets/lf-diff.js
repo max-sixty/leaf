@@ -678,7 +678,7 @@ async function renderFile(file, overflow) {
   pre.dataset.overflow = overflow;
   const viewport = document.createElement("code");
   viewport.dataset.code = "";
-  viewport.className = "lf-text-scroller";
+  viewport.className = "lf-text-scroller scroll";
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
   const rows = document.createElement("div");

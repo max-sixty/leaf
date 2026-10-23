@@ -124,9 +124,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :where(:focus, [data-lf-focus]) {
   scroll-margin: var(--focus-ring-landing);
 }
-:where([data-lf-sticks]) {
-  --lf-head-inset: 0px;
-}
 :where(:focus, [data-lf-focus]) {
   scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top)) + var( --lf-head-inset, calc(var(--focus-ring-landing) + var(--lf-landing-room, 0px)) ) - var(--lf-landing-room, 0px));
 }
@@ -709,6 +706,7 @@ button.lf-primary-news {
   color: var(--muted);
   margin-bottom: 6px;
   position: sticky;
+  --lf-head-inset: 0px;
   inset-inline-start: 0;
   max-inline-size: 100cqi;
 }
@@ -1145,7 +1143,7 @@ svg[data-lf-icon] {
 .lf-msg-meta > time {
   flex: none;
 }
-[data-lf-holds] {
+:where(.scroll) {
   position: relative;
 }
 @property --lf-more-across { syntax: "*"; inherits: false; }

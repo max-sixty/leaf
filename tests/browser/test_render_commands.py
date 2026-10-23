@@ -876,8 +876,12 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     [(left, top, right, bottom)] = marks["after"]
     assert left < 420 and right > 480 and top < 200 and bottom > 240
     assert right - left < 80 and bottom - top < 60
-    expect(page.locator("#shot-same .lf-shotdelta")).to_have_text("identical")
-    expect(page.locator("#shot-tint .lf-shotdelta")).to_have_text("only slight changes")
+    expect(page.locator("#shot-same .lf-shot-outline")).to_have_attribute(
+        "aria-description", "identical"
+    )
+    expect(page.locator("#shot-tint .lf-shot-outline")).to_have_attribute(
+        "aria-description", "only slight changes"
+    )
     expect(page.locator("#shot-same .lf-shotdiff > span")).to_have_count(0)
     expect(page.locator("#shot-tint .lf-shotdiff > span")).to_have_count(0)
     pair.click()

@@ -23,7 +23,7 @@ from leaf.files import (
 from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
-from leaf.obligations import asking, local_obligation_entry, quoted_in
+from leaf.obligations import local_obligation_entry, quoted_in
 from leaf.passages import SourceReading
 from leaf.projection import (
     generated_children,
@@ -31,6 +31,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from leaf.registry.contract import matches_when
 from leaf.registry.kernel import kinds_declaring
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
@@ -767,7 +768,7 @@ def _compose_and_append(
             markup
             and any(
                 local_obligation_entry(publication.registry.get(rec["tag"]) or {})
-                and asking(
+                and matches_when(
                     rec["attrs"],
                     publication.registry[rec["tag"]]["x-awaits"].get("when"),
                 )

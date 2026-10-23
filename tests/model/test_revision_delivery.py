@@ -876,3 +876,11 @@ def test_an_authored_override_holds_only_where_it_means_something():
     assert soup.find(id="feed").attrs["data-lf-bound"] == "end"
     for page in (soup.find("main"), soup.find("body")):
         assert not {"data-lf-space", "data-lf-bound"} & set(page.attrs), page.attrs
+
+
+def test_exhibit_paint_follows_the_occurrence_condition():
+    registry = {"lf-sample": {"x-exhibit": {"when": {"interactive": [False]}}}}
+    source = '<lf-sample id="quote"></lf-sample><lf-sample id="working" interactive></lf-sample>'
+    tree = SourceDocument(mark_declared(source, registry, {})).tree
+    assert "data-lf-exhibit" in tree.find(id="quote").attrs
+    assert "data-lf-exhibit" not in tree.find(id="working").attrs

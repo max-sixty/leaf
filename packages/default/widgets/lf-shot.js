@@ -37,7 +37,6 @@ import {
   compareImagePixels,
   compareImages,
   describeDifference,
-  differenceKind,
   once,
   offer,
   failSoft,
@@ -89,7 +88,6 @@ customElements.define(
     #stage;
     #canvas;
     #toolbar;
-    #delta;
     #legend;
     #scaleReading;
     #scaleTrigger;
@@ -165,7 +163,6 @@ customElements.define(
       this.#captions = drawing.captions;
       this.#frameCaptions = drawing.frameCaptions;
       this.#openers = drawing.openers;
-      this.#delta = drawing.delta;
       this.#legend = drawing.legend;
       for (const [view, button] of this.#viewButtons)
         button.addEventListener("click", () => this.#chooseView(view));
@@ -372,6 +369,7 @@ customElements.define(
       // before measuring; fitting the previous mode would resize this observed
       // stage again during ResizeObserver delivery.
       keeps(this, "data-lf-shot-mode", this.#shownView);
+      this.#legend.toggleAttribute("hidden", this.#shownView !== "pixels");
       const allocation = shotAllocation(this, this.#stage);
       if (allocation.available <= 0) return; // Hidden cases retain their last inspection until shown.
       const ratio = this.#metadata.pixelRatio ?? 1;
@@ -540,7 +538,6 @@ customElements.define(
         "disabled",
         this.#view === "pixels" || !this.#reading?.regions.length,
       );
-      this.#legend.toggleAttribute("hidden", this.#view !== "pixels");
       this.#syncComparison();
       for (const [state, caption] of this.#captions)
         caption.toggleAttribute(
@@ -588,8 +585,6 @@ customElements.define(
         else if (!previous.isEqualNode(marks)) previous.replaceWith(marks);
       }
       const description = describeDifference(reading);
-      keeps(this.#delta, "data-lf-shot-delta", differenceKind(reading));
-      relabel(this.#delta, description, { says: false });
       keeps(this.#outlinesButton, "aria-description", description);
       this.#paint();
       return reading;

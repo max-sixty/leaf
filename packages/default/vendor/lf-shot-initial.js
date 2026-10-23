@@ -197,9 +197,7 @@
       viewports.push(viewport);
       canvas.append(frame);
     }
-    const footer = offer("div", "lf-shot-footer lf-ui");
-    const delta = offer("span", "lf-shotdelta");
-    const legend = offer("div", "lf-shotlegend");
+    const legend = offer("div", "lf-shotlegend lf-ui");
     for (const [side, text] of [
       ["before", "Before only"],
       ["after", "After only"],
@@ -210,10 +208,9 @@
       legend.append(item);
     }
     legend.hidden = true;
-    footer.append(delta, legend);
     keeps(host, "data-lf-shot-mode", "compare");
     keeps(host, "data-lf-shot-outlines", false);
-    host.append(toolbar, stage, footer);
+    host.append(toolbar, stage, legend);
     const geometry = fitShotGeometry({
       ...shotAllocation(host, stage),
       labelHeight: parseFloat(getComputedStyle(frames[0].firstElementChild).blockSize),
@@ -243,8 +240,6 @@
       captions,
       frameCaptions,
       openers,
-      footer,
-      delta,
       legend
     };
   }

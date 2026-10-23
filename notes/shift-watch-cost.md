@@ -5,6 +5,16 @@ layout-shift source rectangles cannot replace its landmark ledger. Its header
 also describes the current reuse of unchanged readings. This note holds cost
 evidence and remaining optimization work; `tests/AGENTS.md` owns test selection.
 
+## Active-page cost
+
+Four feature-gallery tests ran serially on an M-series Mac under other sessions'
+load in October 2026, with one run per condition:
+
+| CPU         | Unwatched | Watched |
+| ----------- | --------: | ------: |
+| Full speed  |    53.4 s | 119.1 s |
+| 4× throttle |   150.9 s | 469.6 s |
+
 ## Idle cost
 
 The sensor's frame loop and paint checkpoint keep requesting frames on a still

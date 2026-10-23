@@ -207,8 +207,8 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
 
 
 def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
-    """A page tab panel the page makes scroll is the box its diff's header pins to, though
-    the tab strip stacks its height onto what the panel holds: the panel's own scroll
+    """A declared scroller inside a page tab is the box its diff's header pins to, though
+    the tab strip stacks its height onto what the panel holds: the inner box's scroll
     restarts `--lf-top`. An undecided option card clips its rounded corners and scrolls
     nothing, so a diff in an option pins at the root's slot as the page scrolls past it."""
     page = open_page(
@@ -217,12 +217,12 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
             leaf_page(
                 "Panel and option",
                 '<lf-tabs id="tabs"><lf-tab id="tab" label="Diff">'
-                f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
+                f'<div id="tab-scroll" class="scroll">{long_diff("in-tab")}</div></lf-tab></lf-tabs>'
                 '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
                 f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
                 '</lf-option><lf-option id="opt-b"><strong>B</strong></lf-option>'
                 "</lf-options></lf-ask>" + "<p>Filler.</p>" * 60,
-                head="<style>#tab { max-height: 320px; overflow: auto; }</style>",
+                head="<style>#tab-scroll { max-height: 320px; overflow: auto; }</style>",
             )
         ),
     )
@@ -233,7 +233,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
     )
     read = page.evaluate(
         f"""async () => {{
-        const tab = await ({PINNED_IN_BOX})('tab');
+        const tab = await ({PINNED_IN_BOX})('tab-scroll');
         const diff = document.getElementById('in-option');
         const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
         const rows = [...diff.shadowRoot.querySelectorAll('[data-line]')];

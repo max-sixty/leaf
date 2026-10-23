@@ -73,6 +73,22 @@ def test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows(
     expect(code).to_be_focused()
     rendered(page)
     assert not rings_drawn(page)
+    # A command can enter a reading row before Tab establishes native keyboard
+    # visibility. The first arrival also lends the row its temporary focus stop.
+    row = page.locator("#patch .lf-diff-line > [data-line]").first
+    expect(row).not_to_have_attribute("tabindex")
+    page.keyboard.press("]")
+    expect(row).to_be_focused()
+    rendered(page)
+    assert row.evaluate("node => getComputedStyle(node).outlineStyle") == "solid"
+    page.keyboard.press("c")
+    expect(page.locator("leaf-text[data-lf-focus]")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(row).to_be_focused()
+    rendered(page)
+    assert row.evaluate("node => getComputedStyle(node).outlineStyle") == "solid"
+    code.click(position={"x": 150, "y": 25})
+    expect(code).to_be_focused()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(code).to_be_focused()
@@ -86,6 +102,15 @@ def test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows(
             )
         edges = mark_edges(page, "diff-viewport", accent)
         assert all(min(widths) >= 1 for widths in edges.values()), edges
+    # Entering a hunk transfers the ring from the whole viewport to its first row.
+    # The parent still contains visible focus, so its frame must also respond to
+    # the code losing focus. Side samples below that row must lose their blue edge.
+    page.keyboard.press("]")
+    expect(row).to_be_focused()
+    rendered(page)
+    assert row.evaluate("node => getComputedStyle(node).outlineStyle") == "solid"
+    edges = mark_edges(page, "diff-viewport", accent)
+    assert min(edges["left"]) == min(edges["right"]) == 0, edges
 
 
 @pytest.mark.parametrize("reading", ["markdown", "boxed-tab", "page-tab"])

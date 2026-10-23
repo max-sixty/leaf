@@ -439,14 +439,16 @@ pre[data-overflow=wrap] .lf-diff-rows {
 :scope:host(.lf-rendered) code[data-code][data-lf-focus-visible] {
   outline: none;
 }
-:scope:host(.lf-rendered) .lf-diff-fold > pre[data-lf-focus-visible-within]:has(> code[data-code][data-lf-focus-visible])::after {
-  content: "";
+.lf-diff-frame {
+  display: none;
   position: absolute;
   inset: 0;
-  z-index: 1;
   pointer-events: none;
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
+}
+code[data-code][data-lf-focus-visible] + .lf-diff-frame {
+  display: block;
 }
 .lf-diff-thread-outlet {
   min-width: 0;

@@ -160,9 +160,17 @@ export function focusDestination(
   if (unexpected.length)
     throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
   if (!canPlaceFocus()) return;
+  // Firefox otherwise inherits a pointer arrival's invisible focus through a
+  // keyboard route, including a composer return. Ask the platform to show that
+  // destination; pointer routes keep its own visibility heuristic.
+  const options = {
+    preventScroll: true,
+    focusVisible: pressLed() ? undefined : true,
+  };
   placed(cause, () => {
-    destination.focus({ preventScroll: true });
-    if (!landedOn(destination) && lendable(destination)) lendStop(destination);
+    destination.focus(options);
+    if (!landedOn(destination) && lendable(destination))
+      lendStop(destination, options);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
@@ -215,7 +223,7 @@ export function whenLeft(element, leave) {
   element.addEventListener("blur", blur);
 }
 
-function lendStop(destination) {
+function lendStop(destination, options) {
   if (destination.hasAttribute("tabindex")) return;
   // Only the `-1` lent here is taken back: a box that came to scroll meanwhile wears
   // the reach pass's stop (reach.js), which is that pass's to take. Taking it back
@@ -228,7 +236,7 @@ function lendStop(destination) {
   };
   lent.add(destination);
   destination.tabIndex = -1;
-  destination.focus({ preventScroll: true });
+  destination.focus(options);
   if (!landedOn(destination)) {
     giveBack();
     return;

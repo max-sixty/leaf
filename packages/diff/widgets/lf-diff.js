@@ -688,7 +688,10 @@ async function renderFile(file, overflow) {
   rows.style.setProperty("--lf-diff-gutter", `${String(largest).length + 3}ch`);
   rows.append(content);
   viewport.append(rows);
-  pre.append(viewport);
+  const frame = document.createElement("span");
+  frame.className = "lf-diff-frame";
+  frame.setAttribute("aria-hidden", "true");
+  pre.append(viewport, frame);
   return { pre, lines };
 }
 

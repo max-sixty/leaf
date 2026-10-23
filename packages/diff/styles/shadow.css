@@ -561,22 +561,19 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 :scope:host(.lf-rendered) code[data-code][data-lf-focus-visible] {
   outline: none;
 }
-/* The nonscrolling parent carries the viewport's ring above positioned source
-   rows and their shading, so horizontal scrolling cannot carry it away. Its own
-   focus-within mark also invalidates the paint in Firefox; a child-only :has
-   updates computed style there without repainting the pseudo-element. */
-:scope:host(.lf-rendered)
-  .lf-diff-fold
-  > pre[data-lf-focus-visible-within]:has(
-    > code[data-code][data-lf-focus-visible]
-  )::after {
-  content: "";
+/* A sibling carries the viewport's ring above its positioned rows without
+   scrolling with them. Unlike a parent's :has() pseudo-element, its selector
+   also invalidates reliably in Firefox when focus moves into a source row. */
+.lf-diff-frame {
+  display: none;
   position: absolute;
   inset: 0;
-  z-index: 1;
   pointer-events: none;
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
+}
+code[data-code][data-lf-focus-visible] + .lf-diff-frame {
+  display: block;
 }
 /* Container units are the visible reader width, while max-content lets source rows
    extend horizontally. Inline-size containment keeps a long remark from widening

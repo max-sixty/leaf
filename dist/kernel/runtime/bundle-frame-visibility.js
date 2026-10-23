@@ -395,9 +395,14 @@ function focusDestination(destination, cause2, { caret = null, ...unknown } = {}
   if (unexpected.length)
     throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
   if (!canPlaceFocus()) return;
+  const options = {
+    preventScroll: true,
+    focusVisible: pressLed() ? void 0 : true
+  };
   placed(cause2, () => {
-    destination.focus({ preventScroll: true });
-    if (!landedOn(destination) && lendable(destination)) lendStop(destination);
+    destination.focus(options);
+    if (!landedOn(destination) && lendable(destination))
+      lendStop(destination, options);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
@@ -423,7 +428,7 @@ function whenLeft(element, leave) {
   };
   element.addEventListener("blur", blur);
 }
-function lendStop(destination) {
+function lendStop(destination, options) {
   if (destination.hasAttribute("tabindex")) return;
   const giveBack = () => {
     lent.delete(destination);
@@ -432,7 +437,7 @@ function lendStop(destination) {
   };
   lent.add(destination);
   destination.tabIndex = -1;
-  destination.focus({ preventScroll: true });
+  destination.focus(options);
   if (!landedOn(destination)) {
     giveBack();
     return;

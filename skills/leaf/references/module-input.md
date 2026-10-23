@@ -173,8 +173,9 @@ Logical standing is marked by `data-lf-focus` and its composed ancestry by
 `data-lf-focus-within`. Use `data-lf-focus-visible` and
 `data-lf-focus-visible-within` for focus rings; the same names without `data-`
 are public shadow parts. Controls and reading destinations follow the browser's
-`:focus-visible` reading, and text editors show their entry cue. A pointer-focused
-control can therefore reveal its actions without wearing a keyboard ring. Shared
+`:focus-visible` reading; keyboard routes request visible focus, and text editors
+show their entry cue. A pointer-focused control can therefore reveal its actions
+without wearing a keyboard ring. Shared
 `.choice` labels contain their ring inside the hit target so a clipping parent
 cannot cut it off.
 

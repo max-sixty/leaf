@@ -457,7 +457,7 @@ export class RecordingTimeline {
           )}
         </div>
         <div
-          class="lf-trace-scroller"
+          class="lf-trace-scroller scroll"
           @scroll=${() => this.#scrolled()}
           @wheel=${(event) => this.#wheel(event)}
         >

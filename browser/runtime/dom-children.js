@@ -9,7 +9,7 @@ export function setChildren(parent, nodes) {
 
 // `setChildren` for several `[parent, nodes]` lists at once, where a node can change
 // lists: it moves straight from the parent it leaves to the one it joins, keeping the
-// user standing in it, where one list at a time would remove it before the next placed
+// user in it, where one list at a time would remove it before the next placed
 // it. Ordering walks past a stale node, so no survivor moves for it; once every list is
 // placed, what still stands in a list's parent is a node no list holds, and is removed.
 // Lists are placed in the order given, so name a parent before any list inside it: a

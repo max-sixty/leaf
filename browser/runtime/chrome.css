@@ -797,6 +797,7 @@
   }
   .lf-fp-foot {
     position: sticky;
+    --lf-head-inset: 0px;
     bottom: -6px;
     margin: 0 -6px -6px;
     padding: 10px 0 6px;
@@ -1153,6 +1154,10 @@
   .lf-fp-messages > .lf-primary-part {
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
+  }
+  .lf-fp-messages .lf-msg.user .lf-msg-text {
+    box-sizing: border-box;
+    padding-inline-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
   }
   .lf-fp-messages .lf-msg-editor {
     margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
@@ -2085,12 +2090,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     outline: var(--focus-ring);
     outline-offset: 1px;
   }
-  .lf-page-map-head {
+  .lf-page-map-head,
+  .lf-inspection-head {
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .lf-page-map-head > strong {
+  .lf-page-map-head > strong,
+  .lf-inspection-head > strong {
     flex: 1;
   }
   .lf-page-map-action {
@@ -2145,7 +2152,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
-  .lf-page-map-dialog {
+  .lf-page-map-dialog,
+  .lf-inspection-dialog {
     --lf-page-map-top: max(10dvh, calc(var(--lf-safe-top) + 12px));
     position: fixed;
     inset: var(--lf-page-map-top) 0 auto;
@@ -2159,12 +2167,54 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--ink);
     box-shadow: var(--raise-3);
   }
-  .lf-page-map-dialog[open] {
+  .lf-page-map-dialog[open],
+  .lf-inspection-dialog[open] {
     display: flex;
     flex-direction: column;
   }
-  .lf-page-map-dialog::backdrop {
+  .lf-page-map-dialog::backdrop,
+  .lf-inspection-dialog::backdrop {
     background: color-mix(in srgb, var(--ink) 26%, transparent);
+  }
+  .lf-inspection-body {
+    overflow: auto;
+    min-height: 0;
+    overflow-wrap: anywhere;
+    overscroll-behavior: contain;
+    padding: var(--focus-ring-room);
+    scroll-padding: var(--focus-ring-room);
+  }
+  .lf-inspection-body h2 {
+    font-size: var(--t-4);
+    margin-block: 18px 8px;
+  }
+  .lf-inspection-body h3 {
+    font-size: var(--t-5);
+  }
+  .lf-inspection-body details {
+    margin-block: 10px;
+  }
+  .lf-inspection-body summary {
+    cursor: pointer;
+    padding-block: 4px;
+  }
+  .lf-inspection-body pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: var(--t-6);
+  }
+  .lf-inspection-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
+  .lf-inspection-metrics dt {
+    color: var(--muted);
+    font-size: var(--t-6);
+  }
+  .lf-inspection-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
   }
   .lf-page-map-search {
     width: 100%;
@@ -2197,7 +2247,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     gap: 2px;
   }
   @media (forced-colors: active) {
-    .lf-page-map-dialog {
+    .lf-page-map-dialog,
+    .lf-inspection-dialog {
       border: 1px solid CanvasText;
       box-shadow: none;
     }
@@ -2322,7 +2373,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     display: block;
   }
   @media screen and (width <= 840px) {
-    .lf-page-map-dialog {
+    .lf-page-map-dialog,
+    .lf-inspection-dialog {
       inset-inline: 8px;
       width: calc(100vw - 16px);
       margin-inline: 0;

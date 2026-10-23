@@ -462,10 +462,10 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
     release = threading.Event()
     original = samples_model.Samples.create
 
-    def held_allocation(self, *args):
+    def held_allocation(self, *args, **kwargs):
         allocating.wait(timeout=STATED_TIMEOUT)
         assert release.wait(STATED_TIMEOUT)
-        return original(self, *args)
+        return original(self, *args, **kwargs)
 
     monkeypatch.setattr(samples_model.Samples, "create", held_allocation)
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -602,7 +602,7 @@ def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "aabb0011"),
@@ -2936,7 +2936,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -3021,7 +3021,7 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
 
 def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
-    shows the agent its id five times over and is answered with `leaf response reply <answer.ref>
+    shows the agent its id five times over and is answered with `leaf thread reply <answer.ref>
     <id>`, so an id is eight hex characters. No kind is carved out of that: an
     id a harness keys an operation on is unique within this page either way, so the
     harness pairs it with the page rather than being handed a wider id and left to

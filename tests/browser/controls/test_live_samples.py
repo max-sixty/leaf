@@ -41,7 +41,7 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
 
     # Where focus stands in the containing page: in the view, on its frame, or out at
     # the browser's own interface.
-    standing = """view => {
+    current_location = """view => {
       let at = document.activeElement;
       while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
       if (at === document.body) return "browser";
@@ -51,7 +51,7 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
     entered = left = False
     for _ in range(40):
         page.keyboard.press("Tab")
-        at = view.evaluate(standing)
+        at = view.evaluate(current_location)
         assert at != "page", "Tab left Full view for the page beneath"
         entered |= at == "frame" and child.evaluate("() => document.hasFocus()")
         if entered and at == "view":
@@ -95,7 +95,7 @@ def test_an_agent_reply_runs_its_live_sample_in_the_thread(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(serve.page_dir, question),

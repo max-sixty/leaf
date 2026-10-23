@@ -11,7 +11,7 @@ settled, and emits two readings of them, each the one home of its facts:
 
   - `{"kind": "reply", "parent": <message>, "responds": <event>}` — a thread message, or an
     action in an answered obligation in frozen thread markup. The agent answers it with
-    `leaf response reply <answer.ref>`.
+    `leaf thread reply <answer.ref>`.
   - `{"kind": "markup", "action": <action>}` — a page action that is part of its
     widget's answered obligation and the authored markup does not yet record, answered
     by a stamped version that writes it in. An option the user added stays in the log,

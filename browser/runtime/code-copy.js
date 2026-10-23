@@ -5,7 +5,7 @@
    supply their source before rendering line numbers, annotations, or other words. CSS
    anchors keep the control at the block's right edge (block-controls.js). Widgets
    connect their final styled block before requesting the control.
-   Enter on a block the user stands on copies it. That press is a register row
+   Enter on a block the user is on copies it. That press is a register row
    projected onto the block beside any scope its owner declares, so the hints, the
    command reference and `aria-keyshortcuts` name it. A link or button inside the block
    keeps its own Enter (`nativeActivationAt`), and a document block's control stays out
@@ -14,7 +14,7 @@
    A document block's control stands in chrome and passes under the page's sticky
    headers as block-controls.js says.
    The control follows the common pattern for code copy: hidden at rest, so it covers no
-   words, and shown while a pointer is over the block or the user stands on it. A finger
+   words, and shown while a pointer is over the block or the user is on it. A finger
    has no hover, so a tap on the block stands the user on it and shows the control in
    its corner, the touch form of the same reveal. The control takes no room, since room
    made for it would move the page's content (`../AGENTS.md`, "Nothing Leaf draws moves
@@ -30,7 +30,7 @@ import {
   tabFromBlock,
 } from "./block-controls.js";
 import { headerLevels } from "./css-anchors.js";
-import { focusDestination, onStanding } from "./focus.js";
+import { focusDestination, onCurrentLocation } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
@@ -56,7 +56,7 @@ addEventListener(
 
 // Focus can reveal and scroll a source before the observer's next task. Its keyboard
 // route must see the control in that same gesture, widgets included.
-onStanding((node) => {
+onCurrentLocation((node) => {
   for (let at = node; at; at = upFrom(at)) {
     const copy = controls.get(at);
     if (copy) return revealControl(copy, at);
@@ -116,6 +116,15 @@ export function copyBlock(block, source, noun) {
 }
 
 export function watchCodeBlocks() {
+  // Native prose blocks scroll sideways, including in rendered thread messages.
+  watchArrivals(
+    "pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])",
+    [],
+    {
+      arrive: (block) => block.classList.toggle("scroll", true),
+      leave: () => {},
+    },
+  );
   // A widget's shadow stage is its renderer's notation, not an ordinary document
   // block. Its module supplies the source explicitly through copyBlock.
   watchArrivals("pre:has(> code)", ["style"], {

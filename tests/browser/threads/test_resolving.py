@@ -646,7 +646,7 @@ ATTACHED_THREAD_PAGE = leaf_page(
 def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
     browser, serve, arrival
 ):
-    """An element and the thread its card shows are one place (glossary, Standing
+    """An element and the thread its card shows are one place (glossary, Current
     target), so `r` on the element settles that thread as it does from the card: on
     the obligation `m` lands on, or on any element the keyboard stands on. The card
     closes and the user stays on the element. Leaf's panel stands at no place, so `r`

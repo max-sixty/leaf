@@ -1239,12 +1239,10 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     assert len(squeezed) + len(owners) + len(phone) == len(advice), advice
 
 
-def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
-    """The table above is the theme's box. A page writes `overflow-x: auto` on a box
-    of its own, and a package on a widget's, and the word escapes a static one of
-    those the same way. The sweep that gives every scrolling box its tab stop marks
-    each static one (reachScrollers), and one theme rule positions the mark — read
-    from the composed box, so the page was asked to declare nothing.
+def test_the_runtime_holds_a_declared_scroll_surface(browser, serve):
+    """The table above is the theme's box. A page declares a scrolling surface
+    and positions a word against it. The shared class holds positioned descendants,
+    and reach gives the surface a keyboard stop when it overflows.
 
     Asked three ways. The containing block itself, through offsetParent, which for
     an out-of-flow box is the positioned ancestor it is laid out against: the
@@ -1252,18 +1250,15 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     distance from its row's end edge before and after the box scrolls, which a word
     laid out against the page keeps only while the row stands still — at rest that
     word sits at the row's end too, on the page's own account. And the two boxes the
-    mark must leave and must reach: a scroller the page positioned itself, which
-    holds its own and takes no mark, and a diff's lines, which scroll in a declared
+    surface must cover: a scroller the page positioned itself and a diff's lines
+    in a declared
     shadow tree where a document rule does not go."""
     page = open_page(browser, serve(LOOSE_SCROLLER_PAGE))
     note = plant_quiet_word(page, "#far", "wider than the box")
     measured = note.evaluate(
         """(n) => {
         const box = document.querySelector('#loose');
-        const mark = (el) => ({
-            marked: el.hasAttribute('data-lf-holds'),
-            position: getComputedStyle(el).position,
-        });
+        const mark = (el) => ({ position: getComputedStyle(el).position });
         return {
             against: n.offsetParent.id || n.offsetParent.tagName.toLowerCase(),
             scrolls: box.scrollWidth - box.clientWidth,
@@ -1289,11 +1284,8 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     assert measured["against"] == "loose", (
         f"the word is laid out against {measured['against']}, not the box scrolling it"
     )
-    assert measured["loose"] == {"marked": True, "position": "relative"}, measured
-    assert measured["held"] == {
-        "marked": False,
-        "position": "relative",
-    }, f"a box the page positioned holds its own and takes no mark: {measured}"
+    assert measured["loose"] == {"position": "relative"}, measured
+    assert measured["held"] == {"position": "relative"}, measured
     assert (
         measured["rest"]["sideways"] == 0 and measured["scrolled"]["sideways"] == 0
     ), f"the page grew sideways reaching for the word: {measured}"
@@ -1313,16 +1305,15 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     # from reading as a clean sweep of nothing.
     diffed = page.evaluate(
         """() => [...document.querySelectorAll('lf-diff')]
-            .map((d) => d.shadowRoot.querySelector('pre'))
+            .map((d) => d.shadowRoot.querySelector('.lf-text-scroller'))
             .filter(Boolean)
-            .map((pre) => ({ scrolls: getComputedStyle(pre).overflowX,
-                             marked: pre.hasAttribute('data-lf-holds'),
-                             position: getComputedStyle(pre).position }))"""
+            .map((box) => ({ scrolls: getComputedStyle(box).overflowX,
+                             position: getComputedStyle(box).position }))"""
     )
     assert diffed, "no diff drew its lines here, so nothing stands in a shadow tree"
-    assert all(
-        d == {"scrolls": "auto", "marked": True, "position": "relative"} for d in diffed
-    ), f"the mark did not reach the diff's lines: {diffed}"
+    assert all(d == {"scrolls": "auto", "position": "relative"} for d in diffed), (
+        f"the scroll surface did not contain the diff's lines: {diffed}"
+    )
 
 
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
@@ -1372,7 +1363,7 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
 
     A choose group clips its own box too, so a note pulled into the page's margin from
     inside one is painted nowhere. Every other reading calls that well — the column
-    check excuses a margin resident, checkVisibility() is true of a clipped box so
+    check excuses margin content, checkVisibility() is true of a clipped box so
     screen and print agree, and the copy, which withholds the clip, shows the words the
     live page dropped — so the user is the only party who loses them. A section, a tab
     panel and a disclosure all pass a note through to the margin, so the gate names the

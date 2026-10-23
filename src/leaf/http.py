@@ -1122,6 +1122,22 @@ class PageEndpoint:
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
             return self._json({"browser": browser})
+        if path == "/api/inspect":
+            from .page_inspection import inspect_artifact, inspection_views
+
+            try:
+                revision = self.requested_view_revision()
+                if revision is None:
+                    raise ValueError("view revision is required")
+                if revision not in self.source.revision_names:
+                    raise ValueError(f"unknown view revision r{revision}")
+            except ValueError as error:
+                return self._json({"error": str(error)}, 400)
+            artifact = self._artifact(revision)
+            report = inspect_artifact(artifact, revision)
+            report["views"] = inspection_views(self.page_dir, artifact.digest)
+            self.response_layer = self._revision_layer(revision)
+            return self._json(report)
         # Browsers ask for this unprompted, and go on asking where nothing in the
         # markup names an icon — the runtime's link is written as the chrome is built,
         # which is after the parse. Answering "no content" rather than letting it fall

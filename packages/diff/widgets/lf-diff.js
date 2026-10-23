@@ -73,7 +73,7 @@ import {
   scrollIntoView,
   layoutPx,
   focused,
-  standingIn,
+  currentLocationIn,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -334,7 +334,7 @@ function paintSummary(details, record, verified = true) {
   const previous = pathParts(details);
   render(
     html`${keyed(
-      JSON.stringify([path, verified && previousPath]),
+      JSON.stringify([path, verified && previousPath ? previousPath : null]),
       filePathTemplate(verified ? record : { path }),
     )}${
       verified
@@ -678,7 +678,7 @@ async function renderFile(file, overflow) {
   pre.dataset.overflow = overflow;
   const viewport = document.createElement("code");
   viewport.dataset.code = "";
-  viewport.className = "lf-text-scroller";
+  viewport.className = "lf-text-scroller scroll";
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
   const rows = document.createElement("div");
@@ -690,7 +690,10 @@ async function renderFile(file, overflow) {
   rows.style.setProperty("--lf-diff-gutter", `${String(largest).length + 3}ch`);
   rows.append(content);
   viewport.append(rows);
-  pre.append(viewport);
+  const frame = document.createElement("span");
+  frame.className = "lf-diff-frame";
+  frame.setAttribute("aria-hidden", "true");
+  pre.append(viewport, frame);
   return { pre, lines };
 }
 
@@ -831,14 +834,14 @@ customElements.define(
         "In a diff review",
         [
           // The walk leads the scope, so the command reference lists it first: moving
-          // is what a user standing on a diff row does next, where "filter files" is
+          // is what a user on a diff row does next, where "filter files" is
           // the press for someone who has not started reading yet.
           //
           // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
           // unit out. Bracket pairs because that is what an editor and a review tool
           // already spell this walk with, and punctuation spends none of the page's
           // small alphabet: these live in the diff's own scope and answer only while
-          // the user is standing in it.
+          // the user is in it.
           {
             id: "diff.next-hunk",
             keys: ["]"],
@@ -889,7 +892,10 @@ customElements.define(
             when: () => {
               const search = this.diffTools?.search;
               if (!search) return false;
-              return standingIn(this) && Boolean(search.value || standingIn(search));
+              return (
+                currentLocationIn(this) &&
+                Boolean(search.value || currentLocationIn(search))
+              );
             },
             title: () =>
               this.diffTools?.search.value ? "show all files" : "leave filter",
@@ -1581,13 +1587,15 @@ customElements.define(
       return this.shownEntries().some((entry) => entry.details);
     }
 
-    // Where the user stands inside this diff. A row, a header, or a control in the
+    // Where the user is inside this diff. A row, a header, or a control in the
     // tools row all answer; the walk only needs a node to compare document positions
     // against, and the tools row standing before every file is why a user who has
     // touched nothing steps to the first hunk rather than nowhere.
     hereNode() {
-      const standing = this.shadowRoot && focused(this.shadowRoot);
-      return standing && this.shadowRoot.contains(standing) ? standing : null;
+      const currentLocation = this.shadowRoot && focused(this.shadowRoot);
+      return currentLocation && this.shadowRoot.contains(currentLocation)
+        ? currentLocation
+        : null;
     }
 
     // With nothing focused inside the shadow tree — the host itself is focused, which
@@ -1633,7 +1641,7 @@ customElements.define(
       await this.loadEntry(entry);
     }
 
-    // The walk starts in the file the user is standing in and goes on through the
+    // The walk starts in the file the user is in and goes on through the
     // ones after it, so a closed file is opened only once the step has actually reached
     // it: a user on the last hunk of the third file loads the fourth and stops, rather
     // than every remaining file to discover there is nothing past them.
@@ -1643,10 +1651,10 @@ customElements.define(
       const mayLand = retainUserIntent();
       const here = this.hereNode();
       const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
-      const standing = here
+      const currentLocation = here
         ? order.findIndex((entry) => entry.node.contains(here))
         : -1;
-      for (let index = Math.max(standing, 0); index < order.length; index++) {
+      for (let index = Math.max(currentLocation, 0); index < order.length; index++) {
         const entry = order[index];
         await this.openEntry(entry);
         if (!mayLand()) return;
@@ -1669,12 +1677,12 @@ customElements.define(
       const entries = this.navigationEntries();
       const order = back ? [...entries].reverse() : entries;
       // The whole file is the unit, so a step out of one starts past it rather than at
-      // its own header — and a user standing in the tools row, which belongs to no
+      // its own header — and a user in the tools row, which belongs to no
       // file, steps to the first (or, walking back, the last).
-      const standing = here
+      const currentLocation = here
         ? order.findIndex((entry) => entry.node.contains(here))
         : -1;
-      const entry = order[standing + 1];
+      const entry = order[currentLocation + 1];
       if (!entry) return this.markFileWalk();
       this.fileCursor = entry;
       if (this.singleFile) {

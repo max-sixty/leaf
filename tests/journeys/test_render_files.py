@@ -351,6 +351,10 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
         file.write_text("# Newest\n")
     choose("Use file version")
     expect(editor).to_contain_text("Newest")
+    page.keyboard.press("ControlOrMeta+z")
+    rendered(page)
+    expect(editor).to_have_text("# Newest")
+    assert file.read_text() == "# Newest\n"
     consume_browser_errors(
         page,
         http_error_console(409),

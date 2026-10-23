@@ -11,7 +11,7 @@
  * Unupgraded, and anywhere the strip has no handler behind it, the panels stack
  * as labeled sections. */
 /* The package owns whether its views are page sections or a box. Prepaint publishes
- * this reading before residency; the module and Layout consume the same mark. */
+ * this reading before margin content layout; the module and Layout consume the same mark. */
 @property --lf-views-flow {
   syntax: "*";
   inherits: false;
@@ -838,6 +838,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
         position: sticky;
+        --lf-head-inset: 0px;
         top: var(--lf-top);
         inline-size: auto;
         z-index: 2;

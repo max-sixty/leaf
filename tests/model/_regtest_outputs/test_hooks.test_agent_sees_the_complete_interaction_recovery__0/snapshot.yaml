@@ -1,4 +1,4 @@
-# Complete agent-facing outputs through real hooks, wait and response commands.
+# Complete agent-facing outputs through real hooks, wait and thread reply commands.
 # Only page paths, event/delivery/attempt and claim identities, and timestamps are normalized.
 # A null hook output means the turn can end without a reminder.
 
@@ -46,25 +46,26 @@ delivered at prompt:
           h2: >-
             If the event asks for work, first post one line in its thread saying
             what you will do, before any other command, even reading the source:
-            `leaf response reply <answer.ref> --ephemeral --text "<what you will
-            do, in a line>"`. It shows at once and starts the update, which reads
-            Working until you answer. Do the work and put the result on the page,
-            with what shows it (captures, a figure, the numbers). Then answer with
-            `leaf response reply <answer.ref> --done --file reply.md`: what changed,
-            in a sentence or two, linking the section that shows it. If the event
-            asks for no work, as a question may not, answer it with that reply at
-            once. The page holds the work; the thread holds only the conversation
-            about it. A successful non-progress `leaf response reply` checks any
-            saved page edit and makes it live before posting; progress and failure
-            reports use the active revision. If the revision removes the thread's
-            anchor, move the thread in the same reply with `--section <id>` (narrowed
-            by `--quote` or `--part`), or `--detach` it if its subject left the
-            page. Each answer takes `--done` when it delivers what was asked, or
-            `--todo "<what you owe>"` when it promises work beyond this turn, which
-            stays on you until `leaf task end` (`references/conversation-loop.md`,
-            "Long-running work"). To ask the user something back, put the question
-            in an `lf-ask` in `--markup`; it waits on them until their next message
-            there.
+            `leaf thread reply <answer.ref> --ephemeral --text "<what you will do,
+            in a line>"`. It shows at once and starts the update, which reads Working
+            until you answer. Do the work and put the result on the page, with what
+            shows it (captures, a figure, the numbers). Then answer with `leaf thread
+            reply <answer.ref> --done --file reply.md`: what changed, in a sentence
+            or two, linking the section that shows it. If the event asks for no
+            work, as a question may not, answer it with that reply at once. The
+            page holds the work; the thread holds only the conversation about it.
+            A successful non-progress `leaf thread reply` checks any saved page
+            edit and makes it live before posting; progress and failure reports
+            use the active revision. If the revision removes the thread's anchor,
+            move the thread in the same reply with `--section <id>` (narrowed by
+            `--quote` or `--part`), or `--detach` it if its subject left the page.
+            Use `--done` when the answer delivers what was asked, or `--todo "<what
+            you owe>"` when it promises work beyond this turn, which stays on you
+            until `leaf task end` (`references/conversation-loop.md`, "Long-running
+            work"). When your reply needs the user's answer, decision, permission
+            or review, add `--obligation` to put the message on On me until they
+            answer. Omit it for progress or information that needs no response.
+            A widget in `--markup` can register the answer it captures instead (`references/threads.md`).
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -103,7 +104,7 @@ reminded at prompt:
     hookEventName: UserPromptSubmit
     additionalContext: |-
       Leaf needs attention:
-      - <page>: 1 acknowledged user update with no answer (`leaf response reply <delivery>:0:event-3`).
+      - <page>: 1 acknowledged user update with no answer (`leaf thread reply <delivery>:0:event-3`).
 
       Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
       Read these unanswered updates and their exact answer references:
@@ -116,7 +117,7 @@ idle before answer:
   stdout: ''
   stderr:
     - error: >-
-        1 acknowledged user update with no answer (`leaf response reply <delivery>:0:event-3`);
+        1 acknowledged user update with no answer (`leaf thread reply <delivery>:0:event-3`);
         answer before idling. Each update takes the answer named for it. Read current
         obligations with `leaf page state <page>` and thread history with `leaf
         page state <page> <id>`.

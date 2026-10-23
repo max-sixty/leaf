@@ -340,7 +340,7 @@ class Session:
         )
         self.settle()
         act = self.written(
-            "events.jsonl", "response", "reply", ref, "--done", "--text", words
+            "events.jsonl", "thread", "reply", ref, "--done", "--text", words
         )
         return self.measure("reply", {"painted": ("message", words)}, act)
 

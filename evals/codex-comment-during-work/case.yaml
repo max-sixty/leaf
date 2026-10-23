@@ -43,7 +43,7 @@ assert:
       Pass only if the reply reads the pointer with `leaf delivery read 3fa1c2d9`
       then reads `leaf delivery read 3fa1c2d9 --part 2`, confirms with
       `leaf delivery ack 3fa1c2d9`, and writes
-      `leaf response reply 3fa1c2d9:0:7c41d0e2`, confirming the layout will be kept,
+      `leaf thread reply 3fa1c2d9:0:7c41d0e2`, confirming the layout will be kept,
       before finishing the current implementation turn. Replying after the requested
       implementation is finished is valid if it happens before the current turn's
       final chat response. Fail if it waits for another turn, starts

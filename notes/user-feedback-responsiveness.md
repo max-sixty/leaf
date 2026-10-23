@@ -92,19 +92,6 @@ Two paint readings miss: the corpus's comment paints in a median 105 ms, and a
 revision of the corpus, a page far larger than a user's, paints within 1 s only
 when the tab finds the save before a stamp locks the page (below).
 
-Every harness titles near the 2 s target, and the model's own answer is most of it:
-1.3–2.2 s of a Codex title. Codex App Server titled in 3.0–8.5 s until its page
-server started each title's App Server and thread before the comment arrived
-(`thread_titles`), and in 1.7–2.6 s since, over two journeys at a load average of 8
-to 10.
-
-The hooks-module samples at 00:05 and 00:26 PT on 2026-10-20 show the `ending` step
-answered after 140–168 s. In both, the agent wrote a reply whose `--markup` spanned
-lines and gave no `--text`; Claude Code hands such a command a socket as its stdin
-that never closes, and the reply waited on it until the tool's 120 s timeout. A
-command given no text now reads stdin only from a pipe or a file, directly or
-through the sandbox's bridge, so that reply is refused at once (`piped_input.py`).
-
 The hosted agent shows two kinds of status. The panel's line read Working 0.3 s
 after the website adapter's journey sent its release ask, in a run in Chrome that
 titled the ask in 2.2 s and replied with the page change in 16 s. Its words came
@@ -240,7 +227,7 @@ Leaf's own share was 1.2–4.9 s on average:
   every tool call. Each took 120–620 ms at this load, and a claimed session's
   PostToolBatch hook runs Leaf whole, past the launcher's gate. A `leaf` command
   that matches more than one of the PreToolUse registrations' `if` patterns, as
-  `L=…/bin/leaf; $L response reply` does, runs the hook once per match, in parallel.
+  `L=…/bin/leaf; $L thread reply` does, runs the hook once per match, in parallel.
 - **Leaf's commands**, 0.3–1.2 s, except where Claude Code ran
   `leaf page check --render` before replying, which took 8.1 s in one of three
   waiting replies here and 7.5–12.8 s in 6 of the 47 earlier. A call that reads
@@ -268,34 +255,6 @@ varies widely from run to run, so a change is read from the part it moves, measu
 directly, and from the whole reply over enough runs to see past that spread. Leaf's
 share rises with the host's load, as each `leaf` command and hook starts a fresh
 process: an earlier batch at a load average near 27 read 1.0–3.7 s.
-
-## Status evaluations
-
-On 2026-10-20, at `e5113c687` with this note's change, every status evaluation
-passed:
-
-| Case                                        | Claude Code | Codex |
-| ------------------------------------------- | ----------- | ----- |
-| `plan-shows-multi-step-work`                | 3/3         | 2/2   |
-| `plan-skips-quick-work`                     | 3/3         |       |
-| `parent-keeps-leaf-responsive`              | 3/3         | 2/2   |
-| `parent-keeps-leaf-responsive/known-answer` | 3/3         |       |
-| `parent-keeps-leaf-responsive/no-subagents` | 3/3         |       |
-| `parent-keeps-leaf-responsive/during-work`  | 1/1         |       |
-| `document/idle`                             | 2/2         |       |
-| `document/mid-turn`                         | 2/2         |       |
-| `website-replies`                           |             | 2/2   |
-| `website-replies/follow-up`                 |             | 2/2   |
-
-`parent-keeps-leaf-responsive` grades whether the page shows the delegated work
-while the workers run (`delegated-work-visible`). Every run took the update in hand
-with a progress reply, then left the workers' work on the page before ending its
-turn, as working steps in the plan, a `--todo` reply, or both. In `during-work`,
-the parent answered all three comments while it repaired the suite, its first
-reply 4.5–13.7 s after each comment.
-In `document/idle` the first reply came 3.9–5.6 s after each comment; in
-`document/mid-turn`, where the comment waits for the turn's next tool boundary,
-9.4–14.9 s.
 
 ## Proposed improvements
 

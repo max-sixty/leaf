@@ -723,7 +723,7 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
-  /* The way out of the stance the user stands in, after the counts. */
+  /* The way out of the stance the user is in, after the counts. */
   .lf-fp-exit-seat {
     flex: none;
     display: flex;
@@ -1041,6 +1041,7 @@
      show through the padding below the press. */
   .lf-fp-foot {
     position: sticky;
+    --lf-head-inset: 0px;
     bottom: -6px;
     margin: 0 -6px -6px;
     padding: 10px 0 6px;
@@ -1446,6 +1447,13 @@
   .lf-fp-messages > .lf-primary-part {
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
+  }
+  /* A sent reply keeps the field's reading width, so its list and code lines do
+     not reflow merely because they moved above the leaf. The room matches the
+     leaf, the field's two 6px edges, and the thread's two text insets. */
+  .lf-fp-messages .lf-msg.user .lf-msg-text {
+    box-sizing: border-box;
+    padding-inline-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
   }
   /* A rewrite in a thread's view is the reply box of the field below it, at the field's
      height, frame included: its words keep the message's face, set in the field's

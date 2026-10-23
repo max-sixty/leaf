@@ -194,7 +194,8 @@ def probe(
       focus:SEL     focus it
       drive:NAME    a `leaf-dev stills` state's input, e.g. card-by-keyboard
 
-    Ordinary controls follow browser focus-visible; reading destinations retain a location ring.
+    Controls and reading destinations follow browser focus-visible; use keyboard
+    input to inspect their rings. Text editors retain their entry cue.
     --base takes an optional ref, so put
     SOURCE before it or give it one (--base=REF).
 

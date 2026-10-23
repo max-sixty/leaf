@@ -67,6 +67,7 @@ from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
+from leaf.validation.instances import DECLARED_WORDS
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -101,7 +102,6 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
         "page": ["page", "--help"],
         "server": ["server", "--help"],
         "thread": ["thread", "--help"],
-        "response": ["response", "--help"],
     }
     outputs = []
 
@@ -152,7 +152,6 @@ def test_agent_interaction_command_help(regtest):
         "status",
         "thread open",
         "thread reply",
-        "response reply",
         "thread edit",
         "thread resolve",
         "page report",
@@ -197,7 +196,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
             text = text.replace(event_id, f"user-{number}")
         outputs.append(text)
 
-    record(["thread", "reply", str(page), "--text", "Answer"], 2)
+    record(["thread", "reply", "--text", "Answer"], 2)
     for text in ("Why this plan?", "What will it cost?"):
         code, response = fetch(
             f"{server}/api/event",
@@ -218,15 +217,41 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     reference = batch["events"][0]["answer"]["ref"]
     references.append(reference)
     # Delivered, the refusal names the delivery's exact reference.
-    record(["thread", "reply", str(page), "--text", "Answer"], 2)
+    record(["thread", "reply", str(page), "--text", "Answer", "--done"], 1)
     record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
 
     def response_args(*extra):
-        return ["response", "reply", reference, "--text", "Answer", "--done", *extra]
+        return ["thread", "reply", reference, "--text", "Answer", "--done", *extra]
 
     record(response_args(), 0)
+    answered_events = events_model.read_events(page)
     record(response_args(), 0)
-    record(["thread", "reply", str(page), ids[0], "--text", "Follow-up"], 0)
+    assert events_model.read_events(page) == answered_events
+    for addressed_option in (
+        ["--done"],
+        ["--failure", "offline"],
+        ["--attempt", "retry"],
+    ):
+        record(
+            [
+                "thread",
+                "reply",
+                str(page),
+                ids[0],
+                "--text",
+                "Follow-up",
+                *addressed_option,
+            ],
+            2,
+        )
+    assert events_model.read_events(page) == answered_events
+    record(
+        ["thread", "reply", str(page), ids[0], "--text", "Follow-up", "--obligation"],
+        0,
+    )
+    followup = events_model.read_events(page)[-1]
+    assert followup["parent"] == ids[0]
+    assert followup["obligation"] is True
     # A page reaction can close without an answer: it never owed a reply.
     code, response = fetch(
         f"{server}/api/event",
@@ -234,7 +259,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     )
     assert code == 200, response
     ids.append(events_model.read_events(page)[-1]["id"])
-    record(["response", "reply", "not-a-response-ref", "--text", "Answer", "--done"], 1)
+    record(["thread", "reply", "not-a-response-ref", "--text", "Answer", "--done"], 1)
     record(["thread", "resolve", str(page), ids[-1]], 0)
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
@@ -257,7 +282,7 @@ def _replying_after(page, server, edit):
     # A process of its own, as the agent's next command is, so it reads the page as
     # edited rather than as this one remembers it (`page_memory`).
     return subprocess.run(
-        [*LEAF_COMMAND, "response", "reply", reference, "--ephemeral", "--text", "Hi"],
+        [*LEAF_COMMAND, "thread", "reply", reference, "--ephemeral", "--text", "Hi"],
         capture_output=True,
         text=True,
         timeout=STATED_TIMEOUT,
@@ -525,7 +550,7 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, na
     assert interact_files.list_revisions(page_dir) == revisions
 
 
-def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed(
+def test_thread_reply_names_a_published_page_vendored_before_a_key_was_renamed(
     claimed, server
 ):
     """Admission refuses an old page on the same reading the servers do, after a
@@ -1632,7 +1657,7 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
 
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
-    mark delivery paints such as `data-lf-resident`, never by its tag: a rule naming
+    mark delivery paints such as `data-lf-margin-content`, never by its tag: a rule naming
     lf-toc serves lf-toc and no other contents map, and binds the kernel to one
     package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
     selectors the runtime hands a DOM query, use no tag a bundled package declares as
@@ -5001,6 +5026,27 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
         "# Data contract `instruction-records`\n\nSupply records in one snapshot.\n"
     )
     assert author.count("# Vocabulary `lf-instruction-owner`") == 1
+
+
+def test_selected_instructions_name_the_words_a_declared_attribute_takes(page_dir):
+    """An attribute that names a layer-wide word, such as a column's tone or a
+    code block's language, is a plain string in its schema, so each selected
+    entry's instructions list the words validation accepts, from the layer's own
+    list, for every entry the registry declares one on."""
+    registry = registry_storage.read_page_registry(page_dir).registry
+    checked = set()
+    for key, fact in DECLARED_WORDS:
+        for name, entry in registry.items():
+            if name.startswith("$") or not isinstance(entry, dict) or key not in entry:
+                continue
+            author = page_instructions(page_dir, entries=(name,))["author"]
+            assert (
+                f"`{entry[key]}` takes one of the layer's {fact.removeprefix('$')}: "
+                + ", ".join(f"`{word}`" for word in registry[fact]["names"])
+                + "."
+            ) in author
+            checked.add(key)
+    assert checked == {key for key, _ in DECLARED_WORDS}
 
 
 def test_cli_selection_returns_the_composed_audience_map(instruction_page):

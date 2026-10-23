@@ -20,53 +20,108 @@ const REPORT_MS = 10_000;
 const QUIET_MS = 300;
 const rectangle = ({ x, y, width, height }) => ({ x, y, width, height });
 
+const session = randomId();
+let sequence = 0;
+let reading = null;
+let loading = null;
+
+// One lazy probe and one context producer serve periodic author observations and an
+// explicit inspection. A failed load may be retried on the next request.
+function loadReading() {
+  return (loading ??= import("/checks/view.js")
+    .then((module) => {
+      reading = module.readViewChecks;
+    })
+    .catch((error) => {
+      loading = null;
+      throw error;
+    }));
+}
+
+function context() {
+  const visual = window.visualViewport;
+  const { right: width, bottom: height } = layoutWindow();
+  const viewport = { width, height };
+  if (
+    viewport.width <= 0 ||
+    viewport.height <= 0 ||
+    visual.width <= 0 ||
+    visual.height <= 0
+  )
+    return null;
+  const clips = new Map();
+  return {
+    session,
+    sequence: ++sequence,
+    visible: document.visibilityState !== "hidden",
+    revision: runtime.currentRevision,
+    through_seq: runtime.lastEventSeq,
+    viewport,
+    visual_viewport: {
+      width: visual.width,
+      height: visual.height,
+      offset_left: visual.offsetLeft,
+      offset_top: visual.offsetTop,
+      scale: visual.scale,
+    },
+    shown_window: rectangle(shownWindow()),
+    color_scheme: shownScheme(),
+    reduced_motion: reducedMotion(),
+    pointer: coarsePointer.matches ? "coarse" : "fine",
+    scroll: { x: window.scrollX, y: window.scrollY },
+    visible_regions: unconcealedReadingRegions()
+      .filter(({ body }) => seenRect(body, clips) !== null)
+      .map(({ id }) => id),
+  };
+}
+
+function readChecks(view) {
+  const open = tagsDeclaring((entry) =>
+    ["markup", "members"].includes(entry["x-content"]),
+  );
+  return {
+    sequence: view.sequence,
+    revision: view.revision,
+    through_seq: view.through_seq,
+    viewport: view.viewport,
+    visual_viewport: view.visual_viewport,
+    shown_window: view.shown_window,
+    color_scheme: view.color_scheme,
+    reading: reading(open),
+  };
+}
+
+// Capture before an inspection opens a modal: a modal makes the page inert and can
+// change which regions are observable. This reads only; it neither reports a lease
+// nor activates a website session. Exports can still report their browser context.
+export async function readCurrentUserView() {
+  let unavailable = null;
+  if (offlineInteractive) unavailable = "Layout probes are unavailable in an export.";
+  else {
+    try {
+      await loadReading();
+    } catch (error) {
+      unavailable = `Layout probes unavailable: ${error.message}`;
+    }
+  }
+  const view = context();
+  if (!view)
+    return { revision: null, unavailable: "The document has no allocated viewport." };
+  return {
+    ...view,
+    observed_at: new Date().toISOString(),
+    readiness: pageReadiness(),
+    checks: unavailable ? null : readChecks(view),
+    ...(unavailable ? { unavailable } : {}),
+  };
+}
+
 export function observeUserView() {
   if (offlineInteractive) return;
-  const session = randomId();
-  let sequence = 0;
   let pending = null;
-  let reading = null;
-  let loading = null;
   let checks = null;
   let checkedBasis = null;
   let lastSent = null;
-
-  function context() {
-    const visual = window.visualViewport;
-    const { right: width, bottom: height } = layoutWindow();
-    const viewport = { width, height };
-    if (
-      viewport.width <= 0 ||
-      viewport.height <= 0 ||
-      visual.width <= 0 ||
-      visual.height <= 0
-    )
-      return null;
-    const clips = new Map();
-    return {
-      session,
-      sequence: ++sequence,
-      visible: document.visibilityState !== "hidden",
-      revision: runtime.currentRevision,
-      through_seq: runtime.lastEventSeq,
-      viewport,
-      visual_viewport: {
-        width: visual.width,
-        height: visual.height,
-        offset_left: visual.offsetLeft,
-        offset_top: visual.offsetTop,
-        scale: visual.scale,
-      },
-      shown_window: rectangle(shownWindow()),
-      color_scheme: shownScheme(),
-      reduced_motion: reducedMotion(),
-      pointer: coarsePointer.matches ? "coarse" : "fine",
-      scroll: { x: window.scrollX, y: window.scrollY },
-      visible_regions: unconcealedReadingRegions()
-        .filter(({ body }) => seenRect(body, clips) !== null)
-        .map(({ id }) => id),
-    };
-  }
 
   function send(view, keepalive = false) {
     // Optional context has no delivery obligation. A failed report expires at the
@@ -103,26 +158,11 @@ export function observeUserView() {
       (inspect || basis !== checkedBasis)
     ) {
       if (reading) {
-        const open = tagsDeclaring((entry) =>
-          ["markup", "members"].includes(entry["x-content"]),
-        );
-        checks = {
-          sequence: view.sequence,
-          revision: view.revision,
-          through_seq: view.through_seq,
-          viewport: view.viewport,
-          visual_viewport: view.visual_viewport,
-          shown_window: view.shown_window,
-          color_scheme: view.color_scheme,
-          reading: reading(open),
-        };
+        checks = readChecks(view);
         checkedBasis = basis;
       } else if (!loading) {
-        loading = import("/checks/view.js")
-          .then((module) => {
-            reading = module.readViewChecks;
-            schedule();
-          })
+        loadReading()
+          .then(schedule)
           .catch(() => {
             // No checks is explicit in context; retry on the next report.
             loading = null;

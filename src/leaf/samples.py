@@ -1,4 +1,4 @@
-"""Disposable page instances built from authored or generated source and a captured layer.
+"""Disposable pages built from authored or generated source and a captured layer.
 
 A sample owns an ordinary source, revision, data store, and event log. Its parent
 supplies immutable resources and optional selected thread history, never a live

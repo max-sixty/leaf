@@ -363,17 +363,13 @@ svg[data-lf-icon] {
 .lf-msg-meta > time {
   flex: none;
 }
-/* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
- * for what escaped such a box and why the mark is read from the composed page rather
- * than declared here beside each overflow), so no rule in this file or a package's
- * states a position for its scroller's sake. In this file because the sweep enters
- * every declared tree, and a diff's lines scroll in one. No offsets: relative moves
- * nothing. */
-[data-lf-holds] {
+/* Scroll surfaces contain out-of-flow descendants and opt into keyboard reach and
+ * continuation cues. Their owner declares overflow, including at breakpoints. */
+:where(.scroll) {
   position: relative;
 }
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
- * sweep and not a rule beside each overflow decides who wears them): across it, and down
+ * surface owner opts into the shared primitive): across it, and down
  * a reading region (reachReadingScroller). Scrolling is the honest answer when the room
  * ran short, and on a platform drawing overlay scrollbars it is an answer the user is
  * never given: a flowchart cut 356px of 1026 inside a tab panel read as a finished graph
@@ -396,7 +392,7 @@ svg[data-lf-icon] {
  * so a box cut both ways fades on both. Focus within removes the mask so the scroller's
  * complete ring and controls painted outside its box remain visible, and so does a
  * control focused at the edge: Tab left a playground's radio 3px past its region's end
- * in Firefox, faded to nothing. The user standing there already has the platform's
+ * in Firefox, faded to nothing. The user there already has the platform's
  * scroll affordance.
  *
  * Neither the mask nor its attributes affect layout, so observing the scroller cannot
@@ -602,7 +598,7 @@ svg[data-lf-icon] {
   background: var(--paper);
   border-color: var(--border-2);
 }
-/* Standing on a press, in the band everything else the user stands on is drawn in
+/* Standing on a press, in the band everything else the user is on is drawn in
    (--focus-ring). This was the last place on the product still wearing the browser's own
    ring: a user who backed out of the panel landed on Threads in Chrome's blue, beside
    a decision wearing the page's accent, with nothing saying the two rectangles meant

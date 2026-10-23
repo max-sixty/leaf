@@ -943,7 +943,7 @@ ROUTE_LINE = '["app/routes.py","new",201]'
         "replied",
         "started",
         "left",
-        "standing",
+        "focused",
         "selecting",
         "returned",
     ],
@@ -1060,7 +1060,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         assert box.evaluate("""field => field === window.__returnDiffEditor
           && field.selectionStart === 8 && field.selectionEnd === 8""")
         return
-    elif end == "standing":
+    elif end == "focused":
         # A user writing in the margin's card keeps it as they scroll the line away.
         page.keyboard.press("t")
         card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
@@ -1104,7 +1104,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         expect(box).to_be_focused()
         return
     elif end == "selecting":
-        # A selection of the card's words is standing there too, with focus left on a
+        # A selection of the card's words keeps that current location too, with focus left on a
         # control elsewhere.
         page.keyboard.press("t")
         card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')

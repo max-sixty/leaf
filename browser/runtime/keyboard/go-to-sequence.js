@@ -114,10 +114,10 @@ export function createGoToSequence({
   const pageLinks = () =>
     pageQueryAll("a[href]").filter((link) => closestAcross(link, "main"));
   // The tabs rather than their panels: the visible choice is what wears the hint and
-  // what the user stands on afterwards. `role=tab` is the platform vocabulary, so an
+  // what the user is on afterwards. `role=tab` is the platform vocabulary, so an
   // authored tab pattern and lf-tabs take the same route without naming a widget family.
   const pageTabs = () => pageParts('[role="tab"]');
-  // The summaries rather than the boxes they head: a summary is what the user stands on,
+  // The summaries rather than the boxes they head: a summary is what the user is on,
   // what a chip sits beside, and the only part of a disclosure the platform gives a key to —
   // so a <details> whose author wrote no summary has no visible target here. Every
   // disclosure and not the shut ones, for the reason above: a list counting what is shut
@@ -136,7 +136,7 @@ export function createGoToSequence({
 
   // A link keeps the platform activation that its author wrote. Fragment travel owns
   // arrival for every activation route; the sequence only names an external new tab.
-  // A cancelled click has replaced that trip with one of its own.
+  // A cancelled click has replaced that navigation step with one of its own.
   function followLink(link) {
     let activation = null;
     link.addEventListener("click", (event) => (activation = event), {
@@ -152,7 +152,7 @@ export function createGoToSequence({
     }
   }
 
-  // One-off direct travel is one vocabulary too. The mnemonic completes the trip or closes
+  // One-off direct travel is one vocabulary too. The mnemonic completes the navigation step or closes
   // the named panel already open, and every destination owns the liveness, landing, and
   // close that make its surface useful rather than leaving the dispatcher to know which
   // furniture it enters. Other owners' destinations rank ahead of the fixed doors, so a
@@ -503,7 +503,7 @@ export function createGoToSequence({
         // to the page edges below: k/j place the card inside its panel rather than moving
         // the document to the passage the card is about. It leads while live, after
         // only the door to the open surface, because it is the one offer specific to
-        // where the user stands; list members wear their Go-to hints directly when the
+        // where the user is; list members wear their Go-to hints directly when the
         // sequence starts.
         keys: THREAD_EDGE_KEYS,
         routes: [

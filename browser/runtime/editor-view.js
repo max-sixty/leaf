@@ -144,6 +144,7 @@ export class LeafEditorView extends EditorView {
       ...config,
       state: withNavigation(config.state ?? EditorState.create(config)),
     });
+    this.scrollDOM.classList.add("scroll");
     // Native Tab and shadow-root delegation bypass focus(). A hidden retained
     // editor may have lost its DOM selection while its state kept the caret.
     // Restore that caret in the arrival task, before the next key can edit at the

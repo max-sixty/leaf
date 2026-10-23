@@ -182,7 +182,10 @@
   inline-size: var(--lf-shot-frame-width);
   block-size: var(--lf-shot-frame-height);
 }
+/* Each capture's window keeps the height the fit gave it, and at actual size the reader
+   scrolls the capture inside it, so both frames keep one size. */
 :scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotviewport {
+  --lf-holds-height: 1;
   inline-size: var(--lf-shot-viewport-width);
   block-size: var(--lf-shot-viewport-height);
   overflow: auto;
@@ -229,7 +232,10 @@
   background: var(--add-tint);
   color: var(--ok-ink);
 }
+/* The window onto the capture: a crop to its focus hides the rest of the plane on
+   purpose, so the image's coordinates are its own (`--lf-drawing`). */
 .lf-shotimage {
+  --lf-drawing: 1;
   position: relative;
   overflow: clip;
   inline-size: var(--lf-shot-frame-width);
@@ -256,6 +262,9 @@
 }
 :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="side"]
   .lf-shotcanvas {
+  /* Match the toolbar's source labels even when captures leave spare room. */
+  inline-size: 100%;
+  justify-content: space-between;
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
 :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
@@ -364,7 +373,7 @@
 .lf-shotpixels [data-lf-shot-side="after"] {
   background: var(--accent);
 }
-.lf-shot-footer {
+.lf-shotlegend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -373,14 +382,6 @@
   flex: none;
   color: var(--muted);
   font: var(--t-working-label)/1.4 var(--sans);
-}
-.lf-shotdelta {
-  min-block-size: 1lh;
-}
-.lf-shotlegend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
 }
 .lf-shotlegend[hidden] {
   display: none;
@@ -415,7 +416,7 @@
     overflow: visible;
   }
   .lf-shot-toolbar,
-  .lf-shot-footer,
+  .lf-shotlegend,
   .lf-shotpixels,
   .lf-shotdiff {
     display: none !important;

@@ -1474,7 +1474,7 @@ var queueOffers = (item, ready, onUser) => ({
   open: ready,
   done: ready && onUser && item.kind === "todo"
 });
-var carriesObligation = (item) => item.kind === "widget" || item.kind === "approval";
+var carriesObligation = (item) => item.kind === "widget" || item.kind === "message" || item.kind === "todo" && item.owner === "user";
 var itemNoun = (item) => item.kind !== "update" ? item.kind : item.owner === "user" ? "resend" : item.thread !== null ? "reply" : "answer";
 var OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 var itemOutcome = (item) => item.kind === "update" ? "Sent" : OUTCOMES[item.state] ?? item.state;
@@ -1556,25 +1556,23 @@ var NO_OBLIGATIONS = {
   user: [],
   unanswered: []
 };
-function normalizedObligations(view, widgets, document, projection, local) {
+function normalizedObligations(view, widgets, document, projection, todos) {
+  const todoRecords = new Map(
+    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo])
+  );
   const all = (view?.obligations ?? []).map((item) => {
-    if (item.source.kind === "approval") {
-      const version = item.source.version;
-      const undone = new Set(
-        local.flatMap(({ event }) => event.kind === "undo" ? [event.undoes] : [])
-      );
-      const approving = local.some(
-        ({ event }) => event.kind === "done" && event.version === version
-      );
-      if (approving)
+    if (item.source.kind === "todo") {
+      const todo = todoRecords.get(item.source.id);
+      if (todo.state === "open" && item.status !== "open")
+        return { ...item, answer: null, status: "open", next_actor: "user", end: null };
+      if (todo.state !== "open" && item.status === "open")
         return {
           ...item,
-          answer: { value: true, event: null },
+          answer: { value: todo.state, event: null },
           status: "answered",
-          next_actor: null
+          next_actor: null,
+          end: null
         };
-      if (item.answer?.event && undone.has(item.answer.event.id))
-        return { ...item, answer: null, status: "open", next_actor: "user" };
       return item;
     }
     if (item.source.kind !== "widget") return item;
@@ -1691,7 +1689,7 @@ function localQueues(served, workflows, todos, items, local) {
     return current2;
   };
   const standsOpen = (item) => {
-    if (item.kind === "todo") return open.has(item.id);
+    if (!namesRecord(item)) return open.has(item.id);
     const current2 = obligationOf(item);
     return current2.next_actor === item.owner && !(current2.source.kind === "update" && current2.thread !== null && sentIn.has(current2.thread));
   };
@@ -1780,7 +1778,7 @@ function localUpdates(workflows) {
   return { workflows: named, records };
 }
 var onUserRank = (item) => item.kind === "todo" ? 1 : item.kind === "update" ? 2 : 0;
-var namesRecord = (item) => item.kind !== "todo";
+var namesRecord = (item) => item.kind !== "todo" || item.owner === "user";
 function widgetIndex(root) {
   const projection = root.effective.projection;
   const byWidget = /* @__PURE__ */ new Map();
@@ -1954,8 +1952,8 @@ function createSemanticApplication({
       widgets2,
       projection
     );
-    const servedItems = ready ? normalizedObligations(view, widgets2, document, projection, local) : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
+    const servedItems = ready ? normalizedObligations(view, widgets2, document, projection, todos) : NO_OBLIGATIONS;
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn2, namedParent }) => {
       const drawnIn = drawn2 && named.get(drawn2.id)?.id;
@@ -2089,17 +2087,6 @@ function createSemanticApplication({
       widgets: widgets2,
       thread: {
         all: threads,
-        // Historical system rows are event narration, never current approval state.
-        approvalHistory: [
-          ...state?.browser.approval_history ?? [],
-          ...local.flatMap(
-            ({ event, localId, timestamp }) => event.kind === "done" ? [{ ...event, id: localId, ts: timestamp }] : []
-          )
-        ].filter(
-          (event) => !local.some(
-            ({ event: gesture }) => gesture.kind === "undo" && gesture.undoes === event.id
-          )
-        ),
         collection: {
           phase,
           threads: threads.filter(discussed)

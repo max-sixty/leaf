@@ -4,10 +4,8 @@ from typing import NamedTuple
 
 from ..document_reading import DocumentReading
 from ..events import UndoReading
-from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
-from ..obligations import approval_blocking
 from ..passages import SourceReading
 from ..projection import (
     FrozenThreadReading,
@@ -40,7 +38,7 @@ def _thread_attention(
     thread: dict, records: list[dict], candidates: list[dict], todos: list[dict]
 ) -> dict | None:
     """Whose turn one thread is, read from the open obligation records in it
-    (`records`): `needs_user` while one is the user's, a widget's (`widget`) ahead of an
+    (`records`): `needs_user` while one is the user's, a request (`obligation`) ahead of an
     update handed back to them to send again (`resend`); else `waiting` while one is
     the agent's, or while a to-do the agent opened on it stands; else None, as for
     every resolved thread.
@@ -65,7 +63,7 @@ def _thread_attention(
         record["next_actor"] == "user" and record["source"]["kind"] != "update"
         for record in records
     ):
-        return {"kind": "needs_user", "reason": "widget", "workflow": None}
+        return {"kind": "needs_user", "reason": "obligation", "workflow": None}
     if resend := serving(
         lambda record: (
             record["next_actor"] == "user" and record["source"]["kind"] == "update"
@@ -185,11 +183,10 @@ def browser_state(
         reading = viewed.document
         thread, thread_reading = browser_thread(viewed, work.live_reply)
         # The view's obligations are its own document's beside its frozen thread's, and
-        # the page's updates', served once: a list row and the approval gate name a
+        # the page's updates', served once: a list row names a
         # record by its id.
         items = viewed.all_obligations["all"] + durable.updates["all"]
         _apply_thread_attention(items, workflows, thread["threads"], agent_todos)
-        stamp = stamped_version(events, revision)
         documents[revision] = reading
         projection = reading.projection
         classified = {
@@ -231,13 +228,11 @@ def browser_state(
                 reading,
                 thread_reading.projection,
                 undo_reading=undo_reading,
-                stamp=stamp,
                 words=words,
             ),
             "coverage": coverage,
             "published_at": published_at,
             "queues": queues(workflows, todos, items),
-            "approval_blocking": [item["id"] for item in approval_blocking(items)],
         }
     if wants_history(readings[revision] for revision in view_revisions):
         page_history = {
@@ -255,7 +250,6 @@ def browser_state(
         "basis": {"through_seq": through_seq},
         **page_history,
         "views": views,
-        "approval_history": durable.approvals,
         "todos": todos,
         "plan": durable.plan,
         "receipts": [event for event in events if event.get("attempt")],

@@ -104,7 +104,6 @@ import {
   allThreads,
   anchorLabel,
   answeredInWords,
-  approvalBlockingObligations,
   beginWalk,
   bringBackSurfaceOf,
   copyControl,
@@ -1811,11 +1810,11 @@ var commandReferenceItems = () => {
         title: heading.title,
         order: heading.order
       });
-  for (const presentation2 of commandReferenceView.entryPresentations)
+  for (const presentation of commandReferenceView.entryPresentations)
     visible.push({
       kind: "entry",
-      key: `entry:${presentation2.entry.id}`,
-      ...presentation2
+      key: `entry:${presentation.entry.id}`,
+      ...presentation
     });
   visible.sort((left, right) => left.order - right.order);
   const visibleKeys = new Set(visible.map(({ key }) => key));
@@ -2402,7 +2401,7 @@ function createResponseSurface({
     openComment(anchor, "", { carry: true, point });
     setTimeout(() => {
       targetActivation = false;
-      observeSelection();
+      selectionChanged();
     });
   }
   function focusFabComment() {
@@ -2585,7 +2584,9 @@ function createResponseSurface({
   const finishPointerSelection = (ev) => {
     if (drawModeActive()) return;
     const releasePress = () => setTimeout(() => {
+      if (!actionPress) return;
       actionPress = false;
+      selectionChanged();
     });
     if (offeredSelection && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
@@ -2645,6 +2646,27 @@ function createResponseSurface({
     wireInput,
     drawingEdits: drawingEdits2
   });
+  function selectionChanged() {
+    const automatic = programmaticSelection(getSelection());
+    if (primaryPointerPressed && selectionPressIntent?.()) {
+      rememberPointerSelection();
+      if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
+        rememberSelection();
+      reflectSelection();
+      return;
+    }
+    if (takesLetters(focused())) {
+      offerSelection(null);
+      return;
+    }
+    if (actionPress || targetActivation) return;
+    const selection = pageSelection();
+    if (coarsePointer.matches && selection && !automatic) rememberSelection(selection);
+    observeSelection();
+    if (!selection && fabAnchor.value?.quote && !fabHoldsCapturedPassage() && !composer.composerHolds())
+      putAwayFab();
+    reflectSelection();
+  }
   function mount() {
     composer.mount();
     placement?.mount();
@@ -2694,28 +2716,7 @@ function createResponseSurface({
     });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
-    document.addEventListener("selectionchange", () => {
-      const automatic = programmaticSelection(getSelection());
-      if (primaryPointerPressed && selectionPressIntent?.()) {
-        rememberPointerSelection();
-        if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
-          rememberSelection();
-        reflectSelection();
-        return;
-      }
-      if (takesLetters(focused())) {
-        offerSelection(null);
-        return;
-      }
-      if (actionPress || targetActivation) return;
-      const selection = pageSelection();
-      if (coarsePointer.matches && selection && !automatic)
-        rememberSelection(selection);
-      observeSelection();
-      if (!selection && fabAnchor.value?.quote && !fabHoldsCapturedPassage() && !composer.composerHolds())
-        putAwayFab();
-      reflectSelection();
-    });
+    document.addEventListener("selectionchange", selectionChanged);
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;
       const selectedOnPage = pointerSelecting && selectionPressIntent?.();
@@ -5767,7 +5768,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
 }
 var QUEUE_WORDS = Object.freeze({
   widget: ["to answer", "to answer"],
-  approval: ["approval", "approvals"],
+  message: ["to answer", "to answer"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
@@ -5779,7 +5780,7 @@ function queueKinds(items2) {
     byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    return kind === "todo" ? `${words} (${all.map((row) => row.todo.title).join(" \xB7 ")})` : words;
+    return kind === "todo" ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" \xB7 ")})` : words;
   });
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
@@ -5920,65 +5921,7 @@ function paintStatus(current) {
   saidActionableWork = actionableWork;
   if (changed) announce(model.explanation);
 }
-var REVIEW = "lf-review";
-var SIGN_OFF = "sign-off";
-var isSignoffDeclared = () => (
-  /** @type {HTMLMetaElement | null} */
-  document.querySelector(`meta[name="${REVIEW}"]`)?.content === SIGN_OFF
-);
-var signoff = false;
-var approving = false;
-var approveVersion = null;
-var presentation = null;
-var AWAITING_STATE = "Approval waits until this page has read its current state";
-function registerApprovalPresentation(next) {
-  presentation = next;
-}
-var presentedApproval = () => presentation;
-var paintApproval = () => presentation?.repaint();
-var approvalTarget = () => signoff ? presentation?.target() ?? null : null;
-var versionApproved = readPart(
-  (root) => root.effective.obligations.all.some(
-    (item) => item.source.kind === "approval" && item.status === "answered"
-  )
-);
-var approvalReading = () => {
-  if (!signoff) return null;
-  const approved = versionApproved();
-  const blockingObligations = approvalBlockingObligations();
-  const reason = approved ? "Approved. Press z to undo while approval is still the latest update" : runtime.currentStamp === null ? "There is no stamped version to approve yet" : !pagePresented() || blockingObligations === null ? AWAITING_STATE : blockingObligations.length ? "Answer every open widget before approving this work" : null;
-  return {
-    text: approved ? "\u2713 Version approved" : "Approve version",
-    // A press already in flight is refused silently: its busy state says so.
-    reason: reason ?? (approving ? "Approving this version" : null),
-    approved
-  };
-};
-async function approve() {
-  if (approving || !approveVersion) return;
-  const reason = approvalReading()?.reason;
-  if (reason) {
-    raiseError(reason);
-    return;
-  }
-  approving = true;
-  const busyPaint = nextRender(paintApproval);
-  try {
-    await approveVersion();
-  } finally {
-    approving = false;
-    cancelRender(busyPaint);
-    paintApproval();
-  }
-}
-function stateSignoff(next) {
-  if (next === signoff) return;
-  signoff = next;
-  presentation?.repaint();
-}
-function mountPageStatus({ approveVersion: post }) {
-  approveVersion = post;
-  signoff = isSignoffDeclared();
+function mountPageStatus() {
   chromeRoot.append(toneProbe);
   x(() => {
     const current = currentStatus();
@@ -6044,16 +5987,20 @@ var WITHIN = "waiting on me here";
 var NOUNS = Object.freeze({
   thread: "Thread",
   widget: "Update",
-  page: "To-do",
-  approval: "Approval"
+  page: "To-do"
 });
-var nounOf = (item, stop) => carriesObligation(item) && stop.kind !== "approval" ? obligationWord(item.obligation) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
-var stopOf = (item) => item.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation)) ? {
+var nounOf = (item, stop) => carriesObligation(item) ? obligationWord(item.obligation) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+var stopOf = (item) => item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation)) ? {
   kind: "obligation",
   id: item.id,
   thread: item.thread,
   obligation: item.obligation
-} : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
+} : item.thread !== null ? {
+  kind: "thread",
+  id: item.thread,
+  thread: item.thread,
+  message: answeredInWords(item.obligation) ? item.obligation.message : null
+} : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
 var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 function queueStop(item) {
   const stop = stopOf(item);
@@ -6071,7 +6018,7 @@ function createQueueWalk({
   announce: announce2,
   actions
 }) {
-  const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
+  const stopElement = (stop) => stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
   const pagePlace = (stop) => {
     const at = stopElement(stop);
     return at?.isConnected && !inChrome(at) ? at : null;
@@ -6094,8 +6041,6 @@ function createQueueWalk({
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
   function standingStop(list, origin = standingOrigin()) {
-    if (focused(document) === approvalTarget())
-      return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
     const thread = drawnThreadId(held);
     if (thread) {
@@ -6150,9 +6095,7 @@ function createQueueWalk({
       const record = readObligations().all.find((item) => item.id === stop.id);
       return record ? arriveAtRecord(record) : Promise.resolve(false);
     }
-    if (stop.kind === "thread") return arriveAtThread2(stop.id);
-    if (stop.kind === "approval" && presentedApproval())
-      return presentedApproval().arrive();
+    if (stop.kind === "thread") return arriveAtThread2(stop.id, stop.message);
     return arriveAtElement(() => stopElement(stop));
   }
   function position(region) {
@@ -6249,7 +6192,7 @@ function createQueueWalk({
   const arriveAtItem = (item) => arriveAt(stopOf(item));
   const arrivesAt = (item) => {
     const stop = stopOf(item);
-    return Boolean(pagePlace(stop)) || stop.kind === "obligation" && stop.thread !== null;
+    return Boolean(pagePlace(stop)) || Boolean(stop.message) || stop.kind === "obligation" && stop.thread !== null;
   };
   let wentTo = null;
   onStanding((node, cause) => {
@@ -7111,7 +7054,7 @@ function createFloatingPanel({
       close();
       return;
     }
-    if (route.view === "thread" && presentation2 && !presentation2.primary) {
+    if (route.view === "thread" && presentation && !presentation.primary) {
       openInPackage(route.thread, { focus });
       return;
     }
@@ -7819,8 +7762,6 @@ function createFloatingPanel({
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
-    const approval = approvalReading();
-    const approved = approval?.approved;
     return html`
       ${latest.failed ? html`<div class="lf-fp-failed" role="none">
               <b>${latest.label}</b>
@@ -7850,19 +7791,6 @@ function createFloatingPanel({
           </div>`
     )}
       ${versions.length ? nothing : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`}
-      ${approval ? html`<hr />
-              <div
-                class="lf-fp-approval"
-                role="none"
-                title=${approval.reason ?? nothing}
-              >
-                ${menuItem(
-      approval.text,
-      approval.reason ? html`<span class="lf-fp-value">${approval.reason}</span>` : nothing,
-      () => approve(),
-      { disabled: Boolean(approval.reason) && !approved }
-    )}
-              </div>` : nothing}
     `;
   }
   function errorsList() {
@@ -7972,7 +7900,7 @@ function createFloatingPanel({
             </p>`}
     </div>`;
   }
-  let presentation2 = null;
+  let presentation = null;
   const newsOutlet = () => controls.querySelector(".lf-fp-news-outlet");
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   const LIST_ROWS = Object.freeze({
@@ -8014,8 +7942,8 @@ function createFloatingPanel({
       parts.reply(thread.key, replyOutlet, replyOptionsFor(thread.key));
   }
   function present({ release: release2 = false } = {}) {
-    if (!presentation2) return Promise.resolve();
-    return presentation2.update({ release: release2 }).then(() => {
+    if (!presentation) return Promise.resolve();
+    return presentation.update({ release: release2 }).then(() => {
       if (holdRoom()) paint();
       landReader();
     }).catch(() => {
@@ -8232,7 +8160,7 @@ function createFloatingPanel({
     const thread = item.thread ? threadByKey(item.thread) : null;
     const inWords = record !== null && answeredInWords(record);
     const asking = inWords && thread ? thread.msgs.find((candidate) => candidate.id === record.message) : null;
-    const message = asking && presentation2?.primary !== false ? asking : null;
+    const message = asking && presentation?.primary !== false ? asking : null;
     const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
     const said = message ? "" : asking ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
@@ -8276,18 +8204,7 @@ function createFloatingPanel({
               >
                 Undo
               </button>` : nothing}`;
-    else if (record?.source.kind === "approval") {
-      const approval2 = approvalReading();
-      answers = html`<button
-        type="button"
-        class="lf-fp-answer"
-        aria-disabled=${approval2?.reason ? "true" : nothing}
-        title=${approval2?.reason ?? nothing}
-        @click=${() => approve()}
-      >
-        ${approval2?.text ?? "Approve version"}
-      </button>`;
-    } else if (choices?.length)
+    else if (choices?.length)
       answers = html`${choices.map(
         (choice) => html`<button
             type="button"
@@ -8319,7 +8236,6 @@ function createFloatingPanel({
       </button>`;
     else answers = discuss;
     const key = queueItemKey(item);
-    const approval = record?.source.kind === "approval";
     const stop = queueStop(item);
     const about = queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
     return html`<section
@@ -8327,7 +8243,6 @@ function createFloatingPanel({
       data-list=${list}
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
-      ?data-approval=${approval}
       ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
@@ -8354,20 +8269,6 @@ function createFloatingPanel({
     },
     { beside: true }
   );
-  const approvalControl = () => {
-    const card2 = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
-    return card2?.querySelector("button") ?? card2;
-  };
-  function arriveAtApproval() {
-    chooseQueueTab("you");
-    open({ view: "queue" }, { reopen: true, focus: false });
-    paint();
-    const target = approvalControl();
-    if (!target) return Promise.resolve(false);
-    scrollIntoView(target, { block: "nearest" });
-    focusDestination(target, "move");
-    return Promise.resolve(true);
-  }
   function onView() {
     if (queueTab === "plan") {
       const cards = planCards();
@@ -8800,10 +8701,10 @@ function createFloatingPanel({
     keeps(fieldMode, "title", search ? searchLabel : selection ? reading.words : null);
     keepsHidden(fieldMode, !search && !selection);
     paintPeek();
-    const standing = search ? null : rowNotice();
+    const standing = search ? null : olderVersion();
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
-    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : rows().find((entry) => entry.exit) ?? (top ? { label: "Close", press: close, disabled: false } : null);
+    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : top ? { label: "Close", press: close, disabled: false } : rows().find((entry) => entry.exit) ?? null;
     render(
       exit ? html`<button
             type="button"
@@ -8871,18 +8772,6 @@ function createFloatingPanel({
       }
     };
   }
-  function approvedVersion() {
-    if (!approvalReading()?.approved) return null;
-    return { says: `\u2713 ${versionsReading().picker.token} approved`, tone: "ok" };
-  }
-  const ROW_NOTICES = [olderVersion, approvedVersion];
-  const rowNotice = () => {
-    for (const read of ROW_NOTICES) {
-      const notice2 = read();
-      if (notice2) return notice2;
-    }
-    return null;
-  };
   function rowNoticeTemplate({ says: says2, tone: tone2, press = null }) {
     const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone2}
       >${says2}${press ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
@@ -9197,7 +9086,7 @@ function createFloatingPanel({
     host.draw = paintPanel;
     parent.append(ground, host);
     follow.observe(card);
-    presentation2 = registerChromeThreadPresentation(host, {
+    presentation = registerChromeThreadPresentation(host, {
       render: nominate,
       // The view makes room for the agent's answer to the user's last turn itself
       // (`fitAnswer`), so the reader hands it over at once.
@@ -9238,11 +9127,6 @@ function createFloatingPanel({
       }
     });
     document.addEventListener(UPGRADE, () => paint(), { once: true });
-    registerApprovalPresentation({
-      target: approvalControl,
-      arrive: arriveAtApproval,
-      repaint: () => paint()
-    });
     x(() => {
       const { visible } = noticeReading();
       d(() => visible ? paint() : afterScript(paint));
@@ -11598,7 +11482,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     repeat: true,
     run: (binding) => move2(binding === "j" ? 60 : -60, "pixel")
   });
-  const arriveAtThreadById = (id) => arriveAtThread(id, threadDestinations, retainUserIntent());
+  const arriveAtThreadById = (id, message = null) => message ? threadDestinations.openPageThread(message, { part: "message", intent: retainUserIntent() }).then(Boolean) : arriveAtThread(id, threadDestinations, retainUserIntent());
   return {
     alignTop,
     arriveAtThread: arriveAtThreadById,
@@ -11817,9 +11701,7 @@ app = mountApplication({
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
     acceptData,
-    notifyDataSubscribers,
-    isSignoffDeclared,
-    stateSignoff
+    notifyDataSubscribers
   }
 });
 if (offlineInteractive) applicationState.setHostAvailable(false);
@@ -12069,9 +11951,7 @@ if (!offlineInteractive) {
   );
   document.body.append(chromeRoot);
   version.mount();
-  mountPageStatus({
-    approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp })
-  });
+  mountPageStatus();
   floatingPanel.mount(chromeForeground);
   responseSurface.mount();
   holdToRead();
@@ -12159,7 +12039,6 @@ async function presentPage() {
     return;
   }
   paintKeys();
-  paintApproval();
   repaint();
   app.overlay?.flushLayout();
   landFragment();

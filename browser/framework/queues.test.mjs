@@ -45,14 +45,14 @@ test("the browser publishes the queues the server selected", () => {
   assert.deepEqual(onUser.map(listed), served.on_user);
   // The server names an obligation's record by id, and this tab joins the row to it.
   for (const row of [...onUser, ...onAgent, ...done].filter(
-    ({ kind }) => kind !== "todo",
+    ({ kind, owner }) => kind !== "todo" || owner === "user",
   ))
     assert.deepEqual(
       row.obligation,
       obligations.find(({ id }) => id === row.id),
     );
-  // A to-do row names its to-do by id the same way.
-  for (const row of [...onUser, ...onAgent].filter(({ kind }) => kind === "todo"))
+  // Agent work keeps its to-do record; user work is an obligation.
+  for (const row of onAgent.filter(({ kind }) => kind === "todo"))
     assert.deepEqual(
       row.todo,
       todos.find(({ id }) => id === row.id),
@@ -179,10 +179,18 @@ test("a Done this tab sends ends its to-do at once, and its undo puts it back", 
     "now",
   );
   assert.ok(!published(app).on_user.some((item) => item.id === todo.id));
+  assert.equal(
+    app.read().effective.obligations.all.find((item) => item.id === todo.id).status,
+    "answered",
+  );
   assert.deepEqual(ended(), [[todo.id, "done"]]);
   // A refused Done puts the to-do back as the log has it.
   app.refuse("d");
   assert.ok(published(app).on_user.some((item) => item.id === todo.id));
+  assert.equal(
+    app.read().effective.obligations.all.find((item) => item.id === todo.id).next_actor,
+    "user",
+  );
   assert.deepEqual(ended(), []);
 
   const later = adopted("user done").app;

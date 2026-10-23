@@ -478,11 +478,7 @@ def test_invalid_visual_part_ids_report_the_package_error(browser, serve):
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
     """Malformed state leaves authored content readable but interaction unresolved."""
-    url = serve(
-        SHORT_SUGGESTION.replace(
-            "</title>", '</title><meta name="lf-review" content="sign-off">', 1
-        )
-    )
+    url = serve(SHORT_SUGGESTION)
     append_command(
         serve.page_dir,
         {
@@ -513,7 +509,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
         expect(page.locator("#sug lf-old")).to_be_visible()
-        # Versions, where the approval stands, is out of reach until state applies.
+        # Versions is out of reach until state applies.
         expect(
             panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
         ).to_be_disabled()

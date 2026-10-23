@@ -493,7 +493,8 @@ summary {
 .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
-  background: var(--focus-surface);
+  --lf-ground: var(--focus-surface);
+  background: var(--lf-ground);
 }
 /* The thread itself holding focus wears the ring, inset over the quiet
    ground its containing state paints; chrome.css says the same of the panel's card.

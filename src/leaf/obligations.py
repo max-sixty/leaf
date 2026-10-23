@@ -1,4 +1,4 @@
-"""Canonical obligations from widgets, stamped page sign-off and the user's updates.
+"""Canonical obligations from messages, user tasks, widgets and updates.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
@@ -8,7 +8,8 @@ input using its data contract's record list and key. Each record owns the stable
 widget-and-unit identity and reads its own action coordinate; replacing that input
 changes membership without changing the answers of retained records.
 The inventory is complete even when a work queue hides a resolved thread or an
-older prompt. To-dos never stand in for these records.
+older prompt. A user-owned to-do publishes an obligation with explicit completion;
+agent-owned to-dos stay work records.
 
 An update the user handed over publishes a record of its own (`update_obligation`),
 built by the fold that decides which updates are handed over and settled
@@ -21,9 +22,10 @@ A widget whose `x-awaits` declares `reply`, such as `lf-ask` holding no widget o
 own, is a question the user answers in words: their next message in the thread
 whose message holds it, a reaction there whose token settles it, or on the page a
 message in a thread anchored inside it. It has no x-state, so its answer is that
-message's text or token. The user chose a question widget over a reply flag
-(`--ask`, which Leaf had), so that only widgets, sign-off and handed-back updates put
-obligations on the user's list, beside the to-dos the agent gives them.
+message's text or token. An agent message carrying `obligation` creates the same
+reply-answered request directly, without a widget. The message owns identity and
+prompt; its thread only locates it. A user to-do instead ends explicitly, so
+discussing the task never claims the work is complete.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; `answered_elsewhere`, a reply-answered
@@ -40,14 +42,12 @@ from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import quote
 
 from leaf.events import (
-    approvals_in_force,
     awaits_agent,
     is_reaction,
     retractions,
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.files import stamped_version
 from leaf.gesture_words import element_name, element_text
 from leaf.page_memory import Slot
 from leaf.projection import (
@@ -62,7 +62,6 @@ from leaf.projection import (
     state_projection,
 )
 from leaf.registry.kernel import verb_writers
-from leaf.structure import review_mode
 from leaf.thread_context import widget_messages
 
 if TYPE_CHECKING:
@@ -177,62 +176,12 @@ def event_reference(event: dict | None) -> dict | None:
     }
 
 
-def approval_blocking(records: list[dict]) -> list[dict]:
-    """The obligations that keep a version from being approved: each open widget
-    obligation someone still owes, on the page or in a widget an agent sent. The append
-    door refuses a sign-off while one stands, and the browser view serves their ids
-    so the approve control says the same."""
-    return [
-        record
-        for record in records
-        if record["source"]["kind"] == "widget"
-        and record["status"] == "open"
-        and record["next_actor"] is not None
-    ]
-
-
 def collection(records: list[dict]) -> dict:
     """Select obligations from an inventory without deciding membership again."""
     return {
         "all": records,
         "user": [record for record in records if record["next_actor"] == "user"],
         "unanswered": [record for record in records if record["status"] == "open"],
-    }
-
-
-def approval_obligation(document, revision: int, events: list) -> dict | None:
-    """Sign-off for an exact public stamp as one canonical obligation.
-
-    Draft revisions owe none. Only a done event in force for this public version
-    supplies the typed answer; an undo makes the same obligation open again.
-    Approval admission counts widget obligations alone, so this record cannot
-    block its own answer. It asks about the version as a whole, so its prompt names
-    no element of the page to go to: the chrome presents the approval and brings the
-    user to it (page-status.js, `registerApprovalPresentation`).
-    """
-    version = stamped_version(events, revision)
-    if version is None or review_mode(document) != "sign-off":
-        return None
-    approved = next(
-        (
-            event
-            for event in reversed(approvals_in_force(events))
-            if event["version"] == version
-        ),
-        None,
-    )
-    return {
-        "id": f"approval:v{version}",
-        "source": {"kind": "approval", "version": version},
-        "thread": None,
-        "message": None,
-        "prompt": {"text": f"Approve v{version}?", "target": None},
-        "answer": {"value": True, "event": event_reference(approved)}
-        if approved
-        else None,
-        "status": "answered" if approved else "open",
-        "end": None,
-        "next_actor": None if approved else "user",
     }
 
 
@@ -1073,7 +1022,7 @@ def thread_obligation_readings(
     reading: FrozenThreadReading,
     data: dict | None = None,
 ) -> dict:
-    """Frozen widget obligations retain inventory when their containing thread closes,
+    """Message and frozen widget obligations retain inventory when their thread closes,
     with no next actor. While the thread is open, a user turn after the message
     that asks hands the obligation to the agent until the agent answers that turn, and
     until the work a reply after it promised ends, as a thread anchored on a page
@@ -1093,13 +1042,30 @@ def thread_obligation_readings(
     )
     records = reducer.inventory(set())
     message_by_widget = widget_messages(reading.structure)
-    tokens = registry.get("$reactions", {}).get("tokens", {})
     for record in records:
         source = record["source"]["id"]
         record["thread"] = reading.thread_by_widget[source]
         record["message"] = message_by_widget[source]
+    records.extend(
+        {
+            "id": f"message:{message['id']}",
+            "source": {"kind": "message", "id": message["id"]},
+            "thread": identity,
+            "message": message["id"],
+            "prompt": {"text": message["text"], "target": None},
+            "answer": None,
+            "status": "open",
+            "end": None,
+            "next_actor": "user",
+        }
+        for identity, thread in threads.items()
+        for message in thread["msgs"]
+        if message.get("obligation")
+    )
+    tokens = registry.get("$reactions", {}).get("tokens", {})
+    for record in records:
         thread = threads[record["thread"]]
-        in_words = replied(registry[record["source"]["tag"]])
+        in_words = answered_in_words(record, registry)
         asked = next(
             message["seq"]
             for message in thread["msgs"]
@@ -1138,3 +1104,58 @@ def thread_obligation_readings(
         ):
             record["next_actor"] = "agent"
     return collection(records)
+
+
+def answered_in_words(record: dict, registry: dict) -> bool:
+    """Whether a conversational answer, or agent ending, can settle this source."""
+    source = record["source"]
+    return source["kind"] == "message" or (
+        source["kind"] == "widget" and replied(registry[source["tag"]])
+    )
+
+
+def user_task_obligations(
+    log: "TodoReading", reading: FrozenThreadReading
+) -> list[dict]:
+    """User tasks in the canonical inventory, retaining their explicit completion.
+
+    The to-do fold alone decides their outcome. Discussion, thread resolution and
+    page edits never complete the action the user was asked to perform.
+    """
+    events = {event["id"]: event for event in log.events}
+    records = []
+    for todo in log.todos:
+        if todo["owner"] != "user":
+            continue
+        subject, outcome = todo["subject"], todo["outcome"]
+        ended = todo["state"] != "open"
+        records.append(
+            {
+                "id": todo["id"],
+                "source": {"kind": "todo", "id": todo["id"], "subject": subject},
+                "thread": reading.subject_thread(subject),
+                "message": None,
+                "prompt": {
+                    "text": todo["title"],
+                    "target": subject["id"]
+                    if subject["kind"] in {"widget", "element"}
+                    else None,
+                },
+                "answer": {
+                    "value": todo["state"],
+                    "event": event_reference(events[outcome["id"]]),
+                }
+                if ended and todo["state"] != "dropped"
+                else None,
+                "status": "withdrawn"
+                if todo["state"] == "dropped"
+                else "answered"
+                if ended
+                else "open",
+                "end": {"detail": outcome["detail"], "event": event_reference(outcome)}
+                if ended
+                else None,
+                "next_actor": None if ended else "user",
+            }
+        )
+    return records

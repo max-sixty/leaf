@@ -19,7 +19,6 @@ an id is unique within its page and is not a global identifier. The kinds:
 | <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                                                            | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                                                                                                                                                                                                               | folds one contiguous range with optional Markdown in the thread; originals stay in the log and remain revealable                                                                                                                                                                                                           |
 | <a id="kind-resolve"></a>`resolve`           | user or agent   | `POST /api/event`, `leaf thread resolve`                                                                           | `parent`                                                                                                                                                                                                                                                                                                                                                            | closes a thread                                                                                                                                                                                                                                                                                                            |
 | <a id="kind-unresolve"></a>`unresolve`       | user            | `POST /api/event`                                                                                                  | `parent`                                                                                                                                                                                                                                                                                                                                                            | the user reopens a resolved thread                                                                                                                                                                                                                                                                                         |
-| <a id="kind-done"></a>`done`                 | user            | Approve in the floating panel, only on a page declaring `<meta name="lf-review" content="sign-off">`               | `version`, the stamp approved                                                                                                                                                                                                                                                                                                                                       | approval of the declared sign-off; a page that asks nothing gets no terminal control                                                                                                                                                                                                                                       |
 | <a id="kind-action"></a>`action`             | user            | `POST /api/event` from a widget                                                                                    | `widget`, `action`, `detail`; server-stamped `meaning`                                                                                                                                                                                                                                                                                                              | the user edited the document through the widget                                                                                                                                                                                                                                                                            |
 | <a id="kind-report"></a>`report`             | agent or worker | `leaf page report`                                                                                                 | `widget`, `action`, `detail`; server-stamped `meaning` (as for `action`, validated by an `x-state` verb declaring `writer: "agent"`)                                                                                                                                                                                                                                | provisional state that stands until a stamped revision answers it                                                                                                                                                                                                                                                          |
 | <a id="kind-pickup"></a>`pickup`             | page            | the delivery transport; a harness failure receipt                                                                  | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` (when `failed`); `refs`, the `answer.ref` the receipt's delivery gave each input it owes an answer, with the claim that delivery was captured under (when it carried any)                                                                                                         | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a `start`                                                                 |
@@ -31,7 +30,7 @@ an id is unique within its page and is not a global identifier. The kinds:
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`; addressed progress carries the same declaration in its reply                                    | `item`, an update the agent owes (its event id) or an open to-do; the status's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page                                                                                                                                                                                                      | takes the item in hand: an update reads Working and a to-do runs, until the update is answered, the to-do ends, or a `status` follows; the newest start on an item replaces the one before                                                                                                                                 |
 | <a id="kind-status"></a>`status`             | agent           | `leaf status waiting` and `leaf status idle`; the website harness as it ends a turn, or starts one on an idle page | `state` (`waiting` or `idle`), `detail`                                                                                                                                                                                                                                                                                                                             | declares the page waiting on its user or done with it, until the next `status` (`activity.declaration`); ends every start before it: the updates they named go back to their delivery stage and the to-dos stay open with nothing running (`todos.item_starts`); a start after an `idle` reopens the page as `waiting`     |
 | <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                                                   | `steps`, an outline in order: each `{depth, title, state}` (`open`, `working`, `done` or `dropped`) or `{depth, item}` naming a to-do or obligation id                                                                                                                                                                                                              | replaces the agent's plan; the newest stands and empty `steps` clears it. It arranges to-dos and obligations without owning them, so leaving one out ends nothing (`plans.py`)                                                                                                                                             |
-| <a id="kind-undo"></a>`undo`                 | user            | `POST /api/event`                                                                                                  | `undoes`                                                                                                                                                                                                                                                                                                                                                            | withdraws one gesture of the user's own (the kinds `$events.kinds` marks `undoable`: resolve, unresolve, action, done, todo_end)                                                                                                                                                                                           |
+| <a id="kind-undo"></a>`undo`                 | user            | `POST /api/event`                                                                                                  | `undoes`                                                                                                                                                                                                                                                                                                                                                            | withdraws one gesture of the user's own (the kinds `$events.kinds` marks `undoable`: resolve, unresolve, action, todo_end)                                                                                                                                                                                                 |
 
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
 where neighbouring text tells two identical passages apart; a selection on
@@ -95,7 +94,7 @@ parent publication coordinate along with the log sequence.
 
 ## Undo
 
-The user may withdraw a resolve, unresolve, action, approval, or Done on a to-do. A
+The user may withdraw a resolve, unresolve, action, or Done on a to-do. A
 reaction may also be withdrawn while unanswered and on an unresolved thread. Spoken
 messages cannot be withdrawn. An undo cannot itself be undone.
 
@@ -150,8 +149,8 @@ browser receives carries that name as `agent`, and the browser shows it as serve
 Admission stamps `attention`: whether the input changes obligations on the user or
 to-dos the agent put on them (so their Done is heard),
 pending answers, the work it has in hand (a started update,
-or an open to-do on a thread or widget) and its inputs in force, or sign-off
-approval. `workflows.obligation_reading` compares those canonical readings before
+or an open to-do on a thread or widget) and its inputs in force.
+`workflows.obligation_reading` compares those canonical readings before
 and after the gesture under the active revision's vocabulary. The decision survives
 later replies, versions and to-do endings: a cancellation already delivered to the
 agent stays input even after the work it withdrew ends.
@@ -292,12 +291,15 @@ across tabs and document revisions; they never answer a question, settle a workf
 or enter agent delivery. The one-user page assumption is the page's current
 lifecycle, not a per-account scope.
 
-An agent comment opens a thread, and a substantive reply opens or resumes one; either
-waits on the user only through a widget in its markup that asks, such as an `lf-ask`.
-An answering command declares what it leaves: `--done`, nothing further; `--todo
-<title>`, when it promises work it does not deliver, records `todo: <title>`, which
+An agent comment opens a thread, and a substantive reply opens or resumes one. Either
+can declare `obligation: true` (`--obligation`) to put its message on the user's On me
+list. Its id is `message:<event-id>` and its text is the prompt. A widget in the
+message can independently declare an obligation through `x-awaits`.
+An answering command declares what it leaves: `--done`, nothing further;
+`--todo <title>`, when it promises work it does not deliver, records `todo: <title>`, which
 opens that to-do on the thread under the reply's id (`todos.todo_reading`); or a
-question in its markup. The browser cannot write `todo`. A user reply
+message obligation or a question in its markup. The browser cannot write `todo` or
+`obligation`. A user reply
 always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`, including a
 completed delivery answer whose update was settled during the turn. A proactive
@@ -305,7 +307,7 @@ message (`leaf thread reply <page> <message-id>`) carries no `responds`. Settlem
 consumes this exact identity rather than log order, so answering older work cannot
 erase newer user input. A substantive reply reopens a resolved thread;
 reactions and harness failure receipts leave its closure in force. A later resolution
-closes the thread again. Reopening restores its still-unanswered widget obligations,
+closes the thread again. Reopening restores its still-unanswered widget and message obligations,
 as an explicit reopen does.
 A harness that gives up on an update writes the failure the update's answer takes
 (`thread.fail_answer`): a reply for a message, including one in a thread
@@ -333,7 +335,7 @@ their On me list while the comment's own obligation, the reply it is owed, stand
 agent's. A reply that promises work (`todo`) settles the comment but leaves the obligation
 the agent's until its to-do ends, resolved thread or not, so a decision the user put off
 until other work lands stays off On me until the agent ends that to-do. A question asked
-in words (`x-awaits.reply`) is the exception: the user's message after it answers it,
+in words (`obligation: true` or `x-awaits.reply`) is the exception: the user's message after it answers it,
 every one before that message at once, and
 a reaction whose token declares `settles` answers only the question in the message it
 reacts to. Neither answer resolves the thread. Later agent messages leave a question
@@ -341,13 +343,13 @@ open. An agent `todo_end` naming an open question retires it, `done` as answered
 elsewhere and `dropped` as withdrawn; neither outcome is a user answer
 (`obligations.settle_by_words`).
 
-`work_reading.WorkReading.all_obligations` combines page widgets, frozen widgets and
-sign-off into one canonical inventory. Every record carries stable `id`, `source`,
+`work_reading.WorkReading.all_obligations` combines page widgets, frozen widgets, message requests,
+user-owned tasks into one canonical inventory. Every record carries stable `id`, `source`,
 `thread`, `message`, `prompt`, `answer`, `status`, `end` and `next_actor`;
-`obligations` owns the statuses, and `end` holds the agent `todo_end` that retired a
-question asked in words, its detail and event reference, or `null`. A frozen widget's
+`obligations` owns the statuses, and `end` holds the `todo_end` that retired a
+question asked in words or completed a user task, its detail and event reference, or `null`. A frozen widget's
 `message` names the exact message whose markup owns it, independently of the thread's
-root. Page widgets and approval have no owning message and carry `null`. Widget
+root. Page widgets have no owning message and carry `null`. Widget
 identities are `widget:<source-id>`. An enclosing widget
 (`x-awaits.encloses`) changes the words and arrival target without replacing source
 identity. Answers
@@ -363,8 +365,8 @@ the agent while it owes the update a reply or a version, the user once a harness
 it back, and nobody once a reply answered it, which `answer.event` names. Of turns the
 user sent in a row, only the newest publishes one, which every workflow among them
 names (`obligation`). The served inventory, `page state`'s `obligations` and the On
-lists read these records with the widgets' and sign-off's, which they depend on and
-so are folded after.
+lists read these records alongside widget obligations, which are folded first
+because the updates depend on them.
 
 The `all`, `user` and `unanswered` collections select this inventory. Answered,
 withdrawn and resolved-thread obligations stay in `all`; open records stay

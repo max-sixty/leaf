@@ -190,7 +190,8 @@ summary {
 .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
-  background: var(--focus-surface);
+  --lf-ground: var(--focus-surface);
+  background: var(--lf-ground);
 }
 .lf-page-thread[data-lf-focus-visible] {
   outline: none;
@@ -1301,7 +1302,7 @@ svg[data-lf-icon] {
   border: 0;
   border-radius: 50%;
   font: inherit;
-  background: var(--lf-ground, var(--paper));
+  background: var(--lf-ground);
   color: color-mix(in srgb, var(--ink) 72%, transparent);
   box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
   cursor: pointer;

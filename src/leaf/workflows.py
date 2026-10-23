@@ -47,7 +47,7 @@ none.
 
 Whether an update needs delivering is decided apart from its workflow. Admission
 records whether the update changes the user's outstanding obligations, owed answers, work
-in hand or approvals (`obligation_reading`), and delivery keeps that decision after
+in hand (`obligation_reading`), and delivery keeps that decision after
 the workflow settles.
 
 An action on a widget whose obligation the user is still answering, such as a pick before
@@ -96,7 +96,6 @@ def obligation_reading(readings) -> dict:
     page = work.page
     thread = work.thread
     workflows = work.workflows
-    thread_obligations = work.widget_obligations
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
@@ -114,26 +113,11 @@ def obligation_reading(readings) -> dict:
         if source["author"] == "user"
     ]
     return {
-        "on_user": {
-            "page": [
-                item["id"]
-                for item in work.document.items["unanswered"]
-                if item["next_actor"] is not None
-            ]
-            if page is not None
-            else [],
-            "thread": [
-                item["id"]
-                for item in thread_obligations["unanswered"]
-                if item["next_actor"] is not None
-            ],
-            # The to-dos the agent put on the user, which their Done ends.
-            "todos": [
-                todo["id"]
-                for todo in work.log.todos
-                if todo["owner"] == "user" and todo["state"] == "open"
-            ],
-        },
+        "on_user": [
+            item["id"]
+            for item in work.all_obligations["unanswered"]
+            if item["next_actor"] is not None
+        ],
         # The updates the agent owes an answer, by their records.
         "answers": [
             record["id"]
@@ -156,7 +140,6 @@ def obligation_reading(readings) -> dict:
             }
             for identity, subject in in_hand
         ],
-        "approvals": [event["id"] for event in work.approvals],
     }
 
 

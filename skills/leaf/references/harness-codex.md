@@ -57,7 +57,7 @@ Follow every event's `handling`. For a thread reply, use its supplied `answer.wr
   your final message posts as the reply and folds the opening behind it. A turn
   with no final message posts no reply.
 
-For a `"turn"` reply that needs widgets, a question for the user (an `lf-ask`), work
+For a `"turn"` reply that needs widgets, a request for the user (`--obligation`), work
 promised beyond this turn (`--todo`), a title or a changed anchor, use
 `leaf response reply <answer.ref>` with the options in `threads.md`. The command
 checks the reply and posts it at once, and your final message then posts nothing.

@@ -65,13 +65,8 @@
 }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before,
 :scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary::before {
-  content: "▶" / "";
   flex: none;
-  font-size: calc(0.7 * var(--t-5));
-}
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before,
-:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads[open] > .lf-resolved-summary::before {
-  content: "▼" / "";
+  font-size: var(--t-5);
 }
 .lf-diff-path {
   white-space: pre-wrap;

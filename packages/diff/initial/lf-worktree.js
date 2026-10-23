@@ -12,7 +12,7 @@ document.documentElement.lfInitial.register("lf-worktree", (host) => {
   details.classList.add("lf-worktree-disclosure");
   // Like lf-diff's file summary, this native disclosure names evidence. It is
   // content, not an apparatus-only offer: it must remain visible on paper.
-  const summary = node("summary", "lf-worktree-summary");
+  const summary = node("summary", "lf-worktree-summary lf-disclosure-marker");
   summary.dataset.lfGen = "1";
   summary.dataset.lfSaid = "";
   const identity = node("span", "lf-worktree-identity");

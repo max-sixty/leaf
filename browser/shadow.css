@@ -1039,21 +1039,6 @@ svg[data-lf-icon] {
   inline-size: 16px;
   block-size: 16px;
 }
-.lf-disclosure-icon {
-  flex: none;
-  align-self: center;
-  rotate: -90deg;
-  transition: rotate var(--lf-motion-disclosure) ease-out;
-}
-[aria-expanded=true] > .lf-disclosure-icon {
-  rotate: 0deg;
-}
-.lf-disclosure-icon:dir(rtl) {
-  rotate: 90deg;
-}
-[aria-expanded=true] > .lf-disclosure-icon:dir(rtl) {
-  rotate: 0deg;
-}
 .lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
 .lf-msg-control[data-lf-focus] {
   opacity: 1;
@@ -1182,6 +1167,22 @@ svg[data-lf-icon] {
   details > summary::-webkit-details-marker {
     display: none;
   }
+  .lf-disclosure-marker::before {
+    visibility: hidden;
+  }
+}
+.lf-disclosure-marker {
+  list-style: none;
+}
+.lf-disclosure-marker::-webkit-details-marker {
+  display: none;
+}
+.lf-disclosure-marker::before {
+  content: counter(lf-disclosure, disclosure-closed) " " / "";
+  white-space: nowrap;
+}
+:is(details[open] > .lf-disclosure-marker, .lf-disclosure-marker[aria-expanded=true])::before {
+  content: counter(lf-disclosure, disclosure-open) " " / "";
 }
 :is(.lf-btn, .button) {
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;

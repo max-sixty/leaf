@@ -89,6 +89,10 @@ its `keys`. `rowArrows(node)` returns `[back, ahead]` arrow keys for the text di
 and `PRESS` is Enter and Space. `labelOf(row)` is the key text a row shows, for a
 tooltip, and `saying(rows)` words what a set of rows answers, for an announcement.
 
+A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
+the `lf-disclosure-marker` class, and it shows the one every disclosure on the page
+shows, as its `::before`, turning with its state; the widget's own rules place it.
+
 ### Decisions and forwarded keys
 
 `keys` work inside the widget. `contextKeys` work there too, and Leaf also forwards them

@@ -69,6 +69,7 @@
   @media screen {
     .lf-playground-controls-region {
       position: sticky;
+      --lf-head-inset: 0px;
       top: var(--lf-top);
       z-index: 2;
       align-self: start;

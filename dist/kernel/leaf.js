@@ -917,7 +917,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       sendBtn.replaceChildren(word2.charAt(0).toUpperCase() + word2.slice(1));
     }
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
-    mediaShelf.className = "lf-composer-media";
+    mediaShelf.className = "lf-composer-media scroll";
     mediaShelf.setAttribute("role", "group");
     mediaShelf.setAttribute("aria-label", "Attachments");
     if (mediaBelow) field.after(mediaShelf);
@@ -6766,7 +6766,7 @@ function createFloatingPanel({
   const controls = el("div", "lf-fp-controls");
   opened.append(head, stage, controls);
   const row = el("div", "lf-fp-row");
-  const menu = el("div", "lf-fp-menu");
+  const menu = el("div", "lf-fp-menu scroll");
   menu.id = "lf-fp-menu";
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", "Page");
@@ -7824,7 +7824,7 @@ function createFloatingPanel({
     return html`
       ${latest.failed ? html`<div class="lf-fp-failed" role="none">
               <b>${latest.label}</b>
-              <p class="lf-fp-failed-error">${latest.error}</p>
+              <p class="lf-fp-failed-error scroll">${latest.error}</p>
             </div>` : nothing}
       ${repeat(
       versions,
@@ -8429,7 +8429,7 @@ function createFloatingPanel({
     }
     return nothing;
   }
-  const tabs = (names, current, label2, choose, count) => html`<div class="lf-fp-filters" role="group" aria-label="Show">
+  const tabs = (names, current, label2, choose, count) => html`<div class="lf-fp-filters scroll" role="group" aria-label="Show">
       ${names.map((name2) => {
     const counted = count(name2);
     return html`<button
@@ -9374,7 +9374,7 @@ var dialogSearch = searchField("lf-page-map-search", {
   label: "Find an action, status, or location in Page Map",
   placeholder: "Find an action, status, or location"
 });
-var dialogList = el("div", "lf-page-map-list");
+var dialogList = el("div", "lf-page-map-list scroll");
 var place = placeKeeper(dialogList, {
   items: ".lf-page-map-action",
   identity: (row) => row.dataset.lfMapKey,

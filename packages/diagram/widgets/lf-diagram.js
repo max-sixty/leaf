@@ -88,7 +88,7 @@ customElements.define(
           });
         }
         this.visualParts = visualParts;
-        this.classList.add("lf-rendered");
+        this.classList.add("lf-rendered", "scroll");
         this.visualPartRegistration.update();
       } catch (err) {
         failSoft(this, err, source);

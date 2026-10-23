@@ -65,6 +65,7 @@ customElements.define(
     #resumeProjection = null;
 
     setup() {
+      this.classList.add("scroll");
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the command reference dialog — it stays the static board the theme renders anyway.

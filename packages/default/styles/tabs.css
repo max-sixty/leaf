@@ -836,6 +836,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
         position: sticky;
+        --lf-head-inset: 0px;
         top: var(--lf-top);
         inline-size: auto;
         z-index: 2;

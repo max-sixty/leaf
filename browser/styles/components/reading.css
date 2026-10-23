@@ -221,6 +221,7 @@
   color: var(--muted);
   margin-bottom: 6px;
   position: sticky;
+  --lf-head-inset: 0px;
   inset-inline-start: 0;
   max-inline-size: 100cqi;
 }

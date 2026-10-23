@@ -1620,6 +1620,15 @@ function copyBlock(block, source, noun) {
   return copy;
 }
 function watchCodeBlocks() {
+  watchArrivals(
+    "pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])",
+    [],
+    {
+      arrive: (block) => block.classList.toggle("scroll", true),
+      leave: () => {
+      }
+    }
+  );
   watchArrivals("pre:has(> code)", ["style"], {
     arriveBatch(blocks) {
       const prepared = blocks.filter((pre) => pre.getRootNode() === document).map(

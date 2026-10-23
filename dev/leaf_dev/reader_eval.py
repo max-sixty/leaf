@@ -12,8 +12,8 @@ general page acceptance or the live authoring judge's reliability.
 from pathlib import Path
 
 import turbohtml
-from leaf.harness import ClaudeCodeHarness
 
+from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import build_source
 from leaf_dev.arrangement_eval import Run, capture_phase, listing

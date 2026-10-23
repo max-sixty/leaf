@@ -1,14 +1,13 @@
 """Visual review preserves evidence, focus and discussion across live source changes."""
 
+import hashlib
 import json
 
 import pytest
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_layout import (
     ring_faults,
+    solid_png,
     standing_ring,
 )
 from render_harness import (
@@ -24,6 +23,10 @@ from render_harness import (
     stamp_page,
     told,
 )
+
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -51,12 +54,13 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
     page = open_page(browser, url)
     resized(page, 1000, 700)
     case = page.locator('.lf-vr-case[aria-hidden="false"]')
-    case.get_by_role("button", name="More inspection").click()
+    case.get_by_role("button", name="Image scale and originals").click()
     case.get_by_role("checkbox", name="Full frame").check()
-    case.get_by_role("checkbox", name="Actual size").check()
     page.keyboard.press("Escape")
+    case.get_by_role("button", name="Image scale and originals").click()
+    case.get_by_role("button", name="100%", exact=True).click()
     host = case.locator(".lf-vr-capture")
-    for mode in ("Before & after", "Slider"):
+    for mode in ("Pair", "Slider", "Pixels"):
         case.get_by_role("button", name=mode, exact=True).click()
         rendered(page)
         assert host.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
@@ -255,7 +259,7 @@ def test_visual_review_allocates_focused_evidence_before_images_decode(browser, 
 def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     browser, serve
 ):
-    """A late decode failure replaces reserved focus geometry with a visible error."""
+    """A late image failure reports the refused pair beside retained inspection."""
     url = serve(VISUAL_REVIEW_GALLERY)
     run = json.loads(
         data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
@@ -270,29 +274,59 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     page.goto(url, wait_until="domcontentloaded")
     host = page.locator('.lf-vr-case[aria-hidden="false"] .lf-vr-capture')
     images = host.locator("img")
-    expect(images.first).to_have_js_property("naturalWidth", 780)
     holding(page, held, 1, "the second selected capture")
-    # Finish the first image's layout while its peer is still pending. The
-    # later failure cannot borrow that load's invalidation or a stage resize.
-    # The held peer is still a registered preparation, so wait only for paint.
+    # One loaded image cannot publish half a comparison. Both visible images stay
+    # empty until the incoming pair has loaded; its declared geometry stays reserved.
     rendered(page, facts=("updatesSettled",))
-    expect(images.last).to_have_js_property("complete", False)
+    assert images.evaluate_all("images => images.every(image => !image.naturalWidth)")
     assert host.evaluate("node => node.scrollHeight") > 1000
     expect(host.locator(".lf-error")).to_have_count(0)
     refuse(held[0])
     expect(host.locator(".lf-error")).to_contain_text("focus needs two decoded images")
-    expect(host.locator("img")).to_have_count(0)
+    expect(host.get_by_role("button", name="Pair", exact=True)).to_be_visible()
     consume_browser_errors(page, "focus needs two decoded images")
+    unrelated = run | {
+        "cases": [
+            run["cases"][0],
+            run["cases"][1] | {"result": "Another case has a new observation."},
+            *run["cases"][2:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", unrelated)
+    told(page)
+    rendered(page, facts=("updatesSettled",))
+    assert len(held) == 1, "an unrelated update retried the refused image"
 
 
-def test_visual_review_refresh_hands_focus_across_replaced_evidence(browser, serve):
-    """The data owner takes its focus hold before replacing comparisons or cases."""
-    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_cases(
+    request, serve, engine
+):
+    """New captures retain inspection; a removed case returns focus to the next case."""
+    browser = request.getfixturevalue(engine)
+    captures = [
+        solid_png(1200, 1000, color) for color in ((220, 230, 240), (240, 230, 220))
+    ]
+    sources = [
+        f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png" for data in captures
+    ]
+    page = open_page(
+        browser,
+        serve(VISUAL_REVIEW_GALLERY, media=dict(zip(sources, captures, strict=True))),
+    )
     widget = page.locator("#visual-review-run")
     case = widget.locator('.lf-vr-case[aria-hidden="false"]')
-    case.get_by_role("button", name="Slider", exact=True).click()
-    case.locator(".lf-shotcap").first.focus()
-    expect(case.locator(".lf-shotcap").first).to_be_focused()
+    shot = case.locator("lf-shot")
+    control = case.get_by_role("button", name="Slider", exact=True)
+    control.click()
+    case.get_by_role("button", name="Image scale and originals").click()
+    case.get_by_role("button", name="100%", exact=True).click()
+    divider = shot.get_by_role("scrollbar")
+    divider.press("Home")
+    divider.press("ArrowRight")
+    control.focus()
+    expect(control).to_be_focused()
+    original = shot.element_handle()
     record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
         "gallery-visual-run"
     ]
@@ -308,10 +342,119 @@ def test_visual_review_refresh_hands_focus_across_replaced_evidence(browser, ser
     }
     data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", changed)
     told(page)
-    expect(case.locator(".lf-vr-title")).to_be_focused()
-    expect(case.locator(".lf-vr-title")).to_be_in_viewport()
-    case.locator(".lf-shotcap").first.focus()
-    expect(case.locator(".lf-shotcap").first).to_be_focused()
+    expect(control).to_be_focused()
+    assert shot.evaluate("(node, original) => node === original", original)
+    expect(control).to_have_attribute("aria-pressed", "true")
+    expect(shot.locator("wa-comparison")).to_have_attribute("position", "1")
+    expect(case.get_by_role("button", name="Image scale and originals")).to_have_text(
+        "100%"
+    )
+
+    # A refused replacement leaves usable old evidence, and correcting it must
+    # publish new dimensions even in Firefox, whose reused-image decode can be stale.
+    invalid = changed | {
+        "cases": [changed["cases"][0] | {"after": sources[1]}, *changed["cases"][1:]]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", invalid)
+    told(page)
+    expect(shot.locator(".lf-error")).to_contain_text(
+        "a pair has to be shot at one viewport"
+    )
+    consume_browser_errors(page, "a pair has to be shot at one viewport")
+    expect(control).to_be_focused()
+    changed = invalid | {
+        "cases": [
+            invalid["cases"][0]
+            | {
+                "before": sources[0],
+                "capture": invalid["cases"][0]["capture"]
+                | {"viewport": {"width": 600, "height": 500}, "deviceScaleFactor": 2},
+                "focus": {"x": 300, "y": 200, "width": 200, "height": 200},
+            },
+            *invalid["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", changed)
+    told(page)
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    expect(control).to_be_focused()
+    assert shot.locator(".lf-shotframe img").evaluate_all(
+        "images => images.map(image => [image.naturalWidth, image.naturalHeight, image.getBoundingClientRect().width])"
+    ) == [[1200, 1000, 600], [1200, 1000, 600]]
+
+    # Refreshing captures also replaces cached pixel masks and their background.
+    pixels = case.get_by_role("button", name="Pixels", exact=True)
+    pixels.click()
+    page.wait_for_function(
+        """() => [...document.querySelectorAll(
+          '.lf-vr-case[aria-hidden="false"] .lf-shotpixels [data-lf-shot-side]'
+        )].every(node => node.style.getPropertyValue('--lf-shot-pixels'))"""
+    )
+    painted_pixels = """node => ({
+      ground: node.querySelector('.lf-shotpixels img').src,
+      masks: [...node.querySelectorAll('.lf-shotpixels [data-lf-shot-side]')]
+        .map(paint => paint.style.getPropertyValue('--lf-shot-pixels')),
+    })"""
+    previous_pixels = shot.evaluate(painted_pixels)
+    # Hold the platform's mask encoding at an actual asynchronous boundary.
+    # Refresh must keep the whole old difference until the new masks are ready.
+    page.evaluate(
+        """() => {
+          const encode = OffscreenCanvas.prototype.convertToBlob;
+          window.heldShotMasks = [];
+          OffscreenCanvas.prototype.convertToBlob = async function(...args) {
+            const blob = await encode.apply(this, args);
+            await new Promise(resolve => window.heldShotMasks.push(resolve));
+            return blob;
+          };
+          window.releaseShotMasks = () => {
+            OffscreenCanvas.prototype.convertToBlob = encode;
+            for (const release of window.heldShotMasks) release();
+          };
+        }"""
+    )
+    identical = changed | {
+        "cases": [
+            changed["cases"][0] | {"after": changed["cases"][0]["before"]},
+            *changed["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", identical)
+    told(page)
+    page.wait_for_function("window.heldShotMasks.length === 3")
+    assert shot.evaluate(painted_pixels) == previous_pixels
+    # Metadata arriving after image validation owns a new request; it cannot
+    # smuggle an invalid crop into the already-preparing pair.
+    invalid_focus = identical | {
+        "cases": [
+            identical["cases"][0]
+            | {"focus": {"x": 900, "y": 200, "width": 200, "height": 200}},
+            *identical["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", invalid_focus)
+    told(page)
+    expect(shot.locator(".lf-error")).to_contain_text(
+        "falls outside its captured images"
+    )
+    consume_browser_errors(page, "falls outside its captured images")
+    assert shot.evaluate(painted_pixels) == previous_pixels
+    page.evaluate("window.releaseShotMasks()")
+    # Correcting metadata alone must recover without changing either image URL.
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", identical)
+    told(page)
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    expect(pixels).to_be_focused()
+    expect(pixels).to_have_attribute("aria-pressed", "true")
+    expect(shot.locator(".lf-shotdelta")).to_have_text("identical")
+    corrected_pixels = shot.evaluate(painted_pixels)
+    assert all(corrected_pixels["masks"])
+    assert corrected_pixels["masks"] != previous_pixels["masks"]
+    assert shot.locator(".lf-shotpixels img").evaluate(
+        "node => node.src"
+    ) == shot.locator('.lf-shotframe[data-lf-state="after"] img').evaluate(
+        "node => node.src"
+    )
     data_model.cmd_data_set(
         serve.page_dir, "gallery-visual-run", record | {"cases": record["cases"][1:]}
     )
@@ -358,13 +501,12 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator('.lf-vr-case[aria-hidden="false"]')
-    case.get_by_role("button", name="Slider", exact=True).click()
-    caption = case.locator('.lf-shotcap[data-lf-state="before"]')
-    caption.click()
-    expect(caption).to_have_attribute("aria-pressed", "true")
-    caption.focus()
-    old_caption = caption.element_handle()
-    before = caption.bounding_box()
+    control = case.get_by_role("button", name="Slider", exact=True)
+    control.click()
+    expect(control).to_have_attribute("aria-pressed", "true")
+    control.focus()
+    old_control = control.element_handle()
+    before = control.bounding_box()
     record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
         "gallery-visual-run"
     ]
@@ -374,20 +516,17 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     }
     data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", changed)
     told(page)
-    expect(caption).to_be_focused()
-    assert caption.evaluate("(node, old) => node === old", old_caption)
-    expect(caption).to_have_attribute("aria-pressed", "true")
-    expect(caption).to_have_attribute(
-        "aria-label", f"before — {record['cases'][0]['title']}. {result}"
-    )
+    expect(control).to_be_focused()
+    assert control.evaluate("(node, old) => node === old", old_control)
+    expect(control).to_have_attribute("aria-pressed", "true")
     expect(case.locator("lf-shot img").first).to_have_attribute(
         "alt", f"before: {record['cases'][0]['title']}. {result}"
     )
-    expect(case.locator(".lf-shotflip")).to_have_attribute(
+    expect(case.locator(".lf-shotstage")).to_have_attribute(
         "aria-label",
-        f"Compare before and after — {record['cases'][0]['title']}. {result}",
+        f"Screenshot comparison — {record['cases'][0]['title']}. {result}",
     )
-    after = caption.bounding_box()
+    after = control.bounding_box()
     assert abs(after["y"] - before["y"]) <= 1, (before, after)
 
 
@@ -424,27 +563,6 @@ def test_visual_review_source_reorder_keeps_the_focused_case_draft(browser, serv
     expect(field).not_to_have_js_property(
         "value", "Keep this draft while the case order changes"
     )
-
-
-def test_visual_review_selected_caption_owns_its_activation_keys(browser, serve):
-    """A selectable caption keeps Space as activation after reaching its endpoint."""
-    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    widget = page.locator("#visual-review-run")
-    case = widget.locator('.lf-vr-case[aria-hidden="false"]')
-    case.get_by_role("button", name="Slider", exact=True).click()
-    for state in ("before", "after"):
-        caption = case.locator(f'.lf-shotcap[data-lf-state="{state}"]')
-        caption.click()
-        caption.focus()
-        expect(caption).to_have_attribute("aria-pressed", "true")
-        scroll_settled(page)
-        before = page.evaluate("scrollY")
-        for key in ("Space", "Space", "Enter"):
-            page.keyboard.press(key)
-            scroll_settled(page)
-            expect(caption).to_be_focused()
-            expect(caption).to_have_attribute("aria-pressed", "true")
-            assert abs(page.evaluate("scrollY") - before) <= 1
 
 
 @pytest.mark.parametrize("change", ["case-dropped", "source-cleared"])

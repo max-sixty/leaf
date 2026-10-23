@@ -115,6 +115,20 @@ describe("deployment configuration", () => {
     expect(dockerfile).toContain("codex-resources /codex-bin/codex-resources");
     expect(dockerfile).toContain("test -x /codex-bin/codex-resources/bwrap");
     expect(dockerfile).toContain("codex plugin marketplace add /app --json");
+    expect(codexConfig).toMatchObject({
+      model_provider: "leaf-http",
+      model_providers: {
+        "leaf-http": {
+          name: "OpenAI",
+          requires_openai_auth: true,
+          supports_websockets: false,
+          env_http_headers: {
+            "OpenAI-Organization": "OPENAI_ORGANIZATION",
+            "OpenAI-Project": "OPENAI_PROJECT",
+          },
+        },
+      },
+    });
     // Codex runs unsandboxed here, so the plugin's route out of the sandbox is off.
     expect(codexConfig.plugins).toEqual({
       "leaf@leaf": { mcp_servers: { leaf: { enabled: false } } },

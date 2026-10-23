@@ -47,7 +47,7 @@ import { parse } from "acorn";
 import { transformSync } from "amaro";
 import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
-import { protocolBreaks } from "./protocol.mjs";
+import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
 import {
   initialLitPath,
@@ -64,12 +64,12 @@ import { adapt, seam, vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const assets = "skills/leaf/assets";
+const assets = "browser";
 /** The committed kernel, which installs serve while it matches the tree's modules. */
-const kernelDirectory = "skills/leaf/kernel";
-const sourceRoot = "build/browser";
+const kernelDirectory = "dist/kernel";
+const sourceRoot = "browser/framework";
 const compilerPathsFile = `${sourceRoot}/tsconfig.paths.json`;
-const packageRoot = "skills/leaf/packages";
+const packageRoot = "packages";
 const facade = "vendor/browser-runtime.js";
 const frameworkDirectory = "vendor/browser-runtime";
 /** The framework's layer paths: its facade and the directory of its modules. */
@@ -102,7 +102,7 @@ export async function compilerPaths(directory = root) {
       ]),
     ),
     "/runtime/*": [path.posix.relative(sourceRoot, `${assets}/runtime/*`)],
-    "/checks/*": ["../../skills/leaf/scripts/leaf/render-checks/*"],
+    "/checks/*": ["../../src/leaf/render-checks/*"],
   };
   return Buffer.from(`${JSON.stringify({ compilerOptions: { paths } }, null, 2)}\n`);
 }
@@ -234,12 +234,11 @@ async function litModule() {
 
 // Every schema a page vendored at the current protocol relies on, and every record's,
 // as it last stood (`protocol.mjs`). It is an output, so a build that passes moves it
-// forward. A build refuses a change that breaks it, and a served change until the
-// author accepts it with --accept-served.
-const baselineName = `${sourceRoot}/protocol-baseline.json`;
+// forward. A build refuses a change that breaks it.
+const baselineName = "build/browser/protocol-baseline.json";
 
 // JSON with a key per line to `depth` levels and each value below on one line, so the
-// baseline's diff names the event kinds, served definitions and records a change moved.
+// baseline's diff names the event kinds and records a change moved.
 function layout(value, depth, indent = "") {
   if (!depth || value === null || typeof value !== "object" || Array.isArray(value))
     return JSON.stringify(value);
@@ -251,24 +250,18 @@ function layout(value, depth, indent = "") {
   return `{\n${entries.join(",\n")}\n${indent}}`;
 }
 
-async function protocolOutputs({ acceptServed = false } = {}) {
+async function protocolOutputs() {
   const schemas = await protocolSchemas(new URL("../../", import.meta.url));
   const baseline = JSON.parse(await readFile(path.join(root, baselineName), "utf8"));
-  const { refused, served } = protocolBreaks(baseline, schemas);
-  const bump = "bump $events.protocol in skills/leaf/assets/registry.json";
-  const errors = [];
+  const held = baselineSchemas(schemas);
+  const refused = protocolBreaks(baseline, held);
   if (refused.length)
-    errors.push(
-      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or ${bump} (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
+    throw new Error(
+      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
     );
-  if (served.length && !acceptServed)
-    errors.push(
-      `A page vendored at protocol ${baseline.protocol} is served these changes:\n${served.join("\n")}\nIf a runtime vendored at ${baseline.protocol} reads one and would mishandle it, ${bump}, then run pnpm run build:browser. If none would, run pnpm run build:browser --accept-served, and name in the commit the readers you checked (layer-registry.md, "Page protocol").`,
-    );
-  if (errors.length) throw new Error(errors.join("\n\n"));
   return {
     contract: await contractTypes(new URL("../../", import.meta.url), schemas),
-    baseline: `${layout(schemas, 3)}\n`,
+    baseline: `${layout(held, 3)}\n`,
   };
 }
 
@@ -292,7 +285,7 @@ async function protocolOutputs({ acceptServed = false } = {}) {
 // the build drops it.
 const runtimeChecks = (file) =>
   file.endsWith(".js") &&
-  !/^skills\/leaf\/(?:assets|packages\/[^/]+)\/vendor\//.test(file) &&
+  !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file) &&
   !readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
 
 function typecheck(config, reports = () => true) {
@@ -322,12 +315,12 @@ function typecheck(config, reports = () => true) {
   if (diagnostics.length) throw new Error(`${config}:\n${diagnostics.join("\n")}`);
 }
 
-export async function buildOutputs({ acceptServed = false } = {}) {
+export async function buildOutputs() {
   const paths = await compilerPaths();
   if (!(await readFile(path.join(root, compilerPathsFile))).equals(paths))
     throw new Error("Stale compiler paths; run pnpm run build:browser");
   const contractPath = path.join(root, sourceRoot, "contract.d.ts");
-  const protocol = await protocolOutputs({ acceptServed });
+  const protocol = await protocolOutputs();
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
   typecheck("tsconfig.json");
@@ -549,28 +542,23 @@ export async function checkOutputs(outputs, directory = root) {
 }
 
 async function main(args) {
-  const usage = "Usage: node build/browser/build.mjs [--check | --accept-served]";
+  const usage = "Usage: node build/browser/build.mjs [--check]";
   if (args.length === 1 && args[0] === "--help") {
     console.log(
-      `${usage}\n\nBuild committed browser ESM, or check it without writing. --accept-served moves the protocol baseline past served changes that you found no vendored runtime would mishandle. Run pnpm install --frozen-lockfile first.`,
+      `${usage}\n\nBuild committed browser ESM, or check it without writing. Run pnpm install --frozen-lockfile first.`,
     );
     return;
   }
-  if (
-    args.length > 1 ||
-    (args.length && !["--check", "--accept-served"].includes(args[0]))
-  )
-    throw new Error(usage);
-  const acceptServed = args[0] === "--accept-served";
+  if (args.length > 1 || (args.length && args[0] !== "--check")) throw new Error(usage);
   if (args[0] !== "--check") {
     await writeFile(path.join(root, compilerPathsFile), await compilerPaths());
-    const { contract } = await protocolOutputs({ acceptServed });
+    const { contract } = await protocolOutputs();
     await writeFile(path.join(root, sourceRoot, "contract.d.ts"), contract);
     // The modules generated from the registry are the typecheck's inputs too.
     for (const [name, bytes] of await registryOutputs())
       await writeFile(path.join(root, name), bytes);
   }
-  const outputs = await buildOutputs({ acceptServed });
+  const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
     for (const owned of await ownedDirectories(root))

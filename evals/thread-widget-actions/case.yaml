@@ -20,7 +20,7 @@ assert:
     metric: judgment
     value: |
       Pass only if the JavaScript reads the shared Thread collection with `readThreads()`
-      in a `watchProjection` paint,
+      in `LeafElement.render()`,
       keeps its own selected Thread by `thread.key`, calls `threadActions.reply` for Send
       and `threadActions.resolve` or `threadActions.reopen` for settlement, and stops its
       subscription on disconnect. It must not post raw events, use a private runtime

@@ -1,26 +1,23 @@
 /** Which schema changes break a page vendored at the current protocol, or a Leaf
  * sharing a record's format (`layer-registry.md`, "Page protocol").
  *
- * `protocol-baseline.json` holds each schema as it last stood (`protocolSchemas`), and
- * `build.mjs` moves it forward after each build `protocolBreaks` finds nothing in, or
- * finds only served changes the author accepts. `protocolBreaks` lays each baseline
- * schema beside its current form, keyword by keyword, and names each change the side
- * that must accept the other's values would refuse:
+ * `protocol-baseline.json` holds each schema as it last stood (`baselineSchemas`), and
+ * `build.mjs` moves it forward after each build `protocolBreaks` finds nothing in.
+ * `protocolBreaks` lays each baseline schema beside its current form, keyword by
+ * keyword, and names each change the side that must accept the other's values would
+ * refuse:
  *
- * - what a vendored page sends (browser commands): the current schema accepts what the
- *   baseline did, and the browser door, which validates, refuses a newly closed object;
+ * - what a page sends (browser commands): the current schema accepts what the baseline
+ *   did, and the browser door, which validates, refuses a newly closed object;
  * - an event record, which a page sends and every Leaf at the number writes into the
  *   log and reads back: both ways;
+ * - an x-state verb, which a page's vendored registry declares and this Leaf reads:
+ *   the current schema accepts what the baseline did;
  * - a `state.Record`: both ways, at the same `since`, since every Leaf writing that
- *   format reads what the others wrote;
- * - what Leaf serves the page (the served state, its definitions and the x-state verb):
- *   the baseline accepts what the current schema allows.
+ *   format reads what the others wrote.
  *
- * Changes of the first three kinds are `refused`, since the browser door refuses the
- * old value or a Leaf reading the record misreads it. Changes of the last kind are
- * `served`. Only the page's runtime reads them, and it reads only some served fields,
- * some only where the change can't reach, so whether a served change breaks a page is
- * the author's call (`layer-registry.md`, "Page protocol").
+ * The served state is not among them: the Leaf serving a page also supplies the
+ * runtime that reads it (`runtime_selection.py`), so no older reader meets it.
  *
  * The comparison is by position, so it reads no reference and merges no union: a
  * reference compares by its text, and its target where it is declared; union, `allOf`
@@ -285,19 +282,23 @@ function diff(old, now, path, side) {
 }
 
 const SENT = { newConsumes: true, validates: true };
-const SERVED = { newConsumes: false, validates: false };
+// An older reader taking what this Leaf writes.
+const OLDER_READS = { newConsumes: false, validates: false };
 const READ = { newConsumes: true, validates: false };
 
-/** Each change from `baseline` to `current` that breaks what the baseline promised,
- * as lines naming where and what: `refused`, which some Leaf would refuse or misread,
- * and `served`, which a page's runtime may misread. Both are empty where nothing
- * changes either way. `baseline` and `current` are `protocolSchemas` readings. */
+/** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
+ * served state, which only the generated types read. */
+export const baselineSchemas = ({ served: _served, ...held }) => held;
+
+/** Each change from `baseline` to `current` that some Leaf would refuse or misread,
+ * as lines naming where and what; none where nothing changes either way. `baseline`
+ * and `current` are `baselineSchemas` readings. */
 export function protocolBreaks(baseline, current) {
-  const [refused, served] = [[], []];
-  const compare = (found, where, old, now, ...sides) => {
+  const refused = [];
+  const compare = (where, old, now, ...sides) => {
     readable(old);
     readable(now);
-    found.push(...sides.flatMap((side) => diff(old, now, where, side)));
+    refused.push(...sides.flatMap((side) => diff(old, now, where, side)));
   };
   if (baseline.protocol === current.protocol) {
     const [kinds, now] = [baseline.events.kinds, current.events.kinds];
@@ -308,11 +309,11 @@ export function protocolBreaks(baseline, current) {
       else if (!kinds[kind])
         refused.push([where, "an older Leaf or page reads a kind it doesn't know"]);
       else {
-        compare(refused, where, kinds[kind].record, now[kind].record, SENT, SERVED);
+        compare(where, kinds[kind].record, now[kind].record, SENT, OLDER_READS);
         if (kinds[kind].browser && !now[kind].browser)
           refused.push([where, "the browser no longer sends it"]);
         else if (kinds[kind].browser)
-          compare(refused, where, kinds[kind].browser, now[kind].browser, {
+          compare(where, kinds[kind].browser, now[kind].browser, {
             ...SENT,
             overlay: kinds[kind].record,
           });
@@ -320,13 +321,7 @@ export function protocolBreaks(baseline, current) {
     }
     if (!isDeepStrictEqual(baseline.events.ownership, current.events.ownership))
       refused.push(["$events.ownership", "changed"]);
-    const { $defs: before, ...state } = baseline.served;
-    const { $defs: after, ...shown } = current.served;
-    compare(served, "served state", state, shown, SERVED);
-    for (const name of Object.keys(before))
-      if (after[name])
-        compare(served, `served ${name}`, before[name], after[name], SERVED);
-    compare(served, "x-state verb", baseline.verb, current.verb, SERVED);
+    compare("x-state verb", baseline.verb, current.verb, READ);
   }
   for (const [kind, { since, schema }] of Object.entries(current.records)) {
     const where = `record ${kind}`;
@@ -334,7 +329,7 @@ export function protocolBreaks(baseline, current) {
     if (since > current.protocol)
       refused.push([where, `since ${since} is past protocol ${current.protocol}`]);
     else if (before?.since === since)
-      compare(refused, where, before.schema, schema, READ, SERVED);
+      compare(where, before.schema, schema, READ, OLDER_READS);
     else if (since !== current.protocol)
       refused.push([
         where,
@@ -342,11 +337,9 @@ export function protocolBreaks(baseline, current) {
       ]);
   }
   // The same change shows once, though each direction meets it.
-  const lines = (found) =>
-    new Set(found.map(([where, what]) => `${where.replace(/\|\d+/g, "")}: ${what}`));
-  const refusals = lines(refused);
-  return {
-    refused: [...refusals],
-    served: [...lines(served)].filter((line) => !refusals.has(line)),
-  };
+  return [
+    ...new Set(
+      refused.map(([where, what]) => `${where.replace(/\|\d+/g, "")}: ${what}`),
+    ),
+  ];
 }

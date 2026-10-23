@@ -10,11 +10,11 @@ import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
 import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
-import { createApplicationPublisher, share } from "./snapshot.ts";
+import { createApplicationPublisher, share } from "../../browser/framework/snapshot.ts";
 
 const outputs = await buildOutputs();
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const vendor = "skills/leaf/assets/vendor";
+const vendor = "browser/vendor";
 const read = (name) => outputs.get(`${vendor}/${name}`).toString();
 const exportsOf = (code) =>
   parse(code, { ecmaVersion: "latest", sourceType: "module" })
@@ -31,26 +31,20 @@ test("compiler paths discover package modules and keep the facade's source types
     await writeFile(destination, text);
   };
   const config = JSON.parse(
-    await readFile(new URL("./tsconfig.json", import.meta.url)),
+    await readFile(new URL("../../browser/framework/tsconfig.json", import.meta.url)),
   );
   config.compilerOptions.types = [];
   config.compilerOptions.noUncheckedSideEffectImports = true;
   config.include = ["imports.ts"];
-  await put("build/browser/tsconfig.json", JSON.stringify(config));
+  await put("browser/framework/tsconfig.json", JSON.stringify(config));
   await put(
-    "build/browser/index.ts",
+    "browser/framework/index.ts",
     "export const count = (value: number) => value;\n",
   );
+  await put("packages/playground/vendor/lf-playground-initial.js", "void 0;\n");
+  await put("packages/playwright/widgets/lf-trace.js", "export const trace = 1;\n");
   await put(
-    "skills/leaf/packages/playground/vendor/lf-playground-initial.js",
-    "void 0;\n",
-  );
-  await put(
-    "skills/leaf/packages/playwright/widgets/lf-trace.js",
-    "export const trace = 1;\n",
-  );
-  await put(
-    "build/browser/imports.ts",
+    "browser/framework/imports.ts",
     `
 import { count } from "/vendor/browser-runtime.js";
 import "/vendor/lf-playground-initial.js";
@@ -68,13 +62,13 @@ count("wrong");
       [
         path.join(root, "node_modules/typescript/bin/tsc"),
         "--project",
-        path.join(scratch, "build/browser/tsconfig.json"),
+        path.join(scratch, "browser/framework/tsconfig.json"),
         "--pretty",
         "false",
       ],
       { encoding: "utf8" },
     );
-  await put("build/browser/tsconfig.paths.json", await compilerPaths(scratch));
+  await put("browser/framework/tsconfig.paths.json", await compilerPaths(scratch));
   const missing = check();
   assert.equal(missing.status, 1, missing.stdout + missing.stderr);
   assert.match(missing.stdout, /Cannot find module '\/vendor\/lf-future.js'/);
@@ -84,15 +78,9 @@ count("wrong");
     /Cannot find module '\/(?:vendor\/lf-playground-initial|widgets\/lf-trace)/,
   );
 
-  await put(
-    "skills/leaf/packages/future/vendor/lf-future.js",
-    "export const future = 2;\n",
-  );
-  await put(
-    "skills/leaf/packages/future/widgets/lf-future.js",
-    "export const widget = 3;\n",
-  );
-  await put("build/browser/tsconfig.paths.json", await compilerPaths(scratch));
+  await put("packages/future/vendor/lf-future.js", "export const future = 2;\n");
+  await put("packages/future/widgets/lf-future.js", "export const widget = 3;\n");
+  await put("browser/framework/tsconfig.paths.json", await compilerPaths(scratch));
   const discovered = check();
   assert.equal(discovered.status, 0, discovered.stdout + discovered.stderr);
 });
@@ -146,7 +134,10 @@ test("each source module compiles to one module that keeps its lines", async () 
   );
   for (const name of ["application", "presentation", "snapshot"]) {
     const source = (
-      await readFile(new URL(`./${name}.ts`, import.meta.url), "utf8")
+      await readFile(
+        new URL(`../../browser/framework/${name}.ts`, import.meta.url),
+        "utf8",
+      )
     ).split("\n");
     const compiled = read(`browser-runtime/${name}.js`).split("\n");
     // One trailer line names the source; every other line is the source's.
@@ -186,7 +177,7 @@ test("checking stale output refuses it without changing any bytes", async (conte
     await writeFile(destination, bytes);
   }
   await checkOutputs(outputs, scratch);
-  const paths = "build/browser/tsconfig.paths.json";
+  const paths = "browser/framework/tsconfig.paths.json";
   await writeFile(path.join(scratch, paths), "{}\n");
   await assert.rejects(checkOutputs(outputs, scratch), /tsconfig\.paths\.json/);
   assert.equal(await readFile(path.join(scratch, paths), "utf8"), "{}\n");
@@ -207,19 +198,19 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await assert.rejects(checkOutputs(outputs, scratch), /browser-runtime\/removed\.js/);
   await rm(path.join(scratch, vendor, "browser-runtime", "removed.js"));
   // So is any file in a package's vendor directory that no build writes.
-  const chunk = "skills/leaf/packages/diagram/vendor/chunk-removed.js";
+  const chunk = "packages/diagram/vendor/chunk-removed.js";
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
   await rm(path.join(scratch, chunk));
   // A kernel left behind by a merge names the command that rebuilds it.
-  const kernel = path.join(scratch, "skills/leaf/kernel/leaf.js");
+  const kernel = path.join(scratch, "dist/kernel/leaf.js");
   await writeFile(kernel, "<<<<<<< ours\n");
   await assert.rejects(
     checkOutputs(outputs, scratch),
     (error) =>
       error.message.includes(
         "pnpm install --frozen-lockfile && pnpm run build:browser",
-      ) && error.message.endsWith("\nskills/leaf/kernel/leaf.js"),
+      ) && error.message.endsWith("\ndist/kernel/leaf.js"),
   );
 });
 
@@ -281,9 +272,7 @@ test("the bundle gate reads the parsed module, not its text", () => {
 
 test("Trees search hides every nonmatch and restores an empty query", async () => {
   // Exercise the actual shipped dependency, including its build adaptations.
-  const bundle = outputs.get(
-    "skills/leaf/packages/file-tree/vendor/pierre-trees.esm.js",
-  );
+  const bundle = outputs.get("packages/file-tree/vendor/pierre-trees.esm.js");
   const { FileTree } = await import(
     `data:text/javascript;base64,${bundle.toString("base64")}`
   );

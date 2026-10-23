@@ -27,7 +27,7 @@ Page modules follow `module-authoring.md`, "What a behavior module owes", whose 
 keep page controls working after a reconnect and inside quoted threads.
 
 A page module that shows the obligations in each card or section of its own layout reads them
-from Leaf: `readObligations()` in a `watchProjection` paint, with `obligationsIn(region)` selecting
+from Leaf: `readObligations()` in a `LeafElement.render()`, with `obligationsIn(region)` selecting
 each region's obligations and `obligationActions.next({within})` moving to the next one waiting on
 the user (`module-reading.md`, "Reading obligations and the On lists").
 

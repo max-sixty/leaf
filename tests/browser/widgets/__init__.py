@@ -3,10 +3,11 @@ widget mechanism, and the page sources and helpers more than one module uses."""
 
 import re
 
-from leaf import data as data_model
 from playwright.sync_api import expect
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import PANEL, leaf_page, open_page, panel_field, panel_menu
+
+from leaf import data as data_model
 
 
 def expect_walk_says(page, words):

@@ -119,3 +119,22 @@ def test_a_swap_its_own_press_undoes_before_a_frame_passes(browser):
     }""")
     page.locator("#swap").click()
     judge_watches()
+
+
+def test_a_row_reordered_as_it_loses_its_tallest_passes(browser):
+    """A row that loses an item while a keyed renderer moves another within it changed
+    its content; the moved item took no one's seat."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><div id="row" style="display:flex;width:300px">'
+            '<button id="tall" style="height:40px">Tall</button>'
+            "<button id=moved>Moved</button><button>Stays</button></div>"
+            "<button id=swap>Swap</button><script>"
+            "swap.addEventListener('click', () => { tall.remove(); row.append(moved); });"
+            "</script>"
+        )
+    )
+    page.locator("#swap").click()
+    judge_watches()

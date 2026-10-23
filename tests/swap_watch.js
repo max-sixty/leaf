@@ -218,10 +218,18 @@
           seat(up(element), "came", element, size);
         }
       }
+      // A child taken out and put back in the same place, as a keyed list reorders,
+      // takes no seat: it was there already.
+      const stayed = new Set(
+        departed
+          .filter(({ node, size }) => draws(size) && node.isConnected)
+          .filter(({ node, parent }) => holder(parent) === holder(up(node)))
+          .map(({ node }) => node),
+      );
       for (const element of arrived) {
         if (!element.isConnected || !draws(read(element))) continue;
         appeared.set(element, read(element).height);
-        if (!arrived.has(up(element)))
+        if (!arrived.has(up(element)) && !stayed.has(element))
           seat(up(element), "came", element, read(element));
       }
       for (const { node, parent, size } of departed)
@@ -258,8 +266,11 @@
   // and nothing for an inline box, which the observer reports as empty. What changed
   // since the frame is what was inserted or removed, or written to: an element whose
   // attributes changed, or anything inside it, as a panel's mode attribute shows one
-  // occupant and hides another. Each element read is watched again, so the next frame
-  // reports its size even where it returns to the one the observer last reported.
+  // occupant and hides another. A class on the root or the body, which the runtime sets
+  // as the pointer moves, is left to the next frame, since reading the whole page at
+  // every press cost tens of milliseconds. Each element read is watched again, so the
+  // next frame reports its size even where it returns to the one the observer last
+  // reported.
   // Only a key and the pointer's first event start a gesture: the mouse and touch
   // events that follow a pointerdown run in its task, before any frame.
   const measure = (element) => {
@@ -280,7 +291,11 @@
       return now.get(element);
     };
     for (const element of written)
-      if (element.isConnected)
+      if (
+        element.isConnected &&
+        element !== document.body &&
+        element !== document.documentElement
+      )
         for (const each of elementsOf(element)) if (sizes.has(each)) read(each);
     judge(now, read);
     for (const element of now.keys()) if (element.isConnected) watch(element);

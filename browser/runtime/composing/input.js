@@ -77,6 +77,8 @@ import { applicationState } from "../semantic-state.js";
 import { errorsReading, passErrorsAt, raiseError } from "../errors.js";
 import { repaint } from "../repaint.js";
 import { sizeObserver } from "../rendering.js";
+import { scrollIntoView } from "../landing-scroll.js";
+import { retainUserIntent } from "../user-intent.js";
 
 const inputDrafts = new WeakMap();
 
@@ -832,6 +834,18 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         attachedMedia.push(...paths);
         renderMedia();
         draftChanged();
+        // A sent message's pictures stand under its words, where a new one can arrive out
+        // of view: it is the attachment's result, so it comes into view once it has its
+        // size, unless the user has moved on meanwhile.
+        if (sentMedia) {
+          const added = mediaShelf.lastElementChild;
+          const mayReveal = retainUserIntent();
+          void added
+            ?.querySelector("img")
+            ?.decode()
+            .catch(() => {})
+            .then(() => mayReveal() && scrollIntoView(added, { block: "nearest" }));
+        }
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {

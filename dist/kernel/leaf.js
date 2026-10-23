@@ -1253,6 +1253,12 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         attachedMedia.push(...paths);
         renderMedia();
         draftChanged();
+        if (sentMedia) {
+          const added = mediaShelf.lastElementChild;
+          const mayReveal = retainUserIntent();
+          void added?.querySelector("img")?.decode().catch(() => {
+          }).then(() => mayReveal() && scrollIntoView(added, { block: "nearest" }));
+        }
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {

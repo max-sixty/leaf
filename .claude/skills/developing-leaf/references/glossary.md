@@ -133,7 +133,7 @@ without being a pane, and its own stylesheet decides whether they scroll.
 | **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the window's foot. Its **row** holds the leaf, the comment field, and the On me and Threads marks with their counts; **folded**, it is the leaf alone in the window's corner |
 | **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the leaf's menu, or unfolds a folded panel |
 | **Leaf's menu** | The small menu above the leaf of the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list in the menu's place: Navigate, Annotations, About this page, Versions |
-| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same seat with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field says the agent's status, a passing notice or a walk's position where a placeholder would |
+| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same seat with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field says the agent's status, a passing notice or a walk's position where a placeholder would; in an open thread it says the reply, with a walk's position at its end |
 | **View** | What opens above the row and covers the page beneath it: Threads, a thread, the On view (one tab per list, On me and On *agent*) or All pages. Escape or a press on the page puts it away |
 
 A view takes no width from the page and leaves it live. A **sticky header** covers one
@@ -218,7 +218,7 @@ its extra keyed meanings, each with its own id and binding.
 The **command reference** is the keyboard help: the searchable catalog of all
 commands, including pointer and platform ones with no key, opened by `?` or Keyboard
 shortcuts in the leaf's menu. The menu's rows show their own shortcuts; Leaf's panel
-shows no other key hints.
+shows no other key hints but the one that enters an open thread's reply.
 
 ## Related terms
 

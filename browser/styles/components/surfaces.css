@@ -466,7 +466,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-thread-action,
   .lf-thread-notice:is(button),
   .lf-draft-action,
-  .lf-corner-mark
+  .lf-corner-mark,
+  button.lf-fp-face
 ) {
   position: relative;
   &::after {

@@ -385,7 +385,7 @@ import {
 } from "./bundle-frame-visibility.js";
 import {
   LIVE_ROOT,
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   agentLabel,
   annotationMode,
   applicationPresenter,
@@ -790,6 +790,7 @@ var LeafEditorView = class extends EditorView {
       ...config,
       state: withNavigation(config.state ?? EditorState.create(config))
     });
+    this.scrollDOM.classList.add("scroll");
     this.contentDOM.addEventListener("focus", () => this.placeSelection());
   }
   setState(state) {
@@ -1328,6 +1329,7 @@ var LeafText = class extends HTMLElement {
     this.#view?.placeSelection();
   }
   connectedCallback() {
+    this.classList.toggle("scroll", true);
     if (this.#view) return;
     if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
     if (!this.hasAttribute("aria-multiline"))
@@ -5909,7 +5911,7 @@ function createThreadPresentation({
   let primary = null;
   const presenter = applicationPresenter({
     region: "thread",
-    order: PRESENTATION_ORDER.thread,
+    after: PRESENTATION_DOM.projection,
     reading: () => !available ? null : runtime.statePhase === "waiting" && !threadState().all.length ? "waiting" : true,
     // A pass reads the latest root. The time it shows is followed with the rest of what
     // it reads, so a clock change claims another pass through the same presenter, whose
@@ -7848,15 +7850,9 @@ function mountApplication(dependencies) {
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
-      order: PRESENTATION_ORDER.annotations,
+      after: PRESENTATION_DOM.obligations,
       reading: () => annotationInputs(),
-      paint: async (_reading, current, resume) => {
-        const ready = await whenApplicationRegionsPresented(
-          ["projection:chrome"],
-          current
-        );
-        if (ready === "presented" && current()) resume(renderAnnotations)();
-      }
+      paint: renderAnnotations
     });
     void presentation.present();
     onPaper.addEventListener("change", () => {
@@ -8715,11 +8711,15 @@ var LeafElement = class extends q(UpdateBoundary) {
   }
   #queueUpdate() {
     if (!this.#descriptor) return super.scheduleUpdate();
-    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-      if (this.#scheduled !== scheduled) return;
-      this.#scheduled = null;
-      return super.scheduleUpdate();
-    });
+    const scheduled = queueWidgetUpdate(
+      this.#descriptor.id,
+      () => {
+        if (this.#scheduled !== scheduled) return;
+        this.#scheduled = null;
+        return super.scheduleUpdate();
+      },
+      () => this.updateComplete
+    );
     this.#scheduled = scheduled;
     return scheduled;
   }

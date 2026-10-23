@@ -11,6 +11,7 @@
           "items": "cases",
           "key": "id"
         },
+        "resources": ["cases[].before", "cases[].after"],
         "schema": {
           "type": "object",
           "properties": {

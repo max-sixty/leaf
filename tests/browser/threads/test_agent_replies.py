@@ -840,7 +840,7 @@ def test_held_news_shows_every_fact_its_notice_first_said(browser, serve):
     notice = thread.get_by_role(
         "button", name="1 new reply · 1 new message", exact=True
     )
-    expect(notice).to_have_attribute("data-lf-room", "1 new reply · 1 new message")
+    expect(notice).to_have_attribute("data-room", "1 new reply · 1 new message")
     rendered(page)
     words = notice.locator(":scope > span")
     assert words.evaluate(

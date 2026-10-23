@@ -41,33 +41,44 @@ var attachApplicationPresentation = (region, renderer) => presentation.attach(re
 var widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
 var widgetRegions = (widget) => ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
 var attachWidgetPresentation = (widget, kind, renderer) => presentation.attach(widgetRegion(widget, kind), renderer);
+var widgetCommits = /* @__PURE__ */ new Map();
+var documentCommits = /* @__PURE__ */ new Map();
 var currentWidgetParents = readPart((root) => root.effective.widgetParents);
-var widgetOrder = (widget) => {
-  const parents = currentWidgetParents();
-  const seen = /* @__PURE__ */ new Set();
-  let depth = 0;
-  for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
-    if (seen.has(parent)) break;
-    seen.add(parent);
-    depth++;
-  }
-  return -1 / (depth + 1);
+var queueWidgetUpdate = (widget, update, committed) => {
+  const { ready, committed: dom } = schedule.enqueue(
+    () => {
+      const parents = d(currentWidgetParents);
+      const pending = [];
+      const seen = /* @__PURE__ */ new Set([widget]);
+      for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
+        if (seen.has(parent)) return [];
+        seen.add(parent);
+        const dom2 = widgetCommits.get(parent);
+        if (dom2) pending.push(dom2);
+      }
+      return pending;
+    },
+    update,
+    committed
+  );
+  widgetCommits.set(widget, dom);
+  const retire = () => {
+    if (widgetCommits.get(widget) === dom) widgetCommits.delete(widget);
+  };
+  void dom.then(retire, retire);
+  return ready;
 };
-var queueWidgetUpdate = (widget, update) => schedule.enqueue(
-  d(() => widgetOrder(widget)),
-  update
-);
-var PRESENTATION_ORDER = Object.freeze({
-  projection: 0,
-  thread: 1,
-  obligations: 2,
-  annotations: 3
+var PRESENTATION_DOM = Object.freeze({
+  widgets: () => [...widgetCommits.values()],
+  projection: () => documentCommits.get("projection:chrome")?.() ?? [],
+  thread: () => documentCommits.get("thread")?.() ?? [],
+  obligations: () => documentCommits.get("obligations")?.() ?? []
 });
 var documentPresenters = [];
 var applicationPresenter = ({
   region,
   renderer = document,
-  order,
+  after,
   reading,
   paint,
   failSoft
@@ -90,7 +101,7 @@ var applicationPresenter = ({
   };
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
-    order,
+    after,
     paint: (value, current) => {
       owed = false;
       forget();
@@ -125,6 +136,7 @@ var applicationPresenter = ({
     },
     failSoft
   });
+  documentCommits.set(region, () => [...after?.() ?? [], presenter.committed()]);
   const claim = (value) => {
     claimed = value;
     if (value === null) return schedule.passed();
@@ -347,7 +359,7 @@ export {
   attachApplicationPresentation,
   attachWidgetPresentation,
   queueWidgetUpdate,
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   applicationPresenter,
   documentChanged,
   presentDocument,

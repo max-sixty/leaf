@@ -369,7 +369,7 @@ export function createFloatingPanel({
   const controls = el("div", "lf-fp-controls");
   opened.append(head, stage, controls);
   const row = el("div", "lf-fp-row");
-  const menu = el("div", "lf-fp-menu");
+  const menu = el("div", "lf-fp-menu scroll");
   menu.id = "lf-fp-menu";
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", "Page");
@@ -1046,14 +1046,16 @@ export function createFloatingPanel({
     searching = false;
     transition(before);
   }
-  // A press that puts away the menu or view it stands in hands the user back to the leaf,
+  // A press puts away only the menu or view it stands in. The menu borrows the open
+  // view: closing it must keep that view and its editor, just as invoking the same
+  // command by key does. The command owns any navigation it causes. Hand back to the leaf,
   // the door to both, before its command runs, so the pressed row going takes no one's
   // focus to the body: a layer the command opens records the leaf as where its close
   // returns (focus.js, `openLayer`), folding leaves the user on the leaf it folds to, and
   // a command that places the user elsewhere still does.
   function putAwayThen(run) {
     const inside = standingIn(host);
-    close();
+    if (!menuOpen.value) close();
     setMenu(false);
     if (inside) focusDestination(leaf, "return");
     run();
@@ -1977,7 +1979,7 @@ export function createFloatingPanel({
         latest.failed
           ? html`<div class="lf-fp-failed" role="none">
               <b>${latest.label}</b>
-              <p class="lf-fp-failed-error">${latest.error}</p>
+              <p class="lf-fp-failed-error scroll">${latest.error}</p>
             </div>`
           : nothing
       }
@@ -2832,7 +2834,7 @@ export function createFloatingPanel({
   // centred in a room wider on both sides, which stood it off centre once it had a
   // count, as On me nearly always does.
   const tabs = (names, current, label, choose, count) =>
-    html`<div class="lf-fp-filters" role="group" aria-label="Show">
+    html`<div class="lf-fp-filters scroll" role="group" aria-label="Show">
       ${names.map((name) => {
         const counted = count(name);
         return html`<button
@@ -3334,7 +3336,7 @@ export function createFloatingPanel({
     const exit =
       search === threadSearch
         ? { label: "Close search", press: closeThreadSearch, disabled: false }
-        : top
+        : top && !search
           ? { label: "Close", press: close, disabled: false }
           : (rows().find((entry) => entry.exit) ?? null);
     render(

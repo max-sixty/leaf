@@ -10,6 +10,7 @@ import {
   applicationState,
   readPart,
   whenApplicationPresented,
+  queueWidgetUpdate,
 } from "/runtime/semantic-state.js";
 import { clockValue, tickClock } from "/runtime/presence.js";
 
@@ -151,4 +152,152 @@ test("explicit presentation rereads mechanical inputs without duplicate claims",
   await whenApplicationPresented();
   assert.deepEqual(paints, ["mounted", "mounted"]);
   region.disconnect();
+});
+
+test("an unchanged intermediary still carries its upstream DOM dependencies", async () => {
+  const { PRESENTATION_DOM } = await import("/runtime/semantic-state.js");
+  let dom = "old";
+  const seen = [];
+  const projection = applicationPresenter({
+    region: "projection:chrome",
+    after: PRESENTATION_DOM.widgets,
+    reading: () => true,
+    paint: () => {
+      dom = "projected";
+    },
+  });
+  const thread = applicationPresenter({
+    region: "thread",
+    after: PRESENTATION_DOM.projection,
+    reading: () => true,
+    paint: () => {},
+  });
+  await thread.present();
+  const consumer = applicationPresenter({
+    region: "transitive-dom-consumer",
+    after: PRESENTATION_DOM.thread,
+    reading: () => true,
+    paint: () => seen.push(dom),
+  });
+  const nativeCommit = Promise.withResolvers();
+  const updated = queueWidgetUpdate(
+    "pending-native-widget",
+    () => {
+      dom = "widget";
+    },
+    () => nativeCommit.promise,
+  );
+  void consumer.present();
+  const finished = projection.present();
+  await updated;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const beforeCommit = [...seen];
+  nativeCommit.resolve();
+  await finished;
+  projection.disconnect();
+  thread.disconnect();
+  consumer.disconnect();
+  assert.deepEqual(
+    beforeCommit,
+    [],
+    "an idle thread is not proof of committed projection DOM",
+  );
+  assert.deepEqual(seen, ["projected"]);
+});
+
+test("an optimistic cyclic move cannot deadlock widget DOM before its refusal", async () => {
+  const original = applicationState.read().document;
+  const move = {
+    unit: "unit",
+    writer: "user",
+    record: { kind: "position", within: "lf-cycle-box" },
+  };
+  const descriptor = (id, parent) => ({
+    id,
+    tag: "lf-cycle-box",
+    document: { kind: "page", revision: 1 },
+    declaration: { "x-state": {} },
+    parent: parent && { id: parent, tag: "lf-cycle-box" },
+    ancestors: [],
+    quoted: false,
+  });
+  const board = {
+    ...descriptor("board", null),
+    tag: "lf-cycle-board",
+    declaration: { "x-state": { move } },
+  };
+  applicationState.identify(1);
+  applicationState.captureDocument({
+    ...applicationState.read().document,
+    registry: {
+      [board.tag]: board.declaration,
+      "lf-cycle-box": { "x-state": {} },
+      $states: {
+        [board.tag]: {
+          move: {
+            writer: "user",
+            definition: {
+              origin: board.tag,
+              unit: move.unit,
+              record: move.record,
+              creates: null,
+              detail: null,
+            },
+          },
+        },
+      },
+    },
+    descriptors: new Map([
+      ["board", board],
+      ["outer", descriptor("outer", "board")],
+      ["inner", descriptor("inner", "outer")],
+    ]),
+    authored: new Map([
+      [
+        "board",
+        {
+          tag: board.tag,
+          specs: new Map([["move", move]]),
+          state: {
+            move: {
+              value: { board: ["outer"], outer: ["inner"], inner: [] },
+              units: {},
+              ranks: { outer: "1", inner: "1" },
+            },
+          },
+        },
+      ],
+    ]),
+  });
+  try {
+    applicationState.enqueue(
+      {
+        kind: "action",
+        widget: "board",
+        action: "move",
+        detail: { unit: "outer", value: "inner", rank: "1" },
+        revision: 1,
+        attempt: "cyclic-move",
+      },
+      "now",
+    );
+    assert.equal(applicationState.read().effective.widgetParents.get("outer"), "inner");
+    assert.equal(applicationState.read().effective.widgetParents.get("inner"), "outer");
+    const drawn = [];
+    await Promise.all(
+      ["outer", "inner"].map((id) =>
+        queueWidgetUpdate(
+          id,
+          () => drawn.push(id),
+          () => Promise.resolve(),
+        ),
+      ),
+    );
+    assert.deepEqual(drawn.sort(), ["inner", "outer"]);
+    applicationState.refuse("cyclic-move");
+    assert.equal(applicationState.read().effective.widgetParents.get("outer"), "board");
+  } finally {
+    applicationState.refuse("cyclic-move");
+    applicationState.captureDocument(original);
+  }
 });

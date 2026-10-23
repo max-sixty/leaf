@@ -80,7 +80,7 @@ const dialogSearch = searchField("lf-page-map-search", {
   label: "Find an action, status, or location in Page Map",
   placeholder: "Find an action, status, or location",
 });
-const dialogList = el("div", "lf-page-map-list");
+const dialogList = el("div", "lf-page-map-list scroll");
 // A state update or a search re-renders the open sheet; the row the user was on holds
 // their place in it (user-place.js), under the map key each row is rendered with.
 const place = placeKeeper(dialogList, {

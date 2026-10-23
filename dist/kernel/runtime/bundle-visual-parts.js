@@ -870,7 +870,14 @@ function holdBlock(bounded) {
   hold.sync = () => sync(false);
   const resize = sizeObserver(() => sync(true));
   resize.observe(bounded);
-  new MutationObserver(hold.sync).observe(bounded, {
+  new MutationObserver((records) => {
+    if (records.some(
+      (record) => record.type !== "attributes" || record.target === bounded
+    ))
+      hold.sync();
+  }).observe(bounded, {
+    attributes: true,
+    attributeFilter: ["hidden"],
     childList: true,
     characterData: true,
     subtree: true

@@ -41,8 +41,8 @@
    (`holdArrivingBounds` on arrivals.js, started at boot) holds what the page opens
    with, every block added since in the document or a declared shadow root, and any
    element whose bound is painted or taken away in place, and lets go of a block that
-   leaves. Each held block is then watched on its own, for what it holds and for its
-   size. What is registered is what stands in the page.
+   leaves. Each held block is then watched on its own, for what it holds, its size,
+   and its own hidden state. What is registered is what stands in the page.
 
    A block in content the browser skips, a hidden tab's panel or a shut disclosure, is
    left as it stands until it is drawn (geometry.js, `skipped`). Finding its scroller
@@ -50,8 +50,9 @@
    question makes the browser style and lay out the hidden subtree first; Chromium has
    left style elsewhere on the page stale after that forced pass. A block first seen
    hidden stands as its own scroller meanwhile. Each skipped sync renews the block's
-   size observation, whose first delivery comes once the block is drawn and asks again,
-   so a log that grew while hidden opens on its newest entry.
+   size observation, whose first delivery comes once the block is drawn and asks again.
+   A bound panel can keep the same box while its hidden attribute changes, so that
+   change also asks again. A log that grew while hidden then opens on its newest entry.
 
    The watch starts before presentation because the first read it takes is the one the
    user sees: an `end` log opens at its end, and a pin taken after the page presents
@@ -174,7 +175,16 @@ function holdBlock(bounded) {
   hold.sync = () => sync(false);
   const resize = sizeObserver(() => sync(true));
   resize.observe(bounded);
-  new MutationObserver(hold.sync).observe(bounded, {
+  new MutationObserver((records) => {
+    if (
+      records.some(
+        (record) => record.type !== "attributes" || record.target === bounded,
+      )
+    )
+      hold.sync();
+  }).observe(bounded, {
+    attributes: true,
+    attributeFilter: ["hidden"],
     childList: true,
     characterData: true,
     subtree: true,

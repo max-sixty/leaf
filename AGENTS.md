@@ -339,7 +339,7 @@ Before finishing a feature:
   for each. The route is owed to the result, not each gesture: ask what a user
   could no longer see, reach or decide without the gesture. Dragging a thread
   card aside needs no route, since Escape also uncovers the passage beneath it.
-- Follow `examples/AGENTS.md` and regenerate the derived corpus.
+- Follow `examples/AGENTS.md`; corpus consumers generate their fixture on demand.
 - If the feature changes what an agent can do or how, update
   `skills/leaf/SKILL.md` or the one reference that owns the workflow, and point
   other references at that section. Shipped instructions set goals for the user's

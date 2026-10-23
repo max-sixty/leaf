@@ -532,9 +532,7 @@
   .lf-fp-exit-seat {
     flex: none;
     display: flex;
-  }
-  .lf-fp-exit-seat[hidden] {
-    display: none;
+    width: var(--lf-fp-aim);
   }
   .lf-floating-panel[data-rest=mark] {
     width: var(--lf-fp-folded);

@@ -19,6 +19,11 @@ each video independently, so use frame drawings for comparisons requiring exactl
 the same computed frame. Use `lf-trace` when the reader needs captured checkpoints
 and their inspection tools.
 
+Keep a way to inspect each recording at a readable size when its preview is scaled
+down, such as an Enlarge action or a link to the original media. Check the detail the
+decision depends on at the narrowest view; playback controls alone do not make a
+small recording readable.
+
 For illustrations, a page module assigns `renderFrame` after
 `customElements.whenDefined('lf-motion')`. It receives milliseconds from zero through
 `duration` and draws a complete frame, so seeking backward works too. Include any

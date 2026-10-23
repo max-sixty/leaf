@@ -24,8 +24,8 @@ have to picture from a description, and put that thing on the page in its own fo
   alternatives in one frame at one scale.
 - Numbers whose shape is the point, such as a trend, a ranking or groups on one scale,
   are an `lf-chart`, even when they compare the same measures across items. Label the
-  values the argument cites, and put exact values in a table in `<details>` below it
-  when readers need them.
+  values the argument cites, and put exact values in a table below it when readers
+  need them. "Reading cost" below governs whether to collapse that table.
 - Wording the user judges, such as code, a command or a message, is shown as the text
   itself. When the point is what code does, such as what it draws or which rule wins,
   show that effect in one of the forms above, with the code beside it.
@@ -54,9 +54,11 @@ question the page asks.
 
 Readers skip collapsed text unless they go looking. Keep open everything the page asks
 the reader to take in or answer: the finding, its evidence, and what they are asked to
-review, decide or comment on, including a proposed plan. Collapse what they can skip
-and still do that, such as history, method, source excerpts, transcripts and raw
-output. Leaf opens a disclosure when a comment lands inside it.
+review, decide or comment on, including a proposed plan. Keep short supporting notes
+and excerpts visible. Collapse long optional material when the space and attention
+saved repay its label and click. Keep the resulting disclosure controls directly
+reachable; another level should reveal substantial content of its own. Leaf opens a
+disclosure when a comment lands inside it.
 
 The title names the page, and the lede under it states the finding. A section that
 reaches a finding states it in its heading, short enough to scan in an `lf-toc`; put
@@ -146,9 +148,16 @@ page of parts, whose column parts each take their own outline.
 
 ## Read the registry
 
-Write semantic HTML using the registry's elements and class idioms. The vendored theme
-styles colours, type, spacing, headings, tables, code and widgets; use a page `<style>`
-only for presentation unique to this page.
+Use Leaf's default styling for ordinary content, with semantic HTML from the registry's
+elements and class idioms. The vendored theme supplies colours, type, spacing,
+headings, tables, code and widgets. Polish a page through clearer content and hierarchy
+within that treatment. Reserve page CSS for task-specific arrangement, visualization
+or a particular design the user requests. An added card surface should express a
+grouping or interaction the task needs; wrapping already styled elements just for
+polish adds visual weight without meaning.
+
+`page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
+for inspecting how much CSS a page adds and where it comes from.
 
 First read the shared author instructions of the page's packages, which can steer
 which entries you pick:

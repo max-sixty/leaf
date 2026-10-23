@@ -2,7 +2,7 @@ import {
   marks,
   resolveAnchor,
   targetSegments
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   inChrome,
   layoutBox,
@@ -34,6 +34,7 @@ var PAGE_CONTROL_RANK = Object.freeze({
   session: 10,
   preview: 20,
   layer: 30,
+  inspection: 32,
   share: 35,
   leaves: 40,
   latest: 50,

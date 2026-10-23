@@ -8,6 +8,9 @@ import {
   stageWidgetDescriptors
 } from "./bundle-keyboard~disclosure.js";
 import {
+  copyControl
+} from "./bundle-copy-control.js";
+import {
   isCanonicalMediaUrl,
   readAttachedMedia,
   scopedMediaUrl,
@@ -29,8 +32,6 @@ import {
   anchorReading,
   anchorView,
   anchoringIsReady,
-  chromeForeground,
-  chromeRoot,
   cutFrames,
   datumAimTarget,
   datumLabel,
@@ -49,11 +50,15 @@ import {
   targetElement,
   targetSegments,
   visualPartLabel
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   initialOrigin,
   initialSource
 } from "./bundle-initial-render.js";
+import {
+  chromeForeground,
+  chromeRoot
+} from "./bundle-chrome.js";
 import {
   ago,
   aimedTop,
@@ -1451,18 +1456,6 @@ function renderQuiet(root, also = []) {
   const targets = new Set(elementsIn(root, painting));
   for (const el2 of also) if (el2 === root || root.contains(el2)) targets.add(el2);
   for (const el2 of targets) quietWord(el2, quietFacts(el2));
-}
-
-// runtime/copy-control.js
-function copyControl(className, { label = "", success, error }) {
-  const copy = offer("wa-copy-button", className);
-  if (label) copy.copyLabel = label;
-  copy.successLabel = success;
-  copy.errorLabel = error;
-  copy.tooltip = "none";
-  copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
-  copy.addEventListener("wa-error", () => raiseError(error, { announce: false }));
-  return copy;
 }
 
 // runtime/block-controls.js
@@ -7798,7 +7791,6 @@ export {
   quietWord,
   isExternalPageLink,
   renderQuiet,
-  copyControl,
   copyBlock,
   renderMarkdown,
   markdownWords,

@@ -394,7 +394,7 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
     return _CssReading(references, tuple(parts[0::2]), order)
 
 
-def _css_dependencies(
+def css_dependencies(
     source: str, path: str, declarations: bool = False
 ) -> tuple[str, ...]:
     """The URLs the CSS in the file at `path` loads. The parse is shared by every
@@ -571,7 +571,7 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
     return Resource(data, mime)
 
 
-def _resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]:
+def resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]:
     """The local dependencies of an authored module or stylesheet."""
     edges = []
     if mime == "application/javascript" and path.startswith("/page/"):
@@ -582,7 +582,7 @@ def _resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]
             css = data.decode("utf-8")
         except UnicodeDecodeError as error:
             raise artifact_error("css-not-utf8", path) from error
-        for specifier in _css_dependencies(css, path):
+        for specifier in css_dependencies(css, path):
             edges.append(resolve_dependency(specifier, path))
     return tuple(dict.fromkeys(edge for edge in edges if edge is not None))
 
@@ -610,7 +610,7 @@ class _ResourceCapture:
             vendored = False  # what it imports is a dependency
             resource = self.read_resource(path)
             data = resource.data
-            edges = _resource_dependencies(path, data, resource.mime)
+            edges = resource_dependencies(path, data, resource.mime)
             self.resources[path] = Resource(data, resource.mime)
             pending.extend(reversed(edges))
 
@@ -687,10 +687,10 @@ def _capture_artifact(
                 raise artifact_error("stylesheet-type", path)
             entries.append(path)
         for sheet in authored.authoring.style_blocks:
-            for specifier in _css_dependencies(sheet["css"], "/index.html"):
+            for specifier in css_dependencies(sheet["css"], "/index.html"):
                 entries.append(resolve_dependency(specifier, "/index.html"))
         for inline in authored.authoring.inline_styles:
-            for specifier in _css_dependencies(
+            for specifier in css_dependencies(
                 inline["style"], "/index.html", declarations=True
             ):
                 entries.append(resolve_dependency(specifier, "/index.html"))

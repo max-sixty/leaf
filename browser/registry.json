@@ -1833,8 +1833,8 @@
     "x-example": "<tr><th scope=\"row\">Enterprise</th><td class=\"num\">6,000</td><td class=\"num\">12,000</td></tr>"
   },
   "details": {
-    "description": "Evidence: a claim as the <summary>, its backing collapsed beneath. Native disclosure; find-in-page reaches the collapsed content.",
-    "x-example": "<details>\n  <summary>The parser drops the slash on self-closed custom tags</summary>\n  <pre><code>document.querySelector(\"lf-code\").textContent\n// → \"rest of the paragraph\"</code></pre>\n</details>"
+    "description": "Native disclosure with a clickable <summary>; find-in-page reaches the collapsed content. `page-authoring.md`, ‘Reading cost’, owns when to use one.",
+    "x-example": "<details>\n  <summary>Full diagnostic output</summary>\n  <pre>…</pre>\n</details>"
   },
   "pre > code[class*=\"language-\"]": {
     "description": "A literal the user can select and quote, such as a command, a config file or a snippet of output. To color it, add `class=\"language-NAME\"` with a name from `$languages`; leave the class off where the body isn't source. For a walkthrough with numbered lines, highlighted ranges or remarks at a line, use `lf-code` instead.",

@@ -1220,6 +1220,21 @@ class PageEndpoint:
             return self._refuse("LLM access is available only in live pages.", 403)
         return None
 
+    def _connection_gate(self) -> Response | None:
+        if isinstance(self, SampleEndpoint) or not self.source.writable:
+            return self._refuse(
+                "HTTP connections are available only in live pages.", 403
+            )
+        return None
+
+    def _fetch_connection(self, name: str) -> Response:
+        from .http_connections import ConnectionError, fetch
+
+        try:
+            return self._json(fetch(self.page_dir, name, self.posted))
+        except ConnectionError as error:
+            return self._json(error.json(), error.status)
+
     def _generate(self) -> Response:
         # Keep inference off page startup and ordinary request paths.
         from .llm import LLMError, generate
@@ -1335,6 +1350,10 @@ class PageEndpoint:
     # independent page from the frozen reading and writes nothing to its parent, so
     # a read-only preview creates one too.
     POST_ROUTES: Mapping[str, PostRoute] = {
+        r"/api/connections/(?P<name>[^/]+)": PostRoute(
+            _fetch_connection,
+            (_runtime_gate, _connection_gate, _same_origin_gate, _body_gate),
+        ),
         "/api/llm": PostRoute(
             _generate, (_runtime_gate, _llm_gate, _same_origin_gate, _body_gate)
         ),

@@ -1163,6 +1163,26 @@ async function generate(request) {
   );
 }
 
+// runtime/http-api.js
+var live4 = readPart((root) => root.document.live);
+function connection(name) {
+  return {
+    async fetch(path) {
+      if (offlineInteractive || !live4())
+        throw new Error("HTTP connections are available in live pages.");
+      return requestJson(
+        pageUrl(`api/connections/${encodeURIComponent(name)}`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path })
+        },
+        "HTTP connection"
+      );
+    }
+  };
+}
+
 // runtime/widget-api.js
 async function mountSample(frame, options) {
   const owner = await import("./bundle-sample.js");
@@ -1218,6 +1238,7 @@ export {
   compareImages,
   comparisonChanges,
   compoundReadingRegionId,
+  connection,
   consumeAnnotations,
   contributionEntry,
   contributionItemKey,

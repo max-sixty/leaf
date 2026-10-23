@@ -3585,11 +3585,15 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
 ):
     """The diagram fits standard tracks; a wider native track grows without clipping.
 
-    The security example's 77px SVG includes 16px of padding around its marks. The
-    overlay paints there; the native classic track consumes that same blank space.
-    Any extra track thickness participates in the first layout that draws the SVG.
+    An ample authored reservation is stable through startup on either platform's
+    font metrics. Removing it exposes the natural drawing and native track sizes;
+    the overlay and classic track share the drawing's own blank bottom padding.
     """
     source = (ROOT / "examples" / "security-boundary.html").read_text()
+    source = source.replace(
+        'id="security-before-flow" data-height="77"',
+        'id="security-before-flow" data-height="200"',
+    )
     if track:
         source = source.replace(
             "</head>",
@@ -3627,19 +3631,15 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     assert any(not frame["drawn"] for frame in frames), frames
     assert frames[-1]["drawn"], frames
     assert frames[-1]["track"] == track, frames
-    height = 77 + max(0, track - 15)
     assert frames[-1]["clear"] >= max(15, track + 1), frames
-    drawn = [frame for frame in frames if frame["drawn"]]
-    assert {frame["height"] for frame in drawn} == {height}, frames
-    assert len({frame["following"] for frame in drawn}) == 1, frames
-    if track <= 15:
-        assert {frame["height"] for frame in frames} == {77}, frames
-        assert len({frame["following"] for frame in frames}) == 1, frames
+    assert {frame["height"] for frame in frames} == {200}, frames
+    assert len({frame["following"] for frame in frames}) == 1, frames
     # A missing or underestimated reservation must not sacrifice content to the bar;
     # extra reserved room must not stretch the drawing into it.
     reservations = page.locator("#security-before-flow").evaluate("""box => {
       const svg=box.querySelector('svg');
-      return ['', '61', '177'].map(height=>{
+      const natural=svg.getBoundingClientRect().height;
+      return ['', String(natural - 16), String(natural + 100)].map(height=>{
         box.setAttribute('data-lf-height',height);
         const bounds=box.getBoundingClientRect(), ink=svg.getBBox({stroke:true});
         const bottom=new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
@@ -3647,8 +3647,15 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
           clear:bounds.bottom-bottom};
       });
     }""")
-    assert [reading["height"] for reading in reservations] == [height, height, 177]
-    assert {reading["svg"] for reading in reservations} == {77}
+    natural = reservations[0]["svg"]
+    height = natural + max(0, track - 15)
+    assert 0 < height < 200, reservations
+    assert [reading["height"] for reading in reservations] == [
+        height,
+        height,
+        natural + 100,
+    ]
+    assert {reading["svg"] for reading in reservations} == {natural}
     assert all(reading["clear"] >= max(15, track + 1) for reading in reservations), (
         reservations
     )

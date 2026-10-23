@@ -55,8 +55,6 @@ const declaredInput = (element, input) => {
   return declaration;
 };
 
-// Mounted widgets own their derived values. The publication holds the immutable
-// reading, while this weak lifetime record only lets a retained node return with it.
 // A check subscribes before widgets run and keeps the values it exercises. The
 // production runtime retains no output history and does no schema validation here.
 const outputObservers = new Set();
@@ -65,6 +63,8 @@ export function observeOutputs(observe) {
   return () => outputObservers.delete(observe);
 }
 
+// Mounted widgets own their derived values. The publication holds the immutable
+// reading, while this weak lifetime record only lets a retained node return with it.
 const outputOwners = new WeakMap();
 const outputKeys = new WeakMap();
 let outputSequence = 0;

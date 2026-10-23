@@ -18,6 +18,7 @@ from leaf.render_checks import (
     PageNotReady,
     evaluate_probe,
     install_window_errors,
+    is_runtime_entry,
     observe_output_documents,
     output_values,
     pre_upgrade_findings,
@@ -237,7 +238,7 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
         # Only the first is held. A later one is passed through rather than left
         # held, because this handler has to outlive the entry it holds and a
         # second hold nothing releases would be a wait with no end.
-        if held:
+        if held or not is_runtime_entry(route.request):
             route.fallback()
             return
         held.append(route)
@@ -274,7 +275,7 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
             "an authored main",
             lambda: page.wait_for_selector("body > main", state="attached"),
         )
-        if page.locator('script[src$="/leaf.js"]').count() != 1:
+        if page.locator("script[data-lf-runtime][src]").count() != 1:
             raise PreUpgradeFailed("entry-not-single")
         reaching("its theme stylesheet", lambda: wait_for_theme(page))
         # The held entry is a module script, which runs only once the parser is done,

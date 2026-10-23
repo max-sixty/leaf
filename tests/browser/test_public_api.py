@@ -7,7 +7,7 @@ from interact_support import add_test_widget
 from model_folds import leaf_page
 from render_harness import open_page
 
-from leaf.render_checks import RENDER_VIEWPORT, rendered
+from leaf.render_checks import RENDER_VIEWPORT, observe_output_documents, rendered
 from leaf.render_gate.scheme import _render_scheme
 from leaf.render_gate.widget_quality import widget_findings
 from leaf.revision_artifact import read_artifact
@@ -173,7 +173,68 @@ def test_page_render_attributes_invalid_output_to_the_overriding_implementation(
     assert "$.count" in failures[0].values["error"]
 
 
-def test_render_check_keeps_disposed_samples_invalid_outputs(tmp_path, browser, serve):
+def test_render_check_preserves_an_authored_classic_script_named_leaf(browser, serve):
+    url = serve(
+        leaf_page(
+            "Authored script",
+            "<p>A page with its own script.</p>",
+            head='<script defer src="/page/leaf.js"></script>',
+        ),
+        page_files={"leaf.js": "window.authoredScriptRan = true;"},
+    )
+    pages = []
+
+    def read_script(page, registry):
+        assert page.evaluate("window.authoredScriptRan") is True
+
+    try:
+        findings, _, complete = _render_scheme(
+            browser.unwatched,
+            url,
+            "light",
+            RENDER_VIEWPORT,
+            20_000,
+            pages,
+            then=read_script,
+        )
+    finally:
+        for page in pages:
+            page.close()
+    assert complete
+    assert not [f for f in findings if f.severity == "error"]
+
+
+def test_output_capture_fetch_failure_reaches_the_browsers_network_boundary(
+    browser, serve, monkeypatch
+):
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import Route
+
+    url = serve(leaf_page("Interrupted entry", "<p>A page.</p>"))
+    attempted, failed = [], []
+
+    def unavailable(route, **options):
+        attempted.append(route.request.url)
+        raise PlaywrightError("The entry server stopped answering")
+
+    monkeypatch.setattr(Route, "fetch", unavailable)
+    page = browser.unwatched.new_page()
+    page.on("requestfailed", lambda request: failed.append(request.url))
+    observe_output_documents(page)
+    try:
+        # Aborting ends the browser request, so load completes instead of hanging
+        # until the handover deadline behind an unfulfilled interception.
+        page.goto(url, wait_until="load", timeout=5_000)
+        assert attempted
+        assert set(attempted) <= set(failed)
+    finally:
+        page.close()
+
+
+@pytest.mark.parametrize("ending", ["removed", "navigated"])
+def test_render_check_keeps_departed_samples_invalid_outputs(
+    tmp_path, browser, serve, ending
+):
     package = tmp_path / "sample-output-package"
     output_package(package, {"count": "wrong"})
     url = serve(
@@ -194,9 +255,15 @@ def test_render_check_keeps_disposed_samples_invalid_outputs(tmp_path, browser, 
     artifact = read_artifact(serve.page_dir, 1)
     pages = []
 
-    def dispose_sample(page, registry):
+    def leave_samples(page, registry):
         assert len(page.frames) == 4
-        page.locator("lf-sample").evaluate_all("els => els.forEach(el => el.remove())")
+        if ending == "removed":
+            page.locator("lf-sample").evaluate_all(
+                "els => els.forEach(el => el.remove())"
+            )
+        else:
+            for frame in page.frames[1:]:
+                frame.goto("about:blank")
 
     try:
         findings, _, complete = _render_scheme(
@@ -206,7 +273,7 @@ def test_render_check_keeps_disposed_samples_invalid_outputs(tmp_path, browser, 
             RENDER_VIEWPORT,
             20_000,
             pages,
-            then=dispose_sample,
+            then=leave_samples,
             implementations=artifact.implementations,
             declaration_sources=artifact.declaration_sources,
         )

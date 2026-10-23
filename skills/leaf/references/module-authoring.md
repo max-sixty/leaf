@@ -309,8 +309,9 @@ wait for the current child's `ready` and reject if that child is replaced or des
 map contains its CSS attributes or custom properties, and a later call removes members
 missing from the replacement. Use it on an element the package owns, with the public
 style inputs from [package-themes.md](package-themes.md). The same appearance reaches
-contained samples under that element, including their first paint and resets; a nearer
-dressed ancestor owns a nested sample's appearance. This does not authorize writing
+contained samples under that element, including their first paint and resets. Calling
+`wear` on an inner owner replaces an outer owner's appearance for samples beneath it:
+the nearest dressed ancestor owns a sample's appearance. This does not authorize writing
 Leaf's computed geometry or styling another package's internals.
 
 ## Generated controls

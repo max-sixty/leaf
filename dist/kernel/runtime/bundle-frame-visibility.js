@@ -401,8 +401,7 @@ function focusDestination(destination, cause2, { caret = null, ...unknown } = {}
   };
   placed(cause2, () => {
     destination.focus(options);
-    if (!landedOn(destination) && lendable(destination))
-      lendStop(destination, options);
+    if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }

@@ -169,8 +169,7 @@ export function focusDestination(
   };
   placed(cause, () => {
     destination.focus(options);
-    if (!landedOn(destination) && lendable(destination))
-      lendStop(destination, options);
+    if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }

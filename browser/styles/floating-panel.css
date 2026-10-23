@@ -148,65 +148,49 @@
   .lf-fp-inner > :not(.lf-fp-opened) {
     flex-shrink: 0;
   }
-  /* The panel's own controls share one face. It is a default, so it stands in the
-     components' layer (`lf-base`), as the marks sheet's indication default does
-     (runtime/stylesheets.js), at a plain selector's weight: the panel's own rules,
-     unlayered, outrank it, and so does a shared face a panel control wears, as Send
-     wears the composers' accent arrow, while it still outranks the chrome's control
-     reset (chrome.css) and the layer's focus band at no weight (surfaces.css). It
-     stops at the components the panel holds, which bring faces of their own: what
-     Leaf's reader draws in a view's outlet (controls.css), the comment box seated in
-     the row, the attachment shelf (response.css) and the panel's corner mark
-     (controls.css). Unlayered and reaching them, it took the fill off a chosen reaction
-     in a thread, drew the shelf's × as a panel press and stood the seated box's Send on
-     a line under its field. */
+  /* The panel's own controls share one face, which each of them opts into by
+     `lf-fp-face` (floating-panel.js), so a component the panel holds brings its own
+     face: what Leaf's reader draws in a view's outlet (controls.css) and a thread's
+     notice (surfaces.css), the comment box seated in the row and the attachment shelf
+     (response.css), page search's steps and the panel's corner mark (controls.css).
+     Rejected: the face reaching every control under the panel but a list of the
+     components it stopped at, which each component the panel newly seated had to join,
+     or wear the face, as it took the fill off a chosen reaction in a thread, drew the
+     shelf's × as a panel press, stood the seated box's Send on a line under its field
+     and washed a thread's held news on hover, a wash that notice declines. It is a
+     default, so it stands in the components' layer (`lf-base`), as the marks sheet's
+     indication default does (runtime/stylesheets.js), at a plain selector's weight: the
+     panel's own rules, unlayered, outrank it, while it still outranks the chrome's
+     control reset (chrome.css) and the layer's focus band at no weight (surfaces.css).
+     A press reaches the pointer's floor by the shared reach (surfaces.css). */
   @layer lf-base {
-    @scope (.lf-floating-panel) to (.lf-fp-outlet, .lf-fp-response, .lf-composer-media, .lf-corner-mark) {
-      :is(button, input, textarea) {
-        font: inherit;
-        color: inherit;
-      }
-      button {
-        background: none;
-        border: 0;
-        border-radius: var(--r);
-        cursor: pointer;
-        white-space: nowrap;
-        padding: 0 8px;
-        min-height: var(--lf-fp-press);
-      }
-      /* Each press reaches the pointer's floor (`--aim-floor`) above and below a face
-         that can be shorter: the crumb's back is a line of small words, and under a
-         finger the row's presses are its 34px line against a 44px floor. The reach is
-         a box of the press's own that paints nothing, so the line, and the face hover
-         and pressing paint, keep their height, and it lies in the room the row, the
-         head and a menu's rows already keep around their presses. Sideways a press is
-         itself as wide as the floor, since a reach there would lie over its
-         neighbour's. The editor's presses are its own, which it sizes and places
-         itself (response.css). */
-      button:where(:not(.lf-fp-editors *)) {
-        position: relative;
-      }
-      button:where(:not(.lf-fp-editors *))::after {
-        content: "";
-        position: absolute;
-        inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
-      }
-      button:hover {
-        background: var(--lf-fp-hover);
-      }
-      button:is(:disabled, [aria-disabled="true"]) {
-        color: var(--lf-fp-muted);
-        cursor: default;
-        background: none;
-      }
-      /* The On me card the `m` walk stands on wears a focused card's ring, though focus
-         is at its ask on the page (floating-panel.js, `walkedStop`). */
-      :is(button, input, textarea, a, .lf-fp-on-item):focus-visible,
-      .lf-fp-on-item[data-walked] {
-        outline: var(--focus-ring);
-        outline-offset: -2px;
-      }
+    :is(button, input, textarea):where(.lf-fp-face) {
+      font: inherit;
+      color: inherit;
+    }
+    button:where(.lf-fp-face) {
+      background: none;
+      border: 0;
+      border-radius: var(--r);
+      cursor: pointer;
+      white-space: nowrap;
+      padding: 0 8px;
+      min-height: var(--lf-fp-press);
+    }
+    button:where(.lf-fp-face):hover {
+      background: var(--lf-fp-hover);
+    }
+    button:where(.lf-fp-face):is(:disabled, [aria-disabled="true"]) {
+      color: var(--lf-fp-muted);
+      cursor: default;
+      background: none;
+    }
+    /* The On me card the `m` walk stands on wears a focused card's ring, though focus
+       is at its ask on the page (floating-panel.js, `walkedStop`). */
+    :is(.lf-fp-face, .lf-fp-on-item):focus-visible,
+    .lf-fp-on-item[data-walked] {
+      outline: var(--focus-ring);
+      outline-offset: -2px;
     }
   }
 
@@ -1290,8 +1274,8 @@
     display: block;
     overflow: visible;
   }
-  /* Its reach (above) lies inside the thread's view, which clips what passes its 8px
-     top padding, so under a finger it stands low enough for the reach above it. */
+  /* Its reach (surfaces.css) lies inside the thread's view, which clips what passes its
+     8px top padding, so under a finger it stands low enough for the reach above it. */
   .lf-fp-quote-head > .lf-quote-expand {
     margin-block-start: max(0px, (var(--aim-floor) - 1lh) / 2 - 8px);
     min-height: 0;
@@ -1455,9 +1439,13 @@
   .lf-fp-show {
     margin-inline-start: auto;
   }
+  /* An answer as short as "A" stands as wide as the floor, so its reach, which meets
+     the floor on each axis the face falls short (surfaces.css), lies over no answer
+     beside it. */
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
     padding-inline: 11px;
+    min-width: var(--aim-floor);
   }
   .lf-fp-answer[aria-pressed="true"] {
     color: var(--ok-ink);

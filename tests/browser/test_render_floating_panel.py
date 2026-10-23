@@ -4661,7 +4661,7 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
                   top: rows[0].top - content.top,
                   wrapped: rows.at(-1).left - content.left,
                   marker: style.display === 'list-item' ? style.listStyleType : null,
-                  source: getComputedStyle(mark).color !== 'rgba(0, 0, 0, 0)',
+                  source: getComputedStyle(mark).webkitTextFillColor !== 'rgba(0, 0, 0, 0)',
                   height: content.height,
                 };
               });

@@ -828,8 +828,9 @@ export function createFloatingPanel({
   // focus, a phone raises no keyboard for it, and the page's selection stands until the
   // comment takes it. The comment opens as the press completes, since the press is
   // still one away from whatever comment box stands open on the page, which goes as it
-  // completes (composing/surface.js, `standDown`). A Tab through the row, or the runtime
-  // putting the caret there, writes on the page.
+  // completes (composing/surface.js, `standDown`). WebKit does not deliver a click
+  // after this cancelled touch pointerdown, so the release owns the handoff. A Tab
+  // through the row, or the runtime putting the caret there, writes on the page.
   let pressedWords = null;
   const quotedWords = () =>
     general &&
@@ -848,10 +849,13 @@ export function createFloatingPanel({
     },
     true,
   );
-  field.addEventListener("click", (event) => {
+  field.addEventListener("pointerup", (event) => {
     const words = pressedWords;
     pressedWords = null;
     if (words && event.composedPath().includes(general?.input)) words.comment();
+  });
+  field.addEventListener("pointercancel", () => {
+    pressedWords = null;
   });
   // The user's first edit in the field passes every error it could say to the menu's
   // list, read before the edit changes what it could say. The user chose this on 17

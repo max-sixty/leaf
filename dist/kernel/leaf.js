@@ -6277,10 +6277,13 @@ function createFloatingPanel({
     },
     true
   );
-  field.addEventListener("click", (event) => {
+  field.addEventListener("pointerup", (event) => {
     const words = pressedWords;
     pressedWords = null;
     if (words && event.composedPath().includes(general?.input)) words.comment();
+  });
+  field.addEventListener("pointercancel", () => {
+    pressedWords = null;
   });
   field.addEventListener(
     "beforeinput",

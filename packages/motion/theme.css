@@ -19,7 +19,7 @@
   box-sizing: border-box;
   block-size: var(--lf-motion-toolbar-height);
   /* Sticky apparatus stays opaque on the surface that contains the recording. */
-  background: var(--lf-ground, var(--paper));
+  background: var(--lf-ground);
   --lf-head-inset: 8px;
   font: 12px/1.5 var(--sans);
 }

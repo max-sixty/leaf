@@ -128,6 +128,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "actions actions" "before after";
   }
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
+    .lf-shot-toolbar {
+    grid-template-areas: "actions actions";
+  }
   .lf-shot-actions {
     justify-content: space-between;
   }
@@ -195,6 +199,12 @@
 :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   .lf-shot-frame-label {
   display: flex;
+}
+/* Stacked frames carry their own labels; the toolbar only holds controls. */
+:scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
+  .lf-shot-toolbar
+  > .lf-shotcap {
+  display: none;
 }
 .lf-shotcap {
   box-sizing: border-box;

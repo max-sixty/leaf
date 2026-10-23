@@ -1776,7 +1776,7 @@ export function createMarginProjection({
     // somewhere to stand.
     const selected = card.selection();
     const kept = selected?.entry.key === entry.key && selected.threadItem === item.id;
-    if (kept && card.currentTargets()) return true;
+    if (kept && card.hasPlacement()) return true;
     if (kept) closePreview();
     const inCard = focus?.kind === "preview" || focus?.kind === "preview-close";
     if (accompanies && !inCard) return Boolean(openInlineThread(id, { unfold: false }));

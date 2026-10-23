@@ -818,10 +818,13 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     exit_mode.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     page.locator(".lf-fp-threads").click()
-    panel_settled(page, open=False)
+    panel_settled(page, view="threads")
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):

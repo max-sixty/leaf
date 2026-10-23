@@ -1023,8 +1023,8 @@ export function createThreadPreview({
     // Whether the user is in the card's reply box.
     replying: () =>
       under(focused(), preview) && Boolean(closestAcross(focused(), REPLY_BOX)),
-    // Whether the open card has somewhere to stand (`threadCardPlace`).
-    stands: () => Boolean(previewSession && threadCardPlace(previewSession)),
+    // Whether the open card has a placement (`threadCardPlace`).
+    hasPlacement: () => Boolean(previewSession && threadCardPlace(previewSession)),
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount,

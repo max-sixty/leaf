@@ -99,6 +99,14 @@ export function applyShotGeometry(host, geometry, keeps) {
   keeps(host, "data-lf-shot-layout", geometry.layout);
   keeps(host, "data-lf-shot-crop", geometry.crop);
   keeps(host, "data-lf-shot-focus", geometry.focus);
+  // Only the visible copy is page text, so a source name remains a unique
+  // comment target as the pair stacks or the reader changes views.
+  const stacked = host.dataset.lfShotMode === "compare" && geometry.layout === "stack";
+  for (const caption of host.querySelectorAll(".lf-shotcap"))
+    caption.toggleAttribute(
+      "data-lf-said",
+      caption.parentElement.classList.contains("lf-shot-frame-label") === stacked,
+    );
 }
 
 export function drawShot(host, { offer, keeps }) {

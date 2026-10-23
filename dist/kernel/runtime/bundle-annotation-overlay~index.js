@@ -994,8 +994,8 @@ function createThreadPreview({
     closeFocused: () => focused() === previewClose,
     // Whether the user is in the card's reply box.
     replying: () => under(focused(), preview) && Boolean(closestAcross(focused(), REPLY_BOX)),
-    // Whether the open card has somewhere to stand (`threadCardPlace`).
-    stands: () => Boolean(previewSession && threadCardPlace(previewSession)),
+    // Whether the open card has a placement (`threadCardPlace`).
+    hasPlacement: () => Boolean(previewSession && threadCardPlace(previewSession)),
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount
@@ -2371,7 +2371,7 @@ function createMarginProjection({
     const id = sourceItem(item).thread.id;
     const selected = card.selection();
     const kept = selected?.entry.key === entry.key && selected.threadItem === item.id;
-    if (kept && card.currentTargets()) return true;
+    if (kept && card.hasPlacement()) return true;
     if (kept) closePreview();
     const inCard = focus?.kind === "preview" || focus?.kind === "preview-close";
     if (accompanies && !inCard) return Boolean(openInlineThread(id, { unfold: false }));

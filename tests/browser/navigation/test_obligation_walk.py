@@ -611,6 +611,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     page.get_by_role("button", name="Find a thread or message").click()
     page.locator("input.lf-fp-search").fill("no matching thread")
     expect(page.locator(".lf-fp-thread")).to_have_count(0)
+    page.get_by_role("button", name="Close search").click()
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     page.evaluate(RELEASE_FOCUS)

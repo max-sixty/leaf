@@ -1,5 +1,5 @@
 {
-  "protocol": 17,
+  "protocol": 18,
   "events": {
     "ownership": {
       "derived": ["meaning","attention"],
@@ -91,6 +91,10 @@
     "file-bindings": {
       "since": 13,
       "schema": {"description":"The local text files a page may edit, in the page directory's `files.json`.","type":"object","properties":{"bindings":{"description":"Each binding id's file, by its canonical absolute path.","type":"object","additionalProperties":{"type":"string"}}},"required":["bindings"]}
+    },
+    "http-connections": {
+      "since": 18,
+      "schema": {"type":"object","properties":{"page":{"type":"string"},"connections":{"type":"object","additionalProperties":{"type":"object","properties":{"origin":{"type":"string"},"credential":{"type":"string"},"header":{"type":"string"},"prefix":{"type":"string"},"remaining":{"type":"integer","minimum":0}},"required":["origin","credential","header","prefix","remaining"]}}},"required":["page","connections"]}
     },
     "preview": {
       "since": 13,

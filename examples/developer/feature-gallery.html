@@ -240,6 +240,7 @@
       import {
         afterPresentation,
         commands,
+        connection,
         generate,
         keepsText,
         once,
@@ -248,6 +249,34 @@
         readObligations,
         whileConnected,
       } from "/runtime/widget-api.js";
+
+      document.addEventListener(PAGE_INTERFACE, () => {
+        const section = document.querySelector("#bg-http");
+        if (!section || quoted(section) || !once(section)) return;
+        const button = section.querySelector("button");
+        const output = section.querySelector("[role=status]");
+        whileConnected(section, (signal) => {
+          button.addEventListener(
+            "click",
+            async () => {
+              button.disabled = true;
+              keepsText(output, "Reading…");
+              try {
+                const response = await connection("example").fetch("/items");
+                keepsText(
+                  output,
+                  `HTTP ${response.status}: ${response.body.slice(0, 500)}`,
+                );
+              } catch (error) {
+                keepsText(output, error.message);
+              } finally {
+                button.disabled = false;
+              }
+            },
+            { signal },
+          );
+        });
+      });
 
       document.addEventListener(PAGE_INTERFACE, () => {
         const section = document.querySelector("#bg-llm");
@@ -617,7 +646,8 @@
             </p>
             <lf-draft id="bg-draft">
               <pre>
-Write a **different invitation** here. Try a few lines to see the editor grow.</pre>
+Write a **different invitation** here. Try a few lines to see the editor grow.</pre
+              >
             </lf-draft>
             <p id="bg-history-guide">
               <strong>Delivered</strong> means the saved edit entered an agent turn. The
@@ -1724,7 +1754,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
     Plot.ruleX([0]),
   ],
 }
-</pre>
+</pre
+                >
               </lf-chart>
               <p id="bg-across-reading">
                 The traverse's climb takes a little over four hours on its own, which
@@ -2183,7 +2214,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
     ),
   ],
 }
-</pre>
+</pre
+                  >
                 </lf-chart>
                 <lf-chart id="bg-chart-bars" data-height="200">
                   <pre>
@@ -2199,7 +2231,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
     Plot.ruleY([0]),
   ],
 }
-</pre>
+</pre
+                  >
                 </lf-chart>
                 <lf-chart id="bg-chart-stack" data-height="240">
                   <pre>
@@ -2227,7 +2260,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
     Plot.ruleY([0]),
   ],
 }
-</pre>
+</pre
+                  >
                 </lf-chart>
               </div>
               <div id="bg-run">
@@ -2273,7 +2307,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 12:01:39 watcher  heartbeat seq=39
 12:01:42 watcher  heartbeat seq=42
 12:01:45 watcher  heartbeat seq=45
-</pre>
+</pre
+                >
               </div>
             </section>
 
@@ -2321,7 +2356,8 @@ def route(weather):
     return "courtyard"
 def seat(guest):
     return guest.table
-</pre>
+</pre
+                >
                 <lf-note id="bg-code-note" at="41">
                   The branch exists only to make the highlighted walkthrough visible.
                 </lf-note>
@@ -2339,7 +2375,8 @@ gallery/
   recordings/
     evidence/
       rendered_first_paint_checkpoints_with_readable_path_names.json  +245 -93
-</pre>
+</pre
+              >
 
               <p id="bg-tree-after">
                 The native preformatted block preserves the hierarchy and change counts;
@@ -3123,6 +3160,23 @@ switch --readers checkout-api,orders-api</code></pre>
         </lf-tab>
 
         <lf-tab id="bg-view-data" label="Data & work">
+          <section id="bg-http">
+            <h2>Authenticated HTTP</h2>
+            <p>
+              Read /items from the host's example connection. A host grants its HTTPS
+              origin and credential with leaf connection bind; this page has no grant by
+              default. Pressing Read reports the missing grant, or displays the upstream
+              status and text once connected. Each read consumes one request from its
+              allowance; the result is not saved.
+            </p>
+            <button id="bg-http-read" class="button" type="button">Read</button>
+            <p id="bg-http-result" role="status">No HTTP read requested.</p>
+            <p>
+              The <a href="/examples/github-discoveries/">GitHub discoveries page</a>
+              composes this capability with LLM generation. Its queries and editorial
+              logic belong to the page; its saved stories work without a connection.
+            </p>
+          </section>
           <section id="bg-llm">
             <h2>LLM generation</h2>
             <p id="bg-llm-guide">

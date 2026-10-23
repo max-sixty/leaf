@@ -95,7 +95,7 @@ def test_an_agent_reply_runs_its_live_sample_in_the_thread(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(serve.page_dir, question),
@@ -171,3 +171,44 @@ def test_reading_keys_page_on_from_a_sample_to_its_page(browser, serve):
     page.keyboard.press("d")
     page.wait_for_timeout(300)
     assert page.evaluate("scrollY") == at
+
+
+def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
+    """Interactive content is the page's; a quoted sibling still takes no input."""
+    from render_harness import undo
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Inline samples",
+                """
+      <h1>Delivery</h1>
+      <lf-sample id="working" interactive label="Working choices">
+        <lf-options id="delivery" choose>
+          <lf-option id="standard">Standard</lf-option>
+          <lf-option id="express">Express</lf-option>
+        </lf-options>
+      </lf-sample>
+      <lf-sample id="quoted" label="Quoted choices">
+        <lf-options id="quoted-delivery" choose>
+          <lf-option id="quoted-standard">Standard</lf-option>
+        </lf-options>
+      </lf-sample>
+    """,
+            )
+        ),
+    )
+    sample = page.locator("#working")
+    expect(sample.locator("iframe")).to_have_count(0)
+    expect(page.locator("#quoted").get_by_role("checkbox")).to_have_count(0)
+    choice = sample.locator("#express").get_by_role("checkbox")
+    with sending(page, "inline choice"):
+        choice.click()
+    expect(choice).to_have_attribute("aria-checked", "true")
+    assert any(
+        event.get("kind") == "action" and event.get("widget") == "delivery"
+        for event in events_model.read_events(serve.page_dir)
+    )
+    undo(page)
+    expect(choice).to_have_attribute("aria-checked", "false")

@@ -221,11 +221,11 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     what the door stores now has to be what the page shows, `id` and `ts` aside.
     A changed field, meaning, or refusal fails here with the records to paste."""
     source = SourceDocument(EVENT_LOG.read_text())
-    template = source.tree.select_one("template#try-page").inner_html
+    sample = source.tree.select_one("lf-sample#try-sample").inner_html
     (page_dir / "index.html").write_text(
         '<!doctype html><html lang="en"><head><title>Release question</title>'
         '<meta name="description" content="The sample."></head>'
-        f"<body><main>{template}</main></body></html>"
+        f"<body><main>{sample}</main></body></html>"
     )
     stamped = CliRunner().invoke(
         cli_model.cli, ["page", "stamp", str(page_dir), "--text", "v1"]

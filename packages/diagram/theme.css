@@ -6,6 +6,7 @@
 /* Inherited palette aliases keep the generated SVG responsive to the live page's
  * scheme without redrawing its nodes or replacing Comment coordinates. */
 :scope:is(lf-diagram) {
+  box-sizing: border-box;
   --pele-bg: var(--paper);
   --pele-fg: var(--ink);
   --pele-muted: var(--muted);
@@ -38,7 +39,8 @@
 :scope:is(lf-diagram).lf-rendered {
   display: flex;
   justify-content: safe center;
-  overflow-x: auto;
+  align-items: flex-start;
+  overflow: auto hidden;
 }
 :scope:is(lf-diagram).lf-rendered::before,
 :scope:is(lf-diagram).lf-rendered::after {
@@ -55,11 +57,19 @@
 :scope:is(lf-diagram).lf-rendered > * {
   flex: none;
 }
-/* A declared reservation stays the drawing's minimum room. Native font metrics
- * can make Pele's natural box slightly shorter on another machine; finishing
- * the drawing must not pull the page back into that spare room. */
-:scope:is(lf-diagram).lf-rendered[data-lf-height] {
-  min-block-size: attr(data-lf-height px);
+/* Pele's viewport includes the scrollbar's clearance. Its natural height is the
+ * minimum: overlay tracks cover the blank bottom padding, and a negative SVG margin
+ * lets native classic tracks consume that padding, leaving 1px for strokes. A wider
+ * classic track grows the box through native layout instead of clipping the drawing.
+ * A declared reservation may hold more room without stretching the SVG. The renderer
+ * supplies its dimensions; no measurement or later scroll-state query sizes the box. */
+@media screen {
+  :scope:is(lf-diagram).lf-rendered {
+    min-block-size: max(var(--lf-diagram-height), attr(data-lf-height px, 0px));
+  }
+  :scope:is(lf-diagram).lf-rendered > svg {
+    margin-block-end: calc(1px - var(--lf-diagram-padding));
+  }
 }
 /* The layer marks each edge a scrolled box has more beyond (shadow.css, at
  * [data-lf-more-before/after]) by fading the content there toward the page's ground, and
@@ -87,16 +97,6 @@
   display: block;
   margin: 0 auto;
   max-width: none;
-}
-/* The diagram owns its horizontal scrollport. Reserve the overlay track below its
- * drawing only while it scrolls, so chart marks at the SVG's edge remain visible. */
-:scope:is(lf-diagram).lf-rendered {
-  container-type: scroll-state;
-}
-@container scroll-state(scrollable: inline) {
-  :scope:is(lf-diagram).lf-rendered > svg {
-    margin-block-end: 15px;
-  }
 }
 @media print {
   :scope:is(lf-diagram) svg {

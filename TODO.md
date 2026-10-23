@@ -72,7 +72,7 @@ has tried; settle that before building it.
   review of the desktop design. The phone waits until the desktop design is firm, and
   where a passage thread opens from Threads waits until later.
 - **Say when a held-news notice holds more than it shows.** A notice in a seat's
-  head row keeps the width of the news it first said (`data-lf-room`) and shows each
+  head row keeps the width of the news it first said (`data-room`) and shows each
   fact whole or not at all (`newsNotice`), so "1 new reply" with a message arriving
   after it still reads "1 new reply", with nothing on screen saying more waits; the
   title that names every fact doesn't reach touch. A count growing past that room
@@ -154,6 +154,14 @@ has tried; settle that before building it.
   judge cost are separate evidence.
 
 ## Next
+
+- **Add a host-owned widget LLM allowance.** The initial `/api/llm` endpoint
+  uses the host's Codex or Claude login and bounds input size, but does not bound
+  cumulative usage. Define an explicitly granted allowance shared across page
+  servers, with accounting appropriate to the login's quota or billing model.
+  Establish per-request output bounds before promising a hard ceiling, and retain
+  uncertain usage across timeouts and restarts. Keep grant controls outside page
+  JavaScript; do not treat claimed widget ids as trusted identities.
 
 ### User continuity and mobile access
 
@@ -349,17 +357,10 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 ### Before/after comparison
 
-- **#29 — Make `lf-shot`'s views one coherent comparison.** A pair now offers
-  Plain, Outlines and Pixels, and Pixels paints one picture: red where only the
-  before image drew, blue where only the after image did, amber where both did. A
-  shot with `pixels` alone opens in Pixels, one with `outlines` in Outlines, and
-  any other in Plain. Settle the details as one design: which view a pair opens
-  in, and whether every pair should offer every view rather than the author
-  choosing them per shot; a key for the three colours; the rail's reading
-  ("identical", "only slight changes", "2 areas changed"), which stands among the
-  view buttons in another voice and reads as a view or a warning, as "identical"
-  does over a pair of pin captures whose pins never moved; and the faint amber
-  halo a moved mark's redrawn shadow leaves in Pixels.
+- **#29 — Explain the faint amber halo in Pixels.** The comparison controls,
+  view defaults, colour key and difference summary are settled. A moved mark's
+  redrawn shadow can still leave a faint amber halo in Pixels; establish whether
+  its classification helps the reader distinguish movement from recolouring.
 
 ### Recorded interaction review
 

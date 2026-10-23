@@ -6,7 +6,10 @@ import {
   setChildren,
   stageAuthoredStates,
   stageWidgetDescriptors
-} from "./bundle-stylesheets.js";
+} from "./bundle-keyboard~disclosure.js";
+import {
+  copyControl
+} from "./bundle-copy-control.js";
 import {
   isCanonicalMediaUrl,
   readAttachedMedia,
@@ -29,8 +32,6 @@ import {
   anchorReading,
   anchorView,
   anchoringIsReady,
-  chromeForeground,
-  chromeRoot,
   cutFrames,
   datumAimTarget,
   datumLabel,
@@ -49,11 +50,15 @@ import {
   targetElement,
   targetSegments,
   visualPartLabel
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   initialOrigin,
   initialSource
 } from "./bundle-initial-render.js";
+import {
+  chromeForeground,
+  chromeRoot
+} from "./bundle-chrome.js";
 import {
   ago,
   aimedTop,
@@ -123,6 +128,7 @@ import {
   el,
   elementDeclarations,
   elementsDeclaring,
+  exhibits,
   growthAfterIsSeen,
   growthIsSeen,
   headerInset,
@@ -1044,13 +1050,7 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 // runtime/obligations/model.js
 var readObligations = readPart((root) => root.effective.obligations);
 var obligationEntry = (obligation) => registry[obligation?.source.tag]?.["x-awaits"];
-var answeredInWords = (obligation) => Boolean(obligationEntry(obligation)?.reply);
-var approvalBlockingObligations = readPart((root) => {
-  const { obligations, view } = root.effective;
-  if (obligations.phase !== "ready" || !view) return null;
-  const held = new Set(view.approval_blocking);
-  return obligations.all.filter((obligation) => held.has(obligation.id));
-});
+var answeredInWords = (obligation) => obligation?.source.kind === "message" || Boolean(obligationEntry(obligation)?.reply);
 
 // runtime/obligations/place.js
 function obligationPlace(item, items = readObligations().all) {
@@ -1182,12 +1182,12 @@ function ensureSyntaxLanguage(lang) {
 }
 async function syntax(source, lang) {
   const shared = await ensureSyntaxLanguage(lang);
-  const tokens3 = await shared.tokenize(source, lang);
-  if (tokens3.map((t) => t.text).join("") !== source)
+  const tokens2 = await shared.tokenize(source, lang);
+  if (tokens2.map((t) => t.text).join("") !== source)
     throw new Error(`the ${lang} tokenizer did not return the source unchanged`);
-  return tokens3;
+  return tokens2;
 }
-var synNodes = (tokens3) => tokens3.map(({ text, style }) => {
+var synNodes = (tokens2) => tokens2.map(({ text, style }) => {
   if (!Object.keys(style).length) return document.createTextNode(text);
   const span = document.createElement("span");
   span.dataset.lfSyn = "";
@@ -1196,9 +1196,9 @@ var synNodes = (tokens3) => tokens3.map(({ text, style }) => {
   span.textContent = text;
   return span;
 });
-function tokenLines(tokens3) {
+function tokenLines(tokens2) {
   const lines = [[]];
-  for (const { text, style } of tokens3) {
+  for (const { text, style } of tokens2) {
     const parts = text.split("\n");
     parts.forEach((part, i) => {
       if (i) lines.push([]);
@@ -1230,16 +1230,16 @@ async function highlightBlocks(root) {
   for (const code of blocks) {
     let lang = languageOf(code);
     try {
-      let tokens3;
+      let tokens2;
       while (lang) {
         const source = code.textContent;
-        tokens3 = await syntax(source, lang);
+        tokens2 = await syntax(source, lang);
         if (code.textContent === source && languageOf(code) === lang) break;
         lang = languageOf(code);
       }
       if (!lang) continue;
-      if (tokens3.some(({ style }) => Object.keys(style).length))
-        code.replaceChildren(...synNodes(tokens3));
+      if (tokens2.some(({ style }) => Object.keys(style).length))
+        code.replaceChildren(...synNodes(tokens2));
       code.dataset.lfSyntax = lang;
     } catch (err) {
       reportPageError(err, `<pre><code class="language-${lang}"> failed to highlight`);
@@ -1268,107 +1268,12 @@ function quietWord(el2, word) {
   span.dataset.lfGen = "1";
   move(el2, span, title ? title.nextSibling : el2.firstChild);
 }
-var EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
-var externalLinkState = /* @__PURE__ */ new WeakMap();
-var externalMarkSequence = 0;
-function isExternalPageLink(link) {
-  if (!(link instanceof HTMLAnchorElement)) return false;
-  try {
-    const href = link.getAttribute("href");
-    const url = href === null ? null : new URL(href, document.baseURI);
-    return ["http:", "https:"].includes(url?.protocol) && url.origin !== location.origin;
-  } catch {
-    return false;
-  }
-}
-var linkAttributes = (link) => Object.fromEntries(
-  EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)])
-);
-var tokens = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
-function withToken(value, token, insensitive = false) {
-  const values = tokens(value);
-  const wanted = insensitive ? token.toLowerCase() : token;
-  if (!values.some((value2) => (insensitive ? value2.toLowerCase() : value2) === wanted))
-    values.push(token);
-  return values.join(" ");
-}
-function withoutToken(value, token, insensitive = false) {
-  if (value === null) return null;
-  const unwanted = insensitive ? token.toLowerCase() : token;
-  return tokens(value).filter((value2) => (insensitive ? value2.toLowerCase() : value2) !== unwanted).join(" ");
-}
-function writeLinkAttributes(link, values) {
-  for (const [name, value] of Object.entries(values)) keeps(link, name, value);
-}
-function rememberExternalLinkChanges(link, state) {
-  if (!state.painted) return;
-  const current = linkAttributes(link);
-  for (const name of EXTERNAL_LINK_ATTRIBUTES) {
-    if (current[name] === state.painted[name]) continue;
-    let value = current[name];
-    if (name === "rel" && state.addedNoopener)
-      value = withoutToken(value, "noopener", true);
-    if (name === "aria-describedby") value = withoutToken(value, state.markId);
-    state.baseline[name] = value;
-  }
-}
-function clearExternalLink(link, state) {
-  rememberExternalLinkChanges(link, state);
-  writeLinkAttributes(link, state.baseline);
-  link.querySelectorAll(':scope > .lf-external-mark[data-lf-gen="1"]').forEach((node) => node.remove());
-  externalLinkState.delete(link);
-}
-function leaveExternalLink(link) {
-  const state = externalLinkState.get(link);
-  if (state) clearExternalLink(link, state);
-}
-function renderExternalLink(link) {
-  if (!(link instanceof HTMLAnchorElement)) return;
-  if (!isExternalPageLink(link)) {
-    leaveExternalLink(link);
-    return;
-  }
-  let state = externalLinkState.get(link);
-  if (!state) {
-    state = {
-      baseline: linkAttributes(link),
-      painted: null,
-      markId: `lf-external-mark-${++externalMarkSequence}`,
-      addedNoopener: false
-    };
-    externalLinkState.set(link, state);
-  } else rememberExternalLinkChanges(link, state);
-  let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
-  if (!mark) {
-    mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    mark.setAttribute("class", "lf-ui lf-external-mark");
-    mark.setAttribute("viewBox", "0 0 16 16");
-    mark.dataset.lfGen = "1";
-    mark.setAttribute("aria-hidden", "true");
-    mark.setAttribute("aria-label", "opens in a new tab");
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    line.setAttribute(
-      "d",
-      "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5"
-    );
-    mark.append(line);
-    link.append(mark);
-  }
-  keeps(mark, "id", state.markId);
-  state.addedNoopener = !tokens(state.baseline.rel).some(
-    (value) => value.toLowerCase() === "noopener"
-  );
-  writeLinkAttributes(link, {
-    target: "_blank",
-    rel: withToken(state.baseline.rel, "noopener", true),
-    "aria-describedby": withToken(state.baseline["aria-describedby"], state.markId)
-  });
-  state.painted = linkAttributes(link);
-}
+var isExternalPageLink = (link) => document.documentElement.lfInitial.externalLinks.matches(link);
 function watchExternalLinks() {
-  watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
-    arrive: renderExternalLink,
-    leave: leaveExternalLink
+  const links = document.documentElement.lfInitial.externalLinks;
+  watchArrivals("a", ["href", ...links.attributes], {
+    arrive: links.arrive,
+    leave: links.leave
   });
 }
 function paintDeclaredWords(root) {
@@ -1387,8 +1292,10 @@ function markDeclared(root) {
     const tags = tagsDeclaring((entry) => entry[key]);
     for (const tag of tags) {
       const declared = registry[tag][key];
-      for (const el2 of elementsIn(root, tag))
-        keeps(el2, paint2, declared === true || mark.presence ? "" : declared);
+      for (const el2 of elementsIn(root, tag)) {
+        const value = key === "x-exhibit" ? exhibits(el2, registry[tag]) : declared;
+        keeps(el2, paint2, !value ? null : value === true || mark.presence ? "" : value);
+      }
     }
     if (authored) {
       for (const el2 of elementsIn(root, `[${authored}]`))
@@ -1457,18 +1364,6 @@ function renderQuiet(root, also = []) {
   const targets = new Set(elementsIn(root, painting));
   for (const el2 of also) if (el2 === root || root.contains(el2)) targets.add(el2);
   for (const el2 of targets) quietWord(el2, quietFacts(el2));
-}
-
-// runtime/copy-control.js
-function copyControl(className, { label = "", success, error }) {
-  const copy = offer("wa-copy-button", className);
-  if (label) copy.copyLabel = label;
-  copy.successLabel = success;
-  copy.errorLabel = error;
-  copy.tooltip = "none";
-  copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
-  copy.addEventListener("wa-error", () => raiseError(error, { announce: false }));
-  return copy;
 }
 
 // runtime/block-controls.js
@@ -1620,6 +1515,15 @@ function copyBlock(block, source, noun) {
   return copy;
 }
 function watchCodeBlocks() {
+  watchArrivals(
+    "pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])",
+    [],
+    {
+      arrive: (block) => block.classList.toggle("scroll", true),
+      leave: () => {
+      }
+    }
+  );
   watchArrivals("pre:has(> code)", ["style"], {
     arriveBatch(blocks) {
       const prepared = blocks.filter((pre) => pre.getRootNode() === document).map(
@@ -1780,8 +1684,8 @@ function inlineSourcePositions(source, raw, at, limit) {
   return positions;
 }
 function placedMarkdownTokens(source) {
-  const tokens3 = markdownTokens(source);
-  if (!tokens3) return [];
+  const tokens2 = markdownTokens(source);
+  if (!tokens2) return [];
   const starts = [0];
   for (let at = 0; at < source.length; at++) {
     if (source[at] === "\r" && source[at + 1] === "\n") at++;
@@ -1790,7 +1694,7 @@ function placedMarkdownTokens(source) {
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
-  for (const [index, token] of tokens3.entries()) {
+  for (const [index, token] of tokens2.entries()) {
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
@@ -1804,7 +1708,7 @@ function placedMarkdownTokens(source) {
             starts[line] + b
           ]),
           // A heading's inline token owns its content lines, excluding Setext syntax.
-          contentLines: token.type === "heading_open" ? tokens3[index + 1].map.map((at) => starts[at]) : void 0,
+          contentLines: token.type === "heading_open" ? tokens2[index + 1].map.map((at) => starts[at]) : void 0,
           words: token.nesting ? null : token.content
         });
       continue;
@@ -1985,7 +1889,7 @@ function sourcePositions(markdown) {
       }
     }
   };
-  const snapshot = (tokens3) => tokens3.map((token) => ({
+  const snapshot = (tokens2) => tokens2.map((token) => ({
     token,
     source: token.meta?.source,
     escaped: token.meta?.escapes ?? []
@@ -2112,9 +2016,9 @@ function makeMarkdown(module, breaks) {
   markdown.renderer.rules.softbreak = (_tokens, _at, options) => options.breaks ? "<br>" : "\n";
   markdown.renderer.rules.hardbreak = () => "<br>";
   markdown.validateLink = () => true;
-  const admitLinks = (tokens3) => {
+  const admitLinks = (tokens2) => {
     const links = [];
-    for (const token of tokens3) {
+    for (const token of tokens2) {
       if (token.type === "link_open") {
         token.meta = { ...token.meta, linked: safeUrl(token.attrGet("href")) };
         links.push(token);
@@ -2129,16 +2033,16 @@ function makeMarkdown(module, breaks) {
       if (block.type === "inline") admitLinks(block.children);
   });
   markdown.renderer.rules.text_special = markdown.renderer.rules.text;
-  markdown.renderer.rules.link_open = (tokens3, at, options, env, renderer) => {
-    const token = tokens3[at];
+  markdown.renderer.rules.link_open = (tokens2, at, options, env, renderer) => {
+    const token = tokens2[at];
     if (!token.meta.linked) return "";
     const href = token.attrGet("href");
     if (isCanonicalMediaUrl(href)) token.attrSet("href", scopedMediaUrl(href));
-    return renderer.renderToken(tokens3, at, options);
+    return renderer.renderToken(tokens2, at, options);
   };
-  markdown.renderer.rules.link_close = (tokens3, at, options, env, renderer) => tokens3[at].meta.linked ? renderer.renderToken(tokens3, at, options) : "";
-  markdown.renderer.rules.image = (tokens3, at, options, env, renderer) => {
-    const token = tokens3[at];
+  markdown.renderer.rules.link_close = (tokens2, at, options, env, renderer) => tokens2[at].meta.linked ? renderer.renderToken(tokens2, at, options) : "";
+  markdown.renderer.rules.image = (tokens2, at, options, env, renderer) => {
+    const token = tokens2[at];
     const href = token.attrGet("src");
     const alt = renderedWords(
       renderer.renderInline(token.children, options, env),
@@ -2146,7 +2050,7 @@ function makeMarkdown(module, breaks) {
     );
     token.attrSet("alt", alt);
     if (!safeUrl(href)) return escapeHtml(alt);
-    const markup = renderer.renderToken(tokens3, at, options);
+    const markup = renderer.renderToken(tokens2, at, options);
     if (!isCanonicalMediaUrl(href)) return markup;
     const image = renderedElement(markup, "img");
     const source = scopedMediaUrl(href);
@@ -2694,7 +2598,7 @@ var clearDraft = (ctx) => {
   }
   return settleDraft(ctx, current.attempt);
 };
-function transferDraft(from, to, text) {
+function transferDraft(from, to, text, payload) {
   const source = activeDraftRecord(from);
   if (!source || from === to) return false;
   const editor = [...draftEditors].find((view) => view.ctx === from) ?? [...draftEditors].find((view) => view.ctx === to);
@@ -2702,7 +2606,7 @@ function transferDraft(from, to, text) {
   const held = [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
   const durable = isReply(to) ? saveDraft(to, held ? `${text}
 
-${held}` : text, void 0, null) : saveDraft(to, text, void 0, held);
+${held}` : text, payload, null) : saveDraft(to, text, payload, held);
   keepWritingPlace({
     context: to,
     selection: selection ?? [0, 0],
@@ -2710,7 +2614,7 @@ ${held}` : text, void 0, null) : saveDraft(to, text, void 0, held);
   });
   if (durable && settleDraft(from, source.attempt))
     projectDraftRecord(from, draftCache.get(from).record);
-  tellDraft(to, activeDraftRecord(to)?.text ?? text);
+  tellDraft(to, activeDraftRecord(to)?.text ?? text, payload);
   return true;
 }
 var loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
@@ -2803,6 +2707,7 @@ var [writingPlace, earlierPlaces] = (() => {
   }
 })();
 var writingRoutes = /* @__PURE__ */ new Map();
+var writingRoute = (ctx) => [...writingRoutes].find(([prefix]) => ctx.startsWith(prefix))?.[1];
 var editorInput = (editor) => typeof editor.input === "function" ? editor.input() : editor.input;
 var storeWritingPlace = () => draftStore.set(
   WRITING_PLACE,
@@ -2825,7 +2730,8 @@ function forgetWritingPlace(ctx) {
   writingPlace = null;
   while (earlierPlaces.length && !writingPlace) {
     const place2 = earlierPlaces.pop();
-    if (draftHasContent(place2.context)) writingPlace = place2;
+    if (draftHasContent(place2.context) || writingRoute(place2.context)?.(place2.context)?.hasContent)
+      writingPlace = place2;
   }
   storeWritingPlace();
 }
@@ -2920,7 +2826,7 @@ function createWritingResume({
   arriveEditor,
   holdsThreadDraft
 }) {
-  const holdsBox = (ctx) => threadDraft(ctx) ? holdsThreadDraft(ctx) : [...writingRoutes.keys()].some((prefix) => ctx.startsWith(prefix)) || [...draftEditors].some((view) => view.ctx === ctx);
+  const holdsBox = (ctx) => threadDraft(ctx) ? holdsThreadDraft(ctx) : Boolean(writingRoute(ctx)) || [...draftEditors].some((view) => view.ctx === ctx);
   const resume = async () => {
     const place2 = writingPlace;
     if (!place2) return;
@@ -2929,13 +2835,11 @@ function createWritingResume({
     if (threadDraft(place2.context)) input = await revealInThread(place2.context, intent);
     else {
       const resolve = () => {
-        const route = [...writingRoutes].find(
-          ([prefix]) => place2.context.startsWith(prefix)
-        );
+        const route = writingRoute(place2.context);
         const editor = [...draftEditors].find(
           (view) => view.ctx === place2.context && view.resume
         );
-        return route ? route[1](place2.context) : editor?.resume();
+        return route ? route(place2.context) : editor?.resume();
       };
       input = await arriveEditor(resolve, { intent, caret: place2.selection });
     }
@@ -3662,7 +3566,7 @@ function threadAttention(thread) {
     (candidate) => candidate.id === thread.attention.workflow
   ) ?? null : null;
   if (thread.attention?.kind === "needs_user") {
-    const answering = thread.attention.reason === "widget";
+    const answering = thread.attention.reason === "obligation";
     const nextMove = answering ? "answer" : workflow?.subject.kind === "thread" ? "resend" : "retry";
     const owed = new Set(
       (thread.obligations ?? []).filter((item) => item.source.kind === "update" && item.next_actor === "agent").map((item) => item.id)
@@ -5230,7 +5134,7 @@ var gestured = (key) => {
   const thread = allThreads().find((each) => threadKey(each) === key);
   return Boolean(thread) && gesturedOn(thread);
 };
-var tokens2 = (reactions) => new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ name }) => name));
+var tokens = (reactions) => new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ name }) => name));
 var symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has(name));
 var fold = (summary, drawn3) => JSON.stringify([
   summary.id,
@@ -5277,7 +5181,7 @@ function difference(was, now, { progressOpen = false } = {}) {
       changed2.add(message.key);
     } else if (settled) changed2.add(message.key);
     else if (message.reactions && prior.reactions) {
-      const turned = symmetric(tokens2(prior.reactions), tokens2(message.reactions));
+      const turned = symmetric(tokens(prior.reactions), tokens(message.reactions));
       news.reactions += turned.length;
       if (turned.length) changed2.add(message.key);
     }
@@ -6451,7 +6355,7 @@ var Transcript = class _Transcript {
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
       ${iconTemplate("down", "lf-disclosure-icon")}
-      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
+      <span data-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
   #setSummaryExpanded(ids, expanded) {
@@ -6850,7 +6754,7 @@ var ThreadView = class {
     if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
     this.#observedHeader = null;
     this.#releaseHeaderItems();
-    this.#news.node.removeAttribute("data-lf-room");
+    this.#news.node.removeAttribute("data-room");
   }
   #releaseHeaderItems() {
     for (const { node } of this.#headerSlot?.items ?? []) {
@@ -6938,8 +6842,8 @@ var ThreadView = class {
     );
     controls2.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (this.#model.news) {
-      if (!this.#news.node.hasAttribute("data-lf-room"))
-        this.#news.node.dataset.lfRoom = this.#model.news.label;
+      if (!this.#news.node.hasAttribute("data-room"))
+        this.#news.node.dataset.room = this.#model.news.label;
       const line = controls2.getBoundingClientRect();
       const shown2 = shownRect(controls2, /* @__PURE__ */ new Map());
       if (shown2)
@@ -6947,7 +6851,7 @@ var ThreadView = class {
           "--lf-thread-news-visible-end",
           layoutPx(Math.max(0, shown2.right - line.left))
         );
-    } else this.#news.node.removeAttribute("data-lf-room");
+    } else this.#news.node.removeAttribute("data-room");
   }
   // Whether the progress behind the working message stood open when last drawn
   // (transcript.js, `progressOpen`).
@@ -7784,7 +7688,6 @@ export {
   readObligations,
   obligationEntry,
   answeredInWords,
-  approvalBlockingObligations,
   obligationPlace,
   obligationsIn,
   declareSide,
@@ -7805,7 +7708,6 @@ export {
   quietWord,
   isExternalPageLink,
   renderQuiet,
-  copyControl,
   copyBlock,
   renderMarkdown,
   markdownWords,
@@ -7840,6 +7742,7 @@ export {
   clearDraft,
   transferDraft,
   loadDraft,
+  loadDraftPayload,
   draftContexts,
   settleAcceptedDrafts,
   sendDraft,

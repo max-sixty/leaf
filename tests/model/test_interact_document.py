@@ -205,18 +205,22 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert {
         "/page/app.js",
         "/page/nested/value.js",
-        "/runtime/widget-api.js",
         "/page/value.js",
         "/page/style.css",
         "/page/nested/theme.css",
         "/page/image.svg",
     } <= artifact.resources.keys()
+    # The public module app.js imports is the runtime's, which the delivering Leaf
+    # supplies, so the revision holds none of it.
+    assert "/runtime/widget-api.js" not in artifact.resources
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
     assert artifact.registry == read_page_registry(page_dir).registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
-    assert "/vendor/browser-runtime.LICENSES.txt" in artifact.resources
+    # The vendored layer is captured whole; the runtime is the delivering Leaf's.
+    assert "/vendor/plot.LICENSES.txt" in artifact.resources
+    assert "/leaf.js" not in artifact.resources
     assert artifact_model.read_artifact(page_dir, first.revision) is artifact
     unchanged = revisioning_model.activate_source(page_dir)
     assert not unchanged.created and unchanged.revision == first.revision
@@ -229,17 +233,20 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert changed.digest != artifact.digest
     assert changed.resources["/page/value.js"].data == b"export const value = 2;"
     files_model.replace_files(
-        [(page_dir / "leaf.js", b"// replacement runtime", False)]
+        [(page_dir / "vendor" / "plot.esm.js", b"// replacement module", False)]
     )
     third = revisioning_model.activate_source(page_dir)
     assert third.error is None, third.error
     assert third.created and third.revision == second.revision + 1
     replaced = artifact_model.read_artifact(page_dir, third.revision)
-    assert replaced.resources["/leaf.js"].data == b"// replacement runtime"
+    assert replaced.resources["/vendor/plot.esm.js"].data == b"// replacement module"
     assert replaced.digest != changed.digest
     historical = artifact_model.read_artifact(page_dir, first.revision)
     assert historical.resources["/page/value.js"].data == b"export const value = 1;"
-    assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
+    assert (
+        historical.resources["/vendor/plot.esm.js"].data
+        == artifact.resources["/vendor/plot.esm.js"].data
+    )
 
 
 def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_dir):
@@ -251,7 +258,7 @@ def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_di
         files_model.revision_path(page_dir, first.revision).with_suffix("")
         / "resources"
     )
-    for layer_file in ("leaf.js", "theme.css", "runtime/layer-generation.js"):
+    for layer_file in ("theme.css", "vendor/plot.esm.js", "widgets/lf-options.js"):
         assert (captured / layer_file).stat().st_ino != (
             page_dir / layer_file
         ).stat().st_ino, layer_file
@@ -386,6 +393,13 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "./missing.js";', "dependency-unreadable"),
         ('import "ftp://outside.example/module.js";', "dependency-not-local"),
         ('import "../../outside.js";', "module-outside-page"),
+        ('import "./%2e%2e/%2e%2e/outside.js";', "module-outside-page"),
+        ('import "%2Foutside.js";', "module-not-local"),
+        ('import "page/app.js";', "module-not-local"),
+        ('import " ./app.js";', "module-not-local"),
+        ('import "/page/%2e%2e/outside.js";', "module-outside-page"),
+        ('import "./data.json?variant";', "dependency-not-local"),
+        ('import "./data.json#variant";', "dependency-not-local"),
         ('import "/runtime/events.js";', "module-outside-page"),
         ('import "/vendor/lit.js";', "module-outside-page"),
         ('import "./data.json";', "module-type"),
@@ -1144,33 +1158,11 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     stored.write_text(json.dumps({**publication, "value": ["passing", 3]}))
     [error] = state_json(page_dir)["data"]["errors"]
     assert "builds" in error
-
-
-def test_page_check_and_state_name_a_source_at_an_unreadable_format(page_dir):
-    declare_data_input(
-        page_dir, "builds", {"type": "array", "items": {"type": "string"}}
-    )
-    data_model.cmd_data_set(page_dir, "builds", ["passing"])
-    stored = data_model.source_file(page_dir, "builds")
-    publication = json.loads(stored.read_text())
-    old_format = "leaf-data-source/15"
-    stored.write_text(json.dumps({**publication, "format": old_format}))
-
-    state = state_json(page_dir)
-    assert "builds" in state["data_bindings"]
-    [error] = state["data"]["errors"]
-    assert "data/builds.json" in error
-    assert old_format in error
-    assert data_model.PUBLICATION.format in error
     _, findings = check_findings(page_dir)
     assert any(
         finding.code == "unreadable-data" and error in str(finding)
         for finding in findings
     )
-
-    data_model.cmd_data_set(page_dir, "builds", ["replaced"])
-    assert state_json(page_dir)["data"]["errors"] == []
-    assert not found(check_findings(page_dir)[1], "unreadable-data")
 
 
 def test_sample_templates_bind_the_parents_producer_sources(page_dir):
@@ -1420,7 +1412,9 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         for sample in document.samples:
             read(sample["document"])
 
-    for path in (Path(__file__).parents[2] / "examples").glob("*.html"):
+    from leaf_dev.commands.corpus import sources
+
+    for path in sources():
         read(structure_model.SourceDocument(path.read_text()))
     missing = []
     for tag, entry in sorted(registry.items()):
@@ -1699,7 +1693,7 @@ def test_reply_refuses_a_suggestion(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1735,7 +1729,7 @@ def test_response_addresses_one_obligation_and_activates_the_current_source(page
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1789,7 +1783,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -1835,7 +1829,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", "--text", "Updated."],
+        ["thread", "reply", "--done", "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
     assert "Missing argument" in ambiguous.output
@@ -1844,7 +1838,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
     selected = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c2"),
@@ -1887,7 +1881,7 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
     )
 
     [refused] = command_findings(
-        "response", "reply", "--done", reference, "--text", "Made it blue."
+        "thread", "reply", "--done", reference, "--text", "Made it blue."
     )
     assert refused.code == "superseded-reply"
     assert not any(
@@ -1918,7 +1912,7 @@ def test_response_belongs_to_the_session_with_the_opened_delivery(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "Updated."],
+        ["thread", "reply", "--done", reference, "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -1944,7 +1938,7 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -2042,7 +2036,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,

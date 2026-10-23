@@ -363,17 +363,13 @@ svg[data-lf-icon] {
 .lf-msg-meta > time {
   flex: none;
 }
-/* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
- * for what escaped such a box and why the mark is read from the composed page rather
- * than declared here beside each overflow), so no rule in this file or a package's
- * states a position for its scroller's sake. In this file because the sweep enters
- * every declared tree, and a diff's lines scroll in one. No offsets: relative moves
- * nothing. */
-[data-lf-holds] {
+/* Scroll surfaces contain out-of-flow descendants and opt into keyboard reach and
+ * continuation cues. Their owner declares overflow, including at breakpoints. */
+:where(.scroll) {
   position: relative;
 }
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
- * sweep and not a rule beside each overflow decides who wears them): across it, and down
+ * surface owner opts into the shared primitive): across it, and down
  * a reading region (reachReadingScroller). Scrolling is the honest answer when the room
  * ran short, and on a platform drawing overlay scrollbars it is an answer the user is
  * never given: a flowchart cut 356px of 1026 inside a tab panel read as a finished graph
@@ -517,8 +513,9 @@ svg[data-lf-icon] {
 }
 
 /* A label whose words change holds one room for all of them, so a count or a result
- * changing moves nothing beside it. `data-lf-room` lists the words the label shows,
- * one per line, on an element whose one child holds the words. Its ::before lays the
+ * changing moves nothing beside it. `data-room` lists representative strings
+ * that set its width, one per line, on an element whose one child holds the words. Authored markup and
+ * generated controls use the same declaration, including before startup. Its ::before lays the
  * room out as an invisible block of no height, so the element is as wide as the
  * widest line in its own face, with no script. The words take no part in that width:
  * they fill the room and are cut past it with an ellipsis, so the control never widens
@@ -528,19 +525,19 @@ svg[data-lf-icon] {
  * text and accessible name; generated content is in neither. The room wraps at its
  * spaces, so it never holds the element wider than its container. The words' line is
  * the element's baseline. The element's own rules outrank this one. */
-:where([data-lf-room]) {
+:where([data-room]) {
   display: inline-block;
   max-inline-size: 100%;
 }
-[data-lf-room]::before {
-  content: attr(data-lf-room);
+[data-room]::before {
+  content: attr(data-room);
   display: block;
   block-size: 0;
   overflow: hidden;
   visibility: hidden;
   white-space: pre-line;
 }
-[data-lf-room] > * {
+[data-room] > * {
   display: block;
   inline-size: 0;
   min-inline-size: 100%;
@@ -642,7 +639,7 @@ svg[data-lf-icon] {
   border: 0;
   border-radius: 50%;
   font: inherit;
-  background: var(--lf-ground, var(--paper));
+  background: var(--lf-ground);
   color: color-mix(in srgb, var(--ink) 72%, transparent);
   box-shadow:
     0 0 0 1px var(--lf-ring, var(--border-2)),

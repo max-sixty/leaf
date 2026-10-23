@@ -395,9 +395,13 @@ function focusDestination(destination, cause2, { caret = null, ...unknown } = {}
   if (unexpected.length)
     throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
   if (!canPlaceFocus()) return;
+  const options = {
+    preventScroll: true,
+    focusVisible: pressLed() ? void 0 : true
+  };
   placed(cause2, () => {
-    destination.focus({ preventScroll: true });
-    if (!landedOn(destination) && lendable(destination)) lendStop(destination);
+    destination.focus(options);
+    if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
@@ -423,7 +427,7 @@ function whenLeft(element, leave) {
   };
   element.addEventListener("blur", blur);
 }
-function lendStop(destination) {
+function lendStop(destination, options) {
   if (destination.hasAttribute("tabindex")) return;
   const giveBack = () => {
     lent.delete(destination);
@@ -432,7 +436,7 @@ function lendStop(destination) {
   };
   lent.add(destination);
   destination.tabIndex = -1;
-  destination.focus({ preventScroll: true });
+  destination.focus(options);
   if (!landedOn(destination)) {
     giveBack();
     return;
@@ -539,7 +543,7 @@ function paintFocus(node) {
     if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
   }
   paintedWithin = within;
-  const visible = next && (next.matches(":focus-visible") || next.matches(TEXT_BOX) || !next.matches(PRESSES)) ? next : null;
+  const visible = next && (next.matches(":focus-visible") || next.matches(TEXT_BOX)) ? next : null;
   if (visible !== paintedVisible) {
     if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
     if (visible) markFocus(visible, "focus-visible", true);
@@ -839,9 +843,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     { capture: true, passive: true }
   );
 function ringBox(node) {
-  if (node && node !== paintedFocus && node === paintDestination?.deref() && !returnPaintPending)
-    refreshFocusPaint();
-  if (!node?.matches?.("[data-lf-focus]")) return node;
+  if (!node?.matches?.(":focus, [data-lf-focus]")) return node;
   for (let box = renderedParent(node); box instanceof Element; box = renderedParent(box))
     if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
   return node;

@@ -50,12 +50,13 @@ changes.
 These are optional installs, separate from Leaf's plugin. Check the harness's available
 skills before invoking one; each link has installation instructions.
 
-| Install                                                                                                     | Use in a UI review                                                                                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [Impeccable](https://github.com/pbakaus/impeccable#installation)                                            | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality; focused workflows such as `layout` and `typeset`.                                                                                      |
-| [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion.                                                                                                                                     |
-| [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design)                    | `/frontend-design` for new compositions or an intentional redesign.                                                                                                                                                                  |
-| [Emil Kowalski's skills](https://github.com/emilkowalski/skills)                                            | `review-animations` for motion; it refuses model invocation, so read its `SKILL.md` and `STANDARDS.md`. `/break-ui` for worst-case content, such as long names or no items; keep the demo-data toggle it adds out of a shipped page. |
+| Install                                                                                                     | Use in a UI review                                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Impeccable](https://github.com/pbakaus/impeccable#installation)                                            | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality; focused workflows such as `layout` and `typeset`.                                                                                                  |
+| [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion.                                                                                                                                                 |
+| [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design)                    | `/frontend-design` for new compositions or an intentional redesign.                                                                                                                                                                              |
+| [Emil Kowalski's skills](https://github.com/emilkowalski/skills)                                            | `review-animations` for motion; it refuses model invocation, so read its `SKILL.md` and `STANDARDS.md`. `/break-ui` for worst-case content, such as long names or no items; keep the demo-data toggle it adds out of a shipped page.             |
+| [Mblode UI skills](https://github.com/mblode/agent-skills)                                                  | `/ui-animation` for motion and interruption; `/ui-design` Audit for visual quality and Break for extreme content; `/ui-verification` for browser reproduction; `/product-design` for action scope, recovery and consistency across input routes. |
 
 ## Leave taste to the authoring agent
 
@@ -378,8 +379,15 @@ context the behavior needs, and a few assertions. Explore freely, but keep only 
 that cover distinct failures or necessary controls. The case's leading comment records
 where it came from and whether it told the two versions apart.
 
-The prompt never states the behavior under test, or sends the agent to the file that
-holds its rule; a replay may still say what the failing session had read. Grade what the agent wrote with an
+For every agent eval, give the subject the task, context, tools and handoff it would
+receive in normal use, adding only fixture facts needed to run the case. Keep grading
+criteria and harness bookkeeping outside its input. Let the installed instructions
+teach the workflow; don't repeat their procedure or direct the subject to the rule
+being measured. A replay preserves what the recorded session had read. A diagnostic
+that deliberately supplies a skill or rule measures behavior with that context,
+not whether ordinary use discovers it; name that limit when interpreting its result.
+
+Grade what the agent wrote with an
 `llm-rubric` assertion whose `value` describes the passing behavior without requiring
 particular wording; use `regex` only for a literal such as a command or URL
 (`evals/README.md`, "Case format").

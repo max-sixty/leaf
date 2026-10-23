@@ -37,6 +37,7 @@ from browser.threads import open_panel_thread
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import wait_until_ready
+from leaf.runtime_selection import serving_runtime
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -154,7 +155,9 @@ def _asked(context):
 
     def record(request):
         path = urlparse(request.url).path
-        paths.append(re.sub(r"^/revisions/r\d+-[0-9a-f]+", "", path))
+        paths.append(
+            re.sub(r"^/revisions/r\d+-[0-9a-f]+/[0-9a-f]+|^/[0-9a-f]+", "", path)
+        )
 
     context.on("request", record)
     return paths
@@ -380,7 +383,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(d, "c-store"),
@@ -476,7 +479,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
     """Importing capabilities does not start a half-constructed browser application."""
     url = serve(SUGGESTION_PAGE)
-    boot = (serve.page_dir / "leaf.js").read_text()
+    boot = serving_runtime().resources({})["/leaf.js"].data.decode()
     context = browser.new_context()
     context.route(
         "**/leaf.js",

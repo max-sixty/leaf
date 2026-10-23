@@ -34,7 +34,6 @@ SHOWN = THREAD_KINDS | {
     "action",
     "report",
     "note",
-    "done",
 }
 
 
@@ -116,7 +115,5 @@ def history(
         elif kind == "note":
             row["version"] = event["version"]
             row["excerpt"] = event["text"]
-        else:
-            row["version"] = event["version"]
         rows.append(row)
     return rows

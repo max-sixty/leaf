@@ -59,7 +59,7 @@ The optional bundled packages are:
 | `file-tree`     | `lf-file-tree`, a searchable navigator for a file list or another widget’s typed file inventory, following its opaque datum keys. |
 | `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.                                        |
 | `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                   |
-| `motion`        | `lf-motion`, a shared clock with playback and scrubbing for page-authored animation studies.                                      |
+| `motion`        | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                         |
 | `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                      |
 | `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                |
 
@@ -148,7 +148,11 @@ control below its touch target or focus clearance.
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
 Import Leaf only through `/runtime/widget-api.js`; `package check` refuses an import of
 any other kernel module, and `runtime/` modules can add paths but not replace the
-kernel's.
+kernel's. The Leaf serving a page supplies its runtime, `widget-api.js` and the
+kernel's `vendor/` modules included, so a vendored package runs against whichever
+Leaf serves its page, and a package's `vendor/` file at one of those paths replaces it
+there. Leaf keeps `widget-api.js`'s names and what they return across updates at one
+page protocol (`../scripts/leaf/layer-registry.md`, "Page protocol").
 
 Registries merge in order: kernel, `default`, then the selected packages in command
 order, and a later package wins a collision. A later package replaces an element or
@@ -194,7 +198,7 @@ alternatives, goes in the instructions that own that workflow, and the entry poi
 them: an author revising a page re-reads those instructions, not the entry.
 
 A `boolean` attribute works as in HTML. Name it for what its presence means and make
-absence the default, as in `lf-diff collapsed` or `lf-shot outlines`.
+absence the default, as in `lf-diff collapsed`.
 
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:

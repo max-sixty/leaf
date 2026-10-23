@@ -20,7 +20,6 @@ from render_harness import (
     post_event,
     resized,
     round_trip,
-    stamp_page,
     told,
 )
 
@@ -369,21 +368,15 @@ def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
     browser, serve
 ):
     """Every On me card whose item has somewhere to go offers Show, a question answered
-    on its card included, and Show puts the user where `m` puts them. The version's
-    approval is answered on its own card, so that card offers none."""
-    signed = CHANGE_SHAPES_PAGE.replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
-    )
-    url = serve(signed)
-    stamp_page(serve.page_dir, signed, "Ready for sign-off")
+    on its card included, and Show puts the user where `m` puts them."""
+    url = serve(CHANGE_SHAPES_PAGE)
     page = open_page(browser, url)
     resized(page, 1440, 900)
-    # Where `m` arrives at the question: the fourth stop in page order, before the
-    # approval, which has no place on the page.
+    # Where `m` arrives at the question: the fourth stop in page order.
     page.locator("#title").click()
     for _ in range(4):
         page.keyboard.press("m")
-    expect_walk_position(page, "4 of 5 waiting on me · Options")
+    expect_walk_position(page, "4 of 4 waiting on me · Options")
     landed = page.evaluate("() => document.activeElement.id")
     page.locator("#title").click()
 
@@ -394,9 +387,6 @@ def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
 
     for at in ("sug-rewrite", "sug-insert", "sug-delete", "shapes-q"):
         expect(show(on_card(page, f"widget:{at}"))).to_have_count(1)
-    approval = page.locator(f"{ON_ME} .lf-fp-on-item[data-approval]")
-    expect(approval).to_have_count(1)
-    expect(show(approval)).to_have_count(0)
 
     show(on_card(page, "widget:shapes-q")).click()
     expect(page.locator(f"#{landed}")).to_be_focused()

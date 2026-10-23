@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
 from render_harness import (
+    CORPUS_SOURCES,
     EXAMPLES,
     TOKEN,
     leaf_page,
@@ -318,9 +319,9 @@ EXHIBIT_EXTENT = """
 }
 """
 
-SAMPLE_EXAMPLES = [p for p in EXAMPLES if "<lf-sample" in p.read_text()]
+SAMPLE_EXAMPLES = [p for p in CORPUS_SOURCES if "<lf-sample" in p.read_text()]
 assert SAMPLE_EXAMPLES, (
-    "no shipped example holds a sample — the sweep below would drive the fixture "
+    "no authored fixture holds a sample — the sweep below would drive the fixture "
     "page alone, and the rule it holds is one the corpus is the whole test of"
 )
 TABLE_REPLY = """The ceilings, unchanged:
@@ -794,9 +795,7 @@ LIVE_V2 = (
     )
     .replace(
         "</head>",
-        '<meta name="lf-review" content="sign-off">\n'
-        "<style>#live-reading { --live-cut: 2; }</style>\n"
-        "</head>",
+        "<style>#live-reading { --live-cut: 2; }</style>\n</head>",
     )
 )
 LIVE_V3 = (
@@ -812,7 +811,6 @@ LIVE_V3 = (
     .replace(
         '<h1 id="live-title">Live second</h1>', '<h1 id="live-title">Live third</h1>'
     )
-    .replace('<meta name="lf-review" content="sign-off">\n', "")
     .replace("<style>#live-reading { --live-cut: 2; }</style>\n", "")
 )
 

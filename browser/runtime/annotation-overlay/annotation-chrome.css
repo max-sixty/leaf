@@ -111,7 +111,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       var(--thread-card)
     );
     min-width: min(var(--thread-card-min), var(--lf-comment-frame-max-width));
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: minmax(var(--lf-response-height), 1fr);
     grid-auto-rows: auto;
     align-items: end;
@@ -159,17 +159,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     align-self: stretch;
     grid-template-rows: minmax(0, 1fr);
   }
-  .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-options {
-    /* Disclosed actions wrap within the editor's track; their intrinsic width
-       must not move the field or its disclosure out from under the pointer. */
-    contain: inline-size;
-    grid-column: 1 / -1;
-    grid-row: 2;
+  .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-trigger {
+    grid-column: 2;
+    grid-row: 1;
   }
   /* Attached images hang off the box on the side away from its passage, outside its
      frame, so attaching neither grows the box nor moves a word and the passage stays in
      view, as the floating panel hangs its shelf over its card (floating-panel.css):
-     6px under the box's rows (the field, and its disclosed actions), or 6px over the
+     6px under the composer row, or 6px over the
      field when the box stands above its passage. The user chose this on 20 October
      over 34px pictures in the header row the frame keeps for the card's author line,
      and over a row of their own in the box, which re-placed the box and moved the
@@ -640,6 +637,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   .lf-margin-thread .lf-thread-transcript .lf-msg-head {
     position: sticky;
+    --lf-head-inset: 0px;
     inset-block-start: 0;
     z-index: 1;
     background-color: var(--lf-msg-ground);

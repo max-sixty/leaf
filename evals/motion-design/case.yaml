@@ -1,0 +1,32 @@
+# From the panel-motion comparison praised in Codex chat
+# 01a1647b-3fa6-7663-b40a-06d47d0e5188. Measures live comparison and choice,
+# including shared inspection controls staying useful while the page scrolls.
+# 2026-10-22: one baseline (13e64e6a0) and two successive candidates
+# (49afc5520, 606be1c64), same request, desktop + phone, live absolute judgment.
+# All three were graded defect for phone evidence readability. Shared transport
+# and explicit choice worked in all three; candidates used lf-motion instead of
+# a page-owned playback implementation. The second candidate read the added
+# inspection guidance, but its native-size view cropped the recording on phone.
+# This small exploratory comparison establishes neither a quality win nor a rate.
+# A fresh local run with revised motion guidance widened phone previews and removed
+# native scrolling duplicates, but the original judge still failed tiny recorded
+# labels/icons (20261022-184059-6_t19wp5). Clarifying the criterion to judge the
+# complete motion produced a passing fresh desktop+phone run
+# (20261022-185628-lpgiyd01). A blind audit of the preserved earlier comparison
+# also passed that motion criterion; it did not include the unavailable final page.
+# Thus the grades establish criterion calibration and demonstrated usability,
+# not an old-fails/new-passes authoring capability win or a quality improvement rate.
+# An earlier pilot with incorrect timing metadata is excluded.
+description: Motion design comparison
+metadata:
+  purpose: Compare real motion candidates through shared playback and record the
+    chosen visible candidate without confusing inspection with a design choice.
+  tags:
+    - workflow
+    - design
+    - playground
+    - motion
+  conditions:
+    - leaf
+  executor: leaf_dev.arrangement_eval
+  scenario: motion-design

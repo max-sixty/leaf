@@ -157,6 +157,12 @@ sheet.replaceSync(`
      word under the action. */
   .cm-line.lf-field-last::after { content: ""; display: inline-block;
     inline-size: var(--lf-field-end-room); }
+  /* In a narrow field, the spacer can wrap by itself after the last word and leave
+     that word under Send. Keep both together where the field asks for it. */
+  :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after {
+    content: "\\00a0"; display: inline; inline-size: auto;
+    padding-inline-end: var(--lf-field-end-room); white-space: nowrap;
+  }
   /* The placeholder is a single line, so it stands where a last line would. */
   .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
   /* The action stands beside more than the last line under a finger, whose hit box is
@@ -164,10 +170,14 @@ sheet.replaceSync(`
   @media (pointer: coarse) {
     .lf-field { padding-inline-end: var(--lf-field-end-room); }
     .lf-field-placeholder { padding-inline-end: 0; }
-    .cm-line.lf-field-last::after { content: none; }
+    .cm-line.lf-field-last::after,
+    :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after { content: none; }
   }
   :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host([data-scrolls]) .cm-line.lf-field-last::after { content: none; }
+  :host([data-scrolls]) .cm-line.lf-field-last::after,
+  :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
+    content: none;
+  }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -207,11 +217,13 @@ sheet.replaceSync(`
     padding-inline: var(--pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--code-border);
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  .lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
+  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
+  .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
+    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
+    padding-block-end: 8px; }
   /* Code with no fence lines takes the message's padding at its ends instead. */
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-last { padding-block-end: var(--pre-pad-block); }
+  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 
 // A step an owner recorded in the words' history (`record`): `run` makes it happen when
@@ -677,6 +689,7 @@ class LeafText extends HTMLElement {
   }
 
   connectedCallback() {
+    this.classList.toggle("scroll", true);
     // A move by `insertBefore` reconnects within the task, keeping the view
     // (`disconnectedCallback`); the hold that returns the user restores the caret.
     if (this.#view) return;

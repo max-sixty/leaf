@@ -5,12 +5,12 @@ import re
 from collections.abc import Mapping
 from functools import cached_property
 from html import escape
-from urllib.parse import urlsplit
 
 import turbohtml
 
 from .findings import Finding
 from .registry.kernel import kernel_authored
+from .resource_urls import ReferenceError, resource_reference
 from .schema import EVENT_ID, MEDIA_DIR
 
 DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
@@ -96,25 +96,6 @@ def allocation_valid(attr: str, value: str) -> bool:
     if isinstance(values, re.Pattern):
         return values.fullmatch(value) is not None
     return value in values
-
-
-# Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
-# name → allowed content values (`$authored` in the kernel registry). A misspelled
-# name or value would silently declare nothing in the browser, so `page check` holds
-# a page to this vocabulary the way the registry holds lf-* elements.
-LF_META = {
-    name: frozenset(values) for name, values in kernel_authored()["meta"].items()
-}
-
-
-def remote_reference(reference: str) -> bool:
-    """Whether a URL names another server, which the page loads from as written:
-    capture neither reads nor refuses it."""
-    try:
-        parsed = urlsplit(reference)
-    except ValueError:
-        return False
-    return parsed.scheme in {"", "http", "https"} and bool(parsed.netloc)
 
 
 # The script types a browser runs as JavaScript, per the HTML standard: no type, or a
@@ -216,6 +197,14 @@ def element_attrs(element) -> dict:
     }
 
 
+def _local_resource(value: str) -> tuple[str, str] | None:
+    """Read an attribute candidate; arbitrary prose need not be a valid URL."""
+    try:
+        return resource_reference(value, "/index.html")
+    except ReferenceError:
+        return None
+
+
 def attribute_references(tag: str, attrs: dict, name: str, value: str):
     """Yield the `(start, end)` span of each URL one attribute value carries.
 
@@ -240,7 +229,10 @@ def attribute_references(tag: str, attrs: dict, name: str, value: str):
             or normalized_tag == "link"
             and "icon" in attrs.get("rel", [])
         )
-        or value.startswith(f"/{MEDIA_DIR}/")
+        or (
+            (reference := _local_resource(value)) is not None
+            and reference[0].startswith(f"/{MEDIA_DIR}/")
+        )
     ):
         yield 0, len(value)
 
@@ -556,7 +548,7 @@ class Authoring:
         # mentions: a page documenting Leaf can write one in prose without demanding a
         # screenshot that nothing displays.
         self.media_refs = set()
-        self.page_resource_refs = set()
+        self.resource_refs = set()
         self.style_blocks = []  # {css, line, attrs} per independent <style> sheet
         self.inline_styles = []  # {tag, line, style} per style="" declaration list
         # {tag, line, attr, value} per authored allocation: a data-width or data-bound.
@@ -721,16 +713,14 @@ class Authoring:
             if isinstance(value, str)
             for start, end in attribute_references(tag, attrs, name, value)
         ]
-        self.media_refs.update(
-            urlsplit(reference).path
-            for _, reference in references
-            if reference.startswith(f"/{MEDIA_DIR}/")
-        )
-        self.page_resource_refs.update(
-            reference
-            for _, reference in references
-            if reference.startswith(("/page/", "page/", "./page/"))
-        )
+        self.resource_refs.update(reference for _, reference in references if reference)
+        for _, reference in references:
+            resolved = _local_resource(reference)
+            if resolved is None:
+                continue
+            path, _suffix = resolved
+            if path.startswith(f"/{MEDIA_DIR}/"):
+                self.media_refs.add(path)
 
         if tag == "noscript":
             self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
@@ -929,15 +919,3 @@ def page_layout(document: SourceDocument, registry: Mapping):
             if name not in names:
                 names.append(name)
     return " ".join(names) or None
-
-
-def review_mode(document: SourceDocument):
-    """The review decision one document declares, or None."""
-    return next(
-        (
-            meta["content"]
-            for meta in document.authoring.named_metas
-            if meta["name"] == "lf-review"
-        ),
-        None,
-    )

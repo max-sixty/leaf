@@ -225,7 +225,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert first_images.evaluate_all(
         "images => images.every(image => image.complete && image.naturalWidth > 0)"
     )
-    details_button = first.get_by_role("button", name="More inspection")
+    details_button = first.get_by_role("button", name="Capture details")
     go_to(user, details_button)
     expect(first.locator(".lf-vr-details")).to_be_visible()
     user.keyboard.press("Escape")
@@ -344,7 +344,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("Escape")
     user.keyboard.press("Escape")
     assert user.evaluate("() => document.activeElement === document.body")
-    compare = second.get_by_role("button", name="Before & after")
+    compare = second.get_by_role("button", name="Pair", exact=True)
     go_to(user, compare)
     assert_keyboard_focus(user, compare)
     corrected = shifted | {

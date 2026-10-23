@@ -15,17 +15,17 @@ have to picture from a description, and put that thing on the page in its own fo
   `lf-shot` before-and-after pair, and captures that vary along other axes go in a
   table of captures (`authoring-evidence.md`, "Source files and media").
 - A behavior, such as an interaction, a motion or a process over time, runs: in a live
-  sample the user operates (`live-samples.md`), or as an authored animation in
-  `lf-motion` from the `motion` package. Its shared playback controls let the user
-  slow, pause and scrub while a page module draws each frame, so each moment stays
-  readable and commentable.
+  sample the user operates (`live-samples.md`), or in `lf-motion` from the `motion`
+  package. Its shared playback controls let the user slow, pause and scrub authored
+  animations or video recordings, so each moment stays readable and commentable.
+  The package’s authoring instructions cover both forms and their evidence limits.
 - A proposal or mechanism nothing can show yet is drawn: where things sit, what
   contains, calls or feeds what, how a state changes, today beside the proposal, and
   alternatives in one frame at one scale.
 - Numbers whose shape is the point, such as a trend, a ranking or groups on one scale,
   are an `lf-chart`, even when they compare the same measures across items. Label the
-  values the argument cites, and put exact values in a table in `<details>` below it
-  when readers need them.
+  values the argument cites, and put exact values in a table below it when readers
+  need them. "Reading cost" below governs whether to collapse that table.
 - Wording the user judges, such as code, a command or a message, is shown as the text
   itself. When the point is what code does, such as what it draws or which rule wins,
   show that effect in one of the forms above, with the code beside it.
@@ -48,16 +48,17 @@ they carry information. `authoring-evidence.md` says which element draws each ki
 evidence, and how to draw a figure of your own.
 
 Prose says only what the page can't show: the claim, why it holds, its cost, and the
-question the page asks. That takes a few sentences. A longer section is carrying
-something the page should show, or backing that belongs in `<details>`.
+question the page asks.
 
 ## Reading cost
 
 Readers skip collapsed text unless they go looking. Keep open everything the page asks
 the reader to take in or answer: the finding, its evidence, and what they are asked to
-review, decide or comment on, including a proposed plan. Collapse what they can skip
-and still do that, such as history, method, source excerpts, transcripts and raw
-output. Leaf opens a disclosure when a comment lands inside it.
+review, decide or comment on, including a proposed plan. Keep short supporting notes
+and excerpts visible. Collapse long optional material when the space and attention
+saved repay its label and click. Keep the resulting disclosure controls directly
+reachable; another level should reveal substantial content of its own. Leaf opens a
+disclosure when a comment lands inside it.
 
 The title names the page, and the lede under it states the finding. A section that
 reaches a finding states it in its heading, short enough to scan in an `lf-toc`; put
@@ -94,15 +95,16 @@ table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
   sit in equal cells. Each cell holds a metric, chart, table, list or log, with at most
   a caption; tiles of paragraphs read worse than the column.
 - **A comparison** is a table, or native sections arranged by the page's CSS.
-- **Controls beside evidence** is a playground.
+- **Controls beside evidence** is a playground. Aim for one coherent experience to
+  read, operate and comment on. Embedded documents can isolate a demonstration, but
+  also separate its navigation and interaction from the surrounding Leaf page
+  (`live-samples.md`).
 - **A screen the reader works in rather than scrolls**, like a mail client, a queue
-  worked one item at a time, a log beside its chart, or a playground that is the page's
-  subject, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
-  window from the title's left edge. Broken out of a column, the same surface would sit
-  below the opening prose, with edges that match neither the title nor the prose, which
-  suits a figure a document cites but not the page's main item. Reading that supports the
-  surface, such as the review behind a design the reader tunes, goes in parts of its own
-  after the surface's, on a page of parts (below). A document read top to bottom beside a
+  worked one item at a time, a log beside its chart, or a desktop interface the reader
+  tunes, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
+  window from the title's left edge. Let that surface lead when it is the main task;
+  supporting reading, such as the review behind a design the reader tunes, goes in
+  later parts on a page of parts (below). A document read top to bottom beside a
   panel kept in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
   (`page-layout.md`, "A sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
@@ -146,9 +148,16 @@ page of parts, whose column parts each take their own outline.
 
 ## Read the registry
 
-Write semantic HTML using the registry's elements and class idioms. The vendored theme
-styles colours, type, spacing, headings, tables, code and widgets; use a page `<style>`
-only for presentation unique to this page.
+Use Leaf's default styling for ordinary content, with semantic HTML from the registry's
+elements and class idioms. The vendored theme supplies colours, type, spacing,
+headings, tables, code and widgets. Polish a page through clearer content and hierarchy
+within that treatment. Reserve page CSS for task-specific arrangement, visualization
+or a particular design the user requests. An added card surface should express a
+grouping or interaction the task needs; wrapping already styled elements just for
+polish adds visual weight without meaning.
+
+`page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
+for inspecting how much CSS a page adds and where it comes from.
 
 First read the shared author instructions of the page's packages, which can steer
 which entries you pick:
@@ -227,6 +236,12 @@ grammar's aliases, such as `language-js` and `language-sh`. Format example code 
 the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.
+
+For a custom horizontal scroll area, set `overflow-x: auto` and add
+`class="scroll"` to that same box. Leaf contains its positioned descendants and
+adds keyboard access and continuation cues when content exceeds the box. Its CSS may
+change overflow at a breakpoint; Leaf measures the declared surface, never all of its
+descendants. Use a bounded reading region for independently scrolling vertical content.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
 to it, so none needs a width. It scrolls them sideways only: one given just a

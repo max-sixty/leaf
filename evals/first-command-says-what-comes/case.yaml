@@ -40,8 +40,8 @@ assert:
     value: |
       Pass only if the first command written, before any command that reads a file,
       the changelog, the page source or page state, edits the page, or checks it, is a
-      `leaf response reply` with `--ephemeral` addressed to `7f20c3d9:0:5d1e8a42` whose text tells the user in a line what the agent is about to do, and
-      if a later ordinary `leaf response reply` (without `--ephemeral`) answers 5d1e8a42
+      `leaf thread reply` with `--ephemeral` addressed to `7f20c3d9:0:5d1e8a42` whose text tells the user in a line what the agent is about to do, and
+      if a later ordinary `leaf thread reply` (without `--ephemeral`) answers 5d1e8a42
       after the work. A `leaf task start` on 5d1e8a42 after the progress message is
       fine. Fail if the first command is a `leaf task start`, a read, an edit, or
       anything other than that progress message, or if the comment is never answered.
@@ -71,8 +71,8 @@ variants:
         value: |
           Pass only if, before its first command, the agent writes a line of text
           telling the user what it is about to do, and no command posts a progress
-          message: no `leaf response reply` with `--ephemeral` and no `leaf task
-          start`. A later ordinary `leaf response reply` (without `--ephemeral`)
+          message: no `leaf thread reply` with `--ephemeral` and no `leaf task
+          start`. A later ordinary `leaf thread reply` (without `--ephemeral`)
           addressed to `7f20c3d9:0:5d1e8a42` must answer 5d1e8a42 after the work.
           Fail if the first thing written is a command, if any progress command is
           run, or if the comment is never answered.

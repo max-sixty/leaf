@@ -64,7 +64,7 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { signal } from "/vendor/browser-runtime.js";
 import { keeps } from "./keeps.js";
-import { MODIFIER_KEYS, PRESSES, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
+import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import {
   isNativeLayer,
   renderedParent,
@@ -160,9 +160,16 @@ export function focusDestination(
   if (unexpected.length)
     throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
   if (!canPlaceFocus()) return;
+  // Firefox otherwise inherits a pointer arrival's invisible focus through a
+  // keyboard route, including a composer return. Ask the platform to show that
+  // destination; pointer routes keep its own visibility heuristic.
+  const options = {
+    preventScroll: true,
+    focusVisible: pressLed() ? undefined : true,
+  };
   placed(cause, () => {
-    destination.focus({ preventScroll: true });
-    if (!landedOn(destination) && lendable(destination)) lendStop(destination);
+    destination.focus(options);
+    if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
@@ -215,7 +222,7 @@ export function whenLeft(element, leave) {
   element.addEventListener("blur", blur);
 }
 
-function lendStop(destination) {
+function lendStop(destination, options) {
   if (destination.hasAttribute("tabindex")) return;
   // Only the `-1` lent here is taken back: a box that came to scroll meanwhile wears
   // the reach pass's stop (reach.js), which is that pass's to take. Taking it back
@@ -228,7 +235,7 @@ function lendStop(destination) {
   };
   lent.add(destination);
   destination.tabIndex = -1;
-  destination.focus({ preventScroll: true });
+  destination.focus(options);
   if (!landedOn(destination)) {
     giveBack();
     return;
@@ -505,13 +512,8 @@ function paintFocus(node) {
   // focus-visible (including text entry and modality changes on the same node).
   // Closed text-field roots expose their host, not the focused editor; text
   // entry always needs a cue, as it does for native editors.
-  // Non-press destinations are reading locations: keep their location band
-  // whenever they hold focus, including after a pointer click or route.
   const visible =
-    next &&
-    (next.matches(":focus-visible") || next.matches(TEXT_BOX) || !next.matches(PRESSES))
-      ? next
-      : null;
+    next && (next.matches(":focus-visible") || next.matches(TEXT_BOX)) ? next : null;
   if (visible !== paintedVisible) {
     if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
     if (visible) markFocus(visible, "focus-visible", true);
@@ -912,18 +914,12 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
 // rather than the control declares it there, `--lf-wears-ring: 1` (theme.css), as a
 // playground's choice rings its radio and words together; the nearest such box around
 // the control is the one. Anything else wears its own. Those rules ring the face of the
-// control the focus paint marks, so only that control has one. A move paints after its
-// script, and a landing in that script, as an option walk's End is, reads the paint
-// now; a return's paint still waits for its frame.
+// control the focus paint marks, so only that control has one. A landing in the
+// focus task reads the carrier from native focus before Leaf paints. Reading the
+// ring must not paint an intermediate focus destination: a return in the same
+// task would otherwise remove and restore the previous focus marks.
 export function ringBox(node) {
-  if (
-    node &&
-    node !== paintedFocus &&
-    node === paintDestination?.deref() &&
-    !returnPaintPending
-  )
-    refreshFocusPaint();
-  if (!node?.matches?.("[data-lf-focus]")) return node;
+  if (!node?.matches?.(":focus, [data-lf-focus]")) return node;
   for (
     let box = renderedParent(node);
     box instanceof Element;

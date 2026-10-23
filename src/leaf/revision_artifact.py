@@ -4,12 +4,16 @@ Logical resource URLs are rooted at the page (``/page/app.js``,
 ``/runtime/widget-api.js``). Page imports use literal, unescaped URL strings;
 Tree-sitter reads JavaScript and tinycss2 reads CSS. Only the declared public
 layer entry points may cross from authored code into the layer. Capturing the
-selected layer whole also preserves its declaration-driven dynamic imports.
+vendored layer whole also preserves its declaration-driven dynamic imports. The
+runtime is not captured: the Leaf delivering a revision supplies it
+(`runtime_selection`), so the public entry points are addresses a capture names but
+never holds.
 
 A bundle contains exact source bytes, resources, MIME
 types, the effective registry, and implementation provenance. Its canonical
 manifest determines its digest, and carries a second ``executable`` digest over
-the inputs an already-open document cannot re-evaluate in place. Scripts include
+the captured inputs an already-open document cannot re-evaluate in place; the
+runtime it runs with is named beside it by the delivering Leaf. Scripts include
 their patch region: head and body scripts stay installed while main is patched.
 Moving a script across those regions reloads, so a retained script cannot duplicate
 an arriving main script. Moving among containers within main without changing
@@ -32,7 +36,6 @@ keeps that page (`page_memory`).
 import hashlib
 import json
 import os
-import posixpath
 import re
 import sys
 import tempfile
@@ -43,11 +46,11 @@ from datetime import UTC, datetime
 from functools import cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
-from urllib.parse import unquote, urlsplit
 
 import tinycss2
 import tree_sitter_javascript
 import turbohtml
+from pywhatwgurl import URL
 from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser, Query, QueryCursor
 
@@ -56,11 +59,10 @@ from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
-from leaf.render_checks import PROBE_SOURCES
+from leaf.resource_urls import ReferenceError, resource_reference
 from leaf.schema import (
     BROWSER_DIRS,
     CONTENT_TYPES,
-    JAVASCRIPT_SUFFIXES,
     SERVED_PATH,
     VENDORED_FILES,
 )
@@ -69,7 +71,6 @@ from leaf.structure import (
     SourceDocument,
     annotation_mode,
     links_with_rel,
-    remote_reference,
     script_kind,
 )
 
@@ -195,50 +196,22 @@ class RevisionArtifact:
         return json.loads(self.manifest)["widgets"]
 
 
-def dependency_path(specifier: str, importer: str, *, module=False) -> str | None:
-    """Resolve a browser dependency URL without assigning it to an application owner.
-
-    None is a reference the revision does not hold, which stays as written: one on
-    another server, a fragment of this document, or a data: URL.
-    """
-    if remote_reference(specifier) or specifier.startswith(("#", "data:")):
-        return None
+def dependency_reference(
+    specifier: str, importer: str, *, module=False
+) -> tuple[str, str] | None:
+    """Read a resource URL, reporting refusal in its capture source."""
     try:
-        parsed = urlsplit(specifier)
-    except ValueError as error:
-        raise artifact_error(
-            "dependency-url", importer, specifier, error=str(error)
-        ) from error
-    if (
-        not specifier
-        or parsed.scheme
-        or parsed.netloc
-        or (module and (parsed.query or parsed.fragment))
-        or "\\" in specifier
-        or any(ord(char) < 33 for char in specifier)
-    ):
-        raise artifact_error("dependency-not-local", importer, specifier)
-    path = unquote(parsed.path)
-    if unquote(path) != path or "\\" in path or any(ord(char) < 33 for char in path):
-        raise artifact_error("dependency-encoded", importer, specifier)
-    if module and not path.startswith(("/", "./", "../")):
-        raise artifact_error("module-not-local", importer, specifier)
-    if path.startswith("/"):
-        resolved = posixpath.normpath(path)
-    else:
-        resolved = posixpath.normpath(posixpath.join(posixpath.dirname(importer), path))
-    if resolved.startswith("//") or not resolved.startswith("/"):
-        raise artifact_error("dependency-escapes", importer, specifier)
-    if module and Path(resolved).suffix not in JAVASCRIPT_SUFFIXES:
-        raise artifact_error("module-type", importer, specifier)
-    return resolved
+        return resource_reference(specifier, importer, module=module)
+    except ReferenceError as error:
+        raise artifact_error(error.code, importer, specifier, **error.values) from error
 
 
 def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | None:
     """Admit an authored resource to the files or public entry points a revision holds."""
-    resolved = dependency_path(specifier, importer, module=module)
-    if resolved is None:
+    reference = dependency_reference(specifier, importer, module=module)
+    if reference is None:
         return None
+    resolved, _suffix = reference
     if module:
         if not resolved.startswith("/page/") and resolved not in PUBLIC_MODULES:
             raise artifact_error("module-outside-page", importer, specifier)
@@ -287,13 +260,19 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
                     None,
                 )
         if literal is not None and literal.type == "string":
-            imports.append(
-                (
-                    literal.start_byte,
-                    literal.end_byte,
-                    data[literal.start_byte + 1 : literal.end_byte - 1].decode("utf-8"),
-                )
+            specifier = data[literal.start_byte + 1 : literal.end_byte - 1].decode(
+                "utf-8"
             )
+            # These are JavaScript literals, not HTML resource URLs. The reader
+            # does not decode JS string escapes, and bare imports require a map.
+            if "\\" in specifier:
+                raise artifact_error("dependency-not-local", path, specifier)
+            absolute = URL.parse(specifier)
+            if absolute is not None:
+                specifier = absolute.href
+            elif not specifier.startswith(("/", "./", "../")):
+                raise artifact_error("module-not-local", path, specifier)
+            imports.append((literal.start_byte, literal.end_byte, specifier))
     return tuple(imports)
 
 
@@ -302,7 +281,8 @@ def _css_meaningful(tokens) -> list:
 
 
 def _is_stylesheet_url(url: str) -> bool:
-    return remote_reference(url) or Path(urlsplit(url).path).suffix == ".css"
+    reference = dependency_reference(url, "/index.css")
+    return reference is None or Path(reference[0]).suffix == ".css"
 
 
 def _css_references(tokens):
@@ -414,7 +394,7 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
     return _CssReading(references, tuple(parts[0::2]), order)
 
 
-def _css_dependencies(
+def css_dependencies(
     source: str, path: str, declarations: bool = False
 ) -> tuple[str, ...]:
     """The URLs the CSS in the file at `path` loads. The parse is shared by every
@@ -510,15 +490,7 @@ def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     return tuple(
         (path.relative_to(page_dir).as_posix(), _path_stamp(path))
         for path in sorted(set(paths))
-    ) + tuple((logical, _path_stamp(path)) for logical, path in PROBE_SOURCES.items())
-
-
-def probe_resources() -> dict[str, Resource]:
-    """This Leaf's browser probe modules, as a capture holds them."""
-    return {
-        logical: Resource(source.read_bytes(), "application/javascript")
-        for logical, source in PROBE_SOURCES.items()
-    }
+    )
 
 
 def capture_artifact(
@@ -599,18 +571,18 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
     return Resource(data, mime)
 
 
-def _resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]:
+def resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]:
     """The local dependencies of an authored module or stylesheet."""
     edges = []
     if mime == "application/javascript" and path.startswith("/page/"):
         for _, _, specifier in javascript_imports(data, path):
             edges.append(resolve_dependency(specifier, path, module=True))
-    elif mime == "text/css" and path.startswith("/page/"):
+    elif mime == "text/css" and path.startswith(("/page/", "/media/")):
         try:
             css = data.decode("utf-8")
         except UnicodeDecodeError as error:
             raise artifact_error("css-not-utf8", path) from error
-        for specifier in _css_dependencies(css, path):
+        for specifier in css_dependencies(css, path):
             edges.append(resolve_dependency(specifier, path))
     return tuple(dict.fromkeys(edge for edge in edges if edge is not None))
 
@@ -619,22 +591,26 @@ class _ResourceCapture:
     """One capture's resource graph, including cycles and arbitrarily deep imports.
 
     Record a resource before following its edges, so each path is read once. The
-    explicit worklist keeps graph depth independent of Python's call stack.
+    explicit worklist keeps graph depth independent of Python's call stack. A public
+    entry point an authored module imports is the runtime's, which the delivering Leaf
+    supplies, so capture skips it unless the vendored layer holds its own (`vendored`),
+    as a package replacing a vendor module does; the layer's files are added first.
     """
 
     def __init__(self, read_resource: Callable[[str], Resource]) -> None:
         self.read_resource = read_resource
         self.resources: dict[str, Resource] = {}
 
-    def add(self, path: str) -> None:
+    def add(self, path: str, *, vendored: bool = False) -> None:
         pending = [path]
         while pending:
             path = pending.pop()
-            if path in self.resources:
+            if path in self.resources or (path in PUBLIC_MODULES and not vendored):
                 continue
+            vendored = False  # what it imports is a dependency
             resource = self.read_resource(path)
             data = resource.data
-            edges = _resource_dependencies(path, data, resource.mime)
+            edges = resource_dependencies(path, data, resource.mime)
             self.resources[path] = Resource(data, resource.mime)
             pending.extend(reversed(edges))
 
@@ -662,7 +638,7 @@ def _capture_artifact(
             if path.is_file() and SERVED_PATH.fullmatch(
                 "/" + path.relative_to(page_dir).as_posix()
             ):
-                capture.add("/" + path.relative_to(page_dir).as_posix())
+                capture.add("/" + path.relative_to(page_dir).as_posix(), vendored=True)
     resources["/registry.json"] = Resource(_json(registry), "application/json")
     for tag, entry in registry.items():
         if is_element_name(tag) and (initial := entry.get("x-initial")):
@@ -678,11 +654,6 @@ def _capture_artifact(
         }
     for source in widget_sources.values():
         capture.add("/" + source.lstrip("/"))
-
-    # Live observations and headless checks are browser code too. Capture their
-    # source beside the runtime it reads, so a revision and an export have one
-    # complete module graph, even when the serving checkout later changes.
-    resources.update(probe_resources())
 
     entries = []
     documents = [document]
@@ -716,18 +687,18 @@ def _capture_artifact(
                 raise artifact_error("stylesheet-type", path)
             entries.append(path)
         for sheet in authored.authoring.style_blocks:
-            for specifier in _css_dependencies(sheet["css"], "/index.html"):
+            for specifier in css_dependencies(sheet["css"], "/index.html"):
                 entries.append(resolve_dependency(specifier, "/index.html"))
         for inline in authored.authoring.inline_styles:
-            for specifier in _css_dependencies(
+            for specifier in css_dependencies(
                 inline["style"], "/index.html", declarations=True
             ):
                 entries.append(resolve_dependency(specifier, "/index.html"))
-        entries.extend(authored.authoring.media_refs)
-        entries.extend(
-            resolve_dependency(specifier, "/index.html")
-            for specifier in authored.authoring.page_resource_refs
-        )
+        for specifier in authored.authoring.resource_refs:
+            reference = dependency_reference(specifier, "/index.html")
+            if reference is None or reference[0] in resources:
+                continue
+            entries.append(resolve_dependency(specifier, "/index.html"))
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
         capture.add(entry)
@@ -748,13 +719,16 @@ def _capture_artifact(
     # them, and a revision that only edits those should keep the user's document.
     #
     # The vocabulary is digested without `$layer`, which describes the vendoring
-    # run rather than the code it installed. Its fingerprint and producer commit
-    # say where a layer was built, and its generation reaches a document through
-    # `runtime/layer-generation.js`, where vendoring writes the epoch: a re-vendor
-    # moves that module, so the modules below already carry it.
+    # run rather than the code it installed: its fingerprint and producer commit
+    # say where a layer was built. Its generation is the one part a document runs
+    # under, since a tab speaks it to the server (`runtime/layer-client.js`), so a
+    # re-vendor gives every later revision a new executable and the tab a new
+    # document. The runtime's modules are not captured; a runtime change reaches an
+    # open document as a server that refuses it (`runtime_selection`).
     executable = _digest(
         _canonical_json(
             {
+                "generation": layer.get("generation"),
                 "annotations": annotation_mode(document),
                 "vocabulary": _digest(
                     _canonical_json(
@@ -1275,8 +1249,10 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
     """Yield each literal import of one captured module as its span and target.
 
     Page modules resolve through :func:`resolve_dependency`, whose public-import
-    boundary is intentionally narrower. The vendored layer is already the captured
-    trusted graph, so its imports need only be local and captured. A computed import,
+    boundary is intentionally narrower. The layer's modules and the runtime's are
+    trusted, so their imports need only be local and among `resources`, which a
+    caller passes as the revision runs them (`runtime_selection.executing`). A
+    computed import,
     such as widget loading from the captured registry, binds at execution time and is
     not yielded.
     """
@@ -1284,9 +1260,10 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
         yield from authored_imports(data, logical_path)
         return
     for start, end, specifier in javascript_imports(data, logical_path):
-        target = dependency_path(specifier, logical_path, module=True)
-        if target is None:
+        reference = dependency_reference(specifier, logical_path, module=True)
+        if reference is None:
             raise artifact_error("layer-import-remote", logical_path, specifier)
+        target, _suffix = reference
         if target not in resources:
             raise artifact_error("layer-import-missing", logical_path, specifier)
         yield start, end, target

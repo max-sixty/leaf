@@ -816,34 +816,36 @@
 
             <p id="practice-caption">
               Choose a policy, then open <strong>Show activity</strong> below it to see
-              the recorded choice. Open the sample’s leaf menu and choose
+              the recorded choice. Open the page’s leaf menu and choose
               <strong>Undo</strong>; press <strong>Activity changed</strong> in the feed
-              to see the choice marked undone. Choices and comments stay in this
-              practice page; no agent answers them.
+              to see the choice marked undone. This example uses the page’s activity log
+              and Undo; its queue policy is fictional.
             </p>
-            <lf-sample id="queue-example" label="Practice: choose a queue policy">
-              <template id="queue-example-page" data-sample>
-                <h2>Importer queue policy</h2>
-                <p id="queue-premise">
-                  The importer receives bursts of records faster than it can process
-                  them. Its queue has room for 1,000 records.
-                </p>
-                <lf-ask id="queue-question">
-                  <h3>When the queue fills, what should happen?</h3>
-                  <lf-options id="queue-policy" choose>
-                    <lf-option id="block-producer"
-                      ><strong>Pause the producer</strong> Keep every queued record;
-                      wait for space before accepting more.</lf-option
-                    >
-                    <lf-option id="drop-oldest"
-                      ><strong>Drop the oldest record</strong> Accept the newest record
-                      immediately; discard the oldest queued one.</lf-option
-                    >
-                  </lf-options>
-                </lf-ask>
-                <h3>Recorded actions</h3>
-                <lf-activity id="queue-activity"></lf-activity>
-              </template>
+            <lf-sample
+              id="queue-example"
+              label="Practice: choose a queue policy"
+              interactive
+            >
+              <h2>Importer queue policy</h2>
+              <p id="queue-premise">
+                The importer receives bursts of records faster than it can process them.
+                Its queue has room for 1,000 records.
+              </p>
+              <lf-ask id="queue-question">
+                <h3>When the queue fills, what should happen?</h3>
+                <lf-options id="queue-policy" choose>
+                  <lf-option id="block-producer"
+                    ><strong>Pause the producer</strong> Keep every queued record; wait
+                    for space before accepting more.</lf-option
+                  >
+                  <lf-option id="drop-oldest"
+                    ><strong>Drop the oldest record</strong> Accept the newest record
+                    immediately; discard the oldest queued one.</lf-option
+                  >
+                </lf-options>
+              </lf-ask>
+              <h3>Recorded actions</h3>
+              <lf-activity id="queue-activity"></lf-activity>
             </lf-sample>
 
             <ol class="steps" id="exchange-steps">
@@ -970,7 +972,7 @@
                   </td>
                   <td>
                     What is recorded, what is derived, and what survives edits, Undo,
-                    reloads, and version approval?
+                    reloads, and approval requests?
                   </td>
                 </tr>
                 <tr>
@@ -1117,11 +1119,11 @@ leaf server start ./review</code></pre>
               </p>
               <pre
                 id="response-commands"
-              ><code class="language-bash">leaf response reply &lt;answer.ref&gt; --ephemeral --text "Checking the importer's queue policy."
+              ><code class="language-bash">leaf thread reply &lt;answer.ref&gt; --ephemeral --text "Checking the importer's queue policy."
 leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
-leaf response reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
+leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
 leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A decision widget creates an
@@ -1252,7 +1254,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   <pre id="handling-json"><code class="language-json">{
   "handling": {
     "h1": "Read the thread context before answering.",
-    "h2": "Write the answer with leaf response reply using its answer.ref."
+    "h2": "Write the answer with leaf thread reply using its answer.ref."
   },
   "events": [
     {
@@ -1537,12 +1539,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                     of messages.
                   </td>
                   <td>
-                    <code>leaf thread open</code><br /><code>leaf response reply</code
-                    ><br /><code>leaf thread reply</code><br /><code
-                      >leaf thread edit</code
-                    ><br /><code>leaf thread resolve</code><br /><code
-                      >leaf thread summarize</code
-                    >
+                    <code>leaf thread open</code><br /><code>leaf thread reply</code
+                    ><br /><code>leaf thread edit</code><br /><code
+                      >leaf thread resolve</code
+                    ><br /><code>leaf thread summarize</code>
                   </td>
                 </tr>
                 <tr>
@@ -1690,7 +1690,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             </table>
             <p id="route-instructions">
               On every route the agent can answer with
-              <code>leaf response reply &lt;answer.ref&gt;</code>. One task can receive
+              <code>leaf thread reply &lt;answer.ref&gt;</code>. One task can receive
               updates by several routes, and each delivery says how to confirm it and
               how to answer.
             </p>
@@ -1868,56 +1868,51 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           <section id="widgets">
             <h2>Widgets</h2>
             <p id="dogfood">
-              These examples run in separate practice pages with their own event logs.
-              Their choices and comments never become decisions on this specification.
-              The activity feed in each example shows the actions it records; no agent
-              answers these practice pages.
+              These examples are interactive parts of this page. Their choices, card
+              moves, and comments share its event log, Undo, and On me. Each activity
+              feed shows the same page history, including actions in other examples.
             </p>
             <figure id="options-demo">
               <p id="options-practice">
                 Choose an importer strategy, then one job. Open
                 <strong>Show activity</strong> to inspect both selections. Choose
-                <strong>Undo</strong> in the sample’s leaf menu to withdraw the job
+                <strong>Undo</strong> in the page’s leaf menu to withdraw the job
                 choice, then press <strong>Activity changed</strong> in the feed. The
                 strategy remains selected.
               </p>
-              <lf-sample id="spec-options-frame" label="Practice: options">
-                <template id="spec-options-page" data-sample>
-                  <p>I'd migrate in stages, which keeps the rollback boundary small.</p>
-                  <lf-options id="spec-options" choose>
-                    <lf-option id="so-rewrite"
-                      ><small class="tag">effort: high</small
-                      ><small class="tag">risk: med</small
-                      ><strong>Rewrite the importer</strong> A clean slate on the new
-                      schema; the old importer keeps running until parity.</lf-option
-                    >
-                    <lf-option id="so-shim"
-                      ><small class="tag">effort: low</small
-                      ><small class="tag">risk: high</small
-                      ><strong>Shim the old schema</strong> Fastest to ship; every
-                      future field pays the translation tax.</lf-option
-                    >
-                    <lf-option id="so-stage"
-                      ><small class="tag">effort: med</small
-                      ><small class="tag">risk: low</small
-                      ><small class="tag ok">recommended</small
-                      ><strong>Migrate in stages</strong> New fields land on the new
-                      schema while reads fall back, table by table.</lf-option
-                    >
-                  </lf-options>
-                  <h3>Which job should start first?</h3>
-                  <lf-options id="spec-jobs" choose>
-                    <lf-option id="sj-backfill">Backfill last month's rows</lf-option>
-                    <lf-option id="sj-contract"
-                      >Contract tests against the old schema</lf-option
-                    >
-                    <lf-option id="sj-fallback"
-                      >A read fallback behind a flag</lf-option
-                    >
-                  </lf-options>
-                  <h3>Recorded actions</h3>
-                  <lf-activity id="options-activity"></lf-activity>
-                </template>
+              <lf-sample id="spec-options-frame" label="Practice: options" interactive>
+                <p>I'd migrate in stages, which keeps the rollback boundary small.</p>
+                <lf-options id="spec-options" choose>
+                  <lf-option id="so-rewrite"
+                    ><small class="tag">effort: high</small
+                    ><small class="tag">risk: med</small
+                    ><strong>Rewrite the importer</strong> A clean slate on the new
+                    schema; the old importer keeps running until parity.</lf-option
+                  >
+                  <lf-option id="so-shim"
+                    ><small class="tag">effort: low</small
+                    ><small class="tag">risk: high</small
+                    ><strong>Shim the old schema</strong> Fastest to ship; every future
+                    field pays the translation tax.</lf-option
+                  >
+                  <lf-option id="so-stage"
+                    ><small class="tag">effort: med</small
+                    ><small class="tag">risk: low</small
+                    ><small class="tag ok">recommended</small
+                    ><strong>Migrate in stages</strong> New fields land on the new
+                    schema while reads fall back, table by table.</lf-option
+                  >
+                </lf-options>
+                <h3>Which job should start first?</h3>
+                <lf-options id="spec-jobs" choose>
+                  <lf-option id="sj-backfill">Backfill last month's rows</lf-option>
+                  <lf-option id="sj-contract"
+                    >Contract tests against the old schema</lf-option
+                  >
+                  <lf-option id="sj-fallback">A read fallback behind a flag</lf-option>
+                </lf-options>
+                <h3>Recorded actions</h3>
+                <lf-activity id="options-activity"></lf-activity>
               </lf-sample>
               <figcaption>
                 Options with explanations render as cards; options containing only
@@ -1935,36 +1930,34 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 keyboard, focus the grip, press Enter to grab, Right to move, and Enter
                 to drop. On a narrow touch screen, use the card’s Move to buttons. Open
                 <strong>Show activity</strong> to inspect the recorded move. Choose
-                <strong>Undo</strong> in the sample’s leaf menu to return the card to
+                <strong>Undo</strong> in the page’s leaf menu to return the card to
                 Incoming; press <strong>Activity changed</strong> in the feed to see the
                 move marked undone.
               </p>
-              <lf-sample id="spec-board-frame" label="Practice: board">
-                <template id="spec-board-page" data-sample>
-                  <lf-board id="spec-board">
-                    <lf-column id="sb-incoming" label="Incoming">
-                      <lf-card id="sc-flaky"
-                        ><strong>Flaky auth test</strong> Fails one run in twenty on CI
-                        only.</lf-card
-                      >
-                      <lf-card id="sc-contrast"
-                        ><strong>Dark-mode contrast pass</strong></lf-card
-                      >
-                    </lf-column>
-                    <lf-column id="sb-sprint" label="This week">
-                      <lf-card id="sc-ratelimit"
-                        ><strong>Rate-limit the export</strong></lf-card
-                      >
-                    </lf-column>
-                    <lf-column id="sb-done" label="Done">
-                      <lf-card id="sc-tokens"
-                        ><strong>Tokenize the palette</strong></lf-card
-                      >
-                    </lf-column>
-                  </lf-board>
-                  <h3>Recorded actions</h3>
-                  <lf-activity id="board-activity"></lf-activity>
-                </template>
+              <lf-sample id="spec-board-frame" label="Practice: board" interactive>
+                <lf-board id="spec-board">
+                  <lf-column id="sb-incoming" label="Incoming">
+                    <lf-card id="sc-flaky"
+                      ><strong>Flaky auth test</strong> Fails one run in twenty on CI
+                      only.</lf-card
+                    >
+                    <lf-card id="sc-contrast"
+                      ><strong>Dark-mode contrast pass</strong></lf-card
+                    >
+                  </lf-column>
+                  <lf-column id="sb-sprint" label="This week">
+                    <lf-card id="sc-ratelimit"
+                      ><strong>Rate-limit the export</strong></lf-card
+                    >
+                  </lf-column>
+                  <lf-column id="sb-done" label="Done">
+                    <lf-card id="sc-tokens"
+                      ><strong>Tokenize the palette</strong></lf-card
+                    >
+                  </lf-column>
+                </lf-board>
+                <h3>Recorded actions</h3>
+                <lf-activity id="board-activity"></lf-activity>
               </lf-sample>
               <figcaption>
                 In a live Leaf, cards drag between columns by a grip, and each drop
@@ -3555,8 +3548,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                       elsewhere or withdrawn.
                     </td>
                     <td>
-                      <code>widget:</code>, <code>approval:</code> or
-                      <code>update:</code>, followed by its source
+                      <code>widget:</code> or <code>update:</code>, followed by its
+                      source
                     </td>
                   </tr>
                   <tr id="ontology-todo">
@@ -3654,9 +3647,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <div id="relations-obligation-sources">
                     <strong>A request for an answer</strong>
                     <ul>
-                      <li>A widget question or decision</li>
+                      <li>A widget question, decision or approval</li>
                       <li>An update handed to the agent</li>
-                      <li>Sign-off on a stamped version</li>
                     </ul>
                   </div>
                   <span class="coherence-arrow" aria-hidden="true">→</span>
@@ -3692,8 +3684,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   </div>
                 </div>
                 <figcaption>
-                  The page-wide lists include sign-off even though it is not a thread.
-                  The same records supply each thread’s attention and the page’s lists.
+                  The page-wide lists include widget approvals alongside other
+                  obligations. The same records supply each thread’s attention and the
+                  page’s lists.
                 </figcaption>
               </figure>
             </section>
@@ -3942,15 +3935,32 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               disappears. If neither can be identified, the thread detaches rather than
               choosing unrelated text.
             </p>
-            <p id="review-meta">
-              A page requests version approval with
-              <code>&lt;meta name="lf-review" content="sign-off"&gt;</code>. Each
-              stamped version then offers an approval obligation in On me and Versions.
-              Approval waits for every widget obligation on the page and in unresolved
-              threads, including questions answered in words, to be answered or
-              withdrawn. Widgets in resolved threads do not block it. Undo withdraws
-              approval and reopens that version's obligation.
+            <p id="approval-requests">
+              An <code>lf-approval</code> widget requests permission for the action its
+              heading and prose describe. Its <code>approve</code> action answers an
+              ordinary widget obligation on On me; Undo approval reopens it. Each
+              request is independent of other unanswered widgets and page stamps.
+              Approval persists with the widget's id across unrelated edits. When the
+              action or evidence changes enough to invalidate that permission, the
+              author explains the change and marks the widget <code>restated</code>. A
+              request that depends on another decision is presented after that decision,
+              once the action to authorize is concrete.
             </p>
+            <p id="approval-sample-guide">
+              Try Approve, then Undo approval. The request changes immediately, and the
+              activity feed records the action and its withdrawal.
+            </p>
+            <lf-sample
+              id="approval-sample"
+              label="Approval of a sample report"
+              interactive
+            >
+              <lf-approval id="sample-publish-report">
+                <h2>Publish the sample report?</h2>
+                <p>Publish the park survey to the sample team's shared workspace.</p>
+              </lf-approval>
+              <lf-activity id="sample-approval-history"></lf-activity>
+            </lf-sample>
           </section>
 
           <section id="gate">
@@ -4110,8 +4120,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <time>5s</time> <small>intervention</small> <strong>Working</strong> The
                 agent posts
                 <code
-                  >leaf response reply &lt;answer.ref&gt; --ephemeral --text "Cutting
-                  the lede to two sentences."</code
+                  >leaf thread reply &lt;answer.ref&gt; --ephemeral --text "Cutting the
+                  lede to two sentences."</code
                 >. The comment reads Working, and the same sentence becomes the page’s
                 status.
               </li>
@@ -4208,7 +4218,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>Answered (label clears)</td>
                   <td>
                     The answer required by the delivery is recorded: a
-                    <code>leaf response reply</code>, a turn’s final message when
+                    <code>leaf thread reply</code>, a turn’s final message when
                     <code>answer.writer</code> is <code>turn</code>, or a version whose
                     markup records the update. The supplied writer determines the reply
                     route, including within a Codex task connected to App Server.
@@ -4283,8 +4293,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>On me</td>
                   <td>
                     Open widget decisions and questions, including <code>lf-ask</code>;
-                    required version sign-off; user to-dos; and updates the user needs
-                    to send again.
+                    user to-dos; and updates the user needs to send again.
                   </td>
                 </tr>
                 <tr>
@@ -4487,9 +4496,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <ul id="updates-written">
               <li id="updates-written-progress">
                 <strong
-                  ><code
-                    >leaf response reply &lt;answer.ref&gt; --ephemeral</code
-                  ></strong
+                  ><code>leaf thread reply &lt;answer.ref&gt; --ephemeral</code></strong
                 >
                 Names the upcoming work in the user’s thread before reads or edits. It
                 sets the page’s status and the comment’s Working label, then folds
@@ -4519,21 +4526,21 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 says when Leaf refuses it).
               </li>
               <li id="updates-written-reply">
-                <strong><code>leaf response reply &lt;answer.ref&gt;</code></strong>
+                <strong><code>leaf thread reply &lt;answer.ref&gt;</code></strong>
                 Answers the user’s comment and clears its label.
-                <code>--done</code> delivers the result; an <code>lf-ask</code> asks the
-                user back; <code>--todo</code> promises work that stays on On Claude
+                <code>--done</code> delivers the result; <code>--obligation</code> asks
+                the user back; <code>--todo</code> promises work that stays on On Claude
                 until ended.
               </li>
               <li id="updates-written-followup">
-                <strong><code>leaf thread reply … &lt;thread&gt;</code></strong> A later
-                message in a thread already answered, such as the result of work the
-                first reply promised.
+                <strong
+                  ><code>leaf thread reply &lt;page&gt; &lt;thread&gt;</code></strong
+                >
+                A later message in a thread already answered, such as the result of work
+                the first reply promised.
               </li>
               <li id="updates-written-question">
-                <strong
-                  ><code>leaf response reply … --markup '&lt;lf-ask&gt;…'</code></strong
-                >
+                <strong><code>leaf thread reply … --obligation</code></strong>
                 Opens a question on On me and makes the thread read
                 <em>My turn to answer</em>. A reply or settling reaction answers it. The
                 agent can end it with <code>leaf task end</code> as answered elsewhere
@@ -4924,12 +4931,15 @@ EOF</code></pre>
               <summary>Searching text and returning to reading</summary>
               <p id="navigation-search-rule">
                 <kbd>/</kbd> searches page text, or finds threads and messages when
-                focus is in Threads. In page search, Tab / Shift+Tab and the search
-                arrows cycle matches; Enter or a tap on the marked match selects it.
-                <kbd>n</kbd> / <kbd>Shift</kbd> + <kbd>n</kbd> repeat an accepted page
-                search. Thread-search results use the panel’s row navigation. Escape
-                cancels page search and restores the earlier focus; in Threads it clears
-                the query, then closes search. Editors keep letter shortcuts.
+                focus is in Threads. Search uses the panel’s main field, labeled “Search
+                page” or “Search threads”, and keeps the unfinished comment and its
+                caret for when search closes. The match count and arrows share that
+                bottom row. In page search, Tab / Shift+Tab and the search arrows cycle
+                matches; Enter or a tap on the marked match selects it. <kbd>n</kbd> /
+                <kbd>Shift</kbd> + <kbd>n</kbd> repeat an accepted page search.
+                Thread-search results use the panel’s row navigation. Escape cancels
+                page search and restores the earlier focus; in Threads it clears the
+                query, then closes search. Editors keep letter shortcuts.
               </p>
             </details>
           </section>
@@ -5039,11 +5049,10 @@ EOF</code></pre>
               <summary>The On me walk can leave the panel's filtered list</summary>
               <p id="navigation-queue-rule">
                 <kbd>m</kbd> / <kbd>Shift</kbd> + <kbd>m</kbd> walk work waiting on the
-                user: open obligations, version sign-off, to-dos and updates to send
-                again. The walk reveals closed tabs or disclosures and can leave a
-                filtered panel list. A single-choice obligation ends when answered; a
-                multi-select choice waits for Done. Later presses walk the remaining
-                work.
+                user: open obligations, to-dos and updates to send again. The walk
+                reveals closed tabs or disclosures and can leave a filtered panel list.
+                A single-choice obligation ends when answered; a multi-select choice
+                waits for Done. Later presses walk the remaining work.
               </p>
               <p id="navigation-tab-rule">
                 Page walks through open threads (<kbd>t</kbd>), On me (<kbd>m</kbd>) and
@@ -5250,10 +5259,10 @@ EOF</code></pre>
               <p id="phone-panel-menu">
                 The leaf’s menu includes Search page and Page Map under Navigate, Undo,
                 and Select element, Draw mode, Design mode and Hide annotations under
-                Annotations. Version approval appears in On me and Versions. An active
-                mode or search names itself in the panel and provides a ✕ exit. Search
-                arrows stand beside the match count; tapping the marked match selects
-                it.
+                Annotations. Approval requests appear in On me and in their widgets. An
+                active mode or search names itself in the panel and provides a ✕ exit.
+                Search arrows stand beside the match count; tapping the marked match
+                selects it.
               </p>
             </section>
             <section id="phone-comments">
@@ -5517,10 +5526,9 @@ EOF</code></pre>
               <p id="browser-updates-obligations">
                 The server computes obligation completion from the whole log. A user’s
                 answer changes the widget and its answer in the On view immediately; the
-                obligation leaves the list when server state arrives. Version approval
-                and replies to thread questions take effect locally at once. Thread
-                turns also come from the server, with local adjustments for a comment
-                being sent or refused.
+                obligation leaves the list when server state arrives. Replies to thread
+                questions take effect locally at once. Thread turns also come from the
+                server, with local adjustments for a comment being sent or refused.
               </p>
             </details>
           </section>

@@ -49,7 +49,7 @@ ends its turn. Its PreToolUse and PostToolBatch hooks then post the line the mod
 wrote before that tool call as the progress of the sole reply a delivery owes
 (`delivery.post_opening`).
 
-Resume and prompt hooks also inspect retained claims for disconnected pages
+Session-start and prompt hooks also inspect retained claims for disconnected pages
 (`reconnect`), including inactive ownership. That notice does not reclaim a
 page or reopen a turn at SessionStart, and it persists across session generations.
 
@@ -129,15 +129,14 @@ def cmd_hook(harness: str, payload: dict) -> None:
         expected = session_record(sid)
     expected = hooked.reconcile_turn(payload, expected)
     if event == "SessionStart":
-        if payload.get("source") == "resume":
-            from .reconnect import notices
+        from .reconnect import notices
 
-            context = notices(harness, sid, expected)
-            if context:
-                print(
-                    json.dumps(hooked.hook_context(event, "\n\n".join(context))),
-                    flush=True,
-                )
+        context = notices(harness, sid, expected)
+        if context:
+            print(
+                json.dumps(hooked.hook_context(event, "\n\n".join(context))),
+                flush=True,
+            )
         return
     if turn_id and event != "UserPromptSubmit":
         # A first trusted step can identify an unknown session-scoped turn.

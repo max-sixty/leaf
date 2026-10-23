@@ -152,11 +152,15 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   #queueUpdate() {
     if (!this.#descriptor) return super.scheduleUpdate();
-    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-      if (this.#scheduled !== scheduled) return;
-      this.#scheduled = null;
-      return super.scheduleUpdate();
-    });
+    const scheduled = queueWidgetUpdate(
+      this.#descriptor.id,
+      () => {
+        if (this.#scheduled !== scheduled) return;
+        this.#scheduled = null;
+        return super.scheduleUpdate();
+      },
+      () => this.updateComplete,
+    );
     this.#scheduled = scheduled;
     return scheduled;
   }

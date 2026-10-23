@@ -67,7 +67,9 @@ const browserGlobals = Object.fromEntries(
     "SVGAnimatedLength",
     "SVGElement",
     "SVGGeometryElement",
+    "SVGImageElement",
     "SVGSVGElement",
+    "SVGUseElement",
     "ShadowRoot",
     "URL",
     "URLSearchParams",
@@ -1335,6 +1337,28 @@ export default [
     files: ["**/*.{js,mjs}"],
     languageOptions: { ecmaVersion: "latest", sourceType: "module" },
     rules: publicRuntimeBoundary,
+  },
+  {
+    // Initial sources are compiled to self-contained scripts. Sharing these pure SVG paths adds no
+    // private runtime dependency to the package shipped to a page.
+    files: ["packages/*/initial/*.js"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          ...publicRuntimeBoundary["no-restricted-imports"][1],
+          patterns: publicRuntimeBoundary["no-restricted-imports"][1].patterns.map(
+            (pattern) =>
+              pattern.regex === "^\\.{1,2}/(?:.*/)?runtime/"
+                ? {
+                    ...pattern,
+                    regex: "^\\.{1,2}/(?:.*/)?runtime/(?!motion-icon-paths\\.js$)",
+                  }
+                : pattern,
+          ),
+        },
+      ],
+    },
   },
   {
     // Build tools share private runtime declarations with the browser rather than

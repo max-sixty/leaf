@@ -19,7 +19,7 @@ import {
   scrollsWith,
   targetRange,
   targetSegments
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   afterPresentation,
   containingReadingRegionFor,

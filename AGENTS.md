@@ -64,28 +64,29 @@ reading takes longer than 100 ms, make that path faster.
 
 ### Pages across Leaf updates
 
-A page keeps the copy of Leaf's runtime and registry (its layer) that
-`leaf page init` vendored into it, while each later Leaf serves, checks and
-writes it. A change crosses that gap in one of two ways.
+A page keeps the layer (registry, theme, widgets and package modules) that
+`leaf page init` vendored into it, and runs the runtime of the Leaf that serves,
+checks or exports it. A change crosses that gap in one of two ways.
 
 - **A protocol bump** changes the kernel registry's `$events.protocol`, and every
   page vendored at another number is refused until it is re-vendored, which the
   session holding the page does itself on its first command or hook naming the
-  page. Bump it for
-  any change an earlier page would break on. It is Leaf's only version, so a
+  page. Bump it for any change an earlier page would break on: to the event
+  log, what a page sends, its vendored declarations, the public package API
+  (`widget-api.js` and what its readers return) or a record kept outside a page.
+  The served state isn't among them, since the Leaf serving a page also supplies
+  the runtime that reads it. It is Leaf's only version, so a
   record kept outside a page, such as a browser draft, carries the protocol at
   which its own shape last changed (`layer-registry.md`, "Page protocol", owns
   the rules).
   Bumps are rare, perhaps one in five hundred commits. Once Leaf is released,
   only a bump may break an existing page.
 - **Drift** may break an older page without a bump while Leaf is in alpha, as
-  when a render check imports a runtime name the page's older runtime lacks. Leaf
+  when a vendored package widget relies on runtime behavior an update changed. Leaf
   doesn't detect drift by comparing a page's files with its own, since nearly
   every update would then force a rebuild. Instead the Leaf panel's menu and
   `page check` name the Leaf that vendored the page beside the one serving or checking it,
-  with dates, and the agent re-vendors a much older page that misbehaves. Where
-  drift does cause a failure, as at the render gate, the failure names the
-  re-vendor.
+  with dates, and the agent re-vendors a much older page that misbehaves.
 
 ## Fix the underlying issue
 
@@ -203,10 +204,10 @@ assets; consumers run no browser build.
 
 Git-sourced consumer installs copy the tracked tree into a harness's plugin
 cache and follow `main`. Claude Code's `--plugin-dir` and local-path marketplace
-plugins can instead load in place. Pages vendor the browser runtime compiled into
-one kernel, committed in `dist/kernel/`, while that kernel matches the tree's
-modules; where a merge has left it stale, they vendor the source modules
-(`leaf.layer.current_kernel`). The leaf.page container, the suite's browser tiers
+plugins can instead load in place. Pages run the browser runtime the serving
+install holds, compiled into one kernel, committed in `dist/kernel/`, while that
+kernel matches the tree's modules; where a merge has left it stale, they run the
+source modules (`leaf.runtime_selection.read_runtime`). The leaf.page container, the suite's browser tiers
 and developer previews compile the kernel again for their own tree
 (`dev/leaf_dev/commands/distribution.py`). Installing, authoring pages, writing
 custom packages and exporting need no browser build or npm.
@@ -272,8 +273,9 @@ only when whoever changes that input calls its `present()`. Code that changes
 what the page shows should publish, then await `whenDocumentPresented()`, which resolves once
 every renderer the change moved has painted. It shouldn't call renderers or
 decide their order. Where one renderer depends on DOM another writes (the thread
-renderer needs the words the projection inserts into the page), the order is set
-once, in `PRESENTATION_ORDER`.
+renderer needs the words the projection inserts into the page), it declares that
+committed-DOM dependency through `PRESENTATION_DOM`. DOM completion is separate
+from asynchronous preparation, gesture holds and semantic presentation proof.
 
 A gesture's own result shows in the task that sends it, before the server
 answers ("Responsiveness"); a disabled control, spinner or delivery status is
@@ -281,7 +283,7 @@ not that result. Everything that depends on the whole log, such as which obligat
 remain, which the user owes and whose turn a thread is, comes from the server's
 reading. The browser adds only what a gesture decides by itself; for example,
 the user's own reply appears before the server answers. Those additions are a
-required-version approval, a to-do the user ends, a thread the user opens, the
+a to-do the user ends, a thread the user opens, the
 reply a send is owed, and the resend a refused send leaves. A refusal restores
 the server's state.
 
@@ -338,7 +340,7 @@ Before finishing a feature:
   for each. The route is owed to the result, not each gesture: ask what a user
   could no longer see, reach or decide without the gesture. Dragging a thread
   card aside needs no route, since Escape also uncovers the passage beneath it.
-- Follow `examples/AGENTS.md` and regenerate the derived corpus.
+- Follow `examples/AGENTS.md`; corpus consumers generate their fixture on demand.
 - If the feature changes what an agent can do or how, update
   `skills/leaf/SKILL.md` or the one reference that owns the workflow, and point
   other references at that section. Shipped instructions set goals for the user's

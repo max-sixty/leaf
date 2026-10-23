@@ -173,8 +173,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
 }
 /* One panel at a time is the whole of what the strip's handler does, so it is
  * offered only in the live page and the rest is what the markup already says.
- * A control whose state the browser owns needs no such block and has none;
- * that is the whole difference between this widget and lf-shot's checkbox. */
+ * A control whose state the browser owns needs no such block. */
 @media screen {
   /* :where keeps the frame face below the generic edge trim's specificity. A set the
    * runtime has yet to upgrade wears each face it will have from the first paint: each
@@ -187,7 +186,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     margin: var(--sp-4) 0 32px;
     border: 1px solid var(--border-2);
     border-radius: var(--r);
-    background: var(--card);
+    --lf-ground: var(--card);
+    background: var(--lf-ground);
     --lf-block-frame: 1;
   }
   /* One row of the strip is the stated height a page strip is (`--lf-tabstrip-h`), so
@@ -551,6 +551,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     border: 0;
     border-radius: 0;
     background: transparent;
+    --lf-ground: inherit;
     --lf-block-frame: 0;
   }
   /* Horizontal indexes stay with the panel they identify. Each set owns its
@@ -837,6 +838,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
         position: sticky;
+        --lf-head-inset: 0px;
         top: var(--lf-top);
         inline-size: auto;
         z-index: 2;

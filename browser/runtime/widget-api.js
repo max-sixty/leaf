@@ -185,6 +185,8 @@ export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";
 export { loadDeferred, publishOutput } from "./data.js";
 export { boundFile } from "./file-api.js";
+export { generate } from "./llm-api.js";
+export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
   declarationFor,
@@ -228,7 +230,14 @@ export {
   syntax,
   tokenLines,
 } from "./syntax.js";
-export { bodyText, dataBody, failSoft, once, reportFailure } from "./widget-upgrade.js";
+export {
+  bodyText,
+  dataBody,
+  failSoft,
+  once,
+  placesFailure,
+  reportFailure,
+} from "./widget-upgrade.js";
 export {
   saidAt,
   readHistory,
@@ -269,7 +278,6 @@ export { threadInput } from "./thread/landing.js";
 export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export { shownParts } from "./geometry.js";
 export { renderRetired, textNodesUnder } from "./passages.js";
-export { isPagePaint } from "./declared-words.js";
 export { heldGrowth } from "./thread/held-news.js";
 export { PRESSABLE } from "./widget-elements.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.

@@ -3,9 +3,11 @@
    the document, the floating panel first (floating-panel.css). The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
    reconciliation never meets it. */
-/* `.lf-chrome` is one runtime root: the floating panel, composer, floating comment
-   control, live region, help, inspection paint, legend and Go-to hints. It stands after
-   the document and takes no room there; the theme reserves the chrome's room
+/* `.lf-chrome` scopes runtime surfaces: the floating panel, composer, floating comment
+   control, live region, help, inspection paint, legend and Go-to hints. Its permanent
+   home stands after the document and takes no room there; a modal opened from an
+   authored popover carries this scope with it (keyboard/layer-stack.js).
+   The theme reserves the chrome's room
    (html[data-lf-live]). The page and panel scroll separately.
 
    The private rules are one `@scope (.lf-chrome)`, so their class names cannot meet a
@@ -852,12 +854,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     outline: var(--focus-ring);
     outline-offset: 1px;
   }
-  .lf-page-map-head {
+  .lf-page-map-head,
+  .lf-inspection-head {
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .lf-page-map-head > strong {
+  .lf-page-map-head > strong,
+  .lf-inspection-head > strong {
     flex: 1;
   }
   .lf-page-map-action {
@@ -923,7 +927,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   /* The sheet's top belongs to the window, so narrowing its list never carries the
      search or Close under the user's aim. The same top bounds its scrolling room. */
-  .lf-page-map-dialog {
+  .lf-page-map-dialog,
+  .lf-inspection-dialog {
     --lf-page-map-top: max(10dvh, calc(var(--lf-safe-top) + 12px));
     position: fixed;
     inset: var(--lf-page-map-top) 0 auto;
@@ -943,12 +948,54 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   /* The sheet's one scroller takes the room its head and search leave inside the
      window bounds. Said on [open] so the author sheet leaves the UA's display:none
      intact for a dialog that is shut. */
-  .lf-page-map-dialog[open] {
+  .lf-page-map-dialog[open],
+  .lf-inspection-dialog[open] {
     display: flex;
     flex-direction: column;
   }
-  .lf-page-map-dialog::backdrop {
+  .lf-page-map-dialog::backdrop,
+  .lf-inspection-dialog::backdrop {
     background: color-mix(in srgb, var(--ink) 26%, transparent);
+  }
+  .lf-inspection-body {
+    overflow: auto;
+    min-height: 0;
+    overflow-wrap: anywhere;
+    overscroll-behavior: contain;
+    padding: var(--focus-ring-room);
+    scroll-padding: var(--focus-ring-room);
+  }
+  .lf-inspection-body h2 {
+    font-size: var(--t-4);
+    margin-block: 18px 8px;
+  }
+  .lf-inspection-body h3 {
+    font-size: var(--t-5);
+  }
+  .lf-inspection-body details {
+    margin-block: 10px;
+  }
+  .lf-inspection-body summary {
+    cursor: pointer;
+    padding-block: 4px;
+  }
+  .lf-inspection-body pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: var(--t-6);
+  }
+  .lf-inspection-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
+  .lf-inspection-metrics dt {
+    color: var(--muted);
+    font-size: var(--t-6);
+  }
+  .lf-inspection-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
   }
   .lf-page-map-search {
     width: 100%;
@@ -982,7 +1029,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 
   @media (forced-colors: active) {
-    .lf-page-map-dialog {
+    .lf-page-map-dialog,
+    .lf-inspection-dialog {
       border: 1px solid CanvasText;
       box-shadow: none;
     }
@@ -1070,26 +1118,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: color-mix(in srgb, var(--accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
   }
-  /* Page search's box stands over the floating panel's row, centred on it as the row
-     is, where Select stands while it is open, with its ✕ at the row's end. It stands on
-     the panel's top, so a row that grows on a narrow phone carries the box up rather
-     than standing under it. */
-  .lf-page-search {
-    position: fixed;
-    z-index: var(--lf-z-page-search);
-    pointer-events: auto;
-    position-anchor: --lf-fp-panel;
-    bottom: calc(anchor(top) + 12px);
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(390px, calc(100vw - 28px));
-    box-sizing: border-box;
-    border-radius: var(--r);
-    box-shadow: var(--raise-2);
-  }
   .lf-page-search-status {
-    min-width: min-content;
-    margin-inline-start: 6px;
+    inline-size: 5ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
     min-height: 1lh;
     color: var(--muted);
     font-size: var(--t-6);
@@ -1097,29 +1129,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: right;
     white-space: nowrap;
   }
-  /* The query keeps room for a word on the narrowest phone. The count's reserved room
-     is the most it will need, not a floor: past it, the count gives way down to the
-     words it says now, and only then does the query's room shrink. */
-  .lf-page-search-box::part(input) {
-    flex: 1 1 4em;
-  }
-  .lf-page-search-status > span {
-    min-inline-size: max(100%, max-content);
-  }
-  .lf-page-search-box::part(end) {
-    flex-shrink: 1;
-    min-inline-size: 0;
-  }
-  /* The arrows beside the count wear the field's quiet face, as its clear button does:
-     bare glyphs that take the chip's wash under the pointer, so the box reads as one
-     control rather than a field with buttons bolted on. They stand as a pair, close to
-     the count they move. */
+  /* Count, then a matched pair of arrows using the shared icon-button geometry. */
   .lf-page-search-step {
     flex: none;
-    margin-inline-start: 0;
-  }
-  .lf-page-search-status + .lf-page-search-step {
-    margin-inline-start: 4px;
   }
   .lf-legend-box {
     position: absolute;
@@ -1176,7 +1188,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     /* The sheet the Map opens in stands over the whole window and is sized to it, so
        its compact shape belongs to the window rather than to the rail: it asks the
        window, and this is the block that asks it. */
-    .lf-page-map-dialog {
+    .lf-page-map-dialog,
+    .lf-inspection-dialog {
       inset-inline: 8px;
       width: calc(100vw - 16px);
       margin-inline: 0;

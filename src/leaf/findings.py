@@ -762,14 +762,6 @@ _TEXT = {
         f"{_line(at, v)} declares something about the whole document, which delivery"
         " owns"
     ),
-    "unknown-meta": lambda at, v: (
-        f'<meta name="{v["name"]}"> (line {v["line"]}): unknown lf- meta; known:'
-        f" {_json(v['known'])}"
-    ),
-    "meta-content": lambda at, v: (
-        f'<meta name="{v["name"]}"> (line {v["line"]}): content must be one of'
-        f" {_json(v['allowed'])}, found {v['found']!r}"
-    ),
     "allocation-value": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
         + (
@@ -1491,13 +1483,21 @@ _TEXT = {
     # Capturing the page and the files it loads as an immutable revision: `file` is
     # the file a finding concerns, and `specifier` the reference in it.
     "dependency-url": _captured(lambda v: f"invalid dependency URL: {v['error']}"),
+    "dependency-scheme-dependent": _captured(
+        lambda v: (
+            "dependency's local or external meaning depends on the page's URL scheme;"
+            " use a relative path or a complete http(s) URL"
+        )
+    ),
     "dependency-not-local": _captured(
         lambda v: (
             "dependency must be a local URL (module URLs have no query or"
             " fragment), or an http(s) URL"
         )
     ),
-    "dependency-encoded": _captured(lambda v: "encoded dependency path is not allowed"),
+    "dependency-encoded": _captured(
+        lambda v: "decoded dependency path contains a backslash or control character"
+    ),
     "dependency-escapes": _captured(lambda v: "dependency escapes the page"),
     "dependency-outside-page": _captured(
         lambda v: "dependency escapes /page/ and /media/"
@@ -1610,15 +1610,6 @@ _TEXT = {
     ),
     "publication-revision": lambda at, v: (
         "publication must name its checked candidate revision"
-    ),
-    # A sign-off.
-    "unstamped-version": lambda at, v: f"v{v['version']} is not a stamped version",
-    "not-sign-off": lambda at, v: (
-        f'v{v["version"]} does not declare <meta name="lf-review" content="sign-off">,'
-        " so it has no approval to record"
-    ),
-    "unanswered-obligations": lambda at, v: (
-        f"v{v['version']} still has unanswered widget obligations: {', '.join(v['obligations'])}"
     ),
     # An action or a report, against its widget's declaration.
     "unknown-sender": lambda at, v: (
@@ -1760,8 +1751,7 @@ _TEXT = {
         " is said rather than unsaid"
     ),
     "answered-reaction": lambda at, v: (
-        f"reaction {v['undoes']} has been answered; withdraw it in the thread the"
-        " answer opened"
+        f"reaction {v['undoes']} has a reply or task attached; continue in its thread"
     ),
     "resolved-reaction": lambda at, v: (
         f"reaction {v['undoes']} stands on a resolved thread"
@@ -1809,10 +1799,6 @@ _TEXT = {
     "unowed-start": lambda at, v: (
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task open` gave you"
-    ),
-    "approval-obligation": lambda at, v: (
-        f"obligation {v['todo']!r} requires the user's approval of v{v['version']}; it ends"
-        " at the page's Approval control"
     ),
     "widget-obligation": lambda at, v: (
         f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
@@ -1933,7 +1919,7 @@ _TEXT = {
         f"{v['name']} is a widget on the page, not a thread"
     ),
     "unknown-subject": lambda at, v: (
-        f"{v['subject']!r} names no widget or element on this page; `{v['page']}`"
+        f"{v['subject']!r} names no thread, widget or element on this page; `{v['page']}`"
         " names the page as a whole"
     ),
     "invalid-source": lambda at, v: (
@@ -1992,8 +1978,8 @@ _TEXT = {
     ),
     "undeclared-answer": lambda at, v: (
         "say what the answer leaves: --done when it delivers what was asked, --todo"
-        " TITLE when it promises work it doesn't deliver, or a question for the user"
-        " as an <lf-ask> in --markup"
+        " TITLE when it promises work it doesn't deliver, or --obligation when it needs"
+        " the user's next move (a widget in --markup may also ask)"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
 }

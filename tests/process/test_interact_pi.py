@@ -234,7 +234,7 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     pi.emit("agent_start")
     continued = pi.emit("turn_end")
     [entry] = continued["entries"]
-    assert f"`leaf response reply {ref}`" in entry["content"]
+    assert f"`leaf thread reply {ref}`" in entry["content"]
     *_, pickup = (
         e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
     )

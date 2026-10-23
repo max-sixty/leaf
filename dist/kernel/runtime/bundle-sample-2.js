@@ -5,7 +5,7 @@ import {
 import {
   aborted,
   widgetDescriptor
-} from "./bundle-stylesheets.js";
+} from "./bundle-keyboard~disclosure.js";
 import {
   frameView,
   layoutWindow,

@@ -1,0 +1,23 @@
+/* The request keeps its authored heading and evidence beside one action. */
+:scope:is(lf-approval) {
+  display: block;
+  padding: var(--sp-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+}
+:scope:is(lf-approval) > :is(h2, h3, h4, p) {
+  margin-block: 0 var(--sp-3);
+}
+:scope:is(lf-approval) .lf-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  font-family: var(--sans);
+}
+:scope:is(lf-approval) .lf-approval-status {
+  color: var(--muted);
+}
+:scope:is(lf-approval) .lf-approval-actions button {
+  min-block-size: var(--aim-floor);
+}

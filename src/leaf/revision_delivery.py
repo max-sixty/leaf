@@ -1,9 +1,11 @@
 """Deliver a revision's documents and resources for the host serving them.
 
-A document and the captured resources it names use logical page paths: `/page/…` for
-the author's files, `/media/…` for the page's images, and the layer's own files at the
-root (`/icon.svg`, `/runtime/…`). Every host delivers the same captured bytes under an
-address of its own — an HTTP server beneath a revision's URL, a published site beneath
+A document and the resources it names use logical page paths: `/page/…` for the
+author's files, `/media/…` for the page's images, and the layer's own files at the
+root (`/icon.svg`, `/runtime/…`). The resources are the revision's capture with the
+delivering Leaf's runtime beside it (`runtime_selection.executing`), which every
+caller here is handed. Every host delivers the same bytes under an address of its
+own — an HTTP server beneath a revision's URL, a published site beneath
 a release, an offline export through document-lifetime object URLs — so each host
 passes one
 `address` function, from a logical path to the URL it serves that path at, and the
@@ -16,8 +18,8 @@ Over HTTP, media is the page's and everything else a document names is its revis
 the page root serves them in every host, and the runtime resolves the media a message
 or a widget names against that same root (`runtime/media.js`). The layer's own module
 graph imports rooted paths (`/runtime/…`, `/vendor/…`, `/widgets/…`), which the
-document's import map sends to its revision (`layer_import_map`), so layer modules are
-served as captured.
+document's import map sends to where its revision's resources answer
+(`layer_import_map`), so layer modules are served as they are held.
 
 A document is delivered once, by `compose_document`, whoever delivers it: the HTTP
 server and the static live shell, and a standalone export. A
@@ -31,7 +33,6 @@ decodes, or a module once it runs.
 
 import html
 import json
-import posixpath
 import re
 import struct
 from collections.abc import Callable, Mapping
@@ -42,13 +43,14 @@ import turbohtml
 
 from .layer import CASCADE_LAYERS
 from .passages import markdown_markup
-from .registry.contract import is_element_name, prepaint_markup
+from .registry.contract import exhibits, is_element_name, prepaint_markup
 from .registry.kernel import kernel_marks
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
     authored_imports,
     bind_imports,
+    dependency_reference,
     rewrite_css,
 )
 from .schema import (
@@ -93,24 +95,12 @@ def page_path(reference: str, base: str) -> tuple[str, str] | None:
     `data:` URL, a fragment of this document, or a path outside the page's namespace.
     The suffix is the query and fragment, which travel with the path to its address.
     """
-    if not reference or reference.startswith(("#", "data:")):
+    if not reference:
         return None
-    try:
-        parsed = urlsplit(reference)
-    except ValueError:
+    reference = dependency_reference(reference, base)
+    if reference is None or not _PAGE_PATH.fullmatch(reference[0]):
         return None
-    if parsed.scheme or parsed.netloc or not parsed.path:
-        return None
-    path = unquote(parsed.path)
-    resolved = posixpath.normpath(
-        path if path.startswith("/") else posixpath.join(posixpath.dirname(base), path)
-    )
-    if not _PAGE_PATH.fullmatch(resolved):
-        return None
-    suffix = ("?" + parsed.query if parsed.query else "") + (
-        "#" + parsed.fragment if parsed.fragment else ""
-    )
-    return resolved, suffix
+    return reference
 
 
 def _attributes(attributes: Mapping[str, str]) -> str:
@@ -393,7 +383,11 @@ def mark_declared(
         )
         marks = {}
         for key, mark in kernel_marks().items():
-            declared = declaration.get(key)
+            declared = (
+                exhibits(attrs, declaration)
+                if key == "x-exhibit"
+                else declaration.get(key)
+            )
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
             if authored in attrs and means[mark["authored_on"]]:
@@ -552,14 +546,14 @@ class DeliveryAddress:
 def layer_import_map(asset_root: str) -> dict:
     """Send the layer's rooted module imports to the revision serving them.
 
-    Every layer module names its dependencies by rooted path, as the page directory
-    lays them out. The map rebinds each directory for the whole document, so a module
-    keeps its captured bytes wherever the revision is served, and a page module or a
-    render probe importing `/runtime/widget-api.js` reaches the runtime's own instance.
+    Every layer module names its dependencies by rooted path, as the layer lays them
+    out. The map rebinds each directory for the whole document, so a module keeps its
+    bytes wherever the revision is served, and a page module or a render probe
+    importing `/runtime/widget-api.js` reaches the runtime's own instance.
     """
     root = asset_root.rstrip("/")
-    # Server-owned passive checks must read this document's runtime instance too.
-    # Their source is server-owned; their captured bytes belong to this revision.
+    # Server-owned passive checks must read this document's runtime instance too,
+    # and are served beside it.
     return {
         "imports": {
             f"/{name}/": f"{root}/{name}/"

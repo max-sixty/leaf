@@ -56,7 +56,6 @@ import {
   heldGrowth,
   highlightBlocks,
   inlineMarkdownFragment,
-  isPagePaint,
   keepView,
   langForPath,
   listWalkPosition,
@@ -95,15 +94,16 @@ import {
   bodyText,
   dataBody,
   failSoft,
-  inBaseLayer,
   once,
+  placesFailure,
   quoted,
   reportFailure,
   setChildLists,
   setChildren,
   setRenderedChildren,
   shadowStage
-} from "./bundle-stylesheets.js";
+} from "./bundle-keyboard~disclosure.js";
+import "./bundle-copy-control.js";
 import {
   isCanonicalMediaUrl,
   scopedMediaUrl
@@ -127,10 +127,11 @@ import {
   fragmentTarget,
   projectedDatum,
   registerVisualParts
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   initialRender
 } from "./bundle-initial-render.js";
+import "./bundle-chrome.js";
 import {
   PAGE_INTERFACE,
   PRESENTATION,
@@ -181,6 +182,7 @@ import {
   growthIsSeen,
   iconElement,
   iconTemplate,
+  inBaseLayer,
   keys,
   labelOf,
   landingInsets,
@@ -1147,6 +1149,42 @@ function boundFile(binding) {
   };
 }
 
+// runtime/llm-api.js
+var live3 = readPart((root) => root.document.live);
+async function generate(request) {
+  if (offlineInteractive || !live3())
+    throw new Error("LLM generation is available in live pages.");
+  return requestJson(
+    pageUrl("api/llm"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    },
+    "LLM generation"
+  );
+}
+
+// runtime/http-api.js
+var live4 = readPart((root) => root.document.live);
+function connection(name) {
+  return {
+    async fetch(path) {
+      if (offlineInteractive || !live4())
+        throw new Error("HTTP connections are available in live pages.");
+      return requestJson(
+        pageUrl(`api/connections/${encodeURIComponent(name)}`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path })
+        },
+        "HTTP connection"
+      );
+    }
+  };
+}
+
 // runtime/widget-api.js
 async function mountSample(frame, options) {
   const owner = await import("./bundle-sample.js");
@@ -1202,6 +1240,7 @@ export {
   compareImages,
   comparisonChanges,
   compoundReadingRegionId,
+  connection,
   consumeAnnotations,
   contributionEntry,
   contributionItemKey,
@@ -1229,6 +1268,7 @@ export {
   foldDuration,
   fragmentTarget,
   frameFor,
+  generate,
   growthIsSeen,
   guard,
   handBack,
@@ -1245,7 +1285,6 @@ export {
   inlineMarkdownFragment,
   isCanonicalMediaUrl,
   isNativeLayer,
-  isPagePaint,
   keepView,
   keeps,
   keepsHidden,
@@ -1295,6 +1334,7 @@ export {
   paintMarkdown,
   placeKeeper,
   placePageThreads,
+  placesFailure,
   plainPress,
   presentContributionEntry,
   presentContributionReceipts,

@@ -5,19 +5,16 @@
    targets words. Alt-click, `s`, and a visual's “Respond to…” proxy are explicit
    Comment gestures. They pass a stable target from `aimTargetAt` or the visual provider
    into this surface. A whole item or picture names its authored id, while a visual part
-   adds its declared token. Comment opens the compact field; Tab from it, or `e` while it
-   stands unfocused, extends that field with the other response margin entries. The arrow
-   keys then wrap through the visible margin entries, and Tab and Shift-Tab are the
-   browser's, leaving the bar past either end. Escape folds the extension; Escape from
-   the field hides the draft.
+   adds its declared token. Comment opens the compact field; Other responses opens an
+   anchored picker, reached by its button, Tab from the field, or `e` while the field
+   stands unfocused. Escape closes the picker; Escape from the field hides the draft.
    The same anchor resolves both states against the target's geometry.
    An active quoted draft whose words change stays beside its containing subject; this is
    placement only and never changes the quote recorded by its eventual send.
 
    The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
-   durable, compact `.lf-fab-input`, which spans the bar so a sent message keeps the
-   card's whole measure. No control stands beside it: the other responses are reached
-   by key alone, on every pointer (composing/selection.js). An explicit addressable target
+   durable, compact `.lf-fab-input` beside its Other responses control
+   (composing/selection.js). An explicit addressable target
    opens and focuses that field. On desktop, selecting a passage leaves the field open
    but unfocused. Selection observed outside a completed page gesture, and selection on
    touch screens, is offered in the floating panel's page field instead, whose
@@ -77,6 +74,7 @@ import {
   createSelectionComposer,
   fabBar,
   fabInput,
+  fabOptionsTrigger,
   pendingAbout,
 } from "./selection.js";
 
@@ -536,7 +534,7 @@ export function createResponseSurface({
       // A browser command or touch handle can replace the visual target while its
       // selectionchange is held out above. Re-read once the explicit activation is
       // complete so that real later selection is not discarded with the focus collapse.
-      observeSelection();
+      selectionChanged();
     });
   }
   // Focusing text entry collapses a native page selection. Hold that browser-authored
@@ -841,7 +839,12 @@ export function createResponseSurface({
     // in-progress branch until the compatibility mouseup has been and gone.
     const releasePress = () =>
       setTimeout(() => {
+        if (!actionPress) return;
         actionPress = false;
+        // Native selectionchange may have coalesced the focus collapse and a later
+        // passage while this press held observation. Read the live selection when
+        // the handoff ends, through the same guards as a native notification.
+        selectionChanged();
       });
     // Opening or acting in chrome is a route away from the page, not a new selection
     // gesture. Keep the native touch passage verbatim while focus moves
@@ -957,6 +960,39 @@ export function createResponseSurface({
     drawingEdits,
   });
 
+  function selectionChanged() {
+    const automatic = programmaticSelection(getSelection());
+    if (primaryPointerPressed && selectionPressIntent?.()) {
+      rememberPointerSelection();
+      if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
+        rememberSelection();
+      reflectSelection();
+      return;
+    }
+    // Focus and action handoffs own the captured target while the browser collapses
+    // its selection. Outside those handoffs, observe the browser's live passage;
+    // only the completed page gesture above/below may replace the composer.
+    if (takesLetters(focused())) {
+      offerSelection(null);
+      return;
+    }
+    if (actionPress || targetActivation) return;
+    const selection = pageSelection();
+    if (coarsePointer.matches && selection && !automatic) rememberSelection(selection);
+    observeSelection();
+    // A bare selected passage only stands while the browser still holds it.
+    // Focusing Comment captures that passage, and a written draft keeps it even
+    // after focus moves elsewhere; neither belongs to the native selection now.
+    if (
+      !selection &&
+      fabAnchor.value?.quote &&
+      !fabHoldsCapturedPassage() &&
+      !composer.composerHolds()
+    )
+      putAwayFab();
+    reflectSelection();
+  }
+
   function mount() {
     composer.mount();
     placement?.mount();
@@ -1018,39 +1054,7 @@ export function createResponseSurface({
     });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
-    document.addEventListener("selectionchange", () => {
-      const automatic = programmaticSelection(getSelection());
-      if (primaryPointerPressed && selectionPressIntent?.()) {
-        rememberPointerSelection();
-        if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
-          rememberSelection();
-        reflectSelection();
-        return;
-      }
-      // Focus and action handoffs own the captured target while the browser collapses
-      // its selection. Outside those handoffs, observe the browser's live passage;
-      // only the completed page gesture above/below may replace the composer.
-      if (takesLetters(focused())) {
-        offerSelection(null);
-        return;
-      }
-      if (actionPress || targetActivation) return;
-      const selection = pageSelection();
-      if (coarsePointer.matches && selection && !automatic)
-        rememberSelection(selection);
-      observeSelection();
-      // A bare selected passage only stands while the browser still holds it.
-      // Focusing Comment captures that passage, and a written draft keeps it even
-      // after focus moves elsewhere; neither belongs to the native selection now.
-      if (
-        !selection &&
-        fabAnchor.value?.quote &&
-        !fabHoldsCapturedPassage() &&
-        !composer.composerHolds()
-      )
-        putAwayFab();
-      reflectSelection();
-    });
+    document.addEventListener("selectionchange", selectionChanged);
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;
       const selectedOnPage = pointerSelecting && selectionPressIntent?.();
@@ -1339,10 +1343,14 @@ export function createResponseSurface({
   const composerOptions = commandScope("In the comment box", [
     {
       id: "comment.options",
-      keys: ["Tab"],
+      keys: () => (composer.responseOptionsAreOpen() ? [] : ["Tab"]),
       title: "other responses",
-      when: () => fabOptionsAvailable() && !composer.responseOptionsAreOpen(),
-      run: () => showFabOptions(),
+      control: fabOptionsTrigger,
+      when: fabOptionsAvailable,
+      run: () =>
+        composer.setResponseOptions(!composer.responseOptionsAreOpen(), {
+          focus: "first",
+        }),
     },
   ]);
   projectCommandScope(fabInput, composerOptions, composerOptions);

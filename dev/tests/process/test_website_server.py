@@ -3,6 +3,7 @@
 import itertools
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -763,6 +764,34 @@ def test_local_verification_settles_host_network(monkeypatch):
     assert attempts == [verify_site.wait_for_host_network]
 
 
+def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
+    monkeypatch, tmp_path
+):
+    run = tmp_path / "run-_up9yvbg"
+    monkeypatch.setattr(verify_site, "run_directory", lambda parent: run)
+
+    def stop_before_build(*args, **kwargs):
+        raise RuntimeError("stop before building")
+
+    calls = []
+
+    def docker(*args, **kwargs):
+        calls.append(args[0])
+        return subprocess.CompletedProcess(args[0], 0, stdout="")
+
+    monkeypatch.setattr(verify_site, "copy_working", stop_before_build)
+    monkeypatch.setattr(verify_site.subprocess, "run", docker)
+
+    with (
+        pytest.raises(RuntimeError, match="stop before building"),
+        verify_site.local_worker(),
+    ):
+        pass
+
+    name = calls[0][-1].removeprefix("name=^workerd-").removesuffix("-")
+    assert re.fullmatch(r"[a-z0-9]+(?:[._]|__|[-]+[a-z0-9]+)*", name)
+
+
 def test_host_network_waits_for_addresses_to_stop_changing(monkeypatch):
     now = [0.0]
     readings = itertools.chain(["before", "before"], itertools.repeat("after"))
@@ -1199,7 +1228,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
         result(5.0, "start"),
         call(7.0, ("edit", "leaf page check .")),
         result(8.0, "edit"),
-        call(12.0, ("reply", "leaf response reply 62af9e31:0:test-comment")),
+        call(12.0, ("reply", "leaf thread reply 62af9e31:0:test-comment")),
     ]
     # Delivery ends at the opened pickup, not at the first record the harness sends
     # after admission: a tool result of a turn already running is no delivery.
@@ -1219,7 +1248,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "phase": "tool",
             "startMs": 12000,
             "ms": 500,
-            "calls": ["leaf response reply 62af9e31:0:test-comment"],
+            "calls": ["leaf thread reply 62af9e31:0:test-comment"],
         },
     ]
     assert turn_phases(stream, comment["ts"], None, reply["ts"]) == []
@@ -1733,6 +1762,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     host_home = tmp_path / "host-codex"
     host_home.mkdir()
     (host_home / "auth.json").write_text('{"test": "login"}')
+    (host_home / "auth.json").chmod(0o600)
     (root / "worker" / "codex-config.toml").write_text('model = "test"')
     # Each invocation builds directly into its private site destination.
     build_site = tmp_path / "build_site.py"
@@ -1771,6 +1801,10 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "    assert args == ['plugin', 'add', 'leaf@leaf', '--json']\n"
         "    assert len(record.read_text().splitlines()) == 1\n"
         "    response = {'installedPath': str(home / 'plugins/cache/leaf/leaf/local')}\n"
+        "    launcher = Path(response['installedPath']) / 'bin/leaf'\n"
+        "    launcher.parent.mkdir(parents=True)\n"
+        "    launcher.write_text('#!/bin/sh\\nexit 0\\n')\n"
+        "    launcher.chmod(0o755)\n"
         "with record.open('a') as output:\n"
         "    output.write(json.dumps(args) + '\\n')\n"
         "print(json.dumps(response, indent=2))\n"
@@ -1823,6 +1857,12 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
             host_home / "auth.json"
         ).read_bytes()
         assert (private_home / "auth.json").stat().st_mode & 0o777 == 0o600
+        # A refresh in one isolated child must reach the host and other children.
+        (private_home / "auth.json").write_text('{"test": "refreshed"}')
+        assert (host_home / "auth.json").read_text() == '{"test": "refreshed"}'
+        assert (Path(other["home"]) / "auth.json").read_text() == (
+            '{"test": "refreshed"}'
+        )
         assert (private_home / "config.toml").read_text() == 'model = "test"'
         installed = [
             json.loads(line)
@@ -1849,7 +1889,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         len(list((root / ".tmp" / "verify-site").glob("run-*/website-adapter.log")))
         == 2
     )
-    assert (host_home / "auth.json").read_text() == '{"test": "login"}'
+    assert (host_home / "auth.json").read_text() == '{"test": "refreshed"}'
     with pytest.raises(ProcessLookupError):
         os.kill(running["pid"], 0)
 

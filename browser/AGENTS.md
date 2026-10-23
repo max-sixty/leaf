@@ -117,7 +117,7 @@ representative desktop viewport.
   doesn't list.
 - **Generated interface appears in its final position.** Hold room before first paint
   only for what will be drawn, such as a widget's upgraded controls. Feedback may
-  repaint a control or change its label, but never its size: `data-lf-room`
+  repaint a control or change its label, but never its size: `data-room`
   (`controls.css`) sizes a label to the widest of the words it can show. A parent
   laying out adjacent actions keeps their hit areas apart.
 - **What may appear fits into what is already there.** Hold no empty room for a state
@@ -221,7 +221,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                                     |
 | Passages and target identity                                                                                | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                      |
 | Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
-| Page status, approval and what a user copies about the page                                                 | `page-status.js`, `page-about.js`                                                                                                                                         |
+| Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`                                                                                                                                         |
 | Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                                          |
 | Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                                          |
 | Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                                         |
@@ -284,13 +284,13 @@ transform or the page's own CSS. Before a module measures, positions, stacks, is
 or tracks something, find the browser feature that decides it and shape the markup and
 CSS to use it:
 
-| Question                                                                   | The browser feature that answers it                                                                    |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-lf-room` |
-| Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                         |
-| Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0    |
-| Whether a box is rendered at all                                           | `checkVisibility`                                                                                      |
-| Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                            |
+| Question                                                                   | The browser feature that answers it                                                                 |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-room` |
+| Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                      |
+| Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
+| Whether a box is rendered at all                                           | `checkVisibility`                                                                                   |
+| Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                         |
 
 Where a feature nearly fits, change what the runtime asks of it, such as where a box
 lives in the DOM, rather than computing the answer. A module that answers one of these
@@ -313,8 +313,8 @@ covers the page without clipping it.
 
 A rendering callback does its layout reads before its writes, because a read after a
 write forces a synchronous layout. A document-wide renderer that reads DOM another
-renderer creates takes an entry in `PRESENTATION_ORDER` (`runtime/semantic-state.js`),
-which says why CSS can't supply that reading.
+renderer creates declares that DOM dependency through `PRESENTATION_DOM`
+(`runtime/semantic-state.js`), whose owner explains the reading.
 
 ### One writer for each fact
 
@@ -332,7 +332,7 @@ the ordered list of this tab's unresolved work into the one state every componen
 | threads, workflow, attention, obligations, to-dos, activity, unread                                           | the server's state; the browser adds only its own unresolved sends and the versions it is marking read                                                   |
 | what waits on the user and on the agent                                                                       | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                       |
 | what the DOM shows                                                                                            | the presentation coordinator's renderer tickets and preparation regions                                                                                  |
-| when a document-wide renderer paints                                                                          | the order `PRESENTATION_ORDER` in `runtime/semantic-state.js` declares                                                                                   |
+| when a document-wide renderer paints                                                                          | the DOM dependencies `PRESENTATION_DOM` in `runtime/semantic-state.js` declares                                                                          |
 | where each thread's passage is                                                                                | `anchor-placement.js`, resolving its anchor in this version                                                                                              |
 | the line inside a target that a comment sits by                                                               | `pointed-place.js` (`placePoints`); presentation only                                                                                                    |
 | the side and line a comment box and its thread card sit by                                                    | `annotation-overlay/comment-placement.js` (`commentSide`)                                                                                                |
@@ -476,9 +476,7 @@ answered. Each view carries every obligation record once, the page's and its fro
 (`obligations`); a row of On me names its obligation by id, and the publisher joins the two. The
 browser reads a widget's answer from
 the same state its controls draw and doesn't reapply the `x-awaits.answered` rule. A
-required-version approval is an obligation the browser updates at once, restoring the server's
-state on refusal. A thread gesture changes no attention and no obligation until the server's
-reading of it arrives (root `AGENTS.md`, "Responsiveness").
+thread gesture changes no attention and no obligation until the server's reading of it arrives (root `AGENTS.md`, "Responsiveness").
 
 Every state read carries one `through_seq`, and version comparison asks `/api/view` at
 the sequence already applied. A page widget's projection stops at the current revision;
@@ -515,7 +513,7 @@ A paint that must land in the current turn uses `render`; `LitElement` schedules
 updates on a microtask and suits only runtime views that can wait that long. The
 microtask costs no frame, but code that reads the document right after a paint, such
 as a focus move onto a control just drawn, a measurement, held news
-(`thread/held-news.js`) or a region committing in `PRESENTATION_ORDER`'s pass, would
+(`thread/held-news.js`), would
 await `updateComplete` and let other work run in between: the margin's chip
 placement took three ordering bugs to settle when it went asynchronous. Tracking
 reads needs no microtask, since a Preact `effect` tracks in the current script.

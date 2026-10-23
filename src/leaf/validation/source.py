@@ -18,7 +18,7 @@ from leaf.registry.storage import IncompatibleLayer, read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
-from leaf.structure import LF_META, SourceDocument, script_kind
+from leaf.structure import SourceDocument, script_kind
 from leaf.styles import (
     css_syntax_errors,
     inline_style_at,
@@ -117,25 +117,6 @@ def _document_errors(page_dir: Path, parser) -> list[Finding]:
             )
 
     errors.extend(document_declaration_errors(parser))
-
-    for meta in parser.authoring.named_metas:
-        if not meta["name"].startswith("lf-"):
-            continue  # ordinary document metadata: a title, a description, a card
-        where = {"name": meta["name"], "line": meta["line"]}
-        if meta["name"] not in LF_META:
-            errors.append(
-                Finding("unknown-meta", "<meta>", {**where, "known": sorted(LF_META)})
-            )
-            continue
-        allowed = LF_META[meta["name"]]
-        if meta["content"] not in allowed:
-            errors.append(
-                Finding(
-                    "meta-content",
-                    "<meta>",
-                    {**where, "allowed": sorted(allowed), "found": meta["content"]},
-                )
-            )
 
     errors.extend(id_errors(parser))
     return errors
@@ -304,14 +285,6 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
     stored_data = read_data(page_dir, checked.registry)
     return [
         *measurement_lag(parser.lf_elements, checked.registry or {}, stored_data),
-        *(
-            Finding(
-                "unreadable-data",
-                values={"source": source, "error": error},
-                severity="advice",
-            )
-            for source, error in stored_data["unreadable"].items()
-        ),
         *(
             Finding(
                 "unreadable-data",

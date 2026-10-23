@@ -3,7 +3,6 @@
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import leading_title_node
 from leaf.obligations import (
-    asking,
     encloses,
     local_obligation_entry,
     quoted_in,
@@ -11,7 +10,9 @@ from leaf.obligations import (
 )
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
+    exhibits,
     is_element_name,
+    matches_when,
     registry_path,
     retirement_slots,
     state_specs,
@@ -29,7 +30,7 @@ def member_holders(rec: dict, registry: dict):
     a whole still holds its own members, since they reach it before the boundary.
     """
     for node in enclosing_widgets(rec):
-        if registry.get(node["tag"], {}).get("x-exhibit"):
+        if exhibits(node["attrs"], registry.get(node["tag"], {})):
             break
         yield node
 
@@ -233,7 +234,7 @@ def unasked(rec: dict, entry: dict) -> dict:
         for attr, values in when.items()
         if attr != awaits.get("retired")
         and attr not in recorded
-        and not asking(rec["attrs"], {attr: values})
+        and not matches_when(rec["attrs"], {attr: values})
     }
 
 
@@ -503,7 +504,7 @@ def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Findi
             declaration = entry.get(role)
             if (
                 declaration is not None
-                and asking(rec["attrs"], declaration.get("when"))
+                and matches_when(rec["attrs"], declaration.get("when"))
                 and not rec["attrs"].get("id")
             ):
                 errors.append(found_at("needs-id", rec, role=role))

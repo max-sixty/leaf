@@ -53,7 +53,6 @@ import { createAim } from "./runtime/composing/aim.js";
 import {
   createTargetPicker,
   targetPickerHintLayer,
-  pageSearchSurface,
 } from "./runtime/composing/target-picker.js";
 import { createStandingTarget } from "./runtime/composing/standing.js";
 import {
@@ -96,13 +95,7 @@ import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { createVersionController } from "./runtime/version.js";
-import {
-  isSignoffDeclared,
-  loadIcon,
-  mountPageStatus,
-  paintApproval,
-  stateSignoff,
-} from "./runtime/page-status.js";
+import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
@@ -399,8 +392,6 @@ app = mountApplication({
     prepareActivation: (state) => version.prepareActivation(state),
     acceptData,
     notifyDataSubscribers,
-    isSignoffDeclared,
-    stateSignoff,
   },
 });
 if (offlineInteractive) applicationState.setHostAvailable(false);
@@ -539,6 +530,7 @@ targets = createTargetPicker({
   pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
   readTargets: () => (designMode.active() ? designMode.targets() : aimTargets()),
   armChanged: () => aim.armChanged(),
+  searchInPanel: floatingPanel.searchPage,
 });
 drawing = createDrawingController({
   anchors: { aimTargetAt, resolveAnchor },
@@ -681,13 +673,8 @@ if (!offlineInteractive) {
   );
   document.body.append(chromeRoot);
   version.mount();
-  mountPageStatus({
-    approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
-  });
+  mountPageStatus();
   floatingPanel.mount(chromeForeground);
-  // Page search's box stands on the panel's top, and an anchor has to be laid out
-  // before the box placed against it (chrome.css, `.lf-page-search`).
-  chromeForeground.append(pageSearchSurface);
   responseSurface.mount();
   holdToRead();
   reactions.mount();
@@ -794,7 +781,6 @@ async function presentPage() {
     return;
   }
   paintKeys();
-  paintApproval();
   repaint();
   app.overlay?.flushLayout();
   landFragment();

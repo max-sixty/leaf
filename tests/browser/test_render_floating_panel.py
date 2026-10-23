@@ -2718,7 +2718,7 @@ def test_a_thread_s_field_says_its_reply_beside_the_walk_s_position(browser, ser
     write(field(page), "Could the rollback cover the weekend?")
     with sending(page, "the page comment"):
         page.keyboard.press("ControlOrMeta+Enter")
-    view = page.locator(".lf-fp-view[data-view=thread]")
+    view = page.locator(panel_view("thread"))
     expect(view).to_be_visible()
     view.focus()
     page.keyboard.press("t")

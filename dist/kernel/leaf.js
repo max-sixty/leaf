@@ -8216,8 +8216,10 @@ function createFloatingPanel({
           type="button"
           class="lf-fp-quiet lf-fp-show"
           @click=${() => {
-      close();
-      void queueActions.open(queueItemKey(item));
+      const route = trail.value.at(-1);
+      void queueActions.open(queueItemKey(item)).then((arrived) => {
+        if (arrived && trail.value.at(-1) === route) close();
+      });
     }}
         >
           Show
@@ -8781,7 +8783,6 @@ function createFloatingPanel({
           </button>` : nothing,
       exitSeat
     );
-    keepsHidden(exitSeat, !exit);
     const threadsOpen = top?.view === "threads" || top?.view === "thread";
     const onUserName = onUser ? `On me: ${onUser}` : "On me";
     const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";

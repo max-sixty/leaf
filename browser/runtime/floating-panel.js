@@ -498,7 +498,8 @@ export function createFloatingPanel({
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   // The way out of the stance the user stands in, at the row's end beside the counts,
-  // and there while the user types (touch-controls.js, `stance`).
+  // and there while the user types (touch-controls.js, `stance`). Its seat keeps
+  // room after a view closes, so news cannot shift the count chips under the reader.
   const exitSeat = el("div", "lf-fp-exit-seat");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
@@ -2613,14 +2614,17 @@ export function createFloatingPanel({
     // Show takes the user to the item where `m` would, by the walk's own arrival
     // (queue-walk.js, `arriveAtItem`), wherever that leads anywhere but this card. It
     // stands at the end of the answers' line, where an answer replacing the choices
-    // before it moves it nowhere.
+    // before it moves it nowhere. The arrival may open a thread in this panel; keep
+    // its current route until the destination decides, then close only for page travel.
     const show = arrivesAt(item)
       ? html`<button
           type="button"
           class="lf-fp-quiet lf-fp-show"
           @click=${() => {
-            close();
-            void queueActions.open(queueItemKey(item));
+            const route = trail.value.at(-1);
+            void queueActions.open(queueItemKey(item)).then((arrived) => {
+              if (arrived && trail.value.at(-1) === route) close();
+            });
           }}
         >
           Show
@@ -3387,7 +3391,6 @@ export function createFloatingPanel({
         : nothing,
       exitSeat,
     );
-    keepsHidden(exitSeat, !exit);
     // Each mark keeps its room whether or not it has a number, so a count arriving or
     // leaving moves nothing beside it.
     // A mark's name is its tooltip too, as an icon control's title is elsewhere in Leaf.

@@ -157,13 +157,4 @@
     opacity: 1;
     pointer-events: auto;
   }
-  .lf-draft-icon {
-    inline-size: 16px;
-    block-size: 16px;
-  }
-}
-@media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
-    outline-color: Highlight;
-  }
 }

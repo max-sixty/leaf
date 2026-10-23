@@ -152,6 +152,7 @@ import {
   clamp,
   closeControl,
   coarsePointer,
+  cycledRow,
   el,
   hostIn,
   iconElement,
@@ -1472,10 +1473,7 @@ function createMarginProjection({
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
     const direction = binding === rowArrows(active)[1] ? 1 : -1;
-    focusDestination(
-      buttons[(at + direction + buttons.length) % buttons.length],
-      "move"
-    );
+    focusDestination(cycledRow(buttons, active, direction), "move");
     beginWalk("margin-entry", "Action", () => {
       const currentLocation = focused();
       const currentLocationHost2 = closestAcross(

@@ -34,23 +34,42 @@ preference.addEventListener("change", (event) => {
   if (event.matches) for (const played of [...active]) played.finish();
 });
 
+// Whether motion plays now, which `playMotion` asks before every animation. First replay
+// happens behind the presentation boundary. Its state should be the first frame the
+// user sees, not a motion from authored state they never saw; it collapses exactly as
+// reduced motion does. This one shared check reaches folds and FLIP alike without a
+// widget learning whether the page has been presented. A caller that must choose
+// before it animates, such as one keeping an old view drawn only while it fades, asks
+// this too.
+export const motionPlays = () => !reducedMotion() && pagePresented();
+
 // Web-Animations motion goes through here, so a user who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
 // reduce, and a caller treats "no animation" and "animation finished" as the same
-// state. Every motion this module plays shares one ease and one held-end-frame
-// contract. A duration a caller passes in is still a number this module has no reason
-// for; see AGENTS.md's "Motion".
-export function motion(el, keyframes, ms, pseudoElement = null) {
-  // First replay happens behind the presentation boundary. Its state should be the
-  // first frame the user sees, not a motion from authored state they never saw; it
-  // collapses exactly as reduced motion does. This one shared check reaches folds and
-  // FLIP alike without a widget learning whether the page has been presented.
-  if (reducedMotion() || !pagePresented()) return null;
+// state. Every motion this module plays shares one held-end-frame contract. A duration
+// a caller passes in is still a number this module has no reason for; see AGENTS.md's
+// "Motion". `motion` is the packages' door, and its signature is part of what a
+// vendored package calls, so it stays as pages know it.
+export const motion = (el, keyframes, ms, pseudoElement = null) =>
+  playMotion(el, keyframes, { duration: ms, pseudoElement });
+
+// The same door with the runtime's own surfaces' further timing: the one ease unless
+// the caller names its surface's curve (`easing`, read with `motionEasing`), and a
+// `delay` that holds the first frame until the motion starts, so a part fading in after
+// another fades out stays unseen meanwhile. That is the backward half of the fill,
+// which no undelayed motion reaches.
+export function playMotion(
+  el,
+  keyframes,
+  { duration, easing = "ease", delay = 0, pseudoElement = null },
+) {
+  if (!motionPlays()) return null;
   const played = el.animate(keyframes, {
-    duration: ms,
+    duration,
+    delay,
     pseudoElement,
-    easing: "ease",
-    fill: "forwards",
+    easing,
+    fill: "both",
   });
   active.add(played);
   // Hold the last frame until the caller's direct `finished.then(cleanup)` has made
@@ -72,20 +91,25 @@ export function motion(el, keyframes, ms, pseudoElement = null) {
   return played;
 }
 
-// CSS owns the document-wide durations shared with stylesheet motion. Registered
-// <time> values resolve variables and calculations before this read; each call reads the live
-// cascade, so a revision or theme override changes CSS and Web Animations together.
-const time = (property) => {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue(property)
-    .trim();
+// CSS owns the durations and curves shared with stylesheet motion: the document-wide
+// ones on the root, and a surface's own on that surface, as the floating panel's are.
+// Registered <time> values resolve variables and calculations before this read; each
+// call reads the live cascade, so a revision or theme override changes CSS and Web
+// Animations together.
+const token = (property, on) => getComputedStyle(on).getPropertyValue(property).trim();
+// A `--lf-motion-*` duration, in milliseconds, as `on` inherits or declares it.
+export const motionTime = (property, on = document.documentElement) => {
+  const value = token(property, on);
   return parseFloat(value) * (value.endsWith("ms") ? 1 : 1000);
 };
+// A `--lf-motion-*` curve, as Web Animations takes it.
+export const motionEasing = (property, on = document.documentElement) =>
+  token(property, on);
 
 // A thread's arrival tint and the navigation flash on the surface it revealed.
-export const flashDuration = () => time("--lf-motion-flash");
+export const flashDuration = () => motionTime("--lf-motion-flash");
 // Independently rendered carriers join the same finite agent-work arrival window.
-export const agentArrivalDuration = () => time("--lf-motion-agent-arrival");
+export const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival");
 
 // A cue supplies only its starting tint. Its target's live CSS owns the endpoint,
 // so hover, theme changes and transparent surfaces never snap back when it ends.
@@ -99,9 +123,9 @@ export function backgroundFlash(el, ms) {
 // distance travelled by the whole column below it. A decided suggestion's retired
 // slot and a resolved inline thread fold over it, and a picture's zoom (media.js)
 // takes the same time.
-export const foldDuration = () => time("--lf-motion-fold");
+export const foldDuration = () => motionTime("--lf-motion-fold");
 // A retained frame returns from an editor to its shorter reading.
-export const returnDuration = () => time("--lf-motion-return");
+export const returnDuration = () => motionTime("--lf-motion-return");
 
 // Give a block's room back from its ordinary CSS shape. Native intrinsic-size
 // interpolation supplies the starting height, and the other lengths start at their

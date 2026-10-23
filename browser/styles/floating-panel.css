@@ -611,7 +611,9 @@
   }
   /* A thread walk's aside stays at the same edge when drafting reserves the Send
      corner; otherwise the placeholder shrinks by that corner's width mid-read. */
-  .lf-fp-field .lf-compose-field > leaf-text:has(.lf-compose-placeholder-aside:not(:empty)) {
+  .lf-fp-field
+    .lf-compose-field
+    > leaf-text:has(.lf-compose-placeholder-aside:not(:empty)) {
     --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,

@@ -1509,7 +1509,7 @@ var queueOffers = (item, ready, onUser) => ({
   open: ready,
   done: ready && onUser && item.kind === "todo"
 });
-var carriesObligation = (item) => item.kind === "widget";
+var carriesObligation = (item) => item.kind === "widget" || item.kind === "message" || item.kind === "todo" && item.owner === "user";
 var itemNoun = (item) => item.kind !== "update" ? item.kind : item.owner === "user" ? "resend" : item.thread !== null ? "reply" : "answer";
 var OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 var itemOutcome = (item) => item.kind === "update" ? "Sent" : OUTCOMES[item.state] ?? item.state;
@@ -1591,8 +1591,25 @@ var NO_OBLIGATIONS = {
   user: [],
   unanswered: []
 };
-function normalizedObligations(view, widgets, document, projection) {
+function normalizedObligations(view, widgets, document, projection, todos) {
+  const todoRecords = new Map(
+    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo])
+  );
   const all = (view?.obligations ?? []).map((item) => {
+    if (item.source.kind === "todo") {
+      const todo = todoRecords.get(item.source.id);
+      if (todo.state === "open" && item.status !== "open")
+        return { ...item, answer: null, status: "open", next_actor: "user", end: null };
+      if (todo.state !== "open" && item.status === "open")
+        return {
+          ...item,
+          answer: { value: todo.state, event: null },
+          status: "answered",
+          next_actor: null,
+          end: null
+        };
+      return item;
+    }
     if (item.source.kind !== "widget") return item;
     const sourceId = item.source.id;
     const sourceUnit = item.source.unit;
@@ -1707,7 +1724,7 @@ function localQueues(served, workflows, todos, items, local) {
     return current2;
   };
   const standsOpen = (item) => {
-    if (item.kind === "todo") return open.has(item.id);
+    if (!namesRecord(item)) return open.has(item.id);
     const current2 = obligationOf(item);
     return current2.next_actor === item.owner && !(current2.source.kind === "update" && current2.thread !== null && sentIn.has(current2.thread));
   };
@@ -1796,7 +1813,7 @@ function localUpdates(workflows) {
   return { workflows: named, records };
 }
 var onUserRank = (item) => item.kind === "todo" ? 1 : item.kind === "update" ? 2 : 0;
-var namesRecord = (item) => item.kind !== "todo";
+var namesRecord = (item) => item.kind !== "todo" || item.owner === "user";
 function widgetIndex(root) {
   const projection = root.effective.projection;
   const byWidget = /* @__PURE__ */ new Map();
@@ -1970,8 +1987,8 @@ function createSemanticApplication({
       widgets2,
       projection
     );
-    const servedItems = ready ? normalizedObligations(view, widgets2, document, projection) : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
+    const servedItems = ready ? normalizedObligations(view, widgets2, document, projection, todos) : NO_OBLIGATIONS;
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn2, namedParent }) => {
       const drawnIn = drawn2 && named.get(drawn2.id)?.id;

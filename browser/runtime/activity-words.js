@@ -356,6 +356,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
 // left to answer, since only a row or the walk names it by its widget (`obligationWord`).
 const QUEUE_WORDS = Object.freeze({
   widget: ["to answer", "to answer"],
+  message: ["to answer", "to answer"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
@@ -370,7 +371,7 @@ function queueKinds(items) {
     // A to-do outlasts the turns and the thread that opened it (`todos.py`), so each
     // open one is named, including one on a thread the user has resolved.
     return kind === "todo"
-      ? `${words} (${all.map((row) => row.todo.title).join(" · ")})`
+      ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" · ")})`
       : words;
   });
 }

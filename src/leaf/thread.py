@@ -232,6 +232,7 @@ def cmd_comment(
     markup: str,
     *,
     title: str | None = None,
+    obligation: bool = False,
 ) -> dict:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
@@ -261,6 +262,8 @@ def cmd_comment(
             "revision": revision,
             "text": body,
         }
+        if obligation:
+            event["obligation"] = True
         if anchor:
             event["anchor"] = anchor
         if markup:
@@ -334,6 +337,7 @@ def post_reply(
     validate_source: bool = False,
     todo: str | None = None,
     asks_back: bool = False,
+    obligation: bool = False,
     ephemeral: bool = False,
     quote: str = "",
     section: str = "",
@@ -401,10 +405,11 @@ def post_reply(
                 ephemeral,
                 failure is not None,
                 todo,
+                obligation,
             )
         ):
             return repeated
-        obligation = _resolve_obligation(
+        addressed = _resolve_obligation(
             page,
             address,
             settlement,
@@ -412,11 +417,11 @@ def post_reply(
             ephemeral,
             failure,
         )
-        if obligation is None:
+        if addressed is None:
             return None
         record, published = _compose_and_append(
             page,
-            obligation,
+            addressed,
             posting_identity,
             text,
             markup,
@@ -425,6 +430,7 @@ def post_reply(
             validate_source=validate_source,
             todo=todo,
             asks_back=asks_back,
+            explicit_obligation=obligation,
             ephemeral=ephemeral,
             quote=quote,
             section=section,
@@ -488,6 +494,7 @@ def _repeated_reply(
     ephemeral: bool,
     failed: bool,
     todo: str | None,
+    obligation: bool,
 ) -> dict | None:
     """The reply an earlier write with this `attempt` appended, or None; refuses an
     attempt that named another kind of write: progress, a failure receipt and an
@@ -511,7 +518,7 @@ def _repeated_reply(
         or not same_scope
     ):
         raise Rejected([Finding("attempt-conflict", values={"attempt": attempt})])
-    if existing.get("todo") != todo:
+    if existing.get("todo") != todo or bool(existing.get("obligation")) != obligation:
         # A repeat that promises differently would otherwise return the first
         # answer and drop what this one declares.
         raise Rejected(
@@ -631,6 +638,7 @@ def _compose_and_append(
     validate_source: bool,
     todo: str | None,
     asks_back: bool,
+    explicit_obligation: bool,
     ephemeral: bool,
     quote: str,
     section: str,
@@ -655,7 +663,9 @@ def _compose_and_append(
     }
     opening = _messages(events)[thread_id]
     moving = bool(quote or section or part)
-    if ephemeral and (todo or markup or failure or moving or detach):
+    if ephemeral and (
+        todo or explicit_obligation or markup or failure or moving or detach
+    ):
         raise Rejected([Finding("ephemeral-content")])
     if detach and moving:
         raise Rejected([Finding("detach-with-target")])
@@ -748,17 +758,22 @@ def _compose_and_append(
             publication=publication,
             thread=thread_id,
         )
-    # An answer that declares neither `--done` nor `--todo` asks the user back, so its
-    # markup holds a widget that asks.
-    if asks_back and not (
-        markup
-        and any(
-            local_obligation_entry(publication.registry.get(rec["tag"]) or {})
-            and asking(
-                rec["attrs"], publication.registry[rec["tag"]]["x-awaits"].get("when")
+    # A markup-only answer must itself request input. Explicit obligations need
+    # no widget: the message is their source.
+    if (
+        asks_back
+        and not explicit_obligation
+        and not (
+            markup
+            and any(
+                local_obligation_entry(publication.registry.get(rec["tag"]) or {})
+                and asking(
+                    rec["attrs"],
+                    publication.registry[rec["tag"]]["x-awaits"].get("when"),
+                )
+                and not quoted_in(rec, publication.registry)
+                for rec in fragment.lf_elements
             )
-            and not quoted_in(rec, publication.registry)
-            for rec in fragment.lf_elements
         )
     ):
         raise Rejected([Finding("undeclared-answer")])
@@ -775,6 +790,8 @@ def _compose_and_append(
             "item": in_hand,
             **({"turn": turn} if turn else {}),
         }
+    if explicit_obligation:
+        event["obligation"] = True
     if todo is not None:
         event["todo"] = todo
     if markup:

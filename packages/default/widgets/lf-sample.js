@@ -43,6 +43,7 @@ import {
   whileConnected,
   keeps,
   keepsText,
+  iconElement,
   layoutPx,
   mountSample,
   once,
@@ -227,14 +228,17 @@ customElements.define(
       controls.className = "lf-sample-controls lf-ui";
       controls.dataset.lfGen = "1";
       const actions = document.createElement("div");
-      this.#reset = offer("button", "lf-btn", "Reset");
+      this.#reset = offer("button", "lf-btn lf-sample-action");
+      this.#reset.ariaLabel = this.#reset.title = "Reset";
+      this.#reset.append(iconElement("retry", "lf-action-icon"));
       this.#reset.addEventListener("click", () => {
         if (this.#reset.ariaDisabled === "true") return;
         this.reset().catch(() => {}); // #track paints the failed operation.
       });
       this.#status = offer("span", "lf-sample-status");
       this.#status.setAttribute("role", "status");
-      this.#full = offer("button", "lf-btn", "Full view");
+      this.#full = offer("button", "lf-btn lf-sample-action");
+      this.#paintFull(false);
       this.#full.addEventListener("click", () => {
         if (isNativeLayer(this.#view)) this.#return();
         else {
@@ -248,7 +252,7 @@ customElements.define(
           closeNativeLayer(this.#view);
           this.#view.setAttribute("role", "dialog");
           this.#view.setAttribute("aria-label", this.#frame.title);
-          keepsText(this.#full, "Return to page");
+          this.#paintFull(true);
           showNativeLayer(this.#view);
           this.#setWindow(true);
           focusDestination(this.#full, "move");
@@ -280,8 +284,17 @@ customElements.define(
       this.#view.setAttribute("role", "presentation");
       this.#view.removeAttribute("aria-label");
       this.style.removeProperty("--lf-sample-height");
-      keepsText(this.#full, "Full view");
+      this.#paintFull(false);
       this.#setWindow(this.hasAttribute("window"));
+    }
+
+    #paintFull(expanded) {
+      this.#full.ariaLabel = this.#full.title = expanded
+        ? "Return to page"
+        : "Full view";
+      this.#full.replaceChildren(
+        iconElement(expanded ? "collapse" : "expand", "lf-action-icon"),
+      );
     }
 
     #setWindow(value) {

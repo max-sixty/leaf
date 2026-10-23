@@ -93,9 +93,16 @@
       if (getComputedStyle(child).display === "contents") yield* seatedIn(child);
       else yield child;
   }
+  // A shadow tree attached by script reaches the patched `attachShadow` below; an open
+  // one the parser built from a declarative template is found when its host arrives.
+  const adopt = (root) => {
+    roots.set(root.host, root);
+    changes.observe(root, options);
+  };
   function* elementsOf(node) {
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     yield node;
+    if (node.shadowRoot && !roots.has(node)) adopt(node.shadowRoot);
     if (roots.has(node))
       for (const child of roots.get(node).children) yield* elementsOf(child);
     for (const child of node.children) yield* elementsOf(child);
@@ -331,8 +338,7 @@
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
-    roots.set(this, root);
-    changes.observe(root, options);
+    adopt(root);
     return root;
   };
 

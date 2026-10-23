@@ -76,6 +76,29 @@ def test_an_occupant_that_grows_its_place_fails(browser, swap):
     )
 
 
+def test_an_occupant_that_grows_a_declarative_shadow_row_fails(browser):
+    """A row the parser builds from a declarative shadow template is watched too."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<div id="row" style="display:flex;width:300px">'
+            '<template shadowrootmode="open">'
+            '<button id="first" style="height:24px">First</button>'
+            '<button id="second" style="height:40px" hidden>Second</button>'
+            "</template></div><button id=swap>Swap</button><script>"
+            "swap.addEventListener('click', () => {"
+            " const seat = id => row.shadowRoot.getElementById(id);"
+            " seat('first').hidden = true; seat('second').hidden = false; });"
+            "</script>"
+        )
+    )
+    page.locator("#swap").click()
+    judge_watches()
+    consume_browser_errors(page, {"code": "place-resized", "place": ["div#row"]})
+
+
 def test_an_occupant_that_fills_its_place_passes(browser):
     page = row_page(browser, "replace", tall=False)
     page.locator("#swap").click()

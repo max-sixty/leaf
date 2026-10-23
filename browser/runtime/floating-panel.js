@@ -498,7 +498,8 @@ export function createFloatingPanel({
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   // The way out of the stance the user stands in, at the row's end beside the counts,
-  // and there while the user types (touch-controls.js, `stance`).
+  // and there while the user types (touch-controls.js, `stance`). Its seat keeps
+  // room after a view closes, so news cannot shift the count chips under the reader.
   const exitSeat = el("div", "lf-fp-exit-seat");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
@@ -3387,7 +3388,6 @@ export function createFloatingPanel({
         : nothing,
       exitSeat,
     );
-    keepsHidden(exitSeat, !exit);
     // Each mark keeps its room whether or not it has a number, so a count arriving or
     // leaving moves nothing beside it.
     // A mark's name is its tooltip too, as an icon control's title is elsewhere in Leaf.

@@ -34,7 +34,7 @@ def _response_key(responds: str) -> dict:
 
     A provisional reply and the answer that retires it are one message to the reader,
     but the answer's own attempt need not be the one the provisional reply was reserved
-    under: an explicit `response reply` takes an author's retry key from a namespace of
+    under: an explicit `thread reply` takes an author's retry key from a namespace of
     its own, so it can never consume the provider final's append identity. The input
     they both answer is the identity they share. A failure receipt is no answer
     (`events.is_answer`), so it keeps its own name. The log can hold a second answer to

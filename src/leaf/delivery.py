@@ -3,7 +3,7 @@
 A delivery hands the agent the user's updates from one or more pages.
 `freeze_delivery` writes it once as an immutable envelope with one batch per page,
 its events in log order. Each event's `answer` is what the agent owed it at capture,
-and the `leaf response` commands check the page again when they write, so a stale
+and `leaf thread reply` checks the page again when it writes, so a stale
 `answer` settles nothing. Each batch lists each distinct handling clause once, under an id
 its events refer to; the ids mean nothing outside that batch.
 
@@ -35,7 +35,7 @@ turn (`thread.reserve_delivery_reply`). The page's stream lists open reservation
 under `reply_reservations` (`service.STREAM`), and session-lifetime.md says when one is
 released. While a reservation is open, no other delivery can reserve the address,
 the turn's final message commits as the reply, and failure receipts and other
-turns' finals are refused or write nothing. A `leaf response reply` still commits at
+turns' finals are refused or write nothing. A `leaf thread reply` still commits at
 once, so its refusals reach the agent while it can still fix them, and the turn's
 final then yields to it. `writer` is only the hint captured at freeze; the open
 reservation decides who writes.
@@ -44,7 +44,7 @@ reservation decides who writes.
 and input, and only the envelope holds what a ref points to. Receipt copies each
 batch's refs into the page log (`record_pickup`'s `refs`), so a reader of the page
 alone, such as a refusal naming the update a thread owes, can name the ref. An
-update no delivery has carried has no ref. `leaf response reply` and a turn's final
+update no delivery has carried has no ref. `leaf thread reply` and a turn's final
 both resolve a ref with `response_address`, and `thread.post_reply` then checks,
 under the page lock, that the claim the batch was captured under still owns the
 page and the input is still owed. The agent may pass a ref to a worker, which
@@ -237,7 +237,7 @@ _ANSWER = {
                     "parent": STRING,
                     "responds": STRING,
                     "ref": described(
-                        "The answer's address, which `leaf response` takes.", STRING
+                        "The delivery reference identifying this answer.", STRING
                     ),
                     "writer": described(
                         "Who is to write the reply when the delivery was frozen: the "
@@ -254,7 +254,7 @@ _ANSWER = {
                     "kind": {"const": "markup"},
                     "action": STRING,
                     "ref": described(
-                        "The answer's address, which `leaf response` takes.", STRING
+                        "The delivery reference identifying this answer.", STRING
                     ),
                 }
             ),

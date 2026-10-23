@@ -482,7 +482,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     assert schema_model.ANSWER_INSTRUCTION in continued(answer)
     # The receipt recorded the delivery's reference, so the reminder names the
     # complete command rather than a placeholder nothing on hand fills.
-    assert f"`leaf response reply {delivered_ref(claimed, asked['id'])}`" in continued(
+    assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in continued(
         answer
     )
 
@@ -494,14 +494,14 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     reason = continued(capsys.readouterr().out)
     assert (
         "your turn's final message or "
-        f"`leaf response reply {delivered_ref(claimed, asked['id'])}`"
+        f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`"
     ) in reason
     assert "leaf thread reply <page>" not in reason
     # A failure receipt waits for the turn, and its refusal names the same command.
     ref = delivered_ref(claimed, asked["id"])
     with pytest.raises(delivery_model.Refused) as refused:
         thread_model.post_response(ref, "gave up", failure="turn_failed")
-    assert f"use `leaf response reply {ref}` without `--failure`" in str(refused.value)
+    assert f"use `leaf thread reply {ref}` without `--failure`" in str(refused.value)
     with service_model.PageTransaction(claimed) as page:
         page.clear_delivery_reply_reservation(session["id"], asked["id"], "a1")
 
@@ -659,7 +659,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         .invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(claimed, comment),
@@ -960,7 +960,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     )
     reason = _stop(capsys)
     assert f"your start on {asked['id']} came before this turn" in reason
-    assert f"`leaf response reply {delivered_ref(claimed, asked['id'])}`" in reason
+    assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
     # A task notification reaching the turn mid-way says nothing about it either.
@@ -984,7 +984,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     capsys.readouterr()
     consume_pending_input("s1")
     reason = _stop(capsys)
-    assert f"`leaf response reply {delivered_ref(claimed, follow['id'])}`" in reason
+    assert f"`leaf thread reply {delivered_ref(claimed, follow['id'])}`" in reason
     assert f"your start on {asked['id']} came before this turn" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
@@ -1178,7 +1178,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         reply = CliRunner().invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 event["answer"]["ref"],

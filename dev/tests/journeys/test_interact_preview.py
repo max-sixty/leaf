@@ -834,7 +834,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             comment["answer"]["ref"],

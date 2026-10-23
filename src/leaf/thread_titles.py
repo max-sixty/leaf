@@ -3,7 +3,7 @@ through the harness the page's agent runs in.
 
 An opening or reply may carry its untitled thread's first title atomically;
 `thread_title` names one independently or renames it. An agent answering with
-`leaf response reply` can supply a title even when the provider owns final commit.
+`leaf thread reply` can supply a title even when the provider owns final commit.
 That reply comes when the agent's work does, which can be minutes, so Leaf also
 asks for a title as soon as it can reach the harness's model:
 

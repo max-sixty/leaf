@@ -95,7 +95,7 @@ def test_an_agent_reply_runs_its_live_sample_in_the_thread(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(serve.page_dir, question),

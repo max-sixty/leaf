@@ -25,6 +25,39 @@ what fails and what still works.
 
 ## Supported APIs checked
 
+### Keyboard focus placed after a click
+
+- **Owner:** `runtime/focus.js`, `focusDestination`.
+- **Observed 2026-10-22:** installed Playwright Firefox 155 retains invisible
+  focus when a keyboard command moves from a pointer-focused reading destination.
+  Clicking diff source then pressing `]`, or opening its comment box with `c`
+  and returning with Escape, leaves the destination without `:focus-visible`.
+  Chromium shows it. A prior Tab arrival masks the Firefox failure.
+- **Disposition:** keyboard placements request `focusVisible: true` from the
+  platform, including the retry that lends an unfocusable passage a temporary
+  stop. Pointer placements leave visibility to the browser. The hint restores
+  Firefox's cue; Chromium already shows these keyboard arrivals.
+- **Evidence:** the diff focus regression below exercises the first keyboard
+  route before Tab in both installed engines.
+
+### Diff focus frame invalidation
+
+- **Owner:** `packages/diff/styles/shadow.css`, the code viewport's focus frame.
+- **Observed 2026-10-22:** Playwright Firefox 155 computes the outline on
+  `pre:has(> code[data-lf-focus-visible])::after` after keyboard focus but does not
+  paint it. Another animation frame or scrolling does not repair it; inserting an
+  empty stylesheet does. Reading the parent's focus-visible-within mark repairs
+  arrival, but leaves the frame painted when focus moves into a source row and
+  that parent mark stays set. Chromium handles both transitions.
+- **Disposition:** a noninteractive sibling carries the frame, selected directly
+  by the focused code before it. No ancestor `:has()` invalidation is needed.
+- **Evidence:** `controls/test_rings.py`'s
+  `test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows`
+  exercises pointer and Tab arrivals, then checks all four painted edges before
+  and after horizontal scrolling, then verifies the viewport's sides clear when
+  focus moves into a row. These are installed-engine results, not a survey of
+  stable browser releases.
+
 ### Highlight style inheritance
 
 - **Owners:** `runtime/annotation-overlay/annotation-marks.css` and

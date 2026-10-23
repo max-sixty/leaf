@@ -334,7 +334,12 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
             "message": {"content": "Summary."},
         },
     ]
-    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    # Claude Code is still writing the last record, which is no record yet; its
+    # bytes so far can end inside a character.
+    path.write_bytes(
+        "".join(json.dumps(line) + "\n" for line in lines).encode()
+        + '{"type": "assistant", "text": "é'.encode()[:-1]
+    )
     native = journey_claude_code.native_records(tmp_path, session)
     assert claude_code_records(native) == [
         {"type": "turn_start", "received_at": at(1)},

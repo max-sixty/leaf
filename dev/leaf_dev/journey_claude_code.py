@@ -673,9 +673,12 @@ def slow_prompt(place: Isolation) -> Path:
 
 
 def native_records(home: Path, session: str) -> list[dict]:
-    """The native session record, including hook context attachments."""
+    """The native session record, including hook context attachments. A record
+    Claude Code is still writing is no record yet, so the bytes after the last
+    newline, which can end inside a character, are left out."""
     [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
-    return [json.loads(line) for line in path.read_text().splitlines()]
+    written, _, _ = path.read_bytes().rpartition(b"\n")
+    return [json.loads(line) for line in written.decode().splitlines()]
 
 
 @contextmanager

@@ -224,7 +224,7 @@ import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
-import { agentName } from "./semantic-state.js";
+import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedUnder, under } from "./shadow.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
@@ -2433,6 +2433,9 @@ export function createFloatingPanel({
   // Each list in the `m` walk's order (queue-walk.js, `inWalkOrder`), so the cards the
   // walk outlines (`walkedStop`) follow one another down the list.
   const queueLists = () => {
+    // Page placement determines the list's order, including after a revision
+    // removes the element where an obligation stood.
+    documentChanged();
     const reading = readQueues();
     if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
     return {

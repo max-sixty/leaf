@@ -151,8 +151,8 @@ PINNED_IN_BOX = """async (id) => {
 
 
 def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve):
-    """A diff's file header pins at the top of the box that scrolls it, whoever made the
-    box scroll: a page rule, an inline style, `overflow: hidden`, and a column's sticky
+    """A diff's file header pins at the top of its declared scroll box, whether a
+    page rule, an inline style, `overflow: hidden`, or a column's sticky
     sidebar each start `--lf-top` again, where each pinned the header the root's slot
     below the box's top. The root keeps its slot though a page rule makes it scroll,
     and a page's sticky box keeps the slot it met though another rule makes it scroll,
@@ -165,10 +165,10 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
             leaf_page(
                 "Scrolling boxes",
                 f'<aside class="sidebar" id="side">{long_diff("in-side")}</aside>'
-                f'<h1>Scrolling boxes</h1><div id="box">{long_diff("in-box")}</div>'
-                '<div id="inline" style="max-height: 320px; overflow: auto">'
+                f'<h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
+                '<div id="inline" class="scroll" style="max-height: 320px; overflow: auto">'
                 f"{long_diff('in-inline')}</div>"
-                '<div id="hidden" style="max-height: 320px; overflow: hidden">'
+                '<div id="hidden" class="scroll" style="max-height: 320px; overflow: hidden">'
                 f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
                 + "<p>Filler.</p>"

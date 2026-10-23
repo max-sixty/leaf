@@ -366,8 +366,8 @@ PHONE_SQUEEZED_TABLE = """
 </table>
 """
 
-# A block wider than the column and narrower than the window: 70% of 1200px is
-# 840px against a 720px column, so it stands 120px out in the margin with
+# A block wider than the column and narrower than the window: 65% of 1280px is
+# 832px against a 720px column, so it stands 112px out in the margin with
 # the body not scrolling by a pixel. In vw rather than px because the static lint
 # counts pixels and would have caught it before a browser ever saw it.
 # 65vw passes the 720px column at the desktop viewport, and falls short of scrolling the

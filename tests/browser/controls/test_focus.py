@@ -249,6 +249,31 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     )
 
 
+def test_scroll_surfaces_added_after_upgrade_gain_keyboard_reach(browser, serve):
+    page = open_page(browser, serve(leaf_page("Late scroll", "<h1>Late scroll</h1>")))
+    page.evaluate(
+        """() => {
+          const authored = document.createElement('div');
+          authored.id = 'late-authored';
+          authored.className = 'scroll';
+          authored.style.cssText = 'width:220px;overflow-x:auto;white-space:nowrap';
+          authored.textContent = 'a'.repeat(500);
+          const native = document.createElement('pre');
+          native.id = 'late-native';
+          native.style.width = '220px';
+          native.textContent = 'b'.repeat(500);
+          document.querySelector('main').append(authored, native);
+        }"""
+    )
+    for selector in ("#late-authored", "#late-native"):
+        surface = page.locator(selector)
+        expect(surface).to_have_attribute("data-lf-more-after", "")
+        measured = surface.evaluate(
+            "el => ({scrolls: el.scrollWidth > el.clientWidth, tab: el.tabIndex})"
+        )
+        assert measured == {"scrolls": True, "tab": 0}, (selector, measured)
+
+
 def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
     markup = leaf_page(
         "Hidden control in scroll box",

@@ -151,6 +151,29 @@
   const GEOMETRY =
     /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|blockSize|inlineSize|minBlockSize|minInlineSize|maxBlockSize|maxInlineSize|margin|padding)/;
   const SIZE_GEOMETRY = new Set(["blockSize", "height", "inlineSize", "width"]);
+  const animationProperties = (animation) => {
+    const keys = [
+      ...new Set((animation.effect?.getKeyframes() ?? []).flatMap(Object.keys)),
+    ];
+    const properties = keys.filter((key) => GEOMETRY.test(key));
+    // A registered property can drive a native translate indirectly. Read the
+    // resulting translate, rather than treating its custom-property value as
+    // geometry; the box motion uses this to keep translate and clip in one clock.
+    const target = animation.effect?.target;
+    if (
+      target instanceof Element &&
+      target.style.translate.includes("var(") &&
+      keys.some((key) => key.startsWith("--"))
+    ) {
+      const vars = new Set(
+        [...target.style.translate.matchAll(/var\(\s*(--[-\w]+)/g)].map(
+          (match) => match[1],
+        ),
+      );
+      if (keys.some((key) => vars.has(key))) properties.push("translate");
+    }
+    return properties;
+  };
   // Use the runtime's rendered ancestry, including forwarding slots and shadow hosts.
   const up = renderedParent;
   // Decorative media is not an independent reading. Hidden accessibility trees
@@ -189,9 +212,7 @@
       .updatesSettled ?? true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
-    animation.effect
-      ?.getKeyframes()
-      .some((keyframe) => Object.keys(keyframe).some((key) => GEOMETRY.test(key))) ||
+    animationProperties(animation).length > 0 ||
     GEOMETRY.test(animation.transitionProperty ?? "");
   // Every animation in the composed tree: the document's own list leaves out those
   // whose targets are in shadow trees, so each connected shadow root adds its own.
@@ -610,13 +631,6 @@
   const animated = new WeakMap();
   const floating = new WeakMap();
   let floatingOwners = new Set();
-  const animationProperties = (animation) => [
-    ...new Set(
-      animation.effect
-        .getKeyframes()
-        .flatMap((frame) => Object.keys(frame).filter((key) => GEOMETRY.test(key))),
-    ),
-  ];
   // An animated property's value as a translation reads it. The individual `translate`
   // keeps its percentages in its computed value, each of the target's border box (an
   // HTML element's transform reference box), so the reading resolves them to pixels.

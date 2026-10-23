@@ -65,7 +65,7 @@ independently of the rendering framework; neither is evidence for Solid itself.
 
 ## Review after merging current main
 
-The merge incorporates main through `766c1ed` (68 commits since the original
+The merge incorporates main through `d76ea44` (71 commits since the original
 comparison), including its repository reorganization, serving-runtime delivery,
 unified panel search, focus visibility, flat summary folds, shared screenshot
 inspection, and indexed diff preparation. These product and performance improvements

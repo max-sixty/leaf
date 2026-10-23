@@ -228,7 +228,9 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     expect(select).to_have_value("first")
     one_select_ring(select, "after returning to the first native option")
     shadow_button.click()
-    one_select_ring(shadow_button, "after leaving the select")
+    expect(shadow_button).to_be_focused()
+    rendered(page)
+    assert not rings_drawn(page)
     expect(select).not_to_have_attribute("data-lf-focus-within", "")
 
 

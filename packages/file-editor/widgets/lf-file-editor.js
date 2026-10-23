@@ -182,8 +182,7 @@ customElements.define(
       const retry = (returnFrom = null) => {
         if (busy) return;
         const operation = failure;
-        if (operation?.kind === "save")
-          void flush(operation.replace, returnFrom);
+        if (operation?.kind === "save") void flush(operation.replace, returnFrom);
         else void refresh(returnFrom);
       };
       let base = null,
@@ -293,17 +292,17 @@ customElements.define(
             <span
               ${offered("lf-file-editor-status")}
               title=${failure?.message ?? nothing}
-              >${
-                latest
-                  ? ""
-                  : failure
-                    ? base
-                      ? "Not saved"
-                      : "Unavailable"
-                    : slow
-                      ? "Saving changes…"
-                      : ""
-              }${retryable ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>` : nothing}<button
+              >${latest
+                ? ""
+                : failure
+                  ? base
+                    ? "Not saved"
+                    : "Unavailable"
+                  : slow
+                    ? "Saving changes…"
+                    : ""}${retryable
+                ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>`
+                : nothing}<button
                 ${offered("lf-file-editor-retry")}
                 ?hidden=${!retryable}
                 aria-description=${failure?.message ?? nothing}

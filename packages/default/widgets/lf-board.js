@@ -86,12 +86,10 @@ customElements.define(
           this.#sortable(col);
         this.#observeNames();
         const stopMotion = this.#observeMotion();
-        document.addEventListener("keydown", this.#escapeDrag, true);
         return () => {
           this.#namesObserver?.disconnect();
           this.#namesObserver = null;
           stopMotion?.();
-          document.removeEventListener("keydown", this.#escapeDrag, true);
           for (const sortable of this.#sortables) sortable.destroy();
           this.#sortables.clear();
         };
@@ -294,8 +292,13 @@ customElements.define(
           id: "board.cancel",
           keys: ["Escape"],
           title: "cancel the move",
-          when: held,
-          run: () => this.#cancel(true),
+          when: () => held() || Boolean(this.#activeDrag()),
+          run: () => {
+            const drag = this.#activeDrag();
+            if (drag)
+              drag.handleEvent(new CustomEvent("dragend", { detail: "cancel" }));
+            else this.#cancel(true);
+          },
         },
       ]);
     }
@@ -493,17 +496,15 @@ customElements.define(
       this.#finishGesture();
     }
 
-    // Sortable owns drag teardown. Send Escape to its drag-end handler even when
-    // pointer movement has left focus elsewhere; onEnd restores rather than records.
-    #escapeDrag = (event) => {
-      const active = /** @type {typeof Sortable & {active: typeof Sortable.prototype | null}} */ (
-        Sortable
-      ).active;
-      if (event.key !== "Escape" || !this.#sortables.has(active)) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      active.handleEvent(new CustomEvent("dragend", { detail: "cancel" }));
-    };
+    // Sortable owns drag teardown; the grip's Cancel command ends it through
+    // the dependency's drag-end handler, and onEnd restores rather than records.
+    #activeDrag() {
+      const active =
+        /** @type {typeof Sortable & {active: typeof Sortable.prototype | null}} */ (
+          Sortable
+        ).active;
+      return this.#sortables.has(active) ? active : null;
+    }
 
     #sortable(col) {
       const sortable = new Sortable(col, {
@@ -540,6 +541,8 @@ customElements.define(
             } else this.#cancel();
           }
           this.#beginGesture();
+          // The held card owns the keyboard too, through its existing grip scope.
+          focusDestination(evt.item.querySelector(":scope > .lf-grip"), "return");
         },
         onEnd: (evt) => {
           // Ahead of the branches below, because the one that returns early sends
@@ -559,7 +562,7 @@ customElements.define(
           const from = sup ? sup.from : evt.from;
           const oldIndex = sup ? sup.index : evt.oldDraggableIndex;
           if (
-            evt.originalEvent.type === "pointercancel" ||
+            ["pointercancel", "touchcancel"].includes(evt.originalEvent.type) ||
             evt.originalEvent.detail === "cancel"
           ) {
             this.#place(card, from, oldIndex, card.querySelector(":scope > .lf-grip"));

@@ -394,12 +394,18 @@ def test_reversing_a_move_continues_from_the_painted_card(browser, serve, route)
     page.keyboard.press("Escape")
 
 
-@pytest.mark.parametrize("cancel", ["Escape", "pointercancel"])
+@pytest.mark.parametrize("cancel", ["Escape", "pointercancel", "touchcancel"])
 def test_cancelling_a_pointer_drag_restores_the_card_without_a_move(
     browser, serve, cancel
 ):
     """Cancelling tears down the drag; a later release cannot record its old preview."""
-    page = open_page(browser, serve(BOARD_PAGE))
+    # Safari uses Sortable's mouse/touch fallback instead of its pointer listeners.
+    context = (
+        browser.new_context(user_agent="Version/26.0 Safari/605.1.15")
+        if cancel == "touchcancel"
+        else None
+    )
+    page = open_page(browser, serve(BOARD_PAGE), context=context)
     posts = []
     page.on(
         "request",
@@ -416,7 +422,10 @@ def test_cancelling_a_pointer_drag_restores_the_card_without_a_move(
     if cancel == "Escape":
         page.keyboard.press("Escape")
     else:
-        page.evaluate("document.dispatchEvent(new PointerEvent('pointercancel'))")
+        page.evaluate(
+            "type => document.dispatchEvent(type === 'pointercancel' ? new PointerEvent(type) : new TouchEvent(type))",
+            cancel,
+        )
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator(".lf-ghost, .lf-lift, .lf-inhand")).to_have_count(0)
     page.mouse.up()

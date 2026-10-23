@@ -313,8 +313,8 @@ covers the page without clipping it.
 
 A rendering callback does its layout reads before its writes, because a read after a
 write forces a synchronous layout. A document-wide renderer that reads DOM another
-renderer creates takes an entry in `PRESENTATION_ORDER` (`runtime/semantic-state.js`),
-which says why CSS can't supply that reading.
+renderer creates declares that DOM dependency through `PRESENTATION_DOM`
+(`runtime/semantic-state.js`), whose owner explains the reading.
 
 ### One writer for each fact
 
@@ -332,7 +332,7 @@ the ordered list of this tab's unresolved work into the one state every componen
 | threads, workflow, attention, obligations, to-dos, activity, unread                                           | the server's state; the browser adds only its own unresolved sends and the versions it is marking read                                                   |
 | what waits on the user and on the agent                                                                       | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                       |
 | what the DOM shows                                                                                            | the presentation coordinator's renderer tickets and preparation regions                                                                                  |
-| when a document-wide renderer paints                                                                          | the order `PRESENTATION_ORDER` in `runtime/semantic-state.js` declares                                                                                   |
+| when a document-wide renderer paints                                                                          | the DOM dependencies `PRESENTATION_DOM` in `runtime/semantic-state.js` declares                                                                          |
 | where each thread's passage is                                                                                | `anchor-placement.js`, resolving its anchor in this version                                                                                              |
 | the line inside a target that a comment sits by                                                               | `pointed-place.js` (`placePoints`); presentation only                                                                                                    |
 | the side and line a comment box and its thread card sit by                                                    | `annotation-overlay/comment-placement.js` (`commentSide`)                                                                                                |
@@ -513,7 +513,7 @@ A paint that must land in the current turn uses `render`; `LitElement` schedules
 updates on a microtask and suits only runtime views that can wait that long. The
 microtask costs no frame, but code that reads the document right after a paint, such
 as a focus move onto a control just drawn, a measurement, held news
-(`thread/held-news.js`) or a region committing in `PRESENTATION_ORDER`'s pass, would
+(`thread/held-news.js`), would
 await `updateComplete` and let other work run in between: the margin's chip
 placement took three ordering bugs to settle when it went asynchronous. Tracking
 reads needs no microtask, since a Preact `effect` tracks in the current script.

@@ -54,7 +54,7 @@ import { obligationHolding, placeOf } from "../current-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
-import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
+import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
@@ -137,7 +137,7 @@ export function createObligationView({
   // and which keys each answers. A publication that changes them repaints it.
   const presenter = applicationPresenter({
     region: "obligations",
-    order: PRESENTATION_ORDER.obligations,
+    after: PRESENTATION_DOM.thread,
     reading: () => (mounted ? true : null),
     paint: () => {
       readObligations();

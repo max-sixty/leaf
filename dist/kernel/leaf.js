@@ -480,7 +480,7 @@ import {
 } from "./runtime/bundle-frame-visibility.js";
 import {
   DELIVERY,
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   SHARE_ROOT,
   WEBSITE_DELIVERY,
   agentName,
@@ -7157,7 +7157,7 @@ function createFloatingPanel({
   }
   function putAwayThen(run) {
     const inside = currentLocationIn(host);
-    close();
+    if (!menuOpen.value) close();
     setMenu(false);
     if (inside) focusDestination(leaf, "return");
     run();
@@ -8707,7 +8707,7 @@ function createFloatingPanel({
       currentLocation ? rowNoticeTemplate(currentLocation) : nothing,
       rowNoticeSeat
     );
-    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : top ? { label: "Close", press: close, disabled: false } : rows().find((entry) => entry.exit) ?? null;
+    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : top && !search ? { label: "Close", press: close, disabled: false } : rows().find((entry) => entry.exit) ?? null;
     render(
       exit ? html`<button
             type="button"
@@ -9628,7 +9628,7 @@ function createObligationView({
   let mounted = false;
   const presenter = applicationPresenter({
     region: "obligations",
-    order: PRESENTATION_ORDER.obligations,
+    after: PRESENTATION_DOM.thread,
     reading: () => mounted ? true : null,
     paint: () => {
       readObligations();

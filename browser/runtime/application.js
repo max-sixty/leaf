@@ -11,7 +11,7 @@ import {
   whenWidgetsPresented,
   presentDocument,
   applicationPresenter,
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
@@ -285,15 +285,9 @@ export function mountApplication(dependencies) {
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
-      order: PRESENTATION_ORDER.annotations,
+      after: PRESENTATION_DOM.obligations,
       reading: () => annotationInputs(),
-      paint: async (_reading, current, resume) => {
-        const ready = await whenApplicationRegionsPresented(
-          ["projection:chrome"],
-          current,
-        );
-        if (ready === "presented" && current()) resume(renderAnnotations)();
-      },
+      paint: renderAnnotations,
     });
     void presentation.present();
     // A paint on paper read no ages, so the return to screen paints through the

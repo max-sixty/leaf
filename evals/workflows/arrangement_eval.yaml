@@ -292,8 +292,10 @@ cases:
         config:
           rubric: >-
             Operate the before_decision page at every declared viewport. The actual supplied
-            recordings play and remain readable, with Baseline visibly distinguished from
-            the three alternatives and each candidate's meaningful difference explained.
+            recordings play, with Baseline visibly distinguished from the three alternatives
+            and each candidate's meaningful difference explained. The evidence must make
+            the motion being decided inspectable: the complete moving panel, its travel,
+            reversal and settling, at a scale that lets the reader compare those features.
             All candidates can be compared together without switching a single view between
             them. Replay, pause, quarter-speed playback and seeking operate every recording
             at the same moment; establish this by operating them and inspecting the media,
@@ -301,8 +303,11 @@ cases:
             and seeking remain available without returning to the top. A recording's own
             displayed candidate provides its selection action, and choosing works by keyboard
             as well as pointer or touch. Playback and seeking must not accidentally change
-            or submit the choice. Check that controls remain usable and the recordings do
-            not become illegible or clipped on the phone. On the final page, B · Balanced
+            or submit the choice. On the phone, controls remain usable and the complete
+            motion stays visible during playback without panning to follow it. Judge
+            legibility by the movement this decision concerns; incidental recorded text
+            and icons need not be readable unless the choice depends on them. On the
+            final page, B · Balanced
             at 260 ms is clearly recorded as the user's choice and its actual recording
             remains available. The page must not claim the choice has been implemented or
             shipped. Judge these user outcomes rather than particular widgets, CSS properties,

@@ -47,7 +47,9 @@ study.renderFrame = time => {
     time = page.get_by_role("slider", name="Time", exact=True)
     forward = page.locator("#forward")
     backward = page.locator("#backward")
-    expect(play).to_have_text("Play")
+    expect(play).to_have_accessible_name("Play")
+    expect(play).to_have_text("")
+    expect(page.locator(".lf-motion-controls button")).to_have_count(1)
 
     # Native range keys seek both ways and repaint all compared views immediately.
     time.press("End")
@@ -65,7 +67,7 @@ study.renderFrame = time => {
     wait_until_ready(page)
     expect(time).to_have_value("999")
     expect(speed).to_have_value("0.25")
-    expect(play).to_have_text("Play")
+    expect(play).to_have_accessible_name("Play")
     assert float(forward.get_attribute("cx")) == pytest.approx(279.74)
     assert float(backward.get_attribute("cx")) == pytest.approx(20.26)
     page.clock.install(time=0)
@@ -78,7 +80,7 @@ study.renderFrame = time => {
     expect(backward).to_have_attribute("cx", "280")
 
     play.click()
-    expect(play).to_have_text("Pause")
+    expect(play).to_have_accessible_name("Pause")
     page.clock.run_for(160)
     current = page.locator("#study").evaluate("study => study.currentTime")
     assert current == pytest.approx(40, abs=4)
@@ -89,7 +91,7 @@ study.renderFrame = time => {
     assert page.locator("#study").evaluate("study => study.currentTime") == current
 
     time.press("End")
-    page.get_by_role("button", name="Replay", exact=True).click()
+    play.click()
     page.clock.run_for(160)
     assert page.locator("#study").evaluate(
         "study => study.currentTime"
@@ -105,11 +107,11 @@ study.renderFrame = time => {
     assert page.evaluate("detachedStudy.currentTime") == current
     page.evaluate("document.getElementById('holder').append(detachedStudy)")
     page.clock.run_for(160)
-    expect(play).to_have_text("Play")
+    expect(play).to_have_accessible_name("Play")
     assert page.locator("#study").evaluate("study => study.currentTime") == current
 
     page.emulate_media(reduced_motion="reduce")
-    expect(play).to_have_text("Show end")
+    expect(play).to_have_accessible_name("Show end")
     play.click()
     expect(time).to_have_value("1000")
     expect(forward).to_have_attribute("cx", "280")
@@ -183,7 +185,7 @@ def test_motion_recordings_share_native_playback_and_a_sticky_transport(browser,
     assert videos.evaluate_all("vs => vs.every(v => v.playbackRate === 0.25)")
     time.press("End")
     assert videos.evaluate_all("vs => vs.every(v => v.currentTime === 8 && v.paused)")
-    page.get_by_role("button", name="Replay", exact=True).tap()
+    play.tap()
     page.wait_for_function(
         "[...document.querySelectorAll('video')].every(v => !v.paused && v.currentTime < 8)"
     )

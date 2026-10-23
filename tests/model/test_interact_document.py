@@ -112,7 +112,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
     )
     publishing_model.cmd_stamp(page_dir, "Original")
     previous = publishing_model.authored_files(page_dir / "index.html", authored)
-    expected = publishing_model.authored_digest(previous)
+    expected = state_json(page_dir)["source"]["digest"]
     first = files_model.latest_revision(page_dir)
     log = (page_dir / "events.jsonl").read_bytes()
     candidate = tmp_path / "candidate"
@@ -170,6 +170,91 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
         publishing_model.cmd_stamp(
             page_dir, "Stale", from_directory=candidate, if_source=expected
         )
+
+
+def test_page_state_digest_guards_the_complete_authored_tree(page_dir, tmp_path):
+    """CLI authors can publish a candidate without overwriting another file edit."""
+    initial = state_json(page_dir)["source"]["digest"]
+    companion = page_dir / "page" / "nested" / "notes.txt"
+    companion.parent.mkdir(parents=True, exist_ok=True)
+    companion.write_text("Original notes")
+    added = state_json(page_dir)["source"]["digest"]
+    assert added != initial
+
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    shutil.copy2(page_dir / "index.html", candidate / "index.html")
+    shutil.copytree(page_dir / "page", candidate / "page")
+    source = candidate / "index.html"
+    source.write_text(
+        source.read_text().replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
+    )
+    command = [
+        "page",
+        "stamp",
+        str(page_dir),
+        "--from-directory",
+        str(candidate),
+        "--if-source",
+        added,
+        "--text",
+        "Updated plan",
+    ]
+
+    companion.write_text("Another author's notes")
+    edited = state_json(page_dir)["source"]["digest"]
+    assert edited not in {initial, added}
+    refused = CliRunner().invoke(cli_model.cli, command)
+    assert refused.exit_code != 0 and "authored inputs changed" in refused.output
+    assert companion.read_text() == "Another author's notes"
+
+    companion.unlink()
+    deleted = state_json(page_dir)["source"]["digest"]
+    assert deleted == initial
+    refused = CliRunner().invoke(cli_model.cli, command)
+    assert refused.exit_code != 0 and "authored inputs changed" in refused.output
+    assert not companion.exists()
+
+    (candidate / "page" / "nested" / "notes.txt").unlink()
+    command[command.index("--if-source") + 1] = deleted
+    stamped = CliRunner().invoke(cli_model.cli, command)
+    assert stamped.exit_code == 0, stamped.output
+    assert "Updated plan" in (page_dir / "index.html").read_text()
+    assert state_json(page_dir)["source"]["digest"] != deleted
+
+
+@pytest.mark.parametrize("invalid_source", [b"", None])
+def test_page_state_digest_can_repair_invalid_or_missing_source(
+    page_dir, tmp_path, invalid_source
+):
+    source = page_dir / "index.html"
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    shutil.copy2(source, candidate / "index.html")
+    valid = state_json(page_dir)["source"]["digest"]
+    if invalid_source is None:
+        source.unlink()
+    else:
+        source.write_bytes(invalid_source)
+    invalid = state_json(page_dir)["source"]
+    assert invalid["error"] and not invalid["live"]
+    assert invalid["digest"] != valid
+    repaired = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "stamp",
+            str(page_dir),
+            "--from-directory",
+            str(candidate),
+            "--if-source",
+            invalid["digest"],
+            "--text",
+            "Repaired source",
+        ],
+    )
+    assert repaired.exit_code == 0, repaired.output
+    assert state_json(page_dir)["source"]["digest"] == valid
 
 
 def test_a_revision_captures_the_complete_dependency_graph(page_dir):
@@ -2443,11 +2528,11 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     ]
     assert state["active"]["revision"] == 1 and state["active"]["version"] == 1
     assert state["active"]["file"].startswith("revisions/r1-")
-    assert state["source"] == {
+    assert {
         "file": "index.html",
         "live": True,
         "error": None,
-    }
+    }.items() <= state["source"].items()
     assert state["data"] == {"dir": "data", "errors": []}
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The obligation

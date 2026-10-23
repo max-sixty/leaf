@@ -55,7 +55,7 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
   and Stop hooks as a session's transport, and harness declarations;
 - `reconnect`: current reconnect advice for retained pages;
 - `codex_state`, `codex`, `codex_adapter`: Codex delivery eligibility and records, App
-  Server reply lifecycles, and the detached adapter behind `leaf codex start`;
+  Server reply lifecycles, and the detached adapter behind `leaf page claim`;
 - `session_runtime`: the immutable installation selected to own a developer session's delivery;
 - `inference`: tool-free structured model requests through the host login;
 - `llm`: widget inference request validation, concurrency and claim-based dispatch;

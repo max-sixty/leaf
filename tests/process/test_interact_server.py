@@ -5573,7 +5573,7 @@ def test_a_different_key_does_not_replace_a_page_cookie(page_dir):
 
 def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server):
     """A claimed page whose agent has declared nothing yet, such as a copy served
-    before any `leaf status`, answers `/api/state` as a page waiting on its
+    before any `leaf page open`, answers `/api/state` as a page waiting on its
     user."""
     publish(page_dir)
     service_model.claim_page(page_dir)

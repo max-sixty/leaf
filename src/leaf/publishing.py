@@ -23,9 +23,17 @@ from leaf.validation.source import check_source
 
 
 def authored_files(source: Path, companions: Path) -> dict[str, bytes]:
-    """Read complete mutable authored inputs, keyed inside a page directory."""
+    """Read present mutable authored inputs, keyed inside a page directory.
+
+    A missing source remains identifiable so an agent can read and repair it.
+    Publication validates that the replacement has a complete, valid document.
+    """
+    try:
+        document = {"index.html": source.read_bytes()}
+    except FileNotFoundError:
+        document = {}
     return {
-        "index.html": source.read_bytes(),
+        **document,
         **{
             "page/" + path.relative_to(companions).as_posix(): path.read_bytes()
             for path in sorted(companions.rglob("*"))

@@ -17,18 +17,19 @@ with its actions, obligations and workflows, or one thread with its messages.
 
 ## Publish several authored files together
 
-When the HTML and its modules must change together, prepare a separate directory
-holding `index.html` and the whole `page/` tree, with any media it uses already in the
-live page. Take the current files' digest with `leaf.publishing.authored_digest` (and
-the files themselves with `leaf.publishing.authored_files`), then publish:
+When the HTML and its modules must change together, save `source.digest` from
+`leaf page state <page>` before copying or editing the files. It identifies the
+current `index.html` and complete `page/` tree, including an invalid source save.
+Prepare a separate directory holding the replacement `index.html` and whole `page/`
+tree, with any media it uses already in the live page, then publish:
 
 ```sh
 leaf page stamp <page> --from-directory <candidate> --if-source <digest> --text 'Updated the page'
 ```
 
 The stamp refuses if the page's files changed since you took the digest, and keeps the
-old files if the new ones fail the check. It doesn't touch the event log or external
-data.
+old files if the new ones fail the check. A successful stamp adds its version note
+while preserving the existing event history and external data.
 
 ## Revisions and user-owned words
 

@@ -248,7 +248,7 @@ def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
 
 
-@cli.group(short_help="Launch Codex and connect Leaf pages to its tasks.")
+@cli.group(short_help="Launch the experimental Codex terminal.")
 def codex() -> None:
     """Launch Codex or run Leaf's delivery adapter."""
 
@@ -263,25 +263,6 @@ def codex_launch(codex_path: str | None) -> int:
     from leaf.codex_adapter import cmd_codex_launch
 
     return cmd_codex_launch(codex_path)
-
-
-@codex.command("start", short_help="Keep PAGE connected after this turn ends.")
-@click.argument("dir", metavar="PAGE")
-@click.option("--codex-path", hidden=True)
-@click.option(
-    "--app-server",
-    metavar="ENDPOINT",
-    help="deliver input and observe activity through this local App Server; `codex launch` supplies it",
-)
-def codex_start(
-    dir: str,
-    codex_path: str | None,
-    app_server: str | None,
-) -> dict:
-    """Start one task-wide delivery adapter and claim PAGE for it."""
-    from leaf.codex_adapter import cmd_codex_start
-
-    return cmd_codex_start(resolve_dir(dir), codex_path, app_server)
 
 
 @codex.command("run", hidden=True)
@@ -550,8 +531,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
 )
 @click.option(
     "--if-source",
-    help="the page's current index.html and page/ digest "
-    "(leaf.publishing.authored_digest), required with --from-directory",
+    help="source.digest from page state, required with --from-directory",
 )
 @click.option(
     "--completes",
@@ -575,7 +555,7 @@ def stamp(
     removes their widget.
 
     --from-directory replaces index.html and the whole page/ tree and stamps them in
-    one step. Pass --if-source with the digest of the files you started from; if
+    one step. Pass --if-source with source.digest from page state before editing; if
     they have changed since, the stamp is refused and the page is left as it was.
     """
     from leaf.publishing import cmd_stamp
@@ -731,15 +711,22 @@ def interactions(
     )
 
 
-@page.command(short_help="Take a page this session did not serve.")
+@page.command(short_help="Connect a page to this session.")
 @click.argument("dir", metavar="PAGE")
-def claim(dir: str) -> None:
-    """Make PAGE this session's, so the user's updates on it come to this session.
-    A watch another session runs on PAGE stops watching it."""
-    from leaf.service import claim_page
+@click.option(
+    "--manual-delivery",
+    is_flag=True,
+    help="claim for an explicit leaf wait watcher instead of preparing harness delivery",
+)
+def claim(dir: str, manual_delivery: bool) -> dict:
+    """Connect PAGE's updates to this session without changing its server.
 
-    if not claim_page(resolve_dir(dir)):
-        raise click.ClickException("only an agent harness session can claim a page")
+    Delivery is ready before ownership moves. A watch another session runs on PAGE
+    stops watching it. --manual-delivery leaves delivery to your explicit leaf wait.
+    """
+    from leaf.service import cmd_claim
+
+    return cmd_claim(resolve_dir(dir), manual_delivery=manual_delivery)
 
 
 @page.command(short_help="Print the page's exchange as Markdown.")
@@ -1083,35 +1070,39 @@ def stop(dir: str) -> dict:
     return {"stopped": cmd_stop(resolve_dir(dir, renew=False))}
 
 
-@cli.command(short_help="Say the page waits on its user, or is done.")
+@page.command("open", short_help="Keep a page available for feedback.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("state", type=click.Choice(["waiting", "idle"]))
-@click.argument("detail", required=False, default="")
-def status(dir: str, state: str, detail: str) -> dict:
-    """Say the page waits on its user, or that you are done with it.
+def page_open(dir: str) -> dict:
+    """Keep PAGE available for feedback and put down current work.
 
-    Use waiting with DETAIL naming the answer you want from the user; waiting
-    without DETAIL invites text comments. Use idle when you are finished; it is
-    refused while the page has updates, workers' reports or page errors nobody has
-    picked up, updates you owe an answer, or to-dos of yours still open. Either one clears every
-    `leaf task start` you made, so no update or to-do reads Working; your to-dos
-    stay open. Status has no working state: to show what you are working on, run
-    `leaf task start`.
+    This clears every task start; to-dos and unanswered updates stay owed.
+    To request an answer, send a thread message with --obligation so the
+    question appears in On me. Opening a page creates no obligation.
     """
     from leaf.activity import answer_command
     from leaf.findings import Finding, note
-    from leaf.session import cmd_idle, cmd_waiting
+    from leaf.session import cmd_waiting
 
     page_dir = resolve_dir(dir)
-    owed = []
-    if state == "idle":
-        written = cmd_idle(page_dir, detail)
-    else:
-        written, owed = cmd_waiting(page_dir, detail)
+    written, owed = cmd_waiting(page_dir, "")
     if owed:
         answers = [answer_command(item["answer"], page_dir) for item in owed]
-        note(Finding("waiting-owes", values={"answers": answers}, severity="advice"))
+        note(Finding("page-open-owes", values={"answers": answers}, severity="advice"))
     return written
+
+
+@page.command("close", short_help="Finish a page and stop watching for feedback.")
+@click.argument("dir", metavar="PAGE")
+def page_close(dir: str) -> dict:
+    """Finish PAGE and stop watching for feedback.
+
+    Refuses while updates, workers' reports or page errors remain unread,
+    updates need an answer, or agent to-dos remain open. Closing puts down
+    every task start and settles no obligation.
+    """
+    from leaf.session import cmd_idle
+
+    return cmd_idle(resolve_dir(dir), "")
 
 
 @cli.command(

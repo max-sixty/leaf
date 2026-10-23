@@ -365,7 +365,7 @@ def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
     page_dir, tmp_path
 ):
     """A claimed page whose agent has declared nothing, such as a copy served
-    before any `leaf status`, reads as waiting on its user: the session's wait
+    before any `leaf page open`, reads as waiting on its user: the session's wait
     passes over it and still delivers a sibling page's comment, and the copy's
     own state reads as listening. The copy sorts ahead of the page, so a pass
     that stumbled on it would end before reaching the comment."""

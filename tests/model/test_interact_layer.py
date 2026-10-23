@@ -147,8 +147,10 @@ def test_agent_interaction_command_help(regtest):
         "delivery read",
         "delivery ack",
         "page state",
+        "page claim",
         "thread summarize",
-        "status",
+        "page open",
+        "page close",
         "thread open",
         "thread reply",
         "thread edit",
@@ -811,9 +813,9 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert again.exit_code != 0  # nothing changed, so there is no second version
     assert "already stamped as v1" in again.output
 
-    [waiting] = written(["status", str(page_dir), "waiting", "pick a storage engine"])
+    [waiting] = written(["page", "open", str(page_dir)])
     assert waiting == logged(waiting)
-    assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
+    assert (waiting["state"], waiting["detail"]) == ("waiting", "")
 
     # The comment's id is the thread's; --title names it in the same command.
     [opened] = written(

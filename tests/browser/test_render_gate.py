@@ -4039,18 +4039,18 @@ def test_a_quiet_word_inside_a_scrolling_table_leaves_the_page_its_own_width(
 def test_a_hidden_scroller_is_reached_once_it_is_shown(browser, serve, shape):
     """Reach leaves content the browser skips unasked, since asking about any box in
     it forces the browser to style the whole of it, and sweeps it once it is drawn.
-    So a scrolling box in a closed disclosure or a tab not chosen carries nothing of
-    reach's until it is shown — the holds mark would say it had been read — and once
-    shown it owes what reach owes any overflowing box: a tab stop, the holds mark,
-    and the sideways paint."""
+    So a scrolling box in a closed disclosure or a tab not chosen carries no
+    borrowed stop or continuation cue until it is shown. Once shown it owes both."""
     html, show = HIDDEN_SCROLLERS[shape]
     page = open_page(browser, serve(html))
     box = page.locator("#unfolded")
-    assert box.evaluate("(box) => box.hasAttribute('data-lf-holds')") is False, (
-        "reach read a box in skipped content"
+    assert box.evaluate("(box) => box.tabIndex") == -1
+    assert (
+        box.evaluate("(box) => box.hasAttribute('data-lf-scroll-direction')") is False
     )
     show(page)
-    expect(box).to_have_attribute("data-lf-holds", "1")
+    expect(box).to_have_attribute("tabindex", "0")
+    expect(box).to_have_attribute("data-lf-scroll-direction", "ltr")
     reached = box.evaluate(
         """(box) => ({
             scrolls: box.scrollWidth > box.clientWidth,

@@ -799,6 +799,10 @@ container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
   sampled 48 frames, including intermediate positions, with neither missing.
   Another capture lost the whole panel and ground while retaining the marker,
   so that marker cannot reliably distinguish affected frames.
+  A current-main recheck at 390 × 844 in dark mode again omitted the mark in
+  4 of 49 screencast frames across six keyboard fold/unfold transitions, while
+  all 24 native screenshots retained the mark and fixed marker. Screenshots
+  sampled during the same capture do not establish native-window visibility.
 - **Disposition:** unresolved rendering-versus-capture gap. Do not claim Firefox
   all-frame visibility from these recordings. The motion regression requires every
   Chromium frame to show the mark and its keyboard outline to enclose it. Firefox

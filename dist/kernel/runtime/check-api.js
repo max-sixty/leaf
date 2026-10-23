@@ -39,6 +39,7 @@ import {
 import {
   domValue
 } from "./bundle-keyboard~disclosure.js";
+import "./bundle-copy-control.js";
 import "./bundle-media.js";
 import {
   agentArrivalDuration,
@@ -53,8 +54,9 @@ import {
   resolveAnchor,
   scrollAxes,
   visualPartProblems
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import "./bundle-initial-render.js";
+import "./bundle-chrome.js";
 import {
   effectiveScroller,
   reachScrollers,

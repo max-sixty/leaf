@@ -6,6 +6,25 @@
 import { ago } from "./presence.js";
 import { DELIVERY, SHARE_ROOT, runtime, shareUrl } from "./context.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
+import { retainUserIntent } from "./user-intent.js";
+import { raiseError } from "./errors.js";
+
+registerPageControl({
+  key: "inspection",
+  rank: PAGE_CONTROL_RANK.inspection,
+  label: "Page diagnostics",
+  group: "page",
+  press: () => {
+    const intent = retainUserIntent();
+    void import("./page-inspection.js")
+      .then(({ openPageInspection }) => openPageInspection(intent))
+      .catch((error) =>
+        raiseError(
+          `Page diagnostics could not open: ${error.message}. Open the menu to retry.`,
+        ),
+      );
+  },
+});
 
 // How old a Leaf payload is, so a user who meets a problem can tell whether it
 // predates the fixes since. A payload read from Git carries its commit's date; a harness's

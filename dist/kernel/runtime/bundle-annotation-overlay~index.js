@@ -80,6 +80,7 @@ import {
   setChildLists,
   setChildren
 } from "./bundle-keyboard~disclosure.js";
+import "./bundle-copy-control.js";
 import "./bundle-media.js";
 import {
   reducedMotion
@@ -110,8 +111,6 @@ import {
   pointBand
 } from "./bundle-page-controls.js";
 import {
-  chromeForeground,
-  chromeRoot,
   exactTarget,
   passageGeometry,
   rangeGeometry,
@@ -121,8 +120,12 @@ import {
   targetSegments,
   targetSurface,
   visualAt
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import "./bundle-initial-render.js";
+import {
+  chromeForeground,
+  chromeRoot
+} from "./bundle-chrome.js";
 import {
   atScrollEnd,
   effectiveScroller,

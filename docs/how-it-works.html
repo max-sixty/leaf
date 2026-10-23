@@ -1119,11 +1119,11 @@ leaf server start ./review</code></pre>
               </p>
               <pre
                 id="response-commands"
-              ><code class="language-bash">leaf response reply &lt;answer.ref&gt; --ephemeral --text "Checking the importer's queue policy."
+              ><code class="language-bash">leaf thread reply &lt;answer.ref&gt; --ephemeral --text "Checking the importer's queue policy."
 leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
-leaf response reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
+leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
 leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A decision widget creates an
@@ -1254,7 +1254,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   <pre id="handling-json"><code class="language-json">{
   "handling": {
     "h1": "Read the thread context before answering.",
-    "h2": "Write the answer with leaf response reply using its answer.ref."
+    "h2": "Write the answer with leaf thread reply using its answer.ref."
   },
   "events": [
     {
@@ -1539,12 +1539,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                     of messages.
                   </td>
                   <td>
-                    <code>leaf thread open</code><br /><code>leaf response reply</code
-                    ><br /><code>leaf thread reply</code><br /><code
-                      >leaf thread edit</code
-                    ><br /><code>leaf thread resolve</code><br /><code
-                      >leaf thread summarize</code
-                    >
+                    <code>leaf thread open</code><br /><code>leaf thread reply</code
+                    ><br /><code>leaf thread edit</code><br /><code
+                      >leaf thread resolve</code
+                    ><br /><code>leaf thread summarize</code>
                   </td>
                 </tr>
                 <tr>
@@ -1692,7 +1690,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             </table>
             <p id="route-instructions">
               On every route the agent can answer with
-              <code>leaf response reply &lt;answer.ref&gt;</code>. One task can receive
+              <code>leaf thread reply &lt;answer.ref&gt;</code>. One task can receive
               updates by several routes, and each delivery says how to confirm it and
               how to answer.
             </p>
@@ -4122,8 +4120,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <time>5s</time> <small>intervention</small> <strong>Working</strong> The
                 agent posts
                 <code
-                  >leaf response reply &lt;answer.ref&gt; --ephemeral --text "Cutting
-                  the lede to two sentences."</code
+                  >leaf thread reply &lt;answer.ref&gt; --ephemeral --text "Cutting the
+                  lede to two sentences."</code
                 >. The comment reads Working, and the same sentence becomes the page’s
                 status.
               </li>
@@ -4220,7 +4218,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>Answered (label clears)</td>
                   <td>
                     The answer required by the delivery is recorded: a
-                    <code>leaf response reply</code>, a turn’s final message when
+                    <code>leaf thread reply</code>, a turn’s final message when
                     <code>answer.writer</code> is <code>turn</code>, or a version whose
                     markup records the update. The supplied writer determines the reply
                     route, including within a Codex task connected to App Server.
@@ -4498,9 +4496,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <ul id="updates-written">
               <li id="updates-written-progress">
                 <strong
-                  ><code
-                    >leaf response reply &lt;answer.ref&gt; --ephemeral</code
-                  ></strong
+                  ><code>leaf thread reply &lt;answer.ref&gt; --ephemeral</code></strong
                 >
                 Names the upcoming work in the user’s thread before reads or edits. It
                 sets the page’s status and the comment’s Working label, then folds
@@ -4530,21 +4526,21 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 says when Leaf refuses it).
               </li>
               <li id="updates-written-reply">
-                <strong><code>leaf response reply &lt;answer.ref&gt;</code></strong>
+                <strong><code>leaf thread reply &lt;answer.ref&gt;</code></strong>
                 Answers the user’s comment and clears its label.
-                <code>--done</code> delivers the result; an <code>lf-ask</code> asks the
-                user back; <code>--todo</code> promises work that stays on On Claude
+                <code>--done</code> delivers the result; <code>--obligation</code> asks
+                the user back; <code>--todo</code> promises work that stays on On Claude
                 until ended.
               </li>
               <li id="updates-written-followup">
-                <strong><code>leaf thread reply … &lt;thread&gt;</code></strong> A later
-                message in a thread already answered, such as the result of work the
-                first reply promised.
+                <strong
+                  ><code>leaf thread reply &lt;page&gt; &lt;thread&gt;</code></strong
+                >
+                A later message in a thread already answered, such as the result of work
+                the first reply promised.
               </li>
               <li id="updates-written-question">
-                <strong
-                  ><code>leaf response reply … --markup '&lt;lf-ask&gt;…'</code></strong
-                >
+                <strong><code>leaf thread reply … --obligation</code></strong>
                 Opens a question on On me and makes the thread read
                 <em>My turn to answer</em>. A reply or settling reaction answers it. The
                 agent can end it with <code>leaf task end</code> as answered elsewhere

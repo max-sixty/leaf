@@ -4,15 +4,15 @@ import {
 } from "./runtime/bundle-composing~page-image-2.js";
 import "./runtime/bundle-sample-2.js";
 import {
+  shownScheme
+} from "./runtime/bundle-color-scheme.js";
+import {
   aimLayer,
   mountTargetPaint,
   paintSet,
   targetTraceLayer,
   target_paint_exports
 } from "./runtime/bundle-target-paint.js";
-import {
-  shownScheme
-} from "./runtime/bundle-color-scheme.js";
 import {
   DRAWING_COORDINATE_LIMIT,
   LeafElement,
@@ -106,7 +106,6 @@ import {
   answeredInWords,
   beginWalk,
   bringBackSurfaceOf,
-  copyControl,
   createPassageSelection,
   createWritingResume,
   currentLocationOrigin,
@@ -190,6 +189,9 @@ import {
   watchDisclosures
 } from "./runtime/bundle-keyboard~disclosure.js";
 import {
+  copyControl
+} from "./runtime/bundle-copy-control.js";
+import {
   mediaViewer,
   readAttachedMedia,
   scopedMediaUrl,
@@ -221,8 +223,6 @@ import {
   anchorFor,
   anchoringIsReady,
   annotationAt,
-  chromeForeground,
-  chromeRoot,
   designPressAt,
   elementFrame,
   exactTarget,
@@ -245,10 +245,14 @@ import {
   visualAt,
   visualParts,
   visualSelector
-} from "./runtime/bundle-chrome.js";
+} from "./runtime/bundle-visual-parts.js";
 import {
   fragmentId
 } from "./runtime/bundle-initial-render.js";
+import {
+  chromeForeground,
+  chromeRoot
+} from "./runtime/bundle-chrome.js";
 import {
   JUST_NOW,
   PRESENTATION,
@@ -8665,7 +8669,10 @@ function createFloatingPanel({
     keepsHidden(resolvedLine, !resting);
     keepsHidden(replyOutlet, resting);
     const input = fieldInput();
-    if (input) syncInput(input);
+    if (input) {
+      keeps(input, "data-lf-end-room-glued", "");
+      syncInput(input);
+    }
     keeps(host, "data-writing", writing ? "" : null);
     const words = Boolean(draftOf(input));
     if (postureMoved || !words) drafted = words;
@@ -10392,6 +10399,20 @@ function createPageLayout({
 }
 
 // runtime/page-about.js
+registerPageControl({
+  key: "inspection",
+  rank: PAGE_CONTROL_RANK.inspection,
+  label: "Page diagnostics",
+  group: "page",
+  press: () => {
+    const intent = retainUserIntent();
+    void import("./runtime/bundle-page-inspection.js").then(({ openPageInspection }) => openPageInspection(intent)).catch(
+      (error) => raiseError(
+        `Page diagnostics could not open: ${error.message}. Open the menu to retry.`
+      )
+    );
+  }
+});
 var payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
 var payloadDateLines = (provenance) => ["committed", "installed"].filter((kind) => provenance[kind]).map((kind) => `${kind}: ${provenance[kind]}`);
 var shortCommit = (provenance) => provenance.commit ? `${provenance.commit.slice(0, 8)}${provenance.dirty ? "+" : ""}` : "unknown";

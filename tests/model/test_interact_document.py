@@ -1693,7 +1693,7 @@ def test_reply_refuses_a_suggestion(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1729,7 +1729,7 @@ def test_response_addresses_one_obligation_and_activates_the_current_source(page
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1783,7 +1783,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -1829,7 +1829,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", "--text", "Updated."],
+        ["thread", "reply", "--done", "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
     assert "Missing argument" in ambiguous.output
@@ -1838,7 +1838,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
     selected = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c2"),
@@ -1881,7 +1881,7 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
     )
 
     [refused] = command_findings(
-        "response", "reply", "--done", reference, "--text", "Made it blue."
+        "thread", "reply", "--done", reference, "--text", "Made it blue."
     )
     assert refused.code == "superseded-reply"
     assert not any(
@@ -1912,7 +1912,7 @@ def test_response_belongs_to_the_session_with_the_opened_delivery(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "Updated."],
+        ["thread", "reply", "--done", reference, "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -1938,7 +1938,7 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -2036,7 +2036,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,

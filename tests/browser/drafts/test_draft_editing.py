@@ -312,7 +312,7 @@ def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(serve.page_dir, question),

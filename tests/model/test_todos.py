@@ -159,7 +159,7 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
 
     todo = written(
         leaf(
-            "response",
+            "thread",
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
@@ -239,12 +239,12 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
         # Markup with no question in it asks nothing back, so it declares nothing.
         ["--markup", '<figure id="sketch"><p>A sketch.</p></figure>'],
     ):
-        result = leaf("response", "reply", reference, "--text", "On it.", *flags)
+        result = leaf("thread", "reply", reference, "--text", "On it.", *flags)
         assert result.exit_code != 0, (flags, result.output)
     assert kinds(state_json(page_dir)["queues"]["on_agent"]) == [
         ("update", f"update:{comment['id']}")
     ]
-    reply = written(leaf("response", "reply", reference, "--text", "Done.", "--done"))
+    reply = written(leaf("thread", "reply", reference, "--text", "Done.", "--done"))
     assert "todo" not in reply
     assert state_json(page_dir)["queues"] == {"on_user": [], "on_agent": []}
 
@@ -417,7 +417,7 @@ def test_user_queue_selects_decisions_and_questions(page_dir, sessionless):
     )
     reply = written(
         leaf(
-            "response",
+            "thread",
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
@@ -553,7 +553,7 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
     )
     question = written(
         leaf(
-            "response",
+            "thread",
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
@@ -679,7 +679,7 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
     # The reply that answers the move ends its start: nothing is in hand.
     written(
         leaf(
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, comment["id"]),
@@ -780,7 +780,7 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir):
     )
     todo = written(
         leaf(
-            "response",
+            "thread",
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
@@ -1289,7 +1289,7 @@ def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
     )
     question = written(
         leaf(
-            "response",
+            "thread",
             "reply",
             response_reference(page_dir, comment["id"]),
             "--text",
@@ -1369,7 +1369,7 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
         )
         written(
             leaf(
-                "response",
+                "thread",
                 "reply",
                 response_reference(page_dir, comment["id"]),
                 "--text",
@@ -1664,7 +1664,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
         .invoke(
             cli_model.cli,
             [
-                "response",
+                "thread",
                 "reply",
                 "--done",
                 response_reference(page_dir, "c2"),
@@ -1997,7 +1997,7 @@ def test_the_input_a_reply_answers_moves_to_its_lists_done():
     assert [item["id"] for item in view["queues"]["on_agent"]] == ["update:e2"]
 
 
-@pytest.mark.parametrize("route", ["open", "thread", "response"])
+@pytest.mark.parametrize("route", ["open", "proactive", "addressed"])
 def test_explicit_message_obligations_need_no_markup(page_dir, route):
     """Every author route atomically sends the question and registers On me."""
     publish(page_dir)
@@ -2009,15 +2009,15 @@ def test_explicit_message_obligations_need_no_markup(page_dir, route):
             page_dir,
             {
                 "kind": "comment",
-                "author": "user" if route == "response" else "agent",
+                "author": "user" if route == "addressed" else "agent",
                 "revision": 1,
                 "text": "Release notes",
             },
         )
         thread = root["id"]
         command = (
-            ["response", "reply", response_reference(page_dir, thread)]
-            if route == "response"
+            ["thread", "reply", response_reference(page_dir, thread)]
+            if route == "addressed"
             else ["thread", "reply", page_dir, thread]
         )
     message = written(leaf(*command, "--obligation", "--text", "Which environment?"))

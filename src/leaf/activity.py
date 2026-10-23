@@ -195,7 +195,7 @@ def answer_command(answer: dict, page_dir: Path) -> str:
 
 
 def reply_command(answer: dict, page_dir: Path) -> str:
-    """The `leaf response reply` that answers a reply `answer`.
+    """The `leaf thread reply` that answers a reply `answer`.
 
     It names the exact `ref` its update's receipt recorded where the page's owner can
     still use it (`_receipt_bindings`). An update the owner holds no ref for, as one
@@ -206,7 +206,7 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     its receipt needs where this command's session does not hold the page
     (`service.may_receive`)."""
     if "ref" in answer:
-        return f"`leaf response reply {answer['ref']}`"
+        return f"`leaf thread reply {answer['ref']}`"
     from .harness import session_harness
     from .service import may_receive, page_claim
 
@@ -218,7 +218,7 @@ def reply_command(answer: dict, page_dir: Path) -> str:
         "not hold the page)"
     )
     return (
-        "`leaf response reply <answer.ref>` with the `answer.ref` that "
+        "`leaf thread reply <answer.ref>` with the `answer.ref` that "
         f"`leaf wait {page_dir}` delivers for {answer['responds']}{claim}"
     )
 

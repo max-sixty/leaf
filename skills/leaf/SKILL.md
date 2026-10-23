@@ -116,9 +116,10 @@ between bounded steps.
 
 Unless the user sets the page's shape or depth, a Leaf page is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
-state or offers one move, so the user takes it in at a glance and moves on;
-disclosures hold supporting detail out of that path. `references/page-authoring.md`,
-"Show the subject", applies SOUL.md’s "Make the work concrete and playable" principle.
+state or offers one move, so the user takes it in at a glance and moves on.
+`references/page-authoring.md`, "Show the subject", applies SOUL.md’s "Make the
+work concrete and playable" principle; "Reading cost" owns what stays visible
+and what goes in a disclosure. Read it when choosing that presentation.
 
 The page's shape follows the subject: prose read in order, regions read side by
 side on a sidebar page, or a workspace the user moves through instead of

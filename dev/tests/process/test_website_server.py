@@ -1228,7 +1228,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
         result(5.0, "start"),
         call(7.0, ("edit", "leaf page check .")),
         result(8.0, "edit"),
-        call(12.0, ("reply", "leaf response reply 62af9e31:0:test-comment")),
+        call(12.0, ("reply", "leaf thread reply 62af9e31:0:test-comment")),
     ]
     # Delivery ends at the opened pickup, not at the first record the harness sends
     # after admission: a tool result of a turn already running is no delivery.
@@ -1248,7 +1248,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "phase": "tool",
             "startMs": 12000,
             "ms": 500,
-            "calls": ["leaf response reply 62af9e31:0:test-comment"],
+            "calls": ["leaf thread reply 62af9e31:0:test-comment"],
         },
     ]
     assert turn_phases(stream, comment["ts"], None, reply["ts"]) == []

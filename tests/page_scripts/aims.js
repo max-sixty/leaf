@@ -17,17 +17,43 @@
       if (at === el) return true;
     return false;
   };
-  // Whether a press at a point lands in another control's reach: on a press whose own
-  // box doesn't hold the point.
+  // Whether a press at a point lands on another control lying over this one, its face
+  // or its reach.
   const PRESS = 'button, a[href], summary, [role="button"], [data-lf-offer]';
+  const FIELD =
+    'input, textarea, select, leaf-text, [contenteditable=""], [contenteditable="true"]';
+  const closestAcross = (at, sel) => {
+    for (; at; at = at.parentNode || at.host)
+      if (at.nodeType === 1 && at.matches(sel)) return at;
+    return null;
+  };
+  // The chrome stands over the page, so a press of the chrome's over a page control's
+  // edge is the chrome's to take; a page control over a page control, or chrome over
+  // chrome, is one control lying over another.
+  const overlay = (el, over) =>
+    !!closestAcross(over, ".lf-chrome") !== !!closestAcross(el, ".lf-chrome");
   const reachedBy = (el, x, y) => {
     for (let at = pressed(x, y); at; at = at.parentNode || at.host) {
       if (at === el) return false;
       if (at.nodeType !== 1 || !at.matches(PRESS)) continue;
-      const b = at.getBoundingClientRect();
-      return x < b.left || x > b.right || y < b.top || y > b.bottom;
+      return !overlay(el, at);
     }
     return false;
+  };
+  // Whether a reach that takes a press at a point lies over a field there, which then
+  // loses that press: a control's reach is for room nothing else uses. A field's own
+  // action, standing in the field's box as Send does, is the field's to place, and its
+  // reach over the room the field keeps for it is not judged here.
+  const overField = (el, x, y) => {
+    const face = el.getBoundingClientRect();
+    const [cx, cy] = [face.left + face.width / 2, face.top + face.height / 2];
+    return document.elementsFromPoint(x, y).some((at) => {
+      const field = closestAcross(at, FIELD);
+      if (!field || field === el || el.contains(field) || field.contains(el))
+        return false;
+      const b = field.getBoundingClientRect();
+      return !(cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom);
+    });
   };
   // Whether a press at the end of a control's reach misses it because the reach is cut
   // short: clipped by a box that holds the control, so the press lands on that box, or
@@ -75,9 +101,8 @@
     const y = box.top + box.height / 2;
     const shown = (px, py) => px >= 0 && py >= 0 && px < innerWidth && py < innerHeight;
     if (shown(x, y) && takes(el, x, y)) {
-      // A face whose own edge another control's reach lies over loses presses there
-      // too. A press that lands on another control's face is a box drawn over this
-      // one, such as the panel over the page, which is not a reach's doing.
+      // A face whose own edge another control lies over, by its face or its reach,
+      // loses presses there too.
       const edges = [
         [x, box.top + 1],
         [x, box.bottom - 1],
@@ -92,10 +117,18 @@
       if (h > box.height && shown(x, top) && shown(x, bottom)) {
         const end = [top, bottom].find((py) => cut(el, x, py));
         if (end !== undefined) [h, by] = [box.height, landed(x, end)];
+        const field = [top, bottom].find(
+          (py) => takes(el, x, py) && overField(el, x, py),
+        );
+        if (field !== undefined) return { box, w: 0, h: 0, by: "a field it lies over" };
       }
       if (w > box.width && shown(left, y) && shown(right, y)) {
         const end = [left, right].find((px) => cut(el, px, y));
         if (end !== undefined) [w, by] = [box.width, landed(end, y)];
+        const field = [left, right].find(
+          (px) => takes(el, px, y) && overField(el, px, y),
+        );
+        if (field !== undefined) return { box, w: 0, h: 0, by: "a field it lies over" };
       }
       return { box, w, h, by };
     }

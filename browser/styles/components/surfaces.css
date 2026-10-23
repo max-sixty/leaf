@@ -439,7 +439,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     .lf-btn
   )
 ),
-.lf-thread-notice:is(button),
 .lf-react,
 .lf-margin-entry,
 .lf-command-reference-command,
@@ -470,6 +469,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-icon-action,
   .lf-msg-control,
   .lf-thread-action,
+  .lf-thread-notice:is(button),
   .lf-code-copy,
   .lf-draft-action,
   .lf-corner-mark
@@ -482,6 +482,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-icon-action,
   .lf-msg-control,
   .lf-thread-action,
+  .lf-thread-notice:is(button),
   .lf-code-copy,
   .lf-draft-action,
   .lf-corner-mark

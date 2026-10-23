@@ -153,17 +153,16 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   min-width: var(--aim-floor);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn)),
-.lf-thread-notice:is(button),
 .lf-react,
 .lf-margin-entry,
 .lf-command-reference-command,
 .lf-quote {
   min-height: var(--aim-floor);
 }
-:where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-code-copy, .lf-draft-action, .lf-corner-mark) {
+:where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), .lf-code-copy, .lf-draft-action, .lf-corner-mark) {
   position: relative;
 }
-:is(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-code-copy, .lf-draft-action, .lf-corner-mark)::after {
+:is(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), .lf-code-copy, .lf-draft-action, .lf-corner-mark)::after {
   content: "";
   position: absolute;
   inset: min(0px, (100% - var(--aim-floor)) / 2);

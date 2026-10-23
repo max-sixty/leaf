@@ -13,7 +13,7 @@
     ["success", "Copied"],
     ["error", "Copy failed"]
   ];
-  function render(host, { tabStore, offer, keeps }) {
+  function render(host, { tabStore, offer, generatedElement, keeps }) {
     const presets = own(host, "lf-playground-preset");
     const outputs = own(host, "lf-playground-output");
     const previews = own(host, "lf-playground-preview");
@@ -104,7 +104,7 @@
       const element = document.createElement(tag);
       element.className = cls;
       if (text2 !== void 0) {
-        element.dataset.lfGen = "1";
+        generatedElement(element, { says: false });
         element.textContent = text2;
       }
       return element;

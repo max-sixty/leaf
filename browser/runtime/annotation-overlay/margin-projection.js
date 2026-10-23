@@ -104,7 +104,7 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import { el, offer } from "../widget-elements.js";
+import { el, generatedElement, offer } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 import { PRESS, cycledRow, rowArrows } from "../keyboard/bindings.js";
@@ -165,7 +165,7 @@ export function createMarginProjection({
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
 
-  nav.dataset.lfGen = "1";
+  generatedElement(nav, { says: false });
   nav.setAttribute("aria-label", "Page Map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");

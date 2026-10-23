@@ -154,6 +154,7 @@ import {
   coarsePointer,
   cycledRow,
   el,
+  generatedElement,
   hostIn,
   iconElement,
   keys,
@@ -1234,7 +1235,7 @@ function createMarginClusterViews({
   const create = (className, options = {}) => {
     const view = document.createElement(TAG);
     view.className = className;
-    view.dataset.lfGen = "1";
+    generatedElement(view, { says: false });
     view.setAttribute("role", "group");
     view.configure({ owner, ...options });
     return view;
@@ -1272,7 +1273,7 @@ function createMarginProjection({
     threadItem: marginThreadItem
   } = inventory;
   const nav = el("nav", "lf-ui lf-margin-projection");
-  nav.dataset.lfGen = "1";
+  generatedElement(nav, { says: false });
   nav.setAttribute("aria-label", "Page Map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");

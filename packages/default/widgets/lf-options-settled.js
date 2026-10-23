@@ -5,6 +5,7 @@ import {
   commands,
   comparisonChanges,
   keeps,
+  generated,
   html,
   nothing,
   render,
@@ -71,7 +72,7 @@ export class SettledOptions {
       .filter(Boolean);
     const changes = comparisonChanges(this.#host).length;
     render(
-      html`<span data-lf-gen="1" data-lf-said
+      html`<span ${generated({ says: true })}
           >${names.length ? `Settled: ${names.join(", ")}` : "Settled"}</span
         ><span class="lf-settled-count"
           >${options.length} option${options.length === 1 ? "" : "s"}</span

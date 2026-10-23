@@ -100,8 +100,8 @@ export const overIn = (el, selector, frame) => {
   const near = el.closest(selector);
   return near && (!frame || under(near, frame)) ? near : null;
 };
-// A label a widget declared as the page speaking (relabel), which the anchor pass reads
-// over the chrome it sits in.
+// A label a widget declared as the page speaking (generatedElement), which the anchor
+// pass reads over the chrome it sits in.
 export const SAID = "[data-lf-said]";
 // The pair `uiInside` weighs, the nearer deciding. The passage walk reads the same pair one
 // element at a time on its way down (passages.js, `chromeMark`).

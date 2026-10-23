@@ -8,7 +8,15 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from interact_support import PAGE, TOKEN, fetch, publish, read_page_data, record_claim
+from interact_support import (
+    PAGE,
+    STATED_TIMEOUT,
+    TOKEN,
+    fetch,
+    publish,
+    read_page_data,
+    record_claim,
+)
 from websockets.exceptions import WebSocketException
 
 from leaf import event_log, inference
@@ -262,14 +270,14 @@ def test_llm_busy_calls_leave_the_server_responsive(server, claimed, monkeypatch
 
     def generate(*args, **kwargs):
         started.set()
-        assert release.wait(10)
+        assert release.wait(STATED_TIMEOUT)
         return {"value": {"headline": "Done"}}
 
     monkeypatch.setattr(inference, "claude_code_generate", generate)
     with ThreadPoolExecutor(max_workers=1) as pool:
         pending = pool.submit(infer, server)
         try:
-            assert started.wait(10)
+            assert started.wait(STATED_TIMEOUT)
             assert infer(server)[0] == 429
             assert fetch(server + "/api/state")[0] == 200
         finally:

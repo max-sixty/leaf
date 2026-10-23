@@ -12,6 +12,7 @@ import {
   repeat,
   ref,
   live,
+  generated,
   offered,
   commands,
   cycledRow,
@@ -54,8 +55,8 @@ const closeButton = (popover, name) =>
   </button>`;
 const fact = (name, value) =>
   html`<div>
-    <dt data-lf-gen="1" data-lf-said>${name}</dt>
-    <dd data-lf-gen="1" data-lf-said>${value}</dd>
+    <dt ${generated({ says: true })}>${name}</dt>
+    <dd ${generated({ says: true })}>${value}</dd>
   </div>`;
 const destination = (target, path) => {
   if (!target.url) return null;
@@ -264,7 +265,7 @@ customElements.define(
       if (snapshot !== this.#snapshot) this.#reconcile(snapshot);
       const run = snapshot?.value;
       if (!run)
-        return html`<p class="lf-vr-empty" data-lf-gen="1" data-lf-said>
+        return html`<p class="lf-vr-empty" ${generated({ says: true })}>
           Waiting for visual evidence.
         </p>`;
       const approvedCount = run.cases.filter((record) =>
@@ -274,9 +275,9 @@ customElements.define(
       const available = this.reading.actions.review.available;
       return html`<div class="lf-vr-dashboard">
         <header class="lf-vr-heading">
-          <h2 data-lf-gen="1" data-lf-said>${run.title}</h2>
+          <h2 ${generated({ says: true })}>${run.title}</h2>
           <div class="lf-vr-progress" role="status" aria-live="polite">
-            <span data-lf-gen="1" data-lf-said
+            <span ${generated({ says: true })}
               ><strong>${approvedCount}</strong> of ${run.cases.length} look right</span
             >
           </div>
@@ -419,7 +420,7 @@ customElements.define(
         ${ref(entry.place)}
       >
         <div class="lf-vr-caption">
-          <h3 class="lf-vr-title" data-lf-gen="1" data-lf-said>${record.title}</h3>
+          <h3 class="lf-vr-title" ${generated({ says: true })}>${record.title}</h3>
         </div>
         <div class="lf-vr-decision">
           <div class="lf-vr-review-actions">
@@ -488,7 +489,7 @@ customElements.define(
         </div>
         <div class="lf-vr-evidence" data-lf-reading-role="pane" data-lf-generated>
           <header>
-            <p class="lf-vr-evidence-note" data-lf-gen="1" data-lf-said>
+            <p class="lf-vr-evidence-note" ${generated({ says: true })}>
               Captured screenshots · ${record.capture.viewport.width} ×
               ${record.capture.viewport.height} · ${record.capture.browser}. Links
               inside these images are not interactive.
@@ -564,8 +565,8 @@ customElements.define(
               ${ref(entry.prepare)}
             ></lf-shot>
             <div class="lf-vr-claim">
-              <p class="lf-vr-result" data-lf-gen="1" data-lf-said>${record.result}</p>
-              <p class="lf-vr-action" data-lf-gen="1" data-lf-said>
+              <p class="lf-vr-result" ${generated({ says: true })}>${record.result}</p>
+              <p class="lf-vr-action" ${generated({ says: true })}>
                 <strong>Check:</strong> ${record.action}
               </p>
             </div>
@@ -579,7 +580,7 @@ customElements.define(
         >
           <div
             class="lf-vr-threads lf-ui"
-            data-lf-gen="1"
+            ${generated({ says: false })}
             ${ref(entry.threadPlace)}
           ></div>
         </section>

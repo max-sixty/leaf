@@ -17,6 +17,7 @@
    are inert. Opening the disclosure, undo or refusal ends that fold immediately. HeldNews
    still decides when a passive settlement may move the reader. */
 import { setChildren } from "../dom-children.js";
+import { generatedElement } from "../widget-elements.js";
 import { html, render } from "/vendor/browser-runtime.js";
 import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
@@ -43,7 +44,7 @@ class ResolvedThreads {
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
-    this.node.dataset.lfGen = "1";
+    generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
     this.summary.className = "lf-resolved-summary lf-disclosure-marker";
     // Native disclosure opens at the attribute checkpoint, before paint, so the first

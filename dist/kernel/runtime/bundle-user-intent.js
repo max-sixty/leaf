@@ -129,6 +129,7 @@ import {
   elementDeclarations,
   elementsDeclaring,
   exhibits,
+  generatedElement,
   growthAfterIsSeen,
   growthIsSeen,
   headerInset,
@@ -144,6 +145,7 @@ import {
   nearestScrollBy,
   notice,
   offer,
+  offered,
   pagePresented,
   paintKeys,
   passErrorsAt,
@@ -1270,7 +1272,7 @@ function quietWord(el2, word) {
     className: "lf-ui lf-quiet",
     textContent: word
   });
-  span.dataset.lfGen = "1";
+  generatedElement(span, { says: false });
   move(el2, span, title ? title.nextSibling : el2.firstChild);
 }
 var isExternalPageLink = (link) => document.documentElement.lfInitial.externalLinks.matches(link);
@@ -1319,7 +1321,7 @@ function writePrepaint(root) {
       markup.content.firstElementChild
     );
     written.toggleAttribute("data-lf-prepaint", true);
-    written.dataset.lfGen = "1";
+    generatedElement(written, { says: false });
     for (const el2 of elementsIn(root, tag)) el2.prepend(written.cloneNode(true));
   }
 }
@@ -1338,7 +1340,7 @@ function renderSaid(root) {
         if (text === null) continue;
         const span = document.createElement("span");
         span.dataset.lfSaid = attr;
-        span.dataset.lfGen = "1";
+        generatedElement(span, { says: true });
         span.textContent = text;
         const pastTrailingChrome = [...el2.childNodes].filter(
           (n) => !(n.nodeType === 1 && n.dataset.lfGen)
@@ -3636,10 +3638,7 @@ var ReactionStripView = class {
     this.node.classList.toggle("lf-open", model.latest);
     render(
       html` <button
-          type="button"
-          class="lf-msg-control lf-react-trigger lf-ui"
-          data-lf-gen="1"
-          data-lf-offer="button"
+          ${offered("lf-msg-control lf-react-trigger")}
           aria-expanded="false"
           aria-controls=${this.#paletteId}
           aria-label="Add reaction"
@@ -3662,10 +3661,7 @@ var ReactionStripView = class {
         model.choices,
         (choice) => choice.name,
         (choice) => html` <button
-                type="button"
-                class="lf-react ${HOLDS_WORD} lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
+                ${offered(`lf-react ${HOLDS_WORD}`)}
                 data-token=${choice.name}
                 title=${choice.label}
                 aria-label=${choice.label}
@@ -3914,7 +3910,7 @@ var MessageView = class {
       this.node.dataset.message = model.key;
       this.#header.className = "lf-msg-head";
       this.node.classList.add("lf-ui");
-      this.node.dataset.lfGen = "1";
+      generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
       this.node.addEventListener("dblclick", (event) => {
         if (
@@ -4010,11 +4006,8 @@ var MessageView = class {
       this.#header
     );
     const rewrite = model.editable && !editing ? html`<button
-            type="button"
-            class="lf-msg-control lf-msg-edit lf-ui"
+            ${offered("lf-msg-control lf-msg-edit")}
             tabindex="-1"
-            data-lf-gen="1"
-            data-lf-offer="button"
             aria-label="Edit message"
             title="Edit message"
             @click=${() => this.openEdit()}
@@ -6569,7 +6562,7 @@ var ThreadView = class {
     this.node.tabIndex = -1;
     this.node.classList.add("lf-page-thread", "lf-ui");
     this.node.dataset.lfRuntime = "";
-    this.node.dataset.lfGen = "1";
+    generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
     this.#actions.className = "lf-thread-meta-actions";
   }
@@ -6981,7 +6974,7 @@ var ResolvedThreads = class {
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = "";
-    this.node.dataset.lfGen = "1";
+    generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
     this.summary.className = "lf-resolved-summary lf-disclosure-marker";
     new MutationObserver(() => {

@@ -378,6 +378,7 @@ import {
   notice,
   noticeReading,
   offer,
+  offered,
   overlaps,
   overlapsAcross,
   pagePresented,
@@ -4451,10 +4452,7 @@ function createAnchorControls({
   }
   const visualActionTemplate = ({ anchor, label: label2 }) => html`
     <button
-      type="button"
-      class="lf-visual-action lf-quiet lf-ui"
-      data-lf-gen="1"
-      data-lf-offer="button"
+      ${offered("lf-visual-action lf-quiet")}
       tabindex="-1"
       .lfAnchor=${anchor}
       .textContent=${`Respond to ${label2}`}
@@ -5402,15 +5400,15 @@ function createQueueWalk({
   function endTodo(id) {
     return actions.done(queueItemKey({ kind: "todo", id }));
   }
-  const offered = () => readQueues().on_user.length > 0;
+  const offered2 = () => readQueues().on_user.length > 0;
   const doneable = () => readQueues().on_user.filter((item) => item.offers.done).map((item) => item.id).join(" ");
   let wasOffered = false;
   let wasDoneable = "";
   let watching = null;
   function mount() {
     watching ??= x(() => {
-      if (offered() === wasOffered && doneable() === wasDoneable) return;
-      wasOffered = offered();
+      if (offered2() === wasOffered && doneable() === wasDoneable) return;
+      wasOffered = offered2();
       wasDoneable = doneable();
       d(paintKeys);
     });
@@ -5434,7 +5432,7 @@ function createQueueWalk({
       }
     ],
     title: "On me",
-    when: offered,
+    when: offered2,
     repeat: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
     // down a level, so the current scope lets go of whichever one they end on. An item
@@ -6996,7 +6994,7 @@ function createFloatingPanel({
       draw: (gone) => rowFor(gone ? { ...entry, disabled: true } : entry)
     });
     const errors = errorsReading();
-    const offered = [
+    const offered2 = [
       ...errors.length ? [
         {
           key: "errors",
@@ -7029,8 +7027,8 @@ function createFloatingPanel({
       { key: "", draw: () => html`<hr />` },
       ...[keyboard, fold].filter(Boolean).map(seat)
     ];
-    const now = new Map(offered.map((row2) => [row2.key, row2]));
-    seats2 = held?.seats ?? offered;
+    const now = new Map(offered2.map((row2) => [row2.key, row2]));
+    seats2 = held?.seats ?? offered2;
     return html`<div
         class="lf-fp-state"
         role="none"
@@ -8501,10 +8499,10 @@ function createFloatingPanel({
 
 // runtime/margin-map-model.js
 var dialogItemKey = (entry, item) => JSON.stringify(["item", entry.key, contributionItemKey(item)]);
-function dialogControlKey(entry, offered, record) {
-  return JSON.stringify(["control", entry.key, offered.key, record.key]);
+function dialogControlKey(entry, offered2, record) {
+  return JSON.stringify(["control", entry.key, offered2.key, record.key]);
 }
-var dialogControlId = (entry, offered, record) => `lf-page-map-entry-${encodeURIComponent(dialogControlKey(entry, offered, record))}`;
+var dialogControlId = (entry, offered2, record) => `lf-page-map-entry-${encodeURIComponent(dialogControlKey(entry, offered2, record))}`;
 function marginMapGroups(entries, faceFor, searchTextByKey) {
   return Object.freeze(
     entries.map((entry) => {
@@ -8529,12 +8527,12 @@ function marginMapGroups(entries, faceFor, searchTextByKey) {
             awaitsUser: Boolean(item.userAttention)
           };
         }),
-        ...controls.map(({ offered, record, receipt }) => ({
+        ...controls.map(({ offered: offered2, record, receipt }) => ({
           kind: "control",
-          key: dialogControlKey(entry, offered, record),
-          id: dialogControlId(entry, offered, record),
+          key: dialogControlKey(entry, offered2, record),
+          id: dialogControlId(entry, offered2, record),
           entry,
-          offered,
+          offered: offered2,
           record,
           icon: record.icon,
           glyph: record.glyph,
@@ -8639,13 +8637,13 @@ function createPageMapDialog({
         >${context2 ? html`<span class="lf-page-map-action-context">${context2}</span>` : nothing}</span
       >`;
   function activateSheetControl(event, action) {
-    const { offered, record } = action;
+    const { offered: offered2, record } = action;
     if (record.behavior === "status" || record.disabled) return;
     const control = event.currentTarget;
     const relation = record.relation;
     if (relation?.kind === "entries") {
       const currentIntent = retainUserIntent({ available: () => dialog.open });
-      contributionSource(offered).registration.activate(record.key, {
+      contributionSource(offered2).registration.activate(record.key, {
         origin: control,
         surface: "map",
         input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer"
@@ -8653,7 +8651,7 @@ function createPageMapDialog({
       nextRender(() => {
         if (!currentIntent()) return;
         const revealed = relation.keys.map(
-          (key) => contributionSource(offered).registration.control(key, "map", true)
+          (key) => contributionSource(offered2).registration.control(key, "map", true)
         ).find((candidate) => candidate?.checkVisibility());
         focusDestination(revealed ?? control, "move");
       });
@@ -8664,7 +8662,7 @@ function createPageMapDialog({
       () => closeNativeLayer(dialog),
       () => handBack(returnTo)
     );
-    contributionSource(offered).registration.activate(record.key, {
+    contributionSource(offered2).registration.activate(record.key, {
       origin: control,
       surface: "map",
       input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer"
@@ -8761,16 +8759,16 @@ function createPageMapDialog({
     const liveOffers = new Set(
       groups.flatMap(({ entry }) => entry.offers.map(contributionSource))
     );
-    for (const offered of trackedOffers)
-      if (!liveOffers.has(offered))
-        clearContributionControls(offered, "map", /* @__PURE__ */ new Set());
+    for (const offered2 of trackedOffers)
+      if (!liveOffers.has(offered2))
+        clearContributionControls(offered2, "map", /* @__PURE__ */ new Set());
     for (const group of groups) {
-      for (const offered of group.entry.offers)
+      for (const offered2 of group.entry.offers)
         clearContributionControls(
-          contributionSource(offered),
+          contributionSource(offered2),
           "map",
           new Set(
-            group.controls.filter((candidate) => candidate.offered === offered).map(({ record }) => record.key)
+            group.controls.filter((candidate) => candidate.offered === offered2).map(({ record }) => record.key)
           )
         );
     }

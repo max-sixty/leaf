@@ -17,7 +17,7 @@ import { addressableWord } from "./addressable-names.js";
 import { inChrome } from "./passages.js";
 import { holdFocus } from "./focus.js";
 import { move } from "./dom-move.js";
-import { el } from "./widget-elements.js";
+import { el, generatedElement } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 
 export function createInlineContributions({ targetPath }) {
@@ -50,7 +50,7 @@ export function createInlineContributions({ targetPath }) {
       let seat = hosts.get(target);
       if (!seat) {
         const host = el("div", "lf-ui lf-margin-inline");
-        host.dataset.lfGen = "1";
+        generatedElement(host, { says: false });
         host.setAttribute("role", "group");
         seat = { host, offers: [] };
         hosts.set(target, seat);

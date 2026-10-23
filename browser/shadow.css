@@ -152,7 +152,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-quote {
   min-width: var(--aim-floor);
 }
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn)),
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn, .lf-msg-control)),
 .lf-react,
 .lf-margin-entry,
 .lf-command-reference-command,

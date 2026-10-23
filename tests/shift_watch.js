@@ -434,8 +434,7 @@
       )
         continue;
       const duration = durationMs(style.transitionDuration);
-      if (duration)
-        nativeClosures.set(node, { until: at + duration, settledAt: null });
+      if (duration) nativeClosures.set(node, { until: at + duration, settledAt: null });
     }
     announce();
   };
@@ -1003,7 +1002,7 @@
             typeof window.ScrollTimeline === "function" &&
             timeline instanceof ScrollTimeline
           ),
-    ) || [...nativeClosures.values()].some(({ settledAt }) => settledAt === null);
+      ) || [...nativeClosures.values()].some(({ settledAt }) => settledAt === null);
     observeWrites(writes.takeRecords());
     // A child frame reads completely on every frame, since its embedding page can
     // hide or move it without telling it; only a hidden tab announces itself here.

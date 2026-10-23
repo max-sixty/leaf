@@ -435,12 +435,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     gap: 5px;
   }
   .lf-quote-expand::before {
-    content: "▸";
     inline-size: 1em;
     text-align: center;
-  }
-  .lf-quote-expand[aria-expanded="true"]::before {
-    content: "▾";
   }
   /* A border image outset into the inline margin draws the rail and takes no room. */
   .lf-msg.lf-unread {

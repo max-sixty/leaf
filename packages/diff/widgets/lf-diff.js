@@ -360,7 +360,7 @@ function summaryNode(record, open, verified = true) {
   details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
-  summary.className = `lf-diff-head ${HOLDS_WORD}`;
+  summary.className = `lf-diff-head lf-disclosure-marker ${HOLDS_WORD}`;
   details.append(summary);
   paintSummary(details, record, verified);
   commands(summary, "On a diff", [

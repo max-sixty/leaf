@@ -147,7 +147,7 @@ function buildGroup(owner, key, open) {
   const summary = buildLine("summary");
   const body = el("div", "lf-call-group-body lf-text-scroller scroll");
   group.dataset.callGroup = key;
-  summary.classList.add("lf-call-group-summary");
+  summary.classList.add("lf-call-group-summary", "lf-disclosure-marker");
   group.append(summary, body);
   group.addEventListener("toggle", () => updateDisclosureControl(owner));
   return { body, group, location, summary };

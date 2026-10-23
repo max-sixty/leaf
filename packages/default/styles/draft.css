@@ -133,17 +133,6 @@
     min-block-size: 0;
     padding: 0;
   }
-  .lf-draft-action::before {
-    content: "";
-    position: absolute;
-    inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
-  }
-  /* Its own rule, so an engine refusing a pseudo-element after a part keeps the rest. */
-  .lf-draft-tools > .lf-code-copy::part(button)::before {
-    content: "";
-    position: absolute;
-    inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
-  }
   /* The ring stays inside its mark, off the words beside the toolbar. */
   .lf-draft-action[data-lf-focus-visible],
   .lf-draft-tools > .lf-code-copy::part(lf-focus-visible) {

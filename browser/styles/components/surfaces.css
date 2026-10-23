@@ -402,16 +402,17 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    capped at the window's height crushed its 30px .lf-btn rows to the 24px floor rather
    than scrolling. A control that stands in such a container states its block floor as
    padding instead, max(its padding, (the floor - 1lh) / 2), less its border, in the
-   rule that gives it its padding: .lf-btn below, the version menu's rows and Compare
-   (chrome.css). A one-line control rests at the same height either way, and one whose
-   words run longer keeps them. The members left on min-height stand in rows or in
+   rule that gives it its padding, as the version menu's rows and Compare do
+   (floating-panel.css), or meets it with a reach (below), as a button does. A one-line
+   control rests at the same height either way, and one whose words run longer keeps
+   them. The members left on min-height stand in rows or in
    flow, or state their own height.
 
    Declared pressables join by their offer, rather than by adding their class here.
    A resting skip control is transparent and has no pointer route; it takes its aim
    size from chrome.css only when focus reveals it.
-   Native and selectable choice marks keep their enclosing labelled target; squeezing-prone button
-   faces and version rows keep the padding floor described above. Inline offered words
+   Native and selectable choice marks keep their enclosing labelled target; a button's
+   face takes its reach (below) and version rows the padding floor described above. Inline offered words
    remain inline: like links in prose, their words determine their target. */
 [data-lf-offer]:where(
   :not(
@@ -425,7 +426,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .button,
 .lf-thread-notice:is(button),
 .lf-react,
-.lf-msg-control,
 .lf-margin-entry,
 .lf-thread-action,
 .lf-command-reference-command,
@@ -441,14 +441,38 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     .lf-btn
   )
 ),
-.lf-thread-notice:is(button),
 .lf-react,
-.lf-msg-control,
 .lf-margin-entry,
-.lf-thread-action,
 .lf-command-reference-command,
 .lf-quote {
   min-height: var(--aim-floor);
+}
+/* A control a line tall or shorter meets the aim floor with a reach: a box of its own
+   that paints nothing, standing out from its face to the floor on each axis the face
+   is shorter, so a finger's floor grows no place the control stands in. The reach lies
+   in the room a place keeps around its controls, at least `--lf-reach-room` where
+   something else takes presses, and the aim sweeps (tests/page_scripts/aims.js) press
+   its ends to find one cut short or lying over another control. Sideways these
+   controls are floor-wide boxes, so a place keeps room by the box's width, not the
+   face's. A native field, picker or range can draw no box, so it stands at the line;
+   a row of a stack, such as a group's Done, has no room for a reach and keeps the
+   floor as its face. */
+:where(
+  .lf-btn,
+  .button,
+  .lf-icon-action,
+  .lf-msg-control,
+  .lf-thread-action,
+  .lf-thread-notice:is(button),
+  .lf-draft-action,
+  .lf-corner-mark
+) {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, (100% - var(--aim-floor)) / 2);
+  }
 }
 /* A native summary retains its list marker and centers its content within the
    target floor. Extra hit area surrounds the label rather than trailing it. */
@@ -573,12 +597,13 @@ summary {
 .lf-fab-bar {
   --lf-thread-text-inset: 13px;
   --lf-group-ring-end: 6px;
-  --lf-msg-head-height: max(28px, var(--aim-floor));
+  --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
   /* A message's control, and the Discard and Save an open rewrite stands in its place:
      the head keeps their room (controls.css), and so does the thread's own controls'
      row beside a first message (below). */
-  --lf-msg-control-size: max(26px, var(--aim-floor));
+  --lf-msg-control-size: 26px;
+  --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
   --lf-msg-edit-cancel: max(52px, var(--aim-floor));
   --lf-msg-edit-save: max(40px, var(--aim-floor));
   --lf-msg-edit-gap: 4px;
@@ -604,7 +629,7 @@ summary {
   position: relative;
   min-width: 0;
   anchor-scope: --lf-thread-headline;
-  --lf-thread-action-room: var(--lf-msg-head-height);
+  --lf-thread-action-room: max(var(--lf-msg-head-height), var(--aim-floor));
   --lf-thread-notice-room: var(--lf-msg-head-height);
   --lf-thread-message-control-room: 0px;
 }
@@ -668,7 +693,7 @@ summary {
   border-radius: var(--r);
 }
 .lf-primary-part[data-lf-part="reply"] {
-  padding-block-start: max(28px, var(--aim-floor));
+  padding-block-start: 28px;
 }
 .lf-primary-news {
   position: absolute;
@@ -924,7 +949,7 @@ summary {
       > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
       > :is(.lf-react-strip, .lf-msg-control)
   ) {
-  --lf-thread-message-control-room: calc(var(--lf-msg-control-size) + var(--sp-2));
+  --lf-thread-message-control-room: calc(var(--lf-msg-control-width) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(
     > .lf-thread-transcript

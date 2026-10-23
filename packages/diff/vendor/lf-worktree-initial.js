@@ -9,7 +9,7 @@
     };
     const details = host.querySelector(":scope > details");
     details.classList.add("lf-worktree-disclosure");
-    const summary = node("summary", "lf-worktree-summary");
+    const summary = node("summary", "lf-worktree-summary lf-disclosure-marker");
     summary.dataset.lfGen = "1";
     summary.dataset.lfSaid = "";
     const identity = node("span", "lf-worktree-identity");

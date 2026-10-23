@@ -7,7 +7,7 @@ export const SHOT_VIEWS = {
   compare: "Pair",
   pixels: "Pixels",
 };
-const CONTROL = "lf-btn lf-quiet-action lf-compact-control";
+const CONTROL = "lf-btn lf-quiet-action";
 let nextOptionsId = 0;
 
 // Fit uses the content box: the scrollport's padding keeps the image shadow visible.

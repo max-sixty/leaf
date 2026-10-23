@@ -45,7 +45,7 @@ class ResolvedThreads {
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
     this.node.dataset.lfGen = "1";
     this.node.dataset.lfOffer = "";
-    this.summary.className = "lf-resolved-summary";
+    this.summary.className = "lf-resolved-summary lf-disclosure-marker";
     // Native disclosure opens at the attribute checkpoint, before paint, so the first
     // opened body already holds what its threads held back.
     new MutationObserver(() => {

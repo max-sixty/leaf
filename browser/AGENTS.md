@@ -88,9 +88,10 @@ representative desktop viewport.
   token and each occupant fills it. Only content grows it, such as typed words, or a
   gesture that asks for room, such as More room. A label's words (`data-room`, below)
   and a widget's first paint (`keeps-first-box`) are cases of the same rule. A
-  component that sizes itself from its own type or the pointer's floor, such as a
-  WebAwesome input or an icon action, takes the place's size through its own sizing
-  token, set where it is seated. Check: `test_whatever_the_field_holds_the_row_keeps_its_line`
+  one-line control's face is the line (`--lf-line`, theme.css) and a finger's floor its
+  reach (surfaces.css); a control that brings its own height instead, from its type or
+  the floor, sizes every place it is seated in. Check:
+  `test_whatever_the_field_holds_the_row_keeps_its_line`
   compares the row with its token in each mode; that a place still contains its
   occupant proves nothing, since a grown place always does.
 - **A runtime region whose contents rearrange inside it declares `data-lf-reflow`.**

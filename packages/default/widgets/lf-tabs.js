@@ -4,7 +4,9 @@
  * inactive panels with hidden="until-found", so browser find-in-page and
  * fragment navigation still reach them — `beforematch` opens the owning tab,
  * and the runtime's reveal() asks the same via the lf-reveal event when it
- * scrolls to a comment anchor. The open tab is view state for this user,
+ * scrolls to a comment anchor. A page can make a panel itself scroll with CSS,
+ * so the widget declares each panel as a scroll surface; its CSS still decides
+ * whether that panel scrolls. The open tab is view state for this user,
  * remembered per browser tab (`keepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
  * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
@@ -216,6 +218,7 @@ export class TabSet extends LeafElement {
       if (!index || (side && group !== panels[index - 1].getAttribute("group")))
         this.#runs.push({ panel, group, panels: [] });
       this.#runs.at(-1).panels.push(panel);
+      panel.classList.add("scroll");
       panel.setAttribute("role", "tabpanel");
       panel.setAttribute("aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or

@@ -26,6 +26,16 @@ what fails and what still works.
 
 ## Known gaps
 
+### Scroll-state containers
+
+Firefox 157 and Playwright Firefox and WebKit 26.6 lacked CSS scroll-state
+containers on 2026-10-14. `browser/layouts.css` declares `normal` before
+`scroll-state` so breakout tables keep their intended width in those engines;
+other tables keep the `inline-size` container from
+`browser/styles/components/reading.css`. Recheck table width with
+`test_a_table_of_prose_wraps_inside_its_box_in_every_engine` in
+`tests/browser/test_render_pages.py` before removing the fallback.
+
 ### Contents spine lens
 
 `packages/default/widgets/lf-toc.js` uses a paused animation updated on scroll

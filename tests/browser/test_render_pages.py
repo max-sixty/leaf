@@ -2532,6 +2532,48 @@ def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
     expect(flow).not_to_have_attribute("data-lf-more-after", "")
 
 
+def test_a_scroller_that_stops_scrolling_drops_its_continuation(browser, serve):
+    source = leaf_page(
+        "Changing scrollport",
+        '<div id="box" class="scroll" style="width:200px;overflow-x:auto;white-space:nowrap">'
+        '<span style="display:inline-block;width:600px">Wide content</span></div>',
+    )
+    page = open_page(browser, serve(source))
+    box = page.locator("#box")
+    expect(box).to_have_attribute("data-lf-more-after", "")
+    page.evaluate("""() => {
+      const box = document.querySelector('#box');
+      box.style.overflowX = 'hidden';
+      box.firstElementChild.style.width = '650px';
+    }""")
+    rendered(page)
+    expect(box).not_to_have_attribute("data-lf-more-after", "")
+
+
+def test_a_scroller_reclassifies_when_an_ancestor_changes_its_style(browser, serve):
+    source = leaf_page(
+        "Inherited scrollport",
+        '<div id="parent" style="--flow:auto">'
+        '<div id="box" class="scroll" '
+        'style="width:200px;overflow-x:var(--flow);white-space:nowrap">'
+        '<span style="display:inline-block;width:600px">Wide content</span>'
+        "</div></div>",
+    )
+    page = open_page(browser, serve(source))
+    box = page.locator("#box")
+    expect(box).to_have_attribute("data-lf-scroll-direction", "ltr")
+    expect(box).to_have_attribute("data-lf-more-after", "")
+    page.evaluate("""() => {
+      const parent = document.querySelector('#parent');
+      parent.style.direction = 'rtl';
+      parent.style.setProperty('--flow', 'hidden');
+      document.querySelector('#box').firstElementChild.style.width = '650px';
+    }""")
+    rendered(page)
+    expect(box).not_to_have_attribute("data-lf-scroll-direction", "ltr")
+    expect(box).not_to_have_attribute("data-lf-more-after", "")
+
+
 def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
     browser, serve
 ):

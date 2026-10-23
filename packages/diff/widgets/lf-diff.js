@@ -550,7 +550,9 @@ function operationWord(record) {
 function evidenceWords(record) {
   const words = [];
   if (record.binary) words.push("binary content");
-  if (record.oldMode !== record.newMode) {
+  // Added/deleted ordinary files need no mode label; retain every actual mode
+  // change and the type or executable bit of a file with only one side.
+  if ((record.oldMode ?? "100644") !== (record.newMode ?? "100644")) {
     words.push(
       record.oldMode && record.newMode
         ? `mode ${record.oldMode} → ${record.newMode}`

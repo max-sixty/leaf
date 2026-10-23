@@ -1212,8 +1212,37 @@ class PageEndpoint:
     def _same_origin_gate(self) -> Response | None:
         expected_origin = f"{self.request.url.scheme}://{self.request.url.netloc}"
         if self.headers.get("Origin") != expected_origin:
-            return self._refuse("File saving requires this page's origin.", 403)
+            return self._refuse("This request requires this page's origin.", 403)
         return None
+
+    def _llm_gate(self) -> Response | None:
+        if isinstance(self, SampleEndpoint) or not self.source.writable:
+            return self._refuse("LLM access is available only in live pages.", 403)
+        return None
+
+    def _connection_gate(self) -> Response | None:
+        if isinstance(self, SampleEndpoint) or not self.source.writable:
+            return self._refuse(
+                "HTTP connections are available only in live pages.", 403
+            )
+        return None
+
+    def _fetch_connection(self, name: str) -> Response:
+        from .http_connections import ConnectionError, fetch
+
+        try:
+            return self._json(fetch(self.page_dir, name, self.posted))
+        except ConnectionError as error:
+            return self._json(error.json(), error.status)
+
+    def _generate(self) -> Response:
+        # Keep inference off page startup and ordinary request paths.
+        from .llm import LLMError, generate
+
+        try:
+            return self._json(generate(self.page_dir, self.posted))
+        except LLMError as error:
+            return self._json(error.json(), error.status)
 
     def _save_file(self, name: str) -> Response:
         try:
@@ -1321,6 +1350,13 @@ class PageEndpoint:
     # independent page from the frozen reading and writes nothing to its parent, so
     # a read-only preview creates one too.
     POST_ROUTES: Mapping[str, PostRoute] = {
+        r"/api/connections/(?P<name>[^/]+)": PostRoute(
+            _fetch_connection,
+            (_runtime_gate, _connection_gate, _same_origin_gate, _body_gate),
+        ),
+        "/api/llm": PostRoute(
+            _generate, (_runtime_gate, _llm_gate, _same_origin_gate, _body_gate)
+        ),
         r"/api/files/(?P<name>[^/]+)": PostRoute(
             _save_file,
             (_runtime_gate, _live_files_gate, _same_origin_gate, _body_gate),

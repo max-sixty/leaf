@@ -11,10 +11,9 @@ leaf file bind PAGE notes ./research-notes.md
 <lf-file-editor id="notes-file" binding="notes"></lf-file-editor>
 ```
 
-Tell the reader that edits save automatically, and say nothing more about saving. The
-editor saves as the reader types, keeps their draft when a save fails or another program
-changes the file, and reports each problem in its own status line with the choices that
-resolve it.
+Tell the reader that edits save automatically. The editor saves as the reader types,
+keeps their draft when a save fails or another program changes the file, and reports
+each problem in its own status line with the choices that resolve it.
 
 Edits change the file itself, outside Leaf's action history, and Undo in the editor is
 an ordinary edit that saves too. Show a file the reader should not change with `lf-code`

@@ -866,6 +866,63 @@ def json_body(text: str | None, body_file: TextIO | None):
         ) from error
 
 
+@cli.group(short_help="Grant pages authenticated HTTPS reads.")
+def connection() -> None:
+    """Host credentials and origin grants for page-authored integrations."""
+
+
+@connection.command(
+    "bind", short_help="Grant authenticated GET access to an HTTPS origin."
+)
+@click.argument("dir", metavar="PAGE")
+@click.argument("name")
+@click.argument("origin")
+@click.option(
+    "--credential-env",
+    required=True,
+    help="Binding environment variable containing the credential.",
+)
+@click.option("--header", default="Authorization", show_default=True)
+@click.option("--prefix", default="Bearer ", show_default=True)
+@click.option(
+    "--max-requests", default=200, type=click.IntRange(min=1), show_default=True
+)
+def connection_bind(
+    dir: str,
+    name: str,
+    origin: str,
+    credential_env: str,
+    header: str,
+    prefix: str,
+    max_requests: int,
+) -> dict:
+    """Bind NAME to ORIGIN. Rebinding renews its request allowance.
+
+    The credential is read from the binding process's environment and stored
+    privately on this host, outside page files and exports.
+    """
+    from leaf.http_connections import bind
+
+    return bind(
+        resolve_dir(dir),
+        name,
+        origin,
+        credential_env=credential_env,
+        header=header,
+        prefix=prefix,
+        max_requests=max_requests,
+    )
+
+
+@connection.command("unbind", short_help="Withdraw one page connection.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("name")
+def connection_unbind(dir: str, name: str) -> dict:
+    from leaf.http_connections import unbind
+
+    return unbind(resolve_dir(dir), name)
+
+
 @cli.group(short_help="Set or clear page-bound external data.")
 def data() -> None:
     """Manage each bound source's current value, one JSON file per source."""

@@ -2,7 +2,7 @@
 what is on the agent, and what each has finished (`done`).
 
 Every user row is an obligation record (`obligations.py`): a message request,
-a user task, a widget's input, a version's sign-off, or an update handed back for
+a user task, a widget's input, or an update handed back for
 resending (`workflows.handed_over`). Each source owns completion: conversational
 requests take a reply, tasks take explicit Done, widgets take their declared answer.
 A browser view serves these lists and `page state` prints them, so their counts and
@@ -25,8 +25,8 @@ orders the updates by their strongest workflow (`work.served_workflows`), the or
 every surface showing one of several reads.
 
 A row that leaves a list lands in Done, whose `owner` names the list: the records no
-longer open, which an update's is when the agent's reply answered it and a widget's or
-sign-off's when the user answered it, here or elsewhere, or it was withdrawn; and the
+longer open, which an update's is when the agent's reply answered it and a widget's
+when the user answered it, here or elsewhere, or it was withdrawn; and the
 ended to-dos. Each done row adds how it ended (`state`: `done`, or `dropped` for a
 withdrawn record, or a to-do's outcome), when (`ended`), and the outcome's detail,
 which for a record is its agent end's. Done is served newest first, and a row without a

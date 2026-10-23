@@ -151,8 +151,8 @@ reads", owns the rendering and readiness contract.
 
 ### Reading obligations and the On lists
 
-An obligation is what a widget or a version's sign-off waits on the user for, or what an
-update the user handed over is owed, and the On lists list it by its next actor.
+An obligation is what a widget waits on the user for, or what an update the user
+handed over is owed, and the On lists list it by its next actor.
 `readObligations()` returns `{phase, all, user, unanswered}`. `all` holds every obligation
 whose source is still there, answered and withdrawn ones included; `user` the open
 obligations waiting on the user; and `unanswered` every open obligation, including those
@@ -160,7 +160,7 @@ with the agent. Each record looks like this:
 
 ```js
 {
-  id: "widget:release-disposition", // or "approval:v<version>"
+  id: "widget:release-disposition",
   source: {kind: "widget", id: "release-disposition", tag: "lf-options"},
   thread: null,
   message: null,
@@ -192,10 +192,6 @@ settling reaction); `answeredInWords(obligation)` says whether an obligation is 
 agent ends it with `leaf task end` instead, `status` is `answered_elsewhere` or
 `withdrawn` and `end.detail` says why.
 
-An approval obligation, `source.kind === "approval"`, asks the user to approve the stamped
-version `source.version`. Approving sets `answer.value` to `true`, and Undo reopens it.
-It asks about the version as a whole, so its `prompt.target` is `null`.
-
 An update's obligation, `source.kind === "update"`, is what a message the user sent, or an
 action in an answered widget's obligation, is owed. `source.id` names the event and
 `source.subject` the thread or widget it stands on. Its next actor is the agent while it
@@ -223,14 +219,14 @@ own command.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>.
-Each row has a `kind`, its obligation's `source.kind` (`widget`, `approval` or `update`,
+Each row has a `kind`, its obligation's `source.kind` (`widget` or `update`,
 the obligation it carries as `obligation`) or `todo` (the to-do it carries as `todo`),
 and an `owner`, `user` or `agent`: an `update` row is one to resend on the user's list,
 and a reply or version owed on the agent's. Rows not done carry `offers: {open, done}`. `queueItemKey(row)` names a row
 across moves between lists, and `queueTitle(row)` gives its title.
 `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do the agent
 opened on the user, returning its admission promise, and returns `null` for any other
-row; obligations end through their own widget, reply or approval. Act on a collection only
+row; obligations end through their own widget or reply. Act on a collection only
 when its `phase` is `ready`.
 
 ### Work hierarchies

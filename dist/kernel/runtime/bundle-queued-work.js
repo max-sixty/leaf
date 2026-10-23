@@ -1474,7 +1474,7 @@ var queueOffers = (item, ready, onUser) => ({
   open: ready,
   done: ready && onUser && item.kind === "todo"
 });
-var carriesObligation = (item) => item.kind === "widget" || item.kind === "approval" || item.kind === "message" || item.kind === "todo" && item.owner === "user";
+var carriesObligation = (item) => item.kind === "widget" || item.kind === "message" || item.kind === "todo" && item.owner === "user";
 var itemNoun = (item) => item.kind !== "update" ? item.kind : item.owner === "user" ? "resend" : item.thread !== null ? "reply" : "answer";
 var OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 var itemOutcome = (item) => item.kind === "update" ? "Sent" : OUTCOMES[item.state] ?? item.state;
@@ -1556,7 +1556,7 @@ var NO_OBLIGATIONS = {
   user: [],
   unanswered: []
 };
-function normalizedObligations(view, widgets, document, projection, local, todos) {
+function normalizedObligations(view, widgets, document, projection, todos) {
   const todoRecords = new Map(
     [...todos.open, ...todos.ended].map((todo) => [todo.id, todo])
   );
@@ -1573,25 +1573,6 @@ function normalizedObligations(view, widgets, document, projection, local, todos
           next_actor: null,
           end: null
         };
-      return item;
-    }
-    if (item.source.kind === "approval") {
-      const version = item.source.version;
-      const undone = new Set(
-        local.flatMap(({ event }) => event.kind === "undo" ? [event.undoes] : [])
-      );
-      const approving = local.some(
-        ({ event }) => event.kind === "done" && event.version === version
-      );
-      if (approving)
-        return {
-          ...item,
-          answer: { value: true, event: null },
-          status: "answered",
-          next_actor: null
-        };
-      if (item.answer?.event && undone.has(item.answer.event.id))
-        return { ...item, answer: null, status: "open", next_actor: "user" };
       return item;
     }
     if (item.source.kind !== "widget") return item;
@@ -1972,7 +1953,7 @@ function createSemanticApplication({
       projection
     );
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
-    const servedItems = ready ? normalizedObligations(view, widgets2, document, projection, local, todos) : NO_OBLIGATIONS;
+    const servedItems = ready ? normalizedObligations(view, widgets2, document, projection, todos) : NO_OBLIGATIONS;
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn2, namedParent }) => {
       const drawnIn = drawn2 && named.get(drawn2.id)?.id;
@@ -2106,17 +2087,6 @@ function createSemanticApplication({
       widgets: widgets2,
       thread: {
         all: threads,
-        // Historical system rows are event narration, never current approval state.
-        approvalHistory: [
-          ...state?.browser.approval_history ?? [],
-          ...local.flatMap(
-            ({ event, localId, timestamp }) => event.kind === "done" ? [{ ...event, id: localId, ts: timestamp }] : []
-          )
-        ].filter(
-          (event) => !local.some(
-            ({ event: gesture }) => gesture.kind === "undo" && gesture.undoes === event.id
-          )
-        ),
         collection: {
           phase,
           threads: threads.filter(discussed)

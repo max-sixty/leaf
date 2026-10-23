@@ -47,7 +47,7 @@ none.
 
 Whether an update needs delivering is decided apart from its workflow. Admission
 records whether the update changes the user's outstanding obligations, owed answers, work
-in hand or approvals (`obligation_reading`), and delivery keeps that decision after
+in hand (`obligation_reading`), and delivery keeps that decision after
 the workflow settles.
 
 An action on a widget whose obligation the user is still answering, such as a pick before
@@ -140,7 +140,6 @@ def obligation_reading(readings) -> dict:
             }
             for identity, subject in in_hand
         ],
-        "approvals": [event["id"] for event in work.approvals],
     }
 
 

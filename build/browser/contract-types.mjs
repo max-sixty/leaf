@@ -168,7 +168,7 @@ function eventTypes(registry) {
 // Each page-wide declaration an author writes (`$authored`), with the values the
 // runtime may read from it, so a reader comparing against another value fails to
 // type-check.
-function authoredTypes({ $authored: { allocations, meta } }) {
+function authoredTypes({ $authored: { allocations } }) {
   const table = (declared) =>
     `{ ${Object.entries(declared)
       .map(
@@ -176,7 +176,7 @@ function authoredTypes({ $authored: { allocations, meta } }) {
           `${JSON.stringify(name)}: ${values.map((value) => JSON.stringify(value)).join(" | ")};`,
       )
       .join(" ")} }`;
-  return `export type AuthoredAllocations = ${table(allocations)};\nexport type AuthoredMeta = ${table(meta)};\n`;
+  return `export type AuthoredAllocations = ${table(allocations)};\n`;
 }
 
 function servedTypes(schema, verb) {

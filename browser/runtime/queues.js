@@ -14,7 +14,6 @@ export const queueOffers = (item, ready, onUser) => ({
 // update's record is answered by a reply or a version, or by the user sending again.
 export const carriesObligation = (item) =>
   item.kind === "widget" ||
-  item.kind === "approval" ||
   item.kind === "message" ||
   (item.kind === "todo" && item.owner === "user");
 
@@ -31,7 +30,7 @@ export const itemNoun = (item) =>
         : "answer";
 
 // How a finished list item other than an obligation the page asked ended, in the words its
-// row says: a reply the agent sent, or a to-do's outcome. A widget's or approval's
+// row says: a reply the agent sent, or a to-do's outcome. A widget's
 // obligation says its own ending (obligations/answer.js).
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 export const itemOutcome = (item) =>

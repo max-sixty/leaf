@@ -45,7 +45,7 @@ unfinished, along with the run of the page's code if it needed one.
 
 ## Stamp checkpoints
 
-Stamp a record at each checkpoint the user would name, such as sign-off or the end of
+Stamp a record at each checkpoint the user would name, such as an approved plan or the end of
 the conversation, and wherever a reference requires a stamped version, as taking in an
 answer to a page's obligation does (`authoring-revisions.md`). Answering a message is not a
 checkpoint.
@@ -58,7 +58,7 @@ The stamp gives the current source the next public version number. A browser at 
 page's root follows new revisions; one open at `/versions/vN.html` stays on that
 version.
 
-## Sign-off and ending
+## Ending
 
 To finish, handle every event in the delivered batch and write the answer each
 acknowledged update's `answer` names (`event-batches.md`). A finished record ends on a

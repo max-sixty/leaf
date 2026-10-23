@@ -94,7 +94,8 @@
    sized as one too, and its min-height restates the outer box it stated before. */
 :scope:is(lf-column) {
   display: block;
-  background: var(--field);
+  --lf-ground: var(--field);
+  background: var(--lf-ground);
   box-sizing: border-box;
   border-radius: var(--r);
   padding: var(--lf-reading-column-inset);
@@ -202,7 +203,8 @@
   --lf-grip-inset-block: 2px;
   display: block;
   position: relative;
-  background: var(--card);
+  --lf-ground: var(--card);
+  background: var(--lf-ground);
   font: var(--t-5)/1.5 var(--sans);
   border: 1px solid var(--rule);
   border-radius: var(--r);

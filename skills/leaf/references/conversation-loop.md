@@ -209,7 +209,7 @@ press lands where the obligation is answered; on a widget's obligation, its numb
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence                 | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
 | A conversational answer                                                         | `--obligation` on `thread open`, `thread reply`, or `response reply` (`threads.md`)                                     | The user's next message there or a settling reaction                                  |
-| Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-decisions.md`, "Sign-off")                                           | The user's approval of that version, its row in On me                                 |
+| Approval of a stated action                                                     | Write `lf-approval` with the exact subject (`authoring-decisions.md`, "Approval")                                       | The widget's recorded approval and its row in On me                                   |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its thread, widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 Generally pass `--obligation` when a message hands the next move to the user.
@@ -217,8 +217,8 @@ Progress and information that need no response create no obligation. When a widg
 already captures the same answer, its obligation is sufficient.
 
 Obligation ids are `message:<message-id>` for an explicit message request,
-`widget:<widget-id>` for a widget, `lf-ask` included,
-`approval:v<version>` for a version's sign-off, and `update:<event-id>` for an update
+`widget:<widget-id>` for a widget, `lf-ask` and `lf-approval` included,
+and `update:<event-id>` for an update
 the user handed over. A to-do on the user keeps the id `task open` printed. It can sit on a thread; replies discuss the action and Done completes it.
 The user's next message in a thread answers every conversational request before it.
 A clarification hands the conversation back to you; if you still need input, make

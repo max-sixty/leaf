@@ -15,10 +15,10 @@ have to picture from a description, and put that thing on the page in its own fo
   `lf-shot` before-and-after pair, and captures that vary along other axes go in a
   table of captures (`authoring-evidence.md`, "Source files and media").
 - A behavior, such as an interaction, a motion or a process over time, runs: in a live
-  sample the user operates (`live-samples.md`), or as an authored animation in
-  `lf-motion` from the `motion` package. Its shared playback controls let the user
-  slow, pause and scrub while a page module draws each frame, so each moment stays
-  readable and commentable.
+  sample the user operates (`live-samples.md`), or in `lf-motion` from the `motion`
+  package. Its shared playback controls let the user slow, pause and scrub authored
+  animations or video recordings, so each moment stays readable and commentable.
+  The package’s authoring instructions cover both forms and their evidence limits.
 - A proposal or mechanism nothing can show yet is drawn: where things sit, what
   contains, calls or feeds what, how a state changes, today beside the proposal, and
   alternatives in one frame at one scale.
@@ -48,8 +48,7 @@ they carry information. `authoring-evidence.md` says which element draws each ki
 evidence, and how to draw a figure of your own.
 
 Prose says only what the page can't show: the claim, why it holds, its cost, and the
-question the page asks. That takes a few sentences. A longer section is carrying
-something the page should show, or backing that belongs in `<details>`.
+question the page asks.
 
 ## Reading cost
 

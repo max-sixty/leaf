@@ -1,4 +1,4 @@
-"""Canonical obligations from messages, user tasks, widgets, sign-off and updates.
+"""Canonical obligations from messages, user tasks, widgets and updates.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
@@ -42,14 +42,12 @@ from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import quote
 
 from leaf.events import (
-    approvals_in_force,
     awaits_agent,
     is_reaction,
     retractions,
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.files import stamped_version
 from leaf.gesture_words import element_name, element_text
 from leaf.page_memory import Slot
 from leaf.projection import (
@@ -64,7 +62,6 @@ from leaf.projection import (
     state_projection,
 )
 from leaf.registry.kernel import verb_writers
-from leaf.structure import review_mode
 from leaf.thread_context import widget_messages
 
 if TYPE_CHECKING:
@@ -179,62 +176,12 @@ def event_reference(event: dict | None) -> dict | None:
     }
 
 
-def approval_blocking(records: list[dict]) -> list[dict]:
-    """The obligations that keep a version from being approved: each open widget
-    obligation someone still owes, on the page or in a widget an agent sent. The append
-    door refuses a sign-off while one stands, and the browser view serves their ids
-    so the approve control says the same."""
-    return [
-        record
-        for record in records
-        if record["source"]["kind"] == "widget"
-        and record["status"] == "open"
-        and record["next_actor"] is not None
-    ]
-
-
 def collection(records: list[dict]) -> dict:
     """Select obligations from an inventory without deciding membership again."""
     return {
         "all": records,
         "user": [record for record in records if record["next_actor"] == "user"],
         "unanswered": [record for record in records if record["status"] == "open"],
-    }
-
-
-def approval_obligation(document, revision: int, events: list) -> dict | None:
-    """Sign-off for an exact public stamp as one canonical obligation.
-
-    Draft revisions owe none. Only a done event in force for this public version
-    supplies the typed answer; an undo makes the same obligation open again.
-    Approval admission counts widget obligations alone, so this record cannot
-    block its own answer. It asks about the version as a whole, so its prompt names
-    no element of the page to go to: the chrome presents the approval and brings the
-    user to it (page-status.js, `registerApprovalPresentation`).
-    """
-    version = stamped_version(events, revision)
-    if version is None or review_mode(document) != "sign-off":
-        return None
-    approved = next(
-        (
-            event
-            for event in reversed(approvals_in_force(events))
-            if event["version"] == version
-        ),
-        None,
-    )
-    return {
-        "id": f"approval:v{version}",
-        "source": {"kind": "approval", "version": version},
-        "thread": None,
-        "message": None,
-        "prompt": {"text": f"Approve v{version}?", "target": None},
-        "answer": {"value": True, "event": event_reference(approved)}
-        if approved
-        else None,
-        "status": "answered" if approved else "open",
-        "end": None,
-        "next_actor": None if approved else "user",
     }
 
 

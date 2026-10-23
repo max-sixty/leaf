@@ -98,15 +98,6 @@ def allocation_valid(attr: str, value: str) -> bool:
     return value in values
 
 
-# Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
-# name → allowed content values (`$authored` in the kernel registry). A misspelled
-# name or value would silently declare nothing in the browser, so `page check` holds
-# a page to this vocabulary the way the registry holds lf-* elements.
-LF_META = {
-    name: frozenset(values) for name, values in kernel_authored()["meta"].items()
-}
-
-
 # The script types a browser runs as JavaScript, per the HTML standard: no type, or a
 # JavaScript MIME type, runs as a classic script, and "module" as a module. It reads
 # "importmap" and "speculationrules" as JSON, and never runs any other type.
@@ -928,15 +919,3 @@ def page_layout(document: SourceDocument, registry: Mapping):
             if name not in names:
                 names.append(name)
     return " ".join(names) or None
-
-
-def review_mode(document: SourceDocument):
-    """The review decision one document declares, or None."""
-    return next(
-        (
-            meta["content"]
-            for meta in document.authoring.named_metas
-            if meta["name"] == "lf-review"
-        ),
-        None,
-    )

@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from leaf.event_log import read_events
-from leaf.events import approvals_in_force, build_threads, is_reaction, taken_back
+from leaf.events import build_threads, is_reaction, taken_back
 from leaf.files import latest_revision, revision_label
 from leaf.gesture_words import GestureWords, revisions_on_disk
 from leaf.registry.kernel import verb_writers
@@ -164,11 +164,6 @@ def _threads(events: list, within: dict, registry: dict) -> Iterator[str]:
         yield ""
 
 
-def _approvals(events: list) -> Iterator[str]:
-    for approval in approvals_in_force(events):
-        yield f"Approved v{approval['version']} at {approval['ts']}."
-
-
 def cmd_transcript(page_dir: Path) -> str:
     """The page's exchange as Markdown, for reuse in a PR description."""
     events = read_events(page_dir)
@@ -181,6 +176,5 @@ def cmd_transcript(page_dir: Path) -> str:
             *_versions(events),
             *_edits(page_dir, events, registry),
             *_threads(events, within, registry),
-            *_approvals(events),
         ]
     )

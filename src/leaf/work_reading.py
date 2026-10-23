@@ -14,7 +14,7 @@ state. A `WorkReading` lasts for one transaction and is never written to disk.
 from functools import cached_property
 
 from .document_reading import read_document
-from .events import approvals_in_force, build_threads
+from .events import build_threads
 from .obligations import collection, thread_obligation_readings, user_task_obligations
 from .plans import plan_reading
 from .projection import frozen_thread_reading
@@ -97,10 +97,6 @@ class WorkReading:
                 *user_task_obligations(self.log, self.thread),
             ]
         )
-
-    @cached_property
-    def approvals(self) -> list[dict]:
-        return approvals_in_force(self.events, withdrawn=self.log.withdrawn)
 
     @cached_property
     def document(self):

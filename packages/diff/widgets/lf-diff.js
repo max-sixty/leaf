@@ -17,10 +17,9 @@
  * on every fix. A source's evidence commits together after open files load. Lazy
  * disclosure joins the pending source render before reading its evidence, and a closed file shows
  * none of the previous revision while it loads current evidence. Line conversations
- * follow the visible reader width while source lines may scroll horizontally. Pierre's
- * ResizeManager owns those column dimensions, including the gutter, and its declarations
- * size the conversations; each file with a line conversation keeps one manager until
- * its last conversation leaves. Passage reveal
+ * follow the visible reader width while source lines may scroll horizontally. The
+ * browser sizes those conversations from the reader container. Each source row owns
+ * its gutter control; ordinary block flow places conversations between rows. Passage reveal
  * clears this widget's file filter; addressed datum reveal also hydrates its file.
  * Pierre parses file paths, modes and hunks; Leaf checks that every source file
  * and its evidence can be represented before any listing metadata appears;
@@ -41,11 +40,10 @@ import {
   nothing,
   keyed,
   render,
+  relabel,
   inChrome,
   iconElement,
   iconTemplate,
-  inBaseLayer,
-  isPagePaint,
   commands,
   keeps,
   keepsText,
@@ -193,66 +191,34 @@ const projectionDatum = (record) => ({
   ...(record.origin ? { origin: record.origin } : {}),
 });
 
-// Both pointer routes resolve to the same rendered record, without walking its file.
-const lineForNode = new WeakMap();
-function indexLine(line) {
-  lineForNode.set(line.node, line);
-  lineForNode.set(line.comment, line);
-  return line;
-}
-
-function renderedLines(file, rendered) {
+// Pierre owns parsing, highlighting and word differences. Leaf gives each source
+// line one native row: its number is the comment control, and a conversation can
+// follow that row without a second gutter column to reconcile or measure.
+function renderedLines(file, content) {
   const records = sourceLines(file);
-  const nodes = [...rendered.querySelectorAll("[data-content] [data-line]")];
-  // Pierre emits both columns together. Keep each line's gutter with its source
-  // node rather than searching every gutter again for comments and revisions.
-  const gutters = new Map(
-    [...rendered.querySelectorAll("[data-gutter] > [data-line-index]")].map((node) => [
-      node.dataset.lineIndex,
-      node,
-    ]),
-  );
+  const nodes = [...content.querySelectorAll("[data-line]")];
   if (nodes.length !== records.length)
     throw new Error(
       `Pierre returned ${nodes.length} source lines for ${file.name}; expected ${records.length}`,
     );
   return records.map((record, index) => {
     const node = nodes[index];
-    const type =
-      record.side === "both"
-        ? "context"
-        : record.side === "old"
-          ? "change-deletion"
-          : "change-addition";
-    const shown = record.side === "old" ? record.oldLine : record.newLine;
-    const alternate = record.side === "both" ? record.oldLine : null;
-    if (
-      node.dataset.lineType !== type ||
-      node.dataset.line !== String(shown) ||
-      (alternate !== null && node.dataset.altLine !== String(alternate))
-    )
-      throw new Error(`Pierre returned an unexpected source line for ${file.name}`);
-    // The line's identity, which its gutter's Comment carries too, so a hold across a
-    // re-render finds the same line under its new node (`holdFileFocus`).
     const key = diffDatumKey(record);
     node.setAttribute(LINE_KEY, key);
-    const gutter = gutters.get(node.dataset.lineIndex);
-    const comment = commentButton(lineLabel(record), null, "lf-diff-line-comment");
-    // The target picker is the keyboard route; thousands of lines must not become
-    // thousands of Tab stops. Prepare these controls before connecting the file:
-    // appending each to a live gutter invalidates ancestor :has() styles repeatedly.
+    const row = document.createElement("div");
+    row.className = "lf-diff-line";
+    row.dataset.lineType = node.dataset.lineType;
+    const comment = offer("button", "lf-diff-comment lf-diff-line-comment");
+    comment.type = "button";
     comment.tabIndex = -1;
+    comment.setAttribute("aria-label", `Comment on ${lineLabel(record)}`);
     comment.setAttribute(LINE_KEY, key);
-    gutter.append(comment);
-    return indexLine({
-      ...record,
-      node,
-      gutter,
-      comment,
-      // Compare Pierre's output, before focus and annotation paint can decorate it.
-      // A revision never needs to reconstruct that output from the live DOM.
-      content: node.innerHTML,
+    relabel(comment, String(record.side === "old" ? record.oldLine : record.newLine), {
+      says: "echo",
     });
+    node.replaceWith(row);
+    row.append(comment, node);
+    return { ...record, node, row, content: node.innerHTML };
   });
 }
 
@@ -431,21 +397,13 @@ function fileEntry(row) {
 }
 
 function commentButton(label, opened, className) {
-  const file = className === "lf-diff-file-comment";
   const button = offer(
     "button",
-    `lf-diff-comment ${className}${file ? " lf-btn lf-icon-action lf-quiet-action" : ""}`,
+    `lf-diff-comment ${className} lf-btn lf-icon-action lf-quiet-action`,
   );
   button.type = "button";
   button.setAttribute("aria-label", `Comment on ${label}`);
-  if (file) button.append(iconElement("comment", "lf-action-icon"));
-  else {
-    const plus = document.createElement("span");
-    plus.className = "lf-diff-line-plus";
-    plus.setAttribute("aria-hidden", "true");
-    plus.textContent = "+";
-    button.append(plus);
-  }
+  button.append(iconElement("comment", "lf-action-icon"));
   if (opened) button.addEventListener("click", opened);
   return button;
 }
@@ -461,11 +419,6 @@ function diffBody(nodes) {
 // File and listing controls are browser-owned inspection state. Updating the evidence
 // keeps their owners connected; only changed rendered content is replaced. A line's
 // existing datum coordinate supplies its focus counterpart when that content changes.
-function rowSpan(node) {
-  const value = node.style.gridRow || getComputedStyle(node).gridRow;
-  return Number([...value.matchAll(/span\s+(\d+)/g)].at(-1)[1]);
-}
-
 // A file's datum owns its controls even when its evidence changes kind. Only the
 // inner presentation changes; a focus that no longer has a line or disclosure lands
 // on that same file, while surviving controls keep their own native focus.
@@ -490,16 +443,18 @@ function replaceFileRendering(entry, row) {
   return () => restore?.(entry.details?.firstElementChild, entry.node);
 }
 
-// The line each thread outlet in a file's `content` column follows once the file is
+// The line each thread outlet in a file follows once the file is
 // drawn anew, as `{lead, after}`: its own datum's line in `rows` where that is drawn
 // again, which its record now names, or else the line that stood before it, or `lead`,
-// the column's start, where none did.
+// the file's start, where none did.
 function outletPlaces(content, rows, outlets) {
   const lead = [];
   const after = new Map();
   let last = null;
   for (const child of content?.children ?? []) {
-    const key = child.getAttribute(LINE_KEY);
+    const key = child.matches(".lf-diff-line")
+      ? child.querySelector(`[${LINE_KEY}]`).getAttribute(LINE_KEY)
+      : null;
     if (key !== null) {
       if (rows.has(key)) last = key;
       continue;
@@ -507,97 +462,50 @@ function outletPlaces(content, rows, outlets) {
     const datum = child.dataset.lfThreadDatum;
     const record = outlets?.get(datum);
     if (record?.outlet !== child) continue;
-    if (rows.has(datum)) record.row = rows.get(datum);
+    if (rows.has(datum)) record.row = rows.get(datum).querySelector("[data-line]");
     const place = rows.has(datum) ? datum : last;
     if (place === null) lead.push(record);
-    else after.set(place, [...(after.get(place) ?? []), record]);
+    else {
+      if (!after.has(place)) after.set(place, []);
+      after.get(place).push(record);
+    }
   }
   return { lead, after };
 }
 
 // A file's evidence goes under its kept disclosure, whose summary the record paints.
-function replaceFileContent(entry, rendered, pairs, outlets) {
+function replaceFileContent(entry, rendered, outlets) {
   const restore = holdFileFocus(entry);
   const details = entry.details;
   const pre = details.querySelector("pre");
-  const nextPre = rendered.pre;
-  const prior = new Map(entry.lines.map((record) => [diffDatumKey(record), record]));
+  const prior = new Map(entry.lines.map((line) => [diffDatumKey(line), line]));
   const retained = new Map();
-  const gutters = new Map();
   for (const next of rendered.lines) {
     const previous = prior.get(diffDatumKey(next));
     if (!previous || previous.content !== next.content) continue;
-    retained.set(next.node, previous.node);
-    gutters.set(next.gutter, previous.gutter);
-    keeps(previous.node, "data-line-index", next.node.dataset.lineIndex);
-    keeps(previous.gutter, "data-line-index", next.node.dataset.lineIndex);
+    retained.set(next.row, previous.row);
     next.node = previous.node;
-    next.gutter = previous.gutter;
-    next.comment = previous.comment;
-    indexLine(next);
+    next.row = previous.row;
   }
-  const rows = new Map(rendered.lines.map((line) => [diffDatumKey(line), line.node]));
-  const { lead, after } = outletPlaces(
-    pre?.querySelector("[data-content]"),
-    rows,
-    outlets,
-  );
-  const keyAt = new Map(
-    rendered.lines.map((line) => [line.node.dataset.lineIndex, diffDatumKey(line)]),
-  );
-  if (pre && nextPre) {
-    // The fresh render's attributes, and whatever the runtime painted on the kept box,
-    // which a fresh render never carries (a scroller's marks, reach.js).
-    for (const { name } of [...pre.attributes])
-      if (!nextPre.hasAttribute(name) && !isPagePaint(name)) pre.removeAttribute(name);
-    for (const { name, value } of nextPre.attributes) keeps(pre, name, value);
-    setChildren(
-      pre,
-      [...nextPre.childNodes].map((next) => {
-        if (!next.matches?.("code[data-code]")) return next;
-        const code = pre.querySelector("code[data-code]");
-        if (!code) return next;
-        code.style.gridRow = next.style.gridRow;
-        setChildren(
-          code,
-          [...next.childNodes].map((column) => {
-            const kind = column.hasAttribute?.("data-content")
-              ? "content"
-              : column.hasAttribute?.("data-gutter")
-                ? "gutter"
-                : null;
-            if (!kind) return column;
-            const current = code.querySelector(`[data-${kind}]`);
-            if (!current) return column;
-            const content = code.querySelector("[data-content]");
-            const pair = pairs?.get(content);
-            // A column holding outlets takes its rows from `layoutThreadOutlets`.
-            if (pair) {
-              pair[`${kind}Rows`] = rowSpan(column);
-              pair[`${kind}GridRow`] = column.style.gridRow;
-            } else current.style.gridRow = column.style.gridRow;
-            const kept = kind === "content" ? retained : gutters;
-            const part = kind === "content" ? "outlet" : "gutterRow";
-            // A line's row in either column carries the line's index.
-            setChildren(current, [
-              ...lead.map((record) => record[part]),
-              ...[...column.childNodes].flatMap((child) => {
-                const node = kept.get(child) ?? child;
-                const line = keyAt.get(node.dataset?.lineIndex);
-                return [node, ...(after.get(line) ?? []).map((record) => record[part])];
-              }),
-            ]);
-            return current;
-          }),
-        );
-        return code;
-      }),
-    );
-  }
-  setChildren(details, [
-    details.firstElementChild,
-    ...rendered.nodes.map((node) => (node === nextPre && pre ? pre : node)),
-  ]);
+  const rows = new Map(rendered.lines.map((line) => [diffDatumKey(line), line.row]));
+  const content = pre?.querySelector(".lf-diff-rows");
+  const { lead, after } = outletPlaces(content, rows, outlets);
+  const nextContent = rendered.pre.querySelector(".lf-diff-rows");
+  const children = [
+    ...lead.map(({ outlet }) => outlet),
+    ...[...nextContent.children].flatMap((row) => [
+      retained.get(row) ?? row,
+      ...(
+        after.get(row.querySelector(`[${LINE_KEY}]`)?.getAttribute(LINE_KEY)) ?? []
+      ).map(({ outlet }) => outlet),
+    ]),
+  ];
+  if (pre) {
+    keeps(pre, "data-overflow", rendered.pre.dataset.overflow);
+    keeps(content, "style", nextContent.getAttribute("style"));
+    setChildren(content, children);
+  } else setChildren(nextContent, children);
+  setChildren(details, [details.firstElementChild, pre ?? rendered.pre]);
   entry.lines = rendered.lines;
   return () => restore?.(details.firstElementChild);
 }
@@ -741,50 +649,47 @@ function fileRecord(file, section, parsePatchFiles) {
   };
 }
 
-// One file's evidence, the nodes that go under its disclosure's summary. Each kind of
-// Pierre stylesheet joins `sharedStyles` once, for the stage to hold.
-async function renderFile(file, sharedStyles, overflow) {
+// Prepare only the dependency's highlighted source. Leaf's own block layout needs
+// neither Pierre's parallel-column DOM nor its layout stylesheet and resize manager.
+async function renderFile(file, overflow) {
   const lang = langForPath(file.name);
-  const [{ preloadDiffHTML, ResizeManager }, { themeName, foreground }] =
+  const [{ DiffHunksRenderer, renderHTML }, { themeName, foreground }] =
     await Promise.all([pierre(), ensureSyntaxLanguage(lang)]);
-  const template = document.createElement("template");
-  template.innerHTML = await preloadDiffHTML({
-    fileDiff: { ...file, lang: lang ?? "text" },
-    options: { ...OPTIONS, overflow, theme: themeName },
+  const renderer = new DiffHunksRenderer({
+    ...OPTIONS,
+    overflow,
+    theme: themeName,
+    useTokenTransformer: false,
   });
-  const rendered = template.content;
-
-  // The static rendering has no Pierre interaction manager, so its unused icon sprite
-  // goes. Line numbers and separator wording are useful chrome, but not source a comment
-  // can quote; the source lines and file path remain in the reading.
-  rendered.querySelector("svg[data-icon-sprite]")?.remove();
-  for (const number of rendered.querySelectorAll("[data-line-number-content]")) {
-    number.classList.add("lf-ui");
-    number.setAttribute("data-lf-gen", "1");
-    number.setAttribute("aria-hidden", "true");
-  }
-  for (const separator of rendered.querySelectorAll("[data-separator]"))
+  const highlighted = await renderer.asyncRender({ ...file, lang: lang ?? "text" });
+  const template = document.createElement("template");
+  template.innerHTML = renderHTML(highlighted.unifiedContentAST);
+  const content = template.content;
+  content.querySelector("svg[data-icon-sprite]")?.remove();
+  for (const separator of content.querySelectorAll(
+    "[data-separator], [data-no-newline]",
+  ))
     separator.classList.add("lf-ui");
-  for (const style of [...rendered.children].filter(
-    (child) => child.localName === "style",
-  )) {
-    // Vendor sublayers stay inside widget defaults, below Leaf's shared shadow rules.
-    style.textContent = inBaseLayer(style.textContent);
-    const kind = style.hasAttribute("data-core-css") ? "core" : "theme";
-    if (!sharedStyles.has(kind)) sharedStyles.set(kind, style);
-    style.remove();
-  }
-  markSyntax(rendered, foreground);
-
-  const pre = rendered.querySelector("pre");
-  const viewport = pre.querySelector("code[data-code]") ?? pre;
-  // Its last row clears the overlay scrollbar the pointer widens (shadow.css).
-  viewport.classList.add("lf-text-scroller");
+  markSyntax(content, foreground);
+  const lines = renderedLines(file, content);
+  const pre = document.createElement("pre");
+  pre.dataset.overflow = overflow;
+  const viewport = document.createElement("code");
+  viewport.dataset.code = "";
+  viewport.className = "lf-text-scroller";
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
-
-  const lines = renderedLines(file, rendered);
-  return { nodes: [...rendered.children], pre, lines, ResizeManager };
+  const rows = document.createElement("div");
+  rows.className = "lf-diff-rows";
+  const largest = lines.reduce(
+    (max, line) => Math.max(max, line.newLine ?? line.oldLine),
+    0,
+  );
+  rows.style.setProperty("--lf-diff-gutter", `${String(largest).length + 3}ch`);
+  rows.append(content);
+  viewport.append(rows);
+  pre.append(viewport);
+  return { pre, lines };
 }
 
 function replacementFile(files, parseDiffFromFile) {
@@ -909,7 +814,6 @@ customElements.define(
     #delivered;
     #shown;
     #showing = false;
-    threadSizeManagers = new Map();
 
     shouldUpdate(changed) {
       const ready = super.shouldUpdate(changed);
@@ -1025,7 +929,6 @@ customElements.define(
             this.retireThreadOutlets();
           }
           this.threadSeats = null;
-          this.threadPairs = null;
         };
       });
     }
@@ -1072,7 +975,6 @@ customElements.define(
           releaseOutlets(this);
           this.fileEntries = null;
           this.publishFiles();
-          this.sharedStyles = null;
           this.diffTools = null;
           this.filesBody = null;
           this.replaceChildren();
@@ -1091,7 +993,6 @@ customElements.define(
         const prior = new Map(
           (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
         );
-        const sharedStyles = this.sharedStyles ?? new Map();
         const open = !this.hasAttribute("collapsed");
         const plans = await Promise.all(
           records.map(async (record) => {
@@ -1126,7 +1027,6 @@ customElements.define(
                 snapshot,
                 plan.record,
                 plan.previous?.details ? plan.previous.renderKey : null,
-                sharedStyles,
                 plan.evidence,
               );
             }),
@@ -1184,7 +1084,6 @@ customElements.define(
           this.snapshot = snapshot;
           this.fileEntries = entries;
           this.activePath = activePath;
-          this.sharedStyles = sharedStyles;
           if (!this.singleFile) this.diffTools ??= diffTools(this);
           for (const entry of fresh) this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
@@ -1197,7 +1096,7 @@ customElements.define(
             ...entries.map(({ node }) => node),
           ]);
           this.replaceChildren();
-          this.layoutThreadOutlets();
+          this.markRuns();
           this.stageFiles();
           this.projectFiles();
           this.classList.toggle("lf-rendered", true);
@@ -1211,7 +1110,6 @@ customElements.define(
         if (rendering !== this.rendering || !this.isConnected) return;
         this.fileEntries = null;
         this.publishFiles();
-        this.sharedStyles = null;
         this.diffTools = null;
         this.filesBody = null;
         this.classList.toggle("lf-rendered", false);
@@ -1270,7 +1168,7 @@ customElements.define(
       }
     }
 
-    async prepareEntry(snapshot, record, renderKey, sharedStyles, evidence) {
+    async prepareEntry(snapshot, record, renderKey, evidence) {
       const reading = evidence ?? (await this.readEntry(snapshot, record));
       if (reading.error) return reading;
       try {
@@ -1280,7 +1178,7 @@ customElements.define(
         const rendered =
           !file.hunks.length || renderKey === nextKey
             ? null
-            : await renderFile(file, sharedStyles, overflow);
+            : await renderFile(file, overflow);
         return { file, renderKey: nextKey, rendered };
       } catch (error) {
         return { error };
@@ -1289,7 +1187,7 @@ customElements.define(
 
     stageFiles() {
       if (!this.filesBody) return;
-      shadowStage(this, [...this.sharedStyles.values(), this.filesBody]);
+      shadowStage(this, [this.filesBody]);
     }
 
     // A manifest names the source field each datum came from; a bound patch text's datums
@@ -1319,7 +1217,7 @@ customElements.define(
     threadOutlets(targets, { onCommit }) {
       this.beginThreadSurface();
       const outlets = targets.map((target) => this.threadOutletFor(target));
-      this.layoutThreadOutlets();
+      this.markRuns();
       onCommit(() => this.retireThreadOutlets());
       return outlets;
     }
@@ -1330,30 +1228,7 @@ customElements.define(
     // come down, so the user's editor never leaves the document with it.
     beginThreadSurface() {
       this.threadSeats ??= new Map();
-      this.threadPairs ??= new Map();
       for (const record of this.threadSeats.values()) record.active = false;
-      for (const [content, pair] of this.threadPairs)
-        if (!content.isConnected || !pair.gutter.isConnected)
-          this.threadPairs.delete(content);
-    }
-
-    threadPair({ node: row, gutter: gutterRow }) {
-      this.threadPairs ??= new Map();
-      const content = row.parentElement;
-      const gutter = gutterRow.parentElement;
-      let pair = this.threadPairs.get(content);
-      if (!pair) {
-        pair = {
-          content,
-          gutter,
-          contentRows: rowSpan(content),
-          gutterRows: rowSpan(gutter),
-          contentGridRow: content.style.gridRow,
-          gutterGridRow: gutter.style.gridRow,
-        };
-        this.threadPairs.set(content, pair);
-      }
-      return { gutterRow, pair };
     }
 
     threadOutletFor({ anchor, placement }) {
@@ -1385,25 +1260,13 @@ customElements.define(
           "aria-label",
           `Thread on ${row.dataset.lfDatumLabel || (file ? "file" : "diff line")}`,
         );
-        let gutterRow = null;
-        if (!file) {
-          gutterRow = document.createElement("div");
-          gutterRow.className = "lf-diff-thread-gutter lf-ui";
-          gutterRow.dataset.lfGen = "1";
-          gutterRow.setAttribute("aria-hidden", "true");
-        }
-        record = { gutterRow, outlet, pair: null, row: null };
+        record = { outlet, row: null };
         this.threadSeats.set(anchor.datum, record);
       }
       // A datum drawn anew takes its outlet along, which keeps whoever stands in it.
       if (record.row !== row) {
         if (file) move(entry.node, record.outlet, null);
-        else {
-          const { gutterRow: lineGutter, pair } = this.threadPair(line);
-          move(row.parentNode, record.outlet, row.nextSibling);
-          move(lineGutter.parentNode, record.gutterRow, lineGutter.nextSibling);
-          record.pair = pair;
-        }
+        else move(row.parentNode.parentNode, record.outlet, row.parentNode.nextSibling);
         record.row = row;
       }
       record.active = true;
@@ -1415,52 +1278,9 @@ customElements.define(
       for (const [key, record] of this.threadSeats) {
         if (record.active) continue;
         record.outlet.remove();
-        record.gutterRow?.remove();
         this.threadSeats.delete(key);
       }
-      this.layoutThreadOutlets();
-    }
-
-    // Each line outlet takes a grid row of its own beside its line, in the content and
-    // the gutter columns alike. A file drawn anew sets its columns' rows from the fresh
-    // render alone, so the outlets it kept take theirs again here. A file outlet ends
-    // its file's run (`markRuns`).
-    layoutThreadOutlets() {
       this.markRuns();
-      const counts = new Map();
-      for (const { outlet, pair } of this.threadSeats?.values() ?? [])
-        if (pair && outlet.parentNode === pair.content)
-          counts.set(pair, (counts.get(pair) ?? 0) + 1);
-      const files = new Set();
-      for (const pair of this.threadPairs?.values() ?? []) {
-        const count = counts.get(pair) ?? 0;
-        if (count && pair.content.isConnected) files.add(pair.content.closest("pre"));
-        const contentRow = count
-          ? `span ${pair.contentRows + count}`
-          : pair.contentGridRow;
-        const gutterRow = count
-          ? `span ${pair.gutterRows + count}`
-          : pair.gutterGridRow;
-        pair.content.style.gridRow = contentRow;
-        pair.gutter.style.gridRow = gutterRow;
-      }
-      // Static rendering does not start Pierre's managers. Give its column owner
-      // each live file that needs these declarations, and let it follow retained
-      // code/gutter nodes across revisions. Its global observer holds strong owners,
-      // so retiring the last line conversation explicitly releases the file.
-      for (const [pre, manager] of this.threadSizeManagers)
-        if (!files.has(pre)) {
-          manager.cleanUp();
-          this.threadSizeManagers.delete(pre);
-        }
-      for (const pre of files) {
-        let manager = this.threadSizeManagers.get(pre);
-        if (!manager) {
-          manager = new this.ResizeManager();
-          this.threadSizeManagers.set(pre, manager);
-        }
-        manager.setup(pre, { disableAnnotations: true });
-      }
     }
 
     async loadEntry(entry) {
@@ -1481,7 +1301,6 @@ customElements.define(
           this.snapshot,
           entry.record,
           entry.renderKey,
-          this.sharedStyles,
           entry.file ? { file: entry.file } : undefined,
         );
         if (rendering !== this.rendering || !this.isConnected) return;
@@ -1515,7 +1334,7 @@ customElements.define(
               this.applyEntry(entry, prepared),
             );
             if (ready.length) {
-              this.layoutThreadOutlets();
+              this.markRuns();
               this.stageFiles();
               this.projectFiles();
             }
@@ -1563,10 +1382,7 @@ customElements.define(
         this.attachDisclosure(entry);
         return restore;
       }
-      const restore =
-        rendered &&
-        replaceFileContent(entry, rendered, this.threadPairs, this.threadSeats);
-      if (rendered) this.ResizeManager = rendered.ResizeManager;
+      const restore = rendered && replaceFileContent(entry, rendered, this.threadSeats);
       entry.renderKey = renderKey;
       entry.loaded = true;
       entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
@@ -1629,21 +1445,9 @@ customElements.define(
     }
 
     attachEntryControls(entry) {
-      const hover = (event) => {
-        const line = lineForNode.get(
-          event.target.closest("[data-content] > [data-line]"),
-        );
-        if (line && !line.node.contains(event.relatedTarget))
-          line.gutter.classList.toggle(
-            "lf-diff-line-hover",
-            event.type === "pointerover",
-          );
-      };
-      entry.node.addEventListener("pointerover", hover);
-      entry.node.addEventListener("pointerout", hover);
       entry.node.addEventListener("click", (event) => {
-        const line = lineForNode.get(event.target.closest(".lf-diff-line-comment"));
-        if (line) threadSurface(this).open(line.node);
+        const button = event.target.closest(".lf-diff-line-comment");
+        if (button) threadSurface(this).open(button.nextElementSibling);
       });
       const label = entry.record.path || "file";
       entry.fileComment = commentButton(

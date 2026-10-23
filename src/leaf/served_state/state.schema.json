@@ -743,8 +743,7 @@
             "unresolve",
             "action",
             "report",
-            "note",
-            "done"
+            "note"
           ]
         },
         "author": { "type": "string" },
@@ -806,11 +805,6 @@
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/View" }
         },
-        "approval_history": {
-          "description": "Approvals in force across every stamp, for Threads' event timeline. Current-version approval state lives only in its obligation.",
-          "type": "array",
-          "items": { "$ref": "leaf:event/done", "unevaluatedProperties": false }
-        },
         "todos": {
           "description": "Every to-do, open and ended, the one record the browser reads each from.",
           "type": "array",
@@ -853,7 +847,6 @@
       "required": [
         "basis",
         "views",
-        "approval_history",
         "todos",
         "plan",
         "receipts",
@@ -895,7 +888,7 @@
           "additionalProperties": false
         },
         "obligations": {
-          "description": "Every obligation record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row and `approval_blocking` name an obligation by `id`.",
+          "description": "Every obligation record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row names an obligation by `id`.",
           "type": "array",
           "items": { "$ref": "#/$defs/Obligation" }
         },
@@ -988,11 +981,6 @@
           },
           "required": ["on_user", "on_agent", "done"],
           "additionalProperties": false
-        },
-        "approval_blocking": {
-          "description": "The obligations approving this version waits on (`obligations.approval_blocking`).",
-          "type": "array",
-          "items": { "type": "string" }
         }
       },
       "required": [
@@ -1004,8 +992,7 @@
         "undo",
         "coverage",
         "published_at",
-        "queues",
-        "approval_blocking"
+        "queues"
       ],
       "additionalProperties": false
     },
@@ -1071,7 +1058,7 @@
       "additionalProperties": false
     },
     "Obligation": {
-      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message, user task, widget or version sign-off waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
+      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message, user task, or widget waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -1089,15 +1076,6 @@
                 }
               },
               "required": ["kind", "id", "tag"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "const": "approval" },
-                "version": { "type": "integer" }
-              },
-              "required": ["kind", "version"],
               "additionalProperties": false
             },
             {
@@ -1139,7 +1117,7 @@
           "properties": {
             "text": { "type": ["string", "null"] },
             "target": {
-              "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for an approval, which asks about the version as a whole.",
+              "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message or page-wide task, whose source and thread supply navigation.",
               "type": ["string", "null"]
             }
           },
@@ -1217,7 +1195,7 @@
       "properties": {
         "kind": {
           "description": "The record's `source.kind`.",
-          "enum": ["widget", "approval", "update", "message", "todo"]
+          "enum": ["widget", "update", "message", "todo"]
         },
         "id": {
           "description": "The obligation, whose record is the view's `obligations` entry.",

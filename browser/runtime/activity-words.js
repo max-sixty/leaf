@@ -357,7 +357,6 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
 const QUEUE_WORDS = Object.freeze({
   widget: ["to answer", "to answer"],
   message: ["to answer", "to answer"],
-  approval: ["approval", "approvals"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],

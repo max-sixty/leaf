@@ -19,11 +19,9 @@ from leaf.events import (
     taken_back,
     undo_error,
 )
-from leaf.files import version_revisions
 from leaf.findings import Finding
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.obligations import (
-    approval_blocking,
     asking,
     quoted_in,
     response_address,
@@ -56,11 +54,9 @@ from leaf.registry.kernel import (
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, load_registry
-from leaf.structure import review_mode
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
-from leaf.work_reading import WorkReading
 from leaf.workflows import agent_inputs, obligation_reading
 
 
@@ -470,16 +466,15 @@ def declared_report_error(event: dict, page, registry: dict):
     return declared_event_error(event, tag, registry)
 
 
-def admitting_registry(view, event: dict, events: list) -> dict:
+def admitting_registry(view, event: dict) -> dict:
     """The vocabulary that admits one event: the one its own document captured.
 
     An event names the revision it was made against, and that revision's artifact
     holds the registry its page was rendered from — so a re-vendor, which replaces
     the layer without touching an existing revision, cannot reinterpret a command
     the user made against the document in front of them. Admission records that
-    semantic definition in the event. A sign-off names its version
-    instead, and admits under the revision that version stamped. An event naming
-    neither takes the newest, which is the document any writer of one is looking
+    semantic definition in the event. An event naming no revision takes the newest,
+    which is the document any writer of one is looking
     at, and a page with no revision yet has the candidate's vocabulary. Nothing made
     against a revision saved at another protocol is admitted
     (`layer.incompatible_revision`): one the event names, or the newest a widget
@@ -490,12 +485,7 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""
     revisions = view.revisions
-    version = event.get("version")
-    revision = (
-        (version_revisions(events).get(version) if type(version) is int else None)
-        if event.get("kind") == "done"
-        else event.get("revision")
-    )
+    revision = event.get("revision")
     named = type(revision) is int and revision in set(revisions)
     if not named:
         revision = revisions[-1] if revisions else None
@@ -536,28 +526,6 @@ def _revision_error(view, event: dict) -> Finding | None:
                 "revision": event["revision"],
                 "revisions": list(live),
             },
-        )
-    return None
-
-
-def _approval_error(view, event: dict, events: list, registry: dict):
-    """Why a sign-off cannot record approval of the version it names."""
-    if event["kind"] != "done":
-        return None
-    version = {"version": event["version"]}
-    revision = version_revisions(events).get(event["version"])
-    if revision is None:
-        return Finding("unstamped-version", values=version)
-    document = view.document(revision)
-    if review_mode(document) != "sign-off":
-        return Finding("not-sign-off", values=version)
-    page = AdmissionReadings(view, events, registry).page(revision)
-    work = WorkReading(events, registry, page, data=view.data(registry))
-    unanswered = approval_blocking(work.all_obligations["all"])
-    if unanswered:
-        return Finding(
-            "unanswered-obligations",
-            values={**version, "obligations": [item["id"] for item in unanswered]},
         )
     return None
 
@@ -730,7 +698,6 @@ def admission_error(
     return (
         _publication_error(view, event)
         or _revision_error(view, event)
-        or _approval_error(view, event, events, registry)
         or _action_error(view, event, readings)
         or _report_error(view, event, readings)
         or _reaction_error(event, registry)
@@ -886,7 +853,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     page's markup as literal text can put an event to the same rules the server
     applies without a page directory, a server, or a browser under it.
     """
-    registry = admitting_registry(view, event, events)
+    registry = admitting_registry(view, event)
     # The kernel's records are this Leaf's own, whichever Leaf vendored the page: no
     # layer can change them, and a page at this protocol reads what they add
     # (`registry.kernel.kernel_protocol`).

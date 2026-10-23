@@ -29,7 +29,7 @@ import {
   offer,
   LeafElement,
   nothing,
-  onStanding,
+  onCurrentLocation,
   paintKeys,
   plainPress,
   scrollIntoView,
@@ -148,7 +148,7 @@ customElements.define(
         // Trees scrolls its virtualized list and focuses with preventScroll. The
         // row can still lie outside Leaf's outer reading viewport, so hand that
         // remaining reveal to the same scrolling owner every widget uses.
-        const stopStanding = onStanding((row) => {
+        const stopCurrentLocation = onCurrentLocation((row) => {
           // A route to this navigator lands on its usable entry control.
           if (row === this) {
             const input = root.querySelector("input");
@@ -179,7 +179,7 @@ customElements.define(
           { signal },
         );
         return () => {
-          stopStanding();
+          stopCurrentLocation();
           generation++;
           this.#shown = undefined;
           stopModel?.();

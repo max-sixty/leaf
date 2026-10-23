@@ -695,7 +695,7 @@ export const elementFromPointAcross = (x, y) => {
 // write, and `elementById` above is what widened that: a mark placed on a staged element
 // sits in a tree `document.querySelectorAll` never enters, so the clear would miss it and
 // the mark outlive the reason for it. The runtime's own marks are read back this way, and
-// so is a control the user can stand on, for the same reason: both are wherever the
+// so is a control the user can focus, for the same reason: both are wherever the
 // markup ended up. Which widgets the page holds is a different question and still the
 // document's:
 // a widget staged inside another's tree is a nesting the registry's x-owners contract

@@ -67,6 +67,7 @@ from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
+from leaf.validation.instances import DECLARED_WORDS
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -1656,7 +1657,7 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
 
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
-    mark delivery paints such as `data-lf-resident`, never by its tag: a rule naming
+    mark delivery paints such as `data-lf-margin-content`, never by its tag: a rule naming
     lf-toc serves lf-toc and no other contents map, and binds the kernel to one
     package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
     selectors the runtime hands a DOM query, use no tag a bundled package declares as
@@ -5025,6 +5026,27 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
         "# Data contract `instruction-records`\n\nSupply records in one snapshot.\n"
     )
     assert author.count("# Vocabulary `lf-instruction-owner`") == 1
+
+
+def test_selected_instructions_name_the_words_a_declared_attribute_takes(page_dir):
+    """An attribute that names a layer-wide word, such as a column's tone or a
+    code block's language, is a plain string in its schema, so each selected
+    entry's instructions list the words validation accepts, from the layer's own
+    list, for every entry the registry declares one on."""
+    registry = registry_storage.read_page_registry(page_dir).registry
+    checked = set()
+    for key, fact in DECLARED_WORDS:
+        for name, entry in registry.items():
+            if name.startswith("$") or not isinstance(entry, dict) or key not in entry:
+                continue
+            author = page_instructions(page_dir, entries=(name,))["author"]
+            assert (
+                f"`{entry[key]}` takes one of the layer's {fact.removeprefix('$')}: "
+                + ", ".join(f"`{word}`" for word in registry[fact]["names"])
+                + "."
+            ) in author
+            checked.add(key)
+    assert checked == {key for key, _ in DECLARED_WORDS}
 
 
 def test_cli_selection_returns_the_composed_audience_map(instruction_page):

@@ -1020,7 +1020,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     assert all(names(f, "lf-tally") for f in failures), failures
 
 
-def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
+def test_a_widget_current_location_out_of_place_is_a_page_the_gate_reports(
     browser, serve, tmp_path, monkeypatch
 ):
     """The premise the test below rests on, stated where it can fail on its own.

@@ -11,7 +11,7 @@
  * Comments stay bound to the capture's source revision: callee keys do not identify
  * persistent invocation instances. Rows are keyed by call and placed with setChildren rather than a Lit repeat per root:
  * a capture can move a call under another root, and a row leaving one repeat list
- * for another is recreated, which would drop the focus of a user standing on it. */
+ * for another is recreated, which would drop the focus of a user on it. */
 import {
   announce,
   html,
@@ -316,10 +316,12 @@ customElements.define(
       });
       // Placed at once, a row changing groups, even to a newly arriving root, moves
       // straight across and keeps its controls live; its group opens to show it.
-      const standing = focused(this.getRootNode());
+      const currentLocation = focused(this.getRootNode());
       for (const { group, body, children } of placements)
         if (
-          children.some((node) => node.parentNode !== body && node.contains(standing))
+          children.some(
+            (node) => node.parentNode !== body && node.contains(currentLocation),
+          )
         )
           if (!group.open) group.open = true;
       setChildLists([

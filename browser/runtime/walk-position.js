@@ -1,6 +1,6 @@
 /* The transient position of a Leaf keyboard walk, and the one walk over a flat list of
    focusable rows (`rowWalk`). Other walks' owners keep their list and motion and give
-   this module only a reader for the standing destination. Owners keep that
+   this module only a reader for the current destination. Owners keep that
    reading current from the source's invalidation signal — directly on paint for cheap
    lists, or through a refreshed cache for an expensive source such as the page-text
    index — so a resolved thread, answered obligation, disappearing leaf, or replaced version

@@ -95,8 +95,8 @@ customElements.define(
       return this.#focusedContent;
     }
 
-    restoreStanding() {
-      return this.#host?.call("restore-standing");
+    restoreCurrentLocation() {
+      return this.#host?.call("restore-current-location");
     }
 
     connectedCallback() {
@@ -152,7 +152,7 @@ customElements.define(
             this.#focusedContent = false;
             this.#track(host.ready);
           });
-          host.on("standing", ({ focused }) => {
+          host.on("current-location", ({ focused }) => {
             this.#focusedContent = focused;
           });
           // The departed document's frame shows the browser's destination, which

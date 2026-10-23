@@ -4,7 +4,7 @@
 import { focused } from "../focus.js";
 import { inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
-import { placeOf } from "../standing-target.js";
+import { placeOf } from "../current-target.js";
 import { heldThread } from "../thread/focus.js";
 
 // Obligation controls target the obligation they work; other focus keeps the exact datum or
@@ -15,15 +15,15 @@ import { heldThread } from "../thread/focus.js";
 // Read the deepest focus: a datum is in the shadow tree, while its host is only the
 // enclosing addressable element. The pointer and keyboard resolve through the same
 // aimTargetAt, including source provenance and visual-part identity.
-export function createStandingTarget({ isObligationControl, standingIn }) {
-  return function standingTarget() {
+export function createCurrentTarget({ isObligationControl, currentLocationIn }) {
+  return function currentTarget() {
     const held = focused();
     if (!held || held === document.body) return null;
     if (inChrome(held) && heldThread()) return null;
     const place = placeOf(held);
     if (!place || inChrome(place)) return null;
     if (place !== held) return aimTargetAt(place);
-    const working = isObligationControl(held) ? standingIn() : null;
+    const working = isObligationControl(held) ? currentLocationIn() : null;
     return aimTargetAt(working ?? held);
   };
 }

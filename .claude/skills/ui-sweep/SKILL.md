@@ -101,7 +101,7 @@ reverse or cancel it, exhaust its available room, or change external state while
 it remains active. Choose the operators that challenge the hypothesized mechanism.
 Vary one factor at a time across an ownership boundary and exercise both the
 forward and return paths. State what must change and what must survive before
-driving. When a change sends an existing surface into a different posture or
+driving. When a change sends an existing surface into a different layout or
 fallback, compare the same user task against the merge base; the candidate must
 preserve its task-relevant information and actions. Include an unrelated change
 that should preserve the active relationship.

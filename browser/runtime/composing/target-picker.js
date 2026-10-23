@@ -231,7 +231,7 @@ export function createTargetPicker({
   // `withHints` opens the shared mode without a target map: a direct slash is page
   // search over the whole document, and reading a viewport-local map it would then hide
   // is work for nobody.
-  // The picker's opener is the control the user stood on as it opened (focus.js,
+  // The picker's opener is the control the user was on as it opened (focus.js,
   // `openLayer`); a close that restores hands them back to it as it closes.
   function setTargetPicker(on, restore = false, withHints = true) {
     if (on && (!anchoringIsReady() || (withHints && !canChoose()))) return;

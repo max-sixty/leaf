@@ -3,7 +3,7 @@
  * The margin projection supplies one frozen descriptor model before any DOM is
  * materialized. This synchronous light-DOM owner seats shared retained native
  * controls across direct and disclosed positions, placing both lists at once
- * (`setChildLists`) so a control moving between them keeps the user standing in it.
+ * (`setChildLists`) so a control moving between them keeps the user in it.
  * The overlay owns selection, keyboard state, and whole-host placement; no other code
  * inserts, moves, or removes a child inside a view.
  */

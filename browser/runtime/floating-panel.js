@@ -3334,8 +3334,9 @@ export function createFloatingPanel({
     const exit =
       search === threadSearch
         ? { label: "Close search", press: closeThreadSearch, disabled: false }
-        : (rows().find((entry) => entry.exit) ??
-          (top ? { label: "Close", press: close, disabled: false } : null));
+        : top
+          ? { label: "Close", press: close, disabled: false }
+          : (rows().find((entry) => entry.exit) ?? null);
     render(
       exit
         ? html`<button

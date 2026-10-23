@@ -25,6 +25,12 @@ token from the box that knows it: `--lf-full-height` where the widget has a defi
 height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 `--lf-density: working` under the `density-working` style.
 
+The body supplies `--lf-ground: var(--paper)`. Each solid containing surface
+overrides `--lf-ground`; both it and its opaque controls paint
+`background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
+wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.
+This color describes a solid background, not an image or gradient.
+
 A rule that draws an inset around a box, with padding, a border or a tinted background,
 also declares `--lf-block-frame: 1`. Leaf then trims the first child's top margin and the
 last child's bottom margin and keeps wide content inside the frame. A box that keeps its

@@ -54,6 +54,7 @@ import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./marks.js";
+import { generatedElement } from "./widget-elements.js";
 
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
@@ -98,7 +99,7 @@ export function quietWord(el, word) {
     className: "lf-ui lf-quiet",
     textContent: word,
   });
-  span.dataset.lfGen = "1";
+  generatedElement(span, { says: false });
   move(el, span, title ? title.nextSibling : el.firstChild);
 }
 
@@ -220,7 +221,7 @@ export function writePrepaint(root) {
     markup.innerHTML = declared.as ? registry[declared.as]["x-prepaint"] : declared;
     const written = /** @type {HTMLElement} */ (markup.content.firstElementChild);
     written.toggleAttribute("data-lf-prepaint", true);
-    written.dataset.lfGen = "1";
+    generatedElement(written, { says: false });
     for (const el of elementsIn(root, tag)) el.prepend(written.cloneNode(true));
   }
 }
@@ -247,12 +248,12 @@ export function writePrepaint(root) {
 // diff parses the base version unupgraded and must not read it as text that version
 // lacked, and the user must be able to quote it.
 //
-// data-lf-said names the attribute here and stands bare on a label relabel wrote, because
-// the two are one claim — these words are the page's, whoever rendered them. The anchor
-// pass reads the marker alone; the value is for whoever means one attribute in
-// particular, which is this pass (so it writes no second span over its own) and the
-// theme, whose every rule names the attribute it styles rather than matching the bare
-// marker.
+// data-lf-said names the attribute here and stands bare on a label generatedElement
+// wrote, because the two are one claim — these words are the page's, whoever rendered
+// them. The anchor pass reads the marker alone; the value is for whoever means one
+// attribute in particular, which is this pass (so it writes no second span over its
+// own) and the theme, whose every rule names the attribute it styles rather than
+// matching the bare marker.
 export function renderSaid(root) {
   for (const [tag, entry] of elementDeclarations()) {
     if (!entry["x-says"]) continue;
@@ -271,7 +272,7 @@ export function renderSaid(root) {
         if (text === null) continue;
         const span = document.createElement("span");
         span.dataset.lfSaid = attr;
-        span.dataset.lfGen = "1";
+        generatedElement(span, { says: true });
         span.textContent = text;
         // The two edges are not mirror images, because the chrome at them is not the same
         // kind of thing.

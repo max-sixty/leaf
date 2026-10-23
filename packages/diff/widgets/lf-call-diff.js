@@ -18,6 +18,8 @@ import {
   iconTemplate,
   render,
   el,
+  generated,
+  generatedElement,
   keeps,
   keepsText,
   LeafElement,
@@ -118,7 +120,7 @@ function buildToolbar(owner) {
   // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
   // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
   const summary = el("p", "lf-call-summary");
-  summary.dataset.lfGen = "1";
+  generatedElement(summary, { says: false });
   // `offer`, not a bare button: the disclosure control is chrome this widget injected,
   // and `offer` gives it the press markers the theme and the keyboard read.
   const button = offer(
@@ -211,7 +213,9 @@ function renderLine(record, line, owner, count = null) {
       }${
         count === null
           ? ""
-          : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`
+          : html`<span class="lf-call-group-count" ${generated({ says: false })}
+              >${count}</span
+            >`
       }`,
     line,
   );

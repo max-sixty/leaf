@@ -98,6 +98,7 @@ import {
   frameFor,
   whileConnected,
   offer,
+  generated,
   openingView,
   pageScroller,
   preserveReadingRegions,
@@ -378,8 +379,7 @@ export class TabSet extends LeafElement {
                     ? html`<span
                         class="lf-tab-group"
                         aria-hidden="true"
-                        data-lf-gen="1"
-                        data-lf-said
+                        ${generated({ says: true })}
                         >${run.group}</span
                       >`
                     : nothing
@@ -451,11 +451,11 @@ export class TabSet extends LeafElement {
       tabindex=${panel === this.#active.value ? 0 : -1}
       @click=${(event) =>
         this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
-      ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
+      ><span class="lf-tab-name" ${generated({ says: true })}
         >${panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
         this.#down && panel.hasAttribute("summary")
-          ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said
+          ? html`<span class="lf-tab-summary" ${generated({ says: true })}
               >${panel.getAttribute("summary")}</span
             >`
           : nothing

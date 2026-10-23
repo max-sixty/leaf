@@ -250,6 +250,8 @@ export {
   LAYOUT,
   dragging,
   el,
+  generated,
+  generatedElement,
   layoutChanged,
   measure,
   motionPreview,

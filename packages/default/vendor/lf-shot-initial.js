@@ -88,12 +88,11 @@
     keeps(host, "data-lf-shot-focus", geometry.focus);
     const stacked = host.dataset.lfShotMode === "compare" && geometry.layout === "stack";
     for (const caption of host.querySelectorAll(".lf-shotcap"))
-      caption.toggleAttribute(
-        "data-lf-said",
-        caption.parentElement.classList.contains("lf-shot-frame-label") === stacked
-      );
+      document.documentElement.lfInitial.generatedElement(caption, {
+        says: caption.parentElement.classList.contains("lf-shot-frame-label") === stacked
+      });
   }
-  function drawShot(host, { offer, keeps }) {
+  function drawShot(host, { offer, generatedElement, keeps }) {
     const buttons = (label, values, selected) => {
       const group = offer("div", "lf-shot-views");
       group.role = "group";
@@ -171,13 +170,11 @@
     for (const state of ["before", "after"]) {
       const frame = offer("div", "lf-shotframe lf-media-frame");
       frame.dataset.lfState = state;
-      const caption = offer(
-        "span",
-        "lf-shotcap lf-label",
-        state === "before" ? "Before" : "After"
+      const caption = generatedElement(
+        offer("span", "lf-shotcap lf-label", state === "before" ? "Before" : "After"),
+        { says: true }
       );
       caption.dataset.lfState = state;
-      caption.dataset.lfSaid = "";
       const heading = offer("div", "lf-shot-frame-label lf-ui");
       heading.dataset.lfState = state;
       const frameCaption = offer("span", "lf-shotcap lf-label", caption.textContent);

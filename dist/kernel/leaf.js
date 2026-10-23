@@ -7157,7 +7157,7 @@ function createFloatingPanel({
   }
   function putAwayThen(run) {
     const inside = standingIn(host);
-    close();
+    if (!menuOpen.value) close();
     setMenu(false);
     if (inside) focusDestination(leaf, "return");
     run();
@@ -8704,7 +8704,7 @@ function createFloatingPanel({
     const standing = search ? null : olderVersion();
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
-    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : top ? { label: "Close", press: close, disabled: false } : rows().find((entry) => entry.exit) ?? null;
+    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : top && !search ? { label: "Close", press: close, disabled: false } : rows().find((entry) => entry.exit) ?? null;
     render(
       exit ? html`<button
             type="button"

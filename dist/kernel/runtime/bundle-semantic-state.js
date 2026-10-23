@@ -49,7 +49,10 @@ var queueWidgetUpdate = (widget, update, committed) => {
     () => {
       const parents = d(currentWidgetParents);
       const pending = [];
+      const seen = /* @__PURE__ */ new Set([widget]);
       for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
+        if (seen.has(parent)) return [];
+        seen.add(parent);
         const dom2 = widgetCommits.get(parent);
         if (dom2) pending.push(dom2);
       }

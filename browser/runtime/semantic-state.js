@@ -81,7 +81,13 @@ export const queueWidgetUpdate = (widget, update, committed) => {
     () => {
       const parents = untracked(currentWidgetParents);
       const pending = [];
+      const seen = new Set([widget]);
       for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
+        // Optimistic moves precede server admission. A cyclic move has no DOM
+        // order; leave rendering and refusal free to report it instead of waiting
+        // on ourselves or another member of that cycle.
+        if (seen.has(parent)) return [];
+        seen.add(parent);
         const dom = widgetCommits.get(parent);
         if (dom) pending.push(dom);
       }

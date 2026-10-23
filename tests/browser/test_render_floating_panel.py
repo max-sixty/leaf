@@ -956,8 +956,12 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     assert page.evaluate("getSelection().toString()") == "Paragraph 10"
 
 
-@pytest.mark.parametrize("destination", ["page", "reply"])
-def test_search_keeps_the_unfinished_comment_and_its_caret(browser, serve, destination):
+@pytest.mark.parametrize(
+    "destination, opening", [("page", "menu"), ("reply", "keyboard"), ("reply", "menu")]
+)
+def test_search_keeps_the_unfinished_comment_and_its_caret(
+    browser, serve, destination, opening
+):
     """Searching borrows the field's seat, never the comment's words or Send action.
     Returning keeps the same editor, insertion point and undo history for page comments
     and replies.
@@ -979,7 +983,7 @@ def test_search_keeps_the_unfinished_comment_and_its_caret(browser, serve, desti
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] in {"comment", "reply"}
     ]
-    if destination == "reply":
+    if opening == "keyboard":
         page.locator(".lf-fp-view[data-view=thread]").focus()
         page.keyboard.press("/")
     else:
@@ -997,7 +1001,10 @@ def test_search_keeps_the_unfinished_comment_and_its_caret(browser, serve, desti
     ).to_be_hidden()
     page.keyboard.press("Enter")
     expect(search).to_be_visible()
-    page.keyboard.press("Escape")
+    if opening == "menu":
+        page.get_by_role("button", name="Close search", exact=True).click()
+    else:
+        page.keyboard.press("Escape")
     expect(search).to_be_hidden()
     expect(field(page)).to_have_js_property("value", draft)
     assert field(page).evaluate("(el, original) => el === original", editor)
@@ -3668,6 +3675,9 @@ def test_a_layer_a_menu_row_opened_closes_back_to_the_leaf(browser, serve):
     """The command reference a menu row opens records the leaf as where it was opened
     from, since the row went with the menu, so Escape returns the user there."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
+    page.keyboard.press("t")
+    write(field(page), "An unfinished reply")
+    editor = field(page).element_handle()
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Keyboard shortcuts").click()
     reference = page.locator(".lf-command-reference")
@@ -3675,6 +3685,8 @@ def test_a_layer_a_menu_row_opened_closes_back_to_the_leaf(browser, serve):
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(page.locator(".lf-fp-leaf")).to_be_focused()
+    expect(field(page)).to_have_js_property("value", "An unfinished reply")
+    assert field(page).evaluate("(node, original) => node === original", editor)
 
 
 def test_tab_from_the_field_reaches_dictate(browser, serve):

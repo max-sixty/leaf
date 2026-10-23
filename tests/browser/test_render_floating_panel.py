@@ -53,7 +53,7 @@ from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import thread as thread_model
-from leaf.render_checks import one_frame, wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 SIGN_OFF = LONG_PAGE.replace(
     "<title>long</title>",
@@ -94,7 +94,9 @@ def floating(browser, url):
 
 
 def settled(page):
-    """Wait until the panel's motion has finished, so a box read is where it rests."""
+    """Wait until layout has started the panel's motion and that motion has finished,
+    so a box read is where it rests."""
+    rendered(page)
     page.wait_for_function(
         "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
         " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
@@ -2674,6 +2676,7 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(panel).to_have_attribute("data-rest", "mark")
     expect(page.locator(".lf-fp-field")).to_be_hidden()
     expect(page.locator(".lf-fp-quick")).to_be_hidden()
+    settled(page)
     leaf = page.locator(".lf-fp-leaf").bounding_box()
     window = page.viewport_size
     right = window["width"] - (leaf["x"] + leaf["width"])

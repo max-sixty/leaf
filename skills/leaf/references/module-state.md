@@ -229,7 +229,11 @@ result needs to be stored for the page's other readers.
 
 `generate({input, schema, instructions?})` asks the host's model for a structured
 response. `input` and optional `instructions` are strings; `schema` is the required
-JSON Schema for the response. Import it from `/runtime/widget-api.js`:
+JSON Schema for the response, within the selected model's structured-output subset.
+For portable Codex/Claude requests, use an object root, mark every property required,
+and set `additionalProperties: false` on each object. Represent optional values with
+nullable types. Leaf checks schema validity locally; the harness reports unsupported
+schema features as generation errors. Import it from `/runtime/widget-api.js`:
 
 ```js
 import { generate } from "/runtime/widget-api.js";
@@ -259,7 +263,8 @@ supplies the context and decides how to use the returned value.
 
 The page must have an active Codex or Claude claim. The host reuses that harness's
 existing login and selects its inexpensive model: Luna for Codex, Haiku for Claude.
-It may set `LEAF_LLM_MODEL` to a compatible model override. Credentials stay on the
-host; a widget cannot choose the model or supply tools. Leaf does not yet enforce a
+Credentials stay on the host; a widget cannot choose the model or supply tools. Leaf does not yet enforce a
 spending allowance: repeated calls can continue to incur charges. Usage is returned
-per call, not retained as a billing ledger.
+per call, not retained as a billing ledger. Each page server runs one widget
+generation at a time and rejects overlapping calls as busy (HTTP 429), keeping
+ordinary page interactions responsive.

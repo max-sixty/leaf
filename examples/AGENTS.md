@@ -32,10 +32,14 @@ routes.
 
 ## The corpus
 
-`leaf-dev corpus` generates `corpus.html`, `corpus.data.json`, `corpus.jsonl` and
-`corpus.page/` from the public examples, the developer pages and the regression
-fixtures. Measure runtime cost on `corpus.html`; a small fixture can establish a cause
-but not the cost.
+`corpus.html` and its companions are ignored snapshots composed from the public
+examples, developer pages and regression fixtures. Preview, probe, benchmarks and
+the combined-page tests generate them on demand; `leaf-dev corpus` also builds a
+snapshot explicitly. Running corpus previews follow source edits through the same
+live-update rules as individual previews (`dev/leaf_dev/commands/preview.py`). Edit
+the source pages, with no regeneration step before committing.
+Measure runtime cost on the corpus; a small fixture can establish a cause but not
+the cost.
 
 The suite fails when the shipped vocabulary has a widget, idiom, declared attribute or
 enum value that no corpus page shows; `layer.json` lists every optional bundled package

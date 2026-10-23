@@ -1,7 +1,7 @@
 """Tool-free, schema-constrained inference through the host's existing login.
 
 Codex uses an ephemeral App Server thread and Claude Code a safe-mode print run.
-Neither loads page tools, plugins or session identity. The host selects a model;
+Neither loads page tools, plugins or session identity. The host fixes the model;
 callers supply input, instructions and a required JSON Schema. Results contain
 value, model, usage and duration metadata. This layer neither retries requests nor
 collects or persists page data; callers own those policies.
@@ -31,8 +31,10 @@ class RateLimited(RuntimeError):
     """The provider refused the request for rate limits (HTTP 429)."""
 
 
-# Disable tools, plugins, hooks and project instructions. Codex can still load
-# its home AGENTS.md (thread_titles documents that host context). Luna accepts `none` effort but not `minimal`
+# Disable tools, plugins, hooks and project instructions. With tools, a title
+# request sometimes acted on the quoted message; hooks retitled the user’s
+# terminal tab. Codex can still load
+# its home AGENTS.md. Luna accepts `none` effort but not `minimal`
 # (codex-cli 0.160); an unavailable host model fails the request.
 CODEX_MODEL = "gpt-6-luna"
 APP_SERVER_EFFORT = "none"
@@ -73,7 +75,9 @@ CODEX_CONFIG = {
 CODEX_SERVER_ARGUMENTS = ("--disable", "plugins")
 # Safe mode omits user instructions, plugins, hooks, MCP servers and skills while
 # keeping auth. User-only settings prevent project settings from overriding auth.
-# Disabling thinking and nonessential traffic keeps short requests inexpensive.
+# Thinking made Haiku titles slower (3–7 s versus 1–2 s) without better results.
+# Disabling nonessential traffic cut median startup/exit overhead in an interleaved
+# four-pair comparison on a busy host (8.4 s versus 15.8 s total).
 CLAUDE_CODE_ENVIRONMENT = {
     "MAX_THINKING_TOKENS": "0",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
@@ -86,7 +90,6 @@ def claude_code_generate(
     *,
     schema: dict,
     instructions: str,
-    model: str | None = None,
 ) -> dict:
     """Ask for structured JSON through the `claude` on PATH, on the user's own login
     and provider.
@@ -97,7 +100,6 @@ def claude_code_generate(
     executable = shutil.which("claude")
     if executable is None:
         raise FileNotFoundError("no `claude` on PATH")
-    model = model or "haiku"
     started = time.monotonic()
     env = {
         name: value
@@ -109,7 +111,7 @@ def claude_code_generate(
             executable,
             "-p",
             "--no-session-persistence",
-            f"--model={model}",
+            "--model=haiku",
             "--tools=",
             "--safe-mode",
             "--setting-sources=user",
@@ -142,7 +144,7 @@ def claude_code_generate(
     usage = answer["usage"]
     return {
         "value": answer["structured_output"],
-        "model": model,
+        "model": "haiku",
         "durationMs": round((time.monotonic() - started) * 1000),
         # The model's share of `durationMs`; the rest is `claude` starting and
         # exiting, which a busy machine stretches and the model does not.
@@ -156,8 +158,8 @@ def claude_code_generate(
     }
 
 
-def open_thread(socket, page_dir: Path, instructions: str, model: str) -> str:
-    """Open the ephemeral thread one request is asked on, on `model`, over
+def open_thread(socket, page_dir: Path, instructions: str) -> str:
+    """Open the ephemeral thread one request is asked on, on Luna, over
     a new connection to an App Server, run in the page directory, and return its
     id."""
     app_server_handshake(socket, 0, "leaf-inference", "Leaf inference")
@@ -171,7 +173,7 @@ def open_thread(socket, page_dir: Path, instructions: str, model: str) -> str:
         "thread/start",
         2,
         {
-            "model": model,
+            "model": CODEX_MODEL,
             "cwd": str(page_dir),
             "ephemeral": True,
             "approvalPolicy": "never",
@@ -254,19 +256,17 @@ def app_server_generate(endpoint: str) -> Callable[..., dict]:
         *,
         schema: dict,
         instructions: str,
-        model: str | None = None,
     ) -> dict:
-        model = model or CODEX_MODEL
         started = time.monotonic()
         socket = app_server_connect(endpoint)
         try:
-            thread_id = open_thread(socket, page_dir, instructions, model)
+            thread_id = open_thread(socket, page_dir, instructions)
             reading = ask(socket, thread_id, request, schema, started + TIMEOUT)
         finally:
             socket.close()
         return {
             **reading,
-            "model": model,
+            "model": CODEX_MODEL,
             "durationMs": round((time.monotonic() - started) * 1000),
         }
 
@@ -279,7 +279,6 @@ def codex_generate(
     *,
     schema: dict,
     instructions: str,
-    model: str | None = None,
 ) -> dict:
     """Ask Codex on demand; no server remains idle between requests."""
     started = time.monotonic()
@@ -296,6 +295,6 @@ def codex_generate(
         _process,
     ):
         reading = app_server_generate(endpoint)(
-            request, page_dir, schema=schema, instructions=instructions, model=model
+            request, page_dir, schema=schema, instructions=instructions
         )
     return {**reading, "durationMs": round((time.monotonic() - started) * 1000)}

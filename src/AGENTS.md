@@ -57,6 +57,8 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `codex_state`, `codex`, `codex_adapter`: Codex delivery eligibility and records, App
   Server reply lifecycles, and the detached adapter behind `leaf codex start`;
 - `session_runtime`: the immutable installation selected to own a developer session's delivery;
+- `inference`: tool-free structured model requests through the host login;
+- `llm`: widget inference request validation, concurrency and claim-based dispatch;
 - `thread_titles`: the title Leaf asks a model for, through the page's harness, when a
   user opens a thread;
 - `state`: session lifetime and turn publication, cold SessionEnd and the retirement

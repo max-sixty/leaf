@@ -1412,7 +1412,9 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         for sample in document.samples:
             read(sample["document"])
 
-    for path in (Path(__file__).parents[2] / "examples").glob("*.html"):
+    from leaf_dev.commands.corpus import sources
+
+    for path in sources():
         read(structure_model.SourceDocument(path.read_text()))
     missing = []
     for tag, entry in sorted(registry.items()):

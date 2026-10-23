@@ -10,7 +10,7 @@ asks for a title as soon as it can reach the harness's model:
 - a page server, as the user's comment or reply in the untitled thread is admitted
   (`name_admitted_thread`), through the generator the claimant's harness supplies
   (`Harness.title_generator`): a `claude -p` Haiku request for Claude Code
-  (`claude_code_title`), an App Server of its own for Codex (`codex_title`),
+  or an App Server of its own for Codex,
   whichever transport carries the task's turns, and a `pi --print` run on the
   model the user configured for Pi (`pi_title`);
 - the website's host, as the Worker dispatches the user's update in the untitled
@@ -194,16 +194,15 @@ def title_reading(reading: dict) -> dict:
     return {"title": value["title"].strip(), **reading, **usage}
 
 
-def claude_code_title(request: str, page_dir: Path) -> dict:
-    """Name a thread through Claude Code's logged-in Haiku."""
-    return title_reading(
-        inference.claude_code_generate(
-            request,
-            page_dir,
-            schema=OUTPUT_SCHEMA,
-            instructions=INSTRUCTIONS,
+def title_generator(infer: Callable[..., dict]) -> Generate:
+    """Apply the title prompt and schema to a harness's structured inference."""
+
+    def generate(request: str, page_dir: Path) -> dict:
+        return title_reading(
+            infer(request, page_dir, schema=OUTPUT_SCHEMA, instructions=INSTRUCTIONS)
         )
-    )
+
+    return generate
 
 
 def pi_title(request: str, page_dir: Path) -> dict:
@@ -286,30 +285,7 @@ def pi_title(request: str, page_dir: Path) -> dict:
 
 def app_server_title(endpoint: str) -> Generate:
     """Name threads on the website host's existing App Server."""
-
-    def generate(request: str, page_dir: Path) -> dict:
-        return title_reading(
-            inference.app_server_generate(endpoint)(
-                request,
-                page_dir,
-                schema=OUTPUT_SCHEMA,
-                instructions=INSTRUCTIONS,
-            )
-        )
-
-    return generate
-
-
-def codex_title(request: str, page_dir: Path) -> dict:
-    """Name a thread through Codex's logged-in Luna."""
-    return title_reading(
-        inference.codex_generate(
-            request,
-            page_dir,
-            schema=OUTPUT_SCHEMA,
-            instructions=INSTRUCTIONS,
-        )
-    )
+    return title_generator(inference.app_server_generate(endpoint))
 
 
 def write_title(page_dir: Path, thread: str, title: str, session_id: str) -> bool:

@@ -920,10 +920,14 @@ sheet.replaceSync(`
   @media (pointer: coarse) {
     .lf-field { padding-inline-end: var(--lf-field-end-room); }
     .lf-field-placeholder { padding-inline-end: 0; }
-    .cm-line.lf-field-last::after { content: none; }
+    .cm-line.lf-field-last::after,
+    :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after { content: none; }
   }
   :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host([data-scrolls]) .cm-line.lf-field-last::after { content: none; }
+  :host([data-scrolls]) .cm-line.lf-field-last::after,
+  :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
+    content: none;
+  }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A

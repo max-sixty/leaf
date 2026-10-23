@@ -423,7 +423,11 @@ def judge_pages(
             browser_config = cwd / "browser.json"
             browser_config.write_text(
                 json.dumps(
-                    {"browser": {"launchOptions": {"executablePath": shell_executable()}}}
+                    {
+                        "browser": {
+                            "launchOptions": {"executablePath": shell_executable()}
+                        }
+                    }
                 )
             )
             sockets = stack.enter_context(

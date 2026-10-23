@@ -683,7 +683,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
 
     page.keyboard.press("Enter")
     expect(page.locator(".lf-page-search")).to_be_hidden()
-    expect_panel_says(page, "Match 1 of 1", says=False)
+    expect_panel_says(page, "Match 1 of 1")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate("() => getSelection().toString()") == "button the key"
@@ -762,6 +762,16 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         : null;
     }"""
     assert page.evaluate(selected_in) == "first"
+    expect_panel_says(page, "Match 1 of 2")
+
+    # A new query owns the field while it is open. Canceling it retires that position
+    # without replacing the accepted query that n/N will resume.
+    page.keyboard.press("/")
+    search = page.get_by_role("searchbox", name="Search page text")
+    search.fill("absent from this page")
+    page.keyboard.press("Escape")
+    expect(search).to_be_hidden()
+    expect_panel_says(page, "Match", says=False)
 
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
@@ -790,6 +800,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         }"""
     )
     expect_panel_says(page, "Match", says=False)
+
     page.keyboard.press("Shift+n")
     expect_panel_says(page, "Match 2 of 2")
     page.keyboard.press("n")
@@ -813,6 +824,55 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         }"""
     )
     expect_panel_says(page, "Match", says=False)
+
+    # A pointer accepts the same selected match as Return, including its position.
+    page.keyboard.press("Escape")
+    page.keyboard.press("/")
+    search.fill("needle")
+    search.press("Tab")
+    expect(page.locator(".lf-page-search-status")).to_have_text("2/2")
+    rendered(page)
+    match = page.locator(".lf-page-search-match").first.bounding_box()
+    assert match is not None
+    page.mouse.click(match["x"] + match["width"] / 2, match["y"] + match["height"] / 2)
+    expect(search).to_be_hidden()
+    expect_panel_says(page, "Match 2 of 2")
+
+
+def test_touch_search_keeps_its_match_position_and_comment_route(browser, serve):
+    """The selected quote offers a touch comment without hiding its search position."""
+    html = leaf_page(
+        "touch search",
+        "<h1>Repeated words</h1><p>The first copper needle is here.</p>"
+        '<p id="second">The second copper needle is here.</p>',
+    )
+    context = browser.new_context(
+        has_touch=True, viewport={"width": 390, "height": 844}
+    )
+    page = open_page(browser, serve(html), context=context)
+    panel_control(page, "command:page.search.open", at="navigate").tap()
+    search = page.get_by_role("searchbox", name="Search page text")
+    search.fill("needle")
+    page.get_by_role("button", name="Next match", exact=True).tap()
+    expect(page.locator(".lf-page-search-status")).to_have_text("2/2")
+    rendered(page)
+    match = page.locator(".lf-page-search-match").first.bounding_box()
+    assert match is not None
+    page.touchscreen.tap(
+        match["x"] + match["width"] / 2, match["y"] + match["height"] / 2
+    )
+    expect(search).to_be_hidden()
+    expect_panel_says(page, "Match 2 of 2")
+    selection_field(page).tap()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert pending_text(page) == "needle"
+    assert (
+        page.evaluate(
+            """() => [...CSS.highlights.get('lf-pending')][0]
+          .startContainer.parentElement.closest('p').id"""
+        )
+        == "second"
+    )
 
 
 def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serve):

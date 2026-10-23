@@ -1,16 +1,24 @@
 """Tool-free, schema-constrained inference through the host's existing login.
 
-Codex uses an ephemeral App Server thread and Claude Code a safe-mode print run.
-Neither loads page tools, plugins or session identity. The host fixes the model;
-callers supply input, instructions and a required JSON Schema. Results contain
-value, model, usage and duration metadata. This layer neither retries requests nor
-collects or persists page data; callers own those policies.
+Codex uses an ephemeral App Server thread, Claude Code a safe-mode print run and Pi
+a print run with nothing the user installed. None loads page tools, plugins or
+session identity. The host fixes the model; callers supply input, instructions and
+a required JSON Schema. Results contain value, model, usage and duration metadata.
+This layer neither retries requests nor collects or persists page data; callers own
+those policies.
+
+Codex and Claude Code constrain the answer to the schema. Pi has no answer schema,
+so its system prompt carries the schema, and its answer is parsed and validated
+here; an answer that is not JSON matching the schema fails the request as any other
+failure does (`pi_generate`).
 """
 
 import json
 import os
 import shutil
 import subprocess
+import tempfile
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -298,3 +306,132 @@ def codex_generate(
             request, page_dir, schema=schema, instructions=instructions
         )
     return {**reading, "durationMs": round((time.monotonic() - started) * 1000)}
+
+
+# Pi: a print-mode run of the model the user configured, with no tools, and none of
+# the extensions (Leaf's own among them, and every hook, since Pi's hooks are
+# extensions), MCP servers, skills, prompt templates or context files the user
+# installed. An empty appended prompt stands in for the APPEND_SYSTEM.md Pi would
+# otherwise add. Offline skips the version check and catalog refresh a start makes.
+# Thinking off is the least a model accepts: `minimal` on gpt-6.1-sol, which
+# reasoned on no title.
+PI_COMMAND = (
+    "--print",
+    "--mode",
+    "json",
+    "--no-session",
+    "--no-tools",
+    "--no-extensions",
+    "--no-mcp",
+    "--no-skills",
+    "--no-prompt-templates",
+    "--no-context-files",
+    "--append-system-prompt",
+    "",
+    "--no-themes",
+    "--offline",
+    "--thinking",
+    "off",
+)
+PI_ANSWER = (
+    "Answer with one JSON value and nothing else: no prose before or after it, and "
+    "no Markdown code fence around it. The value must match this JSON Schema:\n"
+)
+
+
+def pi_generate(
+    request: str,
+    page_dir: Path,
+    *,
+    schema: dict,
+    instructions: str,
+) -> dict:
+    """Ask Pi's configured model for structured JSON through the `pi` on PATH, on
+    the user's own login and Pi home, run in the page directory.
+
+    The page server's environment is that of whichever Pi session started it, so the
+    child is given none of that session's identity. The request goes on stdin and the
+    system prompt in a file, out of the process table. The file also keeps the
+    caller's instructions from naming one: Pi reads a `--system-prompt` that names an
+    existing path as that file, and an empty one as its own coding-agent prompt.
+
+    Told the schema that way, gpt-6.1-sol on Pi's `openai-codex` provider answered 56
+    of 56 requests with JSON matching it, across eight widget-style requests (a thread
+    title, a classification, nullable fields in a list, no instructions, and a request
+    for Markdown paragraphs among them). Answers took 1.8–3.6 s, and the Markdown one
+    up to 15 s, at a load average near 30 (Pi 1.0.4).
+
+    Pi exits some 3 s after it answers (Pi 1.0.4 on its `openai-codex` provider,
+    where the model took 1–2 s), so the answer is read as Pi prints it, and the
+    process is killed once it has, with no session to save."""
+    executable = shutil.which("pi")
+    if executable is None:
+        raise FileNotFoundError("no `pi` on PATH")
+    started = time.monotonic()
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if name not in IDENTITY_VARIABLES
+    }
+    with (
+        tempfile.NamedTemporaryFile("w", suffix=".md") as system_prompt,
+        tempfile.TemporaryFile("w+") as errors,
+    ):
+        system_prompt.write(
+            "\n\n".join(filter(None, [instructions, PI_ANSWER + json.dumps(schema)]))
+        )
+        system_prompt.flush()
+        with subprocess.Popen(
+            [executable, *PI_COMMAND, "--system-prompt", system_prompt.name],
+            cwd=page_dir,
+            env=env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=errors,
+            text=True,
+        ) as process:
+            deadline = threading.Timer(TIMEOUT, process.kill)
+            deadline.start()
+            try:
+                process.stdin.write(request)
+                process.stdin.close()
+                settled = next(
+                    (
+                        record
+                        for record in map(json.loads, process.stdout)
+                        # A run that failed and that Pi will retry ends first.
+                        if record["type"] == "agent_end" and not record["willRetry"]
+                    ),
+                    None,
+                )
+            finally:
+                deadline.cancel()
+                process.kill()
+                process.wait()
+        if settled is None:
+            if time.monotonic() - started >= TIMEOUT:
+                raise TimeoutError(f"no structured answer within {TIMEOUT} s")
+            errors.seek(0)
+            raise RuntimeError(
+                f"pi exited {process.returncode} without an answer: "
+                f"{errors.read().strip()[-300:]}"
+            )
+    answer = settled["messages"][-1]
+    if answer["role"] != "assistant" or answer["stopReason"] != "stop":
+        raise RuntimeError(
+            f"the inference run ended {answer.get('stopReason')}: "
+            f"{answer.get('errorMessage')}"
+        )
+    value = json.loads(
+        "".join(part["text"] for part in answer["content"] if part["type"] == "text")
+    )
+    json_validator(schema).validate(value)
+    usage = answer["usage"]
+    return {
+        "value": value,
+        "model": f"{answer['provider']}/{answer['model']}",
+        "durationMs": round((time.monotonic() - started) * 1000),
+        "usage": {"inputTokens": usage["input"], "outputTokens": usage["output"]},
+        # Pi prices each answer from its model catalog.
+        "costUsd": usage["cost"]["total"],
+    }

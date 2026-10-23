@@ -46,6 +46,35 @@ prompts:
     quoted comment answer should accurately describe the change. A recorded plan or approval
     does not imply execution, deployment or sending a message.
 cases:
+  changing-feedback-keeps-place:
+    inputs:
+      comment: null
+      decision: null
+      reveal: ""
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric: |
+            At every declared viewport, operate Replay all, change speed, pause,
+            resume using the keyboard, seek, and let playback finish naturally.
+            Measure the playback buttons, speed control, timeline and comparison
+            positions and sizes before and through ready, playing, paused, resumed
+            and finished states. Changing labels, status messages or numeric values
+            must not move or resize these controls or displace the comparison.
+            Observe delayed completion rather than checking only immediately after
+            a click. A broken or disabled control that prevents a required transition
+            is a defect, not evidence of layout stability. Keep the viewport fixed
+            within each comparison and account for scrolling when measuring positions.
+            Open Show observations and verify the entire paragraph supplied in the
+            request is visible as readable, wrapping content without clipping or
+            ellipsis. This deliberate reveal may grow the page; changing feedback
+            must not silently consume or hide substantive results.
+            Judge the rendered behavior and cite measured geometry and observed
+            states. No particular CSS technique, attribute, widget or DOM structure
+            is required. Source code and a settled screenshot alone cannot establish
+            stability; unvisited required states leave insufficient evidence.
   document:
     inputs:
       comment:

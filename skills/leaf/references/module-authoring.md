@@ -312,11 +312,8 @@ A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a
 box.
 
-A label whose words change, such as a count, keeps one width so nothing beside it moves.
-Put the words in the only child of an element whose `data-lf-room` lists every wording it
-can show, one per line; the theme sizes the element to the widest, drawing the list
-invisibly in its `::before`. Longer words are cut with an ellipsis, though the accessible
-name keeps them whole.
+For changing text, use `page-layout.md`, "Space for changing text";
+the same `data-room` layout applies to authored and generated controls.
 
 After a view swap that rearranges a widget's contents without resizing it, await
 `layoutChanged(element)` before restoring scroll. It dispatches `LAYOUT` to widgets that

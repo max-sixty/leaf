@@ -38,17 +38,22 @@ APPROVAL_PAGE = leaf_page(
 
 
 def test_approval_and_undo_draw_immediately_and_recover_after_refusal(browser, serve):
-    """Unanswered questions never block this permission; refused gestures restore it."""
+    """Permission changes keep its controls still; refused gestures restore it."""
     page = open_page(browser, serve(APPROVAL_PAGE))
     approval = page.locator("#publish-report")
     button = approval.get_by_role("button")
     status = approval.get_by_role("status")
     expect_obligations_answered(page, "0/2")
+    geometry = """host => [...host.querySelectorAll('[role="status"], button')]
+      .map(element => element.getBoundingClientRect().toJSON())"""
+    before = approval.evaluate(geometry)
+    assert len(before) == 2
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     button.click()
     holding(page, held, 1, "the refused approval")
     expect(status).to_have_text("Approved")
+    assert approval.evaluate(geometry) == before
     held.pop().fulfill(json={"ok": False, "error": "Approval refused", "final": True})
     round_trip(page)
     expect(status).to_have_text("Awaiting approval")
@@ -72,6 +77,7 @@ def test_approval_and_undo_draw_immediately_and_recover_after_refusal(browser, s
     page.keyboard.press("Enter")
     holding(page, held, 1, "the refused undo")
     expect(status).to_have_text("Awaiting approval")
+    assert approval.evaluate(geometry) == before
     held.pop().fulfill(json={"ok": False, "error": "Undo refused", "final": True})
     round_trip(page)
     expect(status).to_have_text("Approved")
@@ -86,6 +92,7 @@ def test_approval_and_undo_draw_immediately_and_recover_after_refusal(browser, s
     expect_obligations_answered(page, "0/2")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(button).to_have_text("Approve")
+    assert approval.evaluate(geometry) == before
 
 
 def test_approval_survives_a_stamp_until_the_request_is_restated(browser, serve):

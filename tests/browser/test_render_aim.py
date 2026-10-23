@@ -14,16 +14,6 @@ from interact_support import (
     declare_idle,
     wait_for,
 )
-from leaf import anchor_capture as anchor_capture_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import passages as passages_model
-from leaf import service as service_model
-from leaf import structure as structure_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate.scheme import collect_page_exceptions
-from leaf.served_state import context as served_context
-from leaf.validation import composition as validation_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -97,6 +87,16 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import anchor_capture as anchor_capture_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import passages as passages_model
+from leaf import service as service_model
+from leaf import structure as structure_model
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate.scheme import collect_page_exceptions
+from leaf.served_state import context as served_context
+from leaf.validation import composition as validation_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1607,7 +1607,9 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     told(page)
 
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"^Waiting for delivery,")
+    )
     marker.hover()
     label = marker.locator(":scope > .lf-margin-entry-label")
     trace = page.locator('.lf-target-trace[data-for="jobs"]')

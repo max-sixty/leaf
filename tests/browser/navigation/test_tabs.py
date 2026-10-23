@@ -3,7 +3,6 @@
 import re
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -14,6 +13,8 @@ from render_harness import (
     stamp_page,
     wait_for_revision,
 )
+
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

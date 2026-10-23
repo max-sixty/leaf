@@ -7,13 +7,14 @@ from urllib.parse import urlsplit
 
 import pytest
 from interact_support import append_carried_log_record as append_event
+from playwright.sync_api import expect
+from render_harness import leaf_page, open_page
+
 from leaf.files import revision_path
 from leaf.hosting import TemporaryPageServer
 from leaf.live_shell import write_live_shell
 from leaf.revision_artifact import RESOURCE_TYPES
 from leaf.revisioning import activate_source
-from playwright.sync_api import expect
-from render_harness import leaf_page, open_page
 
 
 @pytest.mark.parametrize("bundled", [False, True])

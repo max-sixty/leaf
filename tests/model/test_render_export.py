@@ -1,10 +1,11 @@
 """Preview and offline export tests."""
 
 from click.testing import CliRunner
-from leaf import cli as cli_model
 from render_harness import (
     leaf_page,
 )
+
+from leaf import cli as cli_model
 
 
 def test_export_refuses_server_dependent_samples(serve, tmp_path):

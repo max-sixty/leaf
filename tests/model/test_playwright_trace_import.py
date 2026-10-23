@@ -7,11 +7,12 @@ from zipfile import ZipFile
 
 import pytest
 from click.testing import CliRunner
-from leaf.cli import cli
 from playwright.sync_api import expect
 
+from leaf.cli import cli
+
 ROOT = Path(__file__).resolve().parents[2]
-PACKAGE = ROOT / "skills/leaf/packages/playwright"
+PACKAGE = ROOT / "packages/playwright"
 PRODUCER = runpy.run_path(str(PACKAGE / "scripts/import_trace.py"))
 
 

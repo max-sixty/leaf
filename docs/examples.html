@@ -65,7 +65,7 @@
       .developer-gallery-link:is(:hover, [data-lf-focus]) .developer-gallery-open span {
         transform: translate(2px, -2px);
       }
-      .developer-gallery-link[data-lf-focus] {
+      .developer-gallery-link[data-lf-focus-visible] {
         outline: var(--focus-ring);
         outline-offset: var(--focus-ring-gap);
       }
@@ -148,10 +148,10 @@
       .example-link:is(:hover, [data-lf-focus]) .example-open span {
         transform: translate(2px, -2px);
       }
-      .example-link[data-lf-focus] {
+      .example-link[data-lf-focus-visible] {
         outline: none;
       }
-      .example-link[data-lf-focus] .example-preview {
+      .example-link[data-lf-focus-visible] .example-preview {
         outline: var(--focus-ring);
         outline-offset: var(--focus-ring-gap);
       }

@@ -1,14 +1,9 @@
 """The real-browser gate the broad selection keeps."""
 
 import re
-import subprocess
 from pathlib import Path
 
 import pytest
-from conftest import LEAF_COMMAND
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
-from leaf.render_gate import version as render_gate_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
@@ -21,6 +16,10 @@ from render_harness import (
     undo,
 )
 
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
+from leaf.render_gate import version as render_gate_model
+
 ROOT = Path(__file__).parents[2]
 
 
@@ -29,19 +28,18 @@ def test_a_shipped_page_passes_the_real_browser_gate(browser, serve):
     assert render_gate_model.render_version(browser, serve(example)).failures == []
 
 
-def test_ship_review_obligations_are_directly_answerable(browser, serve, tmp_path):
+def test_ship_review_obligations_are_directly_answerable(browser, serve):
     example = ROOT / "examples" / "ship-review.html"
     page = open_page(browser, serve(example))
 
-    # Both page producers use the prepared kernel. A host-launcher override alone
-    # would leave a direct child `page init` serving a second source graph.
-    child = tmp_path / "child-page"
-    subprocess.run(
-        [*LEAF_COMMAND, "page", "init", "--no-packages", str(child)], check=True
+    # The page runs the prepared kernel its server supplies (`runtime_selection`),
+    # and vendors none of the runtime itself.
+    assert list((serve.page_dir / "runtime").iterdir()) == []
+    loaded = page.evaluate(
+        "performance.getEntriesByType('resource').map((entry) => entry.name)"
     )
-    for directory in (serve.page_dir, child):
-        assert not (directory / "runtime/semantic-state.js").exists()
-        assert list((directory / "runtime").glob("bundle-*.js"))
+    assert any("/runtime/bundle-" in url for url in loaded), loaded
+    assert not any(url.endswith("/runtime/semantic-state.js") for url in loaded)
 
     expect_obligations_answered(page, "1/2")
     expect(page.locator("#off-workaround-review .lf-pick")).to_have_count(2)

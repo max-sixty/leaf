@@ -7,16 +7,6 @@ import pytest
 from interact_support import (
     append_carried_log_record,
 )
-from leaf import event_log as events_model
-from leaf import events as thread_model
-from leaf import render_checks as render_checks_model
-from leaf import structure as structure_model
-from leaf.hosting import TemporaryPageServer
-from leaf.passages import enclosing_ids, page_passages
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.scheme import console_finding
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -52,6 +42,17 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import event_log as events_model
+from leaf import events as thread_model
+from leaf import render_checks as render_checks_model
+from leaf import structure as structure_model
+from leaf.hosting import TemporaryPageServer
+from leaf.passages import enclosing_ids, page_passages
+from leaf.registry import storage as registry_storage
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.scheme import console_finding
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -844,11 +845,10 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
     """The sidebar is a page-level margin resident rather than a narrower prose column.
 
-    On a roomy page a contents map stands in the left margin, fixed at the window's top, and
-    rests as its spine: it claims nothing, so the column keeps the page's axis, and its
-    labels reveal over the page without moving anything. The spine states the room it
-    takes, so the release-notes shot, the wide exhibit in the control, grows left only
-    to stop short of it.
+    On a roomy page a sidebar with prose claims the full left margin while its contents
+    map rests as a spine, fixed at the window's top. The column keeps the page's axis,
+    and the map's labels reveal without moving anything. The release-notes shot, the
+    wide exhibit in the control, grows left only to the claimed margin's edge.
 
     The On panel stands over the page from the right and moves nothing in the left
     margin. A narrow viewport returns the aside to the flow, and print proves paper
@@ -917,8 +917,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     resized(page, 1400, 900)
     margins_laid_out(page)
     roomy = page.evaluate(reading)
-    # At rest the map is its spine: it takes a strip of the margin, not its labels' width.
-    assert 0 < roomy["toc"]["width"] <= roomy["taken"] < 320, roomy
+    # The sidebar also holds prose, so it keeps its full margin claim while the map
+    # rests on its spine. Its labels may reveal inside that reserved space.
+    assert 0 < roomy["toc"]["width"] < roomy["taken"], roomy
+    assert abs(roomy["taken"] - roomy["column"]["left"]) <= 1, roomy
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
     assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
         f"the sidebar's box reached into the reading column: {roomy}"
@@ -931,8 +933,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         <= 1
     ), f"the contents map moved the reading column off the page's axis: {roomy}"
     assert roomy["toc"]["width"] == 24
-    assert roomy["exhibit"]["left"] >= roomy["toc"]["left"] + roomy["taken"] - 1, (
-        f"a wide exhibit painted over the contents map's spine: {roomy}"
+    assert roomy["exhibit"]["left"] >= max(roomy["toc"]["right"], roomy["taken"] - 1), (
+        f"a wide exhibit painted over the reserved margin: {roomy}"
     )
     assert root_overflow(page) == 0
 

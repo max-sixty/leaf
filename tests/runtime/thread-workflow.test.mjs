@@ -6,15 +6,9 @@ import {
   strongestWorkflow,
   threadAttention,
   workflowLabel,
-} from "../../skills/leaf/assets/runtime/thread/workflow.js";
-import {
-  foldThreads,
-  readThreadRecords,
-} from "../../skills/leaf/assets/runtime/thread/model.js";
-import {
-  isTurnEvent,
-  turnMessage,
-} from "../../skills/leaf/assets/runtime/pending/model.js";
+} from "../../browser/runtime/thread/workflow.js";
+import { foldThreads, readThreadRecords } from "../../browser/runtime/thread/model.js";
+import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 // The user's turns, which `events.exchange` and `events.turn_message` read off the log

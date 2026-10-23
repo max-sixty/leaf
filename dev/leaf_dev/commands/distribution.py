@@ -1,13 +1,13 @@
 """Prepare and reuse installation trees whose committed kernel is current.
 
 An install is the tracked tree. It serves the kernel committed under
-`skills/leaf/kernel/` wherever that was compiled from the tree's own modules, and the
-source modules otherwise (`leaf.layer.current_kernel`). A developer checkout's kernel
-is stale whenever its runtime has been edited and not rebuilt, so the website, the
-suite's browser tiers, and developer previews run a prepared installation instead:
-the payload with its kernel compiled again by the same build
-(`build/runtime-bundle.mjs`), so each vendors the kernel an install of that tree
-will serve once it is rebuilt. The website's container installs that same payload
+`dist/kernel/` wherever that was compiled from the tree's own modules, and the
+source modules otherwise (`leaf.runtime_selection.read_runtime`). A developer
+checkout's kernel is stale whenever its runtime has been edited and not rebuilt, so the
+website, the suite's browser tiers, and developer previews run a prepared installation
+instead: the payload with its kernel compiled again by the same build
+(`build/runtime-bundle.mjs`), so each serves the kernel an install of that tree will
+serve once it is rebuilt. The website's container installs that same payload
 (`leaf_dev.commands.site`). Nothing compiles during installation, page init, export, or
 custom-package authoring. Package widgets remain native ESM and import the same
 widget-api entry as the compiled kernel, so their state has one owner.
@@ -25,9 +25,9 @@ import tempfile
 from pathlib import Path
 
 import click
+
 from leaf.layer import files_identity, payload_provenance
 from leaf.state import flocked, write_json
-
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, extract_payload
 
@@ -59,13 +59,35 @@ def prepare(output: Path, runtime: Path = ROOT) -> None:
     else:
         output.mkdir(parents=True)
         copy_payload(runtime, output)
+    # The selected runtime owns its resource layout. Read its locators through its
+    # own environment, since comparison arms can arrange their payload differently.
+    resources = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--quiet",
+            "--no-dev",
+            "--project",
+            str(runtime),
+            "python",
+            "-c",
+            (
+                "import json; from leaf.schema import ASSETS, KERNEL, PLUGIN_ROOT; "
+                "print(json.dumps([str(p.relative_to(PLUGIN_ROOT)) for p in (ASSETS, KERNEL)]))"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assets, kernel = json.loads(resources.stdout)
     compiler = compiler_root()
     subprocess.run(
         [
             "node",
             str(compiler / "build/runtime-bundle.mjs"),
-            str(output / "skills/leaf/assets"),
-            str(output / "skills/leaf/kernel"),
+            str(output / assets),
+            str(output / kernel),
         ],
         cwd=compiler,
         check=True,

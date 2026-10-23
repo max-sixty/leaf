@@ -5,10 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.findings import Finding
-from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -28,6 +24,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.findings import Finding
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

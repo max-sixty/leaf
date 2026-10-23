@@ -5,6 +5,8 @@
 # beside what `page check` reported and what the author did about it. At e1ed34cec,
 # 23 of 37 pages had a defect outside Leaf's thread chrome (Claude Code 18 of 19,
 # mostly wrong facts; Codex 5 of 18), and the final checks reported 3 of 66 defects.
+# The supplied-facts paragraph in page-authoring.md, "Reading cost", then cut Claude
+# Code pages misstating a supplied fact from 22 of 37 to 12 of 36.
 # notes/agent-usability-evals.md, "Bad pages and the checks", has the runs.
 description: page-reads-at-every-width
 metadata:

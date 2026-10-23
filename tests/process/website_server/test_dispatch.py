@@ -19,6 +19,8 @@ from interact_support import (
     wait_for,
 )
 from interact_support import append_carried_log_record as append_event
+from websockets.exceptions import ConnectionClosedError
+
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, delivery_records
 from leaf.event_log import read_events
@@ -26,8 +28,6 @@ from leaf.hosting import LeafHTTPServer
 from leaf.refusals import Refused
 from leaf.state import session_record
 from leaf.thread import post_reply
-from websockets.exceptions import ConnectionClosedError
-
 from process.website_server import (
     FakeCodexHarness,
     accept_in_turn,

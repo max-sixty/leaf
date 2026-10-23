@@ -106,6 +106,7 @@ from leaf_dev.commands.journey import Isolation, Terminal, User, isolated, user_
 from leaf_dev.reply_phases import (
     claude_code_debug_records,
     claude_code_records,
+    ends_turn,
     instant,
 )
 from leaf_dev.review_scenario import (
@@ -492,28 +493,18 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         cc.tmux("send-keys", "-t", cc.pane, "Escape")
         return held
 
-    def delivered(update: str, since: int) -> int:
-        """How many inline deliveries a hook put in the conversation, from record
-        `since` on, carry `update`: a reminder naming it does not."""
-        return sum(
-            event["id"] == update
-            for record in native_records(cc.home, cc.session)[since:]
-            if (attachment := record.get("attachment", {})).get("type")
-            == "hook_additional_context"
-            for content in attachment.get("content") or []
-            if content.startswith(INLINE_OPENING + "\n")
-            for batch in json.loads(content.split("\n")[1])["batches"]
-            for event in batch["events"]
-        )
+    def since(held: int) -> list[dict]:
+        """The conversation's records from record `held` on."""
+        return native_records(cc.home, cc.session)[held:]
 
     started = time.monotonic()
     dropped = user.comment("dropped")
-    since = drop(dropped)
+    held = drop(dropped)
     # Claude Code submits the queued wake again, and that attempt's prompt hook hands
     # the comment over anew.
     cc.until(answered("dropped"), "dropped: the comment was not answered", 120)
     require(
-        delivered(dropped, since) > 0,
+        bool(deliveries(since(held), dropped)),
         "dropped: no hook delivered the comment again after Escape",
     )
     step("dropped", started, "dropped")
@@ -529,9 +520,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         for event in resolve["events"]
         if event.get("attempt") == attempt("resolve")
     )
-    since = drop(resolved)
+    held = drop(resolved)
     cc.until(
-        lambda: delivered(resolved, since) > 0 and cc.idle(),
+        lambda: delivery_ended(since(held), resolved),
         "withdrawn: the resolve Escape dropped never reached the agent",
         120,
     )
@@ -679,6 +670,41 @@ def native_records(home: Path, session: str) -> list[dict]:
     [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
     written, _, _ = path.read_bytes().rpartition(b"\n")
     return [json.loads(line) for line in written.decode().splitlines()]
+
+
+def deliveries(records: list[dict], update: str) -> list[int]:
+    """The positions in `records` of the inline deliveries a hook put in the
+    conversation that carry `update`: a reminder naming it carries nothing."""
+    return [
+        position
+        for position, record in enumerate(records)
+        if (attachment := record.get("attachment", {})).get("type")
+        == "hook_additional_context"
+        and any(
+            event["id"] == update
+            for content in attachment.get("content") or []
+            if content.startswith(INLINE_OPENING + "\n")
+            for batch in json.loads(content.split("\n")[1])["batches"]
+            for event in batch["events"]
+        )
+    ]
+
+
+def delivery_ended(records: list[dict], update: str) -> bool:
+    """Whether the turn a hook delivered `update` to has ended: whether the
+    transcript (`records`) holds a record that ends a turn after the last delivery
+    carrying `update`.
+
+    An update that owes no answer leaves no reply to wait for, so the journey waits
+    for the transcript's turn end. Claude Code's record reading idle doesn't show
+    that turn ended. Claude Code rewrites the record in place, so Leaf's registry
+    listing can return a status up to `REGISTRY_READ_S` old
+    (`claude_code_session_records`). An Escape during the wake's prompt hooks
+    writes idle, and about 50 ms later Claude Code submits the wake again and
+    writes busy (measured at 2.1.309). A reading taken in those 50 ms can still
+    be returned after the new delivery has started its turn."""
+    found = deliveries(records, update)
+    return bool(found) and any(ends_turn(record) for record in records[found[-1] :])
 
 
 @contextmanager

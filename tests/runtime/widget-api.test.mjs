@@ -39,7 +39,7 @@ const scripts = (dir) =>
 function surface() {
   const comments = [];
   const program = parseModule(
-    read(join(SKILL, "assets/runtime/widget-api.js")),
+    read(join(ROOT, "browser/runtime/widget-api.js")),
     comments,
   );
   const markers = comments.filter((c) => c.value.trim().startsWith("Internal:"));
@@ -153,7 +153,7 @@ function runtimeNames() {
     for (const value of Object.values(node))
       for (const child of Array.isArray(value) ? value : [value]) walk(child);
   };
-  for (const path of scripts(join(SKILL, "assets/runtime"))) {
+  for (const path of scripts(join(ROOT, "browser/runtime"))) {
     if (path.endsWith("/widget-api.js")) continue;
     const program = parseModule(read(path));
     for (const node of program.body) {
@@ -184,8 +184,8 @@ test("every authoring export is documented in the module references", () => {
 test("every internal export is undocumented and has a bundled importer", () => {
   const names = documented(referenceCode());
   const bundled = new Set([
-    ...importsUnder(join(SKILL, "packages")),
-    ...importsUnder(join(SKILL, "assets/widgets")),
+    ...importsUnder(join(ROOT, "packages")),
+    ...importsUnder(join(ROOT, "browser/widgets")),
   ]);
   const internal = [...surface()]
     .filter(([, internal]) => internal)
@@ -207,8 +207,8 @@ test("every name a behavior module imports is exported", () => {
   const exported = surface();
   const imported = new Set(
     [
-      "skills/leaf/packages",
-      "skills/leaf/assets/widgets",
+      "packages",
+      "browser/widgets",
       "examples",
       "tests/fixtures",
       "tests/browser",

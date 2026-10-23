@@ -1,10 +1,11 @@
 """One native contents route across in-flow and margin presentations."""
 
 import pytest
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import leaf_page, open_page, resized, told
+
+from leaf.render_checks import rendered, wait_until_ready
 
 
 def test_an_open_outline_first_paints_with_its_complete_reading_scope(browser, serve):

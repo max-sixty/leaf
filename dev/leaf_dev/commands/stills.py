@@ -69,7 +69,7 @@ from leaf_dev.browser import (
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
-DIFFERENCE = ROOT / "skills" / "leaf" / "assets" / "runtime" / "image-difference.js"
+DIFFERENCE = ROOT / "browser" / "runtime" / "image-difference.js"
 # Where `differences` serves the stills and the module that compares them.
 ORIGIN = "http://stills.invalid"
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
@@ -218,6 +218,21 @@ def page_comment_photo(page: Page) -> None:
     field.click()
     page.keyboard.insert_text("Is this screenshot right?")
     paste_screenshot(page, field)
+
+
+def page_comment_photo_hover(page: Page) -> None:
+    """The panel's attached screenshot under the pointer, which shows its removal."""
+    page_comment_photo(page)
+    page.locator(".lf-fp-field .lf-composer-media-open").hover()
+
+
+def panel_corner_hover(page: Page) -> None:
+    """The pointer at the panel's top-right corner, which shows its fold."""
+    box = page.locator(".lf-fp-card").bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + box["width"] - 24, box["y"] + 8)
+    expect(page.locator(".lf-fp-minimize")).to_be_visible()
+    settle(page)
 
 
 def share_link(page: Page) -> None:
@@ -469,6 +484,18 @@ def page_search(page: Page) -> None:
     page.keyboard.press("Tab")
     page.keyboard.press("/")
     page.get_by_role("searchbox", name="Search page text").fill("review")
+
+
+def selected_passage_responses(page: Page) -> None:
+    """Other responses beside a comment on a selected search match."""
+    page_search(page)
+    expect(page.get_by_role("button", name="Next match", exact=True)).to_be_enabled()
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("searchbox", name="Search page text")).not_to_be_visible()
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    page.keyboard.press("e")
+    expect(page.get_by_role("button", name="Suggest", exact=True)).to_be_visible()
 
 
 def command_reference_search(page: Page) -> None:
@@ -1088,9 +1115,7 @@ def page_end(page: Page) -> None:
 
 def visual_review_inspection(page: Page) -> None:
     """Capture the artifact inspection popover beside the selected comparison."""
-    page.locator('.lf-vr-case[aria-hidden="false"]').get_by_role(
-        "button", name="More inspection"
-    ).click()
+    page.locator('.lf-vr-case[aria-hidden="false"] .lf-vr-inspect').click()
     page.mouse.move(0, 0)
 
 
@@ -1340,6 +1365,18 @@ STATES = (
     ),
     State("drawing-photo-comment", "developer/feature-gallery", drawing_photo_comment),
     State("page-comment-photo", "developer/feature-gallery", page_comment_photo),
+    State(
+        "page-comment-photo-hover",
+        "developer/feature-gallery",
+        page_comment_photo_hover,
+    ),
+    State(
+        "page-comment-photo-hover-dark",
+        "developer/feature-gallery",
+        page_comment_photo_hover,
+        scheme="dark",
+    ),
+    State("panel-corner-hover", "review-a-plan", panel_corner_hover),
     State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
     State(
@@ -1643,8 +1680,22 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
-    State("page-search", "review-a-plan", page_search),
-    State("page-search-phone", "review-a-plan", page_search, viewport=(390, 844)),
+    State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
+    State(
+        "page-search-phone",
+        "review-a-plan",
+        page_search,
+        viewport=(390, 844),
+        region=".lf-floating-panel",
+    ),
+    State("selected-passage-responses", "review-a-plan", selected_passage_responses),
+    State(
+        "selected-passage-responses-phone",
+        "review-a-plan",
+        selected_passage_responses,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("command-reference-search", "review-a-plan", command_reference_search),
     State(
         "command-reference-search-dark",
@@ -2046,7 +2097,7 @@ def differences(browser, out: Path):
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "skills/leaf/assets" / path.lstrip("/"))
+            route.fulfill(path=ROOT / "browser" / path.lstrip("/"))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

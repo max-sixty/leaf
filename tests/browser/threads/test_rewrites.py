@@ -8,8 +8,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, THREAD_DIFF_PAGE
@@ -34,6 +32,8 @@ from browser.threads import (
     PANEL_REPLY,
     open_panel_thread,
 )
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

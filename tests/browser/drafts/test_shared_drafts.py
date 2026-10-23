@@ -3,8 +3,6 @@ generations, settlement tombstones, storage failures, and a draft outliving its 
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.findings import Finding
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, SEATED_OBLIGATION_PAGE
 from render_cases_navigation import JOURNEY_V1, compose
@@ -34,6 +32,8 @@ from render_harness import (
 from browser.drafts import (
     cancel_draft,
 )
+from leaf import event_log as events_model
+from leaf.findings import Finding
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

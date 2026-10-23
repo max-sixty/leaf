@@ -21,6 +21,10 @@ from interact_support import (
     state_json,
     suggested,
 )
+from model.test_interact_anchors import (
+    declare_part_prefixes,
+)
+
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -28,9 +32,6 @@ from leaf import files as files_model
 from leaf import structure as structure_model
 from leaf.events import build_threads
 from leaf.registry import storage as registry_storage
-from model.test_interact_anchors import (
-    declare_part_prefixes,
-)
 
 
 def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):

@@ -79,6 +79,12 @@
     keeps(host, "data-lf-shot-layout", geometry.layout);
     keeps(host, "data-lf-shot-crop", geometry.crop);
     keeps(host, "data-lf-shot-focus", geometry.focus);
+    const stacked = host.dataset.lfShotMode === "compare" && geometry.layout === "stack";
+    for (const caption of host.querySelectorAll(".lf-shotcap"))
+      caption.toggleAttribute(
+        "data-lf-said",
+        caption.parentElement.classList.contains("lf-shot-frame-label") === stacked
+      );
   }
   function drawShot(host, { offer, keeps }) {
     const buttons = (label, values, selected) => {

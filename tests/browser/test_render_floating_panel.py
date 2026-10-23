@@ -53,7 +53,7 @@ from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import thread as thread_model
-from leaf.render_checks import one_frame, wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 SIGN_OFF = LONG_PAGE.replace(
     "<title>long</title>",
@@ -94,7 +94,9 @@ def floating(browser, url):
 
 
 def settled(page):
-    """Wait until the panel's motion has finished, so a box read is where it rests."""
+    """Wait until layout has started the panel's motion and that motion has finished,
+    so a box read is where it rests."""
+    rendered(page)
     page.wait_for_function(
         "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
         " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
@@ -203,7 +205,7 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     page.locator(".lf-fp-threads").click()
     inventory = page.locator(".lf-fp-view[data-view=threads]")
     expect(inventory).to_be_visible()
-    expect(page.locator(".lf-fp-field")).to_have_attribute(
+    expect(page.locator(".lf-fp-editors")).to_have_attribute(
         "aria-keyshortcuts", "Escape"
     )
     expect(page.locator(".lf-fp-opened")).to_have_attribute("aria-keyshortcuts", "/")
@@ -214,7 +216,7 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)
     expect(page.locator(".lf-fp-leaf")).not_to_be_focused()
-    expect(page.locator(".lf-fp-field")).not_to_have_attribute(
+    expect(page.locator(".lf-fp-editors")).not_to_have_attribute(
         "aria-keyshortcuts", "Escape"
     )
 
@@ -2674,6 +2676,7 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(panel).to_have_attribute("data-rest", "mark")
     expect(page.locator(".lf-fp-field")).to_be_hidden()
     expect(page.locator(".lf-fp-quick")).to_be_hidden()
+    settled(page)
     leaf = page.locator(".lf-fp-leaf").bounding_box()
     window = page.viewport_size
     right = window["width"] - (leaf["x"] + leaf["width"])
@@ -2741,7 +2744,8 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     def seek(at):
         page.evaluate(
             "at => __lfHeld.filter(a => a.playState !== 'idle')"
-            ".forEach(a => a.currentTime = at)",
+            ".forEach(a => { if (at >= a.effect.getTiming().duration) a.finish();"
+            " else a.currentTime = at; })",
             at,
         )
         one_frame(page)
@@ -2754,16 +2758,9 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
         low, high = pixels.getextrema()
         assert high - low > 32, (low, high)
 
-    def beyond_mark():
-        # How far the leaf's trailing edge stands past its mark's.
-        return mark.evaluate(
-            "node => node.closest('.lf-fp-leaf').getBoundingClientRect().right"
-            " - node.getBoundingClientRect().right"
-        )
-
     def words_follow_leaf():
         # The field shows nothing under the leaf: its words come out from behind its
-        # trailing edge, which stands past the mark by between its two rests' margins.
+        # visible trailing edge until that edge has passed the field's start.
         # The attachment hanging over the field shows meanwhile, cut by no edge of it.
         edges = field(page).evaluate("""editor => {
           let cut = editor;
@@ -2771,11 +2768,11 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
           const sides = getComputedStyle(cut).clipPath.match(/[-\\d.]+px/g);
           return {field: cut.getBoundingClientRect().left,
             words: cut.getBoundingClientRect().left + parseFloat(sides[3]),
-            mark: document.querySelector('.lf-fp-leaf .lf-dot').getBoundingClientRect().right};
+            leaf: document.querySelector('.lf-fp-leaf').getBoundingClientRect().right};
         }""")
-        assert edges["field"] < edges["mark"]
-        past = edges["words"] - edges["mark"]
-        assert min(margins) - 0.5 <= past <= max(margins) + 0.5, (past, margins)
+        assert edges["words"] == pytest.approx(
+            max(edges["field"], edges["leaf"]), abs=0.5
+        ), edges
         attachment = shelf.bounding_box()
         pixels = Image.open(BytesIO(page.screenshot(clip=attachment))).convert("RGB")
         assert any(
@@ -2784,20 +2781,17 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
         )
 
     row = reading()
-    margins = [beyond_mark()]
     page.keyboard.press(".")
     expect(panel).to_have_attribute("data-rest", "mark")
     one_frame(page)
     first = seek(0)
-    target = leaf.bounding_box()
     assert first == pytest.approx(row, abs=0.5)
     middle = seek(80)
     paints()
     folded = seek(300)
-    margins.append(beyond_mark())
+    target = leaf.bounding_box()
     assert row["x"] < middle["x"] < folded["x"]
     assert middle["opacity"] == folded["opacity"] == 1
-    assert leaf.bounding_box() == target
     assert folded["x"] == pytest.approx(target["x"] + target["width"] / 2, abs=0.5)
 
     leaf.focus()
@@ -2820,18 +2814,14 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     page.keyboard.press("Enter")
     expect(panel).to_have_attribute("data-rest", "row")
     one_frame(page)
-    # The mark is a pixel narrower in the row and travels by its corner, so its centre
-    # starts half that from where it was drawn.
-    assert seek(0) == pytest.approx(middle, abs=1)
+    assert seek(0) == pytest.approx(middle, abs=0.5)
     paints()
-    target = leaf.bounding_box()
     expect(leaf).to_be_focused()
     back = seek(80)
     paints()
     words_follow_leaf()
     assert row["x"] < back["x"] < middle["x"]
     assert back["opacity"] == 1
-    assert leaf.bounding_box() == target
     assert seek(300) == pytest.approx(row, abs=0.5)
 
     page.evaluate("() => __lfHeld.forEach(a => a.finish())")
@@ -2847,6 +2837,86 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
         "() => ['.lf-floating-panel', '.lf-fp-ground'].some(s =>"
         " document.querySelector(s).getAnimations({subtree: true}).length)"
     )
+
+
+def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve):
+    """The count travels as part of the leaf, including a reversed fold, and finishing
+    the motion does not replace the leaf's contour with a different resting shape."""
+    from io import BytesIO
+
+    from PIL import Image, ImageChops
+
+    page = floating(browser, serve(OBLIGATION_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    leaf = page.locator(".lf-fp-leaf")
+    write(
+        field(page),
+        "A tall draft\nwith several\nlines to keep\nwhile the panel\nfolds away.",
+    )
+    page.keyboard.press("Shift+Tab")
+    expect(leaf).to_be_focused()
+    settled(page)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+
+    def shape():
+        return page.evaluate("""() => {
+          const fill = document.querySelector('.lf-fp-ground > .lf-fp-fill');
+          const room = fill.getBoundingClientRect();
+          const sides = getComputedStyle(fill).clipPath.match(/[-\\d.]+px/g).map(parseFloat);
+          const surface = {left: room.left + sides[3], top: room.top + sides[0],
+            right: room.right - sides[1], bottom: room.bottom - sides[2]};
+          return {surface, leaf: document.querySelector('.lf-fp-leaf').getBoundingClientRect().toJSON(),
+            target: document.querySelector('.lf-fp-card').getBoundingClientRect().toJSON()};
+        }""")
+
+    def seek(progress):
+        page.evaluate(
+            "progress => __lfHeld.filter(a => a.playState !== 'idle').forEach(a =>"
+            " a.currentTime = a.effect.getTiming().duration * progress)",
+            progress,
+        )
+        one_frame(page)
+
+    def attachment():
+        return page.locator(".lf-fp-badge").evaluate("""badge => {
+          const mark = document.querySelector('.lf-fp-leaf').getBoundingClientRect();
+          const count = badge.getBoundingClientRect();
+          return {x: count.right - mark.right, y: count.top - mark.top};
+        }""")
+
+    page.keyboard.press(".")
+    expect(page.locator(".lf-fp-badge")).to_have_text("2")
+    seek(0.2)
+    offset = attachment()
+    first = leaf.bounding_box()["x"]
+    sample = shape()
+    for edge in ("left", "top"):
+        assert sample["leaf"][edge] >= sample["surface"][edge] - 0.5, sample
+    for edge in ("right", "bottom"):
+        assert sample["leaf"][edge] <= sample["surface"][edge] + 0.5, sample
+    seek(0.55)
+    sample = shape()
+    assert sample["surface"]["right"] - sample["surface"]["left"] == pytest.approx(
+        sample["target"]["width"], abs=0.5
+    ), sample
+    assert sample["surface"]["left"] < sample["target"]["left"] - 10, sample
+    seek(0.8)
+    assert attachment() == pytest.approx(offset, abs=0.25)
+    assert leaf.bounding_box()["x"] > first
+    page.keyboard.press("Enter")
+    seek(0.3)
+    page.keyboard.press(".")
+    seek(0.2)
+    assert attachment() == pytest.approx(offset, abs=0.25)
+    seek(1 - 1e-4)
+    assert attachment() == pytest.approx(offset, abs=0.25)
+    clip = leaf.bounding_box()
+    before = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    page.evaluate("() => [...__lfHeld].forEach(a => a.finish())")
+    settled(page)
+    after = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    difference = ImageChops.difference(before, after)
+    assert max(channel[1] for channel in difference.getextrema()) <= 8
 
 
 def test_the_leaf_paints_inside_its_moving_focus_ring(browser, serve):
@@ -4367,7 +4437,7 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
   document.querySelector('#show-threads').onclick = () =>
     sample.showThread(undefined, {surface: 'panel'});
 </script>
-""",
+    """,
         )
     )
     page = open_page(browser, url)
@@ -4376,6 +4446,10 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     page.locator("#show-thread").click()
     reader = child.locator(".lf-fp-view[data-view=thread]")
     expect(reader.locator(".lf-msg")).to_contain_text("Can we schedule lunch?")
+    # Seat the embedded panel above the containing page's floating controls.
+    page.locator("#sample").evaluate(
+        "element => element.scrollIntoView({block: 'start'})"
+    )
     child.locator(".lf-fp-close").click()
     expect(reader).to_have_count(0)
     page.locator("#show-threads").click()
@@ -4396,6 +4470,7 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     assert search.bounding_box()["width"] > 0
     search.fill("schedule")
     expect(child.locator(".lf-fp-thread")).to_have_count(1)
+    child.get_by_role("button", name="Close search", exact=True).click()
     close.click()
     expect(child.locator(".lf-fp-view[data-view=threads]")).to_have_count(0)
 

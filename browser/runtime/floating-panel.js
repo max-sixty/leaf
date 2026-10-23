@@ -241,6 +241,10 @@ const EASE = "cubic-bezier(.23, 1, .32, 1)";
 // The box growing as the words do, a line at a time, takes the tween's full length, which
 // the user singled out as the panel's best motion (15 October).
 const RESIZE_MS = 300;
+// The row gathers into its leaf before that one object finishes travelling. Its
+// layout is already final, so the two visual phases never delay input.
+const FOLD_MS = 280;
+const FOLD_EASE = "cubic-bezier(.77, 0, .175, 1)";
 // A view the user opened, or put away, is what they asked to see, so it arrives almost at
 // once, as the menu does: its outline in a third of the tween, its words faded in at
 // once after the leaving view's. The user found the full tween slow here (15 October).
@@ -302,9 +306,12 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
   const notice = noticeReading();
   if (notice.visible) return { message: notice.message, visible: true };
-  const { goTo, walk } = statusContextReading();
-  const message = goTo ?? (walk?.shown ? walk.text : "");
+  const message = navigationWords();
   return { message, visible: Boolean(message) };
+}
+function navigationWords() {
+  const { goTo, walk } = statusContextReading();
+  return goTo ?? (walk?.shown ? walk.text : "");
 }
 // A progress run's face in a thread's view (transcript.js), the working message among
 // them, standing for the work under way where the view reads the answer to the user's
@@ -383,7 +390,7 @@ export function createFloatingPanel({
   card.append(inner);
   // The menu and the peek stand over the leaf by anchoring to it, which they can only
   // do from after it in the tree.
-  host.append(card, menu, badge, newsDot, peek);
+  host.append(card, menu, peek);
   // The pointer's way to fold, which the user asked for as a minimize shown on hover: a
   // corner mark on the box's top-right corner, chosen over one at the row's end on 15
   // October. It presses the fold command's own row, as the menu's row does; that row and
@@ -446,7 +453,8 @@ export function createFloatingPanel({
   // An error the user has not seen yet, waiting in the leaf's menu (`errorsList`).
   const errorDot = el("span", "lf-fp-error-dot");
   errorDot.setAttribute("aria-hidden", "true");
-  leaf.append(mark, errorDot);
+  // The leaf and its status marks are one moving object, including while folded.
+  leaf.append(mark, errorDot, badge, newsDot);
   const field = el("div", "lf-fp-field");
   const editorSeat = el("div", "lf-fp-editors");
   // A long draft offers more room, by the user's press rather than on its own: past
@@ -498,7 +506,8 @@ export function createFloatingPanel({
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   // The way out of the stance the user stands in, at the row's end beside the counts,
-  // and there while the user types (touch-controls.js, `stance`).
+  // and there while the user types (touch-controls.js, `stance`). Its seat keeps
+  // room after a view closes, so news cannot shift the count chips under the reader.
   const exitSeat = el("div", "lf-fp-exit-seat");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
@@ -642,13 +651,17 @@ export function createFloatingPanel({
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
-    // The words alone, in quotation marks: a 320px phone's row leaves the field room
-    // for about a dozen characters, so "Comment on" before them would leave none, and
-    // the field's own name says what a press does (`pageEditor`). The field's ellipsis
-    // cuts them to its room, which the excerpt's cap only bounds.
-    if (!key && selectedWords)
-      return { says: "selection", words: `“${excerptWords(selectedWords.quote, 60)}”` };
     const stance = key ? null : statusContextReading().stance;
+    // Keep the current navigation context alongside the selection's comment offer.
+    // The field's own name says what a press does (`pageEditor`); on a narrow phone
+    // its ellipsis shortens the quote after the mode and position, not instead of them.
+    if (!key && selectedWords)
+      return {
+        says: "selection",
+        words: [stance, navigationWords(), `“${excerptWords(selectedWords.quote, 60)}”`]
+          .filter(Boolean)
+          .join(" · "),
+      };
     const notice = passing();
     if (notice.visible)
       return {
@@ -1184,8 +1197,16 @@ export function createFloatingPanel({
       layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0),
     );
     const moving = !reducedMotion() && pagePresented();
-    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    motion.follow(moving ? { duration, easing: EASE } : null);
+    const compact = host.dataset.rest === "mark";
+    const duration = compact
+      ? FOLD_MS
+      : performance.now() < viewMovingUntil
+        ? VIEW_RESIZE_MS
+        : RESIZE_MS;
+    motion.follow(
+      moving ? { duration, easing: compact ? FOLD_EASE : EASE } : null,
+      compact,
+    );
   }
   addEventListener("resize", () => {
     motion.forget();
@@ -2613,14 +2634,17 @@ export function createFloatingPanel({
     // Show takes the user to the item where `m` would, by the walk's own arrival
     // (queue-walk.js, `arriveAtItem`), wherever that leads anywhere but this card. It
     // stands at the end of the answers' line, where an answer replacing the choices
-    // before it moves it nowhere.
+    // before it moves it nowhere. The arrival may open a thread in this panel; keep
+    // its current route until the destination decides, then close only for page travel.
     const show = arrivesAt(item)
       ? html`<button
           type="button"
           class="lf-fp-quiet lf-fp-show"
           @click=${() => {
-            close();
-            void queueActions.open(queueItemKey(item));
+            const route = trail.value.at(-1);
+            void queueActions.open(queueItemKey(item)).then((arrived) => {
+              if (arrived && trail.value.at(-1) === route) close();
+            });
           }}
         >
           Show
@@ -3387,7 +3411,6 @@ export function createFloatingPanel({
         : nothing,
       exitSeat,
     );
-    keepsHidden(exitSeat, !exit);
     // Each mark keeps its room whether or not it has a number, so a count arriving or
     // leaving moves nothing beside it.
     // A mark's name is its tooltip too, as an icon control's title is elsewhere in Leaf.

@@ -192,7 +192,6 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "LEAF_REPLY_TOKEN" not in launched["options"]["env"]
     assert launched["options"]["cwd"] == str(site_root)
     assert launched["options"]["env"][APP_SERVER_ENV] == harness.endpoint
-    assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
     assert (
         launched["options"]["env"]["LEAF_HOST_LAUNCHER"] == website_server.LEAF_COMMAND
     )

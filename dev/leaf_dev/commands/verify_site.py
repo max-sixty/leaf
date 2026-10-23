@@ -645,9 +645,10 @@ def ready_origin(log: Path, event: str, path: str) -> str | None:
 
 @contextmanager
 def local_adapter() -> Iterator[tuple[str, str]]:
-    """Build the site and serve it with the website adapter under a temporary copy of
-    the host's Codex login and a normal Leaf plugin installation, removed with the
-    adapter's pages and task history."""
+    """Build the site and serve it with the website adapter sharing the host's login.
+
+    Its isolated Codex home and normal Leaf plugin installation are removed with
+    the adapter's pages and task history."""
     out = run_directory(ROOT / ".tmp" / "verify-site")
     log = out / "website-adapter.log"
     with (
@@ -967,7 +968,10 @@ def local_worker() -> Iterator[LocalWorker]:
     name of its own and removes the containers carrying it on the way out.
     """
     out = run_directory(ROOT / ".tmp" / "verify-site")
-    name = f"lv-{out.name}"
+    # Temporary directory suffixes may begin with `_`, which cannot follow a
+    # hyphen in a Docker image name. Hex keeps the run identity and uses only
+    # characters accepted by both Docker and Wrangler.
+    name = f"lv-{out.name.encode().hex()}"
     image_tag = f"{name}:latest"
     log = out / "wrangler-dev.log"
     image = None

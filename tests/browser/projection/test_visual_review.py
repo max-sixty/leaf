@@ -184,7 +184,7 @@ def test_visual_review_keeps_the_dashboard_stable_while_inspecting(
         assert root_overflow(page) == 0
 
 
-def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve):
+def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, serve):
     authored = leaf_page(
         "visual review replacement",
         '<lf-visual-review id="visual-run" source="docs-run"></lf-visual-review>',
@@ -259,13 +259,12 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
             ),
         )
         told(page)
-        expect(page.locator("#visual-run lf-shot img")).to_have_count(2)
-        page.evaluate(
-            "window.oldVisualReviewImages = [...document.querySelectorAll('#visual-run lf-shot img')]"
-        )
-        expect(page.locator("#visual-run lf-shot img").first).to_have_js_property(
-            "naturalWidth", 0
-        )
+        shot = page.locator("#visual-run lf-shot")
+        expect(shot).to_have_attribute("before", "/media/slow-before.svg")
+        images = shot.locator("img")
+        expect(images).to_have_count(2)
+        # Replacement evidence stays on screen until both new images have loaded.
+        expect(images.first).to_have_attribute("src", "/media/3cf0e3efe80c6b01.png")
         assert len(held) == 2
 
         data_model.cmd_data_set(
@@ -280,6 +279,7 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         told(page)
         host = page.locator("#visual-run .lf-vr-capture")
         expect(host.locator("lf-shot img")).to_have_count(2)
+        expect(shot).to_have_attribute("before", "/media/3cf0e3efe80c6b01.png")
         expect(host.locator("lf-shot img").first).to_have_js_property(
             "naturalWidth", 780
         )
@@ -291,10 +291,9 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         )
         while held:
             held.pop(0).fulfill(content_type="image/svg+xml", body=stale_svg)
-        page.wait_for_function(
-            "() => window.oldVisualReviewImages.every(image => image.naturalWidth === 1800)"
-        )
         rendered(page)
+        expect(images.first).to_have_attribute("src", "/media/3cf0e3efe80c6b01.png")
+        expect(images.first).to_have_js_property("naturalWidth", 780)
         assert host.locator("lf-shot").bounding_box() == shown
     finally:
         while held:

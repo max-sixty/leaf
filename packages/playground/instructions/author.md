@@ -1,12 +1,10 @@
-Give each design decision one place where the user selects. When the candidates are
-fixed and visible, put them in `lf-options` inside an `lf-ask`, and draw each candidate
-in its `lf-option`, so the user selects the example they want. When the decision changes
-an existing interface, put a figure of today's interface between the question and the
-options (`references/authoring-decisions.md`). A page-local control that steps every
-candidate through the same states or cases goes in that lf-ask too.
+Use `lf-playground` when the user compares candidates, tunes a configuration, or does
+both. A playground can have just one choice: the candidate to build. Put each candidate
+inside an `lf-playground-choice` in the preview, so the user selects the actual example
+rather than a second selector elsewhere. `lf-options` remains useful for a fixed choice
+that needs no playground controls or composed preview.
 
-Use `lf-playground` when the user needs to tune a configuration before choosing it. A
-playground holds exactly one `lf-playground-preview` and one `lf-playground-output`.
+A playground holds exactly one `lf-playground-preview` and one `lf-playground-output`.
 Frame the question with `lf-ask` when its context lives outside the playground. Keep
 behavior that one page uses in that page's module, which can define custom elements, add
 state to the playground and derive its output. Behavior several pages reuse belongs in a
@@ -23,8 +21,10 @@ in the preview, presets precede the full-width preview and the instruction follo
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
-break out of a reading column; a workspace gives it the window. Draw the candidates
-directly in the preview, without a card around each.
+break out of a reading column; a workspace gives it the window. A long comparison can
+flow down the page. Shared controls stay in their rail on wide layouts and above the
+preview on narrow layouts, where their own contents scroll if needed to leave room for
+the candidates. Controls authored beside an individual candidate stay beside it.
 
 Keep the premise focused on what the user is setting and why, so the preview, controls
 and submission remain easy to reach. Leave facts already visible in the preview there.
@@ -90,7 +90,12 @@ Before handoff, look at each preset in both themes on every surface it changes, 
 rework or drop any you would not ship.
 Name a preset for its outcome: `Status strip`, not `Preset 2`.
 
-In this comparison, `format` names which of the two candidates to build:
+In this comparison, `format` names which candidate to build. Each choice contains its
+preview. Pressing its label or noninteractive body selects it; buttons, editors and media remain
+operable without selecting it. Do not put a second `format` control in the rail.
+Rich choices form a responsive grid. When the comparison needs a particular arrangement,
+set `--playground-choice-columns` on the authored choice control or its parent, such as
+`repeat(2, minmax(0, 1fr))`, and use a media query to stack them on narrow screens.
 
 ```html
 <lf-ask id="notification-ask">
@@ -100,13 +105,6 @@ In this comparison, `format` names which of the two candidates to build:
     submit-label="Create notification"
     data-width="available"
   >
-    <lf-playground-control name="format" label="Format" kind="choice" value="banner">
-      <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
-      <lf-playground-choice
-        value="status strip"
-        label="Status strip"
-      ></lf-playground-choice>
-    </lf-playground-control>
     <lf-playground-control
       name="radius"
       label="Corner radius"
@@ -123,24 +121,29 @@ In this comparison, `format` names which of the two candidates to build:
       kind="toggle"
       value="false"
     ></lf-playground-control>
-
-    <lf-playground-preset label="Status strip">
-      <lf-playground-setting for="format" value="status strip"></lf-playground-setting>
+    <lf-playground-preset label="Compact">
       <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
     </lf-playground-preset>
-
     <lf-playground-preview>
-      <section class="notification-candidates" aria-label="Notification candidates">
-        <article data-candidate="banner">
-          <h3>Banner</h3>
-          <p>Checkout deployed. Review the deployment run.</p>
-        </article>
-        <article data-candidate="status strip">
-          <h3>Status strip</h3>
-          <p>Checkout · deployed · 18 checks passed</p>
-        </article>
-      </section>
+      <lf-playground-control
+        name="format"
+        label="Notification"
+        kind="choice"
+        value="banner"
+      >
+        <lf-playground-choice value="banner" label="Banner">
+          <article class="notification-candidate">
+            <h3>Checkout deployed</h3>
+            <p>Review the deployment run.</p>
+          </article>
+        </lf-playground-choice>
+        <lf-playground-choice value="status strip" label="Status strip">
+          <article class="notification-candidate">
+            Checkout · deployed · 18 checks passed
+          </article>
+        </lf-playground-choice>
+      </lf-playground-control>
     </lf-playground-preview>
     <lf-playground-output>
       Build the <lf-playground-value for="format"></lf-playground-value> notification
@@ -152,23 +155,26 @@ In this comparison, `format` names which of the two candidates to build:
 </lf-ask>
 ```
 
+For animation comparisons, compose an `lf-motion` inside `lf-playground-preview` and
+put the choice control in its body. Motion supplies the optional shared
+playback, speed and timeline; its toolbar stays visible while the candidates scroll.
+The motion package's author instructions describe recorded video and authored animation
+sources. Playback is inspection state, so it never enters the submitted configuration.
+Keep duration or easing in playground controls only when the user is choosing those
+parameters for the implementation. Show the current interface as a labeled baseline
+beside the selectable alternatives when the decision changes an existing interface.
+
 Apply shared parameters with page CSS. From first paint, Leaf sets each control's value
 on the `lf-playground` as a custom property, `--playground-NAME`, and an attribute,
 `data-playground-NAME`. A text control's custom property is a quoted CSS string, and its
 attribute holds the unquoted text:
 
 ```css
-.notification-candidates > article {
+.notification-candidate {
   border-radius: var(--playground-radius);
 }
-#notification-playground[data-playground-compact="true"]
-  .notification-candidates
-  > article {
+#notification-playground[data-playground-compact="true"] .notification-candidate {
   padding: var(--sp-2);
-}
-#notification-playground[data-playground-format="status strip"]
-  [data-candidate="status strip"] {
-  outline: 2px solid var(--accent);
 }
 ```
 
@@ -205,7 +211,10 @@ one named structured slice with `playground.registerContributor(name, defaults)`
 The returned handle's `get()` reads its immutable current value; `set(next)` replaces
 that slice. Update it on input, so a later control change or submission sees the edit.
 Names are unique and distinct from control names. Retain the handle rather than a
-second configuration object; Reset and Undo replace the values it reads.
+second configuration object. Reset restores the authored defaults, and a new choice
+loads its configuration. Undo withdraws a submitted decision while keeping the current
+working values, including edits made since submission, so the user can adjust and
+resubmit them.
 
 Register slices, one optional `registerInstructionProvider(values => instruction)`,
 and required views during `PAGE_INTERFACE` (`references/module-authoring.md`, "Startup and presentation").

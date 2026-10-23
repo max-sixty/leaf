@@ -13,6 +13,7 @@ import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { pageReadiness } from "./presentation.js";
 import { coarsePointer } from "./pointer.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
+import { tagsDeclaring } from "./registry.js";
 import { watchSemantic } from "./semantic-state.js";
 
 const REPORT_MS = 10_000;
@@ -102,9 +103,9 @@ export function observeUserView() {
       (inspect || basis !== checkedBasis)
     ) {
       if (reading) {
-        const open = Object.entries(runtime.registry)
-          .filter(([, entry]) => ["markup", "members"].includes(entry["x-content"]))
-          .map(([tag]) => tag);
+        const open = tagsDeclaring((entry) =>
+          ["markup", "members"].includes(entry["x-content"]),
+        );
         checks = {
           sequence: view.sequence,
           revision: view.revision,

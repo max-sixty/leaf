@@ -111,12 +111,35 @@
     };
     const interactive = !host.closest("[data-lf-exhibit]");
     host.classList.toggle("lf-playground-quoted", !interactive);
+    for (const control of controls) {
+      const choices = choicesByName.get(control.getAttribute("name"));
+      if (!choices.some(
+        (choice) => [...choice.childNodes].some(
+          (child) => child.nodeType === Node.ELEMENT_NODE || child.nodeType === Node.TEXT_NODE && child.data.trim()
+        )
+      ))
+        continue;
+      control.classList.add("lf-playground-candidates");
+      for (const choice of choices) {
+        const body = node("div", "lf-playground-choice-preview");
+        body.append(...choice.childNodes);
+        choice.append(body);
+        if (!interactive)
+          choice.prepend(
+            node("p", "lf-playground-choice-heading", choice.getAttribute("label"))
+          );
+      }
+    }
     if (!interactive) {
-      const bare = new Set(controls);
+      const bare = new Set(
+        controls.filter(
+          (control) => !control.classList.contains("lf-playground-candidates")
+        )
+      );
       const holdsOnlyBare = (box) => [...box.childNodes].every(
         (child) => child.nodeType === Node.TEXT_NODE ? !child.data.trim() : child.nodeType === Node.COMMENT_NODE || bare.has(child)
       );
-      for (const control of controls)
+      for (const control of bare)
         for (let box = control.parentElement; box !== preview && box !== host && !bare.has(box) && holdsOnlyBare(box); box = box.parentElement) {
           bare.add(box);
           box.classList.add("lf-playground-control-box");
@@ -164,7 +187,7 @@
               input,
               node("span", "lf-playground-choice-label", choice.getAttribute("label"))
             );
-            choice.append(face);
+            choice.prepend(face);
             group.append(choice);
             radios.push(input);
           }

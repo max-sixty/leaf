@@ -176,15 +176,14 @@
     "contracts": {}
   },
   "$events": {
-    "protocol": 17,
+    "protocol": 18,
     "draft": {
-      "description": "The composer's draft of a comment, which each tab keeps in browser storage under the passage it is on (`runtime/composing/selection.js`): its words, the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this shape last changed; a tab reading a draft at another format keeps its words and drops its drawing.",
-      "since": 15,
+      "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
+      "since": 17,
       "schema": {
         "type": "object",
         "properties": {
           "format": { "type": "string" },
-          "text": { "type": "string" },
           "anchor": {
             "anyOf": [
               { "$ref": "leaf:event/comment#/properties/anchor" },
@@ -219,7 +218,6 @@
         },
         "required": [
           "format",
-          "text",
           "anchor",
           "revision",
           "suggest",

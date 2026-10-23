@@ -56,7 +56,6 @@ import {
   heldGrowth,
   highlightBlocks,
   inlineMarkdownFragment,
-  isPagePaint,
   keepView,
   langForPath,
   listWalkPosition,
@@ -1148,6 +1147,22 @@ function boundFile(binding) {
   };
 }
 
+// runtime/llm-api.js
+var live3 = readPart((root) => root.document.live);
+async function generate(request) {
+  if (offlineInteractive || !live3())
+    throw new Error("LLM generation is available in live pages.");
+  return requestJson(
+    pageUrl("api/llm"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    },
+    "LLM generation"
+  );
+}
+
 // runtime/widget-api.js
 async function mountSample(frame, options) {
   const owner = await import("./bundle-sample.js");
@@ -1230,6 +1245,7 @@ export {
   foldDuration,
   fragmentTarget,
   frameFor,
+  generate,
   growthIsSeen,
   guard,
   handBack,
@@ -1246,7 +1262,6 @@ export {
   inlineMarkdownFragment,
   isCanonicalMediaUrl,
   isNativeLayer,
-  isPagePaint,
   keepView,
   keeps,
   keepsHidden,

@@ -6991,7 +6991,7 @@ function createFloatingPanel({
   function searchPage(search) {
     if (pageSearch?.input !== search.input) searchSurface.prepend(search.input);
     if (search.open && !pageSearch?.open)
-      searchFocus = { search, current: retainUserIntent() };
+      searchFocus = { input: search.input, current: retainUserIntent() };
     if (!search.open) searchFocus = null;
     pageSearch = search;
     paint();
@@ -8739,7 +8739,7 @@ function createFloatingPanel({
       query = "";
       refit();
     }
-    searchFocus = { search: threadSearch, current: retainUserIntent() };
+    searchFocus = { input: threadSearchInput, current: retainUserIntent() };
     paint();
   }
   const headReading = (top) => {
@@ -9203,12 +9203,12 @@ function createFloatingPanel({
       );
       keepsHidden(exitSeat, !exit);
       const landing2 = searchFocus;
-      if (landing2)
+      if (landing2 && search?.input === landing2.input)
         afterRender(() => {
           if (searchFocus !== landing2) return;
           searchFocus = null;
-          if (activeSearch() === landing2.search && landing2.current())
-            focusDestination(landing2.search.input, "move");
+          if (activeSearch()?.input === landing2.input && landing2.current())
+            focusDestination(landing2.input, "move");
         });
       const threadsOpen = top?.view === "threads" || top?.view === "thread";
       const onUserName = onUser ? `On me: ${onUser}` : "On me";

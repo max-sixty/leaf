@@ -123,7 +123,10 @@ The merged candidate passes 146 framework/build, 534 runtime and 85 Worker tests
 Focused browser checks and independent desktop/light and phone/dark review cover
 search focus and retained drafts, flat summary folds, option state and tab history,
 late screenshot loads, source refresh/reordering, offline capture inspection, diff
-selection, focus visibility and registered-property shift attribution.
+selection, focus visibility and registered-property shift attribution. A focused
+WebKit check also verifies that summary folds retain iframe documents and selected
+text. Search retention checks assert the initial focus handoff before filling the
+field, including opening search while replying in a thread.
 
 A fresh corpus comparison at `0c1a1de` against Lit `d76ea44` uses each renderer's
 matching page modules. The committed corpus HTML is unchanged. Both arms report no

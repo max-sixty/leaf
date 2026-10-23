@@ -612,7 +612,7 @@ export function createFloatingPanel({
   function searchPage(search) {
     if (pageSearch?.input !== search.input) searchSurface.prepend(search.input);
     if (search.open && !pageSearch?.open)
-      searchFocus = { search, current: retainUserIntent() };
+      searchFocus = { input: search.input, current: retainUserIntent() };
     if (!search.open) searchFocus = null;
     pageSearch = search;
     paint();
@@ -2977,7 +2977,7 @@ export function createFloatingPanel({
       query = "";
       refit();
     }
-    searchFocus = { search: threadSearch, current: retainUserIntent() };
+    searchFocus = { input: threadSearchInput, current: retainUserIntent() };
     paint();
   }
   // The view's name, over it. On's is its selected tab's, which the tabs at its foot
@@ -3188,7 +3188,7 @@ export function createFloatingPanel({
 
   // A paint can blur what it removes, and the blur asks for a paint; that one runs
   // once this has finished rather than inside it. Every paint runs through the panel's
-  // Lit host, so the readings it draws repaint it whichever input
+  // LeafElement host, so the readings it draws repaint it whichever input
   // asked for the paint.
   let painting = false;
   let again = false;
@@ -3534,12 +3534,14 @@ export function createFloatingPanel({
       );
       keepsHidden(exitSeat, !exit);
       const landing = searchFocus;
-      if (landing)
+      // A coalesced older paint must leave a newer field's focus request for
+      // the paint that actually seats it. The native input is its stable identity.
+      if (landing && search?.input === landing.input)
         afterRender(() => {
           if (searchFocus !== landing) return;
           searchFocus = null;
-          if (activeSearch() === landing.search && landing.current())
-            focusDestination(landing.search.input, "move");
+          if (activeSearch()?.input === landing.input && landing.current())
+            focusDestination(landing.input, "move");
         });
       // Each mark keeps its room whether or not it has a number, so a count arriving or
       // leaving moves nothing beside it.

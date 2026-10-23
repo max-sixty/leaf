@@ -87,6 +87,7 @@ import {
   claimTraversals,
   commands,
   compoundReadingRegionId,
+  cycledRow,
   elementsDeclaring,
   keepView,
   keeps,
@@ -231,21 +232,17 @@ export class TabSet extends LeafElement {
     // name and the underline in this same task. Later publication uses LeafElement's
     // tracked render; its unchanged Lit parts retain these exact nodes.
     render(this.render(), strip);
-    // Roving focus per the ARIA tabs pattern: arrows move and activate, and wrap, which
-    // is a fact about this walk and so belongs in the words that name it.
-    const walk = (to) => {
-      const order = [...this.#buttons.values()];
-      // The strip takes no tab stop of its own, so focus inside it — which is the
-      // whole of when this scope holds — is always one of these buttons.
-      const at = order.indexOf(focused());
-      const next = order[to(at, order.length)];
+    // Roving focus per the ARIA tabs pattern: arrows move and activate, and come round
+    // at the ends as every cyclic walk does (`cycledRow`). The strip takes no tab stop
+    // of its own, so focus inside it, which is the whole of when this scope holds, is
+    // always one of these buttons.
+    const tabs = () => [...this.#buttons.values()];
+    const walk = (next) => {
       // The strip is always on screen; focus scrolling a stuck tab back to its place
       // in flow would move the view being left before the switch records it.
       focusDestination(next, "move");
       next.click();
-      beginWalk("tab", "Tab", () =>
-        listWalkPosition([...this.#buttons.values()], focused()),
-      );
+      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()));
     };
     // Across the row, back is the way the names run from.
     const [back, ahead] = rowArrows(this);
@@ -278,10 +275,10 @@ export class TabSet extends LeafElement {
         ],
         title: "walk the tabs",
         repeat: true,
-        run: (binding) =>
-          walk((at, n) =>
-            [ahead, "ArrowDown"].includes(binding) ? (at + 1) % n : (at - 1 + n) % n,
-          ),
+        run: (binding) => {
+          const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
+          walk(cycledRow(tabs(), focused(), step));
+        },
       },
       {
         id: "tab.edge",
@@ -291,7 +288,7 @@ export class TabSet extends LeafElement {
           { id: "tab.last", binding: "End", title: "Last tab" },
         ],
         title: "first / last",
-        run: (binding) => walk((at, n) => (binding === "Home" ? 0 : n - 1)),
+        run: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
       },
     ]);
     this.prepend(strip);

@@ -20,6 +20,15 @@
     --lf-fp-width: min( var(--lf-fp-max), calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right)) );
     --lf-fp-view-height: calc(100dvh - var(--lf-foot-room) - 160px);
   }
+  .lf-floating-panel {
+    --lf-motion-panel-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --lf-motion-panel-resize: 300ms;
+    --lf-motion-panel-fold-ease: cubic-bezier(0.77, 0, 0.175, 1);
+    --lf-motion-panel-fold: 280ms;
+    --lf-motion-view-in: 90ms;
+    --lf-motion-view-out: 60ms;
+    --lf-motion-menu-slide: 200ms;
+  }
   .lf-fp-ground {
     position: fixed;
     inset: 0;
@@ -568,13 +577,13 @@
     right: -9px;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 120ms, visibility 0s 120ms;
+    transition: opacity var(--lf-motion-disclosure), visibility 0s var(--lf-motion-disclosure);
   }
   @media (hover: hover) {
     .lf-floating-panel[data-rest=row][data-corner] .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
-      transition: opacity 120ms;
+      transition: opacity var(--lf-motion-disclosure);
     }
   }
   .lf-fp-badge,
@@ -1293,7 +1302,7 @@
       opacity: 0;
       translate: 0 6px;
     }
-    transition: opacity 120ms linear, translate 200ms cubic-bezier(0.23, 1, 0.32, 1);
+    transition: opacity var(--lf-motion-disclosure) linear, translate var(--lf-motion-menu-slide) var(--lf-motion-panel-ease);
   }
   .lf-fp-menu[data-level=versions] {
     width: min(360px, calc(100vw - 32px));
@@ -1389,7 +1398,7 @@
     font-size: 12px;
     pointer-events: none;
     display: none;
-    transition: opacity 120ms;
+    transition: opacity var(--lf-motion-disclosure);
   }
   .lf-fp-peek[data-shown] {
     display: block;

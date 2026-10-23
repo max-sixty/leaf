@@ -2913,7 +2913,12 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     assert back["opacity"] == 1
     assert seek(300) == pytest.approx(row, abs=0.5)
 
-    page.evaluate("() => __lfHeld.forEach(a => a.finish())")
+    # Finish what still moves. A motion the page cancelled when the fold reversed stays
+    # in the held list (HOLD_MOTION), and finishing it would play it again to an end
+    # frame `motion()` no longer releases.
+    page.evaluate(
+        "() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => a.finish())"
+    )
     settled(page)
     expect(shelf).to_be_visible()
     page.emulate_media(reduced_motion="reduce")
@@ -3001,7 +3006,10 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
     assert attachment() == pytest.approx(offset, abs=0.25)
     clip = leaf.bounding_box()
     before = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
-    page.evaluate("() => [...__lfHeld].forEach(a => a.finish())")
+    # Finish what still moves, leaving the motions the reversals cancelled (as above).
+    page.evaluate(
+        "() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => a.finish())"
+    )
     settled(page)
     after = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
     difference = ImageChops.difference(before, after)

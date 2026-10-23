@@ -26,19 +26,15 @@ Choose the playground's space by what the user needs to see and operate together
 break out of a reading column; a workspace gives it the window. Draw the candidates
 directly in the preview, without a card around each.
 
-In a workspace, every line between the question and the playground pushes the
-instruction and its Send button further below the window. Keep that premise to one or
-two sentences: what the user is setting and the goal it serves. Where the preview
-already shows a fact, such as each alert's replay or where values start, leave it
-there. Put a qualification the user may want, such as where a figure comes from, in an
-`lf-gloss` on the phrase it qualifies, which opens on hover, focus or a tap without
-moving the page.
+Keep the premise focused on what the user is setting and why, so the preview, controls
+and submission remain easy to reach. Leave facts already visible in the preview there.
+Supporting qualifications can go behind a disclosure when they interrupt the task;
+`lf-gloss` opens on hover, focus or a tap without moving the page.
 
 An A/B comparison mounts both candidates in the preview with the same configuration and
 starting content. When candidates stand side by side, align their names, notes and
 drawings in rows, so each candidate's name starts level with the others' however many
-lines it wraps to. Each drawing keeps its own height. Apply each drag, scroll or edit
-once to the shared state, and draw both candidates from it.
+lines it wraps to. Each drawing keeps its own height.
 
 ## Decision fidelity
 
@@ -87,11 +83,11 @@ keeps the case, and every candidate shows the same case. When editing the data i
 the task, the data belongs in the configuration.
 
 Offer presets when combinations of several parameters make useful starting points for
-further tuning. Make the presets differ in several parameters, and design each as one
-look whose parts read together on every surface they change, rather than taking each
-control's best value separately. A preset sets every control its look depends on, since
-a control it leaves out keeps the user's last value. Before handoff, look at each preset
-in both themes on every surface it changes, and rework or drop any you would not ship.
+further tuning. Design each as one look whose parts read together on every surface they
+change, rather than taking each control's best value separately. A preset sets every
+control its look depends on, since a control it leaves out keeps the user's last value.
+Before handoff, look at each preset in both themes on every surface it changes, and
+rework or drop any you would not ship.
 Name a preset for its outcome: `Status strip`, not `Preset 2`.
 
 In this comparison, `format` names which of the two candidates to build:
@@ -235,11 +231,11 @@ capture and a keyboard route; it converts the input to model coordinates once an
 both candidates and their measurements from them. Call `layoutChanged` after a gesture
 changes geometry.
 
-Before handoff, operate every custom gesture, control and preset, then Reset, reload,
-copy and submit. Check that both candidates reach the same state, the measurements
-update, and the copied instruction can be acted on without the preview. Check wide,
-narrow and short windows, and an exported file too unless the page has live samples,
-which need a server.
+Before handoff, exercise the user's comparison and submission journey through the states
+that change its result. Check that the preview and measurements reflect the chosen
+values, the copied or submitted instruction stands alone, and the controls remain
+reachable where the layout changes. Verify Reset, reload and export for state or
+behavior the page adds to them; live samples need a server.
 
 ## Task-shaped recipes
 

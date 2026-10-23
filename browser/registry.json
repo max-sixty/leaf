@@ -1801,6 +1801,10 @@
     "description": "A button styled like Leaf's controls, for an action your page module handles along with any state. For a toggle, set `aria-pressed`, and `true` draws it selected.",
     "x-example": "<button type=\"button\" class=\"button\" aria-pressed=\"true\">Anchored threads</button>"
   },
+  "[data-room]": {
+    "description": "Space for changing one-line text, sized from newline-separated representative widest strings. Its only child holds the visible text. See page-layout.md, Space for changing text, for use and clipping limits.",
+    "x-example": "<button class=\"button\" data-room=\"Save&#10;Saving…&#10;Saved\"><span>Save</span></button>"
+  },
   "select.field, input.field": {
     "description": "A labeled select or single-line text field for the page's own script, matching Leaf's buttons. Use the class rather than restyling the field in page CSS; page CSS only arranges the row.",
     "x-example": "<label for=\"preview-case\">Conversation</label>\n<select id=\"preview-case\" class=\"field\"><option>Short exchange</option><option>Long exchange</option></select>"

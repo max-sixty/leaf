@@ -93,6 +93,13 @@
         margin-block: var(--sp-4);
       }
 
+      #bg-feedback-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--sp-2);
+      }
+
       #bg-charts > * {
         margin: 0;
       }
@@ -288,6 +295,22 @@
         output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;
       });
+
+      const feedback = document.querySelector("#bg-changing-text");
+      if (once(feedback))
+        whileConnected(feedback, (signal) => {
+          const output = feedback.querySelector("[role=status] > span");
+          const messages = output.parentElement.dataset.room.split("\n");
+          let current = 0;
+          feedback.querySelector("button").addEventListener(
+            "click",
+            () => {
+              current = (current + 1) % messages.length;
+              keepsText(output, messages[current]);
+            },
+            { signal },
+          );
+        });
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
@@ -547,6 +570,23 @@
                 >the Resume writing sample</a
               >, then use browser Back. The viewport and focus return to this link;
               press <kbd>c</kbd> to comment on the link. Forward returns to the sample.
+            </p>
+          </section>
+
+          <section id="bg-changing-text">
+            <h2>Changing text keeps its space</h2>
+            <p>
+              Cycle the short status messages. The following text stays in place because
+              <code>data-room</code> reserves their width from first paint.
+            </p>
+            <p id="bg-feedback-row">
+              <button class="button" type="button">Next status</button>
+              <span
+                role="status"
+                data-room="Ready&#10;Working…&#10;Finished. Run again."
+                ><span>Ready</span></span
+              >
+              <span>Following text</span>
             </p>
           </section>
 

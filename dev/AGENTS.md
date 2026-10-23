@@ -44,7 +44,8 @@ here that the others import, never through `sys.path`, `PYTHONPATH` or a file pa
   and optionally a screenshot; `--base` does the same on the merge base. It also
   takes an HTTP(S) URL, a `--journey` file, and `--record` for a trace and video
   (`recording.py`, whose `recording(page, directory)` works in any Playwright
-  script). Its startup report includes layout shifts, for diagnosis only.
+  script). Its layout-shift report includes startup and the journey, for diagnosis
+  only; the journey waits for its own delayed results before returning.
 - `leaf-dev claude-code-session` leaves a Claude Code session running in tmux with
   this working tree as its live plugin and a served page, to see what
   `hooks/claude-code.ts` draws in Claude Code itself; `--stop` ends it.

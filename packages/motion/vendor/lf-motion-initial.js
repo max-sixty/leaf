@@ -11,7 +11,7 @@
       controls.setAttribute("aria-label", host.getAttribute("aria-label"));
       const play = offer("button", "lf-btn lf-motion-play");
       const room = offer("span", "");
-      room.dataset.lfRoom = "Play\nPause\nShow end";
+      room.dataset.room = "Play\nPause\nShow end";
       const playLabel = offer("span", "", "Play");
       room.append(playLabel);
       play.append(room);

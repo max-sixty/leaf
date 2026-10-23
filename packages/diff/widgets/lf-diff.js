@@ -1532,7 +1532,7 @@ customElements.define(
       const all = `${total} file${total === 1 ? "" : "s"}`;
       const matching = `${shown.length} of ${total}`;
       // Filtering changes the count inside its room, never its containing field.
-      keeps(this.diffTools.progress, "data-lf-room", `${all}\n${total} of ${total}`);
+      keeps(this.diffTools.progress, "data-room", `${all}\n${total} of ${total}`);
       keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
       paintKeys();

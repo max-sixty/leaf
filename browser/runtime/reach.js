@@ -91,7 +91,7 @@ function returnStop(el, authored) {
 // computes to `auto` beside vertical scrolling, but the mark still requires measured
 // horizontal overflow. A board reached through its controls needs no container stop,
 // but still needs the cue when its columns are cut.
-const sideways = new Set();
+const sideways = new Map();
 // A reading region is the narrower vertical case. Ordinary vertical overflow is often
 // intentional and self-explanatory (a text box, disclosure, or the document itself),
 // so `reachScrollers` must not infer this mark from overflow-y. Reading-region owners
@@ -100,7 +100,7 @@ const sideways = new Set();
 // the reading after the user reaches the end.
 const downwards = new Map();
 const readingScrolled = (event) => paintReadingReach(event.currentTarget);
-const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
+const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget, true);
 export function reachReadingScroller(el, paintContinuation) {
   el.classList.toggle("scroll", true);
   downwards.set(el, paintContinuation);
@@ -204,6 +204,7 @@ function sweep(root) {
         overflowX: style.overflowX,
         overflowY: style.overflowY,
         position: style.position,
+        direction: style.direction,
       },
     ]);
     for (let node = el; node?.nodeType === Node.ELEMENT_NODE; node = upFrom(node)) {
@@ -275,10 +276,12 @@ function classify(el, style) {
   }
   // A text box is out of the continuation marks for its own reason: it scrolls a
   // value its user is writing and already knows continues.
-  if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX) && !sideways.has(el)) {
-    sideways.add(el);
-    watchReach(el);
-    el.addEventListener("scroll", sidewaysScrolled, { passive: true });
+  if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX)) {
+    if (!sideways.has(el)) {
+      watchReach(el);
+      el.addEventListener("scroll", sidewaysScrolled, { passive: true });
+    }
+    sideways.set(el, style.direction);
   }
   // A box that already carries a stop of its own is somewhere the user can be put,
   // whoever put it there; this pass neither adds to it nor takes it away.
@@ -351,18 +354,20 @@ const reachSizes = sizeObserver(() => paintReach());
 // wherever the keyboard cannot reach something, and a fade drawn for sub-pixel rounding
 // is a promise of more with nothing behind it. scrollLeft follows the inline direction:
 // it starts at zero and becomes negative in a right-to-left scroller.
-function paintSidewaysReach(el) {
+function paintSidewaysReach(el, readStyle = false) {
   // An allocating owner can resize a pane before its image or table owner fits the
   // contents. Like vertical reading cues, read the completed layout for this script.
   afterScript(() => {
     if (!sideways.has(el) || unpainted(el)) return;
-    const style = getComputedStyle(el);
-    const scrolling =
-      userScrollport(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
+    const direction = readStyle
+      ? getComputedStyle(el).direction
+      : sideways.get(el);
+    if (readStyle) sideways.set(el, direction);
+    const scrolling = el.scrollWidth > el.clientWidth + 1;
     const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
     const raw = Math.abs(el.scrollLeft);
     const position = Math.min(maximum, Math.max(0, raw));
-    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
+    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? direction : null);
     el.toggleAttribute(
       PAGE_PAINT_ATTRIBUTE.moreBefore,
       scrolling && position > SCROLL_SLACK,
@@ -406,7 +411,7 @@ function paintReachNow() {
     if (overflows(el) && !holdsOwnStop(el)) lendStop(el);
     else returnStop(el, authored);
   }
-  for (const el of sideways) paintSidewaysReach(el);
+  for (const el of sideways.keys()) paintSidewaysReach(el);
   for (const el of downwards.keys()) paintReadingReach(el);
 }
 

@@ -279,10 +279,10 @@ function returnStop(el, authored) {
   if (el.getAttribute("tabindex") === "0")
     keeps(el, "tabindex", wearsLentStop(el) ? -1 : authored);
 }
-var sideways = /* @__PURE__ */ new Set();
+var sideways = /* @__PURE__ */ new Map();
 var downwards = /* @__PURE__ */ new Map();
 var readingScrolled = (event) => paintReadingReach(event.currentTarget);
-var sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
+var sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget, true);
 function reachReadingScroller(el, paintContinuation) {
   el.classList.toggle("scroll", true);
   downwards.set(el, paintContinuation);
@@ -370,7 +370,8 @@ function sweep(root) {
       {
         overflowX: style.overflowX,
         overflowY: style.overflowY,
-        position: style.position
+        position: style.position,
+        direction: style.direction
       }
     ]);
     for (let node = el; node?.nodeType === Node.ELEMENT_NODE; node = upFrom(node)) {
@@ -428,10 +429,12 @@ function classify(el, style) {
     if (!watched(el)) unwatchReach(el);
     return;
   }
-  if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX) && !sideways.has(el)) {
-    sideways.add(el);
-    watchReach(el);
-    el.addEventListener("scroll", sidewaysScrolled, { passive: true });
+  if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX)) {
+    if (!sideways.has(el)) {
+      watchReach(el);
+      el.addEventListener("scroll", sidewaysScrolled, { passive: true });
+    }
+    sideways.set(el, style.direction);
   }
   if (!mayScroll.has(el)) {
     if (el.tabIndex >= 0 && !claimedStops.has(el)) return;
@@ -479,15 +482,16 @@ var depth = (el) => {
 };
 var watched = (el) => mayScroll.has(el) || sideways.has(el) || downwards.has(el) || waiting.has(el);
 var reachSizes = sizeObserver(() => paintReach());
-function paintSidewaysReach(el) {
+function paintSidewaysReach(el, readStyle = false) {
   afterScript(() => {
     if (!sideways.has(el) || unpainted(el)) return;
-    const style = getComputedStyle(el);
-    const scrolling = userScrollport(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
+    const direction = readStyle ? getComputedStyle(el).direction : sideways.get(el);
+    if (readStyle) sideways.set(el, direction);
+    const scrolling = el.scrollWidth > el.clientWidth + 1;
     const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
     const raw = Math.abs(el.scrollLeft);
     const position = Math.min(maximum, Math.max(0, raw));
-    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
+    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? direction : null);
     el.toggleAttribute(
       PAGE_PAINT_ATTRIBUTE.moreBefore,
       scrolling && position > SCROLL_SLACK
@@ -523,7 +527,7 @@ function paintReachNow() {
     if (overflows(el) && !holdsOwnStop(el)) lendStop(el);
     else returnStop(el, authored);
   }
-  for (const el of sideways) paintSidewaysReach(el);
+  for (const el of sideways.keys()) paintSidewaysReach(el);
   for (const el of downwards.keys()) paintReadingReach(el);
 }
 var rereads = /* @__PURE__ */ new Set();

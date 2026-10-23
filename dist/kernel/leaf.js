@@ -835,6 +835,9 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     // A structured visual hint can mark the exact words its owner observes. It
     // shares the existing placeholder slot and send key; null keeps the plain hint.
     hintParts = null,
+    // Words that pass while the hint stands, said at the empty box's far end after
+    // the hint and its key, where they move none of the box's controls.
+    hintAside = () => "",
     accessibleName = null,
     save,
     send,
@@ -878,7 +881,9 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     const hintLabel = document.createElement("span");
     const hintKey = document.createElement("kbd");
     hintKey.className = "lf-key-badge";
-    visibleHint.append(hintLabel, hintKey);
+    const hintAsideWords = document.createElement("span");
+    hintAsideWords.className = "lf-compose-placeholder-aside";
+    visibleHint.append(hintLabel, hintKey, hintAsideWords);
     field.append(ta);
     (submitIn ?? field).append(sendBtn);
     const Recognition = globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
@@ -1026,9 +1031,11 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       const parts = status ? null : hintParts?.();
       if (hintParts) render(parts ?? word2, hintLabel);
-      if (suffix && !status || parts !== null && parts !== void 0) {
+      const aside = status ? "" : hintAside();
+      if (suffix && !status || parts !== null && parts !== void 0 || aside) {
         if (!hintParts) keepsText(hintLabel, word2);
         keepsText(hintKey, suffix);
+        keepsText(hintAsideWords, aside);
         if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();
       const ariaLabel = name2();
@@ -6238,6 +6245,8 @@ function paintStatusContext(goToStatus) {
     lastWalk = Object.freeze({
       kind: position.kind,
       target: position.target,
+      position: position.position,
+      total: position.total,
       text: position.text,
       boundary: position.boundary
     });
@@ -6880,6 +6889,8 @@ function createFloatingPanel({
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
+    if (thread && !thread.resolved && !noticeReading().visible && !statusContextReading().goTo)
+      return { says: "turn", words: turnWords(thread) };
     const stance2 = key ? null : statusContextReading().stance;
     if (!key && selectedWords)
       return {
@@ -6892,14 +6903,19 @@ function createFloatingPanel({
         says: "notice",
         words: stance2 ? `${stance2} \xB7 ${notice2.message}` : notice2.message
       };
-    if (thread?.resolved) return { says: "turn", words: "Resolved \xB7 reopen to reply" };
+    if (thread?.resolved) return { says: "turn", words: "Resolved" };
     if (stance2) return { says: "stance", words: stance2 };
     if (!key) return { says: "status", words: status().summary };
-    if (!thread) return { says: "turn", words: "Reply\u2026" };
-    const agent = agentName();
+    return { says: "turn", words: "Reply\u2026" };
+  }
+  function turnWords(thread) {
     const attention = threadAttention(thread);
-    const words = attention?.kind === "needs_user" ? `${attention.label} \xB7 reply to ${agent}` : attention ? [attention.label, attention.secondary].filter(Boolean).join(" \xB7 ") : `Reply to ${agent}`;
-    return { says: "turn", words };
+    return attention ? `Reply \xB7 ${attention.label}` : "Reply";
+  }
+  function passingAside(key, input) {
+    const { walk } = statusContextReading();
+    if (!walk?.shown || fieldReading(key, input).says !== "turn") return "";
+    return walk.kind === "thread" && walk.target === threadByKey(key)?.id ? `${walk.position} of ${walk.total}` : walk.text;
   }
   const whereTo = (key) => key ? "Reply in this thread" : "Comment on the page";
   function saying2(key, input) {
@@ -6968,6 +6984,7 @@ function createFloatingPanel({
     if (!replyOptions.has(key))
       replyOptions.set(key, {
         hint: () => saying2(key, replyInput()),
+        hintAside: () => passingAside(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sent: () => {
           room = null;
@@ -8689,10 +8706,7 @@ function createFloatingPanel({
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
-    keepsText(
-      resolvedLine,
-      reading.says === "notice" ? reading.words : "Resolved \xB7 reopen to reply"
-    );
+    keepsText(resolvedLine, reading.says === "notice" ? reading.words : "Resolved");
     keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);

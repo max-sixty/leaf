@@ -26,7 +26,9 @@
  *   doing or wants, in the status's words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a stance, such as Draw mode, it names the stance, whose way out is a ✕
- *   at the row's end; in a thread it says whose turn it is. While words stand selected
+ *   at the row's end; in a thread it says Reply, then whose turn it is, with the key
+ *   that enters the field, while a walk's position stands at the field's end
+ *   (`passingAside`). While words stand selected
  *   on the page, the page's field quotes them, inside a stance too, and a press there
  *   comments on them (`selectedWords`), the one route a finger has to them; the user
  *   chose that on 19 October over a worded step standing in the marks' place, which
@@ -99,9 +101,11 @@
  * the menu to the panel's top. A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
  * under Navigate only where no keyboard is there to reach it (page-controls.js, the
- * `keys` group). The panel shows no key hints of its own: the menu's rows carry their
- * keys and `?` opens the full reference, which the user chose on 13 October over a
- * hint or two in the line over the field, to keep the panel quietest. The field the
+ * `keys` group). The panel shows one key hint of its own, the key that enters an open
+ * thread's reply, which the user asked for on 22 October as a margin card's reply box
+ * shows it; otherwise the menu's rows carry their keys and `?` opens the full
+ * reference, which the user chose on 13 October over a hint or two in the line over
+ * the field, to keep the panel quietest. The field the
  * user clicks in is the field they write in: a page
  * comment where no thread is open, a reply where one is: the reply box every view of a
  * thread draws (thread/replies.js), with its ↑ to the user's last message, which Leaf's
@@ -640,12 +644,25 @@ export function createFloatingPanel({
   // the status's words, and in a thread whose turn it is. On the page, the stance the
   // user is in, such as Draw mode, heads a passing notice and takes the status's
   // place (keyboard/status-context.js); the leaf keeps the status's colour.
+  //
+  // In an open thread the field is the reply box, so it says the reply, with the key
+  // that enters it, but for a notice or the Go-to word for their moment; a walk's
+  // position, which stands as long as the user does, stands at its end (`passingAside`).
+  // The user asked for this on 22 October, when a walk's "Thread 11 of 11" in the
+  // field's place left nothing saying how to reply to the thread they were reading.
   function fieldReading(key, input) {
     const [error] = sayable();
     if (error) return { says: "error", words: error.message };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
+    if (
+      thread &&
+      !thread.resolved &&
+      !noticeReading().visible &&
+      !statusContextReading().goTo
+    )
+      return { says: "turn", words: turnWords(thread) };
     const stance = key ? null : statusContextReading().stance;
     // Keep the current navigation context alongside the selection's comment offer.
     // The field's own name says what a press does (`pageEditor`); on a narrow phone
@@ -663,19 +680,28 @@ export function createFloatingPanel({
         says: "notice",
         words: stance ? `${stance} · ${notice.message}` : notice.message,
       };
-    if (thread?.resolved) return { says: "turn", words: "Resolved · reopen to reply" };
+    if (thread?.resolved) return { says: "turn", words: "Resolved" };
     if (stance) return { says: "stance", words: stance };
     if (!key) return { says: "status", words: status().summary };
-    if (!thread) return { says: "turn", words: "Reply…" };
-    const agent = agentName();
+    return { says: "turn", words: "Reply…" };
+  }
+  // The reply the open thread's field takes, then whose turn it is, so a field too
+  // narrow for both, as on a phone, still says Reply. The agent's own line, a to-do's
+  // title or a start's, stays in the thread, where the working message says it.
+  function turnWords(thread) {
     const attention = threadAttention(thread);
-    const words =
-      attention?.kind === "needs_user"
-        ? `${attention.label} · reply to ${agent}`
-        : attention
-          ? [attention.label, attention.secondary].filter(Boolean).join(" · ")
-          : `Reply to ${agent}`;
-    return { says: "turn", words };
+    return attention ? `Reply · ${attention.label}` : "Reply";
+  }
+  // A walk's position while the field says an open thread's reply, at the field's end,
+  // after the reply and its key (composing/input.js, `hintAside`). The thread walk
+  // standing on this thread says only its place, "11 of 11", since the view names the
+  // thread. A notice or the Go-to word, which pass in a moment, take the reply's place.
+  function passingAside(key, input) {
+    const { walk } = statusContextReading();
+    if (!walk?.shown || fieldReading(key, input).says !== "turn") return "";
+    return walk.kind === "thread" && walk.target === threadByKey(key)?.id
+      ? `${walk.position} of ${walk.total}`
+      : walk.text;
   }
   // Where the words go, as the focused field's placeholder says it; the thread's own
   // name already heads its view.
@@ -763,8 +789,10 @@ export function createFloatingPanel({
   // to the user's last message, the draft's editing session and Send work as in a card.
   // The panel says what the empty box reads, and a send keeps the user in the field for
   // the next turn, landing the view at its end. A resolved thread shows no reply box,
-  // and the field's line says how to reopen it instead, or a passing notice, such as
-  // the one `z` leaves when it shows the resolve it takes back next (undo.js).
+  // and the field's line says only that it is resolved, or a passing notice, such as
+  // the one `z` leaves when it shows the resolve it takes back next (undo.js). The
+  // user dropped "· reopen to reply" there on 23 October as unhelpful: Reopen is the
+  // view's ✓, which they chose to keep a glyph.
   const replyOutlet = el("div", "lf-fp-reply");
   const resolvedLine = el("p", "lf-fp-resolved");
   const replyInput = () => replyOutlet.querySelector(`.lf-thread-reply ${TEXT_FIELD}`);
@@ -773,6 +801,7 @@ export function createFloatingPanel({
     if (!replyOptions.has(key))
       replyOptions.set(key, {
         hint: () => saying(key, replyInput()),
+        hintAside: () => passingAside(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sent: () => {
           // The user's turn lets go of the height a press held (`pressAt`).
@@ -787,7 +816,7 @@ export function createFloatingPanel({
     return replyOptions.get(key);
   };
   // The editor standing in the field now, the page's or the open thread's reply; none
-  // while search owns the field or a resolved thread says how to reopen it instead.
+  // while search owns the field or a resolved thread says it is resolved instead.
   const fieldInput = () =>
     activeSearch()
       ? null
@@ -3275,7 +3304,7 @@ export function createFloatingPanel({
       caretToField = false;
       focusDestination(pageEditor().input, "move");
     }
-    // A resolved thread takes no reply: the field says how to reopen it instead.
+    // A resolved thread takes no reply: the field says it is resolved instead.
     const resting = Boolean(thread) && !replyAvailable(thread);
     keepsHidden(resolvedLine, !resting);
     keepsHidden(replyOutlet, resting);
@@ -3305,10 +3334,7 @@ export function createFloatingPanel({
     // such as to nudge the agent in its terminal, which it says in its tone's ink
     // (`pageStatus`, `asks`). The menu holds the full status and the Errors list.
     const reading = fieldReading(replying ? top.thread : null, input);
-    keepsText(
-      resolvedLine,
-      reading.says === "notice" ? reading.words : "Resolved · reopen to reply",
-    );
+    keepsText(resolvedLine, reading.says === "notice" ? reading.words : "Resolved");
     // The field quoting selected words stands in an open comment box's place
     // (floating-panel.css, `data-offers`).
     keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);

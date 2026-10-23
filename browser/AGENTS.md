@@ -162,8 +162,8 @@ representative desktop viewport.
 
 ### Editing in place
 
-- **Editing something keeps it where it stood and as it read.** Opening a message, a
-  draft or any value for editing draws it in its display's place and face: every line
+- **Editing something keeps it where it stood and as it read.** Opening a message or
+  any value for editing draws it in its display's place and face: every line
   of its words keeps its position, type and breaks, and its pictures and other parts
   keep their places and sizes. The editor adds only what editing needs, such as a
   field's frame, Save and Discard, or a picture's removal mark, in room the display
@@ -172,9 +172,11 @@ representative desktop viewport.
   rest rather than move the content on opening: a scroller holding messages keeps the
   thread's text inset beside them, and the user's own words keep the column of the box
   they write in (`styles/components/reading.css`). The user then finds what they meant
-  to change where they saw it, and sees what saving will show. Check:
-  `test_a_rewrite_keeps_the_message_as_it_stood`. Owners: `thread/message-edit.js` and
-  `.lf-msg-editor` in `styles/components/response.css`.
+  to change where they saw it, and sees what saving will show. A draft's editor
+  (`lf-draft`) does not hold this yet: it opens its prose as Markdown source in a sent
+  message's face, so a heading shrinks, gaps between blocks widen and a picture shows as
+  its source. Check: `test_a_rewrite_keeps_the_message_as_it_stood`. Owners:
+  `thread/message-edit.js` and `.lf-msg-editor` in `styles/components/response.css`.
 
 ### Visual grammar
 

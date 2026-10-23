@@ -178,7 +178,7 @@ def shift_watch_source():
 
 
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
-EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
+EXAMPLES = sorted(p for p in (ROOT / "examples").glob("*.html") if p.stem != "corpus")
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
 assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
@@ -186,12 +186,8 @@ DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html"))
 # The inputs `leaf-dev corpus` composes. The corpus is a generated presentation of
 # the public pages plus the feature gallery, not another author source. Every authored-
 # content sweep uses this source set, while public-site tests read the top-level glob.
-PUBLIC_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
-assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
-    "expected exactly one generated corpus beside the public examples"
-)
+PUBLIC_EXAMPLES = tuple(EXAMPLES)
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
-CORPUS_PAGE = ROOT / "examples" / "corpus.html"
 
 PASSAGE_SOURCES = (
     FEATURE_GALLERY,

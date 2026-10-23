@@ -3444,6 +3444,90 @@ def gesture_motion_page(browser):
     return page
 
 
+@pytest.mark.parametrize(
+    "fault,finish",
+    [("", False), ("child", False), ("consumer", False), ("", True), ("child", True)],
+)
+def test_a_direct_custom_property_translation_keeps_only_its_own_motion(
+    browser, fault, finish
+):
+    """A native custom-property tween carries its directly bound translation. It
+    cannot excuse an independent child move or replacement of that binding."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@property --travel { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="panel" style="margin-left:350px;translate:var(--travel)">
+<button id="control">Retained control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>start.onclick=()=>{
+window.motion=panel.animate([{'--travel':'-200px 0px'},{'--travel':'0px 0px'}],
+  {duration:1000});
+motion.onfinish=()=>panel.style.translate='';
+motion.pause();motion.currentTime=150;
+}</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    page.evaluate(
+        """({fault, finish}) => {
+          if (fault === 'child') control.style.marginLeft = '55px';
+          if (fault === 'consumer') panel.style.translate = '80px 0px';
+          if (finish) motion.finish();
+          else motion.currentTime = 800;
+          trigger.style.left = '40px';
+        }""",
+        {"fault": fault, "finish": finish},
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == bool(fault), errors
+
+
+@pytest.mark.parametrize("fault", [False, True])
+def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
+    browser, fault
+):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="start">Start</button>
+<button id="source" style="position:absolute;left:350px;top:100px;anchor-name:--source">Anchor</button>
+<div id="tip" style="position:fixed;position-anchor:--source;left:anchor(left);top:anchor(bottom)">
+<button id="control">Attached control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>start.onclick=()=>{
+window.motion=source.animate([{translate:'-200px 0px'},{translate:'0px 0px'}],
+  {duration:1000,fill:'forwards'});
+motion.pause();motion.currentTime=150;
+}</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    paint(page)
+    page.evaluate(
+        """fault => {
+          motion.currentTime = 800;
+          if (fault) tip.style.marginLeft = '55px';
+          trigger.style.left = '40px';
+        }""",
+        fault,
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") == fault, errors
+
+
 def test_immediate_native_opening_and_typing(browser):
     page = gesture_motion_page(browser)
     page.evaluate(

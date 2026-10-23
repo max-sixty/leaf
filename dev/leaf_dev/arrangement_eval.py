@@ -242,7 +242,10 @@ def author(run: Run, cwd: Path) -> None:
         timed_out=run.directory / "timed-out",
         dirs=[run.payload] if leaf else [],
         env=(
-            {"LEAF": str(run.payload / "bin/leaf"), "XDG_STATE_HOME": str(run.state)}
+            {
+                "PATH": environment(payload=run.payload)["PATH"],
+                "XDG_STATE_HOME": str(run.state),
+            }
             if leaf
             else {}
         ),

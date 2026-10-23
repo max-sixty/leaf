@@ -7,6 +7,7 @@ import pytest
 from interact_support import (
     add_test_widget,
 )
+from leaf_dev.example_data import named_source
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
@@ -35,7 +36,6 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
-    CORPUS_PAGE,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
@@ -108,7 +108,7 @@ def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve, subt
     # The corpus's sort film otherwise repaints SVG values while the sheets move.
     page = open_page(
         browser,
-        serve(CORPUS_PAGE),
+        serve(named_source("corpus")),
         context=browser.new_context(
             viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
         ),

@@ -680,7 +680,7 @@ export function createFloatingPanel({
         says: "notice",
         words: stance ? `${stance} · ${notice.message}` : notice.message,
       };
-    if (thread?.resolved) return { says: "turn", words: "Resolved · reopen to reply" };
+    if (thread?.resolved) return { says: "turn", words: "Resolved" };
     if (stance) return { says: "stance", words: stance };
     if (!key) return { says: "status", words: status().summary };
     return { says: "turn", words: "Reply…" };
@@ -789,8 +789,10 @@ export function createFloatingPanel({
   // to the user's last message, the draft's editing session and Send work as in a card.
   // The panel says what the empty box reads, and a send keeps the user in the field for
   // the next turn, landing the view at its end. A resolved thread shows no reply box,
-  // and the field's line says how to reopen it instead, or a passing notice, such as
-  // the one `z` leaves when it shows the resolve it takes back next (undo.js).
+  // and the field's line says only that it is resolved, or a passing notice, such as
+  // the one `z` leaves when it shows the resolve it takes back next (undo.js). The
+  // user dropped "· reopen to reply" there on 23 October as unhelpful: Reopen is the
+  // view's ✓, which they chose to keep a glyph.
   const replyOutlet = el("div", "lf-fp-reply");
   const resolvedLine = el("p", "lf-fp-resolved");
   const replyInput = () => replyOutlet.querySelector(`.lf-thread-reply ${TEXT_FIELD}`);
@@ -814,7 +816,7 @@ export function createFloatingPanel({
     return replyOptions.get(key);
   };
   // The editor standing in the field now, the page's or the open thread's reply; none
-  // while search owns the field or a resolved thread says how to reopen it instead.
+  // while search owns the field or a resolved thread says it is resolved instead.
   const fieldInput = () =>
     activeSearch()
       ? null
@@ -3302,7 +3304,7 @@ export function createFloatingPanel({
       caretToField = false;
       focusDestination(pageEditor().input, "move");
     }
-    // A resolved thread takes no reply: the field says how to reopen it instead.
+    // A resolved thread takes no reply: the field says it is resolved instead.
     const resting = Boolean(thread) && !replyAvailable(thread);
     keepsHidden(resolvedLine, !resting);
     keepsHidden(replyOutlet, resting);
@@ -3332,10 +3334,7 @@ export function createFloatingPanel({
     // such as to nudge the agent in its terminal, which it says in its tone's ink
     // (`pageStatus`, `asks`). The menu holds the full status and the Errors list.
     const reading = fieldReading(replying ? top.thread : null, input);
-    keepsText(
-      resolvedLine,
-      reading.says === "notice" ? reading.words : "Resolved · reopen to reply",
-    );
+    keepsText(resolvedLine, reading.says === "notice" ? reading.words : "Resolved");
     // The field quoting selected words stands in an open comment box's place
     // (floating-panel.css, `data-offers`).
     keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);

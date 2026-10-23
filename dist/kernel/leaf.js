@@ -6903,7 +6903,7 @@ function createFloatingPanel({
         says: "notice",
         words: stance2 ? `${stance2} \xB7 ${notice2.message}` : notice2.message
       };
-    if (thread?.resolved) return { says: "turn", words: "Resolved \xB7 reopen to reply" };
+    if (thread?.resolved) return { says: "turn", words: "Resolved" };
     if (stance2) return { says: "stance", words: stance2 };
     if (!key) return { says: "status", words: status().summary };
     return { says: "turn", words: "Reply\u2026" };
@@ -8706,10 +8706,7 @@ function createFloatingPanel({
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
-    keepsText(
-      resolvedLine,
-      reading.says === "notice" ? reading.words : "Resolved \xB7 reopen to reply"
-    );
+    keepsText(resolvedLine, reading.says === "notice" ? reading.words : "Resolved");
     keeps(host, "data-offers", !search && reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);

@@ -63,6 +63,22 @@ def instruction_selection(
     return sorted(selected_entries), sorted(selected_contracts)
 
 
+def words(registry: dict, name: str) -> list[str]:
+    """What each attribute of entry `name` that names a layer-wide word, such as a
+    tone, may say: the layer's list (`DECLARED_WORDS`), which validation refuses
+    any other word against. The entry's schema says only that the attribute is a
+    string, so an author reading it would otherwise guess."""
+    from .validation.instances import DECLARED_WORDS
+
+    return [
+        f"`{attr}` takes one of the layer's {fact.removeprefix('$')}: "
+        + ", ".join(f"`{word}`" for word in registry[fact]["names"])
+        + "."
+        for key, fact in DECLARED_WORDS
+        if (attr := registry[name].get(key))
+    ]
+
+
 def page_instructions(
     page_dir: Path,
     *,
@@ -91,9 +107,14 @@ def page_instructions(
                 f"# Data contract `{contract}`\n\n{text.strip()}"
             )
     for name in selected_entries:
-        if text := registry[name].get("x-instructions"):
+        said = [
+            text.strip()
+            for text in (registry[name].get("x-instructions"), *words(registry, name))
+            if text
+        ]
+        if said:
             parts.setdefault("author", []).append(
-                f"# Vocabulary `{name}`\n\n{text.strip()}"
+                f"# Vocabulary `{name}`\n\n" + "\n\n".join(said)
             )
     return {
         audience: "\n\n".join(sections).rstrip() + "\n"

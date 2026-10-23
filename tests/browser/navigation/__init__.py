@@ -1,8 +1,9 @@
 """Browser tests of comment marks, Go-to addresses and keyboard navigation, with the
 page constants and helpers their modules share."""
 
-from leaf.render_checks import rendered
 from render_harness import leaf_page, regions_side_by_side
+
+from leaf.render_checks import rendered
 
 READING_REGIONS_PAGE = leaf_page(
     "reading region navigation",

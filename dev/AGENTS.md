@@ -6,7 +6,7 @@ commands, and each command's `--help` says what it does.
 
 Only the root dev dependency group installs this package, so the checkout's
 environment has it and `bin/leaf`, which runs `--no-dev`, never does. Nothing in
-`skills/` may import it.
+`src/` may import it.
 
 A command writes under `.tmp/` unless its reader expects the output at a committed
 path, as with `examples/corpus.html`. Evidence, previews and probe results leave the

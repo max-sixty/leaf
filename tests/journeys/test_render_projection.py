@@ -15,19 +15,6 @@ from interact_support import (
     trial_family,
     working,
 )
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import http as http_model
-from leaf import render_checks as render_checks_model
-from leaf import structure as structure_model
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.preview import preview_server
-from leaf.render_gate.readings import DevtoolsIssues
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ACTIONS_IN_FORCE,
@@ -85,6 +72,20 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
+from leaf import render_checks as render_checks_model
+from leaf import structure as structure_model
+from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.preview import preview_server
+from leaf.render_gate.readings import DevtoolsIssues
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -509,7 +510,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(
         first.locator(f'.lf-page-thread[data-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
-    first.get_by_role("button", name="More inspection").click()
+    first.get_by_role("button", name="Capture details").click()
     for label, href in (
         ("Open before page", "https://base.example/rev/runs?owner=max"),
         ("Open after page", "https://candidate.example/rev/runs?owner=max"),
@@ -520,9 +521,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first.locator(".lf-vr-provenance")).to_contain_text(
         "120, 80 · 640 × 220 CSS px"
     )
-    first.get_by_role("checkbox", name="Full frame").check()
-    first.get_by_role("checkbox", name="Actual size").check()
     page.keyboard.press("Escape")
+    first.get_by_role("button", name="Image scale and originals").click()
+    first.get_by_role("checkbox", name="Full frame").check()
+    first.get_by_role("button", name="100%", exact=True).click()
     rendered(page)
     width = first.locator("lf-shot img").first.evaluate(
         "node => node.getBoundingClientRect().width"
@@ -570,7 +572,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
             has_text=record["cases"][1]["result"]
         )
     ).to_have_count(1)
-    second.get_by_role("button", name="More inspection").click()
+    second.get_by_role("button", name="Capture details").click()
     expect(second.locator(".lf-vr-provenance")).to_contain_text(
         "2026-10-08T10:00:00-07:00"
     )

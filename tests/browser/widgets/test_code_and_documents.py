@@ -3,11 +3,6 @@ switching a document between its rendered and source readings as its source chan
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_navigation import painted
 from render_cases_widgets import LONG_LINE_DIFF_PAGE
@@ -23,6 +18,12 @@ from render_harness import (
     told,
     write,
 )
+
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import exporting as exporting_model
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

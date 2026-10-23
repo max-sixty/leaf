@@ -52,6 +52,7 @@ from interact_support import (
     write_record,
     yaml_document,
 )
+
 from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -256,7 +257,7 @@ def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, 
 
 
 def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
-    claimed, tmp_path, capsys, snapshot
+    claimed, printing, tmp_path, capsys, snapshot
 ):
     """Each page states its own debt; the protocol they share is stated once.
 
@@ -313,7 +314,9 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     )
 
 
-def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
+def test_a_preview_owes_no_watcher_but_still_carries_its_user(
+    claimed, printing, capsys
+):
     """A developer preview is a page put up to be looked at, not handed over.
 
     A session inspecting a dozen slots was carrying a dozen copies of the same
@@ -374,7 +377,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
 
 @pytest.mark.parametrize("rewritten", [True, False])
 def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
-    claimed, capsys, rewritten
+    claimed, printing, capsys, rewritten
 ):
     """A pick answers the question it was asked in, and a version that rewrites
     the option picked takes that answer back — so the question is open again and
@@ -445,7 +448,9 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
         assert printed == ""
 
 
-def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys):
+def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
+    claimed, printing, capsys
+):
     """Acknowledging is what takes a comment off the batch, so after it no
     watcher will raise that comment again and every other gate reads the page as
     clean. The failure, from a live channel session: a comment arrived while the
@@ -587,7 +592,9 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     leases_model.release_lease(lease)
 
 
-def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, capsys):
+def test_the_guard_survives_a_page_vendored_before_the_layer_moved(
+    claimed, printing, capsys
+):
     """A page directory holds the copy of the layer it was created with, and the
     stamp refuses a copy it cannot read — by design, since that refusal is what
     sends an agent to re-vendor. The Stop hook is the one user
@@ -709,7 +716,9 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     )
 
 
-def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(claimed, capsys):
+def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(
+    claimed, printing, capsys
+):
     """A move the adapter queued for a later turn is that turn's debt: the turn that
     queued it may end over it, and may idle the page over it. Once the later turn
     opens it, both the Stop hook and `leaf status idle` hold the agent to it."""
@@ -825,7 +834,9 @@ cli_model.cli()
     assert declared(page_dir)["state"] == "waiting"
 
 
-def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(claimed, capsys):
+def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
+    claimed, printing, capsys
+):
     """A reaction is a mark, not a question: the agent answers it by acting, so an
     acknowledged one nobody replied to does not hold the turn the way a comment
     does. Nor does an `ok` the user put on the agent's answer hand the thread back
@@ -914,7 +925,7 @@ def _idle(page_dir):
     return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), "idle"])
 
 
-def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
+def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     """A start on a delivered move is the agent's answer for now: the move reads
     Working, with the start's line beside it. Work longer than a few minutes goes to
     background workers whose results wake a later turn, so the turn that started the
@@ -986,7 +997,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     leases_model.release_lease(lease)
 
 
-def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
+def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, capsys):
     """A thread's messages share one reply, but a move on an obligation frozen in one of its
     messages owes an answer of its own, so each is started on its own id. Once their
     replies settle them, a later move in the thread is offered no start in place of
@@ -1192,7 +1203,9 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         leases_model.release_lease(waiter)
 
 
-def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys):
+def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
+    claimed, printing, capsys
+):
     """A pick on a page obligation is owed a version that writes it in. The delivery says
     so, the Stop hook and `idle` hold the agent to it, and the stamped version whose
     markup records the pick settles it — one rule, read by every consumer. An edit

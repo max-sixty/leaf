@@ -5,8 +5,6 @@ import re
 from pathlib import Path
 
 import pytest
-from leaf import data as data_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
 from render_cases_layout import ring_faults, standing_ring
@@ -19,6 +17,9 @@ from render_harness import (
     sending,
     still_page,
 )
+
+from leaf import data as data_model
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 
 ROOT = Path(__file__).resolve().parents[2]
 

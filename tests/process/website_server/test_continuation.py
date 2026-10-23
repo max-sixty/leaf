@@ -9,12 +9,13 @@ import leaf_website as website_server
 import pytest
 from interact_support import append_carried_log_record as append_event
 from interact_support import owed_answers
+from websockets.exceptions import ConnectionClosedError
+
 from leaf.event_log import read_events
 from leaf.interaction_log import read_interactions
 from leaf.refusals import Refused
 from leaf.state import session_record
 from leaf.thread import cmd_resolve
-from websockets.exceptions import ConnectionClosedError
 
 
 def unfollowed_turn(harness, page_dir, *, following=None, event_ids=("first-event",)):

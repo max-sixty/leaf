@@ -2,7 +2,6 @@
 widgets and editors it keeps, and the markup it releases."""
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
 from render_harness import (
@@ -19,6 +18,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

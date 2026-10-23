@@ -583,6 +583,11 @@
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
+  }
+  /* The landing reads the row's ring carrier in the focus task, before the
+   * visible-focus marker is painted. */
+  :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
+    > lf-option:has(> .lf-pick:focus) {
     --lf-wears-ring: 1;
   }
   /* The add field's own outline is off, so its row answers the keyboard for it, in a

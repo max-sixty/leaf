@@ -34,9 +34,8 @@ Read [SOUL.md](SOUL.md) before authoring or responding on a Leaf page.
 
 ## Operate
 
-When the harness sets `$LEAF`, use that launcher for every command shown as
-`leaf`. Otherwise use `../../bin/leaf` from the directory holding this
-`SKILL.md`; your harness contract may name that path or put it on `PATH`. If the
+Run commands as `leaf` when the harness puts its launcher on `PATH`. Otherwise
+use `../../bin/leaf` from the directory holding this `SKILL.md`. If the
 file is missing, report that the plugin payload is incomplete. In a checkout the
 launcher is `bin/leaf`. Pages usually live at `~/.local/state/leaf/pages/<slug>/`,
 but every command takes the directory explicitly; export or copy anything that

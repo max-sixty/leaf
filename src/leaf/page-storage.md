@@ -247,8 +247,9 @@ fingerprint, server identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error, including the refusal of a layer this Leaf cannot serve
 (`layer.incompatible_layer`). `active.file` names the immutable revision the live
-root actually shows when one exists; `data` names the contract file, the value directory, and any source whose
-value fails its contract or whose publication format this Leaf cannot read.
+root actually shows when one exists; `data` names the value directory and any source
+whose value fails its contract. `data_bindings` names each source's contract and
+the widgets that consume it.
 `active.executable`, shared with `/api/state`, gives the active revision's
 nullable executable digest. Delivery emits `<meta name="lf-executable">` when a
 digest is available; `../../browser/runtime/version.js` owns the resulting install choice.

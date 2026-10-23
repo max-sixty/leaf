@@ -318,7 +318,7 @@
   },
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
-    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-decisions.md` says. A card opens with its small.tag labels, then `<small class=\"tag ok\">recommended</small>` on the option you advise, then a `<strong>` title and its consequence, then any picture as block HTML, such as an svg.drawing. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick, and rewriting a picked option needs `restated` ($restated). A `for` target must stay useful whatever is decided, and does not supply the option's words.",
+    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-decisions.md` says. A card opens with its small.tag labels, then `<small class=\"tag ok\">recommended</small>` on the option you advise, then a `<strong>` title and its consequence, then any picture as block HTML, such as an svg.drawing. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words.",
     "type": "object",
     "properties": {
       "id": {
@@ -496,7 +496,7 @@
   },
   "lf-card": {
     "description": "One board card whose identity and comments survive user moves.",
-    "x-instructions": "Lead with a `<strong>` title and follow with prose. Keep its id stable across moves. Rewriting a card the user moved needs restated; read $restated.",
+    "x-instructions": "Lead with a `<strong>` title and follow with prose. Keep its id stable across moves. Use `$restated` to withdraw the user's moves.",
     "type": "object",
     "properties": {
       "id": {

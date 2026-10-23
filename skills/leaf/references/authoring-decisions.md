@@ -21,8 +21,7 @@ the claim and its evidence. Only a decision about the whole record comes last.
 Keep the question, its evidence and the options on screen together. Where a table,
 chart or playground inside the decision, or the pictures in its options, can't be read
 at the prose's width, give that block, or the `lf-options`, its own `data-width`
-(`page-layout.md`, "Bounds and widths"). A page whose subject is
-that surface is a workspace instead (`page-authoring.md`, "Composing a page").
+(`page-layout.md`, "Bounds and widths").
 
 Write decisions the user can answer independently in page order. If a later one depends
 on an earlier answer, pose it in the next turn rather than writing every branch.

@@ -94,15 +94,16 @@ table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
   sit in equal cells. Each cell holds a metric, chart, table, list or log, with at most
   a caption; tiles of paragraphs read worse than the column.
 - **A comparison** is a table, or native sections arranged by the page's CSS.
-- **Controls beside evidence** is a playground.
+- **Controls beside evidence** is a playground. Aim for one coherent experience to
+  read, operate and comment on. Embedded documents can isolate a demonstration, but
+  also separate its navigation and interaction from the surrounding Leaf page
+  (`live-samples.md`).
 - **A screen the reader works in rather than scrolls**, like a mail client, a queue
-  worked one item at a time, a log beside its chart, or a playground that is the page's
-  subject, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
-  window from the title's left edge. Broken out of a column, the same surface would sit
-  below the opening prose, with edges that match neither the title nor the prose, which
-  suits a figure a document cites but not the page's main item. Reading that supports the
-  surface, such as the review behind a design the reader tunes, goes in parts of its own
-  after the surface's, on a page of parts (below). A document read top to bottom beside a
+  worked one item at a time, a log beside its chart, or a desktop interface the reader
+  tunes, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
+  window from the title's left edge. Let that surface lead when it is the main task;
+  supporting reading, such as the review behind a design the reader tunes, goes in
+  later parts on a page of parts (below). A document read top to bottom beside a
   panel kept in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
   (`page-layout.md`, "A sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale

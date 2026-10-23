@@ -203,7 +203,7 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     page.locator(".lf-fp-threads").click()
     inventory = page.locator(".lf-fp-view[data-view=threads]")
     expect(inventory).to_be_visible()
-    expect(page.locator(".lf-fp-field")).to_have_attribute(
+    expect(page.locator(".lf-fp-editors")).to_have_attribute(
         "aria-keyshortcuts", "Escape"
     )
     expect(page.locator(".lf-fp-opened")).to_have_attribute("aria-keyshortcuts", "/")
@@ -214,7 +214,7 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)
     expect(page.locator(".lf-fp-leaf")).not_to_be_focused()
-    expect(page.locator(".lf-fp-field")).not_to_have_attribute(
+    expect(page.locator(".lf-fp-editors")).not_to_have_attribute(
         "aria-keyshortcuts", "Escape"
     )
 
@@ -4367,7 +4367,7 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
   document.querySelector('#show-threads').onclick = () =>
     sample.showThread(undefined, {surface: 'panel'});
 </script>
-""",
+    """,
         )
     )
     page = open_page(browser, url)
@@ -4376,6 +4376,10 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     page.locator("#show-thread").click()
     reader = child.locator(".lf-fp-view[data-view=thread]")
     expect(reader.locator(".lf-msg")).to_contain_text("Can we schedule lunch?")
+    # Seat the embedded panel above the containing page's floating controls.
+    page.locator("#sample").evaluate(
+        "element => element.scrollIntoView({block: 'start'})"
+    )
     child.locator(".lf-fp-close").click()
     expect(reader).to_have_count(0)
     page.locator("#show-threads").click()
@@ -4396,6 +4400,7 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     assert search.bounding_box()["width"] > 0
     search.fill("schedule")
     expect(child.locator(".lf-fp-thread")).to_have_count(1)
+    child.get_by_role("button", name="Close search", exact=True).click()
     close.click()
     expect(child.locator(".lf-fp-view[data-view=threads]")).to_have_count(0)
 

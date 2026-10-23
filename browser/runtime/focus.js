@@ -912,18 +912,12 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
 // rather than the control declares it there, `--lf-wears-ring: 1` (theme.css), as a
 // playground's choice rings its radio and words together; the nearest such box around
 // the control is the one. Anything else wears its own. Those rules ring the face of the
-// control the focus paint marks, so only that control has one. A move paints after its
-// script, and a landing in that script, as an option walk's End is, reads the paint
-// now; a return's paint still waits for its frame.
+// control the focus paint marks, so only that control has one. A landing in the
+// focus task reads the carrier from native focus before Leaf paints. Reading the
+// ring must not paint an intermediate focus destination: a return in the same
+// task would otherwise remove and restore the previous focus marks.
 export function ringBox(node) {
-  if (
-    node &&
-    node !== paintedFocus &&
-    node === paintDestination?.deref() &&
-    !returnPaintPending
-  )
-    refreshFocusPaint();
-  if (!node?.matches?.("[data-lf-focus]")) return node;
+  if (!node?.matches?.(":focus, [data-lf-focus]")) return node;
   for (
     let box = renderedParent(node);
     box instanceof Element;

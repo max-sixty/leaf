@@ -21,10 +21,27 @@ in the preview, presets precede the full-width preview and the instruction follo
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
+<<<<<<< HEAD
 break out of a reading column; a workspace gives it the window. A long comparison can
 flow down the page. Shared controls stay in their rail on wide layouts and above the
 preview on narrow layouts, where their own contents scroll if needed to leave room for
 the candidates. Controls authored beside an individual candidate stay beside it.
+||||||| 13e64e6a0
+Give the `lf-playground` `data-width="available"` wherever it stands, so it takes the
+room it is given while the question and premise in its `lf-ask` keep the prose width.
+Where the playground is the page's subject, make the page a workspace (`<main
+class="layout-workspace density-working">`) whose body is that `lf-ask`. When the page
+also carries reading that supports the playground, make it a page of parts instead: the
+first part is that workspace, `<div class="layout-workspace density-working">` holding
+the `lf-ask`, and the reading goes in later parts, each a column
+(`references/page-layout.md`, "A page of parts"). Either way the playground fills the
+window. Where the playground is one exhibit in a document, it breaks out of the
+document's column. Draw the candidates directly in the preview, without a card around
+each.
+=======
+break out of a reading column; a workspace gives it the window. Draw the candidates
+directly in the preview, without a card around each.
+>>>>>>> origin/main
 
 In a workspace, every line between the question and the playground pushes the
 instruction and its Send button further below the window. Keep that premise to one or
@@ -215,7 +232,10 @@ one named structured slice with `playground.registerContributor(name, defaults)`
 The returned handle's `get()` reads its immutable current value; `set(next)` replaces
 that slice. Update it on input, so a later control change or submission sees the edit.
 Names are unique and distinct from control names. Retain the handle rather than a
-second configuration object; Reset and Undo replace the values it reads.
+second configuration object. Reset restores the authored defaults, and a new choice
+loads its configuration. Undo withdraws a submitted decision while keeping the current
+working values, including edits made since submission, so the user can adjust and
+resubmit them.
 
 Register slices, one optional `registerInstructionProvider(values => instruction)`,
 and required views during `PAGE_INTERFACE` (`references/module-authoring.md`, "Startup and presentation").

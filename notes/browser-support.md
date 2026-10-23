@@ -25,6 +25,31 @@ what fails and what still works.
 
 ## Supported APIs checked
 
+### Highlight style inheritance
+
+- **Owners:** `runtime/annotation-overlay/annotation-marks.css` and
+  `runtime/marks.css`. Their universal `::highlight()` rules paint native ranges
+  in the document and declared shadow stages.
+- **Observed 2026-10-22:** installed Playwright Chromium 153.0.8010.12 inherits
+  highlight paint from `:root::highlight()` and `:host::highlight()` into nested
+  syntax spans. Installed Firefox 155 accepts those selectors but paints no
+  highlight on descendants, in both light DOM and shadow trees. Putting the rule
+  on the shadow tree's direct child or declaring `inherit` explicitly does not
+  restore it. A universal selector paints the same native range correctly.
+  These are installed-engine results, not a current stable-browser survey.
+- **Evidence:** the focused browser test
+  `navigation/test_comment_marks.py::test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme`
+  checks computed paint, actual screenshot changes, and a widget-local palette in
+  light and dark schemes in both engines. Restricting the existing rules to the
+  document and host makes its Firefox case fail. A separate minimal fixture
+  confirmed zero changed pixels for the inheritance variants and visible paint
+  for the universal-rule control.
+- **Disposition:** retain universal highlight rules. Root inheritance reduced
+  forced style/layout work by 20–35% on a 2,000-row diff in Chromium, but removes
+  annotation paint in the tested Firefox. This optimization does not justify a
+  new startup capability probe or per-range styling mechanism. Revisit when the
+  focused test passes with root-scoped rules in supported engines.
+
 ### Adaptive contents disclosure
 
 - **Owners:** default package `lf-toc.js` and `styles/toc.css`. In-flow contents

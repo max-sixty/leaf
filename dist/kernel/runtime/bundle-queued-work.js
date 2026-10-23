@@ -1474,7 +1474,7 @@ var queueOffers = (item, ready, onUser) => ({
   open: ready,
   done: ready && onUser && item.kind === "todo"
 });
-var carriesObligation = (item) => item.kind === "widget" || item.kind === "approval";
+var carriesObligation = (item) => item.kind === "widget";
 var itemNoun = (item) => item.kind !== "update" ? item.kind : item.owner === "user" ? "resend" : item.thread !== null ? "reply" : "answer";
 var OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 var itemOutcome = (item) => item.kind === "update" ? "Sent" : OUTCOMES[item.state] ?? item.state;
@@ -1556,27 +1556,8 @@ var NO_OBLIGATIONS = {
   user: [],
   unanswered: []
 };
-function normalizedObligations(view, widgets, document, projection, local) {
+function normalizedObligations(view, widgets, document, projection) {
   const all = (view?.obligations ?? []).map((item) => {
-    if (item.source.kind === "approval") {
-      const version = item.source.version;
-      const undone = new Set(
-        local.flatMap(({ event }) => event.kind === "undo" ? [event.undoes] : [])
-      );
-      const approving = local.some(
-        ({ event }) => event.kind === "done" && event.version === version
-      );
-      if (approving)
-        return {
-          ...item,
-          answer: { value: true, event: null },
-          status: "answered",
-          next_actor: null
-        };
-      if (item.answer?.event && undone.has(item.answer.event.id))
-        return { ...item, answer: null, status: "open", next_actor: "user" };
-      return item;
-    }
     if (item.source.kind !== "widget") return item;
     const sourceId = item.source.id;
     const sourceUnit = item.source.unit;
@@ -1954,7 +1935,7 @@ function createSemanticApplication({
       widgets2,
       projection
     );
-    const servedItems = ready ? normalizedObligations(view, widgets2, document, projection, local) : NO_OBLIGATIONS;
+    const servedItems = ready ? normalizedObligations(view, widgets2, document, projection) : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn2, namedParent }) => {
@@ -2089,17 +2070,6 @@ function createSemanticApplication({
       widgets: widgets2,
       thread: {
         all: threads,
-        // Historical system rows are event narration, never current approval state.
-        approvalHistory: [
-          ...state?.browser.approval_history ?? [],
-          ...local.flatMap(
-            ({ event, localId, timestamp }) => event.kind === "done" ? [{ ...event, id: localId, ts: timestamp }] : []
-          )
-        ].filter(
-          (event) => !local.some(
-            ({ event: gesture }) => gesture.kind === "undo" && gesture.undoes === event.id
-          )
-        ),
         collection: {
           phase,
           threads: threads.filter(discussed)

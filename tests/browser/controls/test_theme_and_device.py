@@ -165,14 +165,10 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
 def test_coarse_pointer_panel_lists_give_humane_aims(browser, serve):
     """Touch keeps the panel's compact paint while its lists' rows take a finger-sized
     aim."""
-    html = LONG_PAGE.replace(
-        "<title>long</title>",
-        '<title>long</title><meta name="lf-review" content="sign-off">',
-    )
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
-    page = open_page(browser, serve(html, comments=1), context=context)
+    page = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
         "the touch fixture never reached Leaf's coarse-pointer rules"
     )

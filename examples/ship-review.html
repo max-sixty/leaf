@@ -6,7 +6,6 @@
       name="description"
       content="Read the reconnect objection and the workaround that was accepted, then choose the remaining follow-up work and approve the iOS release."
     />
-    <meta name="lf-review" content="sign-off" />
   </head>
   <body>
     <main class="layout-column">
@@ -14,9 +13,9 @@
       <h1>Finish the ship review</h1>
       <p class="lede" id="off-lede">
         The resend is accepted for the first patch: it recovered all 500 forced stalls,
-        and a six-week beta across 96 workspaces saw no data loss. One decision remains.
-        Finish choosing the follow-up work in the reconnect thread, then approve version
-        1 of this review.
+        and a six-week beta across 96 workspaces saw no data loss. Approve the release
+        with that workaround below, and choose the follow-up work separately in the
+        reconnect thread.
       </p>
 
       <section id="off-readiness-section">
@@ -80,6 +79,14 @@
         <dt>Upstream fix</dt>
         <dd>acknowledged, no release date</dd>
       </dl>
+      <lf-approval id="off-release-approval">
+        <h2>Ship the iOS patch with the resend workaround?</h2>
+        <p>
+          Release the first patch with automatic resend after 20 seconds, reconnect
+          telemetry and the support playbook described above. The upstream fix and
+          additional reconnect work remain follow-ups.
+        </p>
+      </lf-approval>
     </main>
   </body>
 </html>

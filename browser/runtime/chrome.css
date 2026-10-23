@@ -1066,17 +1066,6 @@
     color: var(--lf-fp-muted);
     font-weight: 400;
   }
-  .lf-fp-approval .lf-fp-item {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-  .lf-fp-approval .lf-fp-end {
-    min-width: 0;
-    justify-content: end;
-  }
-  .lf-fp-approval .lf-fp-value {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .lf-fp-compare {
     flex: none;
     font-size: 12px;

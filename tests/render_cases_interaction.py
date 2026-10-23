@@ -795,9 +795,7 @@ LIVE_V2 = (
     )
     .replace(
         "</head>",
-        '<meta name="lf-review" content="sign-off">\n'
-        "<style>#live-reading { --live-cut: 2; }</style>\n"
-        "</head>",
+        "<style>#live-reading { --live-cut: 2; }</style>\n</head>",
     )
 )
 LIVE_V3 = (
@@ -813,7 +811,6 @@ LIVE_V3 = (
     .replace(
         '<h1 id="live-title">Live second</h1>', '<h1 id="live-title">Live third</h1>'
     )
-    .replace('<meta name="lf-review" content="sign-off">\n', "")
     .replace("<style>#live-reading { --live-cut: 2; }</style>\n", "")
 )
 

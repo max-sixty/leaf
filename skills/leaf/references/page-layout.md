@@ -128,9 +128,8 @@ with a status tone (`warn`, `danger`, `ok`) when it reports a status.
 `<main class="layout-workspace">` fills the window behind Leaf's floating panel, and the reader
 works in its regions rather than scrolling the page. Pane scrollers leave room at their
 ends so the panel does not cover their last lines. The `header` and `footer` take
-their content's height and the body takes the rest. Keep the header to one row: the
-title, `.tag` chips for the page's state, and an `lf-tally` for the obligations left. Put what
-a lede would say at the top of the region it is about.
+their content's height and the body takes the rest. Keep shared context concise enough
+to leave the working regions usable; place region-specific explanation with its subject.
 
 The body is one `lf-pane`, a widget that lays out its own regions, or the page's own
 grid of panes:
@@ -160,11 +159,10 @@ grid of panes:
 }
 ```
 
-Stack the panes below 720px, where the page can scroll; above that, stacked panes share
-one window height. Each pane's body scrolls on its own, so write no positioning to keep
-a pane or footer in view. Keep a region's decision in view with its supporting content,
-trimming or splitting a pane that overflows; a pane holding a long file or log can
-scroll.
+Keep enough space to read each region's evidence and reach its decision. Stacked panes
+share the remaining height while the workspace is bounded; in a flowing layout they
+can grow with their content. Each pane's body can scroll on its own, which helps with
+a long file or log but cannot make a cramped working region usable.
 
 `density-working` is a style, not a Layout. It sets smaller type, tighter spacing and
 options as rows on any block, for a surface the reader operates. A workspace usually

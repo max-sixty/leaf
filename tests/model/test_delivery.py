@@ -380,9 +380,10 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert undone in selected and changed in selected
 
 
-def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
+def test_approval_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
+        "</section>",
+        '<lf-approval id="permit">Publish this report?</lf-approval></section>',
     )
     source = source.replace(
         "</section>",
@@ -390,7 +391,17 @@ def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     )
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
-    done = append_command(page_dir, {"kind": "done", "author": "user", "version": 1})
+    done = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "permit",
+            "action": "approve",
+            "detail": {},
+        },
+    )
     undo = append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": done["id"]}
     )

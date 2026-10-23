@@ -48,8 +48,7 @@ they carry information. `authoring-evidence.md` says which element draws each ki
 evidence, and how to draw a figure of your own.
 
 Prose says only what the page can't show: the claim, why it holds, its cost, and the
-question the page asks. That takes a few sentences. A longer section is carrying
-something the page should show, or backing that belongs in `<details>`.
+question the page asks.
 
 ## Reading cost
 

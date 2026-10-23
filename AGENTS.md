@@ -282,7 +282,7 @@ not that result. Everything that depends on the whole log, such as which obligat
 remain, which the user owes and whose turn a thread is, comes from the server's
 reading. The browser adds only what a gesture decides by itself; for example,
 the user's own reply appears before the server answers. Those additions are a
-required-version approval, a to-do the user ends, a thread the user opens, the
+a to-do the user ends, a thread the user opens, the
 reply a send is owed, and the resend a refused send leaves. A refusal restores
 the server's state.
 

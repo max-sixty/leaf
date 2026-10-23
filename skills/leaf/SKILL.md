@@ -70,9 +70,7 @@ words in `error` or `text`.
    already live on the user's page, so a separate check only delays the answer
    they are waiting for.
 4. **Review and stamp a record.** A record is a page used beyond this
-   conversation. A page with `<meta name="lf-review" content="sign-off">` is
-   always one, since approval requires a stamped version. Before a record's first
-   handoff, run `leaf page check <page> --render`, do the reading in
+   conversation. Before a record's first handoff, run `leaf page check <page> --render`, do the reading in
    `references/page-checkpoints.md`, "Pre-handover review", then run
    `leaf page stamp <page> --text "<changelog>"`. The render check shows that the
    page renders; the reading shows what you meant.
@@ -131,7 +129,7 @@ of shape, `references/page-layout.md` each shape's geometry, and
 
 Choose controls, gestures and options whose benefit to the user's task outweighs
 the attention and effort they require. Remove redundant actions before making
-them visually quieter. Widget actions, resolutions and sign-offs can be undone;
+them visually quieter. Widget actions and resolutions can be undone;
 sent words stay in the log.
 
 ## Keep the user current
@@ -168,7 +166,7 @@ never have to follow a chain of references to find one.
 - `references/live-samples.md`: before letting the user operate a Leaf page inside a
   page or a thread message.
 - `references/authoring-decisions.md`: when the page or your reply leaves anything for
-  the user to decide or sign off, before choosing its widgets.
+  the user to decide or approve an action, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising the page's current state.
 - `references/authoring-evidence.md`: for work updates or reviews, before drawing
@@ -199,7 +197,8 @@ never have to follow a chain of references to find one.
 - `references/module-authoring.md`: before writing or changing browser behavior in
   a page script, page-owned widget or package widget. Then, as the behavior needs
   them: `references/module-reading.md` for reading the page, content helpers, obligations
-  and history; `references/module-state.md` for recorded state and data;
+  and history; `references/module-state.md` for recorded state, data, authenticated
+  HTTP connections and LLM generation;
   `references/module-input.md` for commands, focus and text entry;
   `references/module-scroll-and-motion.md` for scrolling, travel and motion; and
   `references/module-annotations.md` for margin entries, visual parts and Threads.

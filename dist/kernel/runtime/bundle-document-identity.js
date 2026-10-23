@@ -5572,8 +5572,6 @@ function gestureWords(event, gesture) {
       const name = thread ? quoted2(threadName(thread), 48) : "a thread";
       return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
     }
-    case "done":
-      return `approved v${event.version}`;
     case "todo_end": {
       const todo = runtime.todos.find(({ id }) => id === event.todo);
       return TODO_ENDINGS[event.outcome](todo ? quoted2(todo.title) : "a to-do");
@@ -7548,8 +7546,6 @@ function createStateApplication({
   prepareActivation,
   acceptData: acceptData2,
   notifyDataSubscribers: notifyDataSubscribers2,
-  isSignoffDeclared,
-  stateSignoff,
   accountPending
 }) {
   let observedSemanticNews = null;
@@ -7645,7 +7641,6 @@ function createStateApplication({
       stateApplying = true;
       try {
         settleAcceptedDrafts();
-        stateSignoff(isSignoffDeclared());
         if (installed) await settlePageInterface();
         await whenDocumentPresented();
         if (installed) await installed.land();
@@ -7933,8 +7928,6 @@ function mountApplication(dependencies) {
     prepareActivation: dependencies.state.prepareActivation,
     acceptData: dependencies.state.acceptData,
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
-    isSignoffDeclared: dependencies.state.isSignoffDeclared,
-    stateSignoff: dependencies.state.stateSignoff,
     accountPending
   });
   const flushQueuedInvalidation = () => {
@@ -8132,7 +8125,7 @@ function mountApplication(dependencies) {
     openObligation(id) {
       const item = readObligations().all.find((item2) => item2.id === id);
       if (!item) return Promise.resolve(false);
-      if (item.source.kind === "approval" || item.source.kind === "update")
+      if (item.source.kind === "update")
         return queueActions2.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
@@ -8957,13 +8950,11 @@ function ownedObligationControl(source, commandSource) {
   return !selector || closestAcross(commandSource, selector) === source;
 }
 function obligationWord(item) {
-  if (item.source.kind === "approval") return "Approval";
   const word2 = widgetWord(item.source.tag, elementById(item.source.id));
   return word2.charAt(0).toUpperCase() + word2.slice(1);
 }
 function answerWords(item) {
   if (item.answer === null) return "";
-  if (item.source.kind === "approval") return "Approved";
   if (answeredInWords(item))
     return item.answer.value.text ?? item.answer.value.token ?? "";
   const source = elementById(item.source.id);

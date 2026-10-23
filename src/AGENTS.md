@@ -42,7 +42,7 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `work_reading`: the durable work state shared by admission, serving and delivery;
 - `workflows`, `activity`: unfinished updates with their evidence, and the page-level
   summary over workflows, to-dos, status, claim, turn and watcher;
-- `obligations`: every widget's and sign-off's obligation on On me, with typed answers, completion
+- `obligations`: every widget's obligation on On me, with typed answers, completion
   and attention;
 - `work`: what an id names, which widgets hold a to-do, and which widget to-dos a
   version would leave without a target;
@@ -80,6 +80,7 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `user_views`: disposable per-document browser observations;
 - `samples`, `sample_content`: live samples' child pages and their starting histories;
 - `http`: HTTP transport;
+- `http_connections`: host grants and credential storage for page-authored HTTPS reads;
 - `layer`, `packages`, `vendoring`: package discovery and composition, package
   checks, and page init and layer changes;
 - `runtime_selection`: the browser runtime a page's documents run, which the serving

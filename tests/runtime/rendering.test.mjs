@@ -307,13 +307,35 @@ test("an observer delivery after the callbacks holds the reading for one more up
   assert.equal(Object.values(renderingState()).every(Boolean), true);
 });
 
-test("cancelled work stops holding the reading", async () => {
-  let ran = false;
-  const id = nextRender(() => (ran = true));
-  cancelRender(id);
-  await update();
-  assert.equal(ran, false);
-  assert.equal(Object.values(renderingState()).every(Boolean), true);
+test("cancellation reentry preserves its successor and retires every queued job", async () => {
+  const phases = new Map();
+  const ran = [];
+  let id;
+  const stop = observeQueuedWork((phase, job) => {
+    const heard = phases.get(job) ?? [];
+    heard.push(phase);
+    phases.set(job, heard);
+    if (phase === "cancel") {
+      cancelRender(id);
+      nextRender(() => ran.push("successor"));
+    }
+  });
+  try {
+    id = nextRender(() => ran.push("cancelled"));
+    cancelRender(id);
+    await update();
+    assert.deepEqual(ran, ["successor"]);
+    assert.deepEqual(
+      [...phases.values()],
+      [
+        ["enqueue", "cancel"],
+        ["enqueue", "run", "finish"],
+      ],
+    );
+    assert.equal(Object.values(renderingState()).every(Boolean), true);
+  } finally {
+    stop();
+  }
 });
 
 test("a hidden page reads settled while work waits for an update it will not get", () => {

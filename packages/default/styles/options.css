@@ -602,10 +602,11 @@
   }
   .lf-another {
     --lf-option-add-seat-inset: var(--sp-1);
-    /* Centre Add on the last text line, using the same inset that sizes its row. */
+    /* Centre Add's face on the last text line, using the same inset that sizes its
+       row, which holds its reach (below). */
     --lf-option-add-seat-end: calc(
-      var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-icon-action-hit)) /
-        2
+      var(--lf-option-pad-block) +
+        (var(--lf-option-line) - var(--lf-icon-action-face)) / 2
     );
     --lf-option-add-badge-inset: calc(
       var(--lf-option-add-seat-inset) +
@@ -613,7 +614,7 @@
     );
     --lf-option-add-badge-end: calc(
       var(--lf-option-add-seat-end) +
-        (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2
+        (var(--lf-icon-action-face) - var(--lf-key-badge-size)) / 2
     );
     --lf-option-write-badge-inset: calc(
       var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--sp-2)
@@ -674,7 +675,8 @@
    * and 6px before the words. It is held before the badge appears, so focusing an
    * option moves nothing. Screen only: paper gets no badge. */
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) {
-    /* Keep the form's padding, growing it only to contain the action's hit box.
+    /* Keep the form's padding, growing it only to contain the action's hit box, its
+     * face and the reach above and below it.
      * The draft and the option it becomes use this same padded text line. */
     --lf-option-pad-block: max(
       var(--lf-option-pad-min),

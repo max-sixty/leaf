@@ -969,9 +969,9 @@
   }
   .lf-another {
     --lf-option-add-seat-inset: var(--sp-1);
-    --lf-option-add-seat-end: calc( var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-icon-action-hit)) / 2 );
+    --lf-option-add-seat-end: calc( var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-icon-action-face)) / 2 );
     --lf-option-add-badge-inset: calc( var(--lf-option-add-seat-inset) + (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2 );
-    --lf-option-add-badge-end: calc( var(--lf-option-add-seat-end) + (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2 );
+    --lf-option-add-badge-end: calc( var(--lf-option-add-seat-end) + (var(--lf-icon-action-face) - var(--lf-key-badge-size)) / 2 );
     --lf-option-write-badge-inset: calc( var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--sp-2) );
     --lf-option-action-room: var(--lf-option-write-badge-inset);
     position: relative;

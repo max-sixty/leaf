@@ -359,9 +359,7 @@ function paintSidewaysReach(el, readStyle = false) {
   // contents. Like vertical reading cues, read the completed layout for this script.
   afterScript(() => {
     if (!sideways.has(el) || unpainted(el)) return;
-    const direction = readStyle
-      ? getComputedStyle(el).direction
-      : sideways.get(el);
+    const direction = readStyle ? getComputedStyle(el).direction : sideways.get(el);
     if (readStyle) sideways.set(el, direction);
     const scrolling = el.scrollWidth > el.clientWidth + 1;
     const maximum = Math.max(0, el.scrollWidth - el.clientWidth);

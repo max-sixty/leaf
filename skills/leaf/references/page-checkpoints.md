@@ -79,14 +79,14 @@ version.
 To finish, handle every event in the delivered batch and write the answer each
 acknowledged update's `answer` names (`event-batches.md`). A finished record ends on a
 stamped final version that honours open obligations and the reports still in force; an
-unstamped quick page can go idle directly. Then run:
+unstamped quick page can close directly. Then run:
 
 ```bash
-leaf status <page> idle
+leaf page close <page>
 ```
 
-`idle` ends the agent's side of the page, and refuses while events are pending or an
-update still owes its answer. It takes the page off the watch, and idling the last
+`page close` ends the agent's side of the page, and refuses while events are pending or an
+update still owes its answer. It takes the page off the watch, and closing the last
 watched page ends the watcher. It doesn't stop the server or delete the page
-(`serving-pages.md`, "Page lifetime"). Don't idle a persistent page because one
+(`serving-pages.md`, "Page lifetime"). Don't close a persistent page because one
 session's work on it is done.

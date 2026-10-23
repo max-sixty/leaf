@@ -1,7 +1,7 @@
 """Canonical page availability and agent work projected from durable evidence.
 
-Status is the agent's waiting or idle declaration, the newest `status` event in the
-log (`declaration`), a start in the log is the item it has in hand (`todos`), claims
+Status is the page's open (`waiting`) or closed (`idle`) declaration, the newest
+`status` event in the log (`declaration`), a start in the log is the item it has in hand (`todos`), claims
 prove ownership and turn lifetime, and pickup events prove delivery. Delivery remains
 interaction evidence rather than becoming the page's execution state. This module is
 the one fold that orders those facts and supplies every reader — browser chrome,
@@ -38,8 +38,8 @@ BACKGROUND_DETAIL = "in the background"
 
 def undeclared() -> dict:
     """The status of a page whose agent has declared nothing, such as one before any
-    `leaf status` or a copy a host serves: no work under way and nothing ended, so
-    the page waits on its user and a wait keeps watching it."""
+    `leaf page open` or a copy a host serves: no work under way and nothing ended, so
+    the page is open for feedback and a wait keeps watching it."""
     return {"state": "waiting", "detail": ""}
 
 
@@ -272,7 +272,7 @@ def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
     """The owed answers that keep the agent from idling the page, and from which
     the Stop hook takes the ones that hold its turn (`turn_obligations`).
 
-    `leaf status idle` refuses over exactly these: the acknowledged updates nothing
+    `leaf page close` refuses over exactly these: the acknowledged updates nothing
     else is set to answer. An update the adapter queued is answered by the later turn
     the queue opens, where the prompt hook records it `opened` and it blocks from
     then on. A provider reply the open turn has finished is committed by the

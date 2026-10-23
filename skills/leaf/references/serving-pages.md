@@ -105,7 +105,7 @@ when you start one: they now own a process that only `leaf server stop <page>` e
 
 A watcher restarts an enabled server whose process dies, at the same URL. `leaf server
 stop <page>` disables the server; a watcher keeps watching a stopped page until it is
-idle. To end the page's conversation, follow `page-checkpoints.md`, "Ending".
+closed. To end the page's conversation, follow `page-checkpoints.md`, "Ending".
 
 ## Resuming a persistent or foreign page
 
@@ -119,7 +119,8 @@ Read the active revision's HTML (`active.file`) and the `state` over it, then th
 obligations, the threads, and `measurement_lag` for figures whose sources have run again, as
 `authoring-revisions.md`, "Read before editing", describes. Then run
 `leaf page claim <page>`, which moves the page to your session and stops another
-session's watcher from watching it, and watch it as your harness's reference says.
+session's watcher from watching it. Claiming prepares delivery for your harness before
+ownership moves; it does not start or stop the page's server.
 
 ## Inspecting interactions
 

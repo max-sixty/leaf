@@ -18,7 +18,7 @@ settled, and emits two readings of them, each the one home of its facts:
     so a version that takes in a pick of it need not write it into the markup.
 
   Every consumer that holds the agent to something — delivery, `page state`, activity
-  counts, the Stop hook, `leaf status idle`, the On lists and thread attention — reads
+  counts, the Stop hook, `leaf page close`, the On lists and thread attention — reads
   these records rather than deciding again. `activity.turn_obligations` decides how long
   an owed update holds the agent's turn.
 
@@ -237,8 +237,7 @@ def handed_over(
 
     A start in force (`todos.item_starts`) holds an update it names, and a start running
     on an open to-do over a widget holds that widget's actions delivered before it, as
-    the work the to-do answers. A `status` declaration in the log, which `leaf status
-    waiting` and `idle` write, ends every start before it, so the updates they named
+    the work the to-do answers. A `status` declaration in the log, which `leaf page open` and `leaf page close` write, ends every start before it, so the updates they named
     are no longer in hand. The workflow names the start holding it as `held_by`,
     which `activity` takes off before serving.
 

@@ -87,6 +87,7 @@ html[data-lf-draw-mode] main {
   pointer-events: auto;
 }
 .lf-code-copy::part(button) {
+  position: relative;
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
   padding: 6px;
@@ -99,6 +100,14 @@ html[data-lf-draw-mode] main {
 }
 .lf-code-copy::part(button):hover {
   color: var(--ink);
+}
+/* Copy runs on its shadow button's press, so the reach (surfaces.css) is the button's:
+   one on the host would take the press from the button and copy nothing. Its own rule,
+   so an engine refusing a pseudo-element after a part keeps the rest. */
+.lf-code-copy::part(button)::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 /* A recording's bar lies over its foot, inset as Copy is from a code block's corner, in
    a control's face: paper, a hairline and the theme's radius (video-controls.js). It

@@ -69,6 +69,10 @@
       if (up.nodeType === 1 && up.matches(PRESS)) return true;
     return false;
   };
+  // The element a press must land on to act. A control whose press is a shadow button,
+  // as Web Awesome's copy button runs on its `button` part, acts only on that button: a
+  // press that stops at the host runs nothing.
+  const actionable = (el) => el.shadowRoot?.querySelector('[part~="button"]') ?? el;
   // What a press that missed the control landed on, for the finding to name.
   const landed = (x, y) => {
     const at = pressed(x, y);
@@ -87,7 +91,8 @@
   // end of which lands elsewhere counts for nothing; a control out of the window keeps
   // its computed reach, unpressed. A control whose own face a neighbour stands over at
   // an edge has no aim worth the name, and reads as none.
-  function aim(el) {
+  function aim(control) {
+    const el = actionable(control);
     const box = el.getBoundingClientRect();
     let [w, h] = [box.width, box.height];
     for (const pseudo of ["::before", "::after"]) {
@@ -100,6 +105,10 @@
     const x = box.left + box.width / 2;
     const y = box.top + box.height / 2;
     const shown = (px, py) => px >= 0 && py >= 0 && px < innerWidth && py < innerHeight;
+    // A host that takes the press at its button's very middle stands over all of the
+    // button, as a reach of the host's own would.
+    if (el !== control && shown(x, y) && pressed(x, y) === control)
+      return { box, w: 0, h: 0, by: landed(x, y) };
     if (shown(x, y) && takes(el, x, y)) {
       // A face whose own edge another control lies over, by its face or its reach,
       // loses presses there too.
@@ -188,7 +197,8 @@
       if (seen.has(el)) continue;
       seen.add(el);
       const style = getComputedStyle(el);
-      if (!["pointer", "grab"].includes(style.cursor)) continue;
+      if (!["pointer", "grab"].includes(getComputedStyle(actionable(el)).cursor))
+        continue;
       // A box that takes no press is not an aim, however its cursor reads.
       if (style.pointerEvents === "none") continue;
       if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true }))

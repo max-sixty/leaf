@@ -463,7 +463,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-msg-control,
   .lf-thread-action,
   .lf-thread-notice:is(button),
-  .lf-code-copy,
   .lf-draft-action,
   .lf-corner-mark
 ) {

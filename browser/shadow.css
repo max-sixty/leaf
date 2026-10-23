@@ -159,7 +159,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-quote {
   min-height: var(--aim-floor);
 }
-:where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), .lf-code-copy, .lf-draft-action, .lf-corner-mark) {
+:where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), .lf-draft-action, .lf-corner-mark) {
   position: relative;
   &::after {
     content: "";
@@ -1915,6 +1915,7 @@ html[data-lf-draw-mode] main {
   pointer-events: auto;
 }
 .lf-code-copy::part(button) {
+  position: relative;
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
   padding: 6px;
@@ -1927,6 +1928,11 @@ html[data-lf-draw-mode] main {
 }
 .lf-code-copy::part(button):hover {
   color: var(--ink);
+}
+.lf-code-copy::part(button)::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 :root {
   --lf-video-bar-h: var(--lf-line);

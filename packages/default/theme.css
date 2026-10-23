@@ -3198,8 +3198,7 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-draft-tools > .lf-code-copy {
-    position: relative;
-    inset: auto;
+    position: static;
     inline-size: auto;
     block-size: auto;
     opacity: 1;

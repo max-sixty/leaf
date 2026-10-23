@@ -140,8 +140,7 @@
   }
   /* Copy keeps the control code blocks share; in the toolbar it is one of its marks. */
   .lf-draft-tools > .lf-code-copy {
-    position: relative;
-    inset: auto;
+    position: static;
     inline-size: auto;
     block-size: auto;
     opacity: 1;

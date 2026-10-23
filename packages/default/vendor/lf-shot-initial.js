@@ -119,6 +119,7 @@
     const actions = offer("div", "lf-shot-actions");
     const views = buttons("Comparison view", SHOT_VIEWS, "compare");
     views.choices.get("pixels").disabled = true;
+    views.choices.get("pixels").title = "Before-only pixels: red. After-only pixels: blue. Recolored pixels: amber.";
     const tools = offer("div", "lf-shot-tools");
     const scaleTrigger = offer("button", `${CONTROL} lf-shot-scale`);
     scaleTrigger.type = "button";
@@ -197,20 +198,9 @@
       viewports.push(viewport);
       canvas.append(frame);
     }
-    const legend = offer("div", "lf-shotlegend lf-ui");
-    for (const [side, text] of [
-      ["before", "Before only"],
-      ["after", "After only"],
-      ["both", "Recolored"]
-    ]) {
-      const item = offer("span", "lf-shotlegend-item", text);
-      item.dataset.lfShotSide = side;
-      legend.append(item);
-    }
-    legend.hidden = true;
     keeps(host, "data-lf-shot-mode", "compare");
     keeps(host, "data-lf-shot-outlines", false);
-    host.append(toolbar, stage, legend);
+    host.append(toolbar, stage);
     const geometry = fitShotGeometry({
       ...shotAllocation(host, stage),
       labelHeight: parseFloat(getComputedStyle(frames[0].firstElementChild).blockSize),
@@ -239,8 +229,7 @@
       shots,
       captions,
       frameCaptions,
-      openers,
-      legend
+      openers
     };
   }
 

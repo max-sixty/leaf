@@ -563,6 +563,14 @@ def screenshot_slider_before(page: Page) -> None:
     shot.scroll_into_view_if_needed()
 
 
+def screenshot_pixels(page: Page) -> None:
+    """Pixel evidence occupies the image frame without a separate legend row."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.get_by_role("button", name="Pixels", exact=True).click()
+    shot.scroll_into_view_if_needed()
+
+
 def image_in_page(page: Page) -> None:
     """An authored image in the reading flow, before its viewer opens."""
     page.get_by_role("tab", name="Threads", exact=True).click()
@@ -1470,6 +1478,12 @@ STATES = (
         "screenshot-slider-before",
         "developer/feature-gallery",
         screenshot_slider_before,
+        region="#bg-shot",
+    ),
+    State(
+        "screenshot-pixels",
+        "developer/feature-gallery",
+        screenshot_pixels,
         region="#bg-shot",
     ),
     State(

@@ -353,36 +353,6 @@
 .lf-shotpixels [data-lf-shot-side=after] {
   background: var(--accent);
 }
-.lf-shotlegend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2) var(--sp-3);
-  padding-block: var(--sp-2);
-  flex: none;
-  color: var(--muted);
-  font: var(--t-working-label)/1.4 var(--sans);
-}
-.lf-shotlegend[hidden] {
-  display: none;
-}
-.lf-shotlegend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-}
-.lf-shotlegend-item::before {
-  content: "";
-  inline-size: 0.65em;
-  block-size: 0.65em;
-  background: var(--warn);
-}
-.lf-shotlegend-item[data-lf-shot-side=before]::before {
-  background: var(--danger);
-}
-.lf-shotlegend-item[data-lf-shot-side=after]::before {
-  background: var(--accent);
-}
 @container style(--lf-full-height:1) {
   :scope:is(lf-shot) {
     --lf-holds-height: 1;
@@ -396,7 +366,6 @@
     overflow: visible;
   }
   .lf-shot-toolbar,
-  .lf-shotlegend,
   .lf-shotpixels,
   .lf-shotdiff {
     display: none !important;

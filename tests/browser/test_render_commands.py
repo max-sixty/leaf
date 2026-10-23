@@ -896,9 +896,9 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     expect(outlines).to_be_disabled()
     expect(outlines).to_have_attribute("aria-pressed", "true")
     expect(patch.locator(".lf-shotpixels")).to_be_visible()
-    expect(patch.locator(".lf-shotlegend")).to_be_visible()
-    expect(patch.locator(".lf-shotlegend-item")).to_have_text(
-        ["Before only", "After only", "Recolored"]
+    expect(pixels).to_have_attribute(
+        "title",
+        "Before-only pixels: red. After-only pixels: blue. Recolored pixels: amber.",
     )
     expect(patch.locator(".lf-shotdiff").last).to_be_hidden()
     # Reading or pointing at evidence cannot silently switch comparison modes.

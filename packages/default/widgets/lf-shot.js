@@ -88,7 +88,6 @@ customElements.define(
     #stage;
     #canvas;
     #toolbar;
-    #legend;
     #scaleReading;
     #scaleTrigger;
     #options;
@@ -163,7 +162,6 @@ customElements.define(
       this.#captions = drawing.captions;
       this.#frameCaptions = drawing.frameCaptions;
       this.#openers = drawing.openers;
-      this.#legend = drawing.legend;
       for (const [view, button] of this.#viewButtons)
         button.addEventListener("click", () => this.#chooseView(view));
       for (const [scale, button] of this.#scaleButtons)
@@ -369,7 +367,6 @@ customElements.define(
       // before measuring; fitting the previous mode would resize this observed
       // stage again during ResizeObserver delivery.
       keeps(this, "data-lf-shot-mode", this.#shownView);
-      this.#legend.toggleAttribute("hidden", this.#shownView !== "pixels");
       const allocation = shotAllocation(this, this.#stage);
       if (allocation.available <= 0) return; // Hidden cases retain their last inspection until shown.
       const ratio = this.#metadata.pixelRatio ?? 1;

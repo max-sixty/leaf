@@ -16,7 +16,10 @@ const { applicationState } = await import("/runtime/semantic-state.js");
 test("generation returns the host answer at the page's address without publishing state", async (t) => {
   applicationState.identify(1, null, true);
   const before = applicationState.read();
-  const request = { input: "Story", schema: { type: "object" } };
+  const request = {
+    input: "Story",
+    schema: { type: "object", properties: {}, additionalProperties: false },
+  };
   const answer = {
     value: { headline: "A story" },
     model: "host-model",
@@ -45,10 +48,16 @@ test("a failed generation surfaces the server error and never retries", async (t
         headers: { "Content-Type": "application/json" },
       }),
   );
-  await assert.rejects(generate({ input: "Story", schema: { type: "object" } }), {
-    message: "Provider refused the request",
-    status: 502,
-  });
+  await assert.rejects(
+    generate({
+      input: "Story",
+      schema: { type: "object", properties: {}, additionalProperties: false },
+    }),
+    {
+      message: "Provider refused the request",
+      status: 502,
+    },
+  );
   assert.equal(fetch.mock.callCount(), 1);
 });
 

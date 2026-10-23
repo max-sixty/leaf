@@ -659,7 +659,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     record = tmp_path / "claude-calls.jsonl"
     monkeypatch.setenv("TITLING_RECORD", str(record))
     monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
-    thread_titles.claude_code_title(request, page_dir)
+    thread_titles.title_generator(inference.claude_code_generate)(request, page_dir)
     [call] = [json.loads(line) for line in record.read_text().splitlines()]
     argv = call["argv"]
     system_prompt = argv[argv.index("--system-prompt") + 1]
@@ -700,7 +700,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     )
 
 
-def test_shared_inference_uses_the_host_model_and_checks_structured_results(
+def test_shared_inference_checks_structured_results(
     page_dir, app_server, tmp_path, monkeypatch
 ):
     """Widgets and titles use the same tool-free transports, with the host's model
@@ -736,10 +736,9 @@ def test_shared_inference_uses_the_host_model_and_checks_structured_results(
             page_dir,
             schema=schema,
             instructions="Choose one item",
-            model="host-selected",
         )
         assert result["value"] == {"choice": 7}
-        assert result["model"] == "host-selected"
+        assert result["model"] in {"haiku", inference.CODEX_MODEL}
         assert set(result["usage"]) == {"inputTokens", "outputTokens"}
         with pytest.raises(ValidationError):
             generate(
@@ -749,11 +748,11 @@ def test_shared_inference_uses_the_host_model_and_checks_structured_results(
                 instructions="Choose one item",
             )
     call = json.loads(record.read_text().splitlines()[0])
-    assert "--model=host-selected" in call["argv"]
+    assert "--model=haiku" in call["argv"]
     assert "--tools=" in call["argv"]
     assert "--safe-mode" in call["argv"]
     start = next(m for m in received if m.get("method") == "thread/start")
-    assert start["params"]["model"] == "host-selected"
+    assert start["params"]["model"] == inference.CODEX_MODEL
     assert start["params"]["baseInstructions"] == "Choose one item"
     assert start["params"]["config"]["features"]["shell_tool"] is False
     assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}

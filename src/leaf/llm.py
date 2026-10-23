@@ -3,7 +3,7 @@
 The page's active claimant selects the host's inference transport; credentials stay
 with that transport. Callers supply only input, instructions and a required JSON
 Schema, never a model, executable, tools or provider parameters. The host can select
-a compatible model with LEAF_LLM_MODEL; otherwise the harness uses its cheap model.
+its cheap model: Luna for Codex, Haiku for Claude.
 
 Results return to the caller without collecting data or writing page state. Leaf
 makes one harness request and adds no retries. The harness owns its own transport
@@ -12,12 +12,13 @@ endpoint does not bound cumulative usage.
 """
 
 import json
-import os
 import subprocess
+import threading
 from pathlib import Path
 
 from jsonschema.exceptions import SchemaError, ValidationError
 from referencing.exceptions import Unresolvable
+from websockets.exceptions import WebSocketException
 
 from .harness import claim_harness
 from .refusals import Refused
@@ -25,6 +26,8 @@ from .registry.schema import check_schema, unresolved_schema_reference
 from .service import PageTransaction
 
 MAX_INPUT_BYTES = 64 * 1024
+# Refuse concurrent widget calls instead of occupying the HTTP worker pool.
+INFERENCE_SLOT = threading.Lock()
 
 
 class LLMError(Refused):
@@ -60,16 +63,19 @@ def generate(page_dir: Path, request: dict) -> dict:
     inference = claim_harness(claim).inference_generator() if claim else None
     if inference is None:
         raise LLMError("LLM access needs a page claimed by Codex or Claude Code.", 503)
+    if not INFERENCE_SLOT.acquire(blocking=False):
+        raise LLMError("LLM generation is busy. Try again after it finishes.", 429)
     try:
         return inference(
             request["input"],
             page_dir,
             schema=request["schema"],
             instructions=request.get("instructions", ""),
-            model=os.environ.get("LEAF_LLM_MODEL"),
         )
     except (
         OSError,
+        Refused,
+        WebSocketException,
         RuntimeError,
         TimeoutError,
         subprocess.TimeoutExpired,
@@ -78,3 +84,5 @@ def generate(page_dir: Path, request: dict) -> dict:
         Unresolvable,
     ) as error:
         raise LLMError(str(error), 502) from error
+    finally:
+        INFERENCE_SLOT.release()

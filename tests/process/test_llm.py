@@ -4,13 +4,17 @@ import json
 import os
 import subprocess
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from interact_support import PAGE, TOKEN, fetch, publish, read_page_data, record_claim
+from websockets.exceptions import WebSocketException
 
 from leaf import event_log, inference
 from leaf.hosting import TemporaryPageServer
 from leaf.page_snapshot import capture_page_snapshot
+from leaf.refusals import Refused
 from leaf.revision_artifact import read_revision
 
 SCHEMA = {
@@ -40,7 +44,6 @@ def fake_claude(tmp_path, monkeypatch):
     executable.chmod(0o755)
     monkeypatch.setenv("LLM_TEST_RECORD", str(record))
     monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.delenv("LEAF_LLM_MODEL", raising=False)
     return record
 
 
@@ -55,7 +58,7 @@ def infer(server, body=REQUEST, **kwargs):
 
 
 def test_llm_uses_claimants_login_and_host_model_without_persisting(
-    server, claimed, fake_claude, monkeypatch
+    server, claimed, fake_claude
 ):
     before = event_log.read_events(claimed), read_page_data(claimed)
     status, answer = infer(server, REQUEST | {"instructions": "Be concise"})
@@ -73,17 +76,10 @@ def test_llm_uses_claimants_login_and_host_model_without_persisting(
     assert "--model=haiku" in argv
     assert argv[argv.index("--system-prompt") + 1] == "Be concise"
     assert json.loads(argv[argv.index("--json-schema") + 1]) == SCHEMA
-    monkeypatch.setenv("LEAF_LLM_MODEL", "host-model")
-    status, answer = infer(server)
-    assert status == 200, answer
-    assert answer["model"] == "host-model"
-    calls = [json.loads(line) for line in fake_claude.read_text().splitlines()]
-    assert len(calls) == 2
-    assert "--model=host-model" in calls[-1]["argv"]
     status, answer = infer(server, REQUEST | {"schema": {"type": "array"}})
     assert status == 502, answer
     assert "not of type 'array'" in answer["error"]
-    assert len(fake_claude.read_text().splitlines()) == 3
+    assert len(fake_claude.read_text().splitlines()) == 2
     assert (event_log.read_events(claimed), read_page_data(claimed)) == before
 
 
@@ -121,6 +117,8 @@ def test_llm_rejects_untrusted_requests_before_inference(
     [
         RuntimeError("The login needs refreshing"),
         subprocess.TimeoutExpired("claude", 60),
+        Refused("Codex App Server did not become ready"),
+        WebSocketException("connection closed"),
     ],
 )
 def test_llm_failures_do_not_retry(server, claimed, monkeypatch, failure):
@@ -164,7 +162,7 @@ def test_llm_requires_a_supported_active_claim(
         (
             REQUEST["input"],
             page_dir,
-            {"schema": SCHEMA, "instructions": "", "model": None},
+            {"schema": SCHEMA, "instructions": ""},
         )
     ]
     assert not fake_claude.exists()
@@ -195,3 +193,25 @@ def test_llm_is_unavailable_in_samples_and_read_only_previews(
     ) as preview:
         assert infer(preview.origin)[0] == 403
     assert not fake_claude.exists()
+
+
+def test_llm_busy_calls_leave_the_server_responsive(server, claimed, monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
+
+    def generate(*args, **kwargs):
+        started.set()
+        assert release.wait(10)
+        return {"value": {"headline": "Done"}}
+
+    monkeypatch.setattr(inference, "claude_code_generate", generate)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(infer, server)
+        try:
+            assert started.wait(10)
+            assert infer(server)[0] == 429
+            assert fetch(server + "/api/state")[0] == 200
+        finally:
+            release.set()
+        assert pending.result()[0] == 200
+    assert infer(server)[0] == 200

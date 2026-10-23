@@ -185,6 +185,7 @@
   block-size: var(--lf-shot-frame-height);
 }
 :scope:is(lf-shot)[data-lf-shot-mode=compare] .lf-shotviewport {
+  --lf-holds-height: 1;
   inline-size: var(--lf-shot-viewport-width);
   block-size: var(--lf-shot-viewport-height);
   overflow: auto;
@@ -233,6 +234,7 @@
   font-weight: 400;
 }
 .lf-shotimage {
+  --lf-drawing: 1;
   position: relative;
   overflow: clip;
   inline-size: var(--lf-shot-frame-width);

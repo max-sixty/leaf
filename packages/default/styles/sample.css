@@ -183,6 +183,14 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.lf-sample-action {
+  inline-size: max(2rem, var(--aim-floor));
+  block-size: max(2rem, var(--aim-floor));
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 /* The status keeps one row's room whatever it says, so loading, ready and a failure
  * wrap the row alike and move neither the frame nor what follows: its basis, not its
  * words, places it, and its height is a line's or the pressable floor's, which a

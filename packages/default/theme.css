@@ -2684,6 +2684,14 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   flex-wrap: wrap;
   gap: 8px;
 }
+.lf-sample-action {
+  inline-size: max(2rem, var(--aim-floor));
+  block-size: max(2rem, var(--aim-floor));
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .lf-sample-status {
   position: relative;
   flex: 1 1 10em;

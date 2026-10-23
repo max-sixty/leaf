@@ -374,7 +374,7 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
 
     On a real Codex App Server turn the card drew an empty agent bubble as the turn
     started, held the opening's first words as an edit of it behind "1 new reply", and
-    the answer, written by `leaf response reply` under a retry key of its own, took the
+    the answer, written by `leaf thread reply` under a retry key of its own, took the
     bubble away and appended itself. The provisional reply now joins the thread with
     its first words, its words join it as they come, and the answer to the same input
     is the same message.
@@ -1139,7 +1139,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(serve.page_dir, root),

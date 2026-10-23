@@ -942,7 +942,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     [owed] = said(early.stderr)
     assert owed["code"] == "waiting-owes"
     assert owed["text"] == (
-        "1 user update with no answer (`leaf response reply <answer.ref>` with "
+        "1 user update with no answer (`leaf thread reply <answer.ref>` with "
         f"the `answer.ref` that `leaf wait {claimed}` delivers for {comment}); "
         "the page reads waiting once each has one"
     )
@@ -950,7 +950,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(claimed, comment),

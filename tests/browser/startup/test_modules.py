@@ -383,7 +383,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(d, "c-store"),

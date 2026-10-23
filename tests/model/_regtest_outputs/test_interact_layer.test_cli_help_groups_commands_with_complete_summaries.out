@@ -17,7 +17,6 @@ Commands:
   file        Bind existing local files for editing on a page.
   package     Create, check, install, and run packages.
   page        Create, check, stamp, and read pages.
-  response    Reply to an update by the reference its delivery gave.
   server      Start, run, or stop the local server.
   status      Say the page waits on its user, or is done.
   task        Open or end to-dos, start work on your list, and plan.
@@ -135,18 +134,6 @@ Options:
 Commands:
   edit       Edit a message's text, or its thread's title.
   open       Open an agent thread \u2014 on a passage, or on the page whole.
-  reply      Add an agent-initiated reply to a thread.
+  reply      Reply using an answer reference or a page and thread.
   resolve    Close a thread as the agent.
   summarize  Summarize a contiguous message range.
-
-## response
-Usage: leaf response [OPTIONS] COMMAND [ARGS]...
-
-  Reply to a user update with the reference its delivery printed as
-  `answer.ref`.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  reply  Reply to the update a reference names.

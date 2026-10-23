@@ -185,6 +185,7 @@ export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";
 export { loadDeferred, publishOutput } from "./data.js";
 export { boundFile } from "./file-api.js";
+export { generate } from "./llm-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
   declarationFor,

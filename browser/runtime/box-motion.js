@@ -128,6 +128,21 @@ export function boxMotion({
   // Each part moving, from the box it was drawn at to its rest, on one clock.
   let motions = new Map();
   let running = [];
+  // Folding finishes the change of size while the compact object is still travelling.
+  // Keep that path here too when a new gesture interrupts it: the next motion starts
+  // from the shape on screen, not the rectangle a simultaneous resize would draw.
+  let shapeUntil = 1;
+  let rtl = false;
+  const interpolate = (from, to, progress) => {
+    const rect = between(from, to, progress);
+    const shape = Math.min(1, progress / shapeUntil);
+    const w = width(from) + (width(to) - width(from)) * shape;
+    const h = height(from) + (height(to) - height(from)) * shape;
+    if (rtl) rect.left = rect.right - w;
+    else rect.right = rect.left + w;
+    rect.top = rect.bottom - h;
+    return rect;
+  };
   const translations = new Map();
   const restoreTranslations = (keep = new Set()) => {
     for (const [element, { value, priority }] of translations) {
@@ -172,6 +187,9 @@ export function boxMotion({
       return;
     }
     if (!element.checkVisibility()) return;
+    // CSS-anchored surfaces already follow their anchor's painted position. Reading
+    // that travel as a layout change would retarget the anchor on every frame.
+    if (style.positionAnchor.startsWith("--")) return;
     const [dx, dy] = carried(element);
     const part = {
       element,
@@ -209,7 +227,7 @@ export function boxMotion({
       at.set(
         element,
         motion
-          ? between(motion.from, motion.to, progress)
+          ? (element === box ? interpolate : between)(motion.from, motion.to, progress)
           : shifted(rest, ...carried(element)),
       );
     }
@@ -245,7 +263,7 @@ export function boxMotion({
     watch();
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
 
-  function follow(timing) {
+  function follow(timing, compact = false) {
     const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     const parts = [];
@@ -311,10 +329,20 @@ export function boxMotion({
       return;
     }
     const boxFrom = was.get(box);
-
-    const rtl = getComputedStyle(box).direction === "rtl";
+    shapeUntil = compact ? 0.55 : 1;
+    rtl = getComputedStyle(box).direction === "rtl";
     const start = (element, keyframes) =>
       running.push(element.animate(keyframes, timing));
+    const contour = (from, to, grow, radius, compact = false) => {
+      const frames = [clipFrame(...outline(from, grow, radius))];
+      if (compact)
+        frames.push({
+          ...clipFrame(...outline(interpolate(from, to, shapeUntil), grow, radius)),
+          offset: shapeUntil,
+        });
+      frames.push(clipFrame(...outline(to, grow, radius)));
+      return frames;
+    };
     const hold = (element, property, value) =>
       start(element, [{ [property]: value }, { [property]: value }]);
     const translated = new Set();
@@ -478,10 +506,7 @@ export function boxMotion({
             // The fill meets the outline's inner edge, including an inward ring.
             [ringFill, offset],
           ])
-            start(layer, [
-              clipFrame(...outline(from, grown, radius)),
-              clipFrame(...outline(to, grown, radius)),
-            ]);
+            start(layer, contour(from, to, grown, radius));
         } else if (!sized && paints(style) && !part.holdsWindow)
           carries ? carryContent(part, from) : grow(part, from);
         if (!same(from, to))
@@ -499,10 +524,7 @@ export function boxMotion({
     if (running.length === 0 && same(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach] of surface())
-      start(layer, [
-        clipFrame(...outline(boxFrom, reach, boxRadius)),
-        clipFrame(...outline(boxAt, reach, boxRadius)),
-      ]);
+      start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
     // The box stands transparent over the surface's own fill while everything moves,
     // and lets what it carries stand past its rest outline on the way.
     hold(box, "backgroundColor", "transparent");

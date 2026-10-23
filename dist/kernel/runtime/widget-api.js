@@ -103,6 +103,7 @@ import {
   setRenderedChildren,
   shadowStage
 } from "./bundle-keyboard~disclosure.js";
+import "./bundle-copy-control.js";
 import {
   isCanonicalMediaUrl,
   scopedMediaUrl
@@ -126,10 +127,11 @@ import {
   fragmentTarget,
   projectedDatum,
   registerVisualParts
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   initialRender
 } from "./bundle-initial-render.js";
+import "./bundle-chrome.js";
 import {
   PAGE_INTERFACE,
   PRESENTATION,

@@ -197,7 +197,7 @@ import {
   targetSegments,
   visualPartLabel,
   widgetWord
-} from "./bundle-chrome.js";
+} from "./bundle-visual-parts.js";
 import {
   initialOrigin,
   restoreInitialSource,

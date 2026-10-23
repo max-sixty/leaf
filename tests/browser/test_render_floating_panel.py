@@ -3776,6 +3776,29 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     assert lines[-1] <= seats["press"]["left"], (lines, seats)
 
 
+def test_a_touch_panel_does_not_reserve_send_room_twice(browser, serve):
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser, serve(LONG_PAGE), context=context, init_script=EDITOR_ROOTS
+    )
+    draft = field(page)
+    draft.click()
+    page.keyboard.type("The last words should have room beside Send.")
+    room = draft.evaluate("""host => {
+      const line = window.editorRoots.get(host).querySelector('.cm-line.lf-field-last');
+      return {
+        glued: host.hasAttribute('data-lf-end-room-glued'),
+        padding: getComputedStyle(window.editorRoots.get(host).querySelector('.lf-field')).paddingInlineEnd,
+        after: getComputedStyle(line, '::after').content,
+      };
+    }""")
+    assert room["glued"]
+    assert room["padding"] != "0px", room
+    assert room["after"] == "none", room
+
+
 def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     """Past three lines the field offers more room, by a press rather than on its own:
     a mark stands over the leaf, beside the field's first line, taking no room of its

@@ -8665,7 +8665,10 @@ function createFloatingPanel({
     keepsHidden(resolvedLine, !resting);
     keepsHidden(replyOutlet, resting);
     const input = fieldInput();
-    if (input) syncInput(input);
+    if (input) {
+      keeps(input, "data-lf-end-room-glued", "");
+      syncInput(input);
+    }
     keeps(host, "data-writing", writing ? "" : null);
     const words = Boolean(draftOf(input));
     if (postureMoved || !words) drafted = words;

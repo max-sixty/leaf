@@ -27,7 +27,7 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
+import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { runtime } from "../context.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
@@ -78,7 +78,7 @@ export function createThreadPresentation({
   // offline export does) owes no reading at all.
   const presenter = applicationPresenter({
     region: "thread",
-    order: PRESENTATION_ORDER.thread,
+    after: PRESENTATION_DOM.projection,
     reading: () =>
       !available
         ? null

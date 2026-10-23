@@ -480,7 +480,7 @@ import {
 } from "./runtime/bundle-frame-visibility.js";
 import {
   DELIVERY,
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   SHARE_ROOT,
   WEBSITE_DELIVERY,
   agentName,
@@ -9619,7 +9619,7 @@ function createObligationView({
   let mounted = false;
   const presenter = applicationPresenter({
     region: "obligations",
-    order: PRESENTATION_ORDER.obligations,
+    after: PRESENTATION_DOM.thread,
     reading: () => mounted ? true : null,
     paint: () => {
       readObligations();

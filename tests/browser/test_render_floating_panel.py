@@ -959,7 +959,8 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
 @pytest.mark.parametrize("destination", ["page", "reply"])
 def test_search_keeps_the_unfinished_comment_and_its_caret(browser, serve, destination):
     """Searching borrows the field's seat, never the comment's words or Send action.
-    Returning keeps the same editor and insertion point for page comments and replies.
+    Returning keeps the same editor, insertion point and undo history for page comments
+    and replies.
     """
     url = serve(LONG_PAGE)
     if destination == "reply":
@@ -984,6 +985,8 @@ def test_search_keeps_the_unfinished_comment_and_its_caret(browser, serve, desti
     else:
         panel_control(page, "command:page.search.open", at="navigate").click()
     search = page.get_by_role("searchbox", name="Search page text")
+    # fill() would focus it too, masking a broken handoff from the unfinished editor.
+    expect(search).to_be_focused()
     search.fill("a phrase absent from the document")
     expect(page.locator(".lf-page-search-status")).to_have_attribute(
         "aria-label", "No matches"
@@ -1006,6 +1009,10 @@ def test_search_keeps_the_unfinished_comment_and_its_caret(browser, serve, desti
     expect(field(page)).to_be_focused()
     page.keyboard.type("!")
     assert field(page).evaluate("el => el.value") == draft[:caret] + "!" + draft[caret:]
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field(page)).to_have_js_property("value", draft)
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field(page)).to_have_js_property("value", "")
     assert [
         e["id"]
         for e in events_model.read_events(serve.page_dir)

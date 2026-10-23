@@ -70,37 +70,43 @@ const widgetRegions = (widget) =>
 export const attachWidgetPresentation = (widget, kind, renderer) =>
   presentation.attach(widgetRegion(widget, kind), renderer);
 
-// A parent renders moved members before their attribute-set owner reads the DOM.
-// Authored parentage and projected moves supply the current depth; module arrival
-// order supplies none. Widgets paint ahead of document projection at zero.
+// These promises describe committed DOM, never the semantic ledger's proof. A
+// widget's native updateComplete includes Lit's updated callback; its preparation
+// and gesture holds belong only to its presentation tickets.
+const widgetCommits = new Map();
+const documentCommits = new Map();
 const currentWidgetParents = readPart((root) => root.effective.widgetParents);
-const widgetOrder = (widget) => {
-  const parents = currentWidgetParents();
-  const seen = new Set();
-  let depth = 0;
-  for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
-    if (seen.has(parent)) break;
-    seen.add(parent);
-    depth++;
-  }
-  return -1 / (depth + 1);
-};
-export const queueWidgetUpdate = (widget, update) =>
-  schedule.enqueue(
-    untracked(() => widgetOrder(widget)),
+export const queueWidgetUpdate = (widget, update, committed) => {
+  const { ready, committed: dom } = schedule.enqueue(
+    () => {
+      const parents = untracked(currentWidgetParents);
+      const pending = [];
+      for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
+        const dom = widgetCommits.get(parent);
+        if (dom) pending.push(dom);
+      }
+      return pending;
+    },
     update,
+    committed,
   );
+  widgetCommits.set(widget, dom);
+  const retire = () => {
+    if (widgetCommits.get(widget) === dom) widgetCommits.delete(widget);
+  };
+  void dom.then(retire, retire);
+  return ready;
+};
 
-// Where a document-wide renderer stands in one presentation pass. The projection
-// materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, and the obligation view resolves
-// the widget nodes those passages placed. Declaring the order here is what lets every
-// publisher simply publish.
-export const PRESENTATION_ORDER = Object.freeze({
-  projection: 0,
-  thread: 1,
-  obligations: 2,
-  annotations: 3,
+// The DOM each document owner reads: projection decorates widget output, threads
+// resolve passages over that decoration, obligations locate controls in threads,
+// and annotations measure those targets. Imperative Lit render commits in its call;
+// later preparation explicitly refreshes consumers when it materializes more DOM.
+export const PRESENTATION_DOM = Object.freeze({
+  widgets: () => [...widgetCommits.values()],
+  projection: () => documentCommits.get("projection:chrome")?.() ?? [],
+  thread: () => documentCommits.get("thread")?.() ?? [],
+  obligations: () => documentCommits.get("obligations")?.() ?? [],
 });
 
 // The document-wide presenters, in registration order. `presentDocument` is what a
@@ -114,10 +120,10 @@ const documentPresenters = [];
 // `reading()` runs when its selected inputs move and returns the value to paint, or
 // null when the region has nothing to paint (before the page has read the log, or while
 // its renderer is not mounted). `paint(value, current, resume)` runs on the next
-// presentation pass, after every region with a lower `order` has painted, and reads the
+// presentation pass, after the DOM named by `after` has committed, and reads the
 // state as it is then.
 //
-// No one lists a region's dependencies. Both functions read through `readPart`
+// Semantic dependencies are implicit. Both functions read through `readPart`
 // selectors; native Preact computed values and effects follow those reads. A publication
 // that changes a part `paint` read schedules a paint. One that changes only parts
 // `reading` read schedules a paint only if `reading` now returns a different value. One
@@ -136,7 +142,7 @@ const documentPresenters = [];
 /** @param {{
  *   region: string,
  *   renderer?: object,
- *   order?: number,
+ *   after?: () => readonly PromiseLike<unknown>[],
  *   reading: () => unknown,
  *   paint: (value: any, current: () => boolean, resume: <A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => R) => unknown,
  *   failSoft?: (reason: unknown) => unknown,
@@ -144,7 +150,7 @@ const documentPresenters = [];
 export const applicationPresenter = ({
   region,
   renderer = document,
-  order,
+  after,
   reading,
   paint,
   failSoft,
@@ -171,7 +177,7 @@ export const applicationPresenter = ({
   };
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
-    order,
+    after,
     paint: (value, current) => {
       owed = false;
       forget();
@@ -182,7 +188,7 @@ export const applicationPresenter = ({
         const stop = effect(() => {
           if (!first) {
             // Claim in the publication's own task, before its presentation is sealed.
-            // The actual paint still belongs to the shared ordered schedule.
+            // The actual paint still belongs to the shared presentation pass.
             if (!owed && current()) {
               untracked(() => {
                 const next = selected.value;
@@ -212,6 +218,10 @@ export const applicationPresenter = ({
     },
     failSoft,
   });
+  // An unchanged intermediary may owe no paint while an upstream owner does.
+  // Keep the dependency transitive even then; its last DOM commit cannot certify
+  // the new upstream DOM. Each owner still declares only the edges it reads.
+  documentCommits.set(region, () => [...(after?.() ?? []), presenter.committed()]);
   const claim = (value) => {
     claimed = value;
     if (value === null) return schedule.passed();

@@ -152,3 +152,55 @@ test("explicit presentation rereads mechanical inputs without duplicate claims",
   assert.deepEqual(paints, ["mounted", "mounted"]);
   region.disconnect();
 });
+
+test("an unchanged intermediary still carries its upstream DOM dependencies", async () => {
+  const { PRESENTATION_DOM, queueWidgetUpdate } =
+    await import("/runtime/semantic-state.js");
+  let dom = "old";
+  const seen = [];
+  const projection = applicationPresenter({
+    region: "projection:chrome",
+    after: PRESENTATION_DOM.widgets,
+    reading: () => true,
+    paint: () => {
+      dom = "projected";
+    },
+  });
+  const thread = applicationPresenter({
+    region: "thread",
+    after: PRESENTATION_DOM.projection,
+    reading: () => true,
+    paint: () => {},
+  });
+  await thread.present();
+  const consumer = applicationPresenter({
+    region: "transitive-dom-consumer",
+    after: PRESENTATION_DOM.thread,
+    reading: () => true,
+    paint: () => seen.push(dom),
+  });
+  const nativeCommit = Promise.withResolvers();
+  const updated = queueWidgetUpdate(
+    "pending-native-widget",
+    () => {
+      dom = "widget";
+    },
+    () => nativeCommit.promise,
+  );
+  void consumer.present();
+  const finished = projection.present();
+  await updated;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const beforeCommit = [...seen];
+  nativeCommit.resolve();
+  await finished;
+  projection.disconnect();
+  thread.disconnect();
+  consumer.disconnect();
+  assert.deepEqual(
+    beforeCommit,
+    [],
+    "an idle thread is not proof of committed projection DOM",
+  );
+  assert.deepEqual(seen, ["projected"]);
+});

@@ -443,6 +443,28 @@ def check(dir: str, render: bool) -> Reported:
     return Reported(report, report["status"])
 
 
+@page.command(
+    "inspect", short_help="Read page source metrics and browser observations."
+)
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--revision",
+    type=click.IntRange(min=1),
+    metavar="N",
+    help="inspect captured revision N instead of mutable source",
+)
+def inspect_page(dir: str, revision: int | None) -> dict:
+    """Report attributed CSS counts and retained browser views as JSON.
+
+    Metrics are observations, not a quality score or a pass/fail check. Opens no
+    browser and changes no page state. Browser observations name their own revision,
+    viewport and freshness; matches_source says whether they describe these inputs.
+    """
+    from leaf.page_inspection import cmd_inspect
+
+    return cmd_inspect(resolve_dir(dir, renew=False), revision)
+
+
 @page.command()
 @click.argument("dir", metavar="PAGE")
 @click.argument(
@@ -466,7 +488,7 @@ def media(dir: str, files) -> list[dict]:
     ]
 
 
-@page.command(short_help="Read selected-component instructions by audience as JSON.")
+@page.command(short_help="Read selected vocabulary instructions by audience as JSON.")
 @click.argument("dir", metavar="PAGE")
 @click.option("--use", "entries", multiple=True, metavar="ENTRY")
 @click.option("--contract", "contracts", multiple=True, metavar="ID")

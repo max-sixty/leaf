@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { obligationsIn, obligationPlace } from "/runtime/obligations/place.js";
-import { obligationHolding } from "/runtime/standing-target.js";
+import { obligationHolding } from "/runtime/current-target.js";
 
 test("shared context keeps placement and containment specific to each obligation", () => {
   document.body.innerHTML =

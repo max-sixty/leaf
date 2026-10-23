@@ -134,13 +134,17 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
-  /* An owner moving the field's edges can carry the words from where they stood with
+  /* An owner moving the field's edges can carry the words from where they were with
      them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
      --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
      its layout. The field's content box cuts off what the field doesn't hold yet,
      such as a new line and its caret, and keeps the travel from widening the host's
-     scrolling. A cut naming none is invalid, which leaves the words uncut. */
-  .lf-field { overflow: clip; }
+     scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
+     reaches 2px past that box, the caret's width at a line's end: Firefox paints the
+     caret from its offset onward and pulls it inside only a scroll container, so a
+     caret after a line that fills the box, as a trailing space beside Send can, was
+     cut away whole. */
+  .lf-field { overflow: clip; overflow-clip-margin: 2px; }
   .lf-field > * {
     translate: var(--lf-field-carry);
     clip-path: inset(var(--lf-field-cut));
@@ -157,6 +161,12 @@ sheet.replaceSync(`
      word under the action. */
   .cm-line.lf-field-last::after { content: ""; display: inline-block;
     inline-size: var(--lf-field-end-room); }
+  /* In a narrow field, the spacer can wrap by itself after the last word and leave
+     that word under Send. Keep both together where the field asks for it. */
+  :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after {
+    content: "\\00a0"; display: inline; inline-size: auto;
+    padding-inline-end: var(--lf-field-end-room); white-space: nowrap;
+  }
   /* The placeholder is a single line, so it stands where a last line would. */
   .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
   /* The action stands beside more than the last line under a finger, whose hit box is
@@ -164,19 +174,26 @@ sheet.replaceSync(`
   @media (pointer: coarse) {
     .lf-field { padding-inline-end: var(--lf-field-end-room); }
     .lf-field-placeholder { padding-inline-end: 0; }
-    .cm-line.lf-field-last::after { content: none; }
+    .cm-line.lf-field-last::after,
+    :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after { content: none; }
   }
   :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host([data-scrolls]) .cm-line.lf-field-last::after { content: none; }
+  :host([data-scrolls]) .cm-line.lf-field-last::after,
+  :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
+    content: none;
+  }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
      heading is bold, as the platform draws one, at the size of the words around it. A
      block is drawn line by line, so a code block's frame is each line's sides, closed
      above its first line and below its last. Syntax that holds its room while the
-     caret is away, as a code fence's line does, is there unseen and unspoken. */
+     caret is away, as a code fence's line does, is there unseen and unspoken. Its
+     glyphs go unfilled while its colour stays the words', because the caret can stand
+     at the end of unseen text, as just past a new item's marker, and the browser draws
+     it in that text's colour. */
   .lf-md-mark { color: var(--muted); }
-  .lf-md-unseen { color: transparent; }
+  .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
     background: var(--code-bg); border-radius: var(--code-inline-r);
     padding: var(--code-inline-pad); box-decoration-break: slice; }

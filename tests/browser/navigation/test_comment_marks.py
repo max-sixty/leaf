@@ -15,12 +15,12 @@ from render_cases_navigation import (
     DIFF_PAGE,
     NOTED_PAGE,
     composer_quote,
+    current_location_mark,
     mark_point,
     painted,
     pending_text,
-    standing_mark,
+    wait_current_location,
     wait_for_pending_mark,
-    wait_standing,
 )
 from render_harness import (
     INLINE_PAGE,
@@ -336,7 +336,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
 
     expect(thread).to_be_focused()
     expect(reply).to_be_visible()
-    wait_standing(page, "bold text")
+    wait_current_location(page, "bold text")
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()
@@ -351,7 +351,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     comment_note(page, "#p").press("Enter")
     expect(thread).to_be_focused()
-    # The note reopened this view without a trip, so the Page Map rung is the way out.
+    # The note reopened this view without a navigation step, so the Page Map rung is the way out.
     # A sequence armed afterward is an inner interaction; Escape cancels it first.
     page.keyboard.press("g")
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
@@ -371,7 +371,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(thread).to_be_focused()
     page.keyboard.press("t")
     expect(second).to_be_focused()
-    wait_standing(page, "neighbouring block")
+    wait_current_location(page, "neighbouring block")
     page.keyboard.press("Enter")
     expect(second.locator("leaf-text")).to_be_focused()
     page.keyboard.press("Escape")
@@ -394,14 +394,14 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(reply).to_be_visible()
 
 
-def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
+def test_the_page_marks_the_comment_the_user_is_located_in(browser, serve):
     """A user sent from a comment to its passage lands among every other mark on the
     page, all of them painted alike. The page says which one they asked for too: the
     thread holding the focus paints its own passage apart from the rest for as long as
     the user remains in that thread.
 
     Read off the focus rather than off the travel, so it answers where the user *is*.
-    The walk moves it, a reply box keeps it — standing in a comment is standing in it
+    The walk moves it, a reply box keeps it — being located in a comment keeps that location
     while writing back — and leaving the thread takes it down, rather than leaving a
     page wearing "you are here" about a comment nobody is in."""
     url = serve(INLINE_PAGE)
@@ -425,18 +425,18 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
     page.locator("#fig.lf-mark-el").wait_for()
 
-    assert standing_mark(page) == {
+    assert current_location_mark(page) == {
         "text": "",
         "elements": [],
     }, "a page nobody has opened a comment on is already saying the user is in one"
 
     page.keyboard.press("t")
-    wait_standing(page, "bold text")
+    wait_current_location(page, "bold text")
 
     # The four readings of a marked passage have to stay in this order, or one of them
     # stops being visible where they overlap: the posted mark, the hover over it, the
-    # standing comment's own ink, and above all three the draft the user is writing.
-    # Asked with the pointer actually resting on the standing mark, because that is the
+    # current comment's own ink, and above all three the draft the user is writing.
+    # Asked with the pointer actually resting on the current-location mark, because that is the
     # overlap the order exists for and because nothing registers the hover until a mouse
     # has been over a passage. A higher highlight supplies only the properties it states,
     # so this is what lets one mark say "clickable" and "you are here" at once.
@@ -452,50 +452,50 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     assert all(r is not None for r in ranks) and ranks == sorted(set(ranks)), (
         f"the marks' paint order is not strictly increasing: {ranks}"
     )
-    assert standing_mark(page)["text"] == "bold text", (
-        "the pointer resting on the standing mark took its own ink away"
+    assert current_location_mark(page)["text"] == "bold text", (
+        "the pointer resting on the current-location mark took its own ink away"
     )
 
     page.keyboard.press("t")
-    wait_standing(page, "neighbouring block")
+    wait_current_location(page, "neighbouring block")
 
     # A passage with no words to paint says the same thing with the outline it already
     # wears, so the two kinds of anchor answer one question and not two.
     page.keyboard.press("t")
-    wait_standing(page, "", ["fig"])
+    wait_current_location(page, "", ["fig"])
     # Past the last comment the walk comes round to the first, and back again.
     first = page.locator(
         f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
     )
     page.keyboard.press("t")
     expect(first).to_be_focused()
-    wait_standing(page, "bold text")
+    wait_current_location(page, "bold text")
     page.keyboard.press("Shift+t")
     expect(
         page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]')
     ).to_be_focused()
-    wait_standing(page, "", ["fig"])
+    wait_current_location(page, "", ["fig"])
     page.keyboard.press("Shift+t")
-    wait_standing(page, "neighbouring block")
+    wait_current_location(page, "neighbouring block")
     page.keyboard.press("Shift+t")
     expect(first).to_be_focused()
-    wait_standing(page, "bold text")
+    wait_current_location(page, "bold text")
 
-    # Standing in a comment while writing back to it is still standing in it: the reply
+    # Located in a comment while writing back to it is still located in it: the reply
     # box is inside the thread, and knowing which passage it is on is worth most there.
     first.locator("leaf-text").focus()
-    wait_standing(page, "bold text")
+    wait_current_location(page, "bold text")
 
     # And leaving the thread takes it down. A mark that outlived the user's attention
     # would be a page insisting on a comment nobody is in.
     page.evaluate("() => document.activeElement.blur()")
-    wait_standing(page, "")
+    wait_current_location(page, "")
     assert painted(page, "lf-mark") != "", (
-        "the posted marks went down with the standing one"
+        "the posted marks went down with the current one"
     )
 
 
-def test_the_mark_ramp_ranks_posted_pointed_and_standing(browser, serve):
+def test_the_mark_ramp_ranks_posted_pointed_and_current_location(browser, serve):
     """Three things a mark can be — posted, indicated, stood in — are three steps of one
     wash, ranked apart from the page's own ground, so a hand resting where it just
     clicked never lights the two alike."""
@@ -551,7 +551,7 @@ def test_the_mark_ramp_ranks_posted_pointed_and_standing(browser, serve):
         const ground = over(null);
         const steps = {};
         for (const [step, name] of [['posted', 'lf-mark'], ['pointed', 'lf-mark-hover'],
-                                    ['standing', 'lf-mark-here']]) {
+                                    ['currentLocation', 'lf-mark-here']]) {
             steps[step] = over(declared(name));
         }
         return {
@@ -559,12 +559,12 @@ def test_the_mark_ramp_ranks_posted_pointed_and_standing(browser, serve):
                 Object.entries(steps).map(([k, v]) => [k, +de(v, ground).toFixed(2)])),
             apart: {
                 'posted→pointed': +de(steps.posted, steps.pointed).toFixed(2),
-                'pointed→standing': +de(steps.pointed, steps.standing).toFixed(2),
+                'pointed→current-location': +de(steps.pointed, steps.currentLocation).toFixed(2),
             },
         };
     }""")
     order = ramp["fromGround"]
-    assert order["posted"] < order["pointed"] < order["standing"], (
+    assert order["posted"] < order["pointed"] < order["currentLocation"], (
         "the three things a mark can be are not three steps away from the page's own"
         f" ground, so the wash does not rank them: {order}"
     )

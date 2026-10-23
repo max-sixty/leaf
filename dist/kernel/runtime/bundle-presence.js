@@ -24,7 +24,7 @@ import {
   keeps,
   nextFrame,
   nextRender,
-  onStanding,
+  onCurrentLocation,
   pressing,
   renderedParent,
   renderedUnder,
@@ -728,7 +728,7 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     },
     { capture: true, passive: true }
   );
-onStanding((node, cause) => {
+onCurrentLocation((node, cause) => {
   if (node) actedAt(node, true);
   if (node && cause === "step") readingInput(node);
 });
@@ -755,14 +755,14 @@ var containingReadingRegionFor = (node) => {
 };
 var asRegion = (regionOrNode) => typeof regionOrNode === "string" ? regions.get(regionOrNode) : regions.get(regionOrNode?.id) ?? regions.get(readingRegionFor(regionOrNode)?.id);
 var scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
-var readingPosture = (regionOrNode) => {
+var regionScrollBehavior = (regionOrNode) => {
   const region = asRegion(regionOrNode);
   return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
 };
 function effectiveScroller(regionOrNode) {
   const region = asRegion(regionOrNode);
   if (!region) return pageScroller;
-  if (readingPosture(region) === "bounded") return region.body;
+  if (regionScrollBehavior(region) === "bounded") return region.body;
   const containing = [...regions.values()].filter(
     (candidate) => candidate !== region && live(candidate) && renderedUnder(region.host, candidate.body)
   ).sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
@@ -922,7 +922,7 @@ export {
   pageReadingRegion,
   userReadingRegion,
   containingReadingRegionFor,
-  readingPosture,
+  regionScrollBehavior,
   effectiveScroller,
   scrollerFor,
   scrollersOf,

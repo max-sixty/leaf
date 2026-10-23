@@ -604,7 +604,7 @@ _TEXT = {
         f"{at} stands {v['past']}px past the room the page has for a wide widget"
     ),
     "over-margin": lambda at, v: (
-        f"{at} grows into the margin and is drawn over {v['resident']}, which already"
+        f"{at} grows into the margin and is drawn over {v['marginContent']}, which already"
         " sits there; that side of the page has no free room for it"
     ),
     "off-axis": lambda at, v: (

@@ -16,7 +16,7 @@ import {
   nativeLayerHolding,
   nativeLayerKind,
   nextRender,
-  onStanding,
+  onCurrentLocation,
   releaseFocus,
   renderedParent,
   renderedUnder,
@@ -1292,7 +1292,7 @@ var frame = 0;
 var movePage = false;
 function mountRepaint(slots) {
   painters = slots;
-  onStanding(requestFrame);
+  onCurrentLocation(requestFrame);
   requestFrame();
 }
 function requestFrame() {
@@ -1304,7 +1304,7 @@ function requestFrame() {
     const p = painters;
     p.reflectFirstScopes?.();
     p.markHere?.();
-    p.paintStanding?.();
+    p.paintCurrentLocation?.();
     p.paintSelectedMarginEntries?.();
     p.paintTouchControls?.();
     p.paintStatusContext?.();
@@ -2128,9 +2128,9 @@ function seatModal(dialog, source) {
 function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
   if (dialog ? !layer.open : !isNativeLayer(layer)) return;
-  const standing = focused();
+  const currentLocation = focused();
   const returnTo = entries.find((entry) => entry.root === layer)?.opener;
-  const returnLocally = document.documentElement.lfSample && standing && renderedUnder(standing, layer);
+  const returnLocally = document.documentElement.lfSample && currentLocation && renderedUnder(currentLocation, layer);
   const inhibited = document.documentElement.lfSample ? [
     document.documentElement,
     ...nativeLayers().filter((entry) => entry.kind === "modal").map((entry) => entry.root)

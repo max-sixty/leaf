@@ -306,14 +306,14 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
     expect(page.locator("#plan .lf-draft-body")).to_contain_text("Second paragraph")
 
 
-def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
+def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     """Focus supplies an element anchor. `c` once read the 💬 alone, so a user
     working from the keys had two destinations where explicit pointer targeting had
     three: an item, a quote, or the whole page. A
     focused link put them on an option and the box that opened still said "Comment on the
     page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
 
-    Where they are standing is the unanswered decision first, because that is what the page
+    Where they are located is the unanswered decision first, because that is what the page
     has already told them: markHere rings the whole obligation when m/M lands on its control.
     Below a decision it is the innermost item, which is the aim's own reading — so a focused
     link speaks for the paragraph holding it, no id of its own being what an anchor needs.
@@ -325,7 +325,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     the seat holds several, what design mode files, where the user already stood — for
     a focus landing.
 
-    The control is the same press from the same page with the user standing nowhere in
+    The control is the same press from the same page with the user located nowhere in
     it, where `c` opens the page-comment box rather than this item's composer. Without it a
     green here would follow just as well from a composer that opened on everything.
 
@@ -342,7 +342,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
             page.keyboard.press("Escape")
         page.evaluate("() => document.activeElement?.blur()")
 
-    # Standing nowhere in the page: the page itself is the contextual target.
+    # Located nowhere in the page: the page itself is the contextual target.
     page.keyboard.press("c")
     expect(comment).to_be_focused()
     drop()
@@ -379,7 +379,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     drop()
 
     # A link inside a question, open and settled: the same markup, and the same answer.
-    # Standing in a decision is not working one — a user who focused a link has named
+    # Located in a decision is not working one — a user who focused a link has named
     # something more particular than the question around it, and answering the question
     # there both overrode what they named and made the reply turn on whether that question
     # happened to be open. The settled one is the contrast that shows it was the openness
@@ -411,11 +411,11 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
 
 
 def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
-    """Where the user is standing and what the user still owes are two facts, and a
+    """Where the user is located and what the user still owes are two facts, and a
     widget whose seat holds a thread waiting on the agent is where they part. Its seat holds the words
     the user just wrote, its answer is unmade and its controls are live, and it has left
     On me because the next word there is the agent's — but the user
-    is standing in it all the same, and it is still the question they are working.
+    is located in it all the same, and it is still the question they are working.
 
     Read off the user's list, both the ring and `c` went with the count: the moment the
     remark was sent the ring left from under the user, and `c` fell through from the
@@ -564,7 +564,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     under the Resolved state, where it keeps a tab stop and a Reopen button. Reading
     the class alone put the user in a thread whose reply box is not there, and the press
     died on the null with the general box never reached. Whether there is a box is what
-    tells them apart — `standingThread` asks for one rather than for the class — so
+    tells them apart — `currentLocationThread` asks for one rather than for the class — so
     the resolved thread falls through to the general box, which is the honest answer for a
     thread with no box of its own to offer."""
     url = serve(PANEL_PAGE)
@@ -575,7 +575,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
 
     page = open_page(browser, url)
 
-    # Standing in the thread open in the panel, it means that thread's reply box.
+    # Located in the thread open in the panel, it means that thread's reply box.
     view = open_panel_thread(page, live)
     view.focus()
     expect(view).to_be_focused()
@@ -616,12 +616,12 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
 
     Two threads, and the user in the second: with one there is no wrong answer to give,
     so the pair is what makes the assertion mean anything. The first phase is the control
-    — a decision beside the seat, where standing on the widget opens the composer on that
-    widget, so a green below is the standing being read and not every press landing in a
+    — a decision beside the seat, where focusing the widget opens the composer on that
+    widget, so a green below is the current location being read and not every press landing in a
     thread.
 
     The agent has answered both remarks, so each thread here is a whole exchange. Nothing
-    in this test turns on that: the press reads where the user is standing rather than
+    in this test turns on that: the press reads where the user is located rather than
     the user's list, so the seat answers the same way before a reply and after one."""
     url = serve(
         leaf_page(
@@ -669,7 +669,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     threads = page.locator(".lf-page-thread")
     expect(threads).to_have_count(2)
 
-    # The control: standing on a widget that seats nothing, so the press has no thread
+    # The control: focusing a widget that seats nothing, so the press has no thread
     # to prefer and opens the composer on the widget itself.
     page.locator("#shape .lf-pick").first.focus()
     page.keyboard.press("c")
@@ -677,7 +677,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     page.keyboard.press("Escape")
     page.evaluate("() => document.activeElement?.blur()")
 
-    # Standing in the second thread, the press means that thread's box.
+    # Located in the second thread, the press means that thread's box.
     second = page.locator(f'.lf-page-thread[data-thread="{said[1]}"]')
     second.focus()
     page.keyboard.press("c")
@@ -687,7 +687,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     # rule read on the page rather than in the panel. The box asked for `.lf-thread` and
     # the panel alone, so out here the rung fell through to the page's own "let go": one
     # press in from the thread, one press out to body, with the thread they had been
-    # standing in two feet away and no key back to it. Both ends read one climb now, so
+    # located in two feet away and no key back to it. Both ends read one climb now, so
     # the word going in ("comment on the thread") and the word coming out are about the
     # same element.
     page.keyboard.press("Escape")

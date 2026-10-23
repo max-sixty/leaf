@@ -34,7 +34,7 @@
 
    Held identity is the focused Thread across shadow roots. An unheld conversation
    drawn with its page target, by the preview accompanying the target or by a widget's
-   seat beside it, is the current conversation while the user stands at that target,
+   seat beside it, is the current conversation while the user is at that target,
    so every thread key reaches it from there (`threadHere`); when focus returns to the
    body, a visible accompanying preview remains the current conversation. Canonical page targets always come from anchor
    placement, independently of whichever view draws a Thread. */
@@ -62,7 +62,7 @@ export function createThreadDestinations({
   threadIdsAt,
   scrollToThread,
   arrive,
-  prepareTrip,
+  prepareNavigationStep,
   preview = null,
 }) {
   let presentation = null;
@@ -87,7 +87,7 @@ export function createThreadDestinations({
   };
   // The thread the user is at, the one every thread key acts on: the thread they hold,
   // else the one conversation drawn with the place they stand at, which is one place
-  // with it (glossary, Standing target). The preview accompanying the place draws one,
+  // with it (glossary, Current target). The preview accompanying the place draws one,
   // and a widget may seat its threads beside it, as lf-diff does under a line; where
   // several are drawn there, the user is at none of them. Chrome standing at no place
   // is at none. Returning to the page can leave a margin card open with focus on the
@@ -107,15 +107,15 @@ export function createThreadDestinations({
   };
   // Discussion identity precedes the view that realizes it: where no thread is shown,
   // the first thread at the place. Reply availability narrows an editable destination
-  // without erasing the user's standing thread.
-  const threadAtStanding = () => {
+  // without erasing the user's current location thread.
+  const threadAtCurrentLocation = () => {
     const here = drawnThreadId(threadHere());
     if (here) return here;
     const active = focused();
     return (active && threadIdsAt(active)[0]) ?? null;
   };
-  const replyThreadAtStanding = () => {
-    const id = threadAtStanding();
+  const replyThreadAtCurrentLocation = () => {
+    const id = threadAtCurrentLocation();
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread && replyAvailable(thread) ? id : null;
   };
@@ -141,8 +141,8 @@ export function createThreadDestinations({
     } = {},
   ) {
     if (!intent()) return null;
-    // A trip moves the page, so a destination that may move no scroller takes none.
-    const trip = travel && scroll;
+    // A navigation step moves the page, so a destination that may move no scroller takes none.
+    const navigationStep = travel && scroll;
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
@@ -180,8 +180,8 @@ export function createThreadDestinations({
         (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
       const departure =
-        focus !== false && trip
-          ? prepareTrip({
+        focus !== false && navigationStep
+          ? prepareNavigationStep({
               landing: () => selected.reader.destination(thread.key, request),
               intent: arriving,
             })
@@ -223,7 +223,7 @@ export function createThreadDestinations({
                 current && {
                   where: current,
                   focus: current,
-                  scroll: trip ? [{ at: current, block: "nearest" }] : [],
+                  scroll: navigationStep ? [{ at: current, block: "nearest" }] : [],
                 }
               );
             },
@@ -241,7 +241,7 @@ export function createThreadDestinations({
       if (part === "message") showHeld(id);
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
-        if (trip) {
+        if (navigationStep) {
           if (!(await scrollToThread(id, { part: localPart, focus, intent })))
             return null;
         } else if (focus === false) {
@@ -272,12 +272,12 @@ export function createThreadDestinations({
       if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
       // A card stands beside its passage while the passage is drawn
-      // (`commentAttachment`), and a card with nowhere to stand never places. A trip
-      // reveals the passage as it arrives. A thread opened where the user stands reveals
+      // (`commentAttachment`), and a card with nowhere to stand never places. A navigation step
+      // reveals the passage as it arrives. A thread opened where the user is reveals
       // it here, opening the tab or disclosure that holds it, unless the caller keeps
       // every scroller still, since a tab switch scrolls its strip. A passage that stays
       // hidden leaves the thread to the primary reader.
-      const place = preview && !trip ? threadTarget(id) : null;
+      const place = preview && !navigationStep ? threadTarget(id) : null;
       const placeDrawn = () => visibleTargetParts(place).length > 0;
       if (place && scroll && !placeDrawn()) {
         await reveal(place, intent).ready;
@@ -289,7 +289,7 @@ export function createThreadDestinations({
           opened = preview.open(id, { origin });
         });
       if (opened) {
-        if (trip) {
+        if (navigationStep) {
           if (
             !(await scrollToThread(id, {
               part: part ?? "thread",
@@ -400,8 +400,8 @@ export function createThreadDestinations({
     holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,
     threadHere,
-    threadAtStanding,
-    replyThreadAtStanding,
+    threadAtCurrentLocation,
+    replyThreadAtCurrentLocation,
     threadTarget,
     threadPlace,
   };

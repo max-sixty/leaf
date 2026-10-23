@@ -35,7 +35,8 @@ the page at its last report, `freshness` turns `stale` after 45 seconds without 
 and `matches_active_revision` says whether it shows your latest revision. Each
 entry's `checks` lists layout problems that browser measured, such as sideways
 overflow, with their own `freshness` and `matches_view`. They are context, not a
-substitute for `leaf page check --render`. An empty list means no browser has
+substitute for `leaf page check --render`, which reads the desktop at the latest
+entry's viewport. An empty list means no browser has
 reported, and a region on screen does not mean the user read it.
 
 ## When to write

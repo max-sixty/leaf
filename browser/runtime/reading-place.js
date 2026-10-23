@@ -50,7 +50,7 @@
  * `landingPlace` is where a let-go puts them. `openingPassage`
  * gives travel the passage its destination draws first, using the same rendered words
  * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
- * does not turn a later passage into the trip's original arrival.
+ * does not turn a later passage into the navigation step's original arrival.
  */
 import {
   clippedContents,
@@ -487,23 +487,27 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     revision: runtime.currentRevision,
     [READ_BOX]: new WeakRef(box),
   };
-  const standing = focusedInView();
+  const currentLocation = focusedInView();
   const body = region?.body ?? pageDocument();
-  const standingBody = readingRegionFor(standing)?.body ?? body;
+  const currentLocationBody = readingRegionFor(currentLocation)?.body ?? body;
   const focusPlace = () => ({
-    node: new WeakRef(standing),
+    node: new WeakRef(currentLocation),
     body: new WeakRef(body),
-    region: containingReadingRegionFor(standing)?.id,
-    intent: retainUserIntent({ source: standing }),
+    region: containingReadingRegionFor(currentLocation)?.id,
+    intent: retainUserIntent({ source: currentLocation }),
   });
-  const standsOn =
+  const hasFocusedLandmark =
     recentPlaceInput() === "focus" &&
-    standing &&
-    under(standing, body) &&
+    currentLocation &&
+    under(currentLocation, body) &&
     // Focus on the reading surface itself names its contents, not a landmark.
-    !under(standingBody, standing);
+    !under(currentLocationBody, currentLocation);
   if (region && followingItsEnd(box))
-    return { ...view, ...(standsOn && { [FOCUSED_PLACE]: focusPlace() }), end: true };
+    return {
+      ...view,
+      ...(hasFocusedLandmark && { [FOCUSED_PLACE]: focusPlace() }),
+      end: true,
+    };
   const bounds = readingBounds(region);
   const column = bounds && readerColumn(bounds, body);
   // The block whose words name the place, so focus on a container the user reads
@@ -605,7 +609,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
       view[DRAWN_PLACE] = { node: new WeakRef(drawn.box), through: drawn.through };
     }
   }
-  if (standsOn && !(named && under(named, standing)))
+  if (hasFocusedLandmark && !(named && under(named, currentLocation)))
     view[FOCUSED_PLACE] = focusPlace();
   return view;
 }
@@ -680,10 +684,10 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   const box = region ? effectiveScroller(region) : pageScroller;
   const body = region?.body ?? pageDocument();
   const destination = focusedPlace(view);
-  const standing = destination && under(destination, body) ? destination : null;
+  const currentLocation = destination && under(destination, body) ? destination : null;
   // Within one scroller, live focus is the reading place. Across a handover,
   // first preserve the passage's reading band, then keep that focus reachable.
-  if (!standing || !sameScroller(view, box)) {
+  if (!currentLocation || !sameScroller(view, box)) {
     if (view.end) {
       scrollToEnd(box);
     } else {
@@ -700,7 +704,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
           box,
           rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
         );
-      } else if (!standing) {
+      } else if (!currentLocation) {
         // An unresolved or concealed passage leaves live focus as the precise
         // destination; section and raw-offset fallbacks belong to readings without one.
         const found = targetElement(resolveAnchor({ section: view.section }));
@@ -721,6 +725,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   }
   // A restored passage or end can carry its focused control beyond the new
   // viewport. Nearest reveal changes nothing when the destination already fits.
-  if (standing) scrollIntoReadingBand(standing, standing, "nearest", "instant");
-  placeKept(box, ...(standing ? scrollersOf(standing) : []));
+  if (currentLocation)
+    scrollIntoReadingBand(currentLocation, currentLocation, "nearest", "instant");
+  placeKept(box, ...(currentLocation ? scrollersOf(currentLocation) : []));
 }

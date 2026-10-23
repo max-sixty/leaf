@@ -845,7 +845,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
     from, so holding that copy past the revision that replaced it kept every served
     node alive for the rest of the session. A host painted before modules run is
     included, since the first-paint coordinator copies it separately. Neither the
-    dropped focus, before another input, nor a fragment trip's history checkpoint
+    dropped focus, before another input, nor a fragment navigation step's history checkpoint
     may keep removed markup alive."""
     first = leaf_page(
         "Served",

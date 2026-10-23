@@ -1389,7 +1389,7 @@ def test_send_grows_thread_around_the_words(
                   return range.getBoundingClientRect().left;
                 }
               };
-              return [...card.querySelectorAll('.lf-msg-head > b, .lf-msg-body, .lf-compose-placeholder > span')]
+              return [...card.querySelectorAll('.lf-msg-head > b, .lf-msg-body, .lf-compose-placeholder > span:not(.lf-compose-placeholder-aside)')]
                 .map(firstGlyph);
             }""")
 

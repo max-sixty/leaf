@@ -31,8 +31,8 @@ finds its envelope. A batch whose page is gone, or whose events no longer match 
 page, is retired without writing (`delivery.receive_batch`).
 
 While Codex's tool hook can reach the running turn, `offer_hook_delivery` offers the
-complete envelope as one line of JSON, or its pointer above Codex's context limit,
-and records the turn in a `HookOffer`. `leaf delivery ack` in that turn accepts it
+complete envelope as one line of JSON, or its pointer where Codex wouldn't show it
+whole, and records the turn in a `HookOffer`. `leaf delivery ack` in that turn accepts it
 (`codex_state.confirm_codex_pointer`). A hook never re-offers input or takes one
 another transport holds. The Stop hook offers nothing while an App Server adapter
 runs (`Harness.later_turn_takes_input`): the turn ends on its own answer, and the
@@ -126,7 +126,7 @@ from .delivery import (
     stream_reply_target,
     validate_delivery_id,
 )
-from .harness import Harness
+from .harness import CodexHarness, Harness
 from .leases import sessions_home
 from .refusals import Refused
 from .service import (
@@ -147,12 +147,6 @@ from .state import (
 )
 
 START_TIMEOUT = 20
-# Codex 0.160.0 spills hook context above 2,500 approximate tokens, counted as
-# ceil(UTF-8 bytes / 4), including Stop continuation fragments. The preview is
-# incomplete JSON, so keep a larger delivery behind its existing reader pointer.
-# https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/hooks/src/output_spill.rs
-# https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/utils/string/src/truncate.rs
-HOOK_CONTEXT_BYTES = 10_000
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
 # its pages to that server (`private_app_server`, `leaf page claim`).
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
@@ -2144,7 +2138,8 @@ def append_batch(
 def offer_hook_delivery(
     session_id: str, expected: dict | None, *, received: bool = True
 ) -> tuple[str | None, dict | None]:
-    """Offer complete input inline, or by pointer above Codex's limit, without receipt.
+    """Offer complete input inline, or by pointer where Codex wouldn't show it whole
+    (`Harness.fits_hook_context`), without receipt.
     `received` is `delivery.deliverable`'s: the tool hook leaves it false.
 
     The agent's explicit `delivery ack` confirms complete input in its turn. If the
@@ -2199,9 +2194,7 @@ def offer_hook_delivery(
             separators=(",", ":"),
         )
         return (
-            context
-            if len(context.encode("utf-8")) <= HOOK_CONTEXT_BYTES
-            else prepared.prompt
+            context if CodexHarness.fits_hook_context(context) else prepared.prompt
         ), expected
 
 

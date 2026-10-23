@@ -195,17 +195,14 @@
     var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)
   );
 }
-/* An open rewrite's Discard and Save take the room its Edit control took, and more: the
-   head holds the author alone while it is open, its time and labels saying nothing a
-   rewrite needs. */
+/* An open rewrite's Discard and Save take the room its Edit control took, and more; the
+   head keeps its author, time and labels as the message showed them, its labels
+   rewrapping in the room left (`data-lf-reflow`). */
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
   scroll-margin-block-end: var(--sp-2);
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
   --lf-msg-control-room: var(--lf-msg-edit-room);
-}
-.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head > .lf-msg-meta {
-  display: none;
 }
 .lf-msg-control {
   appearance: none;

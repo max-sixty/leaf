@@ -774,15 +774,23 @@ leaf-text.lf-fab-input,
   overflow-wrap: anywhere;
   --lf-measure: var(--col);
 }
+.lf-msg:where(.user) {
+  --lf-msg-text-end: var(--lf-thread-text-inset, 0px);
+}
 .lf-msg-text {
   display: block;
   padding-block: var(--lf-thread-text-pad-block, 0px);
+  padding-inline-end: var(--lf-msg-text-end, 0px);
+}
+.lf-msg-media {
+  padding-inline-end: var(--lf-msg-text-end, 0px);
 }
 .lf-msg-text > :first-child {
   margin-top: 0;
 }
 .lf-msg-body > :last-child,
-.lf-msg-text > :last-child {
+.lf-msg-text > :last-child,
+.lf-msg-media > :last-child {
   margin-bottom: 0;
 }
 .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) {
@@ -1004,9 +1012,6 @@ leaf-text.lf-fab-input,
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
   --lf-msg-control-room: var(--lf-msg-edit-room);
-}
-.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head > .lf-msg-meta {
-  display: none;
 }
 .lf-msg-control {
   appearance: none;
@@ -1506,8 +1511,10 @@ svg[data-lf-icon] {
 .lf-fab-bar[data-lf-presentation=inline]:has(> .lf-composer > .lf-composer-media:not([hidden])) {
   flex-wrap: wrap;
 }
-.lf-composer-media {
+:is(.lf-composer-media, .lf-msg-media) {
   --lf-media-mark-overhang: 6px;
+}
+.lf-composer-media {
   --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2) );
   --lf-media-h: 120px;
   display: flex;
@@ -1582,6 +1589,10 @@ button.lf-media-open {
     outline: 1px solid CanvasText;
   }
 }
+.lf-msg-media > .lf-composer-media-item {
+  inline-size: fit-content;
+  max-inline-size: 100%;
+}
 .lf-composer-drawing > .lf-composer-media-open {
   position: relative;
   width: calc(1.5 * var(--lf-media-h));
@@ -1645,9 +1656,30 @@ button.lf-media-open {
 .lf-msg-editor {
   display: block;
   min-width: 0;
+  font: var(--msg-font);
 }
-.lf-thread-transcript .lf-msg-editor {
-  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
+.lf-msg-body:has(> .lf-msg-editor) {
+  display: flow-root;
+}
+.lf-msg-editor > .lf-compose-field {
+  --lf-compose-pad-block: calc( (var(--lf-response-height, max(32px, var(--aim-floor))) - 2px - 1lh) / 2 );
+  --lf-msg-edit-past-end: max( var(--lf-thread-text-inset) - var(--lf-msg-text-end, 0px), 0px );
+  margin-inline: calc(-1 * var(--lf-thread-text-inset)) calc(-1 * var(--lf-msg-edit-past-end));
+  margin-block: calc(var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px);
+}
+.lf-msg-editor > .lf-compose-field > leaf-text {
+  min-height: 0;
+  padding-inline-end: calc(var(--lf-msg-text-end, 0px) + var(--lf-msg-edit-past-end) - 1px);
+}
+.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
+  margin-block-end: calc(-1 * var(--lf-compose-pad-block) - 1px);
+}
+.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) > leaf-text {
+  padding-block-end: var(--lf-thread-text-pad-block, 0px);
+}
+.lf-msg-editor > .lf-compose-field > .lf-msg-media {
+  margin-inline: calc(var(--lf-thread-text-inset) - 1px) calc(var(--lf-msg-edit-past-end) - 1px);
+  padding-block-end: var(--lf-compose-pad-block);
 }
 .lf-msg-edit-foot {
   display: block;
@@ -1693,15 +1725,10 @@ button.lf-media-open {
   --lf-comment-send-inset: calc( (var(--lf-response-height) - var(--lf-icon-action-hit)) / 2 );
   --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
 }
-.lf-margin-preview .lf-msg-text {
-  padding-inline-end: var(--lf-comment-text-end);
-}
-.lf-margin-preview .lf-msg-editor .lf-compose-field > leaf-text {
-  min-height: 0;
-  padding-inline-end: calc(var(--lf-comment-text-end) - 1px);
+.lf-margin-preview .lf-msg {
+  --lf-msg-text-end: var(--lf-comment-text-end);
 }
 .lf-fab-bar .lf-compose-field,
-.lf-margin-preview .lf-msg-editor .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
 }

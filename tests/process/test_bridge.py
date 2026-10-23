@@ -55,11 +55,11 @@ def test_a_sandboxed_command_runs_outside_the_sandbox(page_dir):
 
 
 @pytest.mark.usefixtures("bridged")
-def test_a_bridged_command_keeps_its_stdin_streams_and_status(tmp_path):
+def test_a_bridged_command_keeps_its_stdin_streams_and_status(page_dir):
     """The command reads the stdin it was given, and its stdout, stderr and exit
     status come back apart."""
     refused = subprocess.run(
-        [LAUNCHER, "data", "set", str(tmp_path), "source"],
+        [LAUNCHER, "data", "set", str(page_dir), "source"],
         input="{",
         capture_output=True,
         text=True,
@@ -89,14 +89,14 @@ def test_a_bridged_command_ends_though_its_stdin_never_does():
 
 
 @pytest.mark.usefixtures("bridged")
-def test_a_bridged_command_refuses_a_socket_stdin_at_once(tmp_path):
+def test_a_bridged_command_refuses_a_socket_stdin_at_once(page_dir):
     """Claude Code hands a command spanning lines a socket as its stdin that never
     closes. A bridged command given no JSON gets an empty pipe in its place, and
     refuses at once rather than waiting for the socket to end."""
     held, caller = socket.socketpair()
     with held, caller:
         refused = subprocess.run(
-            [LAUNCHER, "data", "set", str(tmp_path), "source"],
+            [LAUNCHER, "data", "set", str(page_dir), "source"],
             stdin=held,
             capture_output=True,
             text=True,
@@ -108,7 +108,7 @@ def test_a_bridged_command_refuses_a_socket_stdin_at_once(tmp_path):
 
 
 @pytest.mark.usefixtures("bridged")
-def test_a_bridged_command_reads_a_socket_stdin_it_names(tmp_path):
+def test_a_bridged_command_reads_a_socket_stdin_it_names(page_dir):
     """A command that names stdin itself (`--file -`) reads it through the bridge
     even from a socket, as a Node caller's piped stdin is."""
     held, caller = socket.socketpair()
@@ -116,7 +116,7 @@ def test_a_bridged_command_reads_a_socket_stdin_it_names(tmp_path):
         caller.sendall(b"{")
         caller.shutdown(socket.SHUT_WR)
         read = subprocess.run(
-            [LAUNCHER, "data", "set", str(tmp_path), "source", "--file", "-"],
+            [LAUNCHER, "data", "set", str(page_dir), "source", "--file", "-"],
             stdin=held,
             capture_output=True,
             text=True,

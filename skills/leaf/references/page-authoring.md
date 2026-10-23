@@ -86,9 +86,9 @@ on.
 
 Most pages are read top to bottom and use the reading column,
 `<main class="layout-column">`, where text stays within the measure and wider blocks
-extend beside it. Without a Layout class, the page lays out as plain HTML. A diagram or
-board declares its width; `data-width` asks for one on other blocks, such as a wide
-table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
+extend beside it. Without a Layout class, the page lays out as plain HTML. A diagram,
+board or diff declares its width; `data-width` asks for one on other blocks, such as a
+wide table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
 
 - **Prose read in order**, such as a plan, review or decision, is plain semantic HTML.
 - **Independent status tiles** are a block with `class="layout-tiles"`, whose children

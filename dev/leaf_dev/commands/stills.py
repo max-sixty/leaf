@@ -560,6 +560,7 @@ def screenshot_slider_before(page: Page) -> None:
     divider.focus()
     page.keyboard.press("End")
     shot.get_by_role("button", name="Outline changes", exact=True).click()
+    shot.scroll_into_view_if_needed()
 
 
 def image_in_page(page: Page) -> None:
@@ -1459,11 +1460,17 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    State("screenshot-comparison", "developer/feature-gallery", screenshot_comparison),
+    State(
+        "screenshot-comparison",
+        "developer/feature-gallery",
+        screenshot_comparison,
+        region="#bg-shot",
+    ),
     State(
         "screenshot-slider-before",
         "developer/feature-gallery",
         screenshot_slider_before,
+        region="#bg-shot",
     ),
     State(
         "screenshot-comparison-phone",

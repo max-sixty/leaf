@@ -401,16 +401,17 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    capped at the window's height crushed its 30px .lf-btn rows to the 24px floor rather
    than scrolling. A control that stands in such a container states its block floor as
    padding instead, max(its padding, (the floor - 1lh) / 2), less its border, in the
-   rule that gives it its padding: .lf-btn below, the version menu's rows and Compare
-   (chrome.css). A one-line control rests at the same height either way, and one whose
-   words run longer keeps them. The members left on min-height stand in rows or in
+   rule that gives it its padding, as the version menu's rows and Compare do
+   (floating-panel.css), or meets it with a reach (below), as a button does. A one-line
+   control rests at the same height either way, and one whose words run longer keeps
+   them. The members left on min-height stand in rows or in
    flow, or state their own height.
 
    Declared pressables join by their offer, rather than by adding their class here.
    A resting skip control is transparent and has no pointer route; it takes its aim
    size from chrome.css only when focus reveals it.
-   Native and selectable choice marks keep their enclosing labelled target; squeezing-prone button
-   faces and version rows keep the padding floor described above. Inline offered words
+   Native and selectable choice marks keep their enclosing labelled target; a button's
+   face takes its reach (below) and version rows the padding floor described above. Inline offered words
    remain inline: like links in prose, their words determine their target. */
 [data-lf-offer]:where(
   :not(

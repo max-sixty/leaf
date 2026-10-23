@@ -51,6 +51,7 @@ import {
   layoutChanged,
   commands,
   keeps,
+  keepsText,
   paintKeys,
   plainPress,
   relabel,
@@ -343,8 +344,8 @@ customElements.define(
       const alt = this.getAttribute("alt");
       const labels = this.#metadata.labels ?? { before: "Before", after: "After" };
       for (const [index, state] of ["before", "after"].entries()) {
-        relabel(this.#captions.get(state), labels[state], { says: true });
-        relabel(this.#frameCaptions.get(state), labels[state], { says: false });
+        keepsText(this.#captions.get(state), labels[state]);
+        keepsText(this.#frameCaptions.get(state), labels[state]);
         keeps(this.#captions.get(state), "aria-label", `${labels[state]} — ${alt}`);
         keeps(this.#captions.get(state), "title", labels[state]);
         keeps(this.#frameCaptions.get(state), "title", labels[state]);

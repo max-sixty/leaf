@@ -4437,7 +4437,7 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
   document.querySelector('#show-threads').onclick = () =>
     sample.showThread(undefined, {surface: 'panel'});
 </script>
-""",
+    """,
         )
     )
     page = open_page(browser, url)
@@ -4446,6 +4446,10 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     page.locator("#show-thread").click()
     reader = child.locator(".lf-fp-view[data-view=thread]")
     expect(reader.locator(".lf-msg")).to_contain_text("Can we schedule lunch?")
+    # Seat the embedded panel above the containing page's floating controls.
+    page.locator("#sample").evaluate(
+        "element => element.scrollIntoView({block: 'start'})"
+    )
     child.locator(".lf-fp-close").click()
     expect(reader).to_have_count(0)
     page.locator("#show-threads").click()
@@ -4466,6 +4470,7 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     assert search.bounding_box()["width"] > 0
     search.fill("schedule")
     expect(child.locator(".lf-fp-thread")).to_have_count(1)
+    child.get_by_role("button", name="Close search", exact=True).click()
     close.click()
     expect(child.locator(".lf-fp-view[data-view=threads]")).to_have_count(0)
 

@@ -797,7 +797,6 @@ class WebsiteCodexHarness:
                     self.codex_path,
                     env=os.environ
                     | {
-                        "LEAF": LEAF_COMMAND,
                         "LEAF_HOST_LAUNCHER": LEAF_COMMAND,
                         "PATH": os.pathsep.join(
                             (str(Path(LEAF_COMMAND).parent), os.environ.get("PATH", ""))

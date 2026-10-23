@@ -727,9 +727,7 @@
   .lf-fp-exit-seat {
     flex: none;
     display: flex;
-  }
-  .lf-fp-exit-seat[hidden] {
-    display: none;
+    width: var(--lf-fp-aim);
   }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */

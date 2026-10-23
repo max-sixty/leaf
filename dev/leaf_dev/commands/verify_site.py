@@ -968,7 +968,10 @@ def local_worker() -> Iterator[LocalWorker]:
     name of its own and removes the containers carrying it on the way out.
     """
     out = run_directory(ROOT / ".tmp" / "verify-site")
-    name = f"lv-{out.name}"
+    # Temporary directory suffixes may begin with `_`, which cannot follow a
+    # hyphen in a Docker image name. Hex keeps the run identity and uses only
+    # characters accepted by both Docker and Wrangler.
+    name = f"lv-{out.name.encode().hex()}"
     image_tag = f"{name}:latest"
     log = out / "wrangler-dev.log"
     image = None

@@ -37,5 +37,6 @@ assert:
       right of the heading or block so the marker no longer overlaps the words. Fail too
       if a rule moves, hides, or restyles Leaf's marker itself. Pass if the page needs no
       such room: the reply tells the user how to hide the markers to read what is under
-      them (Hide annotations under Annotations in the leaf's menu, or the `o` key), and any CSS left
+      them by a route their phone has, Hide annotations under Annotations in the leaf's
+      menu (the `o` key alone fails, since the user has no keyboard), and any CSS left
       is unrelated to the marker. Rewording the heading is allowed but not required.

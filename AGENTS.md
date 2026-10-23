@@ -36,7 +36,8 @@ makes a better app, and say in the commit which behavior changed.
 
 Written contracts describe the current code and promise no compatibility. Every
 consumer of them is in this tree, so when a different contract makes the code
-simpler, change it and every consumer together, prose included.
+simpler, change it and every consumer together, prose included. A change that
+keeps every guarantee changes no contract prose.
 
 A restriction Leaf imposes, such as a content security policy, a validator's
 refusal, an import allowlist or a markup limit, doesn't decide whether a feature
@@ -180,7 +181,9 @@ The sections above **Repository map** are the maintainer's direction; change the
 only when the user asks. An `AGENTS.md` holds what an agent needs before changing
 its area: goals, invariants that span modules, who owns what, and the gates to
 run. A contract one module owns goes in that module's header, a helper's in its
-docstring, and how a rule was found in the commit message. A header also records
+docstring, and how a rule was found in the commit message. A contract several modules
+share goes in the protocol reference for that boundary, which says what each side
+relies on, not how one side provides it. A header also records
 the product decisions its module embodies and the alternatives they rejected; a
 change that reverses one rewrites that record and says so in its commit. A
 workflow for one kind of task goes in `/developing-leaf`.

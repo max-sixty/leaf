@@ -3780,7 +3780,9 @@ def test_a_touch_panel_does_not_reserve_send_room_twice(browser, serve):
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
-    page = open_page(browser, serve(LONG_PAGE), context=context, init_script=EDITOR_ROOTS)
+    page = open_page(
+        browser, serve(LONG_PAGE), context=context, init_script=EDITOR_ROOTS
+    )
     draft = field(page)
     draft.click()
     page.keyboard.type("The last words should have room beside Send.")

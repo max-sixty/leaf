@@ -64,9 +64,7 @@ var PAGE_PAINT_ATTRIBUTE = Object.freeze({
   presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
-  holds: "data-lf-holds",
   scrolls: "data-lf-scrolls",
-  sticks: "data-lf-sticks",
   moreBefore: "data-lf-more-before",
   moreAfter: "data-lf-more-after",
   scrollDirection: "data-lf-scroll-direction",
@@ -541,6 +539,10 @@ var matchesWhen = (el2, when) => Object.entries(when ?? {}).every(
     (value) => typeof value === "boolean" ? el2.hasAttribute(attr) === value : el2.getAttribute(attr) === value
   )
 );
+var exhibits = (el2, entry) => {
+  const rule = entry?.["x-exhibit"];
+  return typeof rule === "object" && rule !== null ? matchesWhen(el2, rule.when) : !!rule;
+};
 
 // runtime/pointer.js
 var x2 = -1;
@@ -2725,6 +2727,10 @@ function uncovered(rect, box) {
   return sides.length ? sides.reduce((most, side) => area(side) > area(most) ? side : most) : null;
 }
 
+// runtime/motion-icon-paths.js
+var PLAY = '<path d="m5 3 7 5-7 5z"/>';
+var PAUSE = '<path d="M5 3v10M11 3v10"/>';
+
 // runtime/icons.js
 var SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
 var ICONS = {
@@ -2746,8 +2752,8 @@ var ICONS = {
   inbox: '<path d="M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z"/>',
   microphone: '<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4"/><path class="lf-mic-slash" d="M2.5 2.5l11 11"/>',
   next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
-  pause: '<path d="M5 3v10M11 3v10"/>',
-  play: '<path d="m5 3 7 5-7 5z"/>',
+  pause: PAUSE,
+  play: PLAY,
   previous: '<path d="m10 3.5-4.5 4.5 4.5 4.5"/>',
   all: '<path d="M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4"/>',
   pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',
@@ -3174,16 +3180,7 @@ function dismissErrors() {
 }
 
 // runtime/layer-client.js
-import { layerGeneration } from "/runtime/layer-generation.js";
-var { layer: documentLayer, release, probe } = DELIVERY;
-if (documentLayer && documentLayer !== layerGeneration) {
-  window.dispatchEvent(
-    new CustomEvent("lf-startup-failed", {
-      detail: { reason: "document and runtime belong to different layers" }
-    })
-  );
-  throw new Error("Leaf's document and runtime belong to different layers");
-}
+var { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 async function sourceMovedOn() {
   if (!probe) return true;
   let response;
@@ -3196,6 +3193,7 @@ async function sourceMovedOn() {
   if (!response.ok) return void 0;
   const servedRelease = response.headers.get("Leaf-Release");
   if (release && servedRelease) return servedRelease !== release;
+  if (!sameRuntime(response)) return true;
   const generation = response.headers.get("Leaf-Layer");
   return generation ? generation !== layerGeneration : void 0;
 }
@@ -3225,9 +3223,14 @@ function reloadDelivery(message) {
     }
   })();
 }
+var sameRuntime = (response) => {
+  const served = response.headers.get("Leaf-Runtime");
+  return !runtimeIdentity || !served || served === runtimeIdentity;
+};
 function layerHeaders(headers = {}) {
   return {
     "Leaf-Layer": layerGeneration,
+    ...runtimeIdentity && { "Leaf-Runtime": runtimeIdentity },
     ...runtime.currentRevision && {
       "Leaf-View-Revision": String(runtime.currentRevision)
     },
@@ -3269,14 +3272,20 @@ function sameLayer(generation) {
   reloadDelivery("Leaf has been updated \u2014 reloading this page.");
   return false;
 }
-function admitResponse(response) {
+var admitResponse = (response) => admitted(response, true);
+var admitReading = (response) => admitted(response, false);
+function admitted(response, ofThisLayer) {
   observeSession(response);
   observeKey(response);
   if (!response.ok) return true;
   if (layerReloading) return false;
   const generation = response.headers.get("Leaf-Layer");
   const responseRelease = response.headers.get("Leaf-Release");
-  if (generation && !sameLayer(generation)) return false;
+  if (ofThisLayer && generation && !sameLayer(generation)) return false;
+  if (!sameRuntime(response)) {
+    reloadDelivery("Leaf has been updated \u2014 reloading this page.");
+    return false;
+  }
   if (release && responseRelease && responseRelease !== release) {
     reloadDelivery("Leaf has been updated \u2014 reloading this page.");
     return false;
@@ -3444,6 +3453,7 @@ export {
   elementsDeclaring,
   tagsDeclaring,
   matchesWhen,
+  exhibits,
   pointerAt,
   coarsePointer,
   hoveringPointer,
@@ -3650,6 +3660,7 @@ export {
   requestJson,
   sameLayer,
   admitResponse,
+  admitReading,
   sessionIsActive,
   revealLayer,
   postEvent,

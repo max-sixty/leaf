@@ -211,11 +211,13 @@ sheet.replaceSync(`
     padding-inline: var(--pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--code-border);
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  .lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
+  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
+  .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
+    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
+    padding-block-end: 8px; }
   /* Code with no fence lines takes the message's padding at its ends instead. */
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-last { padding-block-end: var(--pre-pad-block); }
+  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 
 // A step an owner recorded in the words' history (`record`): `run` makes it happen when
@@ -681,6 +683,7 @@ class LeafText extends HTMLElement {
   }
 
   connectedCallback() {
+    this.classList.toggle("scroll", true);
     // A move by `insertBefore` reconnects within the task, keeping the view
     // (`disconnectedCallback`); the hold that returns the user restores the caret.
     if (this.#view) return;

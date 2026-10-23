@@ -220,7 +220,6 @@ diff --git a/gateway/limits.py b/gateway/limits.py
     f"""<lf-shot id="stable-shot" alt="the release card"
          before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>
 """,
-    head='<meta name="lf-review" content="sign-off">',
 )
 
 
@@ -2674,7 +2673,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 # Opening a collapsed file and loading its hunk finish after the key
                 # handler returns. Read the ring once the walk has actually landed.
                 expect(
-                    page.locator("#pr-exact-patch [data-content] > [data-line]:focus")
+                    page.locator("#pr-exact-patch .lf-diff-line > [data-line]:focus")
                 ).to_have_count(1)
             page_at_rest(page)
             if surface := RING_SCOPE_SURFACE.get(scope):

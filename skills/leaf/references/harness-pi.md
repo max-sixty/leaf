@@ -4,7 +4,7 @@ Leaf on Pi is a highly experimental trial.
 
 ## Launcher
 
-Leaf's Pi extension sets `$LEAF` to the launcher and puts it on `PATH`, so `leaf` works
+Leaf's Pi extension puts its launcher on `PATH`, so `leaf` works
 in every shell command.
 
 ## Serve the page

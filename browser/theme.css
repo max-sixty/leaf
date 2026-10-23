@@ -1473,7 +1473,8 @@ html:not([data-lf-live]) {
 body {
   position: static !important;
   box-sizing: border-box !important;
-  background: var(--paper);
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
   color: var(--ink);
   font: var(--t-4)/1.6 var(--serif);
   overflow-wrap: break-word;
@@ -1878,7 +1879,8 @@ th:not([scope=row]),
   align-self: center;
 }
 .callout {
-  background: var(--field);
+  --lf-ground: var(--field);
+  background: var(--lf-ground);
   padding: 12px 16px;
   margin: var(--callout-margin-block) 0;
   --lf-block-frame: 1;
@@ -1918,7 +1920,7 @@ section.panel > :is(h2, h3):first-child,
   color: var(--lf-tone-ink);
 }
 .callout:is(.ok, .warn, .danger) {
-  background: var(--lf-tone-tint);
+  --lf-ground: var(--lf-tone-tint);
 }
 .callout:is(.ok, .warn, .danger) > strong:first-child {
   color: var(--lf-tone-ink);
@@ -2345,7 +2347,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 :where([data-lf-reading-role=pane]) {
   border: 1px solid var(--rule);
   border-radius: var(--r);
-  background: var(--paper);
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
 }
 :where([data-lf-reading-role=pane]) > header {
   padding: var(--pane-bar-pad);

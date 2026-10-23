@@ -128,9 +128,8 @@ with a status tone (`warn`, `danger`, `ok`) when it reports a status.
 `<main class="layout-workspace">` fills the window behind Leaf's floating panel, and the reader
 works in its regions rather than scrolling the page. Pane scrollers leave room at their
 ends so the panel does not cover their last lines. The `header` and `footer` take
-their content's height and the body takes the rest. Keep the header to one row: the
-title, `.tag` chips for the page's state, and an `lf-tally` for the obligations left. Put what
-a lede would say at the top of the region it is about.
+their content's height and the body takes the rest. Keep shared context concise enough
+to leave the working regions usable; place region-specific explanation with its subject.
 
 The body is one `lf-pane`, a widget that lays out its own regions, or the page's own
 grid of panes:
@@ -160,11 +159,10 @@ grid of panes:
 }
 ```
 
-Stack the panes below 720px, where the page can scroll; above that, stacked panes share
-one window height. Each pane's body scrolls on its own, so write no positioning to keep
-a pane or footer in view. Keep a region's decision in view with its supporting content,
-trimming or splitting a pane that overflows; a pane holding a long file or log can
-scroll.
+Keep enough space to read each region's evidence and reach its decision. Stacked panes
+share the remaining height while the workspace is bounded; in a flowing layout they
+can grow with their content. Each pane's body can scroll on its own, which helps with
+a long file or log but cannot make a cramped working region usable.
 
 `density-working` is a style, not a Layout. It sets smaller type, tighter spacing and
 options as rows on any block, for a surface the reader operates. A workspace usually
@@ -178,9 +176,10 @@ grouping and counting.
 
 ## Bounds and widths
 
-Prefer one page scroll: let content grow in place, with supporting detail in
-disclosures. Bound a region's height only when the reader keeps it in view while its
-content changes, as in a workspace or a live stream. Length alone is no reason.
+Keep related content easy to read and compare without managing several scroll
+positions. A shared page scroll lets content grow together; separate regions help
+when the task needs independent positions kept in view. Live updates should preserve
+the reader's place and input as content grows.
 
 For a live stream, set `data-bound` to the end where new entries arrive:
 `data-bound="end"` for a list that grows downward, which follows the last line while
@@ -272,6 +271,57 @@ with `showModal()`, or an element with `popover`.
 package can lay out conversations and obligations itself with the APIs in
 `module-annotations.md`, "Owning the primary conversation presentation", and
 `module-reading.md`, "Reading obligations and the On lists".
+
+### Space for changing text
+
+Keep the controls and content the reader is using in place and the same size while
+text changes. Reserve space independently of the current words or value. When the
+text states are known, ordinary CSS Grid can size their shared cell for all of them,
+including their wrapped height at the current width:
+
+```html
+<style>
+  .text-states {
+    display: inline-grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .text-states > * {
+    grid-area: 1 / 1;
+    visibility: hidden;
+  }
+  .text-states > .current {
+    visibility: visible;
+  }
+</style>
+<span class="text-states" role="status">
+  <span class="current">Ready</span>
+  <span>Saving changes…</span>
+  <span>Saved. You can close this page.</span>
+</span>
+```
+
+Move `current` between the existing children. `visibility: hidden` keeps inactive
+text in layout but out of sight and accessibility; `display: none` or removing it
+would lose that reservation. Use `display: grid` for a full-width message. For a
+counter, an invisible representative widest value can share the cell with the
+changing value; `font-variant-numeric: tabular-nums` equalizes digit widths but does
+not reserve space for additional digits.
+
+For concise, one-line text, Leaf's `data-room` shorthand holds representative widest
+strings, separated by newlines; its only child holds the current text. Its CSS reserves
+that space from first paint:
+
+```html
+<span role="status" data-room="Ready&#10;Saving changes…&#10;Saved"
+  ><span>Ready</span></span
+>
+```
+
+Change the child's text, keeping the wrapper. The wrapper fits its container; text
+past that width is ellipsized, while its DOM text and accessible name stay whole.
+Use this for short feedback, with longer results and error details in readable content
+outside the controls' changing labels. Such content can grow; arrange it so the controls
+the reader needs next remain reachable.
 
 ## Activity from several contributors
 

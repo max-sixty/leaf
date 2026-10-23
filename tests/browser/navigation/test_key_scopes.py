@@ -194,8 +194,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(preview).to_be_visible()
     expect(threads[0]).to_be_focused()
     rendered(page)
-    # A pointer route to a reading destination still names where it landed.
-    assert preview.evaluate("node => getComputedStyle(node).outlineStyle") == "solid"
+    # The pointer route keeps keyboard standing without showing a keyboard ring.
+    assert preview.evaluate("node => getComputedStyle(node).outlineStyle") == "none"
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     out_through("#p2")

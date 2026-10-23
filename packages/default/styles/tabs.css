@@ -186,7 +186,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     margin: var(--sp-4) 0 32px;
     border: 1px solid var(--border-2);
     border-radius: var(--r);
-    background: var(--card);
+    --lf-ground: var(--card);
+    background: var(--lf-ground);
     --lf-block-frame: 1;
   }
   /* One row of the strip is the stated height a page strip is (`--lf-tabstrip-h`), so
@@ -550,6 +551,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     border: 0;
     border-radius: 0;
     background: transparent;
+    --lf-ground: inherit;
     --lf-block-frame: 0;
   }
   /* Horizontal indexes stay with the panel they identify. Each set owns its
@@ -836,6 +838,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
         position: sticky;
+        --lf-head-inset: 0px;
         top: var(--lf-top);
         inline-size: auto;
         z-index: 2;

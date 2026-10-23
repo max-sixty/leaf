@@ -107,12 +107,6 @@ BOTH_SIDES = (
 )
 
 
-SIGN_OFF_PAGE = PAGE.replace(
-    "</head>", '<meta name="lf-review" content="sign-off"></head>'
-)
-READY = {"kind": "note", "author": "agent", "version": 1, "text": "Ready"}
-
-
 SUGGESTION_PAGE = leaf_page(
     "Suggested change",
     '<lf-suggestion id="sug-refill" resolves="e1">'
@@ -164,13 +158,6 @@ def build() -> dict:
         "obligation_row": _served_obligation_row(),
         "state_definitions": state_definition_cases(),
         "readings": {
-            # A required approval of the exact stamped document, with no other
-            # obligations. Keep the whole browser reading for local approval folds.
-            "approval": served_reading(SIGN_OFF_PAGE, (READY,)),
-            # The same version once the user approved it.
-            "approved": served_reading(
-                SIGN_OFF_PAGE, (READY, {"kind": "done", "version": 1})
-            ),
             # The agent asks a question over a board it sent, and the user moves a
             # card on it without answering: the thread is the user's to answer, and
             # the move, which owes nothing, stands in it without holding it.

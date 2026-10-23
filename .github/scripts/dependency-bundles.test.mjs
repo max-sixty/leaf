@@ -1,12 +1,22 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdtempSync,
+  mkdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { pathToFileURL } from "node:url";
 import { capture, publish } from "./dependency-bundles.mjs";
 
 const path = "browser/vendor/test.js";
+const theme = "browser/theme.css";
+const packageTheme = "packages/default/theme.css";
 const head = "original-head";
 const repo = "owner/leaf";
 const run = {
@@ -14,7 +24,31 @@ const run = {
   head_sha: head,
   head_repository: { full_name: repo },
 };
-const artifact = { head, files: [{ path, content: "new bundle" }] };
+const artifact = {
+  head,
+  files: [
+    { path, content: "new bundle" },
+    { path: theme, content: "new theme" },
+    { path: packageTheme, content: "new package theme" },
+  ],
+};
+
+test("the trusted publisher loads its build declaration without installed dependencies", () => {
+  const directory = mkdtempSync(join(tmpdir(), "dependency-publisher-"));
+  try {
+    for (const name of [".github/scripts", "build", "packages"])
+      mkdirSync(join(directory, name), { recursive: true });
+    for (const name of [".github/scripts/dependency-bundles.mjs", "build/styles.mjs"])
+      copyFileSync(new URL(`../../${name}`, import.meta.url), join(directory, name));
+    execFileSync(process.execPath, [
+      "--input-type=module",
+      "-e",
+      `await import(${JSON.stringify(pathToFileURL(join(directory, ".github/scripts/dependency-bundles.mjs")).href)})`,
+    ]);
+  } finally {
+    rmSync(directory, { recursive: true });
+  }
+});
 
 test("capture includes changed, new and deleted generated files, but rejects source edits", () => {
   const directory = mkdtempSync(join(tmpdir(), "dependency-bundles-"));
@@ -25,6 +59,7 @@ test("capture includes changed, new and deleted generated files, but rejects sou
     git("init", "-q");
     mkdirSync("browser/vendor", { recursive: true });
     writeFileSync(path, "old");
+    writeFileSync(theme, "old theme");
     writeFileSync("package.json", "{}");
     git("add", ".");
     git(
@@ -37,12 +72,14 @@ test("capture includes changed, new and deleted generated files, but rejects sou
       "baseline",
     );
     rmSync(path);
+    writeFileSync(theme, "new theme");
     writeFileSync("browser/vendor/chunk.js", "chunk");
     // The kernel compiles from the bundles, so a bump rebuilds it too.
     mkdirSync("dist/kernel/runtime", { recursive: true });
     writeFileSync("dist/kernel/kernel.json", "{}");
     writeFileSync("dist/kernel/runtime/bundle-state.js", "state");
     assert.deepEqual(capture().files, [
+      { path: theme, content: "new theme" },
       { path, content: null },
       { path: "browser/vendor/chunk.js", content: "chunk" },
       { path: "dist/kernel/kernel.json", content: "{}" },
@@ -100,11 +137,13 @@ function endpoint({
 
 test("publisher changes only bundles on the exact Dependabot branch and preserves parent custody", async () => {
   const { api, calls } = endpoint({
-    extra: ["package.json", "pnpm-workspace.yaml"],
+    extra: ["package.json", "pnpm-workspace.yaml", theme, packageTheme],
   });
   assert.equal(await publish(api, repo, run, artifact), "generated-commit");
   assert.deepEqual(calls.find((c) => c.route.endsWith("/trees")).data.tree, [
     { path, mode: "100644", type: "blob", content: "new bundle" },
+    { path: theme, mode: "100644", type: "blob", content: "new theme" },
+    { path: packageTheme, mode: "100644", type: "blob", content: "new package theme" },
   ]);
   assert.deepEqual(
     calls.find((c) => c.route.endsWith("/commits") && c.method === "POST").data.parents,
@@ -121,6 +160,9 @@ test("publisher refuses untrusted paths, foreign builds and non-dependency sourc
     ".github/workflows/ci.yaml",
     "browser/vendor/../runtime/evil.js",
     "browser/vendor/.hidden.js",
+    "browser/styles/theme.css",
+    "browser/runtime/authored.css",
+    "packages/playground/theme.css",
   ]) {
     const { api, calls } = endpoint();
     await assert.rejects(

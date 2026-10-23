@@ -802,7 +802,13 @@ ROUTE_ANSWERS = {
     r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
     r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
     r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),
-    r"/api/files/[^/]+": ("FileSnapshot", "null", "StaleFile", "Refusal"),
+    r"/api/files/[^/]+": (
+        "FileSnapshot",
+        "null",
+        "StaleFile",
+        "Refusal",
+        "LayerAnswer",
+    ),
 }
 
 
@@ -830,7 +836,7 @@ def served_thread(browser: dict) -> dict:
 def served_obligations(browser: dict, *, page: bool = False) -> dict:
     """The obligation records the one view `browser` serves for what the page asks, by
     the selections `obligations.collection` makes: the frozen threads' obligations, or
-    with `page` the document's and its sign-off. The records the user's updates publish
+    with `page` the document's obligations. The records the user's updates publish
     are `served_updates`."""
     [view] = browser["views"].values()
     return collection(

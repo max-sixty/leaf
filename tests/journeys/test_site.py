@@ -143,12 +143,10 @@ def example_title(stem: str) -> str:
 
 
 def authored_examples():
-    """The public examples, with the one generated browser-stress fixture removed."""
+    """The public examples, excluding any generated browser-stress snapshot."""
     pages = pages_under(EXAMPLES)
-    corpus = [page for page in pages if page.stem == "corpus"]
     authored = [page for page in pages if page.stem != "corpus"]
-    assert len(corpus) == 1, f"expected one internal corpus, found {corpus}"
-    assert authored, "excluding the corpus left no examples to publish"
+    assert authored, "no authored examples to publish"
     return authored
 
 
@@ -367,13 +365,9 @@ def test_product_pages_are_published_as_complete_page_records(site):
             "events.jsonl",
         ):
             assert (page / name).is_file(), f"{source.name}: no {name}"
-        for name in (
-            "instructions",
-            "revisions",
-            "runtime",
-            "vendor",
-            "widgets",
-        ):
+        # The runtime is the serving Leaf's, which the release publishes beside each
+        # revision rather than the page vendoring it (`runtime_selection`).
+        for name in ("instructions", "revisions", "vendor", "widgets"):
             assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
         artifact = read_artifact(page, files_model.latest_revision(page))
         for path, resource in artifact.resources.items():
@@ -610,19 +604,13 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         for name in (
             "events.jsonl",
             "icon.svg",
-            "leaf.js",
             "registry.json",
             "theme.css",
         ):
             assert (page_dir / name).is_file(), f"{source.name}: no {name}"
-        for sub in (
-            "instructions",
-            "media",
-            "revisions",
-            "runtime",
-            "vendor",
-            "widgets",
-        ):
+        # The runtime is the serving Leaf's, which the release publishes beside each
+        # revision rather than the page vendoring it (`runtime_selection`).
+        for sub in ("instructions", "media", "revisions", "vendor", "widgets"):
             assert list((page_dir / sub).iterdir()), f"{source.name}: {sub}/ is empty"
         assert declared(page_dir)["state"] == "idle"
         assert not (page_dir / "service.json").exists()

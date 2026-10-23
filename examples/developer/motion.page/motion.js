@@ -88,7 +88,7 @@ function mount() {
         ]),
       ),
     );
-    const drawings = [...host.querySelectorAll("svg")];
+    const drawings = [...host.querySelectorAll("figure svg")];
     let width = 560;
     host.renderFrame = (time) => {
       scenes.forEach((nodes, index) => draw(nodes, index === 1, time - 250, width));

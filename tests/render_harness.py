@@ -178,7 +178,7 @@ def shift_watch_source():
 
 
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
-EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
+EXAMPLES = sorted(p for p in (ROOT / "examples").glob("*.html") if p.stem != "corpus")
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
 assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
@@ -186,12 +186,8 @@ DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html"))
 # The inputs `leaf-dev corpus` composes. The corpus is a generated presentation of
 # the public pages plus the feature gallery, not another author source. Every authored-
 # content sweep uses this source set, while public-site tests read the top-level glob.
-PUBLIC_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
-assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
-    "expected exactly one generated corpus beside the public examples"
-)
+PUBLIC_EXAMPLES = tuple(EXAMPLES)
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
-CORPUS_PAGE = ROOT / "examples" / "corpus.html"
 
 PASSAGE_SOURCES = (
     FEATURE_GALLERY,
@@ -1729,8 +1725,8 @@ def panel_control(page, key, at=None):
     """Return the panel's control for the page's control row `key`, opening the leaf's
     menu, and the list `at` names (`panel_menu`), where the row stands there.
 
-    Threads (`threads`) and On me (`queue`) are the row's marks; the version's approval
-    (`approval`) stands under Versions. Every other row is the menu's, by its key:
+    Threads (`threads`) and On me (`queue`) are the row's marks. Every other row is
+    the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
@@ -1739,8 +1735,6 @@ def panel_control(page, key, at=None):
     `selection_field`'s."""
     if key in PANEL_ROW_CONTROLS:
         control = page.locator(PANEL_ROW_CONTROLS[key])
-    elif key == "approval":
-        control = panel_menu(page, "versions").locator(".lf-fp-approval .lf-fp-item")
     else:
         control = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]')
     expect(control).to_be_visible()

@@ -13,11 +13,13 @@ import {
 import "./bundle-passage-facts.js";
 import {
   coarsePointer,
+  layerHeaders,
   layoutWindow,
   randomId,
   seenRect,
   sessionIsActive,
   shownWindow,
+  tagsDeclaring,
   watchRoom
 } from "./bundle-page-paint.js";
 import "./bundle-frame-visibility.js";
@@ -76,7 +78,9 @@ function observeUserView() {
   function send(view, keepalive = false) {
     void fetch(pageUrl("api/user-view"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // The runtime it names keeps a tab from before an update from describing the
+      // page a newer runtime draws (`_runtime_gate`).
+      headers: layerHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ ...view, checks }),
       keepalive,
       signal: keepalive ? void 0 : globalThis.AbortSignal.timeout(REPORT_MS)
@@ -98,7 +102,9 @@ function observeUserView() {
     ]);
     if (view.visible && pageReadiness() === null && (inspect || basis !== checkedBasis)) {
       if (reading) {
-        const open = Object.entries(runtime.registry).filter(([, entry]) => ["markup", "members"].includes(entry["x-content"])).map(([tag]) => tag);
+        const open = tagsDeclaring(
+          (entry) => ["markup", "members"].includes(entry["x-content"])
+        );
         checks = {
           sequence: view.sequence,
           revision: view.revision,

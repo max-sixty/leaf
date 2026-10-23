@@ -47,7 +47,7 @@
    the registry says aloud. A module reading its slot or body must call `says` so
    runtime words do not become authored or user content. */
 
-import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
+import { elementDeclarations, exhibits, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { highlightBlocks } from "./syntax.js";
 import { keeps } from "./keeps.js";
@@ -102,134 +102,16 @@ export function quietWord(el, word) {
   move(el, span, title ? title.nextSibling : el.firstChild);
 }
 
-// External page links keep native link behavior but make the boundary explicit: the
-// target opens beside this Leaf, and the visible mark says it will leave the page. A URL
-// on this page's own origin is still local even when the author wrote it absolutely;
-// non-web schemes keep their platform meaning.
-//
-// The mark is also what a screen reader is told: the link's description names it, and it
-// carries the words as its label. It stays hidden, so the words are not part of the
-// link's name, and a description may name a hidden element. Everything the treatment adds
-// stands inside the link, so the page's own rules about which of a block's children
-// comes last, or what follows a link, match what the page wrote.
-const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
-const externalLinkState = new WeakMap();
-let externalMarkSequence = 0;
-export function isExternalPageLink(link) {
-  if (!(link instanceof HTMLAnchorElement)) return false;
-  try {
-    const href = link.getAttribute("href");
-    const url = href === null ? null : new URL(href, document.baseURI);
-    return (
-      ["http:", "https:"].includes(url?.protocol) && url.origin !== location.origin
-    );
-  } catch {
-    return false;
-  }
-}
-const linkAttributes = (link) =>
-  Object.fromEntries(
-    EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)]),
-  );
-const tokens = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
-function withToken(value, token, insensitive = false) {
-  const values = tokens(value);
-  const wanted = insensitive ? token.toLowerCase() : token;
-  if (!values.some((value) => (insensitive ? value.toLowerCase() : value) === wanted))
-    values.push(token);
-  return values.join(" ");
-}
-function withoutToken(value, token, insensitive = false) {
-  if (value === null) return null;
-  const unwanted = insensitive ? token.toLowerCase() : token;
-  return tokens(value)
-    .filter((value) => (insensitive ? value.toLowerCase() : value) !== unwanted)
-    .join(" ");
-}
-function writeLinkAttributes(link, values) {
-  for (const [name, value] of Object.entries(values)) keeps(link, name, value);
-}
-function rememberExternalLinkChanges(link, state) {
-  if (!state.painted) return;
-  const current = linkAttributes(link);
-  for (const name of EXTERNAL_LINK_ATTRIBUTES) {
-    if (current[name] === state.painted[name]) continue;
-    let value = current[name];
-    if (name === "rel" && state.addedNoopener)
-      value = withoutToken(value, "noopener", true);
-    if (name === "aria-describedby") value = withoutToken(value, state.markId);
-    state.baseline[name] = value;
-  }
-}
-function clearExternalLink(link, state) {
-  rememberExternalLinkChanges(link, state);
-  writeLinkAttributes(link, state.baseline);
-  link
-    .querySelectorAll(':scope > .lf-external-mark[data-lf-gen="1"]')
-    .forEach((node) => node.remove());
-  externalLinkState.delete(link);
-}
-function leaveExternalLink(link) {
-  const state = externalLinkState.get(link);
-  if (state) clearExternalLink(link, state);
-}
-function renderExternalLink(link) {
-  // SVG links share this selector but not the HTML anchor API, and they have no
-  // dependable inline box in which an HTML text mark could stand.
-  if (!(link instanceof HTMLAnchorElement)) return;
-  if (!isExternalPageLink(link)) {
-    leaveExternalLink(link);
-    return;
-  }
-  let state = externalLinkState.get(link);
-  if (!state) {
-    state = {
-      baseline: linkAttributes(link),
-      painted: null,
-      markId: `lf-external-mark-${++externalMarkSequence}`,
-      addedNoopener: false,
-    };
-    externalLinkState.set(link, state);
-  } else rememberExternalLinkChanges(link, state);
-  /** @type {SVGElement | null} */
-  let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
-  if (!mark) {
-    mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    mark.setAttribute("class", "lf-ui lf-external-mark");
-    mark.setAttribute("viewBox", "0 0 16 16");
-    mark.dataset.lfGen = "1";
-    mark.setAttribute("aria-hidden", "true");
-    mark.setAttribute("aria-label", "opens in a new tab");
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    line.setAttribute(
-      "d",
-      "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
-    );
-    mark.append(line);
-    link.append(mark);
-  }
-  // Written on a mark found as well as on one made: a link cloned with its mark, ids
-  // stripped, is a new link to this pass, and its description must name its own mark.
-  keeps(mark, "id", state.markId);
-  state.addedNoopener = !tokens(state.baseline.rel).some(
-    (value) => value.toLowerCase() === "noopener",
-  );
-  writeLinkAttributes(link, {
-    target: "_blank",
-    rel: withToken(state.baseline.rel, "noopener", true),
-    "aria-describedby": withToken(state.baseline["aria-describedby"], state.markId),
-  });
-  state.painted = linkAttributes(link);
-}
-
-// Widget families are open-ended, so their link-producing lifecycle cannot be a list in
-// the runtime: a link is marked while it stands in the page or a declared shadow root,
-// whoever put it there (arrivals.js). Attribute watching makes a node preserved across
-// renders lose or regain the treatment with its href. Started with the page's install.
+// Parser paint and later arrivals share one treatment and its per-link ownership.
+// Prepaint seats the mark before authored prose first paints; this watch carries the
+// same owner through revisions, generated content and declared shadow stages.
+export const isExternalPageLink = (link) =>
+  document.documentElement.lfInitial.externalLinks.matches(link);
 export function watchExternalLinks() {
-  watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
-    arrive: renderExternalLink,
-    leave: leaveExternalLink,
+  const links = document.documentElement.lfInitial.externalLinks;
+  watchArrivals("a", ["href", ...links.attributes], {
+    arrive: links.arrive,
+    leave: links.leave,
   });
 }
 
@@ -312,8 +194,10 @@ export function markDeclared(root) {
     const tags = tagsDeclaring((entry) => entry[key]);
     for (const tag of tags) {
       const declared = registry[tag][key];
-      for (const el of elementsIn(root, tag))
-        keeps(el, paint, declared === true || mark.presence ? "" : declared);
+      for (const el of elementsIn(root, tag)) {
+        const value = key === "x-exhibit" ? exhibits(el, registry[tag]) : declared;
+        keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
+      }
     }
     // Message markup is all content (`authored_on`, `$marks`), so only a
     // mark held to declaring tags asks which tag an occurrence is.

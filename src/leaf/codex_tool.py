@@ -1,6 +1,9 @@
 """The MCP server Leaf's Codex plugin declares, whose one tool, `run`, runs a `leaf`
 command outside Codex's sandbox.
 
+The browser-tab handoff is owned by `skills/leaf/references/harness-codex.md`.
+`notes/codex-integration.md` records the separate MCP App panel option.
+
 Codex's sandbox refuses what a `leaf` command needs: writes to the state home, a
 port the user's browser reaches, Chrome for render checks. Unlike Claude Code's, it
 leaves a command no road out to a bridge (`bridge.py`): with network off it names

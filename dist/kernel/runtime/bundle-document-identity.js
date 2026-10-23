@@ -70,6 +70,7 @@ import {
   keepRefusedWords,
   listWalkPosition,
   loadDraft,
+  loadDraftPayload,
   loadMarkdown,
   loadMessageMarkdown,
   markdownReady,
@@ -259,10 +260,12 @@ import {
   wrote
 } from "./bundle-passage-facts.js";
 import {
+  LayerRefused,
   PAGE_PAINT_ATTRIBUTE,
   PRESS,
   PRESSABLE,
   TEXT_ENTRY,
+  admitReading,
   admitResponse,
   announce,
   ariaShortcuts,
@@ -382,7 +385,7 @@ import {
 } from "./bundle-frame-visibility.js";
 import {
   LIVE_ROOT,
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   agentLabel,
   annotationMode,
   applicationPresenter,
@@ -787,6 +790,7 @@ var LeafEditorView = class extends EditorView {
       ...config,
       state: withNavigation(config.state ?? EditorState.create(config))
     });
+    this.scrollDOM.classList.add("scroll");
     this.contentDOM.addEventListener("focus", () => this.placeSelection());
   }
   setState(state) {
@@ -839,7 +843,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var DRAFT_FORMAT = "leaf-draft/15";
+var DRAFT_FORMAT = "leaf-draft/17";
 
 // runtime/composing/text-field.js
 import {
@@ -957,11 +961,13 @@ sheet.replaceSync(`
     padding-inline: var(--pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--code-border);
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  .lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
+  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
+  .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
+    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
+    padding-block-end: 8px; }
   /* Code with no fence lines takes the message's padding at its ends instead. */
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-last { padding-block-end: var(--pre-pad-block); }
+  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 var ownerStep = StateEffect2.define();
 var hide = Decoration.replace({});
@@ -1329,6 +1335,7 @@ var LeafText = class extends HTMLElement {
     this.#view?.placeSelection();
   }
   connectedCallback() {
+    this.classList.toggle("scroll", true);
     if (this.#view) return;
     if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
     if (!this.hasAttribute("aria-multiline"))
@@ -1690,9 +1697,8 @@ function createSelectionComposer({
   let syncComposer;
   let pendingRevision = null;
   let suggestionMode = false;
-  const composerDraftValue = (text = syncComposer.value()) => JSON.stringify({
+  const composerDraftPayload = () => ({
     format: DRAFT_FORMAT,
-    text,
     anchor: pendingAnchor,
     revision: pendingRevision,
     suggest: suggestionMode,
@@ -1700,22 +1706,10 @@ function createSelectionComposer({
     drawing: pendingDrawing,
     touched: Date.now()
   });
-  const saveComposerDraft = (text = syncComposer.value()) => saveDraft(composerCtx(pendingAnchor), composerDraftValue(text));
-  const parsedRecords = /* @__PURE__ */ new Map();
+  const saveComposerDraft = (text = syncComposer.value()) => saveDraft(composerCtx(pendingAnchor), text, composerDraftPayload());
   const composerRecord = (ctx) => {
-    const stored = loadDraft(ctx);
-    const known = parsedRecords.get(ctx);
-    if (known?.stored === stored) return known.record;
-    let record = null;
-    try {
-      record = JSON.parse(stored);
-      if (!Number.isInteger(record?.revision)) record = null;
-      else if (record.format !== DRAFT_FORMAT) record = { ...record, drawing: null };
-    } catch {
-      record = null;
-    }
-    parsedRecords.set(ctx, { stored, record });
-    return record;
+    const payload = loadDraftPayload(ctx);
+    return payload?.format === DRAFT_FORMAT ? { ...payload, text: loadDraft(ctx) } : null;
   };
   const draftDrawing = (anchor) => {
     return composerRecord(composerCtx(anchor))?.drawing ?? null;
@@ -1742,8 +1736,9 @@ function createSelectionComposer({
     }
     const record = composerRecord(ctx);
     if (!record) return;
-    if (!record.text && !drawing) clearDraft(ctx);
-    else saveDraft(ctx, JSON.stringify({ ...record, format: DRAFT_FORMAT, drawing }));
+    const { text, ...payload } = record;
+    if (!text && !drawing) clearDraft(ctx);
+    else saveDraft(ctx, text, { ...payload, drawing });
   }
   const watchHeldDrawings = (callback) => watchDrafts(COMPOSER_KEY, callback);
   function pendingComposer() {
@@ -1930,7 +1925,8 @@ function createSelectionComposer({
       landFabFocus(handoff, pendingAnchor, () => focusEpoch === composerEpoch);
     }
     watchComposer();
-    if (carriedDraft) transferDraft(previousCtx, ctx, composerDraftValue());
+    if (carriedDraft)
+      transferDraft(previousCtx, ctx, syncComposer.value(), composerDraftPayload());
     else if (drawingSupplied && JSON.stringify(composerRecord(ctx)?.drawing ?? null) !== JSON.stringify(pendingDrawing)) {
       saveComposerDraft();
       rememberWriting(composerInput);
@@ -2000,6 +1996,7 @@ function createSelectionComposer({
     const record = composerRecord(ctx);
     if (!record) return null;
     return {
+      hasContent: Boolean(record.text || record.drawing),
       // A detached draft's destination is its native editor, not a guessed passage.
       // Arrival clears covering surfaces before this same field is materialized.
       where: anchorTravelAt(record.anchor) ?? composerInput,
@@ -2944,6 +2941,7 @@ async function baseReading(baseRevision, throughSeq) {
     through_seq: String(throughSeq)
   });
   const res = await fetch(pageUrl(`api/view?${params}`));
+  if (!admitReading(res)) throw new LayerRefused("Leaf changed while comparing");
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
   return (await res.json()).browser;
 }
@@ -5582,8 +5580,6 @@ function gestureWords(event, gesture) {
       const name = thread ? quoted2(threadName(thread), 48) : "a thread";
       return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
     }
-    case "done":
-      return `approved v${event.version}`;
     case "todo_end": {
       const todo = runtime.todos.find(({ id }) => id === event.todo);
       return TODO_ENDINGS[event.outcome](todo ? quoted2(todo.title) : "a to-do");
@@ -5921,7 +5917,7 @@ function createThreadPresentation({
   let primary = null;
   const presenter = applicationPresenter({
     region: "thread",
-    order: PRESENTATION_ORDER.thread,
+    after: PRESENTATION_DOM.projection,
     reading: () => !available ? null : runtime.statePhase === "waiting" && !threadState().all.length ? "waiting" : true,
     // A pass reads the latest root. The time it shows is followed with the rest of what
     // it reads, so a clock change claims another pass through the same presenter, whose
@@ -7558,8 +7554,6 @@ function createStateApplication({
   prepareActivation,
   acceptData: acceptData2,
   notifyDataSubscribers: notifyDataSubscribers2,
-  isSignoffDeclared,
-  stateSignoff,
   accountPending
 }) {
   let observedSemanticNews = null;
@@ -7655,7 +7649,6 @@ function createStateApplication({
       stateApplying = true;
       try {
         settleAcceptedDrafts();
-        stateSignoff(isSignoffDeclared());
         if (installed) await settlePageInterface();
         await whenDocumentPresented();
         if (installed) await installed.land();
@@ -7863,15 +7856,9 @@ function mountApplication(dependencies) {
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
-      order: PRESENTATION_ORDER.annotations,
+      after: PRESENTATION_DOM.obligations,
       reading: () => annotationInputs(),
-      paint: async (_reading, current, resume) => {
-        const ready = await whenApplicationRegionsPresented(
-          ["projection:chrome"],
-          current
-        );
-        if (ready === "presented" && current()) resume(renderAnnotations)();
-      }
+      paint: renderAnnotations
     });
     void presentation.present();
     onPaper.addEventListener("change", () => {
@@ -7943,8 +7930,6 @@ function mountApplication(dependencies) {
     prepareActivation: dependencies.state.prepareActivation,
     acceptData: dependencies.state.acceptData,
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
-    isSignoffDeclared: dependencies.state.isSignoffDeclared,
-    stateSignoff: dependencies.state.stateSignoff,
     accountPending
   });
   const flushQueuedInvalidation = () => {
@@ -8142,7 +8127,7 @@ function mountApplication(dependencies) {
     openObligation(id) {
       const item = readObligations().all.find((item2) => item2.id === id);
       if (!item) return Promise.resolve(false);
-      if (item.source.kind === "approval" || item.source.kind === "update")
+      if (item.source.kind === "update" || item.source.kind === "todo")
         return queueActions2.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
@@ -8732,11 +8717,15 @@ var LeafElement = class extends q(UpdateBoundary) {
   }
   #queueUpdate() {
     if (!this.#descriptor) return super.scheduleUpdate();
-    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-      if (this.#scheduled !== scheduled) return;
-      this.#scheduled = null;
-      return super.scheduleUpdate();
-    });
+    const scheduled = queueWidgetUpdate(
+      this.#descriptor.id,
+      () => {
+        if (this.#scheduled !== scheduled) return;
+        this.#scheduled = null;
+        return super.scheduleUpdate();
+      },
+      () => this.updateComplete
+    );
     this.#scheduled = scheduled;
     return scheduled;
   }
@@ -8967,13 +8956,13 @@ function ownedObligationControl(source, commandSource) {
   return !selector || closestAcross(commandSource, selector) === source;
 }
 function obligationWord(item) {
-  if (item.source.kind === "approval") return "Approval";
+  if (item.source.kind === "message") return "Reply";
+  if (item.source.kind === "todo") return "To-do";
   const word2 = widgetWord(item.source.tag, elementById(item.source.id));
   return word2.charAt(0).toUpperCase() + word2.slice(1);
 }
 function answerWords(item) {
   if (item.answer === null) return "";
-  if (item.source.kind === "approval") return "Approved";
   if (answeredInWords(item))
     return item.answer.value.text ?? item.answer.value.token ?? "";
   const source = elementById(item.source.id);
@@ -8984,6 +8973,8 @@ function answerWords(item) {
   return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
 }
 function obligationEnding(item) {
+  if (item.source.kind === "todo")
+    return item.status === "withdrawn" ? "Dropped" : item.answer?.value === "failed" ? "Failed" : "Done";
   if (item.status === "withdrawn") return "Withdrawn";
   if (item.status === "answered_elsewhere") return "Answered elsewhere";
   const words = answerWords(item);

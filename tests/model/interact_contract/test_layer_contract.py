@@ -459,7 +459,6 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
-        "done": {"kind": "done"},
         "Done on a to-do on the user": {"kind": "todo_end"},
         "undo": {"kind": "undo"},
         "report": {"kind": "report"},

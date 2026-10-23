@@ -140,18 +140,47 @@ function render(host, { tabStore, offer, keeps }) {
   };
   const interactive = !host.closest("[data-lf-exhibit]");
   host.classList.toggle("lf-playground-quoted", !interactive);
+  // A choice can be the candidate itself. Its content stays outside the native
+  // radio's label so operating a preview never also chooses that candidate.
+  for (const control of controls) {
+    const choices = choicesByName.get(control.getAttribute("name"));
+    if (
+      !choices.some((choice) =>
+        [...choice.childNodes].some(
+          (child) =>
+            child.nodeType === Node.ELEMENT_NODE ||
+            (child.nodeType === Node.TEXT_NODE && child.data.trim()),
+        ),
+      )
+    )
+      continue;
+    control.classList.add("lf-playground-candidates");
+    for (const choice of choices) {
+      const body = node("div", "lf-playground-choice-preview");
+      body.append(...choice.childNodes);
+      choice.append(body);
+      if (!interactive)
+        choice.prepend(
+          node("p", "lf-playground-choice-heading", choice.getAttribute("label")),
+        );
+    }
+  }
   // A quotation draws no controls, so a box the preview wrote around them alone, at
   // any depth, would stand empty; it is marked to hide with them (theme.css). A box
   // that also holds words or another element keeps them.
   if (!interactive) {
-    const bare = new Set(controls);
+    const bare = new Set(
+      controls.filter(
+        (control) => !control.classList.contains("lf-playground-candidates"),
+      ),
+    );
     const holdsOnlyBare = (box) =>
       [...box.childNodes].every((child) =>
         child.nodeType === Node.TEXT_NODE
           ? !child.data.trim()
           : child.nodeType === Node.COMMENT_NODE || bare.has(child),
       );
-    for (const control of controls)
+    for (const control of bare)
       for (
         let box = control.parentElement;
         box !== preview && box !== host && !bare.has(box) && holdsOnlyBare(box);
@@ -209,7 +238,7 @@ function render(host, { tabStore, offer, keeps }) {
             input,
             node("span", "lf-playground-choice-label", choice.getAttribute("label")),
           );
-          choice.append(face);
+          choice.prepend(face);
           group.append(choice);
           radios.push(input);
         }

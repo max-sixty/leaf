@@ -101,10 +101,9 @@ sed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill
 wt step diff | jq -Rs . | leaf data set <page> review-patch
 ```
 
-Run the pipeline again to refresh the open page. `lf-diff` takes text changes with `@@`
-hunks and pure renames; describe binary, mode-only and copied files in prose and leave
-them out. For a large patch whose files should load only when opened, read the
-contract's producer instructions:
+Run the pipeline again to refresh the open page. Keep the complete Git patch, including
+file-operation metadata: files without textual hunks still have commentable rows.
+For a large patch, use the manifest producer described by the contract:
 
 ```bash
 leaf page instructions <page> --contract unified-diff | jq -er '.producer'
@@ -142,7 +141,9 @@ instructions give the import command:
 leaf page instructions <page> --contract playwright-trace | jq -er '.producer'
 ```
 
-Give `<video>` and `<audio>` `controls` and a label, and give a video a `poster`. Leaf
+Give `<video>` and `<audio>` `controls` and a label, and give a video a `poster`.
+For recordings compared inside `lf-motion`, use its shared transport as the motion
+package's author instructions describe. Leaf
 accepts MP4 and WebM video and MP3, M4A, Ogg and WAV audio. An export embeds each
 recording whole, a third larger, so trim recordings to what the reader needs.
 
@@ -156,8 +157,8 @@ making the reader search a whole window. Check the pair as it first appears: Fit
 may shrink its frames to keep both visible. Choose crops and page space that make
 the relevant change readable there, without requiring the reader to zoom first.
 
-Every pair offers **Pair**, **Slider** and **Pixels** in a shared header with explicit
-Before and After labels. Pair keeps the captures at the same scale. Fit keeps both frames visible in a bounded
+Every pair offers **Pair**, **Slider** and **Pixels** in a shared header. Before and
+After label the header, or each frame when stacked. Pair keeps the captures at the same scale. Fit keeps both frames visible in a bounded
 comparison, placing them beside one another or stacking them to make best use of the
 available space. At 100%, both panes stay visible and scrolling either image moves
 the other to the same location. This scale uses CSS pixels when capture metadata

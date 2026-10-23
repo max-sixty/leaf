@@ -14,6 +14,9 @@ import {
   applicationRegionsPresented,
   readApplicationPresentation,
   readPart,
+  queueWidgetUpdate,
+  applicationPresenter,
+  PRESENTATION_DOM,
 } from "/runtime/semantic-state.js";
 import { clockValue, tickClock } from "/runtime/presence.js";
 import { adoptRegistry } from "/runtime/registry.js";
@@ -284,10 +287,18 @@ test("a render that throws shows its failure and draws again for the next move",
     if (now === "offline") throw new Error("cannot draw offline");
     return now;
   });
-  document.body.append(element);
+  const unrelated = probe(() => phase());
+  document.body.append(element, unrelated.element);
   await settled(element);
+  await settled(unrelated.element);
   applicationState.setPhase("offline");
   await settled(element);
+  await settled(unrelated.element);
+  assert.equal(
+    unrelated.element.textContent,
+    "offline",
+    "a failing owner leaves other signal views functional",
+  );
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.match(element.textContent, /failed: cannot draw offline/);
   applicationState.setPhase("waiting");
@@ -296,6 +307,7 @@ test("a render that throws shows its failure and draws again for the next move",
   assert.equal(element.textContent, "waiting");
   window.removeEventListener("error", report);
   element.remove();
+  unrelated.element.remove();
 });
 
 test("an element that reads its bound data draws each accepted reading", async () => {
@@ -774,3 +786,54 @@ test(
     }
   },
 );
+
+test("document consumers wait for native Lit follow-up DOM, not held drawing", async () => {
+  const held = Promise.withResolvers();
+  const tag = `lf-probe-native-completion-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      static properties = { value: {} };
+      constructor() {
+        super();
+        this.value = "initial";
+      }
+      scheduleUpdate() {
+        return queueWidgetUpdate(
+          this.id,
+          () => super.scheduleUpdate(),
+          () => this.updateComplete,
+        );
+      }
+      render() {
+        return html`<p>${this.value}</p>`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        if (this.value === "intermediate") this.value = "final";
+        if (this.value === "final") this.drawing(held.promise);
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  await settled(element);
+  const seen = [];
+  const consumer = applicationPresenter({
+    region: "native-completion-consumer",
+    reading: () => true,
+    after: PRESENTATION_DOM.widgets,
+    paint: () => seen.push(element.textContent),
+  });
+  element.value = "intermediate";
+  const ready = consumer.present();
+  await ready;
+  assert.deepEqual(seen, ["final"]);
+  assert.ok(pending(element), "DOM completion does not certify held semantic drawing");
+  held.resolve();
+  await settled(element);
+  assert.ok(!pending(element));
+  consumer.disconnect();
+  element.remove();
+});

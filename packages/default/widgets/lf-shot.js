@@ -4,13 +4,12 @@
  * its box. Fit keeps both frames in the allocated box. Actual size pans their
  * images together inside those same windows, keeping both labels and views visible.
  * Both frames always share one source scale. The retained header belongs to the
- * allocated viewport, outside the image canvas. Labels and controls never move
- * when views or scale change; only allocation width chooses its one- or two-row
- * layout. Source labels are passive, and images never change comparison modes.
+ * allocated viewport, outside the image canvas. Controls stay in place when views
+ * or scale change. Source labels are passive, and images never change modes.
  * In Slider, a plain image click alternates the divider's Before/After endpoints;
  * dragging and the divider's keyboard controls retain continuous adjustment.
- * A stacked pair also labels each frame, since the header's left/right bookends
- * cannot identify vertically arranged images.
+ * A stacked pair labels each frame instead of the header, since left/right
+ * bookends cannot identify vertically arranged images. Other views label the header.
  *
  * A bounded pair chooses the orientation that gives the images the larger scale;
  * in ordinary flow, wide frames stack instead of shrinking below half scale.
@@ -36,7 +35,6 @@ import {
   compareImagePixels,
   compareImages,
   describeDifference,
-  differenceKind,
   once,
   offer,
   failSoft,
@@ -52,6 +50,7 @@ import {
   layoutChanged,
   commands,
   keeps,
+  keepsText,
   paintKeys,
   plainPress,
   relabel,
@@ -86,7 +85,6 @@ customElements.define(
     #stage;
     #canvas;
     #toolbar;
-    #delta;
     #legend;
     #scaleReading;
     #scaleTrigger;
@@ -162,7 +160,6 @@ customElements.define(
       this.#captions = drawing.captions;
       this.#frameCaptions = drawing.frameCaptions;
       this.#openers = drawing.openers;
-      this.#delta = drawing.delta;
       this.#legend = drawing.legend;
       for (const [view, button] of this.#viewButtons)
         button.addEventListener("click", () => this.#chooseView(view));
@@ -344,8 +341,8 @@ customElements.define(
       const alt = this.getAttribute("alt");
       const labels = this.#metadata.labels ?? { before: "Before", after: "After" };
       for (const [index, state] of ["before", "after"].entries()) {
-        relabel(this.#captions.get(state), labels[state], { says: true });
-        relabel(this.#frameCaptions.get(state), labels[state], { says: false });
+        keepsText(this.#captions.get(state), labels[state]);
+        keepsText(this.#frameCaptions.get(state), labels[state]);
         keeps(this.#captions.get(state), "aria-label", `${labels[state]} — ${alt}`);
         keeps(this.#captions.get(state), "title", labels[state]);
         keeps(this.#frameCaptions.get(state), "title", labels[state]);
@@ -369,6 +366,7 @@ customElements.define(
       // before measuring; fitting the previous mode would resize this observed
       // stage again during ResizeObserver delivery.
       keeps(this, "data-lf-shot-mode", this.#shownView);
+      this.#legend.toggleAttribute("hidden", this.#shownView !== "pixels");
       const available = this.#stage.clientWidth;
       if (!available) return; // Hidden cases retain their last inspection until shown.
       const ratio = this.#metadata.pixelRatio ?? 1;
@@ -541,7 +539,6 @@ customElements.define(
         "disabled",
         this.#view === "pixels" || !this.#reading?.regions.length,
       );
-      this.#legend.toggleAttribute("hidden", this.#view !== "pixels");
       this.#syncComparison();
       this.#paintHandle();
       paintKeys();
@@ -583,8 +580,6 @@ customElements.define(
         else if (!previous.isEqualNode(marks)) previous.replaceWith(marks);
       }
       const description = describeDifference(reading);
-      keeps(this.#delta, "data-lf-shot-delta", differenceKind(reading));
-      relabel(this.#delta, description, { says: false });
       keeps(this.#outlinesButton, "aria-description", description);
       this.#paint();
       return reading;

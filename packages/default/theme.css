@@ -124,6 +124,9 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "actions actions" "before after";
   }
+  :scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-toolbar {
+    grid-template-areas: "actions actions";
+  }
   .lf-shot-actions {
     justify-content: space-between;
   }
@@ -187,6 +190,9 @@
 :scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-frame-label {
   display: flex;
 }
+:scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shot-toolbar > .lf-shotcap {
+  display: none;
+}
 .lf-shotcap {
   box-sizing: border-box;
   display: block;
@@ -236,6 +242,8 @@
   margin: 0;
 }
 :scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=side] .lf-shotcanvas {
+  inline-size: 100%;
+  justify-content: space-between;
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
 :scope:is(lf-shot)[data-lf-shot-mode=compare][data-lf-shot-layout=stack] .lf-shotcanvas {
@@ -338,7 +346,7 @@
 .lf-shotpixels [data-lf-shot-side=after] {
   background: var(--accent);
 }
-.lf-shot-footer {
+.lf-shotlegend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -347,14 +355,6 @@
   flex: none;
   color: var(--muted);
   font: var(--t-working-label)/1.4 var(--sans);
-}
-.lf-shotdelta {
-  min-block-size: 1lh;
-}
-.lf-shotlegend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
 }
 .lf-shotlegend[hidden] {
   display: none;
@@ -389,7 +389,7 @@
     overflow: visible;
   }
   .lf-shot-toolbar,
-  .lf-shot-footer,
+  .lf-shotlegend,
   .lf-shotpixels,
   .lf-shotdiff {
     display: none !important;
@@ -547,7 +547,6 @@
 
 /* packages/default/styles/apparatus.css */
 .lf-shotcap,
-.lf-shotdelta,
 :scope:is(lf-sample)::before,
 :scope:is(lf-sample) > [data-lf-said=label],
 :scope:is(lf-column)::before,
@@ -599,7 +598,8 @@
   :scope:is(lf-options):has(> lf-option > strong) > lf-option {
     border: 1px solid var(--rule);
     border-radius: var(--r);
-    background: var(--card);
+    --lf-ground: var(--card);
+    background: var(--lf-ground);
   }
   :scope:is(lf-options):has(> lf-option > strong) > .lf-another {
     border: 1px solid transparent;
@@ -861,7 +861,8 @@
 @media screen {
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid;
-    background: var(--card);
+    --lf-ground: var(--card);
+    background: var(--lf-ground);
     border: 1px solid var(--border-2);
     border-radius: var(--r);
     overflow: clip;
@@ -897,9 +898,6 @@
     }
     --lf-block-frame: 1;
     --lf-joined: 1;
-    & > * {
-      margin-block: 0;
-    }
     & > :not(lf-option) {
       grid-column: 1 / -1;
     }
@@ -908,12 +906,14 @@
     }
     --lf-cell-rule: 0 0 0 1px var(--rule);
     & > * {
+      margin-block: 0;
       box-shadow: var(--lf-cell-rule);
       --fill: var(--card);
-      background-color: var(--fill);
+      --lf-ground: var(--fill);
+      background-color: var(--lf-ground);
     }
     & > lf-option:is(:hover, :has(> .lf-pick[data-lf-focus])) {
-      background: color-mix(in srgb, var(--fill) 92%, var(--ink));
+      --lf-ground: color-mix(in srgb, var(--fill) 92%, var(--ink));
     }
     & > lf-option[chosen] {
       --fill: var(--ok-tint);
@@ -957,6 +957,8 @@
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     z-index: 1;
+  }
+  :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick:focus) {
     --lf-wears-ring: 1;
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus-visible]) {
@@ -1063,16 +1065,18 @@
     border-radius: var(--r);
   }
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option[chosen] {
-    background: var(--ok-tint);
+    --lf-ground: var(--ok-tint);
+    background: var(--lf-ground);
   }
 }
 @media screen {
   @container style(--lf-joined: 0) {
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
-      background: var(--chip);
+      --lf-ground: var(--chip);
+      background: var(--lf-ground);
     }
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option[chosen]:hover {
-      background: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
+      --lf-ground: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
     }
   }
 }
@@ -1197,7 +1201,8 @@
 }
 :scope:is(lf-column) {
   display: block;
-  background: var(--field);
+  --lf-ground: var(--field);
+  background: var(--lf-ground);
   box-sizing: border-box;
   border-radius: var(--r);
   padding: var(--lf-reading-column-inset);
@@ -1291,7 +1296,8 @@
   --lf-grip-inset-block: 2px;
   display: block;
   position: relative;
-  background: var(--card);
+  --lf-ground: var(--card);
+  background: var(--lf-ground);
   font: var(--t-5)/1.5 var(--sans);
   border: 1px solid var(--rule);
   border-radius: var(--r);
@@ -1495,7 +1501,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     margin: var(--sp-4) 0 32px;
     border: 1px solid var(--border-2);
     border-radius: var(--r);
-    background: var(--card);
+    --lf-ground: var(--card);
+    background: var(--lf-ground);
     --lf-block-frame: 1;
   }
   .lf-tabstrip {
@@ -1753,6 +1760,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     border: 0;
     border-radius: 0;
     background: transparent;
+    --lf-ground: inherit;
     --lf-block-frame: 0;
   }
   :scope:is(lf-tabs):not([list=side]) {
@@ -1968,6 +1976,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
         position: sticky;
+        --lf-head-inset: 0px;
         top: var(--lf-top);
         inline-size: auto;
         z-index: 2;
@@ -2621,6 +2630,9 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 :scope:is(lf-sample) {
   --lf-sample-word: "quoted";
 }
+:scope:is(lf-sample)[interactive] {
+  --lf-sample-word: "interactive sample";
+}
 :scope:is(lf-sample)[data-lf-sample-live] {
   --lf-sample-word: "live sample";
 }
@@ -3202,6 +3214,30 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
     outline-color: Highlight;
   }
+}
+
+/* packages/default/styles/approval.css */
+:scope:is(lf-approval) {
+  display: block;
+  padding: var(--sp-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+}
+:scope:is(lf-approval) > :is(h2, h3, h4, p) {
+  margin-block: 0 var(--sp-3);
+}
+:scope:is(lf-approval) .lf-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  font-family: var(--sans);
+}
+:scope:is(lf-approval) .lf-approval-status {
+  color: var(--muted);
+}
+:scope:is(lf-approval) .lf-approval-actions button {
+  min-block-size: var(--aim-floor);
 }
 
 /* packages/default/styles/theme.css */

@@ -172,7 +172,7 @@ customElements.define(
       figure.className = "lf-text-document-view";
       this.caption = document.createElement("figcaption");
       this.listing = document.createElement("div");
-      this.listing.className = "lf-text-document-listing";
+      this.listing.className = "lf-text-document-listing scroll";
       figure.append(this.caption);
       if (!preview) {
         figure.append(this.listing);

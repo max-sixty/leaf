@@ -61,6 +61,9 @@ from leaf_dev.arms import (
     serving,
 )
 from leaf_dev.browser import DESKTOP, headless_shell
+from leaf_dev.example_data import named_source
+from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
+from leaf_dev.main_thread import main_thread
 
 OUT = ROOT / ".tmp" / "bench-latency"
 RUNS = 5
@@ -130,30 +133,6 @@ def first_write(path: Path, command: list[str], env: dict) -> float:
             f"{'unchanged' if written == before else 'changed'} {path.name}:\n{output}"
         )
     return written / 1e6
-
-
-def main_thread(frames: list[dict], start: float, end: float) -> dict:
-    """What the long animation frames spent between `start` and `end`: each owner's
-    script time and the style and layout it forced, and the frames' own rendering,
-    each counted for the part of it inside the window. A script's forced work has no
-    place of its own, so it is counted in the same share as the script. Frames under
-    50 ms are not reported, so this is a floor on the main thread's work, not its
-    total."""
-
-    def inside(begin: float, ms: float) -> float:
-        return max(0.0, min(end, begin + ms) - max(start, begin))
-
-    owners: dict[str, list[float]] = {}
-    render = 0.0
-    for frame in frames:
-        render += inside(frame["end"] - frame["render"], frame["render"])
-        for script in frame["scripts"]:
-            if not (ms := inside(script["start"], script["ms"])):
-                continue
-            spent = owners.setdefault(script["owner"], [0.0, 0.0])
-            spent[0] += ms
-            spent[1] += script["forced"] * ms / script["ms"]
-    return {"owners": owners, "render": render}
 
 
 @dataclass
@@ -396,7 +375,7 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
     """Build `source` into a page with `arm_dir`'s launcher, serve it, and open a tab."""
     state = scratch / f"{arm}-{source}-state"
     page_dir = scratch / f"{arm}-{source}" / "page"
-    build_source(arm_dir, state, ROOT / "examples" / f"{source}.html", page_dir)
+    build_source(arm_dir, state, named_source(source), page_dir)
     leaf = partial(run_leaf, arm_dir, state, check=True)
     thread = json.loads(
         leaf(
@@ -413,6 +392,7 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
             viewport={"width": DESKTOP[0], "height": DESKTOP[1]}
         )
         try:
+            context.add_init_script(path=MAIN_THREAD_SCRIPT)
             context.add_init_script(path=PROBE)
             page = context.new_page()
             page.goto(address)  # The token sets the page cookie; later loads drop it.

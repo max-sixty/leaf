@@ -1,8 +1,23 @@
 """Portable regressions for captured module URL and resource identities."""
 
 import json
+from dataclasses import replace
+from types import MappingProxyType
 
 import pytest
+
+from leaf.runtime_selection import ServingRuntime
+
+
+def running(artifact, runtime: dict[str, str]):
+    """`artifact` as it runs under a runtime of these files (`runtime_selection`)."""
+    served = ServingRuntime(
+        MappingProxyType({path: data.encode() for path, data in runtime.items()}),
+        None,
+        frozenset(),
+        MappingProxyType({}),
+    )
+    return replace(artifact, resources=served.resources(artifact.resources))
 
 
 @pytest.mark.parametrize(
@@ -189,12 +204,7 @@ def test_native_package_import_urls_survive_delivery_and_export(
         assert address(f"/{directory}/{specifier}") in rebased.decode()
     else:
         assert delivered.data == module.encode()
-    files = {
-        "/leaf.js": "export {};",
-        widget: module,
-        helper: f'export {{ once }} from "{public}";',
-        public: "export const once = () => true;",
-    }
+    files = {widget: module, helper: f'export {{ once }} from "{public}";'}
     for logical, source in files.items():
         path = tmp_path / logical.lstrip("/")
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -207,6 +217,10 @@ def test_native_package_import_urls_survive_delivery_and_export(
         widget_sources={"lf-risk-note": widget.lstrip("/")},
     )
     assert artifact.resources[helper].mime == "application/javascript"
+    artifact = running(
+        artifact,
+        {"/leaf.js": "export {};", public: "export const once = () => true;"},
+    )
     embedded = _module_urls(artifact, [document])
     assert set(embedded) == {"/leaf.js", alias, widget, helper, public}
     assert embedded[alias] == embedded[widget]
@@ -259,16 +273,6 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     from leaf.structure import SourceDocument
 
     files = {
-        "leaf.js": "export {};",
-        "runtime/widget-api.js": "export {};",
-        "runtime/offline-delivery.js": "",
-        "runtime/prepaint.js": "",
-        "vendor/lit-initial.js": "",
-        "runtime/annotation-overlay/annotation-theme.css": "",
-        "runtime/annotation-overlay/annotation-chrome.css": "",
-        "runtime/annotation-overlay/annotation-marks.css": "",
-        "runtime/chrome.css": "",
-        "runtime/marks.css": "",
         "theme.css": "",
         "shadow.css": "",
         "widget-theme.css": "",
@@ -282,7 +286,24 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     document = SourceDocument(
         f'<html><head><script type="module" src="./page/{quote(name, safe="")}"></script></head><body><main><h1>Authored entry</h1></main></body></html>'
     )
-    artifact = capture_artifact(tmp_path, document, {})
+    artifact = running(
+        capture_artifact(tmp_path, document, {"$layer": {"generation": "exported"}}),
+        {
+            path: "export {};" if path.endswith(".js") else ""
+            for path in [
+                "/leaf.js",
+                "/runtime/widget-api.js",
+                "/runtime/offline-delivery.js",
+                "/runtime/prepaint.js",
+                "/vendor/lit-initial.js",
+                "/runtime/annotation-overlay/annotation-theme.css",
+                "/runtime/annotation-overlay/annotation-chrome.css",
+                "/runtime/annotation-overlay/annotation-marks.css",
+                "/runtime/chrome.css",
+                "/runtime/marks.css",
+            ]
+        },
+    )
     modules = _module_urls(artifact, [document])
     logical = "/page/" + name
     assert logical in modules
@@ -321,17 +342,21 @@ def test_export_selects_one_lit_implementation_from_the_initial_document(
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
 
-    files = {
-        "leaf.js": 'import { render } from "/vendor/lit.js";',
-        "vendor/lit.js": 'export const render = "module implementation";',
-        "vendor/lit-shared.js": 'export const render = "shared facade";',
-        "vendor/lit-initial.js": "window.classicLit = true;",
-        "vendor/producer.js": "window.producer = true;",
-        "vendor/initial-dependencies.json": json.dumps(
+    # The serving Leaf supplies the runtime and its Lit; the page vendors the widget
+    # and the package's producer.
+    runtime = {
+        "/leaf.js": 'import { render } from "/vendor/lit.js";',
+        "/vendor/lit.js": 'export const render = "module implementation";',
+        "/vendor/lit-shared.js": 'export const render = "shared facade";',
+        "/vendor/lit-initial.js": "window.classicLit = true;",
+        "/vendor/initial-dependencies.json": json.dumps(
             {
                 "/vendor/producer.js": ["/vendor/lit-initial.js"],
             }
         ),
+    }
+    files = {
+        "vendor/producer.js": "window.producer = true;",
         "widgets/lf-early.js": 'import { render } from "/vendor/lit.js";',
     }
     for filename, source in files.items():
@@ -341,12 +366,15 @@ def test_export_selects_one_lit_implementation_from_the_initial_document(
     document = SourceDocument(
         "<main><lf-early></lf-early></main>" if early_lit else "<main>Plain</main>"
     )
-    artifact = capture_artifact(
-        tmp_path,
-        document,
-        {
-            "lf-early": {"x-initial": "/vendor/producer.js", "x-upgrade": True},
-        },
+    artifact = running(
+        capture_artifact(
+            tmp_path,
+            document,
+            {
+                "lf-early": {"x-initial": "/vendor/producer.js", "x-upgrade": True},
+            },
+        ),
+        runtime,
     )
     modules = _module_urls(
         artifact, [document, SourceDocument("<lf-early></lf-early>")]
@@ -356,7 +384,7 @@ def test_export_selects_one_lit_implementation_from_the_initial_document(
     ).decode()
     assert (
         implementation
-        == files["vendor/lit-shared.js" if early_lit else "vendor/lit.js"]
+        == runtime["/vendor/lit-shared.js" if early_lit else "/vendor/lit.js"]
     )
     assert "/vendor/lit-shared.js" not in modules
     assert "/vendor/lit-initial.js" not in modules

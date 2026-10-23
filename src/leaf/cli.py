@@ -125,15 +125,10 @@ def _leaf_version(ctx: click.Context, _param: click.Parameter, value: bool) -> N
 
 
 def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
-    """Print which copy of leaf this is, and stop.
+    """Print the payload directory and stop.
 
-    A harness session runs the payload its plugin cache holds, not the checkout,
-    and the two are only ever the same by accident: the cache is a snapshot from
-    whenever the marketplace last swept, and `bin/leaf` is identical across
-    versions, so a stale copy answers exactly like a current one. The payload
-    directory is what tells them apart, so that is what this prints — the
-    version string says nothing, because a plugin is keyed on its commit rather
-    than on a number anyone bumps.
+    `--version` identifies the source; this distinguishes a harness's installed
+    plugin from a checkout of that same source.
     """
     if not value or ctx.resilient_parsing:
         return
@@ -871,6 +866,63 @@ def json_body(text: str | None, body_file: TextIO | None):
         ) from error
 
 
+@cli.group(short_help="Grant pages authenticated HTTPS reads.")
+def connection() -> None:
+    """Host credentials and origin grants for page-authored integrations."""
+
+
+@connection.command(
+    "bind", short_help="Grant authenticated GET access to an HTTPS origin."
+)
+@click.argument("dir", metavar="PAGE")
+@click.argument("name")
+@click.argument("origin")
+@click.option(
+    "--credential-env",
+    required=True,
+    help="Binding environment variable containing the credential.",
+)
+@click.option("--header", default="Authorization", show_default=True)
+@click.option("--prefix", default="Bearer ", show_default=True)
+@click.option(
+    "--max-requests", default=200, type=click.IntRange(min=1), show_default=True
+)
+def connection_bind(
+    dir: str,
+    name: str,
+    origin: str,
+    credential_env: str,
+    header: str,
+    prefix: str,
+    max_requests: int,
+) -> dict:
+    """Bind NAME to ORIGIN. Rebinding renews its request allowance.
+
+    The credential is read from the binding process's environment and stored
+    privately on this host, outside page files and exports.
+    """
+    from leaf.http_connections import bind
+
+    return bind(
+        resolve_dir(dir),
+        name,
+        origin,
+        credential_env=credential_env,
+        header=header,
+        prefix=prefix,
+        max_requests=max_requests,
+    )
+
+
+@connection.command("unbind", short_help="Withdraw one page connection.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("name")
+def connection_unbind(dir: str, name: str) -> dict:
+    from leaf.http_connections import unbind
+
+    return unbind(resolve_dir(dir), name)
+
+
 @cli.group(short_help="Set or clear page-bound external data.")
 def data() -> None:
     """Manage each bound source's current value, one JSON file per source."""
@@ -1087,6 +1139,14 @@ def wait(dir: str | None, ack: str | None) -> int:
     return cmd_wait(resolve_dir(dir, renew=False) if dir else None, ack=ack)
 
 
+def _obligation_option(command):
+    return click.option(
+        "--obligation",
+        is_flag=True,
+        help="put this message on On me until the user replies or settles it",
+    )(command)
+
+
 def _title_option(command):
     return click.option(
         "--title",
@@ -1107,6 +1167,7 @@ def _title_option(command):
 @body_options("the comment's text")
 @click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
+@_obligation_option
 def thread_open(
     dir: str,
     quote: str,
@@ -1116,13 +1177,14 @@ def thread_open(
     body_file,
     markup: str,
     title: str | None,
+    obligation: bool,
 ) -> dict:
     """Open a thread as the agent: anchored where --quote or
     --section points at a passage, general where neither does — a question about
     the work as a whole.
 
-    The user answers it in the browser; a question in an `<lf-ask>` in --markup
-    waits on them until they do. Refuses a quote the active revision does not
+    Use --obligation when the next move is the user's: the message waits on
+    On me until their reply or settling reaction. Refuses a quote the active revision does not
     hold, or holds more than once. The comment's id is the thread's.
     """
     from leaf.thread import cmd_comment
@@ -1135,6 +1197,7 @@ def thread_open(
         read_body(text, body_file),
         markup,
         title=title,
+        obligation=obligation,
     )
 
 
@@ -1163,6 +1226,7 @@ def _reply_options(command):
             "--ephemeral", is_flag=True, help="one-line progress, without answering"
         ),
         _title_option,
+        _obligation_option,
     ):
         command = option(command)
     return command
@@ -1197,8 +1261,8 @@ def response_reply(
 
     Mark every answer with --done (it delivers what the message asked for) or
     --todo TITLE (it promises work it doesn't deliver, which stays on you as a
-    to-do), or ask the user something back with an `<lf-ask>` in its --markup,
-    which waits on them until their next message in the thread. A progress line
+    to-do), or --obligation when the next move is the user's. A widget in
+    --markup can also register its own obligation. A progress line
     (--ephemeral) or a failure (--failure) takes none of them.
 
     The reply can also set frozen HTML, the thread's title and a new anchor. It
@@ -1218,6 +1282,7 @@ def response_reply(
         for flag, given in (
             ("--done", done),
             ("--todo", options["todo"] is not None),
+            ("--obligation", options["obligation"]),
         )
         if given
     ]
@@ -1232,8 +1297,8 @@ def response_reply(
     if not declared and answers and not options["markup"]:
         raise click.UsageError(
             "say what the answer leaves: --done when it delivers what was asked, "
-            "--todo TITLE when it promises work it doesn't deliver, or a question "
-            "for the user as an <lf-ask> in --markup"
+            "--todo TITLE when it promises work it doesn't deliver, or --obligation "
+            "when it needs the user's next move (a widget in --markup may also ask)"
         )
     options["asks_back"] = not declared and answers
     if attempt is not None:
@@ -1294,9 +1359,7 @@ def thread_resolve(dir: str, thread: str) -> dict:
     """Close THREAD, by any message in it, as the agent.
 
     The user ordinarily closes a thread; the Leaf skill's
-    references/threads.md says when the agent does. Refuses a thread
-    that asked for a version until a stamped version answers it. The panel names
-    who resolved it.
+    references/threads.md says when the agent does. The panel names who resolved it.
     """
     from leaf.thread import cmd_resolve
 
@@ -1336,12 +1399,12 @@ def task() -> None:
 def task_open(dir: str, subject: str, title: str, owner: str) -> dict:
     """Open a to-do titled TITLE on SUBJECT and print it; its `id` names it later.
 
-    SUBJECT is an element's id, such as a section's, or `page` for the whole page.
+    SUBJECT is a thread id, an element's id, or `page` for the whole page.
     Your own to-do on a widget needs a widget that declares x-work or holds an
     unsettled update. With `--on user` the to-do is the user's: their Done ends it,
-    and you can end it too. In a thread, open a to-do with `leaf response reply
-    --todo`, and ask the user something with an `<lf-ask>` in the reply's
-    `--markup`."""
+    and you can end it too. A thread attachment provides discussion context;
+    replying does not complete the task. For a conversational request instead,
+    send the message with --obligation."""
     from leaf.todos import cmd_open
 
     return cmd_open(resolve_dir(dir), subject, title, owner)

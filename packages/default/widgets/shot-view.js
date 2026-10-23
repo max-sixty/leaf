@@ -99,6 +99,14 @@ export function applyShotGeometry(host, geometry, keeps) {
   keeps(host, "data-lf-shot-layout", geometry.layout);
   keeps(host, "data-lf-shot-crop", geometry.crop);
   keeps(host, "data-lf-shot-focus", geometry.focus);
+  // Only the visible copy is page text, so a source name remains a unique
+  // comment target as the pair stacks or the reader changes views.
+  const stacked = host.dataset.lfShotMode === "compare" && geometry.layout === "stack";
+  for (const caption of host.querySelectorAll(".lf-shotcap"))
+    caption.toggleAttribute(
+      "data-lf-said",
+      caption.parentElement.classList.contains("lf-shot-frame-label") === stacked,
+    );
 }
 
 export function drawShot(host, { offer, keeps }) {
@@ -209,9 +217,7 @@ export function drawShot(host, { offer, keeps }) {
     viewports.push(viewport);
     canvas.append(frame);
   }
-  const footer = offer("div", "lf-shot-footer lf-ui");
-  const delta = offer("span", "lf-shotdelta");
-  const legend = offer("div", "lf-shotlegend");
+  const legend = offer("div", "lf-shotlegend lf-ui");
   for (const [side, text] of [
     ["before", "Before only"],
     ["after", "After only"],
@@ -222,10 +228,9 @@ export function drawShot(host, { offer, keeps }) {
     legend.append(item);
   }
   legend.hidden = true;
-  footer.append(delta, legend);
   keeps(host, "data-lf-shot-mode", "compare");
   keeps(host, "data-lf-shot-outlines", false);
-  host.append(toolbar, stage, footer);
+  host.append(toolbar, stage, legend);
   const geometry = fitShotGeometry({
     available: stage.clientWidth,
     availableHeight:
@@ -259,8 +264,6 @@ export function drawShot(host, { offer, keeps }) {
     captions,
     frameCaptions,
     openers,
-    footer,
-    delta,
     legend,
   };
 }

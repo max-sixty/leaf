@@ -317,9 +317,6 @@ def test_admission_decides_from_the_markup_and_the_current_log_alone():
         "unknown-parent", values={"kind": "reply", "parent": "c9"}
     )
     assert admit({**answer, "parent": "c1"})["parent"] == "c1"
-    for version in ([1], {"version": 1}, True):
-        invalid = refusal({"kind": "done", "author": "user", "version": version})
-        assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/version")
 
 
 def test_a_created_child_is_its_actions_unit_and_its_words_stay_payload():

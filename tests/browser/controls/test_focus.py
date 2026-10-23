@@ -249,11 +249,36 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     )
 
 
+def test_scroll_surfaces_added_after_upgrade_gain_keyboard_reach(browser, serve):
+    page = open_page(browser, serve(leaf_page("Late scroll", "<h1>Late scroll</h1>")))
+    page.evaluate(
+        """() => {
+          const authored = document.createElement('div');
+          authored.id = 'late-authored';
+          authored.className = 'scroll';
+          authored.style.cssText = 'width:220px;overflow-x:auto;white-space:nowrap';
+          authored.textContent = 'a'.repeat(500);
+          const native = document.createElement('pre');
+          native.id = 'late-native';
+          native.style.width = '220px';
+          native.textContent = 'b'.repeat(500);
+          document.querySelector('main').append(authored, native);
+        }"""
+    )
+    for selector in ("#late-authored", "#late-native"):
+        surface = page.locator(selector)
+        expect(surface).to_have_attribute("data-lf-more-after", "")
+        measured = surface.evaluate(
+            "el => ({scrolls: el.scrollWidth > el.clientWidth, tab: el.tabIndex})"
+        )
+        assert measured == {"scrolls": True, "tab": 0}, (selector, measured)
+
+
 def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
     markup = leaf_page(
         "Hidden control in scroll box",
         '<h1>Review</h1><a id="before" href="#scroll">Read code</a>'
-        '<div id="scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
+        '<div id="scroll" class="scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
         '<button style="visibility:hidden">Unavailable</button>'
         "<span>alpha_function_name = compute_the_overly_long_value(first_argument, second_argument)</span>"
         "</div>",
@@ -458,6 +483,7 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
           const ids = ["out", "in"].map((order) => {
           const box = document.createElement("div");
           box.id = `box-${order}`;
+          box.classList.add("scroll");
           box.style.cssText = "width:200px;overflow-x:auto;white-space:nowrap";
           const host = document.createElement("span");
           if (order === "out") host.setAttribute("tabindex", "-1");

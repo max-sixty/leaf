@@ -4,6 +4,8 @@
 
 import { html, render } from "/vendor/browser-runtime.js";
 
+import { PLAY, PAUSE } from "./motion-icon-paths.js";
+
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
 // weight and baseline stable across systems.
@@ -31,8 +33,8 @@ const ICONS = {
   microphone:
     '<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4"/><path class="lf-mic-slash" d="M2.5 2.5l11 11"/>',
   next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
-  pause: '<path d="M5 3v10M11 3v10"/>',
-  play: '<path d="m5 3 7 5-7 5z"/>',
+  pause: PAUSE,
+  play: PLAY,
   previous: '<path d="m10 3.5-4.5 4.5 4.5 4.5"/>',
   all: '<path d="M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4"/>',
   pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',

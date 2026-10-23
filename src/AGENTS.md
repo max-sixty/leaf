@@ -42,12 +42,12 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `work_reading`: the durable work state shared by admission, serving and delivery;
 - `workflows`, `activity`: unfinished updates with their evidence, and the page-level
   summary over workflows, to-dos, status, claim, turn and watcher;
-- `obligations`: every widget's and sign-off's obligation on On me, with typed answers, completion
-  and attention;
+- `obligations`: the canonical inventory of widget, message and user-task
+  obligations, with typed answers, completion and attention;
 - `work`: what an id names, which widgets hold a to-do, and which widget to-dos a
   version would leave without a target;
 - `todos` (experimental): committed work on either side until it ends, the `start`
-  that takes an update or to-do in hand, and `leaf task`. Obligations never become to-dos;
+  that takes an update or to-do in hand, and `leaf task`. User to-dos publish obligations;
 - `plans` (experimental): the agent's outline of the work, whose steps are plain or
   name a to-do or obligation without owning it, and `leaf task plan`;
 - `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope
@@ -57,6 +57,8 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `codex_state`, `codex`, `codex_adapter`: Codex delivery eligibility and records, App
   Server reply lifecycles, and the detached adapter behind `leaf codex start`;
 - `session_runtime`: the immutable installation selected to own a developer session's delivery;
+- `inference`: tool-free structured model requests through the host login;
+- `llm`: widget inference request validation, concurrency and claim-based dispatch;
 - `thread_titles`: the title Leaf asks a model for, through the page's harness, when a
   user opens a thread;
 - `state`: session lifetime and turn publication, cold SessionEnd and the retirement
@@ -78,8 +80,11 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `user_views`: disposable per-document browser observations;
 - `samples`, `sample_content`: live samples' child pages and their starting histories;
 - `http`: HTTP transport;
+- `http_connections`: host grants and credential storage for page-authored HTTPS reads;
 - `layer`, `packages`, `vendoring`: package discovery and composition, package
   checks, and page init and layer changes;
+- `runtime_selection`: the browser runtime a page's documents run, which the serving
+  Leaf supplies rather than the page's vendored layer;
 - `schema`: the layer's JSON schemas and the page-directory vocabulary;
 - `structure`, `styles`: authored-page checks and the full source reading;
 - `resource_urls`: browser resource URL identity shared by source readings, capture and delivery;

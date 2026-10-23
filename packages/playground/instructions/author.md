@@ -1,12 +1,10 @@
-Give each design decision one place where the user selects. When the candidates are
-fixed and visible, put them in `lf-options` inside an `lf-ask`, and draw each candidate
-in its `lf-option`, so the user selects the example they want. When the decision changes
-an existing interface, put a figure of today's interface between the question and the
-options (`references/authoring-decisions.md`). A page-local control that steps every
-candidate through the same states or cases goes in that lf-ask too.
+Use `lf-playground` when the user compares candidates, tunes a configuration, or does
+both. A playground can have just one choice: the candidate to build. Put each candidate
+inside an `lf-playground-choice` in the preview, so the user selects the actual example
+rather than a second selector elsewhere. `lf-options` remains useful for a fixed choice
+that needs no playground controls or composed preview.
 
-Use `lf-playground` when the user needs to tune a configuration before choosing it. A
-playground holds exactly one `lf-playground-preview` and one `lf-playground-output`.
+A playground holds exactly one `lf-playground-preview` and one `lf-playground-output`.
 Frame the question with `lf-ask` when its context lives outside the playground. Keep
 behavior that one page uses in that page's module, which can define custom elements, add
 state to the playground and derive its output. Behavior several pages reuse belongs in a
@@ -21,31 +19,22 @@ settings every item shares in the rail. A control in the preview still belongs t
 playground. Its value is submitted, and presets and Reset set it. With every control
 in the preview, presets precede the full-width preview and the instruction follows it.
 
-Give the `lf-playground` `data-width="available"` wherever it stands, so it takes the
-room it is given while the question and premise in its `lf-ask` keep the prose width.
-Where the playground is the page's subject, make the page a workspace (`<main
-class="layout-workspace density-working">`) whose body is that `lf-ask`. When the page
-also carries reading that supports the playground, make it a page of parts instead: the
-first part is that workspace, `<div class="layout-workspace density-working">` holding
-the `lf-ask`, and the reading goes in later parts, each a column
-(`references/page-layout.md`, "A page of parts"). Either way the playground fills the
-window. Where the playground is one exhibit in a document, it breaks out of the
-document's column. Draw the candidates directly in the preview, without a card around
-each.
+Choose the playground's space by what the user needs to see and operate together
+(`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
+break out of a reading column; a workspace gives it the window. A long comparison can
+flow down the page. Shared controls stay in their rail on wide layouts and above the
+preview on narrow layouts, where their own contents scroll if needed to leave room for
+the candidates. Controls authored beside an individual candidate stay beside it.
 
-In a workspace, every line between the question and the playground pushes the
-instruction and its Send button further below the window. Keep that premise to one or
-two sentences: what the user is setting and the goal it serves. Where the preview
-already shows a fact, such as each alert's replay or where values start, leave it
-there. Put a qualification the user may want, such as where a figure comes from, in an
-`lf-gloss` on the phrase it qualifies, which opens on hover, focus or a tap without
-moving the page.
+Keep the premise focused on what the user is setting and why, so the preview, controls
+and submission remain easy to reach. Leave facts already visible in the preview there.
+Supporting qualifications can go behind a disclosure when they interrupt the task;
+`lf-gloss` opens on hover, focus or a tap without moving the page.
 
 An A/B comparison mounts both candidates in the preview with the same configuration and
 starting content. When candidates stand side by side, align their names, notes and
 drawings in rows, so each candidate's name starts level with the others' however many
-lines it wraps to. Each drawing keeps its own height. Apply each drag, scroll or edit
-once to the shared state, and draw both candidates from it.
+lines it wraps to. Each drawing keeps its own height.
 
 ## Decision fidelity
 
@@ -94,14 +83,19 @@ keeps the case, and every candidate shows the same case. When editing the data i
 the task, the data belongs in the configuration.
 
 Offer presets when combinations of several parameters make useful starting points for
-further tuning. Make the presets differ in several parameters, and design each as one
-look whose parts read together on every surface they change, rather than taking each
-control's best value separately. A preset sets every control its look depends on, since
-a control it leaves out keeps the user's last value. Before handoff, look at each preset
-in both themes on every surface it changes, and rework or drop any you would not ship.
+further tuning. Design each as one look whose parts read together on every surface they
+change, rather than taking each control's best value separately. A preset sets every
+control its look depends on, since a control it leaves out keeps the user's last value.
+Before handoff, look at each preset in both themes on every surface it changes, and
+rework or drop any you would not ship.
 Name a preset for its outcome: `Status strip`, not `Preset 2`.
 
-In this comparison, `format` names which of the two candidates to build:
+In this comparison, `format` names which candidate to build. Each choice contains its
+preview. Pressing its label or noninteractive body selects it; buttons, editors and media remain
+operable without selecting it. Do not put a second `format` control in the rail.
+Rich choices form a responsive grid. When the comparison needs a particular arrangement,
+set `--playground-choice-columns` on the authored choice control or its parent, such as
+`repeat(2, minmax(0, 1fr))`, and use a media query to stack them on narrow screens.
 
 ```html
 <lf-ask id="notification-ask">
@@ -111,13 +105,6 @@ In this comparison, `format` names which of the two candidates to build:
     submit-label="Create notification"
     data-width="available"
   >
-    <lf-playground-control name="format" label="Format" kind="choice" value="banner">
-      <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
-      <lf-playground-choice
-        value="status strip"
-        label="Status strip"
-      ></lf-playground-choice>
-    </lf-playground-control>
     <lf-playground-control
       name="radius"
       label="Corner radius"
@@ -134,24 +121,29 @@ In this comparison, `format` names which of the two candidates to build:
       kind="toggle"
       value="false"
     ></lf-playground-control>
-
-    <lf-playground-preset label="Status strip">
-      <lf-playground-setting for="format" value="status strip"></lf-playground-setting>
+    <lf-playground-preset label="Compact">
       <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
     </lf-playground-preset>
-
     <lf-playground-preview>
-      <section class="notification-candidates" aria-label="Notification candidates">
-        <article data-candidate="banner">
-          <h3>Banner</h3>
-          <p>Checkout deployed. Review the deployment run.</p>
-        </article>
-        <article data-candidate="status strip">
-          <h3>Status strip</h3>
-          <p>Checkout · deployed · 18 checks passed</p>
-        </article>
-      </section>
+      <lf-playground-control
+        name="format"
+        label="Notification"
+        kind="choice"
+        value="banner"
+      >
+        <lf-playground-choice value="banner" label="Banner">
+          <article class="notification-candidate">
+            <h3>Checkout deployed</h3>
+            <p>Review the deployment run.</p>
+          </article>
+        </lf-playground-choice>
+        <lf-playground-choice value="status strip" label="Status strip">
+          <article class="notification-candidate">
+            Checkout · deployed · 18 checks passed
+          </article>
+        </lf-playground-choice>
+      </lf-playground-control>
     </lf-playground-preview>
     <lf-playground-output>
       Build the <lf-playground-value for="format"></lf-playground-value> notification
@@ -163,23 +155,26 @@ In this comparison, `format` names which of the two candidates to build:
 </lf-ask>
 ```
 
+For animation comparisons, compose an `lf-motion` inside `lf-playground-preview` and
+put the choice control in its body. Motion supplies the optional shared
+playback, speed and timeline; its toolbar stays visible while the candidates scroll.
+The motion package's author instructions describe recorded video and authored animation
+sources. Playback is inspection state, so it never enters the submitted configuration.
+Keep duration or easing in playground controls only when the user is choosing those
+parameters for the implementation. Show the current interface as a labeled baseline
+beside the selectable alternatives when the decision changes an existing interface.
+
 Apply shared parameters with page CSS. From first paint, Leaf sets each control's value
 on the `lf-playground` as a custom property, `--playground-NAME`, and an attribute,
 `data-playground-NAME`. A text control's custom property is a quoted CSS string, and its
 attribute holds the unquoted text:
 
 ```css
-.notification-candidates > article {
+.notification-candidate {
   border-radius: var(--playground-radius);
 }
-#notification-playground[data-playground-compact="true"]
-  .notification-candidates
-  > article {
+#notification-playground[data-playground-compact="true"] .notification-candidate {
   padding: var(--sp-2);
-}
-#notification-playground[data-playground-format="status strip"]
-  [data-candidate="status strip"] {
-  outline: 2px solid var(--accent);
 }
 ```
 
@@ -216,7 +211,10 @@ one named structured slice with `playground.registerContributor(name, defaults)`
 The returned handle's `get()` reads its immutable current value; `set(next)` replaces
 that slice. Update it on input, so a later control change or submission sees the edit.
 Names are unique and distinct from control names. Retain the handle rather than a
-second configuration object; Reset and Undo replace the values it reads.
+second configuration object. Reset restores the authored defaults, and a new choice
+loads its configuration. Undo withdraws a submitted decision while keeping the current
+working values, including edits made since submission, so the user can adjust and
+resubmit them.
 
 Register slices, one optional `registerInstructionProvider(values => instruction)`,
 and required views during `PAGE_INTERFACE` (`references/module-authoring.md`, "Startup and presentation").
@@ -242,11 +240,11 @@ capture and a keyboard route; it converts the input to model coordinates once an
 both candidates and their measurements from them. Call `layoutChanged` after a gesture
 changes geometry.
 
-Before handoff, operate every custom gesture, control and preset, then Reset, reload,
-copy and submit. Check that both candidates reach the same state, the measurements
-update, and the copied instruction can be acted on without the preview. Check wide,
-narrow and short windows, and an exported file too unless the page has live samples,
-which need a server.
+Before handoff, exercise the user's comparison and submission journey through the states
+that change its result. Check that the preview and measurements reflect the chosen
+values, the copied or submitted instruction stands alone, and the controls remain
+reachable where the layout changes. Verify Reset, reload and export for state or
+behavior the page adds to them; live samples need a server.
 
 ## Task-shaped recipes
 

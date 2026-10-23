@@ -25,6 +25,64 @@ what fails and what still works.
 
 ## Supported APIs checked
 
+### Keyboard focus placed after a click
+
+- **Owner:** `runtime/focus.js`, `focusDestination`.
+- **Observed 2026-10-22:** installed Playwright Firefox 155 retains invisible
+  focus when a keyboard command moves from a pointer-focused reading destination.
+  Clicking diff source then pressing `]`, or opening its comment box with `c`
+  and returning with Escape, leaves the destination without `:focus-visible`.
+  Chromium shows it. A prior Tab arrival masks the Firefox failure.
+- **Disposition:** keyboard placements request `focusVisible: true` from the
+  platform, including the retry that lends an unfocusable passage a temporary
+  stop. Pointer placements leave visibility to the browser. The hint restores
+  Firefox's cue; Chromium already shows these keyboard arrivals.
+- **Evidence:** the diff focus regression below exercises the first keyboard
+  route before Tab in both installed engines.
+
+### Diff focus frame invalidation
+
+- **Owner:** `packages/diff/styles/shadow.css`, the code viewport's focus frame.
+- **Observed 2026-10-22:** Playwright Firefox 155 computes the outline on
+  `pre:has(> code[data-lf-focus-visible])::after` after keyboard focus but does not
+  paint it. Another animation frame or scrolling does not repair it; inserting an
+  empty stylesheet does. Reading the parent's focus-visible-within mark repairs
+  arrival, but leaves the frame painted when focus moves into a source row and
+  that parent mark stays set. Chromium handles both transitions.
+- **Disposition:** a noninteractive sibling carries the frame, selected directly
+  by the focused code before it. No ancestor `:has()` invalidation is needed.
+- **Evidence:** `controls/test_rings.py`'s
+  `test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows`
+  exercises pointer and Tab arrivals, then checks all four painted edges before
+  and after horizontal scrolling, then verifies the viewport's sides clear when
+  focus moves into a row. These are installed-engine results, not a survey of
+  stable browser releases.
+
+### Highlight style inheritance
+
+- **Owners:** `runtime/annotation-overlay/annotation-marks.css` and
+  `runtime/marks.css`. Their universal `::highlight()` rules paint native ranges
+  in the document and declared shadow stages.
+- **Observed 2026-10-22:** installed Playwright Chromium 153.0.8010.12 inherits
+  highlight paint from `:root::highlight()` and `:host::highlight()` into nested
+  syntax spans. Installed Firefox 155 accepts those selectors but paints no
+  highlight on descendants, in both light DOM and shadow trees. Putting the rule
+  on the shadow tree's direct child or declaring `inherit` explicitly does not
+  restore it. A universal selector paints the same native range correctly.
+  These are installed-engine results, not a current stable-browser survey.
+- **Evidence:** the focused browser test
+  `navigation/test_comment_marks.py::test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme`
+  checks computed paint, actual screenshot changes, and a widget-local palette in
+  light and dark schemes in both engines. Restricting the existing rules to the
+  document and host makes its Firefox case fail. A separate minimal fixture
+  confirmed zero changed pixels for the inheritance variants and visible paint
+  for the universal-rule control.
+- **Disposition:** retain universal highlight rules. Root inheritance reduced
+  forced style/layout work by 20–35% on a 2,000-row diff in Chromium, but removes
+  annotation paint in the tested Firefox. This optimization does not justify a
+  new startup capability probe or per-range styling mechanism. Revisit when the
+  focused test passes with root-scoped rules in supported engines.
+
 ### Adaptive contents disclosure
 
 - **Owners:** default package `lf-toc.js` and `styles/toc.css`. In-flow contents
@@ -741,6 +799,10 @@ container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
   sampled 48 frames, including intermediate positions, with neither missing.
   Another capture lost the whole panel and ground while retaining the marker,
   so that marker cannot reliably distinguish affected frames.
+  A current-main recheck at 390 × 844 in dark mode again omitted the mark in
+  4 of 49 screencast frames across six keyboard fold/unfold transitions, while
+  all 24 native screenshots retained the mark and fixed marker. Screenshots
+  sampled during the same capture do not establish native-window visibility.
 - **Disposition:** unresolved rendering-versus-capture gap. Do not claim Firefox
   all-frame visibility from these recordings. The motion regression requires every
   Chromium frame to show the mark and its keyboard outline to enclose it. Firefox

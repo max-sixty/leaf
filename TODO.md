@@ -72,7 +72,7 @@ has tried; settle that before building it.
   review of the desktop design. The phone waits until the desktop design is firm, and
   where a passage thread opens from Threads waits until later.
 - **Say when a held-news notice holds more than it shows.** A notice in a seat's
-  head row keeps the width of the news it first said (`data-lf-room`) and shows each
+  head row keeps the width of the news it first said (`data-room`) and shows each
   fact whole or not at all (`newsNotice`), so "1 new reply" with a message arriving
   after it still reads "1 new reply", with nothing on screen saying more waits; the
   title that names every fact doesn't reach touch. A count growing past that room
@@ -154,6 +154,14 @@ has tried; settle that before building it.
   judge cost are separate evidence.
 
 ## Next
+
+- **Add a host-owned widget LLM allowance.** The initial `/api/llm` endpoint
+  uses the host's Codex or Claude login and bounds input size, but does not bound
+  cumulative usage. Define an explicitly granted allowance shared across page
+  servers, with accounting appropriate to the login's quota or billing model.
+  Establish per-request output bounds before promising a hard ceiling, and retain
+  uncertain usage across timeouts and restarts. Keep grant controls outside page
+  JavaScript; do not treat claimed widget ids as trusted identities.
 
 ### User continuity and mobile access
 

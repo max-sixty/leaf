@@ -23,9 +23,9 @@ without serving it, run `leaf page claim <page>`.
 
 While your turn runs, Leaf's hooks offer new input between steps. Input that arrives
 as the turn ends comes either when the turn tries to end or in a turn of its own. The hook carries the complete delivery
-as one line of JSON, or a pointer when it exceeds Codex's context limit. Read inline input directly; for a pointer,
-run its `leaf delivery read <id>` and read every part. Follow the delivery's
-`acknowledge` instruction before handling the input.
+as one line of JSON, or a pointer when it exceeds Codex's context limit
+(`event-batches.md`, "Handle the input"). Follow the delivery's `acknowledge`
+instruction before handling the input.
 
 When the task is idle, or a hook's input wasn't confirmed before the turn ended, the
 adapter either queues a `leaf-delivery` pointer as the task's next user message or

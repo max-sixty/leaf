@@ -49,8 +49,8 @@ batch: an inline delivery left unrecorded would stay pending, and every later ho
 would offer it again as new. A batch can still be refused, as when the page changed
 hands after `read_plans` read it, so whatever the hook could not record goes as a
 pointer; the agent's `leaf delivery ack` then confirms it or shows the refusal. A
-delivery over Claude Code's context limit (`HOOK_CONTEXT_LIMIT`) goes as a pointer
-too.
+delivery whose context the harness wouldn't show the model whole goes as a pointer
+too (`Harness.fits_hook_context`).
 
 Pi has the context once the hook returns, so its hook records the receipt with the
 pickup. Claude Code reads it only once every hook of the event has exited, and
@@ -362,13 +362,6 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
             continue
 
 
-# Claude Code writes a hook's context over this size to a file and hands the turn
-# a 2 KB preview and the path instead: measured at 2.1.283 with ASCII, 9,990
-# characters arrived whole and 10,010 did not. Which unit it counts is unmeasured,
-# so the context is held to UTF-8 bytes, the strictest reading.
-HOOK_CONTEXT_LIMIT = 10_000
-
-
 # How long after it starts a hook may still hand a delivery over inline and wait
 # for the locks that record it. Every registration of the prompt and Stop hooks
 # allows 20 s (`hooks/hooks.json`, `hooks/pi.ts`), and the hook takes about 0.4 s.
@@ -377,11 +370,10 @@ HOOK_CONTEXT_LIMIT = 10_000
 CONFIRM_WITHIN = 10.0
 
 
-# The words that open a delivery's context, inline or by pointer.
+# The words that open a delivery's context inline.
 INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
-POINTED_OPENING = "Leaf has new input for this turn. Read it with"
 # The words that open what a turn owes, as a reminder of its own or after a delivery.
 ATTENTION_OPENING = "Leaf needs attention:"
 
@@ -395,26 +387,17 @@ def render(
     confirm: Callable[[], bool],
 ) -> dict | None:
     """The hook's output, or None where it puts nothing in the turn. It hands
-    `delivery` over inline only where the whole message fits under
-    `HOOK_CONTEXT_LIMIT` and `confirm` then records every batch as opened in the
-    turn; otherwise it hands over the pointer its reader's `leaf delivery ack`
-    confirms after complete reading."""
+    `delivery` over inline only where the harness shows the whole message to the
+    model (`Harness.fits_hook_context`) and `confirm` then records every batch as
+    opened in the turn; otherwise it hands over the delivery's pointer, which its
+    reader's `leaf delivery ack` confirms after complete reading."""
     if delivery is None:
         return harness.hook_context(event, "\n".join(attention)) if attention else None
     message = "\n".join(
         [INLINE_OPENING, json.dumps(delivery, ensure_ascii=False), *attention]
     )
-    inline = len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT and confirm()
-    if not inline:
-        message = "\n".join(
-            [
-                (
-                    f"{POINTED_OPENING} `leaf delivery read {delivery['id']}` "
-                    "and follow its receipt instruction."
-                ),
-                *attention,
-            ]
-        )
+    if not (harness.fits_hook_context(message) and confirm()):
+        message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
     return harness.hook_context(event, message)
 
 

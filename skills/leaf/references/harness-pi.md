@@ -26,10 +26,8 @@ after your current tool calls if a run is going. So once you have handed the pag
 end the run and start no `leaf wait`.
 
 The extension acknowledges each delivery it puts in your context, so `acknowledge` is
-null and you run no acknowledgement command. Input it couldn't confirm, such as a large
-delivery, arrives as a pointer instead: run the `leaf delivery read <id>` it names
-before working or replying, and after reading every part, follow its confirmation
-instruction.
+null and you run no acknowledgement command. Input it couldn't confirm arrives as a
+pointer instead (`event-batches.md`, "Handle the input").
 
 To take over a page this session didn't serve, run `leaf page claim <page>`; the
 extension starts watching it when the run ends.

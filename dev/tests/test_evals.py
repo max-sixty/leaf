@@ -11,7 +11,7 @@ from leaf_dev.commands import eval as module
 
 
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
-    # Configuration copies the external login; no native provider is invoked.
+    # Configuration shares the external login; no native provider is invoked.
     login = tmp_path / "login"
     login.mkdir()
     (login / "auth.json").write_text("{}")

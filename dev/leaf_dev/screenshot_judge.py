@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def screenshot_judge(screenshots: Path | None, login: Path) -> dict:
-    """Seed the login once; per-call setup uses only this module's frozen bytes.
+    """Prepare an isolated seed that keeps the host's login shared.
 
     The caller retires the seed with its run's temporary resources. Import the
     current harness setup here, before UI review freezes its configuration, so a
@@ -41,7 +41,7 @@ def native_config(home: Path, config: dict) -> dict:
     """
     screenshots = Path(config.pop("screenshots")).resolve()
     codex = home / ".codex"
-    shutil.copytree(config.pop("login"), codex)
+    shutil.copytree(config.pop("login"), codex, symlinks=True)
     profile = "\n".join(
         [
             'default_permissions = "screenshots"',

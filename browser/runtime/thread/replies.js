@@ -35,7 +35,7 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
-import { readCaret, focused, standingIn } from "../focus.js";
+import { readCaret, focused, currentLocationIn } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
@@ -116,7 +116,7 @@ export function holdReplyCompositions(threads, realize) {
       for (const { context, owner, intent } of displaced) {
         if (available(owner) || !intent()) continue;
         const destination = await realize(current.get(context).id, intent);
-        // Native Tab may move standing while this route paints. The session still
+        // Native Tab may move the current location while this route paints. The session still
         // owns its caret; only focus and scroll require the older placement intent.
         if (!intent.available()) continue;
         const replacement =
@@ -304,7 +304,7 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
     // sent from, read before the send draws, around wherever the send left them
-    // standing. A view whose box stays for the next turn lands the send itself (`sent`),
+    // current location. A view whose box stays for the next turn lands the send itself (`sent`),
     // told whether the log takes it.
     send: (_text, raw, owns) => {
       const { actions, landSent, sent } = composition.binding;
@@ -389,14 +389,16 @@ export const replyCompositionHasDraft = (node) => {
 // Persisted words alone never reopen an editor after settlement or reload.
 export const replyIsEditing = (key) => compositions.has(replyContext(key));
 
-// Whether the user is writing in the reply row `field` stands in: standing anywhere in
+// Whether the user is writing in the reply row `field` stands in: being anywhere in
 // the row, Send included, holding words in it, or `sending` a turn of theirs. A
 // floating card holds the edge its placement keeps still by this (thread-preview.js),
 // and the news it would move waits by it (thread-card.js, `newsMoves`).
 export const writingIn = (field, sending) =>
   Boolean(
     field?.checkVisibility() &&
-    (standingIn(field.closest(".lf-thread-reply")) || field.value !== "" || sending),
+    (currentLocationIn(field.closest(".lf-thread-reply")) ||
+      field.value !== "" ||
+      sending),
   );
 
 // Every reply renderer and route shares the same admission: open conversation,
@@ -467,7 +469,7 @@ export function createReplyView(
   binding.take = (owner) => {
     // The row going holds no place of the user's: whoever carries the owner's row
     // puts them in it (focus.js, `replyDestination`), not the redraw's focus hold.
-    if (standingIn(composition.row)) focused().blur();
+    if (currentLocationIn(composition.row)) focused().blur();
     detach();
     // The row given up is gone for good, so no later hand-off carries it back.
     composition.retired = true;

@@ -1535,7 +1535,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     # Painted, not merely resolved: the mark is what puts the user at the passage.
     assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
     # The question Claude asks in that thread is a widget, upgraded from the
-    # same canonical state a user can answer where they are standing.
+    # same canonical state a user can answer where they are located.
     item = page.locator("#off-slip")
     expect(item).to_be_visible()
     assert item.locator("[data-lf-offer]").count() > 0, (

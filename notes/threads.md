@@ -29,7 +29,7 @@ working resumption path, not a phrase in status text.
 
 ## Shared evidence
 
-Use real Leaf components and the same seeded histories: sparse and crowded pages,
+Use real Leaf widgets and the same seeded histories: sparse and crowded pages,
 a long exchange, an oversized message, an unanswered question, queued input during
 older work, a healthy external wait, interrupted progress, and an unfinished draft.
 Exercise direct gestures and keyboard routes in light/dark themes and wide/narrow

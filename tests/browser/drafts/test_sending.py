@@ -632,7 +632,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     attempt = held[0].request.post_data_json["attempt"]
     pending = page.locator(f'{PANEL_THREAD}[data-thread="pending:{attempt}"]')
     expect(pending).to_be_visible()
-    # The thread's view is the stop the user stands on.
+    # The thread's view is the stop the user is located on.
     pending.focus()
     expect(pending).to_be_focused()
 
@@ -648,7 +648,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
         )
     expect(pending).to_have_count(0)
     assert not thread_listed(page, attempt), "the refused thread is still listed"
-    # The view the user stood on went with the thread, so the field stands for the page
+    # The view the user was located on went with the thread, so the field stands for the page
     # again with the words in it and the caret in them, and the refusal needs no
     # address for them.
     expect(box).to_be_focused()
@@ -824,7 +824,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve):
 
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    standing = page.evaluate("() => document.activeElement.className")
+    current_location = page.evaluate("() => document.activeElement.className")
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -832,11 +832,11 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve):
         "Send this while I return to reading."
     )
     panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement.className") == standing
+    assert page.evaluate("() => document.activeElement.className") == current_location
 
 
 def test_a_held_reply_send_preserves_a_later_scroll(browser, serve):
-    """A wheel can move the reading place while the user stands in the thread the
+    """A wheel can move the reading place while the user is located in the thread the
     reply was sent in; its delivery moves neither."""
     url = serve(LONG_PAGE)
     (root,) = seed_panel_threads(serve.page_dir, 1, long_index=0, messages=20)

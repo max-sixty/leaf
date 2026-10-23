@@ -30,7 +30,7 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     """Keyboard target choosing opens Comment. Choosing a token puts an
     element anchor in the log, which paints a glyph seated at the element's first line.
     The returned focus rings the element until focus leaves; the reaction adds no
-    standing contour to it."""
+    current-location contour to it."""
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")

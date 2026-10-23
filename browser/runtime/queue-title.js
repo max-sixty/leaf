@@ -3,7 +3,7 @@
    or the rendered obligation or widget it names, without interpreting events. */
 import { addressableLabel } from "./addressable-names.js";
 import { elementById } from "./passages.js";
-import { obligationHolding } from "./standing-target.js";
+import { obligationHolding } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { readObligations } from "./obligations/model.js";
 import { readThreads } from "./thread/state.js";

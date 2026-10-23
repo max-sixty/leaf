@@ -1378,7 +1378,7 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve, entr
 
 
 def landed(page):
-    """What the user is standing on, named by whatever identifies it: a leaf class, an
+    """What the user is located on, named by whatever identifies it: a leaf class, an
     authored id, or the tag. `body` is the page itself, where a landing lets go."""
     return page.evaluate(
         """() => {
@@ -1500,7 +1500,9 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(part).to_be_in_viewport()
 
 
-def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, serve):
+def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
+    browser, serve
+):
     """A keyed proxy retains a held press and focus while its label and order change."""
     page = open_page(
         browser,
@@ -1574,7 +1576,7 @@ def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, ser
 
 def test_visual_proxies_keep_focus_when_one_shadow_host_is_repainted(browser, serve):
     """Several visuals staged in one declared shadow root share a stable proxy holder.
-    Repainting anchors must not detach and blur the control the user is standing on."""
+    Repainting anchors must not detach and blur the control the user is located on."""
     page_markup = leaf_page(
         "shadow pictures",
         """
@@ -1974,7 +1976,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     )
 
     # The keyboard's route in is the focus opening a thread puts on its view; e opens
-    # the latest agent reply in that thread without disturbing the standing mark on an
+    # the latest agent reply in that thread without disturbing the current-location mark on an
     # older reply.
     open_panel_thread(page, root).focus()
     page.keyboard.press("e")
@@ -2107,7 +2109,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     under the finger shows its word for as long as the press lasts, sliding onto its
     neighbour reads that one, and the release reacts with the choice it ends on. A
     release off the list reacts with nothing, so a finger that read the wrong word
-    slides away first. The keyboard reads the same word by standing on a choice, and
+    slides away first. The keyboard reads the same word by focusing a choice, and
     its press still reacts."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
@@ -2197,7 +2199,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     assert reading() == []
     assert tokens() == ["clarify"]
 
-    # The keyboard reads the word by standing on the choice: the list opened from its
+    # The keyboard reads the word by focusing the choice: the list opened from its
     # trigger stands on its first choice, whose word shows, and Enter reacts, once.
     trigger = strip.get_by_role("button", name="Add reaction", exact=True)
     page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
@@ -2320,7 +2322,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 ):
     """The reply strip offers the tokens under the agent's message. One press records a
     reply carrying the token, on that message; `ok` — the shipped token declaring
-    `settles` — standing on the latest agent message takes the thread out of "waiting
+    `settles` — focusing the latest agent message takes the thread out of "waiting
     on you" without a second event, and taking the ok back brings the wait back, the
     narrowing being a reading of the log. A token without the flag settles nothing."""
     url = serve(PANEL_PAGE)

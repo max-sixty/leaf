@@ -13,18 +13,18 @@
  * from the old view's position.
  *
  * Travel gets the current threads and the synchronous thread refresh from the
- * application root, so geometry code never imports the presenter. A trip keeps the
+ * application root, so geometry code never imports the presenter. A navigation step keeps the
  * user's original intent while data loads, the target opens and the page paints;
- * newer input or another trip cancels its landing, but not the loading. Each trip
+ * newer input or another navigation step cancels its landing, but not the loading. Each navigation step
  * records where the user is before it moves anything, then checks whether the user is
  * already there. Only an arrival that succeeds adds that departure to history, so Back
- * returns the user to where they were reading. A journey, a run of trips each leaving
+ * returns the user to where they were reading. A navigation group, a run of navigation steps each leaving
  * from the last one's landing, is one history entry. Pressing or tabbing to another
- * authored passage ends the journey, even while its landing still shows; a press on a
+ * authored passage ends the navigation group, even while its landing still shows; a press on a
  * control or chrome, or a focus move the runtime makes, does not. A fragment link's
- * trip (`followFragment`) uses the history entry the browser added for the link as
+ * navigation step (`followFragment`) uses the history entry the browser added for the link as
  * its departure, and Back or Forward to a place the page has since hidden
- * (`returnToFragment`) is a trip that adds no entry.
+ * (`returnToFragment`) is a navigation step that adds no entry.
  */
 
 import { referencedProjection, requireReference } from "./references.js";
@@ -92,32 +92,38 @@ export function createAnchorTravel({
     return restrictUserIntent(retained, () => intent === travelIntent);
   };
 
-  // A trip saves where the user is reading before it moves anything, and history.js
-  // commits that only once the trip arrives. A destination the user can already read
-  // where they are is no departure. A trip that names its `landing` while part of the
-  // last trip's landing still shows continues that journey, whether it goes to a
-  // thread or On me, and replaces the journey's entry, which already holds
-  // where the journey began. Choosing another authored passage by pointer or Tab, or
-  // moving off the landing, ends the journey, and the next trip saves the new place.
-  // A journey is not a walk: steps of the thread walk, of the queue walk and presses
-  // on margin markers can all be trips of one journey. The landing is kept as a lookup
+  // A navigation step saves where the user is reading before it moves anything, and history.js
+  // commits that only once the navigation step arrives. A destination the user can already read
+  // where they are is no departure. A navigation step that names its `landing` while part of the
+  // last navigation step's landing still shows continues that navigation group, whether it goes to a
+  // thread or On me, and replaces the navigation group's entry, which already holds
+  // where the navigation group began. Choosing another authored passage by pointer or Tab, or
+  // moving off the landing, ends the navigation group, and the next navigation step saves the new place.
+  // A navigation group is not a walk: steps of the thread walk, of the queue walk and presses
+  // on margin markers can all be navigation steps of one navigation group. The landing is kept as a lookup
   // rather than a node because the thread pass repaints marks, and the entry carries
-  // a token for this load's journey because only this load holds the lookup.
-  const journeyPrefix = `${performance.timeOrigin}:`;
-  let trips = 0;
-  let journey = null;
+  // a token for this load's navigation group because only this load holds the lookup.
+  const navigationGroupPrefix = `${performance.timeOrigin}:`;
+  let navigationSteps = 0;
+  let navigationGroup = null;
 
   onReadingInput((node) => {
-    if (!journey || closestAcross(node, `${PRESSES},${PRESSABLE}`) || typesText(node))
+    if (
+      !navigationGroup ||
+      closestAcross(node, `${PRESSES},${PRESSABLE}`) ||
+      typesText(node)
+    )
       return;
     const passage = passageBlock(node);
     if (!passage) return;
-    if (passage !== journey.passage()) journey = null;
+    if (passage !== navigationGroup.passage()) navigationGroup = null;
   });
 
   function stillLanded() {
     const where =
-      journey && history.state?.lfJourney === journey.token && journey.landing();
+      navigationGroup &&
+      history.state?.lfNavigationGroup === navigationGroup.token &&
+      navigationGroup.landing();
     return Boolean(where && seenOf(where));
   }
 
@@ -129,8 +135,8 @@ export function createAnchorTravel({
   async function arrive(resolve, { intent, present = null, departure = null }) {
     const initial = intent() && resolve();
     if (!initial?.where) return false;
-    // Every new trip takes over the outgoing native placement, including when
-    // the new destination still looks readable before the old trip's first frame.
+    // Every new navigation step takes over the outgoing native placement, including when
+    // the new destination still looks readable before the old navigation step's first frame.
     // Read geometry only after its last compositor update has passed; another
     // gesture during that wait retains the place it chose.
     if (initial.scroll.length)
@@ -197,7 +203,7 @@ export function createAnchorTravel({
     const destination = resolve();
     const source = anchor.datum && sectionOf(anchor);
     if (!destination && !source) return false;
-    const departure = prepareTrip({
+    const departure = prepareNavigationStep({
       intent: mayArrive,
       landing: () => resolve()?.where,
     });
@@ -222,7 +228,7 @@ export function createAnchorTravel({
     const mayArrive = retainTravel(intent);
     const destination = resolve();
     if (!destination?.where) return null;
-    const departure = prepareTrip({
+    const departure = prepareNavigationStep({
       intent: mayArrive,
       landing: () => resolve()?.where,
     });
@@ -277,14 +283,14 @@ export function createAnchorTravel({
 
   // Travel's departure transaction. Capture before any reveal; plan answers whether
   // the caller moves the page, and arrive commits only its successful handoff. Failure
-  // or newer intent leaves history and the continuing journey untouched. A destination
+  // or newer intent leaves history and the continuing navigation group untouched. A destination
   // not yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
   // caller's reading of already being there where it asks more than the destination's
   // own (an obligation's arrival region), built on the reading it is handed. Clearing a surface
   // can take the focus out of it, so the caller's retained `intent` hands the gesture
   // over to where that leaves the user rather than reading the move as a newer one.
-  /** @param {{landing?: () => unknown, url?: URL, intent: any}} trip */
-  function prepareTrip({ landing = null, url, intent }) {
+  /** @param {{landing?: () => unknown, url?: URL, intent: any}} navigationStep */
+  function prepareNavigationStep({ landing = null, url, intent }) {
     const write = prepareEntry();
     const continuing = landing && stillLanded();
     const arrival = landing && {
@@ -300,23 +306,23 @@ export function createAnchorTravel({
       commit() {
         if (moving === undefined) return;
         if (!moving) {
-          if (continuing) Object.assign(journey, arrival);
+          if (continuing) Object.assign(navigationGroup, arrival);
           return;
         }
-        journey = arrival && {
-          token: journeyPrefix + ++trips,
+        navigationGroup = arrival && {
+          token: navigationGroupPrefix + ++navigationSteps,
           ...arrival,
         };
         write(
           url ?? window.location.href,
-          journey && { lfJourney: journey.token },
+          navigationGroup && { lfNavigationGroup: navigationGroup.token },
           continuing,
         );
       },
     };
   }
 
-  // A fragment link naming an element of the page is a trip there whose departure is
+  // A fragment link naming an element of the page is a navigation step there whose departure is
   // the browser's: the navigation has already added the entry Back returns to, whoever
   // followed it — a press on a page link or a reply's reference, a Go-to hint. What the
   // platform lacks for a page place is travel's to add, the same as for any other
@@ -325,12 +331,12 @@ export function createAnchorTravel({
   // worker in a shut goal is `display: none`, and the browser landed on nothing). It
   // then lands by the browser's fragment placement rule and puts focus
   // at the destination. Scrolling alone can leave the source link's caret as the
-  // user's standing place, so subsequent commands would still act from the source.
+  // user's current location, so subsequent commands would still act from the source.
   // Every activation route shares this arrival rather than supplying its own focus. A
   // fragment naming nothing here is not claimed, and the browser keeps it.
   function followFragment(url) {
     const where = fragmentTarget(url.hash);
-    return where && fragmentTrip(url, true);
+    return where && fragmentNavigationStep(url, true);
   }
 
   // Back or Forward restores the offset the entry was left at (history.js), which is
@@ -338,16 +344,18 @@ export function createAnchorTravel({
   // fragment names. Once that place is no longer shown, closed since in a tab, a
   // disclosure or a widget's own shut state, the offset was read over a page that has
   // changed, and restoring it lands on whatever now sits at that pixel. The fragment is
-  // then the one thing the entry still says, so the traversal is a trip to it that
+  // then the one thing the entry still says, so the traversal is a navigation step to it that
   // departs by no new entry: the same clearing and reveal as a followed link. The
   // browser's own landing on a traversal is that offset, so travel lands the place by
   // the fragment rule itself (`scrollToFragment`).
   function returnToFragment(url) {
     const where = fragmentTarget(url.hash);
-    return where && !where.checkVisibility() ? fragmentTrip(url, false) : null;
+    return where && !where.checkVisibility()
+      ? fragmentNavigationStep(url, false)
+      : null;
   }
 
-  function fragmentTrip(url, focus) {
+  function fragmentNavigationStep(url, focus) {
     const mayArrive = retainTravel();
     return () =>
       arrive(
@@ -383,7 +391,7 @@ export function createAnchorTravel({
 
     const url = new URL(window.location.href);
     url.hash = source.id;
-    const departure = prepareTrip({ url, intent: mayArrive });
+    const departure = prepareNavigationStep({ url, intent: mayArrive });
 
     // The widget owns filters, lazy projection, and the state a visual draws. Ask it to
     // make the key reachable before interpreting DOM presence.
@@ -527,10 +535,10 @@ export function createAnchorTravel({
     const status = anchors.placedAt(id)?.status;
     const hydrating = (anchor?.datum && status !== "outdated") || anchor?.visual;
     const destination = threadDestination(id);
-    // Decided before the trip awaits anything: a destination that is not readable now,
+    // Decided before the navigation step awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     const landing = () => threadDestination(id);
-    const departure = prepareTrip({ landing, intent: mayArrive });
+    const departure = prepareNavigationStep({ landing, intent: mayArrive });
     if (destination || hydrating) departure.plan(destination);
     if (hydrating) {
       const source = sectionOf(anchor);
@@ -574,7 +582,7 @@ export function createAnchorTravel({
   }
 
   return {
-    prepareTrip,
+    prepareNavigationStep,
     arrive,
     arriveEditor,
     restoreSelection,

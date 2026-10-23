@@ -281,7 +281,9 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     assert after == before
 
 
-def test_executable_revision_preserves_non_editor_thread_standing(browser, serve):
+def test_executable_revision_preserves_non_editor_thread_current_location(
+    browser, serve
+):
     page = editing_reply_page(browser, serve)
     page.keyboard.press("Escape")
     captured = page.evaluate(

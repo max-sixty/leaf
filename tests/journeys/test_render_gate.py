@@ -1363,7 +1363,7 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
 
     A choose group clips its own box too, so a note pulled into the page's margin from
     inside one is painted nowhere. Every other reading calls that well — the column
-    check excuses a margin resident, checkVisibility() is true of a clipped box so
+    check excuses margin content, checkVisibility() is true of a clipped box so
     screen and print agree, and the copy, which withholds the clip, shows the words the
     live page dropped — so the user is the only party who loses them. A section, a tab
     panel and a disclosure all pass a note through to the margin, so the gate names the

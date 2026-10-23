@@ -429,7 +429,7 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
     expect(renamed_body).to_have_attribute("href", "#body-title")
     expect(renamed_body).to_be_focused()
 
-    # An address edit on the standing heading changes its Lit key. The new link
+    # An address edit on the current heading changes its Lit key. The new link
     # still stands for the same place the user was on.
     page.locator("#body-title").evaluate("node => node.id = 'renamed-body'")
     expect(renamed_body).to_have_attribute("href", "#renamed-body")
@@ -1053,7 +1053,7 @@ def test_the_current_entry_follows_the_document_from_a_sticking_track(
     browser, serve, layout, holder
 ):
     """A track that sticks beside the body scrolls only what it holds, so the outline
-    standing in it marks the section the window shows, from the page's scroll."""
+    focusing it marks the section the window shows, from the page's scroll."""
     sections = "".join(
         f'<section><h2 id="{name.lower()}">{name}</h2><div style="height: 1200px">'
         "</div></section>"

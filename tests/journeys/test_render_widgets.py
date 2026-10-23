@@ -261,7 +261,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     assert row == {"rows": 1, "runsPast": True}, row
 
     # As a scrolling page's root set, a side list keeps the page's history but is a
-    # box: nothing sticks, so a switch leaves the page where the user stands.
+    # box: nothing sticks, so a switch preserves the current page location.
     def long(key):
         return "".join(
             f"<p id='filler-{key}-{i}'>{'Background. ' * 40}</p>" for i in range(12)
@@ -330,7 +330,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     assert item.evaluate(
         """async node => {
           const leaf = await window.__lfWidgetApi();
-          return leaf.readingPosture(node) === 'flow'
+          return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.scrollingElement;
         }"""
     )
@@ -1922,7 +1922,7 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
 def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     browser, serve
 ):
-    """A candidate can draw only on what the user stands at in the preview, such as a
+    """A candidate can draw only on what the user is located at in the preview, such as a
     focus treatment inside a sample child, so clicking a choice, a toggle, a preset or
     Reset, or dragging a slider, changes the candidate without taking the user out of
     the preview. A text control takes focus to be typed in, and from anywhere else a
@@ -1949,7 +1949,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
       <lf-sample id="ring-sample" label="ring sample">
         <template id="ring-page" data-sample>
           <p>The page the candidate restyles.</p>
-          <button id="child-button" type="button">Where the user stands</button>
+          <button id="child-button" type="button">The current location</button>
         </template>
       </lf-sample>
     </lf-playground-preview>
@@ -1962,27 +1962,27 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     page = open_page(browser, serve(source))
     playground = page.locator("#ring-playground")
     child_button = page.frame_locator("#ring-sample iframe").locator("#child-button")
-    standing = "button => button.matches(':focus') && document.hasFocus()"
+    focused = "button => button.matches(':focus') && document.hasFocus()"
 
     def values():
         return playground.evaluate("root => root.values")
 
     child_button.focus()
-    assert child_button.evaluate(standing)
+    assert child_button.evaluate(focused)
     page.get_by_role("radio", name="Thick", exact=True).click()
     assert values()["ring"] == "thick"
-    assert child_button.evaluate(standing)
+    assert child_button.evaluate(focused)
 
     playground.get_by_role("switch", name="Dim").click()
     assert values()["dim"] is True
-    assert child_button.evaluate(standing), "switch"
+    assert child_button.evaluate(focused), "switch"
     page.get_by_role("button", name="Wide", exact=True).click()
     assert values()["width"] == 4
-    assert child_button.evaluate(standing), "preset"
+    assert child_button.evaluate(focused), "preset"
     slider = playground.get_by_role("slider", name="Width").bounding_box()
     page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     assert values()["width"] == 1
-    assert child_button.evaluate(standing), "slider"
+    assert child_button.evaluate(focused), "slider"
     page.mouse.move(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     page.mouse.down()
     page.mouse.move(
@@ -1992,12 +1992,12 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     )
     page.mouse.up()
     assert values()["width"] == 4
-    assert child_button.evaluate(standing), "slider drag"
+    assert child_button.evaluate(focused), "slider drag"
     sample = page.locator("#ring-sample")
     sample.evaluate(
         """sample => {
-          const restore = sample.restoreStanding;
-          sample.restoreStanding = () => {
+          const restore = sample.restoreCurrentLocation;
+          sample.restoreCurrentLocation = () => {
             window.releaseRestore = () => {
               window.restoreDone = restore.call(sample);
             };
@@ -2012,11 +2012,11 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     page.evaluate("window.releaseRestore()")
     assert page.evaluate("() => window.restoreDone") is False
     expect(note).to_be_focused()
-    sample.evaluate("sample => delete sample.restoreStanding")
+    sample.evaluate("sample => delete sample.restoreCurrentLocation")
     child_button.focus()
     playground.locator(".lf-playground-reset").click()
     assert values()["ring"] == "thin"
-    assert child_button.evaluate(standing)
+    assert child_button.evaluate(focused)
 
     # The same holds in the preview's own light DOM.
     preview_button = page.locator("#preview-button")

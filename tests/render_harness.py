@@ -1051,7 +1051,7 @@ def ticked(page):
 #
 # So the press waits on the fact the page states rather than on the gesture before it
 # having painted: the dispatcher's own reading of which commands a key reaches where the
-# user stands (`available_commands`), the predicate (`live`) the leaf's menu also
+# user is located (`available_commands`), the predicate (`live`) the leaf's menu also
 # greys its Undo row by. Then the trip: the press's own send is not counted at the
 # moment it is made, and a `round_trip` that reads the counters before the browser has
 # reported the request is a wait on a page that has not started moving.
@@ -1065,7 +1065,7 @@ def undo(page):
         page.keyboard.press("z")
 
 
-# Each command the dispatcher would run from where the user stands, by its id, with the
+# Each command the dispatcher would run from the current location, by its id, with the
 # keys that reach it there; a command no key reaches (one only a control presses) lists
 # none. The dispatcher's own reading (keyboard/dispatch.js, `availableCommandRoutes`),
 # which the leaf's menu greys its rows by too. Evaluating it also leaves the reading on
@@ -1087,7 +1087,7 @@ AVAILABLE_COMMANDS = """async () => {
 
 
 def available_commands(page):
-    """What the dispatcher would run from where the user stands now, read once after
+    """What the dispatcher would run from the current location now, read once after
     every repaint the input so far queued: `{command id: [keys]}`.
 
     The bottom key line used to say this as hints; the panel says it nowhere but in a
@@ -1693,7 +1693,7 @@ def panel_settled(page, open=True, view=None):
 
 
 def panel_menu(page, at=None):
-    """Open the leaf's menu and return it, standing at its root or at the list `at`
+    """Open the leaf's menu and return it, open at its root or at the list `at`
     names: a group (`navigate`, `annotate`, `about`) or `versions`.
 
     The menu holds the rows it opened with while it stands (floating-panel.js,
@@ -1730,7 +1730,7 @@ def panel_control(page, key, at=None):
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
-    of the stance the user stands in is the `.lf-fp-exit` ✕ named by its `aria-label`,
+    of the current panel view is the `.lf-fp-exit` ✕ named by its `aria-label`,
     and the page comment is `page_comment`'s, offering selected words as
     `selection_field`'s."""
     if key in PANEL_ROW_CONTROLS:
@@ -2335,20 +2335,20 @@ def regions_side_by_side(regions: str, columns: str = "1fr 1fr") -> str:
 </style>"""
 
 
-def pane_posture(page, pane, posture):
+def pane_scroll_behavior(page, pane, behavior):
     """Wait until a pane is `bounded` (its body scrolls) or in `flow` (it does not).
 
     The body is the pane's one element between its optional header and footer. Whether
     it scrolls is the stylesheet's answer to the workspace's size, and the same fact
-    `readingPosture` reads, so this waits on the composed style rather than on any
+    `regionScrollBehavior` reads, so this waits on the composed style rather than on any
     attribute a script would have to keep in step with it."""
     page.wait_for_function(
-        """([node, posture]) => {
+        """([node, behavior]) => {
           const body = [...node.children].find(c => !c.matches('header, footer'));
           const scrolls = /auto|scroll/.test(getComputedStyle(body).overflowY);
-          return (scrolls ? 'bounded' : 'flow') === posture;
+          return (scrolls ? 'bounded' : 'flow') === behavior;
         }""",
-        arg=[pane.element_handle(), posture],
+        arg=[pane.element_handle(), behavior],
     )
 
 

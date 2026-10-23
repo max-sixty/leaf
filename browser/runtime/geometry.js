@@ -60,7 +60,7 @@ import { watchScrolls } from "./arrivals.js";
    chrome question (`uiInside`). `unmarkableElements`, in the render checks, detects
    declared items with no visible part on which a mark can land. */
 // Where the page's shell ends on the right — the far edge of the room the document has,
-// which is what a margin resident is placed against and what the response surface may not
+// which is what a margin element is placed against and what the response surface may not
 // overhang. The chrome stands over the page and takes none of it.
 export const shellRight = () => document.body.getBoundingClientRect().right;
 

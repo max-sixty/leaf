@@ -1340,6 +1340,28 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
+    // Initial sources are compiled to self-contained scripts. Sharing these pure SVG paths adds no
+    // private runtime dependency to the package shipped to a page.
+    files: ["packages/*/initial/*.js"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          ...publicRuntimeBoundary["no-restricted-imports"][1],
+          patterns: publicRuntimeBoundary["no-restricted-imports"][1].patterns.map(
+            (pattern) =>
+              pattern.regex === "^\\.{1,2}/(?:.*/)?runtime/"
+                ? {
+                    ...pattern,
+                    regex: "^\\.{1,2}/(?:.*/)?runtime/(?!motion-icon-paths\\.js$)",
+                  }
+                : pattern,
+          ),
+        },
+      ],
+    },
+  },
+  {
     // Build tools share private runtime declarations with the browser rather than
     // duplicating them. The public facade boundary applies to page consumers.
     files: ["build/**/*.mjs", "worker/*.mjs"],

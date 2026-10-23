@@ -662,8 +662,8 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
         assert page.evaluate("document.activeElement === document.body")
 
 
-def test_an_inline_thread_rings_its_card_for_pointer_and_keyboard_focus(browser, serve):
-    """Either arrival rings the thread; entering its reply gives the ring to the field."""
+def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
+    """Keyboard arrival rings the thread; its reply shows a cue by either input route."""
     page = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text")]),
@@ -684,17 +684,21 @@ def test_an_inline_thread_rings_its_card_for_pointer_and_keyboard_focus(browser,
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
     expect(thread).to_be_focused()
     pointer = preview.evaluate(paint)
-    assert pointer["outline"] == "solid"
-    assert pointer["offset"] == "-2px"
+    assert pointer["outline"] == "none"
     drawn = rings_drawn(page)
-    assert any(ring["sample"] for ring in drawn), drawn
+    assert not any(ring["sample"] for ring in drawn), drawn
     assert not ring_faults(drawn, "the thread opened by pointer")
 
     page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     current = preview.evaluate(paint)
-    assert current == pointer
+    assert current["outline"] == "solid"
+    assert current["offset"] == "-2px"
+    assert current["background"] == pointer["background"]
+    drawn = rings_drawn(page)
+    assert any(ring["sample"] for ring in drawn), drawn
+    assert not ring_faults(drawn, "the thread reached by keyboard")
 
     page.keyboard.press("Enter")
     reply = thread.locator("leaf-text")

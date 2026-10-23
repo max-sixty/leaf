@@ -22,7 +22,6 @@ from leaf.events import (
 from leaf.findings import Finding
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.obligations import (
-    asking,
     quoted_in,
     response_address,
 )
@@ -41,6 +40,7 @@ from leaf.registry.contract import (
     created_child,
     detail_schema,
     event_spec,
+    matches_when,
     state_specs,
     verb_writer,
     visual_parts,
@@ -263,7 +263,7 @@ def held_comment_error(event: dict, page_by_id: dict, registry: dict):
         rec is None
         or not thread
         or not thread.get("hold")
-        or not asking(rec["attrs"], thread.get("when"))
+        or not matches_when(rec["attrs"], thread.get("when"))
         or event.get("anchor") != {"section": target}
     ):
         return Finding("hold-target", values={"holds": target})
@@ -722,9 +722,8 @@ def _plan_error(event: dict, readings) -> Finding | None:
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
-    """A `todo` event stands on a widget that seats work, an element, or the page; a
-    to-do on a thread comes from the reply that promises it. A completing note and
-    `todo_end` share completion authority.
+    """A `todo` event stands on a thread, a widget that seats work, an element,
+    or the page. A completing note and `todo_end` share completion authority.
     A `todo_end` also admits an agent's end of a question answered in words; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading

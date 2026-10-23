@@ -92,6 +92,13 @@
         margin-block: var(--sp-4);
       }
 
+      #bg-feedback-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--sp-2);
+      }
+
       #bg-charts > * {
         margin: 0;
       }
@@ -208,6 +215,25 @@
         }
       ]
     </script>
+    <script id="bg-message-obligation-history" type="application/json">
+      [
+        {
+          "id": "bg-message-request",
+          "kind": "comment",
+          "author": "agent",
+          "text": "Which environment should I use for the rehearsal?",
+          "obligation": true
+        },
+        {
+          "id": "bg-message-task",
+          "kind": "todo",
+          "author": "agent",
+          "owner": "user",
+          "subject": { "kind": "thread", "id": "bg-message-request" },
+          "title": "Try the rehearsal build on your phone"
+        }
+      ]
+    </script>
     <script id="bg-window-history" type="application/json">
       [
         {
@@ -316,6 +342,22 @@
         output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;
       });
+
+      const feedback = document.querySelector("#bg-changing-text");
+      if (once(feedback))
+        whileConnected(feedback, (signal) => {
+          const output = feedback.querySelector("[role=status] > span");
+          const messages = output.parentElement.dataset.room.split("\n");
+          let current = 0;
+          feedback.querySelector("button").addEventListener(
+            "click",
+            () => {
+              current = (current + 1) % messages.length;
+              keepsText(output, messages[current]);
+            },
+            { signal },
+          );
+        });
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
@@ -574,6 +616,23 @@
                 >the Resume writing sample</a
               >, then use browser Back. The viewport and focus return to this link;
               press <kbd>c</kbd> to comment on the link. Forward returns to the sample.
+            </p>
+          </section>
+
+          <section id="bg-changing-text">
+            <h2>Changing text keeps its space</h2>
+            <p>
+              Cycle the short status messages. The following text stays in place because
+              <code>data-room</code> reserves their width from first paint.
+            </p>
+            <p id="bg-feedback-row">
+              <button class="button" type="button">Next status</button>
+              <span
+                role="status"
+                data-room="Ready&#10;Working…&#10;Finished. Run again."
+                ><span>Ready</span></span
+              >
+              <span>Following text</span>
             </p>
           </section>
 
@@ -1366,6 +1425,31 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 that thread: the editor stays closed until Reopen recovers the words.
               </li>
             </ul>
+            <section id="bg-message-obligations">
+              <h3>A message waiting on me</h3>
+              <p>
+                Open Full view, then On me, and reply to the environment question. The
+                question leaves On me; the phone test stays until you press Done. Both
+                entries open the same page thread. Reset restores the question and task.
+              </p>
+              <lf-sample
+                id="bg-message-obligation-sample"
+                label="Message and task obligations"
+                window
+              >
+                <template
+                  id="bg-message-obligation-page"
+                  data-sample
+                  data-sample-events="bg-message-obligation-history"
+                >
+                  <h1>Rehearsal handoff</h1>
+                  <p>
+                    The build is ready. The page thread holds the environment question
+                    and the phone test.
+                  </p>
+                </template>
+              </lf-sample>
+            </section>
             <p id="bg-new-thread">
               <strong>A clean passage.</strong> Select some of these words, or
               <kbd>Alt</kbd>-click this paragraph, to start a comment. Type into the
@@ -3411,6 +3495,16 @@ switch --readers checkout-api,orders-api</code></pre>
           </section>
         </lf-tab>
       </lf-tabs>
+      <section id="bg-inline-sample-section">
+        <h2>Interactive sample on this page</h2>
+        <p>These choices use this page's state and Undo.</p>
+        <lf-sample id="bg-inline-sample" interactive label="Delivery choices">
+          <lf-options id="bg-delivery-choice" choose>
+            <lf-option id="bg-delivery-standard">Standard delivery</lf-option>
+            <lf-option id="bg-delivery-express">Express delivery</lf-option>
+          </lf-options>
+        </lf-sample>
+      </section>
     </main>
   </body>
 </html>

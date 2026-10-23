@@ -226,7 +226,7 @@
 }
 .lf-diff-file-actions {
   position: relative;
-  z-index: 3;
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -339,7 +339,7 @@
     position: sticky;
     --lf-top: var(--lf-top-outer);
     top: var(--lf-top, 0px);
-    z-index: 2;
+    z-index: 3;
   }
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions {
     position: sticky;

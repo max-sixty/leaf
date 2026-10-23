@@ -480,7 +480,7 @@ import {
 } from "./runtime/bundle-frame-visibility.js";
 import {
   DELIVERY,
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   SHARE_ROOT,
   WEBSITE_DELIVERY,
   agentName,
@@ -5768,6 +5768,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
 }
 var QUEUE_WORDS = Object.freeze({
   widget: ["to answer", "to answer"],
+  message: ["to answer", "to answer"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
@@ -5779,7 +5780,7 @@ function queueKinds(items2) {
     byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    return kind === "todo" ? `${words} (${all.map((row) => row.todo.title).join(" \xB7 ")})` : words;
+    return kind === "todo" ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" \xB7 ")})` : words;
   });
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
@@ -5994,7 +5995,12 @@ var stopOf = (item) => item.kind === "widget" && !(item.thread !== null && answe
   id: item.id,
   thread: item.thread,
   obligation: item.obligation
-} : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
+} : item.thread !== null ? {
+  kind: "thread",
+  id: item.thread,
+  thread: item.thread,
+  message: answeredInWords(item.obligation) ? item.obligation.message : null
+} : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
 var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 function queueStop(item) {
   const stop = stopOf(item);
@@ -6089,7 +6095,7 @@ function createQueueWalk({
       const record = readObligations().all.find((item) => item.id === stop.id);
       return record ? arriveAtRecord(record) : Promise.resolve(false);
     }
-    if (stop.kind === "thread") return arriveAtThread2(stop.id);
+    if (stop.kind === "thread") return arriveAtThread2(stop.id, stop.message);
     return arriveAtElement(() => stopElement(stop));
   }
   function position(region) {
@@ -6186,7 +6192,7 @@ function createQueueWalk({
   const arriveAtItem = (item) => arriveAt(stopOf(item));
   const arrivesAt = (item) => {
     const stop = stopOf(item);
-    return Boolean(pagePlace(stop)) || stop.kind === "obligation" && stop.thread !== null;
+    return Boolean(pagePlace(stop)) || Boolean(stop.message) || stop.kind === "obligation" && stop.thread !== null;
   };
   let wentTo = null;
   onStanding((node, cause) => {
@@ -7151,7 +7157,7 @@ function createFloatingPanel({
   }
   function putAwayThen(run) {
     const inside = standingIn(host);
-    close();
+    if (!menuOpen.value) close();
     setMenu(false);
     if (inside) focusDestination(leaf, "return");
     run();
@@ -8698,7 +8704,7 @@ function createFloatingPanel({
     const standing = search ? null : olderVersion();
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
-    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : top ? { label: "Close", press: close, disabled: false } : rows().find((entry) => entry.exit) ?? null;
+    const exit = search === threadSearch ? { label: "Close search", press: closeThreadSearch, disabled: false } : top && !search ? { label: "Close", press: close, disabled: false } : rows().find((entry) => entry.exit) ?? null;
     render(
       exit ? html`<button
             type="button"
@@ -9619,7 +9625,7 @@ function createObligationView({
   let mounted = false;
   const presenter = applicationPresenter({
     region: "obligations",
-    order: PRESENTATION_ORDER.obligations,
+    after: PRESENTATION_DOM.thread,
     reading: () => mounted ? true : null,
     paint: () => {
       readObligations();
@@ -11476,7 +11482,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     repeat: true,
     run: (binding) => move2(binding === "j" ? 60 : -60, "pixel")
   });
-  const arriveAtThreadById = (id) => arriveAtThread(id, threadDestinations, retainUserIntent());
+  const arriveAtThreadById = (id, message = null) => message ? threadDestinations.openPageThread(message, { part: "message", intent: retainUserIntent() }).then(Boolean) : arriveAtThread(id, threadDestinations, retainUserIntent());
   return {
     alignTop,
     arriveAtThread: arriveAtThreadById,

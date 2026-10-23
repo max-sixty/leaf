@@ -288,7 +288,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             and (
                 item["source"]["kind"] == "widget"
                 and (inside(item["source"]["id"]) or inside(item["prompt"]["target"]))
-                or item["source"]["kind"] == "update"
+                or item["source"]["kind"] in {"update", "todo"}
                 and item["source"]["subject"]["kind"] == "widget"
                 and inside(item["source"]["subject"]["id"])
             )

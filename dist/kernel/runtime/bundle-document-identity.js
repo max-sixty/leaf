@@ -385,7 +385,7 @@ import {
 } from "./bundle-frame-visibility.js";
 import {
   LIVE_ROOT,
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   agentLabel,
   annotationMode,
   applicationPresenter,
@@ -5909,7 +5909,7 @@ function createThreadPresentation({
   let primary = null;
   const presenter = applicationPresenter({
     region: "thread",
-    order: PRESENTATION_ORDER.thread,
+    after: PRESENTATION_DOM.projection,
     reading: () => !available ? null : runtime.statePhase === "waiting" && !threadState().all.length ? "waiting" : true,
     // A pass reads the latest root. The time it shows is followed with the rest of what
     // it reads, so a clock change claims another pass through the same presenter, whose
@@ -7848,15 +7848,9 @@ function mountApplication(dependencies) {
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
-      order: PRESENTATION_ORDER.annotations,
+      after: PRESENTATION_DOM.obligations,
       reading: () => annotationInputs(),
-      paint: async (_reading, current, resume) => {
-        const ready = await whenApplicationRegionsPresented(
-          ["projection:chrome"],
-          current
-        );
-        if (ready === "presented" && current()) resume(renderAnnotations)();
-      }
+      paint: renderAnnotations
     });
     void presentation.present();
     onPaper.addEventListener("change", () => {
@@ -8125,7 +8119,7 @@ function mountApplication(dependencies) {
     openObligation(id) {
       const item = readObligations().all.find((item2) => item2.id === id);
       if (!item) return Promise.resolve(false);
-      if (item.source.kind === "update")
+      if (item.source.kind === "update" || item.source.kind === "todo")
         return queueActions2.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
@@ -8715,11 +8709,15 @@ var LeafElement = class extends q(UpdateBoundary) {
   }
   #queueUpdate() {
     if (!this.#descriptor) return super.scheduleUpdate();
-    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-      if (this.#scheduled !== scheduled) return;
-      this.#scheduled = null;
-      return super.scheduleUpdate();
-    });
+    const scheduled = queueWidgetUpdate(
+      this.#descriptor.id,
+      () => {
+        if (this.#scheduled !== scheduled) return;
+        this.#scheduled = null;
+        return super.scheduleUpdate();
+      },
+      () => this.updateComplete
+    );
     this.#scheduled = scheduled;
     return scheduled;
   }
@@ -8950,6 +8948,8 @@ function ownedObligationControl(source, commandSource) {
   return !selector || closestAcross(commandSource, selector) === source;
 }
 function obligationWord(item) {
+  if (item.source.kind === "message") return "Reply";
+  if (item.source.kind === "todo") return "To-do";
   const word2 = widgetWord(item.source.tag, elementById(item.source.id));
   return word2.charAt(0).toUpperCase() + word2.slice(1);
 }
@@ -8965,6 +8965,8 @@ function answerWords(item) {
   return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
 }
 function obligationEnding(item) {
+  if (item.source.kind === "todo")
+    return item.status === "withdrawn" ? "Dropped" : item.answer?.value === "failed" ? "Failed" : "Done";
   if (item.status === "withdrawn") return "Withdrawn";
   if (item.status === "answered_elsewhere") return "Answered elsewhere";
   const words = answerWords(item);

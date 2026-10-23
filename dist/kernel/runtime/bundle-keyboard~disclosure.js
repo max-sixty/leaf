@@ -15,6 +15,7 @@ import {
   SHADOW_LEADING_CSS,
   annotationMarkSheets,
   elementDeclarations,
+  exhibits,
   marksSheet,
   paintKeysWithin,
   recordedWidgetSelector,
@@ -510,7 +511,7 @@ var declaredAncestors = (element) => {
 };
 var quotedBy = (element) => {
   for (let node = parentOf(element); node; node = parentOf(node))
-    if (runtime.registry[node.localName]?.["x-exhibit"]) return true;
+    if (exhibits(node, runtime.registry[node.localName])) return true;
   return false;
 };
 function stageWidgetDescriptors(root = document, documentContext = { kind: "page", revision: runtime.currentRevision }) {

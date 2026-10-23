@@ -1046,14 +1046,16 @@ export function createFloatingPanel({
     searching = false;
     transition(before);
   }
-  // A press that puts away the menu or view it stands in hands the user back to the leaf,
+  // A press puts away only the menu or view it stands in. The menu borrows the open
+  // view: closing it must keep that view and its editor, just as invoking the same
+  // command by key does. The command owns any navigation it causes. Hand back to the leaf,
   // the door to both, before its command runs, so the pressed row going takes no one's
   // focus to the body: a layer the command opens records the leaf as where its close
   // returns (focus.js, `openLayer`), folding leaves the user on the leaf it folds to, and
   // a command that places the user elsewhere still does.
   function putAwayThen(run) {
     const inside = standingIn(host);
-    close();
+    if (!menuOpen.value) close();
     setMenu(false);
     if (inside) focusDestination(leaf, "return");
     run();
@@ -3334,7 +3336,7 @@ export function createFloatingPanel({
     const exit =
       search === threadSearch
         ? { label: "Close search", press: closeThreadSearch, disabled: false }
-        : top
+        : top && !search
           ? { label: "Close", press: close, disabled: false }
           : (rows().find((entry) => entry.exit) ?? null);
     render(

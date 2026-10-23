@@ -316,7 +316,7 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
     assert owed["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "widget",
+        "reason": "obligation",
         "workflow": None,
     }
 

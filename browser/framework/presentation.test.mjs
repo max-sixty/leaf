@@ -545,42 +545,28 @@ test("a domain-scoped wait retires when its value is superseded in the same epoc
 
 const flushed = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-test("passes read current presenter order and coalesce repeated claims", async () => {
+test("explicit DOM dependencies ignore registration order and coalesce claims", async () => {
   const { coordinator } = setup();
-  const document = {};
-  const publication = coordinator.begin(document, 0);
+  const publication = coordinator.begin({}, 0);
   const schedule = createPresentationSchedule((callback) => callback);
   const painted = [];
-  const presenter = (region, order) =>
-    schedule.presenter({
-      attach: () => coordinator.attach(region, {}),
-      order,
-      paint: (value) => {
-        painted.push(`${region}:${value}`);
-        return `${region} proof`;
-      },
-    });
-  // Registered out of order, claimed out of order: the pass still runs them by rank.
-  let projectionOrder = -1;
-  const late = presenter("thread", -0.5);
-  const early = presenter("projection", () => projectionOrder);
+  const late = schedule.presenter({
+    attach: () => coordinator.attach("thread", {}),
+    after: () => [early.committed()],
+    paint: (value) => painted.push(`thread:${value}`),
+  });
+  const early = schedule.presenter({
+    attach: () => coordinator.attach("projection", {}),
+    paint: (value) => painted.push(`projection:${value}`),
+  });
   void late.sync("first");
   void early.sync("only");
   const ready = late.sync("second");
   coordinator.seal(publication);
-
   assert.deepEqual(painted, []);
   await ready;
   assert.deepEqual(painted, ["projection:only", "thread:second"]);
   assert.equal(coordinator.read().presentedEpoch, 0);
-
-  projectionOrder = -1 / 3;
-  const next = coordinator.begin(document, 1);
-  void early.sync("next");
-  const reordered = late.sync("next");
-  coordinator.seal(next);
-  await reordered;
-  assert.deepEqual(painted.slice(2), ["thread:next", "projection:next"]);
 });
 
 test("a reading held open does not keep the next one off the page", async () => {
@@ -666,14 +652,13 @@ test("a failure reported for one region does not withhold the others' readings",
   const painted = [];
   const failing = schedule.presenter({
     attach: () => coordinator.attach("projection:chrome", {}),
-    order: 0,
     paint: () => {
       throw new Error("projection failed");
     },
   });
   const following = schedule.presenter({
     attach: () => coordinator.attach("thread", {}),
-    order: 1,
+    after: () => [failing.committed()],
     paint: (value) => {
       painted.push(value);
       return value;
@@ -719,7 +704,6 @@ test("a paint that claims another region joins the same pass", async () => {
   const schedule = createPresentationSchedule((callback) => callback);
   const following = schedule.presenter({
     attach: () => coordinator.attach("thread", {}),
-    order: 1,
     paint: (value) => {
       painted.push(`thread:${value}`);
       return value;
@@ -728,7 +712,6 @@ test("a paint that claims another region joins the same pass", async () => {
   let again = true;
   const leading = schedule.presenter({
     attach: () => coordinator.attach("projection:chrome", {}),
-    order: 0,
     paint: (value) => {
       painted.push(`projection:${value}`);
       if (again) {
@@ -785,9 +768,11 @@ test("a paint that fails after a newer claim supersedes it still reports", async
   const slow = Promise.withResolvers();
   const renderer = {};
   let first = true;
+  const started = Promise.withResolvers();
   const presenter = schedule.presenter({
     attach: () => coordinator.attach("thread", renderer),
     paint: (value) => {
+      started.resolve();
       if (!first) return value;
       first = false;
       return slow.promise;
@@ -795,7 +780,7 @@ test("a paint that fails after a newer claim supersedes it still reports", async
   });
   const stale = presenter.sync("stale");
   coordinator.seal(publication);
-  await Promise.resolve();
+  await started.promise;
 
   const current = presenter.sync("current");
   slow.reject(new Error("the superseded paint failed"));
@@ -968,4 +953,94 @@ test("a paint creating a child presentation does not subscribe to proof changes"
   } finally {
     stop();
   }
+});
+
+test("dependent DOM waits for native commit, independently of semantic proof", async () => {
+  const { coordinator } = setup();
+  const document = {};
+  const publication = coordinator.begin(document, 0);
+  const schedule = createPresentationSchedule((callback) => callback);
+  const committed = Promise.withResolvers();
+  const held = Promise.withResolvers();
+  const drawn = [];
+  const widget = coordinator.attach("widget", {}).present("value");
+  widget.resolve(held.promise);
+  const producer = schedule.enqueue(
+    () => [],
+    () => {
+      drawn.push("widget");
+    },
+    () => committed.promise,
+  );
+  const consumer = schedule.presenter({
+    attach: () => coordinator.attach("projection", {}),
+    after: () => [producer.committed],
+    paint: () => drawn.push("projection"),
+  });
+  const unrelated = schedule.presenter({
+    attach: () => coordinator.attach("independent", {}),
+    paint: () => drawn.push("independent"),
+  });
+  void consumer.sync(1);
+  void unrelated.sync(1);
+  coordinator.seal(publication);
+  await producer.ready;
+  assert.deepEqual(drawn, ["widget", "independent"]);
+  committed.resolve();
+  await schedule.passed();
+  assert.deepEqual(drawn, ["widget", "independent", "projection"]);
+  assert.deepEqual(coordinator.read().pending, ["widget"]);
+  held.resolve();
+  await widget.ready;
+  assert.equal(coordinator.read().presentedEpoch, 0);
+});
+
+test("DOM dependents follow replacement and disconnect releases an obsolete wait", async () => {
+  const { coordinator } = setup();
+  const publication = coordinator.begin({}, 0);
+  const schedule = createPresentationSchedule((callback) => callback);
+  const first = Promise.withResolvers();
+  const second = Promise.withResolvers();
+  let drawn = "nothing";
+  const seen = [];
+  let producer = schedule.enqueue(
+    () => [],
+    () => {
+      drawn = "first";
+    },
+    () => first.promise,
+  );
+  const consumer = schedule.presenter({
+    attach: () => coordinator.attach("consumer", {}),
+    after: () => [producer.committed],
+    paint: () => seen.push(drawn),
+  });
+  void consumer.sync(1);
+  await producer.ready;
+  producer = schedule.enqueue(
+    () => [],
+    () => {
+      drawn = "second";
+    },
+    () => second.promise,
+  );
+  first.resolve();
+  await producer.ready;
+  assert.deepEqual(seen, [], "the predecessor is not the replacement's DOM commit");
+  second.resolve();
+  await consumer.committed();
+  assert.deepEqual(seen, ["second"]);
+  await schedule.passed();
+
+  const never = Promise.withResolvers();
+  const departed = schedule.presenter({
+    attach: () => coordinator.attach("departed", {}),
+    after: () => [never.promise],
+    paint: () => assert.fail("disconnected owner must not paint"),
+  });
+  void departed.sync(1);
+  await flushed();
+  departed.disconnect();
+  coordinator.seal(publication);
+  await schedule.passed();
 });

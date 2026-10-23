@@ -25,6 +25,7 @@ from leaf_dev.reply_phases import (
 )
 from leaf_dev.review_scenario import SLEEP
 
+from leaf.hook_transport import INLINE_OPENING
 from leaf.interaction_log import read_interactions
 
 
@@ -365,6 +366,33 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
             "received_at": at(4),
         },
     ]
+
+
+def test_a_delivered_update_waits_for_the_turn_it_opened_to_end():
+    """The journey waits for the turn a delivery reached to end in the transcript;
+    a turn that ended before the delivery doesn't count. Waiting on Claude Code's
+    idle instead read the idle an Escape wrote before the delivery's turn started,
+    and found the page's claim holding that running turn open."""
+    delivery = {
+        "format": "leaf-delivery/15",
+        "batches": [{"events": [{"kind": "resolve", "id": "f4a21046"}]}],
+    }
+    records = [
+        {"type": "system", "subtype": "turn_duration"},
+        {"type": "user", "message": {"content": "<task-notification>"}},
+        {
+            "type": "attachment",
+            "attachment": {
+                "type": "hook_additional_context",
+                "hookEvent": "UserPromptSubmit",
+                "content": [INLINE_OPENING + "\n" + json.dumps(delivery)],
+            },
+        },
+    ]
+    assert not journey_claude_code.delivery_ended(records, "f4a21046")
+    records.append({"type": "system", "subtype": "turn_duration"})
+    assert journey_claude_code.delivery_ended(records, "f4a21046")
+    assert not journey_claude_code.delivery_ended(records, "a-comment-never-sent")
 
 
 def test_a_comment_picked_up_while_a_call_is_out_starts_in_that_tool_phase():

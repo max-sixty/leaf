@@ -172,7 +172,7 @@ def test_words_a_native_paste_observes_only_its_actual_editor_edit(browser, serv
                 {
                     "code": "words-left-screen",
                     "words": words,
-                    "place": [f"leaf-text#field-{operation}"],
+                    "place": [f"leaf-text#field-{operation}.scroll"],
                 },
             )
     finally:
@@ -223,7 +223,7 @@ def test_words_native_editor_commands_commit_only_their_actual_edit(browser, ser
 def command_commits_only_its_edit(page, field, command):
     """Work `command` on `field` as a real edit, a cancelled one, a synthetic event and
     an edit a page handler clobbers, judging the words each leaves."""
-    name = f"leaf-text#field-{command}"
+    name = f"leaf-text#field-{command}.scroll"
 
     def perform():
         if command == "cut":

@@ -832,7 +832,7 @@ summary {
    — the state ending, or the shared reduced-motion guard's single near-instant pass —
    the words are left in their own face with nothing to undo. The words keep their
    fill, so a line cut short keeps its ellipsis: Firefox drew no ellipsis under the
-   glyph-clipped background this replaced (notes/browser-support.md). Forced colours
+   glyph-clipped background. Forced colours
    drop the mask but keep the animation, so there the words stay whole. */
 @keyframes lf-sheen {
   from,

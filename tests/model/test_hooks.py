@@ -513,6 +513,73 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     assert acknowledged_through(claimed) == last_deliverable_seq(claimed)
 
 
+def test_a_pointer_is_handed_once_per_turn_until_its_reader_confirms(
+    claimed, printing, capsys
+):
+    """A pointer leaves its input unconfirmed, so a later tool boundary of the same
+    turn would freeze that input again and point at it under a new id: the model
+    read the same input twice, two to four times a turn. A tool boundary carries
+    only new input, so it hands nothing from a page whose pointer this turn has
+    not confirmed, and the page's later input follows once the reader confirms."""
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    boundary = {"hook_event_name": "PostToolBatch", "session_id": "s1"}
+    large = append_carried_log_record(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "x" * harness_model.ClaudeCodeHarness.hook_context_bytes,
+        },
+    )
+    hooks_model.cmd_hook("claude-code", prompt)
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [delivery_id] = re.findall(r'<leaf-delivery id="(\w+)"', context)
+
+    later = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "And this"}
+    )
+    hooks_model.cmd_hook("claude-code", boundary)
+    assert capsys.readouterr().out == ""
+    assert acknowledged_through(claimed) < large["seq"]
+
+    confirmed = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery_id])
+    assert confirmed.exit_code == 0, confirmed.output
+    assert acknowledged_through(claimed) == large["seq"]
+    hooks_model.cmd_hook("claude-code", boundary)
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = json.loads(context.split("\n")[1])["batches"]
+    assert [event["id"] for event in batch["events"]] == [later["id"]]
+
+    # A new turn's prompt hands over again whatever a pointer left unconfirmed.
+    unread = append_carried_log_record(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "y" * harness_model.ClaudeCodeHarness.hook_context_bytes,
+        },
+    )
+    hooks_model.cmd_hook("claude-code", boundary)
+    [pointed] = re.findall(
+        r'<leaf-delivery id="(\w+)"',
+        json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"],
+    )
+    cleanup_model.close_session_turn("s1")
+    hooks_model.cmd_hook("claude-code", prompt)
+    # The delivery leads; reminders of the answers owed follow it.
+    again, *_ = re.findall(
+        r'<leaf-delivery id="(\w+)"',
+        json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"],
+    )
+    assert again != pointed
+    [batch] = delivery_model.read_delivery(again)["batches"]
+    assert [event["id"] for event in batch["events"]] == [unread["id"]]
+
+
 def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
     """Leaf's Pi extension adds a hook's context to the session at any size, so
     input too large for Claude Code's context reaches Pi's whole and confirmed."""

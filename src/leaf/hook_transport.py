@@ -52,6 +52,14 @@ pointer; the agent's `leaf delivery ack` then confirms it or shows the refusal. 
 delivery whose context the harness wouldn't show the model whole goes as a pointer
 too (`Harness.fits_hook_context`).
 
+A pointer's input stays unconfirmed until its reader runs `leaf delivery ack`, so a
+later tool boundary of the same turn would freeze it again and point at it under a
+new id, and the model would read the same input two or more times. A tool boundary
+carries only new input, so the hook notes each page it points at in the turn
+(`POINTED`), and a later boundary hands nothing from that page until the pointer's
+input is confirmed; the page's later input follows at the boundary after the ack.
+Stop and a prompt hand unconfirmed input over again, as they do input Escape dropped.
+
 Pi has the context once the hook returns, so its hook records the receipt with the
 pickup. Claude Code reads it only once every hook of the event has exited, and
 Escape before then drops it with the prompt or the tool boundary. So a Claude Code
@@ -106,7 +114,16 @@ from .service import (
     owned_pages,
     page_claim,
 )
-from .state import flocked, session_lock_path, session_record
+from .state import (
+    STRING,
+    Record,
+    described,
+    flocked,
+    object_schema,
+    session_file,
+    session_lock_path,
+    session_record,
+)
 
 
 def restart(obligations: list[dict]) -> str:
@@ -381,6 +398,44 @@ INLINE_OPENING = (
 # The words that open what a turn owes, as a reminder of its own or after a delivery.
 ATTENTION_OPENING = "Leaf needs attention:"
 
+POINTED = Record(
+    "pointed",
+    described(
+        "The pages whose input a hook handed a session's turn by pointer, in the "
+        "state home's `sessions/<digest>.pointed` (`state.session_file`).",
+        object_schema(
+            {
+                "turn": described("The turn the pointers were handed to.", STRING),
+                "pages": described(
+                    "Each page directory, with the last log position pointed at.",
+                    {"type": "object", "additionalProperties": {"type": "integer"}},
+                ),
+            }
+        ),
+    ),
+    since=22,
+)
+
+
+def pointed(session_id: str, lifecycle: dict) -> dict[str, int]:
+    """The pages a hook of `lifecycle`'s turn pointed at, each with the last log
+    position it pointed at."""
+    record = POINTED.read(session_file(session_id, POINTED.kind))
+    return (
+        dict(record["pages"]) if record and record["turn"] == lifecycle["turn"] else {}
+    )
+
+
+def note_pointer(session_id: str, lifecycle: dict, delivery: dict) -> None:
+    """Note each page `delivery` carries input from as pointed at in the turn."""
+    pages = pointed(session_id, lifecycle)
+    for batch in delivery["batches"]:
+        pages[batch["page"]] = batch["through_seq"]
+    POINTED.write(
+        session_file(session_id, POINTED.kind),
+        {"turn": lifecycle["turn"], "pages": pages},
+    )
+
 
 def render(
     harness: Harness,
@@ -389,18 +444,21 @@ def render(
     attention: list[str],
     *,
     confirm: Callable[[], bool],
+    point: Callable[[], None],
 ) -> dict | None:
     """The hook's output, or None where it puts nothing in the turn. It hands
     `delivery` over inline only where the harness shows the whole message to the
     model (`Harness.fits_hook_context`) and `confirm` then records every batch as
-    opened in the turn; otherwise it hands over the delivery's pointer, which its
-    reader's `leaf delivery ack` confirms after complete reading."""
+    opened in the turn; otherwise it calls `point` and hands over the delivery's
+    pointer, which its reader's `leaf delivery ack` confirms after complete
+    reading."""
     if delivery is None:
         return harness.hook_context(event, "\n".join(attention)) if attention else None
     message = "\n".join(
         [INLINE_OPENING, json.dumps(delivery, ensure_ascii=False), *attention]
     )
     if not (harness.fits_hook_context(message) and confirm()):
+        point()
         message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
     return harness.hook_context(event, message)
 
@@ -432,8 +490,17 @@ def carry_turn(
     carries = event in {"UserPromptSubmit", "PostToolBatch"} or (
         event == "Stop" and not harness.later_turn_takes_input()
     )
+    through = pointed(sid, expected) if event == "PostToolBatch" and expected else {}
     batches = (
-        [plan.batch for plan in plans if plan.batch and plan.harness.hooks_carry()]
+        [
+            plan.batch
+            for plan in plans
+            if plan.batch
+            and plan.harness.hooks_carry()
+            and not any(
+                item["seq"] <= through.get(str(plan.page), 0) for item in plan.pending
+            )
+        ]
         if carries
         else []
     )
@@ -504,6 +571,7 @@ def carry_turn(
                 confirm=harness.commits_hook_context,
             )
         ),
+        point=lambda: note_pointer(sid, expected, delivery) if expected else None,
     )
     if output:
         print(json.dumps(output), flush=True)

@@ -95,6 +95,10 @@
       "since": 19,
       "schema": {"type":"object","properties":{"page":{"type":"string"},"connections":{"type":"object","additionalProperties":{"type":"object","properties":{"origin":{"type":"string"},"credential":{"type":"string"},"header":{"type":"string"},"prefix":{"type":"string"},"remaining":{"type":"integer","minimum":0}},"required":["origin","credential","header","prefix","remaining"]}}},"required":["page","connections"]}
     },
+    "pointed": {
+      "since": 22,
+      "schema": {"description":"The pages whose input a hook handed a session's turn by pointer, in the state home's `sessions/<digest>.pointed` (`state.session_file`).","type":"object","properties":{"turn":{"description":"The turn the pointers were handed to.","type":"string"},"pages":{"description":"Each page directory, with the last log position pointed at.","type":"object","additionalProperties":{"type":"integer"}}},"required":["turn","pages"]}
+    },
     "preview": {
       "since": 13,
       "schema": {"description":"What a developer preview shows in browser chrome, as `leaf-dev preview` writes it to the page directory's `preview.json`.","type":"object","properties":{"example":{"description":"The name of the source file the preview serves, without its extension.","type":"string"},"checkout":{"description":"The checkout whose Leaf serves it.","type":"string"},"interaction":{"description":"`user` for a `--user` preview, whose presses reach the session that claimed it; `author` for a plain one.","enum":["user","author"]},"started":{"description":"When the preview started.","type":"string"},"input":{"description":"The fixture publication the preview's watcher last applied.","type":"object","properties":{"source":{"type":"string"},"authored":{"type":"string"}},"required":["source","authored"],"additionalProperties":false}},"required":["example","checkout","interaction","started","input"],"additionalProperties":false}

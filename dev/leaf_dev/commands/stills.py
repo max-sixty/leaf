@@ -550,6 +550,18 @@ def screenshot_comparison(page: Page) -> None:
     page.locator("#bg-shot-guide").scroll_into_view_if_needed()
 
 
+def screenshot_slider_before(page: Page) -> None:
+    """One source fills the slider while change outlines locate its evidence."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.evaluate("async node => await node.difference")
+    shot.get_by_role("button", name="Slider", exact=True).click()
+    divider = shot.get_by_role("scrollbar")
+    divider.focus()
+    page.keyboard.press("End")
+    shot.get_by_role("button", name="Outline changes", exact=True).click()
+
+
 def image_in_page(page: Page) -> None:
     """An authored image in the reading flow, before its viewer opens."""
     page.get_by_role("tab", name="Threads", exact=True).click()
@@ -1448,6 +1460,11 @@ STATES = (
         touch=True,
     ),
     State("screenshot-comparison", "developer/feature-gallery", screenshot_comparison),
+    State(
+        "screenshot-slider-before",
+        "developer/feature-gallery",
+        screenshot_slider_before,
+    ),
     State(
         "screenshot-comparison-phone",
         "developer/feature-gallery",

@@ -10,6 +10,23 @@ export const SHOT_VIEWS = {
 const CONTROL = "lf-btn lf-quiet-action lf-compact-control";
 let nextOptionsId = 0;
 
+// Fit uses the content box: the scrollport's padding keeps the image shadow visible.
+export function shotAllocation(host, stage) {
+  const style = getComputedStyle(stage);
+  return {
+    available:
+      stage.clientWidth -
+      parseFloat(style.paddingLeft) -
+      parseFloat(style.paddingRight),
+    availableHeight:
+      getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1"
+        ? stage.clientHeight -
+          parseFloat(style.paddingTop) -
+          parseFloat(style.paddingBottom)
+        : undefined,
+  };
+}
+
 export function fitShotGeometry({
   available,
   availableHeight,
@@ -178,7 +195,7 @@ export function drawShot(host, { offer, keeps }) {
     frameCaptions = new Map(),
     openers = new Map();
   for (const state of ["before", "after"]) {
-    const frame = offer("div", "lf-shotframe");
+    const frame = offer("div", "lf-shotframe lf-media-frame");
     frame.dataset.lfState = state;
     const caption = offer(
       "span",
@@ -235,11 +252,7 @@ export function drawShot(host, { offer, keeps }) {
   keeps(host, "data-lf-shot-outlines", false);
   host.append(toolbar, stage, footer);
   const geometry = fitShotGeometry({
-    available: stage.clientWidth,
-    availableHeight:
-      getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1"
-        ? stage.clientHeight
-        : undefined,
+    ...shotAllocation(host, stage),
     labelHeight: parseFloat(getComputedStyle(frames[0].firstElementChild).blockSize),
     sourceWidth: Number(host.dataset.lfMediaWidth),
     sourceHeight: Number(host.dataset.lfMediaHeight),

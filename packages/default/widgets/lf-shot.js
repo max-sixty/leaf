@@ -8,6 +8,8 @@
  * or scale change. Source labels are passive, and images never change modes.
  * In Slider, a plain image click alternates the divider's Before/After endpoints;
  * dragging and the divider's keyboard controls retain continuous adjustment.
+ * Source labels retain their color while any of that image is visible; a fully
+ * hidden source has a muted label, so endpoints identify the image being inspected.
  * A stacked pair labels each frame instead of the header, since left/right
  * bookends cannot identify vertically arranged images. Other views label the header.
  *
@@ -78,6 +80,7 @@ import {
   SHOT_VIEWS as VIEWS,
   fitShotGeometry,
   applyShotGeometry,
+  shotAllocation,
 } from "./shot-view.js";
 
 customElements.define(
@@ -369,8 +372,8 @@ customElements.define(
       // before measuring; fitting the previous mode would resize this observed
       // stage again during ResizeObserver delivery.
       keeps(this, "data-lf-shot-mode", this.#shownView);
-      const available = this.#stage.clientWidth;
-      if (!available) return; // Hidden cases retain their last inspection until shown.
+      const allocation = shotAllocation(this, this.#stage);
+      if (allocation.available <= 0) return; // Hidden cases retain their last inspection until shown.
       const ratio = this.#metadata.pixelRatio ?? 1;
       const sourceWidth =
         this.#shots[0].naturalWidth / ratio ||
@@ -385,11 +388,7 @@ customElements.define(
       // dimensions become available independently and size only its inner plane.
       if (!(crop || (sourceWidth && sourceHeight))) return;
       const geometry = fitShotGeometry({
-        available,
-        availableHeight:
-          getComputedStyle(this).getPropertyValue("--lf-holds-height").trim() === "1"
-            ? this.#stage.clientHeight
-            : undefined,
+        ...allocation,
         labelHeight: parseFloat(
           getComputedStyle(this.#frameCaptions.get("before").parentElement).blockSize,
         ),
@@ -446,7 +445,7 @@ customElements.define(
         !this.#comparison &&
         customElements.get("wa-comparison")
       ) {
-        const comparison = offer("wa-comparison", "lf-shotcomparison");
+        const comparison = offer("wa-comparison", "lf-shotcomparison lf-media-frame");
         comparison.position = this.#position;
         const handle = offer("span", "lf-shot-handle");
         handle.slot = "handle";
@@ -543,6 +542,12 @@ customElements.define(
       );
       this.#legend.toggleAttribute("hidden", this.#view !== "pixels");
       this.#syncComparison();
+      for (const [state, caption] of this.#captions)
+        caption.toggleAttribute(
+          "data-lf-shot-hidden",
+          this.#shownView === "flip" &&
+            (state === "before" ? this.#position === 0 : this.#position === 100),
+        );
       this.#paintHandle();
       paintKeys();
     }
@@ -593,7 +598,7 @@ customElements.define(
     #showPixels() {
       this.#view = "pixels";
       if (!this.#pixelsView) {
-        const view = offer("div", "lf-shotpixels lf-shotimage");
+        const view = offer("div", "lf-shotpixels lf-shotimage lf-media-frame");
         view.role = "img";
         view.ariaLabel = `changed pixels: ${this.getAttribute("alt")}`;
         const plane = offer("div", "lf-shotplane");

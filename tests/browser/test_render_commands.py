@@ -162,6 +162,9 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
             ), (box, other)
     captions = toolbar.locator(".lf-shotcap")
     expect(captions).to_have_text(["Before", "After"])
+    label_colors = captions.evaluate_all(
+        "nodes => nodes.map(n => getComputedStyle(n).backgroundColor)"
+    )
     for caption in captions.all():
         caption.tap() if touch else caption.click()
         expect(shot.locator("wa-comparison")).to_have_attribute("position", "50")
@@ -204,10 +207,30 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         point = {"x": 20, "y": 40}
         comparison.tap(position=point) if touch else comparison.click(position=point)
         expect(comparison).to_have_attribute("position", endpoint)
+        hidden = 1 if endpoint == "100" else 0
+        expect(captions.nth(hidden)).to_have_css("background-color", "rgba(0, 0, 0, 0)")
+        expect(captions.nth(1 - hidden)).to_have_css(
+            "background-color", label_colors[1 - hidden]
+        )
         expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
             "aria-pressed", "true"
         )
+    handle = comparison.get_by_role("scrollbar")
+    handle.focus()
+    for key, position in (("End", "100"), ("Home", "0"), ("ArrowRight", "1")):
+        page.keyboard.press(key)
+        expect(comparison).to_have_attribute("position", position)
+        for index in (0, 1):
+            hidden = (index == 0 and position == "0") or (
+                index == 1 and position == "100"
+            )
+            expect(captions.nth(index)).to_have_css(
+                "background-color",
+                "rgba(0, 0, 0, 0)" if hidden else label_colors[index],
+            )
     shot.get_by_role("button", name="Pair", exact=True).click()
+    for index in (0, 1):
+        expect(captions.nth(index)).to_have_css("background-color", label_colors[index])
     image = shot.locator(".lf-shotimage").first
     image.tap(position={"x": 10, "y": 10}) if touch else image.click(
         position={"x": 10, "y": 10}
@@ -743,7 +766,12 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     header_boxes = [header.bounding_box() for header in headers]
     panes = shot.locator(".lf-shotviewport")
     assert panes.first.bounding_box()["width"] == pytest.approx(
-        stage.evaluate("node => node.clientWidth") - 2, abs=2
+        stage.evaluate("""node => {
+          const style = getComputedStyle(node);
+          return node.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        }""")
+        - 2,
+        abs=2,
     )
     panes.first.hover()
     page.mouse.wheel(180, 0)
@@ -832,6 +860,8 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     outlines = patch.get_by_role("button", name="Outline changes", exact=True)
     outlines.click()
     expect(patch.locator(".lf-shotdiff > span").first).to_be_visible()
+    for mark in patch.locator(".lf-shotdiff > span").all():
+        expect(mark).to_have_css("background-color", "rgba(0, 0, 0, 0)")
     readings = patch.locator(".lf-shotframe").evaluate_all("""frames => frames.map(frame => {
       const image = frame.querySelector('img').getBoundingClientRect();
       const scale = image.width / 600;

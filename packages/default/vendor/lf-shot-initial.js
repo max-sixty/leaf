@@ -7,6 +7,13 @@
   };
   var CONTROL = "lf-btn lf-quiet-action lf-compact-control";
   var nextOptionsId = 0;
+  function shotAllocation(host, stage) {
+    const style = getComputedStyle(stage);
+    return {
+      available: stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+      availableHeight: getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1" ? stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) : void 0
+    };
+  }
   function fitShotGeometry({
     available,
     availableHeight,
@@ -151,7 +158,7 @@
     stage.append(canvas);
     const frames = [], viewports = [], shots = [], captions = /* @__PURE__ */ new Map(), frameCaptions = /* @__PURE__ */ new Map(), openers = /* @__PURE__ */ new Map();
     for (const state of ["before", "after"]) {
-      const frame = offer("div", "lf-shotframe");
+      const frame = offer("div", "lf-shotframe lf-media-frame");
       frame.dataset.lfState = state;
       const caption = offer(
         "span",
@@ -208,8 +215,7 @@
     keeps(host, "data-lf-shot-outlines", false);
     host.append(toolbar, stage, footer);
     const geometry = fitShotGeometry({
-      available: stage.clientWidth,
-      availableHeight: getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1" ? stage.clientHeight : void 0,
+      ...shotAllocation(host, stage),
       labelHeight: parseFloat(getComputedStyle(frames[0].firstElementChild).blockSize),
       sourceWidth: Number(host.dataset.lfMediaWidth),
       sourceHeight: Number(host.dataset.lfMediaHeight),

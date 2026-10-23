@@ -138,6 +138,8 @@
   }
 }
 .lf-shotstage {
+  --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));
+  padding: var(--lf-shot-frame-room);
   flex: 1 1 auto;
   min-inline-size: 0;
   min-block-size: 0;
@@ -161,9 +163,8 @@
 }
 .lf-shotframe {
   inline-size: calc(var(--lf-shot-frame-width) + 2px);
-  border: 1px solid var(--rule);
+  border: 1px solid transparent;
   background: var(--card);
-  border-radius: var(--r);
   overflow: clip;
 }
 :scope:is(lf-shot)[data-lf-shot-mode=compare] .lf-shotframe {
@@ -215,6 +216,11 @@
 .lf-shot-frame-label[data-lf-state=after] {
   background: var(--add-tint);
   color: var(--ok-ink);
+}
+.lf-shotcap[data-lf-shot-hidden] {
+  background: transparent;
+  color: var(--muted);
+  font-weight: 400;
 }
 .lf-shotimage {
   position: relative;
@@ -275,6 +281,9 @@
 .lf-shotcomparison::part(divider) {
   background: var(--ink-2);
 }
+.lf-shotcomparison .lf-shotframe {
+  box-shadow: none;
+}
 .lf-shotcomparison::part(handle) {
   border: 1px solid var(--ink-2);
   box-shadow: var(--raise-1);
@@ -300,11 +309,9 @@
   right: max(0px, calc(100% - var(--lf-shot-x) - var(--lf-shot-w) - 3px));
   bottom: max(0px, calc(100% - var(--lf-shot-y) - var(--lf-shot-h) - 3px));
   border: 1px solid var(--warn);
-  background: color-mix(in srgb, var(--warn) 8%, transparent);
 }
 .lf-shotdiff > span[data-lf-shot-mark=moved] {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 :scope:is(lf-shot):not([data-lf-shot-outlines=true]) .lf-shotdiff {
   display: none;
@@ -323,7 +330,7 @@
 .lf-shotpixels {
   display: none;
   grid-area: 1 / 1;
-  border: 1px solid var(--rule);
+  border: 1px solid transparent;
 }
 :scope:is(lf-shot)[data-lf-shot-mode=pixels] .lf-shotpixels {
   display: block;

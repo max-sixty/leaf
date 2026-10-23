@@ -39,5 +39,6 @@ def incoming_registry(packages: list) -> dict:
     if not paths:
         raise registry_error("no-incoming-registry")
     source = "merged registry (" + ", ".join(str(path) for path in paths) + ")"
-    validate_registry_examples(validate_registry(merged, source), source)
-    return stamp_composition(merged)
+    # Examples validate against the vocabulary as pages read it, stamped.
+    stamped = stamp_composition(validate_registry(merged, source))
+    return validate_registry_examples(stamped, source)

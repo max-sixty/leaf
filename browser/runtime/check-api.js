@@ -10,6 +10,7 @@ export {
   watchSemantic,
   applicationPresented,
   readApplicationPresentation,
+  presentDocument,
   whenApplicationPresented,
   whenApplicationRegionsPresented,
   whenDocumentPresented,

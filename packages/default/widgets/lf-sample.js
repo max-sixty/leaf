@@ -48,6 +48,7 @@ import {
   mountSample,
   once,
   offer,
+  generatedElement,
   widgetController,
   focusDestination,
   closeLayer,
@@ -216,7 +217,7 @@ customElements.define(
 
       this.#view = document.createElement("dialog");
       this.#view.className = "lf-sample-view";
-      this.#view.dataset.lfGen = "1";
+      generatedElement(this.#view, { says: false });
       this.#view.setAttribute("open", "");
       this.#view.setAttribute("role", "presentation");
       this.#view.addEventListener("cancel", (event) => {
@@ -226,7 +227,7 @@ customElements.define(
 
       const controls = document.createElement("div");
       controls.className = "lf-sample-controls lf-ui";
-      controls.dataset.lfGen = "1";
+      generatedElement(controls, { says: false });
       const actions = document.createElement("div");
       this.#reset = offer("button", "lf-btn lf-sample-action");
       this.#reset.ariaLabel = this.#reset.title = "Reset";

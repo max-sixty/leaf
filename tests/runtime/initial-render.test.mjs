@@ -253,3 +253,32 @@ test("the contents drawing keeps its early parts through upgrade and keyed revis
   assert.equal(live.scope(), document.querySelector("main"));
   assert.equal(live.update(reading)[1].link, links[2]);
 });
+
+test("generated words say which kind they are, and a producer can't leave it unsaid", () => {
+  document.body.innerHTML = '<main><lf-worded id="worded"></lf-worded></main>';
+  const host = document.querySelector("lf-worded");
+  document.documentElement.lfInitial.register(
+    "lf-worded",
+    (node, { generatedElement }) => {
+      const heading = generatedElement(document.createElement("h2"), { says: true });
+      const name = generatedElement(document.createElement("span"), { says: "echo" });
+      // An x-says span keeps the attribute it names.
+      const declared = document.createElement("span");
+      declared.dataset.lfSaid = "label";
+      generatedElement(declared, { says: true });
+      node.append(heading, name, declared);
+      assert.throws(() => generatedElement(document.createElement("p"), {}), TypeError);
+      return { heading, name, declared };
+    },
+  );
+  const { heading, name, declared } = document.documentElement.lfInitial.paint(host);
+  const { generatedElement } = document.documentElement.lfInitial;
+  const markers = (node) =>
+    ["data-lf-gen", "data-lf-said", "data-lf-echo"].map((a) => node.getAttribute(a));
+  assert.deepEqual(markers(heading), ["1", "", null]);
+  assert.deepEqual(markers(name), ["1", null, ""]);
+  assert.deepEqual(markers(declared), ["1", "label", null]);
+  // A later write restates the kind, as one element can wear both over its life.
+  generatedElement(name, { says: false });
+  assert.deepEqual(markers(name), ["1", null, null]);
+});

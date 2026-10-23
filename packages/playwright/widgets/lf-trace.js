@@ -75,6 +75,7 @@ import {
   registerReadingRegion,
   keepsHidden,
   el,
+  generatedElement,
   focusDestination,
   showNativeLayer,
   closeNativeLayer,
@@ -495,7 +496,7 @@ customElements.define(
       const waiting = document.createElement("template");
       waiting.innerHTML = declarationFor(this, "x-prepaint");
       this.#waiting = waiting.content.firstElementChild;
-      this.#waiting.dataset.lfGen = "1";
+      generatedElement(this.#waiting, { says: false });
       this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       this.#bookmarks = [...this.querySelectorAll(":scope > lf-trace-bookmark")].map(
         (member, index) => ({
@@ -508,7 +509,7 @@ customElements.define(
       // Lit owns only this generated container; authored bookmarks and the
       // prepaint face remain outside its child-part markers.
       this.#view = el("div", "lf-trace-view");
-      this.#view.dataset.lfGen = "1";
+      generatedElement(this.#view, { says: false });
       this.append(this.#view);
       this.#paint();
       // Viewer owns the viewport's figures and the timeline module its own

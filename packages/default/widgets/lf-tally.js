@@ -38,6 +38,7 @@ import {
   LeafElement,
   nothing,
   offer,
+  generatedElement,
   obligationActions,
   readObligations,
   relabel,
@@ -68,7 +69,7 @@ customElements.define(
       const drawing = document.createElement("template");
       drawing.innerHTML = declarationFor(this, "x-prepaint");
       const face = /** @type {HTMLElement} */ (drawing.content.firstElementChild);
-      face.dataset.lfGen = "1";
+      generatedElement(face, { says: false });
       this.#rooms = [...face.querySelectorAll(".lf-tally-room")];
       for (const room of this.#rooms) room.replaceChildren();
       this.#words = face.querySelector(".lf-tally-words");

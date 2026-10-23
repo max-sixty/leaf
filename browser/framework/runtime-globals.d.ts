@@ -35,6 +35,7 @@ type LeafInitialRenderer = (
     tabStore: LeafStore;
     offer: LeafInitial["offer"];
     offerElement: LeafInitial["offerElement"];
+    generatedElement: LeafInitial["generatedElement"];
     keeps: LeafInitial["keepsAttribute"];
   },
 ) => unknown;
@@ -84,6 +85,7 @@ interface LeafInitial {
     pressable?: boolean,
   ): K extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[K] : HTMLElement;
   offerElement<T extends Element>(node: T, cls?: string, pressable?: boolean): T;
+  generatedElement<T extends Element>(node: T, options: { says: boolean | "echo" }): T;
   origin(node: Node): Node | undefined;
   parent(node: Node): Element | null;
 }

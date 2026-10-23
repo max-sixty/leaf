@@ -50,7 +50,7 @@ import { documentChanged, readPart } from "./semantic-state.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
-import { offer, reveal } from "./widget-elements.js";
+import { offer, offered, reveal } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
@@ -174,10 +174,7 @@ export function createAnchorControls({
   /** @param {{anchor: object, label: string, key?: string}} target */
   const visualActionTemplate = ({ anchor, label }) => html`
     <button
-      type="button"
-      class="lf-visual-action lf-quiet lf-ui"
-      data-lf-gen="1"
-      data-lf-offer="button"
+      ${offered("lf-visual-action lf-quiet")}
       tabindex="-1"
       .lfAnchor=${anchor}
       .textContent=${`Respond to ${label}`}

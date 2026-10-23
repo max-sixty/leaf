@@ -1916,137 +1916,6 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     assert cache_control(f"{revision}/leaf.js") == (404, "no-cache")
 
 
-def test_server_takes_an_approval_only_where_the_version_asked_for_one(
-    server, page_dir
-):
-    """The declaration is the decision, and the door holds anything posting past the panel
-    to it: a version that never asked has no approval to record."""
-    publish(page_dir)
-
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "done", "version": 1}).encode(),
-    )
-    assert status == 400
-    assert refused_on(body).code == "not-sign-off"
-
-    signoff = PAGE.replace(
-        "<title>t</title>",
-        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
-    ).replace("<lf-options>", '<lf-options id="choice" choose>')
-    (page_dir / "index.html").write_text(signoff)
-    publish(page_dir)
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "done", "version": 2}).encode(),
-    )
-    assert status == 400
-    unanswered = refused_on(body)
-    assert (unanswered.code, unanswered.values["obligations"]) == (
-        "unanswered-obligations",
-        ["widget:choice"],
-    )
-
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "action",
-                "revision": 2,
-                "widget": "choice",
-                "action": "choose",
-                "detail": {"value": ["flag-first"]},
-            }
-        ).encode(),
-    )
-    assert status == 200, body
-
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "approval-question",
-            "author": "user",
-            "revision": 2,
-            "text": "Which follow-up should ship?",
-        },
-    )
-    reply = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "response",
-            "reply",
-            "--done",
-            response_reference(page_dir, "approval-question"),
-            "--text",
-            "Choose the follow-up:",
-            "--markup",
-            (
-                '<lf-ask id="thread-approval-decision"><h3>Which follow-up?</h3>'
-                '<lf-options id="thread-approval" choose>'
-                '<lf-option id="thread-approval-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
-            ),
-        ],
-    )
-    assert reply.exit_code == 0, reply.output
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "done", "version": 2}).encode(),
-    )
-    assert status == 400
-    assert refused_on(body).values["obligations"] == ["widget:thread-approval"]
-
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "action",
-                "revision": 2,
-                "widget": "thread-approval",
-                "action": "choose",
-                "detail": {"value": ["thread-approval-a"]},
-            }
-        ).encode(),
-    )
-    assert status == 200, body
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "done", "version": 2}).encode(),
-    )
-    assert status == 200, body
-    assert event_model.read_events(page_dir)[-1]["kind"] == "done"
-
-
-def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
-    """A withdrawn approval is not one: the transcript reads approvals through the
-    same withdrawal every other fold honours, so it names the version approved and
-    says nothing once the user takes the approval back."""
-    signoff = PAGE.replace(
-        "<title>t</title>",
-        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
-    )
-    (page_dir / "index.html").write_text(signoff)
-    publish(page_dir)
-    approval = append_carried_log_record(
-        page_dir, {"kind": "done", "author": "user", "version": 1}
-    )
-
-    def transcript():
-        result = CliRunner().invoke(
-            cli_model.cli, ["page", "transcript", str(page_dir)]
-        )
-        assert result.exit_code == 0, result.output
-        return result.output
-
-    assert f"Approved v1 at {approval['ts']}." in transcript()
-
-    append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": approval["id"]}
-    )
-    assert "Approved" not in transcript()
-
-
 def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     server, page_dir
 ):
@@ -2490,7 +2359,6 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
         document,
         empty,
         undo_reading=undo_reading,
-        stamp=None,
         words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
     )
 
@@ -2524,7 +2392,6 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
             undo_reading=event_folds_model.UndoReading(
                 log, within={}, absorbed=frozenset()
             ),
-            stamp=None,
             words=gesture_words_model.GestureWords(log, {}, {}.__getitem__),
         )
         return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
@@ -2573,7 +2440,6 @@ def test_undo_candidates_say_which_gestures_the_agent_picked_up():
         undo_reading=event_folds_model.UndoReading(
             events, within={}, absorbed=frozenset()
         ),
-        stamp=None,
         words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
     )
     assert [
@@ -2585,7 +2451,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     """The view's undo list is final: `z` takes its head and a widget filters it.
 
     A decision carried into a later revision stays undoable there. One that revision
-    restated, one whose widget it dropped, and an approval of another stamp are
+    restated and one whose widget it dropped are
     offered only by the view that still paints them.
     """
     old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">').replace(
@@ -2621,9 +2487,6 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     kept = choose("kept", "kept-one")
     gone = choose("gone", "gone-one")
     restated = choose("picks", "flag-first")
-    approval = append_carried_log_record(
-        page_dir, {"kind": "done", "author": "user", "version": 1}
-    )
     # The fold reads both documents directly; admission above captures the sending
     # revision's operation before the later document drops and restates widgets.
     append_carried_log_record(
@@ -2655,7 +2518,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     def offered(revision):
         return [item["event"]["id"] for item in views[str(revision)]["undo"]]
 
-    assert offered(1) == [approval["id"], restated["id"], gone["id"], kept["id"]]
+    assert offered(1) == [restated["id"], gone["id"], kept["id"]]
     assert offered(2) == [kept["id"]]
 
 

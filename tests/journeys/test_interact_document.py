@@ -546,34 +546,6 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
     assert check(page_dir).exit_code == 0
 
 
-def test_check_owns_the_lf_meta_vocabulary(page_dir):
-    # The sign-off declaration: valid on its one value, rejected on a misspelled
-    # value or name — either would silently declare nothing in the browser.
-    signoff = PAGE.replace(
-        "<title>t</title>",
-        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
-    )
-    (page_dir / "index.html").write_text(signoff)
-    assert check(page_dir).exit_code == 0
-
-    (page_dir / "index.html").write_text(signoff.replace("sign-off", "approve"))
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings,
-        "meta-content",
-        name="lf-review",
-        allowed=["sign-off"],
-        found="approve",
-    )
-
-    (page_dir / "index.html").write_text(signoff.replace("lf-review", "lf-signoff"))
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    # The finding names the known vocabulary.
-    assert found(findings, "unknown-meta", name="lf-signoff", known=["lf-review"])
-
-
 def test_check_rejects_duplicate_ids(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output

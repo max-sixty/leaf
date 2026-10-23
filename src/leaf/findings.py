@@ -762,14 +762,6 @@ _TEXT = {
         f"{_line(at, v)} declares something about the whole document, which delivery"
         " owns"
     ),
-    "unknown-meta": lambda at, v: (
-        f'<meta name="{v["name"]}"> (line {v["line"]}): unknown lf- meta; known:'
-        f" {_json(v['known'])}"
-    ),
-    "meta-content": lambda at, v: (
-        f'<meta name="{v["name"]}"> (line {v["line"]}): content must be one of'
-        f" {_json(v['allowed'])}, found {v['found']!r}"
-    ),
     "allocation-value": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
         + (
@@ -1619,15 +1611,6 @@ _TEXT = {
     "publication-revision": lambda at, v: (
         "publication must name its checked candidate revision"
     ),
-    # A sign-off.
-    "unstamped-version": lambda at, v: f"v{v['version']} is not a stamped version",
-    "not-sign-off": lambda at, v: (
-        f'v{v["version"]} does not declare <meta name="lf-review" content="sign-off">,'
-        " so it has no approval to record"
-    ),
-    "unanswered-obligations": lambda at, v: (
-        f"v{v['version']} still has unanswered widget obligations: {', '.join(v['obligations'])}"
-    ),
     # An action or a report, against its widget's declaration.
     "unknown-sender": lambda at, v: (
         f"unknown report widget {v['widget']!r} in revision r{v['revision']} — reports"
@@ -1817,10 +1800,6 @@ _TEXT = {
     "unowed-start": lambda at, v: (
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task open` gave you"
-    ),
-    "approval-obligation": lambda at, v: (
-        f"obligation {v['todo']!r} requires the user's approval of v{v['version']}; it ends"
-        " at the page's Approval control"
     ),
     "widget-obligation": lambda at, v: (
         f"{v['todo']!r} is answered by its widget's state, so retire it in the document"

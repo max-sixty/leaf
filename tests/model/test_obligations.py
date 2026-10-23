@@ -30,7 +30,7 @@ def page(attrs="choose", context=None):
 
 
 def page_obligations(state, revision=1):
-    """The obligations the page's document and sign-off make in view `revision`."""
+    """The obligations the page's document makes in view `revision`."""
     view = state["views"][str(revision)]
     return obligations_model.collection(
         [
@@ -61,27 +61,57 @@ def test_context_changes_prompt_target_without_changing_obligation_identity_or_v
     assert state["todos"] == []
 
 
-def test_an_approval_asks_about_the_version_and_names_no_element_to_go_to():
-    """A sign-off's prompt names no element of the page: the version as a whole is what
-    it asks about, and the chrome presents its approval. It once named `lf-approve`,
-    the id of a chrome button that no longer exists."""
-    document = page().replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
+def test_approval_is_independent_and_survives_revision_until_restated():
+    """Approval answers its own request, and a completion stamp does not ask again."""
+    document = model.leaf_page(
+        "Permission",
+        '<lf-approval id="permit"><h2>Publish the report?</h2></lf-approval>'
+        + OPTIONS.format(attrs="choose"),
     )
-    stamp = {"kind": "note", "author": "agent", "version": 1, "text": "Ready"}
-    state = model.reading(document, [stamp])
-    [approval] = [
-        item
-        for item in page_obligations(state)["all"]
-        if item["source"]["kind"] == "approval"
-    ]
-    assert approval["prompt"] == {"text": "Approve v1?", "target": None}
+    approved = {
+        "kind": "action",
+        "id": "approval",
+        "widget": "permit",
+        "action": "approve",
+        "detail": {},
+    }
+    state = model.reading(document, [approved])
+    items = {item["id"]: item for item in page_obligations(state)["all"]}
+    assert items["widget:permit"]["status"] == "answered"
+    assert items["widget:permit"]["answer"]["event"]["id"] == "approval"
+    assert items["widget:choice"]["status"] == "open"
+    assert any(
+        item["id"] == "update:approval"
+        for item in state["views"]["1"]["queues"]["on_agent"]
+    )
+
+    revised = document.replace("Permission", "Permission and progress")
+    stamp = {
+        "kind": "note",
+        "author": "agent",
+        "version": 1,
+        "revision": 2,
+        "text": "Published the report.",
+    }
+    state = model.reading({1: document, 2: revised}, [approved, stamp])
+    items = {item["id"]: item for item in page_obligations(state, 2)["all"]}
+    assert items["widget:permit"]["status"] == "answered"
+    assert state["views"]["2"]["queues"]["on_agent"] == []
+
+    state = model.reading(document, [approved, {"kind": "undo", "undoes": "approval"}])
+    items = {item["id"]: item for item in page_obligations(state)["all"]}
+    assert items["widget:permit"]["status"] == "open"
+
+    changed = revised.replace('id="permit"', 'id="permit" restated')
+    state = model.reading(
+        {1: document, 2: changed}, [approved, {**stamp, "restated": ["permit"]}]
+    )
+    items = {item["id"]: item for item in page_obligations(state, 2)["all"]}
+    assert items["widget:permit"]["status"] == "open"
 
 
 def test_obligations_name_their_exact_owning_message_without_conflating_thread_identity():
-    document = page().replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
-    )
+    document = page()
     events = [
         {
             "kind": "note",
@@ -120,7 +150,6 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
     }
     assert inventory == {
         "widget:choice": (None, None),
-        "approval:v1": (None, None),
         "widget:root-choice": ("thread", "thread"),
         "widget:later-choice": ("thread", "later"),
         "widget:useful": ("prompt", "prompt"),

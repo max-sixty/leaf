@@ -356,7 +356,6 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
 // left to answer, since only a row or the walk names it by its widget (`obligationWord`).
 const QUEUE_WORDS = Object.freeze({
   widget: ["to answer", "to answer"],
-  approval: ["approval", "approvals"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],

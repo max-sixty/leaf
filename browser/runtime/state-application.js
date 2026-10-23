@@ -40,8 +40,6 @@ export function createStateApplication({
   prepareActivation,
   acceptData,
   notifyDataSubscribers,
-  isSignoffDeclared,
-  stateSignoff,
   accountPending,
 }) {
   let observedSemanticNews = null;
@@ -157,7 +155,6 @@ export function createStateApplication({
       stateApplying = true;
       try {
         settleAcceptedDrafts();
-        stateSignoff(isSignoffDeclared());
         // Optional interface preparation joins imports and installation, without
         // pretending to be a semantic renderer. Adoption already claimed every document
         // region for this epoch, and frozen

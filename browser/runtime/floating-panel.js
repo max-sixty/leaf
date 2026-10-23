@@ -1,6 +1,6 @@
 /* The floating panel: Leaf's chrome, as one box hovering over the foot of the page. It
  * presents what other owners hold, so it reads their readings and calls their commands:
- * the status and approval (page-status.js), the page's controls (`pageControls`,
+ * the status (page-status.js), the page's controls (`pageControls`,
  * page-controls.js), the threads (`readThreads`), the queues (`readQueues`), the
  * versions (`versionPicker`), the drafts (drafts.js), the passing notices
  * (notifications.js) and the errors (errors.js). It decides only how they are shown.
@@ -20,7 +20,7 @@
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
  *   Threads, with at most one small notice beside the marks for a state the user should
  *   not miss, such as reading an older version, tinted by its tone and with at most one
- *   press (`ROW_NOTICES`); the field gives it room, so the marks keep their seats, but
+ *   press (`olderVersion`); the field gives it room, so the marks keep their seats, but
  *   only while it holds no words, which a narrower field would rewrap under the reader;
  *   the notice waits while words stand there. The empty field says what the agent is
  *   doing or wants, in the status's words
@@ -147,12 +147,7 @@ import { iconElement, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 import { setRuntimeRootStyle } from "./root-state.js";
-import {
-  approvalReading,
-  approve,
-  registerApprovalPresentation,
-  statusReading,
-} from "./page-status.js";
+import { statusReading } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageDoor, pageRung } from "./keyboard/register.js";
@@ -1973,13 +1968,10 @@ export function createFloatingPanel({
   // its error points here to read (version.js, `holdFailedSave`); then the versions
   // the picker lists, the one shown marked, each a press that travels there and says
   // the note its stamp gave it after its name, cut to the row and whole on hover; with
-  // Compare where the picker offers it; then the version's approval, where the page
-  // asks for one, with why a press would not approve yet.
+  // Compare where the picker offers it.
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
-    const approval = approvalReading();
-    const approved = approval?.approved;
     return html`
       ${
         latest.failed
@@ -2026,25 +2018,6 @@ export function createFloatingPanel({
         versions.length
           ? nothing
           : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`
-      }
-      ${
-        approval
-          ? html`<hr />
-              <div
-                class="lf-fp-approval"
-                role="none"
-                title=${approval.reason ?? nothing}
-              >
-                ${menuItem(
-                  approval.text,
-                  approval.reason
-                    ? html`<span class="lf-fp-value">${approval.reason}</span>`
-                    : nothing,
-                  () => approve(),
-                  { disabled: Boolean(approval.reason) && !approved },
-                )}
-              </div>`
-          : nothing
       }
     `;
   }
@@ -2673,18 +2646,7 @@ export function createFloatingPanel({
               </button>`
             : nothing
         }`;
-    else if (record?.source.kind === "approval") {
-      const approval = approvalReading();
-      answers = html`<button
-        type="button"
-        class="lf-fp-answer"
-        aria-disabled=${approval?.reason ? "true" : nothing}
-        title=${approval?.reason ?? nothing}
-        @click=${() => approve()}
-      >
-        ${approval?.text ?? "Approve version"}
-      </button>`;
-    } else if (choices?.length)
+    else if (choices?.length)
       answers = html`${choices.map(
         (choice) =>
           html`<button
@@ -2717,7 +2679,6 @@ export function createFloatingPanel({
       </button>`;
     else answers = discuss;
     const key = queueItemKey(item);
-    const approval = record?.source.kind === "approval";
     const stop = queueStop(item);
     // What waits on the user says what it is, in the walk's word for it, so a
     // suggestion says Insertion, Deletion or Rewrite as the field does after `m`. An
@@ -2731,7 +2692,6 @@ export function createFloatingPanel({
       data-list=${list}
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
-      ?data-approval=${approval}
       ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
@@ -2778,25 +2738,6 @@ export function createFloatingPanel({
     },
     { beside: true },
   );
-
-  // The version's approval is answered here: arriving at it, as `m` and an On me row
-  // do, opens this view on its card and stands on its
-  // Approve, or once it is answered on its Undo, or the card itself.
-  const approvalControl = () => {
-    const card = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
-    return card?.querySelector("button") ?? card;
-  };
-  // An approval is an obligation, always On me's, open or done.
-  function arriveAtApproval() {
-    chooseQueueTab("you");
-    open({ view: "queue" }, { reopen: true, focus: false });
-    paint();
-    const target = approvalControl();
-    if (!target) return Promise.resolve(false);
-    scrollIntoView(target, { block: "nearest" });
-    focusDestination(target, "move");
-    return Promise.resolve(true);
-  }
 
   function onView() {
     if (queueTab === "plan") {
@@ -3385,7 +3326,7 @@ export function createFloatingPanel({
     keepsHidden(fieldMode, !search && !selection);
     paintPeek();
 
-    const standing = search ? null : rowNotice();
+    const standing = search ? null : olderVersion();
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
 
@@ -3457,10 +3398,6 @@ export function createFloatingPanel({
   // ---------- the row's notice ----------
   // One small notice beside the marks, for a state the user should not miss while they
   // read: a few words (`says`), a `tone` that tints it, and at most one `press`.
-  // Leaf's own readings raise each, and a notice ends when the state
-  // it reads does. The slot shows the first that holds, most urgent first, so the
-  // field's room never goes to a stack of them. Each case is a reading below; a new
-  // one joins `ROW_NOTICES` in its place.
   // The page shows an older version than the latest: the menu's row that opens the
   // latest says so too, but only once the menu is open, while the counts beside it
   // follow the version shown with no word of why.
@@ -3481,19 +3418,6 @@ export function createFloatingPanel({
       },
     };
   }
-  // The version shown is approved, until a new version asks again.
-  function approvedVersion() {
-    if (!approvalReading()?.approved) return null;
-    return { says: `✓ ${versionsReading().picker.token} approved`, tone: "ok" };
-  }
-  const ROW_NOTICES = [olderVersion, approvedVersion];
-  const rowNotice = () => {
-    for (const read of ROW_NOTICES) {
-      const notice = read();
-      if (notice) return notice;
-    }
-    return null;
-  };
   function rowNoticeTemplate({ says, tone, press = null }) {
     const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone}
       >${says}${
@@ -3954,11 +3878,6 @@ export function createFloatingPanel({
     });
     // Upgrade turns the status to its loading words without a publication.
     document.addEventListener(UPGRADE, () => paint(), { once: true });
-    registerApprovalPresentation({
-      target: approvalControl,
-      arrive: arriveAtApproval,
-      repaint: () => paint(),
-    });
     // A passing notice is said in the empty field, the one seat this chrome gives it.
     effect(() => {
       const { visible } = noticeReading();

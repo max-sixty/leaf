@@ -8,8 +8,8 @@ Leaf serving, checking or exporting the page, so the state a server serves cross
 version gap. What still crosses one, the event log, what a page sends, records kept
 outside a page, vendored declarations and the public package API, is the page
 protocol's (`layer-registry.md`, "Page protocol"). A historical revision therefore
-runs under the current runtime: approval keeps what the user approved, its authored
-content and decisions, and not the renderer that drew it.
+runs under the current runtime: its authored content and recorded decisions remain
+available independently of the renderer that drew them.
 
 `serving_runtime` reads the whole runtime once per process, which a page server does
 as it binds (`http.page_app`), and holds its bytes rather than its paths: a plugin

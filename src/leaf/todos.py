@@ -29,9 +29,7 @@ Done or by the agent. Obligations are separate records (`obligations`) that the 
 directly, never turned into to-dos. The agent's `todo_end` can also close an open
 question the user answers in words, such as an `lf-ask` in a reply, by its obligation id:
 `done` when the user answered it elsewhere, `dropped` when it no longer applies,
-never `failed`. Neither records an answer from the user (`obligations.settle_by_words`). A
-stamped version declaring `lf-review=sign-off` adds an approval obligation for that
-version, which only an approval the user has not withdrawn answers.
+never `failed`. Neither records an answer from the user (`obligations.settle_by_words`).
 
 A start lasts until its item ends: the to-do's end, or for an update, the reply or
 stamped version that answers it (`workflows.handed_over`). It names the turn
@@ -325,11 +323,6 @@ def todo_error(
             None,
         )
         if item is not None:
-            if item["source"]["kind"] == "approval":
-                return Finding(
-                    "approval-obligation",
-                    values={**named, "version": item["source"]["version"]},
-                )
             if not replied(registry[item["source"]["tag"]]):
                 return Finding("widget-obligation", values=named)
             if event["author"] != "agent":

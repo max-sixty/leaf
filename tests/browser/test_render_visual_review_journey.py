@@ -280,9 +280,12 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     # empty until the incoming pair has loaded; its declared geometry stays reserved.
     rendered(page, facts=("updatesSettled",))
     assert images.evaluate_all("images => images.every(image => !image.naturalWidth)")
-    assert host.locator(".lf-shotframe").first.evaluate(
-        "node => node.getBoundingClientRect().height"
-    ) > 500
+    assert (
+        host.locator(".lf-shotframe").first.evaluate(
+            "node => node.getBoundingClientRect().height"
+        )
+        > 500
+    )
     expect(host.locator(".lf-error")).to_have_count(0)
     refuse(held[0])
     expect(host.locator(".lf-error")).to_contain_text("focus needs two decoded images")

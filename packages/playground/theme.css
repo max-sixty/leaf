@@ -179,6 +179,7 @@
  * root: `:scope` would weigh a class, and the presets band's rule below would lose its
  * bottom rule and padding to the generic header's. */
 :is(.lf-playground-controls-region, .lf-playground-instruction-region) {
+  --lf-ground: var(--card);
   border-color: var(--rule);
   background: var(--card);
 }
@@ -284,6 +285,7 @@
 }
 :is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
   > lf-playground-choice {
+  --lf-ground: var(--card);
   display: grid;
   min-inline-size: 0;
   border: 1px solid var(--rule);
@@ -342,6 +344,7 @@
  * artifact, the controls among them, whenever a control changed one artifact's height
  * or the rail's height changed. */
 :scope:is(lf-playground-preview) {
+  --lf-ground: var(--field);
   --lf-block-frame: 1;
   display: grid;
   align-content: start;

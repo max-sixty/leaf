@@ -15,9 +15,11 @@
   align-items: center;
   gap: 8px;
   padding-block: 8px;
+  margin-block-end: var(--sp-3);
   box-sizing: border-box;
   block-size: var(--lf-motion-toolbar-height);
-  background: var(--paper);
+  /* Sticky apparatus stays opaque on the surface that contains the recording. */
+  background: var(--lf-ground, var(--paper));
   --lf-head-inset: 8px;
   font: 12px/1.5 var(--sans);
 }

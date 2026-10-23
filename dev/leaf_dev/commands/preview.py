@@ -24,7 +24,8 @@ its lease at `<slot>.lock` beside it.
 
 A product document is served as builders read it, with the parts other sources own
 composed in (`page_fixtures.authored_markup`), and an edit to one of those owners
-refreshes it like an edit to the document.
+refreshes it like an edit to the document. A corpus preview follows the original
+sources and regenerates their composition before refreshing its page.
 
 The preview vendors from a cached compiled installation, shared with the suite and
 developer probes. Runtime and compiler edits prepare a new kernel; authored-page edits
@@ -98,6 +99,7 @@ from leaf_dev.page_fixtures import (
     read_fixture,
     record_run_context,
     refresh_captures,
+    refresh_composition,
     source_manifest,
     source_manifest_candidates,
     source_packages,
@@ -467,6 +469,7 @@ def refresh_preview(
     them. A refused stamp restores the previous mutable inputs as well.
     """
     try:
+        refresh_composition(source)
         launcher = cached_installation(runtime) / "bin/leaf"
         fixture = read_fixture(source, runtime=launcher.parent.parent)
         incoming = incoming_files(source)
@@ -606,6 +609,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     companions = page_files(source)
     media = media_source(source)
     lock = assets_lock(source)
+    composed, composed_trees = composition_inputs(source)
     page = {
         path.resolve()
         for path in (
@@ -616,7 +620,8 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
                 for spec in data_companion(source).get("$captures", {}).values()
                 if "asset" not in spec
             ),
-            *composition_inputs(source),
+            *composed,
+            *composed_trees,
             companions,
             *companions.rglob("*"),
             *source_manifest_candidates(source),
@@ -632,11 +637,17 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
         )
     }
     discovering = {
+        *(path.resolve() for path in composed_trees),
         companions,
         source.parent / "media",
         *([manifest.parent / "media"] if manifest is not None else []),
     }
-    trees = {*resolved_roots, scripts, *(path.parent for path in package), *discovering}
+    trees = {
+        *resolved_roots,
+        scripts,
+        *(path.parent for path in package),
+        *discovering,
+    }
     # Discovery subscriptions stay at the parent even after a missing directory
     # arrives, so rebuilding does not discard events collected during refresh.
     holders = (trees - discovering) | {tree.parent for tree in discovering}
@@ -762,6 +773,7 @@ def serve_preview(
 
     # Fixture progress is distinct from the page's own authored inputs: an agent
     # may have revised those while this watcher was absent.
+    refresh_composition(source)
     state = {
         "authored": authored_digest(incoming_files(source)),
     }

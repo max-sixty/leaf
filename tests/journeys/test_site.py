@@ -143,12 +143,10 @@ def example_title(stem: str) -> str:
 
 
 def authored_examples():
-    """The public examples, with the one generated browser-stress fixture removed."""
+    """The public examples, excluding any generated browser-stress snapshot."""
     pages = pages_under(EXAMPLES)
-    corpus = [page for page in pages if page.stem == "corpus"]
     authored = [page for page in pages if page.stem != "corpus"]
-    assert len(corpus) == 1, f"expected one internal corpus, found {corpus}"
-    assert authored, "excluding the corpus left no examples to publish"
+    assert authored, "no authored examples to publish"
     return authored
 
 

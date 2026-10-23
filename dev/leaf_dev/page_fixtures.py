@@ -144,9 +144,21 @@ def authored_markup(path: Path, assets: Path | None = None) -> str:
     return docs.compose(path, markup, assets=assets)
 
 
-def composition_inputs(path: Path) -> list[Path]:
-    """The files besides `path` and the asset pin that `authored_markup` reads."""
-    return docs.inputs(path) if path.parent == docs.DOCS else []
+def composition_inputs(path: Path) -> tuple[list[Path], list[Path]]:
+    """Composition inputs besides `path` and the asset pin, including discovery trees."""
+    from leaf_dev.commands import corpus
+
+    if root := corpus.source_root(path):
+        return corpus.composition_inputs(root)
+    return (docs.inputs(path) if path.parent == docs.DOCS else []), []
+
+
+def refresh_composition(source: Path) -> None:
+    """Materialize a generated fixture before reading its markup and companions."""
+    from leaf_dev.commands import corpus
+
+    if root := corpus.source_root(source):
+        corpus.generate(root)
 
 
 def read_fixture(

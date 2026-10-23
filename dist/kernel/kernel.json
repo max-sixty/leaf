@@ -24,7 +24,7 @@
     "runtime/annotation-overlay/margin-placement.js": "4b256388ff174aef0c52db7297459e1711655ee0317c61224a3bdaba059951d8",
     "runtime/annotation-overlay/margin-projection.js": "d22b99de48dc653649817277a6f5fda480eb4fda7cc56ef6ffad4bb4ab4dc2d4",
     "runtime/annotation-overlay/surface-grip.js": "e7e8b915f18bc131e321090ef8de108c49a70fc8005dba9519ec3833cf0c83f3",
-    "runtime/annotation-overlay/thread-preview.js": "cf69e6a538626723fbb4d74c21bf80ef3659f93ab0a797b0e964766fe46215a6",
+    "runtime/annotation-overlay/thread-preview.js": "ee2948878d86c04c2449a8dd8789e0a6a2b96b32d91121cc6e5b9e74d42d2669",
     "runtime/annotation-overlay/visual-mark-paint.js": "79bfa0da875d52954da0cd24360389a5bbc821711258088cb0bbfff3557ef1cb",
     "runtime/annotation-view.js": "2333dd0ba948921b37d05741c49a4c10a330d9c2a2b3fd97e44f9b0aad76c925",
     "runtime/application.js": "f4041f686adc1daafdb0b24708d10c64bd50d0e37a2271069daae0b19580eb99",

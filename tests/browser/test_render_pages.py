@@ -3664,7 +3664,9 @@ def test_margin_content_fits_where_the_column_leaves_room(browser, serve):
             assert first["left"] >= 0, (width, at)
             assert first["right"] <= at["column"]["left"] - 23, (width, at)
         else:
-            assert (first["float"], first["position"]) == ("none", "static"), (
+            assert first["float"] == "none", (width, at)
+            assert first["position"] not in ("absolute", "fixed", "sticky"), (width, at)
+            assert first["left"] == pytest.approx(at["column"]["left"], abs=1), (
                 width,
                 at,
             )

@@ -111,7 +111,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
     comment = selection_field(page)
     expect(comment).to_have_attribute(
-        "placeholder", re.compile('^In Design mode · “Undo”')
+        "placeholder", re.compile("^In Design mode · “Undo”")
     )
     expect(exit_design).to_be_visible()
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (

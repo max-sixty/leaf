@@ -117,7 +117,7 @@ representative desktop viewport.
   doesn't list.
 - **Generated interface appears in its final position.** Hold room before first paint
   only for what will be drawn, such as a widget's upgraded controls. Feedback may
-  repaint a control or change its label, but never its size: `data-lf-room`
+  repaint a control or change its label, but never its size: `data-room`
   (`controls.css`) sizes a label to the widest of the words it can show. A parent
   laying out adjacent actions keeps their hit areas apart.
 - **What may appear fits into what is already there.** Hold no empty room for a state
@@ -284,13 +284,13 @@ transform or the page's own CSS. Before a module measures, positions, stacks, is
 or tracks something, find the browser feature that decides it and shape the markup and
 CSS to use it:
 
-| Question                                                                   | The browser feature that answers it                                                                    |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-lf-room` |
-| Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                         |
-| Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0    |
-| Whether a box is rendered at all                                           | `checkVisibility`                                                                                      |
-| Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                            |
+| Question                                                                   | The browser feature that answers it                                                                 |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-room` |
+| Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                      |
+| Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
+| Whether a box is rendered at all                                           | `checkVisibility`                                                                                   |
+| Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                         |
 
 Where a feature nearly fits, change what the runtime asks of it, such as where a box
 lives in the DOM, rather than computing the answer. A module that answers one of these

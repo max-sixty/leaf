@@ -607,7 +607,7 @@ export class ThreadView {
     if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
     this.#observedHeader = null;
     this.#releaseHeaderItems();
-    this.#news.node.removeAttribute("data-lf-room");
+    this.#news.node.removeAttribute("data-room");
   }
 
   #releaseHeaderItems() {
@@ -707,8 +707,8 @@ export class ThreadView {
     if (this.#model.news) {
       // While news stands, the notice keeps the width of the words it first showed, so
       // later news never narrows or widens it under the pointer; longer news is cut.
-      if (!this.#news.node.hasAttribute("data-lf-room"))
-        this.#news.node.dataset.lfRoom = this.#model.news.label;
+      if (!this.#news.node.hasAttribute("data-room"))
+        this.#news.node.dataset.room = this.#model.news.label;
       const line = controls.getBoundingClientRect();
       const shown = shownRect(controls, new Map());
       if (shown)
@@ -716,7 +716,7 @@ export class ThreadView {
           "--lf-thread-news-visible-end",
           layoutPx(Math.max(0, shown.right - line.left)),
         );
-    } else this.#news.node.removeAttribute("data-lf-room");
+    } else this.#news.node.removeAttribute("data-room");
   }
 
   // Whether the progress behind the working message stood open when last drawn

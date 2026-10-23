@@ -823,12 +823,10 @@ export function createFloatingPanel({
   // them, as its placeholder says, rather than writing on the page (`selectedWords`).
   // The words are the ones the field quotes as the press begins, so the press does what
   // the field says (an error the field says instead hides the words, and the press
-  // writes on the page). The press's mousedown is cancelled, so the editor never takes
+  // writes on the page). The press's pointerdown is cancelled, so the editor never takes
   // focus, a phone raises no keyboard for it, and the page's selection stands until the
-  // comment takes it. The comment opens as the press completes, since that mousedown
-  // still reaches the page, which puts away whatever comment box it finds open
-  // (composing/surface.js, `standDown`). A Tab through the row, or the runtime putting
-  // the caret there, writes on the page.
+  // comment takes it. The comment opens as the press completes. A Tab through the
+  // row, or the runtime putting the caret there, writes on the page.
   let pressedWords = null;
   const quotedWords = () =>
     general &&
@@ -843,12 +841,6 @@ export function createFloatingPanel({
         event.isPrimary && event.composedPath().includes(general?.input)
           ? quotedWords()
           : null;
-    },
-    true,
-  );
-  field.addEventListener(
-    "mousedown",
-    (event) => {
       if (pressedWords) event.preventDefault();
     },
     true,

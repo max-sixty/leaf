@@ -7032,12 +7032,6 @@ function createFloatingPanel({
     "pointerdown",
     (event) => {
       pressedWords = event.isPrimary && event.composedPath().includes(general?.input) ? quotedWords() : null;
-    },
-    true
-  );
-  field.addEventListener(
-    "mousedown",
-    (event) => {
       if (pressedWords) event.preventDefault();
     },
     true

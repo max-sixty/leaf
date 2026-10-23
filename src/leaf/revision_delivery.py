@@ -43,7 +43,7 @@ import turbohtml
 
 from .layer import CASCADE_LAYERS
 from .passages import markdown_markup
-from .registry.contract import is_element_name, prepaint_markup
+from .registry.contract import exhibits, is_element_name, prepaint_markup
 from .registry.kernel import kernel_marks
 from .revision_artifact import (
     Resource,
@@ -383,7 +383,11 @@ def mark_declared(
         )
         marks = {}
         for key, mark in kernel_marks().items():
-            declared = declaration.get(key)
+            declared = (
+                exhibits(attrs, declaration)
+                if key == "x-exhibit"
+                else declaration.get(key)
+            )
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
             if authored in attrs and means[mark["authored_on"]]:

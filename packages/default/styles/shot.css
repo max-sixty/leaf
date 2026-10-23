@@ -256,6 +256,9 @@
 }
 :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="side"]
   .lf-shotcanvas {
+  /* Match the toolbar's source labels even when captures leave spare room. */
+  inline-size: 100%;
+  justify-content: space-between;
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
 :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
@@ -364,7 +367,7 @@
 .lf-shotpixels [data-lf-shot-side="after"] {
   background: var(--accent);
 }
-.lf-shot-footer {
+.lf-shotlegend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -373,14 +376,6 @@
   flex: none;
   color: var(--muted);
   font: var(--t-working-label)/1.4 var(--sans);
-}
-.lf-shotdelta {
-  min-block-size: 1lh;
-}
-.lf-shotlegend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
 }
 .lf-shotlegend[hidden] {
   display: none;
@@ -415,7 +410,7 @@
     overflow: visible;
   }
   .lf-shot-toolbar,
-  .lf-shot-footer,
+  .lf-shotlegend,
   .lf-shotpixels,
   .lf-shotdiff {
     display: none !important;

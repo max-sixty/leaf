@@ -781,6 +781,7 @@
           > :only-child,
         [data-lf-track] {
           position: sticky;
+          --lf-head-inset: 0px;
           top: calc(var(--lf-top-outer) + var(--sp-4));
           --lf-top: 0px;
           --lf-top-covered: 0px;
@@ -917,6 +918,7 @@
     :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
       > header {
       position: sticky;
+      --lf-head-inset: 0px;
       top: var(--lf-top);
       z-index: 1;
       padding-block: var(--sp-2);

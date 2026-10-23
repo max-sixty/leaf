@@ -790,6 +790,7 @@ var LeafEditorView = class extends EditorView {
       ...config,
       state: withNavigation(config.state ?? EditorState.create(config))
     });
+    this.scrollDOM.classList.add("scroll");
     this.contentDOM.addEventListener("focus", () => this.placeSelection());
   }
   setState(state) {
@@ -1328,6 +1329,7 @@ var LeafText = class extends HTMLElement {
     this.#view?.placeSelection();
   }
   connectedCallback() {
+    this.classList.toggle("scroll", true);
     if (this.#view) return;
     if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
     if (!this.hasAttribute("aria-multiline"))

@@ -642,7 +642,10 @@
   // The nearest painted ancestor distinguishes skipped contents from a box the page
   // hides itself. Geometry adopts this same reading with its composed-parent walk.
   const skipped = (element, parent = (node) => node.parentElement) => {
-    if (element.checkVisibility()) return false;
+    if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
+    // A boxed descendant can retain layout while its auto container skips drawing.
+    // Ask the native skip state before any geometry forces that content back.
+    if (element.checkVisibility()) return true;
     let child = element;
     let box = parent(element);
     while (box && !box.checkVisibility()) {
@@ -1076,14 +1079,22 @@
         ? main.querySelector(':scope > [data-lf-views="parts"]')
         : null;
     let height = 0;
+    let marked = false;
     for (
       let node = parts?.previousElementSibling;
       node;
       node = node.previousElementSibling
-    )
+    ) {
+      // The parts layout owns this scrolling title surface. Declare it here,
+      // alongside its layout, so reach need not discover it by scanning content.
+      if (!node.classList.contains("scroll")) {
+        node.classList.add("scroll");
+        marked = true;
+      }
       height = Math.max(height, node.getBoundingClientRect().height);
+    }
     const value = height ? `${Math.round(height)}px` : "";
-    if (body.style.getPropertyValue(TITLE) === value) return false;
+    if (body.style.getPropertyValue(TITLE) === value) return marked;
     if (value) setRuntimeRootStyle(body, TITLE, value);
     else removeRuntimeRootStyle(body, TITLE);
     return true;

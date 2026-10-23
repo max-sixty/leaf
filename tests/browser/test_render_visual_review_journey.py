@@ -446,7 +446,9 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     expect(shot.locator(".lf-error")).to_have_count(0)
     expect(pixels).to_be_focused()
     expect(pixels).to_have_attribute("aria-pressed", "true")
-    expect(shot.locator(".lf-shotdelta")).to_have_text("identical")
+    expect(shot.locator(".lf-shot-outline")).to_have_attribute(
+        "aria-description", "identical"
+    )
     corrected_pixels = shot.evaluate(painted_pixels)
     assert all(corrected_pixels["masks"])
     assert corrected_pixels["masks"] != previous_pixels["masks"]

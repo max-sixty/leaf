@@ -123,6 +123,7 @@ import {
   el,
   elementDeclarations,
   elementsDeclaring,
+  exhibits,
   growthAfterIsSeen,
   growthIsSeen,
   headerInset,
@@ -1291,8 +1292,10 @@ function markDeclared(root) {
     const tags = tagsDeclaring((entry) => entry[key]);
     for (const tag of tags) {
       const declared = registry[tag][key];
-      for (const el2 of elementsIn(root, tag))
-        keeps(el2, paint2, declared === true || mark.presence ? "" : declared);
+      for (const el2 of elementsIn(root, tag)) {
+        const value = key === "x-exhibit" ? exhibits(el2, registry[tag]) : declared;
+        keeps(el2, paint2, !value ? null : value === true || mark.presence ? "" : value);
+      }
     }
     if (authored) {
       for (const el2 of elementsIn(root, `[${authored}]`))
@@ -1524,6 +1527,15 @@ function copyBlock(block, source, noun) {
   return copy;
 }
 function watchCodeBlocks() {
+  watchArrivals(
+    "pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])",
+    [],
+    {
+      arrive: (block) => block.classList.toggle("scroll", true),
+      leave: () => {
+      }
+    }
+  );
   watchArrivals("pre:has(> code)", ["style"], {
     arriveBatch(blocks) {
       const prepared = blocks.filter((pre) => pre.getRootNode() === document).map(

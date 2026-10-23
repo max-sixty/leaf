@@ -403,7 +403,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       sendBtn.replaceChildren(word.charAt(0).toUpperCase() + word.slice(1));
     }
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
-    mediaShelf.className = "lf-composer-media";
+    mediaShelf.className = "lf-composer-media scroll";
     mediaShelf.setAttribute("role", "group");
     mediaShelf.setAttribute("aria-label", "Attachments");
     if (mediaBelow) field.after(mediaShelf);

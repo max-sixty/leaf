@@ -637,6 +637,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   .lf-margin-thread .lf-thread-transcript .lf-msg-head {
     position: sticky;
+    --lf-head-inset: 0px;
     inset-block-start: 0;
     z-index: 1;
     background-color: var(--lf-msg-ground);

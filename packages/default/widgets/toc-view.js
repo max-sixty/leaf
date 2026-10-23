@@ -30,7 +30,7 @@ export function drawToc(host) {
   const paint = (start, items) =>
     render(
       html`
-        <nav class="lf-toc-nav lf-ui" data-lf-gen="1" aria-label="On this page">
+        <nav class="lf-toc-nav lf-ui scroll" data-lf-gen="1" aria-label="On this page">
           <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>
             On this page
           </p>

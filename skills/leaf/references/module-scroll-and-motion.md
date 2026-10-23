@@ -42,6 +42,14 @@ the track flows with that box. Where the module stacks the track with what it se
 as on a phone, it declares `--lf-track-scroll-behavior: flow` on the track's parent, and the
 track flows with the page. Register the track as a reading region, since it may scroll.
 
+A horizontal scroll surface uses the shared `scroll` class on its actual
+viewport and declares overflow in its CSS. The class supplies containment. Leaf adds
+keyboard access and continuation cues, inspecting these surfaces for overflow instead
+of reading every descendant's styles. A reading region's body receives this class when
+it registers; its CSS still decides whether the region scrolls or flows.
+Sticky headers set `--lf-head-inset: 0px` beside their `position: sticky` rule so
+keyboard focus counts the header's own inset as visible.
+
 Register the pane's body, and any other box the widget may scroll, with
 `registerReadingRegion({id, host, body})` inside `whileConnected`, returning the
 function it gives back as the cleanup. `body` is the box that may scroll, and `host` the

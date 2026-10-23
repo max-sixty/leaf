@@ -145,7 +145,7 @@ function buildGroup(owner, key, open) {
   // datum, and its source control beside it rather than around the whole call tree.
   const location = el("div", "lf-call-root-location");
   const summary = buildLine("summary");
-  const body = el("div", "lf-call-group-body lf-text-scroller");
+  const body = el("div", "lf-call-group-body lf-text-scroller scroll");
   group.dataset.callGroup = key;
   summary.classList.add("lf-call-group-summary");
   group.append(summary, body);

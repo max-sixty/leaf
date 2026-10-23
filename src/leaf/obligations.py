@@ -61,6 +61,7 @@ from leaf.projection import (
     projected_action_holders,
     state_projection,
 )
+from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
 from leaf.thread_context import widget_messages
 
@@ -140,7 +141,7 @@ def obligation_registrations(
     return {
         unit: ObligationRegistration(
             record["tag"],
-            asking(record["attrs"], declaration.get("when")),
+            matches_when(record["attrs"], declaration.get("when")),
             "restated" in record["attrs"],
             frozenset(
                 verb
@@ -228,20 +229,6 @@ def response_address(record: dict) -> dict:
     }
 
 
-def asking(attrs: dict, when: dict) -> bool:
-    """Every attribute `when` names matches a string value or, for a boolean,
-    its presence or absence."""
-    return all(
-        any(
-            (attr in attrs) == value
-            if isinstance(value, bool)
-            else attrs.get(attr) == value
-            for value in values
-        )
-        for attr, values in (when or {}).items()
-    )
-
-
 def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     """An element's attributes under the declared current projection: authored
     markup overlaid with every surviving value record; independent verbs coexist."""
@@ -300,7 +287,7 @@ def previously_requested(
                 floors=retractions(events, revision) if revision is not None else {},
                 withdrawn=taken_back(events),
             )
-        if asking(replayed_attrs(record, cache[key]), when):
+        if matches_when(replayed_attrs(record, cache[key]), when):
             return True
     return False
 
@@ -331,7 +318,7 @@ def verb_answers(
     while one of its actions stands on the widget.
     """
     condition = answer_verbs(entry)[verb]
-    if not asking(replayed_attrs(rec, projection), condition.get("when")):
+    if not matches_when(replayed_attrs(rec, projection), condition.get("when")):
         return False
     if empty := condition.get("empty"):
         return container_empty(rec, empty, byid, registry, holders)
@@ -465,7 +452,7 @@ def quoted_in(rec: dict, registry: dict) -> bool:
     same reason `quotedBy` takes an element — an element the author left unnamed
     stands where it stands."""
     return any(
-        (registry.get(node["tag"]) or {}).get("x-exhibit")
+        exhibits(node["attrs"], registry.get(node["tag"], {}))
         for node in enclosing_widgets(rec)
     )
 
@@ -502,7 +489,7 @@ def container_empty(
         for record in byid.values()
         if record["tag"] == empty["within"]
         and inside(record, owner)
-        and asking(record["attrs"], empty["when"])
+        and matches_when(record["attrs"], empty["when"])
     ]
     if len(containers) != 1:
         return False
@@ -535,7 +522,10 @@ def answering_action(
     awaits = entry.get("x-awaits") or {}
     return (
         verb in answer_verbs(entry)
-        and (registered or asking(replayed_attrs(rec, projection), awaits.get("when")))
+        and (
+            registered
+            or matches_when(replayed_attrs(rec, projection), awaits.get("when"))
+        )
         and verb_answers(
             rec,
             entry,
@@ -643,7 +633,7 @@ class _ObligationReducer:
         return self._entry(record).get("x-awaits", {})
 
     def _local(self, record):
-        return asking(
+        return matches_when(
             replayed_attrs(record, self.projection),
             self._declaration(record).get("when"),
         )
@@ -823,7 +813,7 @@ class _ObligationReducer:
                 continue
             registered = (
                 self.local[id(record)]
-                or asking(record["attrs"], self._declaration(record).get("when"))
+                or matches_when(record["attrs"], self._declaration(record).get("when"))
                 or previously_requested(
                     record,
                     self.projection,

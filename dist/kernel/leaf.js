@@ -6337,6 +6337,18 @@ function boxMotion({
   let rests = null;
   let motions = /* @__PURE__ */ new Map();
   let running = [];
+  let shapeUntil = 1;
+  let rtl = false;
+  const interpolate = (from, to, progress) => {
+    const rect2 = between(from, to, progress);
+    const shape = Math.min(1, progress / shapeUntil);
+    const w = width(from) + (width(to) - width(from)) * shape;
+    const h = height(from) + (height(to) - height(from)) * shape;
+    if (rtl) rect2.left = rect2.right - w;
+    else rect2.right = rect2.left + w;
+    rect2.top = rect2.bottom - h;
+    return rect2;
+  };
   const translations = /* @__PURE__ */ new Map();
   const restoreTranslations = (keep = /* @__PURE__ */ new Set()) => {
     for (const [element, { value, priority }] of translations) {
@@ -6375,6 +6387,7 @@ function boxMotion({
       return;
     }
     if (!element.checkVisibility()) return;
+    if (style.positionAnchor.startsWith("--")) return;
     const [dx, dy] = carried(element);
     const part = {
       element,
@@ -6400,7 +6413,7 @@ function boxMotion({
       if (motion?.revealed && progress < 1) continue;
       at.set(
         element,
-        motion ? between(motion.from, motion.to, progress) : shifted(rest, ...carried(element))
+        motion ? (element === box ? interpolate : between)(motion.from, motion.to, progress) : shifted(rest, ...carried(element))
       );
     }
     return at;
@@ -6425,7 +6438,7 @@ function boxMotion({
         if (node instanceof Element && !insideWhole(node)) arrived.add(node);
     watch();
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
-  function follow(timing) {
+  function follow(timing, compact = false) {
     const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     const parts = [];
@@ -6481,8 +6494,19 @@ function boxMotion({
       return;
     }
     const boxFrom = was.get(box);
-    const rtl = getComputedStyle(box).direction === "rtl";
+    shapeUntil = compact ? 0.55 : 1;
+    rtl = getComputedStyle(box).direction === "rtl";
     const start = (element, keyframes) => running.push(element.animate(keyframes, timing));
+    const contour = (from, to, grow2, radius, compact2 = false) => {
+      const frames = [clipFrame(...outline(from, grow2, radius))];
+      if (compact2)
+        frames.push({
+          ...clipFrame(...outline(interpolate(from, to, shapeUntil), grow2, radius)),
+          offset: shapeUntil
+        });
+      frames.push(clipFrame(...outline(to, grow2, radius)));
+      return frames;
+    };
     const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
     const translated = /* @__PURE__ */ new Set();
     const move2 = (element, dx, dy) => {
@@ -6614,10 +6638,7 @@ function boxMotion({
             // The fill meets the outline's inner edge, including an inward ring.
             [ringFill, offset]
           ])
-            start(layer, [
-              clipFrame(...outline(from, grown, radius)),
-              clipFrame(...outline(to, grown, radius))
-            ]);
+            start(layer, contour(from, to, grown, radius));
         } else if (!sized && paints(style) && !part.holdsWindow)
           carries ? carryContent(part, from) : grow(part, from);
         if (!same3(from, to))
@@ -6633,10 +6654,7 @@ function boxMotion({
     if (running.length === 0 && same3(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach2] of surface())
-      start(layer, [
-        clipFrame(...outline(boxFrom, reach2, boxRadius)),
-        clipFrame(...outline(boxAt, reach2, boxRadius))
-      ]);
+      start(layer, contour(boxFrom, boxAt, reach2, boxRadius, compact));
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
     const animations = running;
@@ -6657,6 +6675,8 @@ function boxMotion({
 var prefs = () => document.documentElement.lfChrome;
 var EASE = "cubic-bezier(.23, 1, .32, 1)";
 var RESIZE_MS = 300;
+var FOLD_MS = 280;
+var FOLD_EASE = "cubic-bezier(.77, 0, .175, 1)";
 var VIEW_RESIZE_MS = 120;
 var FADE_MS = 90;
 var OUT_MS = 60;
@@ -6749,7 +6769,7 @@ function createFloatingPanel({
   context2.append(contextWords);
   inner.append(opened, context2, row);
   card.append(inner);
-  host.append(card, menu, badge, newsDot, peek);
+  host.append(card, menu, peek);
   const minimize = el("button", "lf-corner-mark lf-fp-minimize");
   minimize.type = "button";
   minimize.tabIndex = -1;
@@ -6789,7 +6809,7 @@ function createFloatingPanel({
   const mark = el("span", "lf-dot");
   const errorDot = el("span", "lf-fp-error-dot");
   errorDot.setAttribute("aria-hidden", "true");
-  leaf.append(mark, errorDot);
+  leaf.append(mark, errorDot, badge, newsDot);
   const field = el("div", "lf-fp-field");
   const expand = el("button", "lf-fp-expand");
   expand.type = "button";
@@ -7244,8 +7264,12 @@ function createFloatingPanel({
       layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0)
     );
     const moving = !reducedMotion() && pagePresented();
-    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    motion.follow(moving ? { duration, easing: EASE } : null);
+    const compact = host.dataset.rest === "mark";
+    const duration = compact ? FOLD_MS : performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
+    motion.follow(
+      moving ? { duration, easing: compact ? FOLD_EASE : EASE } : null,
+      compact
+    );
   }
   addEventListener("resize", () => {
     motion.forget();

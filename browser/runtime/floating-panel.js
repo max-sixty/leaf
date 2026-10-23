@@ -244,6 +244,10 @@ const EASE = "cubic-bezier(.23, 1, .32, 1)";
 // The box growing as the words do, a line at a time, takes the tween's full length, which
 // the user singled out as the panel's best motion (15 October).
 const RESIZE_MS = 300;
+// The row gathers into its leaf before that one object finishes travelling. Its
+// layout is already final, so the two visual phases never delay input.
+const FOLD_MS = 280;
+const FOLD_EASE = "cubic-bezier(.77, 0, .175, 1)";
 // A view the user opened, or put away, is what they asked to see, so it arrives almost at
 // once, as the menu does: its outline in a third of the tween, its words faded in at
 // once after the leaving view's. The user found the full tween slow here (15 October).
@@ -389,7 +393,7 @@ export function createFloatingPanel({
   card.append(inner);
   // The menu and the peek stand over the leaf by anchoring to it, which they can only
   // do from after it in the tree.
-  host.append(card, menu, badge, newsDot, peek);
+  host.append(card, menu, peek);
   // The pointer's way to fold, which the user asked for as a minimize shown on hover: a
   // corner mark on the box's top-right corner, chosen over one at the row's end on 15
   // October. It presses the fold command's own row, as the menu's row does; that row and
@@ -452,7 +456,8 @@ export function createFloatingPanel({
   // An error the user has not seen yet, waiting in the leaf's menu (`errorsList`).
   const errorDot = el("span", "lf-fp-error-dot");
   errorDot.setAttribute("aria-hidden", "true");
-  leaf.append(mark, errorDot);
+  // The leaf and its status marks are one moving object, including while folded.
+  leaf.append(mark, errorDot, badge, newsDot);
   const field = el("div", "lf-fp-field");
   // A long draft offers more room, by the user's press rather than on its own: past
   // three lines a quiet mark stands over the leaf, in the corner the draft leaves free
@@ -1151,8 +1156,16 @@ export function createFloatingPanel({
       layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0),
     );
     const moving = !reducedMotion() && pagePresented();
-    const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    motion.follow(moving ? { duration, easing: EASE } : null);
+    const compact = host.dataset.rest === "mark";
+    const duration = compact
+      ? FOLD_MS
+      : performance.now() < viewMovingUntil
+        ? VIEW_RESIZE_MS
+        : RESIZE_MS;
+    motion.follow(
+      moving ? { duration, easing: compact ? FOLD_EASE : EASE } : null,
+      compact,
+    );
   }
   addEventListener("resize", () => {
     motion.forget();

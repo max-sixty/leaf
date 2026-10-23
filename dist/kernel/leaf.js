@@ -8240,8 +8240,10 @@ function createFloatingPanel({
           type="button"
           class="lf-fp-quiet lf-fp-show"
           @click=${() => {
-      close();
-      void queueActions.open(queueItemKey(item));
+      const route = trail.value.at(-1);
+      void queueActions.open(queueItemKey(item)).then((arrived) => {
+        if (arrived && trail.value.at(-1) === route) close();
+      });
     }}
         >
           Show

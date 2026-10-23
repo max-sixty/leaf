@@ -207,8 +207,8 @@
         --try-says: "Padding 32px, from the page's <style>";
       }
 
-      /* Ownership drawings align each part of one page with the owner who supplies it.
-         Each part and its label remain a pair when the figure narrows. */
+      /* Architecture uses containment for composition and arrows for interfaces.
+         The separate live sample owns the concrete page example. */
       .owner-map {
         margin-block: var(--sp-4);
         font: 15px/1.5 var(--sans);
@@ -218,117 +218,78 @@
         color: var(--muted);
         font: 14px/1.5 var(--sans);
       }
-      .owner-request {
-        display: grid;
-        gap: 4px;
-        margin-bottom: var(--sp-3);
-        padding-bottom: var(--sp-3);
-        border-bottom: 1px solid var(--rule);
-      }
-      .owner-request q {
-        font: 20px/1.45 var(--serif);
-      }
-      .owner-anatomy {
-        display: grid;
-        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-        gap: 0 var(--sp-4);
-      }
-      .owner-anatomy > :nth-child(odd) {
-        padding: 16px 20px;
-        border: 1px solid var(--rule);
-        border-bottom: 0;
-        background: var(--field);
-      }
-      .owner-anatomy > .owner-record {
-        border-bottom: 1px solid var(--rule);
-        border-top-style: dashed;
-      }
-      .owner-note {
-        align-self: center;
-        position: relative;
+      .owner-user {
         padding-block: 12px;
+        border-block: 1px solid var(--rule);
+        text-align: center;
       }
-      .owner-note::before {
-        content: "";
-        position: absolute;
-        width: var(--sp-3);
-        left: calc(-1 * var(--sp-4));
-        top: 50%;
-        border-top: 1px solid var(--rule);
-      }
-      .owner-note strong,
-      .owner-note span,
+      .owner-user strong,
+      .owner-boundary > strong,
+      .owner-boundary > span,
       .contract-data-node > :is(strong, code, span),
       .contract-action-flow :is(strong, span, code) {
         display: block;
       }
-      .owner-note span,
+      .owner-user span,
+      .owner-boundary > span,
       .contract-data-node > span,
       .contract-action-flow span {
         color: var(--muted);
         margin-top: 3px;
       }
-      .owner-page-face {
-        display: flex;
+      .owner-architecture {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 76px minmax(0, 2.1fr);
         align-items: center;
-        flex-wrap: wrap;
-        gap: 10px;
-        color: var(--accent);
       }
-      .owner-page-face > :nth-child(2) {
-        font: 24px/1.2 var(--serif);
-      }
-      .owner-page-face > :last-child {
+      .owner-direction {
+        padding-block: 12px;
+        text-align: center;
         font-size: 13px;
         color: var(--muted);
       }
-      .owner-swatch {
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: var(--accent);
+      .owner-direction + .owner-direction {
+        grid-column: 3;
       }
-      .owner-authored > strong {
-        font: 600 23px/1.3 var(--serif);
+      .owner-boundary {
+        padding: 16px;
+        border: 1px solid var(--rule);
+        background: var(--field);
       }
-      .owner-authored p {
-        margin: 8px 0 12px;
-        font: 16px/1.5 var(--serif);
+      .owner-author {
+        grid-column: 3;
+        border-color: var(--ink);
+        background: var(--paper);
       }
-      .owner-evidence {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px 20px;
+      .owner-widget {
+        margin-top: 18px;
+        border-style: dashed;
+      }
+      .owner-theme-link {
+        text-align: center;
         color: var(--muted);
         font-size: 13px;
+        line-height: 1.35;
       }
-      .owner-choice > span,
-      .owner-record > span {
+      .owner-theme-link::after {
+        content: "→";
         display: block;
-        font-weight: 600;
-        margin-bottom: 10px;
+        font-size: 24px;
       }
-      .owner-choice > div {
+      .owner-state-link {
+        grid-column: 3;
         display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 4px 12px;
-        padding: 8px 0;
-        border-top: 1px solid var(--rule);
-      }
-      .owner-choice > div:first-of-type {
-        color: var(--ok-ink);
-      }
-      .owner-choice small {
+        justify-content: space-evenly;
+        gap: 8px;
+        padding-block: 14px;
         font-size: 13px;
+        color: var(--muted);
       }
-      .owner-record ol {
-        margin: 0;
-        padding-left: 1.3em;
+      .owner-core {
+        grid-column: 3;
       }
-      .owner-record li {
-        margin: 3px 0;
+      .owner-example-link {
+        margin-block: var(--sp-4);
       }
       .contract-data-flow {
         display: grid;
@@ -415,26 +376,25 @@
         overflow-wrap: anywhere;
       }
       @media (width <= 600px) {
-        .owner-anatomy {
+        .owner-architecture {
           grid-template-columns: minmax(0, 1fr);
         }
-        .owner-anatomy > :nth-child(odd) {
-          border-bottom: 1px solid var(--rule);
-        }
-        .owner-note {
-          padding: 8px 0 24px;
-        }
-        .owner-note::before {
+        .owner-direction {
           display: none;
         }
-        .owner-note strong {
-          display: inline;
+        .owner-theme {
+          margin-top: 16px;
         }
-        .owner-note strong::after {
-          content: " · ";
+        .owner-theme-link {
+          padding-block: 8px;
         }
-        .owner-note span {
-          display: inline;
+        .owner-theme-link::after {
+          content: "↓";
+        }
+        .owner-author,
+        .owner-state-link,
+        .owner-core {
+          grid-column: 1;
         }
         .contract-data-flow {
           grid-template-columns: minmax(0, 1fr);
@@ -2247,63 +2207,52 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           <section id="responsibilities">
             <h2>Who is responsible for what</h2>
             <p id="responsibilities-lede">
-              A release review brings several owners together on one page. The user sets
-              the goal and preferences; the author chooses the content and arrangement.
-              Packages make the parts work, and Leaf keeps their shared record.
+              The user sets the goal and preferences. The author composes the page;
+              packages supply its visual language and widget behavior. Leaf core keeps
+              the shared record of what the user does.
             </p>
             <figure id="ownership-anatomy" class="owner-map">
-              <div class="owner-request" id="ownership-user">
-                <strong>The user directs the work</strong>
-                <q>Help me choose a rollout. Use my team’s theme.</q>
+              <div class="owner-user" id="ownership-user">
+                <strong>User</strong>
+                <span
+                  >Sets the goal · chooses a theme · makes decisions on the page</span
+                >
               </div>
-              <div class="owner-anatomy">
-                <div class="owner-page-face" id="ownership-theme">
-                  <span class="owner-swatch" aria-hidden="true"></span>
-                  <span>Aa</span><span>Color · type · spacing</span>
-                </div>
-                <div class="owner-note">
+              <div class="owner-architecture">
+                <div class="owner-direction">↓ Theme preference</div>
+                <div class="owner-direction">↓ Goal and instructions</div>
+                <div class="owner-boundary owner-theme" id="ownership-theme">
                   <strong>Theme package</strong>
-                  <span>Shared visual choices, selected for this page.</span>
+                  <span>Color, type, spacing and shared styles</span>
                 </div>
-                <div class="owner-authored" id="ownership-author">
-                  <strong>Release review</strong>
-                  <p>Start with canary clients; expand after the error rate settles.</p>
-                  <div class="owner-evidence">
-                    <span>Source changes</span><span>Test results</span>
+                <div class="owner-theme-link">Visual<br />inputs</div>
+                <div class="owner-boundary owner-author" id="ownership-author">
+                  <strong>Authored page · page author</strong>
+                  <span>Content, layout and initial values</span>
+                  <div class="owner-boundary owner-widget" id="ownership-package">
+                    <strong>Widget · widget package</strong>
+                    <span>Controls, rendering and what each action means</span>
                   </div>
                 </div>
-                <div class="owner-note">
-                  <strong>Page author</strong>
-                  <span>The recommendation, evidence, choices and layout.</span>
+                <div class="owner-state-link">
+                  <span>Actions ↓</span><span>↑ Current state</span>
                 </div>
-                <div class="owner-choice" id="ownership-package">
-                  <span>Rollout audience</span>
-                  <div><strong>Canary clients</strong><small>Selected</small></div>
-                  <div><span>All clients</span></div>
-                </div>
-                <div class="owner-note">
-                  <strong>Widget package</strong>
-                  <span>The choice controls and what selecting a member means.</span>
-                </div>
-                <div class="owner-record" id="ownership-kernel">
-                  <span>Page record</span>
-                  <ol>
-                    <li>Choose “Canary clients”</li>
-                  </ol>
-                </div>
-                <div class="owner-note">
-                  <strong>Leaf kernel</strong>
-                  <span
-                    >Admit the action, preserve the log, compute state after Undo.</span
-                  >
+                <div class="owner-boundary owner-core" id="ownership-kernel">
+                  <strong>Shared record · Leaf core</strong>
+                  <span>Event admission, event log, shared state and Undo</span>
                 </div>
               </div>
               <figcaption id="responsibilities-example">
-                A schematic of the same page and its record. The author can move the
-                choices or change their appearance without changing a recorded choice’s
-                meaning. <a href="#options-demo">Try choosing and undoing below.</a>
+                Ownership architecture. The author places widgets inside the page; each
+                package owns its widget’s behavior. Theme inputs style the page and its
+                controls. Leaf core owns the record behind them.
               </figcaption>
             </figure>
+            <p id="ownership-example-link" class="owner-example-link">
+              <a href="#options-demo">Try the separate example: a release review.</a>
+              Choose an audience and undo a choice to see these responsibilities at
+              work.
+            </p>
             <details id="responsibilities-interfaces">
               <summary>Each owner’s authoring interface</summary>
               <table id="responsibilities-table">
@@ -2559,6 +2508,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               answers these practice pages.
             </p>
             <figure id="options-demo">
+              <h3>Example page: a release review</h3>
               <p id="options-practice">
                 Choose a rollout audience, then one follow-up job. Open
                 <strong>Show activity</strong> to inspect both selections. Choose
@@ -2566,7 +2516,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 choice, then press <strong>Activity changed</strong> in the feed. The
                 rollout audience remains selected.
               </p>
-              <lf-sample id="spec-options-frame" label="Practice: options">
+              <lf-sample id="spec-options-frame" label="Example: release review">
                 <template id="spec-options-page" data-sample>
                   <p>Start with canary clients; expand after the error rate settles.</p>
                   <lf-options id="spec-options" choose>

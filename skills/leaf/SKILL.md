@@ -36,15 +36,10 @@ Read [SOUL.md](SOUL.md) before authoring or responding on a Leaf page.
 
 Run commands as `leaf` when the harness puts its launcher on `PATH`. Otherwise
 use `../../bin/leaf` from the directory holding this `SKILL.md`. If the
-file is missing, report that the plugin payload is incomplete. In a checkout the
-launcher is `bin/leaf`. Pages usually live at `~/.local/state/leaf/pages/<slug>/`,
+file is missing, report that the plugin payload is incomplete.
+Pages usually live at `~/.local/state/leaf/pages/<slug>/`,
 but every command takes the directory explicitly; export or copy anything that
-must outlive the page directory. A command that takes a body, such as a reply's
-text, a changelog or a plan's JSON, takes it as `--text` inline, from the file
-`--file` names (`-` for stdin), or from a pipe or heredoc on stdin. A command
-prints its result on stdout, as JSON unless its help names another format. On
-stderr it prints one JSON object per line for each refusal or note, with the
-words in `error` or `text`.
+must outlive the page directory.
 
 1. Read `references/conversation-loop.md`, "When to write", to record the work
    you take on. Run `leaf page init <page>`, adding a package when the page needs
@@ -53,10 +48,9 @@ words in `error` or `text`.
    `playground` when the user explores candidates or tunes a configuration before
    sending it; its choices can contain the previews themselves. Simple decisions
    use `lf-options` (`references/authoring-decisions.md`). Running `page init`
-   again with a package adds it to a page already written.
+   again with `--package` replaces the page's packages, so name every package the page keeps.
 2. Read all of `references/page-authoring.md`, then each reference the page
-   needs, listed under "Author a version" below. Choose elements and class idioms
-   from the registry as it says, and read their examples and instructions first.
+   needs, listed under "Author a version" below.
    Write `<page>/index.html` in the registry's vocabulary. Each valid save
    becomes the live immutable revision. An invalid save leaves the last valid one
    live and reports the error in page state and the browser. You write
@@ -72,8 +66,7 @@ words in `error` or `text`.
 4. **Review and stamp a record.** A record is a page used beyond this
    conversation. Before a record's first handoff, run `leaf page check <page> --render`, do the reading in
    `references/page-checkpoints.md`, "Pre-handover review", then run
-   `leaf page stamp <page> --text "<changelog>"`. The render check shows that the
-   page renders; the reading shows what you meant.
+   `leaf page stamp <page> --text "<changelog>"`.
    `references/page-checkpoints.md`, "Stamp checkpoints", says when to stamp
    again; each later stamp repeats the render check and the reading for the views
    and On me obligations it adds. A quick page takes this review once a stamp makes it a record.
@@ -96,12 +89,9 @@ Pick the contract for the session that owns the page:
 | Pi          | `references/harness-pi.md`          |
 | Codex       | `references/harness-codex.md`       |
 
-`references/codex-setup.md` owns terminal App Server setup.
-
 ## Stay responsive
 
-`references/conversation-loop.md`, "When to write", owns the immediate reply and
-work status for each user update. The parent session owns the Leaf conversation:
+The parent session owns the Leaf conversation:
 answer the user, keep the page current, and direct background subagents doing the
 substantive research, editing and testing. Keep direct answers, small page changes,
 and the review and integration of worker results with you. Having more work to do
@@ -117,16 +107,13 @@ between bounded steps.
 Unless the user sets the page's shape or depth, a Leaf page is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state or offers one move, so the user takes it in at a glance and moves on.
-`references/page-authoring.md`, "Show the subject", applies SOUL.md’s "Make the
-work concrete and playable" principle; "Reading cost" owns what stays visible
-and what goes in a disclosure. Read it when choosing that presentation.
+`references/page-authoring.md`, "Reading cost", owns what stays visible and what
+goes in a disclosure. Read it when choosing that presentation.
 
-The page's shape follows the subject: prose read in order, regions read side by
-side on a sidebar page, or a workspace the user moves through instead of
-scrolling. A Layout class on `main` sets the shape, and the page's own CSS
+The page's shape follows the subject.
+A Layout class on `main` sets the shape, and the page's own CSS
 adjusts it. `references/page-authoring.md`, "Composing a page", owns the choice
-of shape, `references/page-layout.md` each shape's geometry, and
-`references/authoring-decisions.md` where each decision goes.
+of shape.
 
 Choose controls, gestures and options whose benefit to the user's task outweighs
 the attention and effort they require. Remove redundant actions before making
@@ -136,8 +123,7 @@ sent words stay in the log.
 ## Keep the user current
 
 Follow `references/authoring-revisions.md`, "Keep the current page current", when
-work lands, a decision is made, or your understanding changes. That section owns
-how finished work leaves the column and how revisions preserve user state.
+work lands, a decision is made, or your understanding changes.
 
 ## Follow the user's preferences
 
@@ -153,8 +139,7 @@ Leaf repository.
 
 ## Conditional references
 
-Read references from this skill directory. Every route is listed here, so you
-never have to follow a chain of references to find one.
+Read references from this skill directory.
 
 ### Author a version
 

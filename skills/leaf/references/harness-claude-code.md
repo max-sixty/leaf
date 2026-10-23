@@ -24,21 +24,17 @@ Claude Code runs Leaf's Stop hook in the background to watch every page this ses
 holds. New input wakes the session: it opens a turn, or joins a running one at its
 next tool result.
 
-Leaf's prompt hook, or the tool-batch boundary while you work, puts the whole
-delivery in your context; input that arrives after your last tool call opens the
-next turn. Leaf confirms receipt itself once your turn goes on past the delivery,
-so `acknowledge` is null and you run no acknowledgement command; if the turn is
-interrupted before then, the same input comes again in the next one. A delivery
-the hook could not confirm, or one too large for Claude Code to show whole, arrives
-as a pointer instead (`event-batches.md`, "Handle the input"). An update a turn
-left unanswered comes back once, in a turn of its own, and again with the next
-prompt the user types.
+Leaf's hooks put the whole delivery in your context. Leaf confirms receipt itself
+once your turn goes on past the delivery, so `acknowledge` is null and you run no
+acknowledgement command. A delivery the hook could not confirm, or one too large
+for Claude Code to show whole, arrives as a pointer instead (`event-batches.md`,
+"Handle the input"). An update a turn left unanswered comes back once, in a turn
+of its own, and again with the next prompt the user types.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; Leaf
 watches it from the end of the turn.
 
-When nothing was watching, as can happen after the user interrupts a turn or a
-background job sat idle for an hour, new input arrives with a message from Leaf
+When nothing was watching, as can happen after the user interrupts a turn, new input arrives with a message from Leaf
 naming the page. It comes through Claude
 Code's session messaging, so it looks as if it came from another session.
 
@@ -55,10 +51,8 @@ line, outside a code block.
 
 ## Subagents
 
-A subagent runs with this session's id; its native tool-batch hooks carry an
-`agent_id` and leave your input for you. A page it
-claims belongs to this session, and your Stop hook holds your turns open for its
-updates. A `leaf wait` it runs is refused while Leaf watches, and otherwise
+A subagent runs with this session's id and leaves your input for you. A page it
+claims belongs to this session. A `leaf wait` it runs is refused while Leaf watches, and otherwise
 takes input from every page you hold away from you. So keep the page with you
 (`references/conversation-loop.md`, "Long-running work"). A separate Claude Code
 session has its own id and can drive a page of its own.

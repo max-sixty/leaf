@@ -21,24 +21,20 @@ watches every page this task owns, and keeps running when a turn ends. Serving a
 again restarts an adapter that stopped. To connect delivery for a page you claim
 without serving it, run `leaf page claim <page>`.
 
-While your turn runs, Leaf's hooks offer new input between steps. Input that arrives
-as the turn ends comes either when the turn tries to end or in a turn of its own. The hook carries the complete delivery
-as one line of JSON, or a pointer when it exceeds Codex's context limit
-(`event-batches.md`, "Handle the input"). Follow the delivery's `acknowledge`
-instruction before handling the input.
+While your turn runs, Leaf's hooks offer new input between steps. The hook carries
+the complete delivery as one line of JSON, or a pointer when it exceeds Codex's
+context limit (`event-batches.md`, "Handle the input"). Follow the delivery's
+`acknowledge` instruction before handling the input.
 
 When the task is idle, or a hook's input wasn't confirmed before the turn ended, the
 adapter either queues a `leaf-delivery` pointer as the task's next user message or
-starts an App Server turn with a `leaf_delivery` tool output, one slice per turn.
+starts an App Server turn with a `leaf_delivery` tool output.
 Leaf acknowledges input it queues or starts. A pointer still needs complete reading
 and its confirmation (`event-batches.md`, "Handle the input"); inline tool output
-needs no acknowledgement command. On the macOS desktop, the adapter also wakes the queued chat in the
-background, avoiding Codex's ten-second check for external queue writes.
+needs no acknowledgement command.
 Run no `leaf wait` or `leaf wait --ack`.
-The same delivery id can come back in a later turn after an uncertain queue
-response; its `leaf delivery ack` then says an earlier turn already picked it up and
-names any answer it still owes. Don't redo that turn's work. Input confirmed during a
-turn isn't queued again.
+The same delivery id can come back in a later turn; its `leaf delivery ack` then says an earlier turn already picked it up and
+names any answer it still owes. Don't redo that turn's work.
 
 The desktop app's own App Server exposes no endpoint Leaf can use. A terminal can
 connect to a separate App Server (`codex-setup.md`). A Codex without `codex queue`
@@ -61,7 +57,6 @@ For a `"turn"` reply that needs widgets, a request for the user (`--obligation`)
 promised beyond this turn (`--todo`), a title or a changed anchor, use
 `leaf thread reply <answer.ref>` with the options in `threads.md`. The command
 checks the reply and posts it at once, and your final message then posts nothing.
-Leaf may title an untitled thread from your opening message, and that title stays.
 
 If the user resolves the thread before the turn completes, the reserved reply still
 posts and reopens it. Your final message publishes your saved page edits with it,

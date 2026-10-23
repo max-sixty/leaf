@@ -3,6 +3,7 @@
 import itertools
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -761,6 +762,32 @@ def test_local_verification_settles_host_network(monkeypatch):
 
     assert isinstance(result.exception, RuntimeError)
     assert attempts == [verify_site.wait_for_host_network]
+
+
+def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
+    monkeypatch, tmp_path
+):
+    run = tmp_path / "run-_up9yvbg"
+    monkeypatch.setattr(verify_site, "run_directory", lambda parent: run)
+
+    def stop_before_build(*args, **kwargs):
+        raise RuntimeError("stop before building")
+
+    calls = []
+
+    def docker(*args, **kwargs):
+        calls.append(args[0])
+        return subprocess.CompletedProcess(args[0], 0, stdout="")
+
+    monkeypatch.setattr(verify_site, "copy_working", stop_before_build)
+    monkeypatch.setattr(verify_site.subprocess, "run", docker)
+
+    with pytest.raises(RuntimeError, match="stop before building"):
+        with verify_site.local_worker():
+            pass
+
+    name = calls[0][-1].removeprefix("name=^workerd-").removesuffix("-")
+    assert re.fullmatch(r"[a-z0-9]+(?:[._]|__|[-]+[a-z0-9]+)*", name)
 
 
 def test_host_network_waits_for_addresses_to_stop_changing(monkeypatch):

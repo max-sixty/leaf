@@ -14,14 +14,14 @@ document.documentElement.lfInitial.register("lf-approval", (host, { offerElement
           class="lf-approval-status"
           role="status"
           data-lf-said
-          data-lf-room=${"Awaiting approval\nApproved"}
+          data-room=${"Awaiting approval\nApproved"}
         >
           <span>${approved ? "Approved" : "Awaiting approval"}</span>
         </span>
         <button
           type="button"
           data-lf-carry="approve"
-          data-lf-room=${"Approve\nUndo approval"}
+          data-room=${"Approve\nUndo approval"}
           ${ref((button) => {
             if (!button) return;
             drawing.button = button;

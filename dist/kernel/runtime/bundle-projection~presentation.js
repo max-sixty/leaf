@@ -21,7 +21,7 @@ import {
   keeps
 } from "./bundle-frame-visibility.js";
 import {
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   applicationPresenter,
   applicationState,
   projectionRegionsPresented,
@@ -81,7 +81,7 @@ var widgetStates = readPart((root) => root.effective.widgets);
 function createProjectionPresentation() {
   applicationPresenter({
     region: "projection:chrome",
-    order: PRESENTATION_ORDER.projection,
+    after: PRESENTATION_DOM.widgets,
     reading: () => answered() ? true : null,
     paint: paintReading
   });

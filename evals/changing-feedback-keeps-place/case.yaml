@@ -1,0 +1,16 @@
+# From the panel-motion comparison: longer completion text wrapped the toolbar
+# and moved the timeline by 38px. The live judge exercises the full interaction;
+# source inspection alone missed a 2.9px wrap and a disabled Pause control.
+# The short authoring precursor had 5 stable outputs of 10 across adaptive variants;
+# the final two used native Grid and passed independent browser journeys.
+description: changing-feedback-keeps-place
+metadata:
+  purpose: Changing feedback leaves playback controls and comparison in place while complete results remain readable.
+  tags:
+    - authoring
+    - layout
+    - checks
+  executor: leaf_dev.arrangement_eval
+  scenario: changing-feedback-keeps-place
+  conditions:
+    - leaf

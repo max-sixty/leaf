@@ -130,7 +130,8 @@ A change lands through a gate that runs the broad selection: a pull request's `t
 job or `wt merge`'s pre-merge. A failure there that the change causes is the gate doing
 its job; fix it and push. A failure the change doesn't cause, such as one main's latest
 run also shows (confirm by running it on main by node id), blocks nothing and calls
-for no rerun: name it in the pull request as inherited and land. The user chose this (2026-10-13), so `test` is
+for no rerun: name it in the pull request as inherited, check that it has an owner
+(below), and land. The user chose this (2026-10-13), so `test` is
 not a required check on `main`; they want it required again once the suite improves.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
@@ -140,9 +141,17 @@ and every tier daily, and `tend-ci-fix` answers either failing. The user accepte
 that main stays red until `tend-ci-fix` repairs it, so a red main is no reason to
 widen a change or its tests. Main runs one push suite at a time; a newer commit
 replaces the run still waiting, which GitHub shows as cancelled. That is intended. To learn what main fails, read that job's run and
-reproduce a failure by node id. `tend-ci-fix` sees only that run, so a failure only
-macOS reproduces is left to a local session: check that no session, worktree or open
-pull request already covers it, then start one (for example with `/dispatch`).
+reproduce a failure by node id.
+
+A failure on main, whether in that run or only in a local one, needs an owner.
+`tend-ci-fix` owns a failure that main's latest run shows while its run on that
+failure is still going, or once a `fix/ci-*` pull request or `ci-fix:` issue it opened
+names the failure. It sees only main's run, so a failure that only macOS reproduces is
+not its own (confirm that at normal priority: `taskpolicy -b` slows headless Chrome's
+frames about sixfold, and tests that time frames then fail only on the Mac), and neither is one whose `tend-ci-fix` run was refused or ended without
+naming it. For those, check that no session, worktree (Codex's under
+`~/.codex/worktrees` included) or open pull request already covers it, then start a
+session to fix it (for example with `/dispatch`).
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for

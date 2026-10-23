@@ -2614,14 +2614,17 @@ export function createFloatingPanel({
     // Show takes the user to the item where `m` would, by the walk's own arrival
     // (queue-walk.js, `arriveAtItem`), wherever that leads anywhere but this card. It
     // stands at the end of the answers' line, where an answer replacing the choices
-    // before it moves it nowhere.
+    // before it moves it nowhere. The arrival may open a thread in this panel; keep
+    // its current route until the destination decides, then close only for page travel.
     const show = arrivesAt(item)
       ? html`<button
           type="button"
           class="lf-fp-quiet lf-fp-show"
           @click=${() => {
-            close();
-            void queueActions.open(queueItemKey(item));
+            const route = trail.value.at(-1);
+            void queueActions.open(queueItemKey(item)).then((arrived) => {
+              if (arrived && trail.value.at(-1) === route) close();
+            });
           }}
         >
           Show

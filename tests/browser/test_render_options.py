@@ -2278,7 +2278,7 @@ def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
     the comment layer's anchoring off screen with it.
 
     Read at a viewport narrow enough for the board to want more room than the
-    column has; at the render sweep's own 1200px the board fits and nothing here
+    column has; at the render gate's 1280px desktop the board fits and nothing here
     can fail."""
     page = open_page(browser, serve(SAMPLE_PAGE))
     page.evaluate(

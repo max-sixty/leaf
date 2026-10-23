@@ -84,7 +84,7 @@ variants:
           Refresh repeats capture into the same source id. Fail if the answer invents or transcribes patch contents,
           captures only the latest commit or only uncommitted edits, or requires
           rewriting the page's HTML for each refresh. Launcher spelling may be
-          leaf, a resolved launcher path, or $LEAF.
+          leaf or a resolved launcher path.
   text-edit:
     metadata:
       purpose:

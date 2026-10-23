@@ -42,11 +42,14 @@ import {
   nothing,
   paintKeys,
   registerReadingRegion,
+  reachedForWords,
   says,
+  sizeObserver,
   tabStore,
   wear,
   whileConnected,
   focused,
+  worksInside,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
@@ -126,8 +129,22 @@ customElements.define(
       this.#ready = true;
       whileConnected(this, () => {
         const stops = this.#regions.map((region) => registerReadingRegion(region));
+        // The narrow layout places shared controls above the stage. Their actual
+        // height is also the landing inset for its content and any sticky toolbar.
+        const controls = this.#regions.find((region) => region.name === "controls");
+        const split = /** @type {HTMLElement} */ (
+          this.querySelector(":scope > .lf-playground-split")
+        );
+        const observer = sizeObserver((entries) => {
+          split.style.setProperty(
+            "--playground-controls-height",
+            `${entries[0].borderBoxSize[0].blockSize}px`,
+          );
+        });
+        if (controls) observer.observe(controls.host);
         this.#paintAvailability();
         return () => {
+          observer.disconnect();
           clearTimeout(this.#copyTimer);
           for (const stop of stops) stop();
         };
@@ -205,8 +222,26 @@ customElements.define(
       this.#syncCopy();
       dressSamples(this, reflection);
       if (this.#interactive) {
+        this.addEventListener("click", (event) => {
+          const target = /** @type {Element} */ (event.target);
+          const choice = target.closest("lf-playground-choice");
+          if (!choice || choice.closest("lf-playground") !== this) return;
+          if (reachedForWords(choice) || worksInside(target, choice)) return;
+          const radio = /** @type {HTMLInputElement} */ (
+            choice.querySelector(":scope > .choice > input")
+          );
+          focusDestination(radio, "press");
+          radio.click();
+        });
         for (const control of this.#controls)
-          control.addEventListener("input", () => {
+          control.addEventListener("input", (event) => {
+            const input = initial.inputs.get(control.getAttribute("name"));
+            if (
+              !(Array.isArray(input)
+                ? input.includes(event.target)
+                : input === event.target)
+            )
+              return;
             this.#set(
               control.getAttribute("name"),
               this.#parse(control, String(this.#initial.readInput(control))),

@@ -36,18 +36,56 @@
  * the Layout's track (`data-lf-track`, layouts.css), which keeps it in view while a stage
  * taller than the window scrolls past, bounded to the window and scrolling what it holds.
  * Narrower than 43.5rem, a document's column included, a rail would be too narrow for
- * the controls it holds, so it draws no box and its panes stack with the stage in
- * reading order: the stage, the controls, the instruction. They flow with the page
- * (`--lf-track-scroll-behavior: flow`), as a sidebar page's stacked track does. */
+ * the controls it holds, so its panes stack: shared controls, stage, instruction. The
+ * controls stay above the scrolling stage, leaving at least half the window for it. */
 .lf-playground-split {
   display: grid;
   gap: var(--sp-4);
   grid-template-columns: minmax(0, 1fr);
   --lf-track-scroll-behavior: flow;
+  --playground-top: var(--lf-top);
 }
 
 .lf-playground-rail {
   display: contents;
+}
+
+@container (width < 43.5rem) {
+  .lf-playground-split:has(> .lf-playground-rail > .lf-playground-controls-region) {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .lf-playground-controls-region {
+    grid-row: 1;
+  }
+  .lf-playground-split:has(.lf-playground-controls-region)
+    > .lf-playground-preview-region {
+    grid-row: 2;
+  }
+  .lf-playground-split:has(.lf-playground-controls-region)
+    > .lf-playground-rail
+    > .lf-playground-instruction-region {
+    grid-row: 3;
+  }
+  @media screen {
+    .lf-playground-controls-region {
+      position: sticky;
+      top: var(--lf-top);
+      z-index: 2;
+      align-self: start;
+      max-block-size: 50dvh;
+      min-block-size: 0;
+    }
+    .lf-playground-controls-region > :not(header, footer) {
+      min-block-size: 0;
+      overflow: auto;
+      --lf-top: 0px;
+      --lf-holds-height: 1;
+    }
+    .lf-playground-split:has(.lf-playground-controls-region)
+      > .lf-playground-preview-region {
+      --lf-top: calc(var(--playground-top) + var(--playground-controls-height, 0px));
+    }
+  }
 }
 
 @container (min-width: 43.5rem) {
@@ -141,6 +179,7 @@
  * root: `:scope` would weigh a class, and the presets band's rule below would lose its
  * bottom rule and padding to the generic header's. */
 :is(.lf-playground-controls-region, .lf-playground-instruction-region) {
+  --lf-ground: var(--card);
   border-color: var(--rule);
   background: var(--card);
 }
@@ -234,6 +273,49 @@
 :scope:is(lf-playground-choice) {
   display: contents;
 }
+/* A rich choice keeps its preview mounted beside its own native radio label. The
+ * checked face and card draw from the radio rather than another selection state. */
+.lf-playground-candidates > .lf-playground-choices {
+  grid-template-columns: var(
+    --playground-choice-columns,
+    repeat(auto-fit, minmax(min(100%, 20rem), 1fr))
+  );
+  gap: var(--sp-3);
+  align-items: start;
+}
+:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
+  > lf-playground-choice {
+  --lf-ground: var(--card);
+  display: grid;
+  min-inline-size: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card);
+}
+:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
+  > lf-playground-choice:has(> .choice > :checked) {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
+  > lf-playground-choice
+  > .choice {
+  justify-content: start;
+  justify-self: stretch;
+  padding: var(--sp-3) var(--sp-3) 0;
+  border: 0;
+  border-radius: var(--r);
+  font: 600 var(--t-4) / 1.4 var(--sans);
+}
+.lf-playground-choice-preview {
+  min-inline-size: 0;
+  padding: var(--sp-3);
+}
+.lf-playground-choice-heading {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-3) 0;
+  font-weight: 600;
+}
 .lf-playground-presets {
   display: flex;
   flex-wrap: wrap;
@@ -262,6 +344,7 @@
  * artifact, the controls among them, whenever a control changed one artifact's height
  * or the rail's height changed. */
 :scope:is(lf-playground-preview) {
+  --lf-ground: var(--field);
   --lf-block-frame: 1;
   display: grid;
   align-content: start;
@@ -333,9 +416,15 @@
  * this layer and usually sets that box's display, so the rule is important, as a
  * settled option's collapse is (default/theme.css). */
 :scope:is(lf-playground).lf-playground-quoted
-  :is(lf-playground-control, .lf-playground-control-box),
+  :is(lf-playground-control:not(.lf-playground-candidates), .lf-playground-control-box),
 :scope:is(lf-playground).lf-playground-quoted > lf-playground-preset {
   display: none !important;
+}
+:scope:is(lf-playground).lf-playground-quoted .lf-playground-candidates {
+  grid-template-columns: var(
+    --playground-choice-columns,
+    repeat(auto-fit, minmax(min(100%, 20rem), 1fr))
+  );
 }
 /* Its stage holds what was authored and never changes, so it takes the height of its
  * artifacts rather than a live stage's minimum, which stood empty below them. */

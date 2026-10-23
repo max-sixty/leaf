@@ -4968,16 +4968,19 @@ function createCurrentTarget({ isObligationControl, currentLocationIn: currentLo
 }
 
 // runtime/anchor-placement.js
+var samePlacement = (a, b) => a?.kind === b?.kind && a?.status === b?.status && a?.exact === b?.exact && a?.datumElement === b?.datumElement && a?.element === b?.element && a?.place === b?.place && a?.surface === b?.surface && a?.message === b?.message && a?.point === b?.point && a?.pointRow === b?.pointRow && a?.pointWords === b?.pointWords;
 function heldIn(anchor, threads) {
   const held = anchor.section && !anchor.detached ? messageHolding(anchor.section) : null;
   return held && threads.some((thread) => thread.msgs.some(({ id }) => id === held.message)) ? held : null;
 }
 function createAnchorPlacement() {
   const placed = /* @__PURE__ */ new Map();
+  const version2 = Z(0);
   let pendingPlaced = null;
   let names = /* @__PURE__ */ new Map();
   function read({ threads, draft, actionAnchor }) {
     if (!anchoringIsReady()) return null;
+    const before = new Map(placed);
     placed.clear();
     names = threadNames(threads);
     const readings = [];
@@ -5013,11 +5016,16 @@ function createAnchorPlacement() {
     pendingPlaced = resolvedDraft;
     const active = draft.open ? null : actionAnchor;
     const action = active && !active.quote ? resolveAnchor(active) : null;
+    if (before.size !== placed.size || [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement)))
+      version2.value += 1;
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
   }
   return Object.freeze({
     read,
-    placedAt: (id) => placed.get(names.get(id)?.id ?? id),
+    placedAt: (id) => {
+      version2.value;
+      return placed.get(names.get(id)?.id ?? id);
+    },
     pendingAt: () => pendingPlaced
   });
 }
@@ -8081,6 +8089,7 @@ function createFloatingPanel({
     if (node) quoteWatch.observe(node);
   };
   function quoteHead(thread) {
+    documentChanged();
     const quote = quoteReading(thread, { placedAt });
     if (!quote) return nothing;
     const expanded2 = quote.localReading && quoteExpanded;

@@ -26,7 +26,7 @@ or a central claim or test that is false. Omit bounded edge cases, exhaustive
 same-pattern cleanup, minor simplification, and prose or test polish unless they
 expose one of those problems. In shipped text (the references, `--help`, UI strings,
 `SKILL.md`, and the agent instructions in the `AGENTS.md` files and
-`/developing-leaf`), four prose defects are public surface traps, not polish: mechanism written
+`/developing-leaf`), these prose defects are public surface traps, not polish: mechanism written
 for a reader other than the one the text addresses, a second copy of a rule another
 text owns, a coined term used without its definition, and, in maintainer guidance, a
 sentence that says how the diff's code works or which failure it fixed rather than

@@ -329,10 +329,10 @@
   opacity: 1;
 }
 .lf-shotcomparison:is([position="0"], [position="100"]):not(
-  :hover,
-  [data-lf-focus-visible-within],
-  :state(dragging)
-)::part(handle) {
+    :hover,
+    [data-lf-focus-visible-within],
+    :state(dragging)
+  )::part(handle) {
   opacity: 0.18;
 }
 .lf-shot-handle {

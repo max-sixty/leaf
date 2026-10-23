@@ -492,7 +492,6 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 
 PAGE_FIXTURES = (
     *CORPUS_SOURCES,
-    ROOT / "examples" / "corpus.html",
     *sorted((ROOT / "notes").glob("**/*.html")),
 )
 

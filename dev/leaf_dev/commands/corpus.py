@@ -1,7 +1,8 @@
 """Generate examples/corpus.html: the composable authored fixtures on one page.
 
-The corpus is derived test content — edit an example, regression page, or
-developer gallery and rerun `leaf-dev corpus` (tests fail on a stale corpus). Each page's
+The corpus and its companions are ignored build output. Preview, probes, benchmarks
+and the combined-page tests generate them when requested. Edit their authored sources;
+`leaf-dev corpus` also generates a snapshot explicitly. Each page's
 <main> body keeps its ids and content, including its contents outline: the surrounding
 corpus tab scopes that outline to its source page. Every source must therefore keep
 its ids disjoint, which this command enforces.
@@ -14,7 +15,6 @@ corpus's own page directory, so its markup still names a declared element there.
 
 import html
 import json
-import shutil
 import sys
 from pathlib import Path
 
@@ -23,6 +23,7 @@ import turbohtml
 
 from leaf.registry.contract import is_element_name
 from leaf.registry.layer import merge_layer_declarations
+from leaf.state import flocked, replace_bytes
 from leaf.structure import SourceDocument, rel_tokens
 from leaf.thread_context import sample_events, thread_ids
 from leaf_dev import ROOT
@@ -34,38 +35,37 @@ from leaf_dev.example_data import (
     seed_log,
 )
 
-EXAMPLES_DIR = ROOT / "examples"
-CORPUS = EXAMPLES_DIR / "corpus.html"
-CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
-CORPUS_EVENTS = EXAMPLES_DIR / "corpus.jsonl"
-CORPUS_PAGE = EXAMPLES_DIR / "corpus.page"
 # Focused chrome galleries with several live child pages stay separate; their
 # underlying widget and thread states already stand in the feature gallery.
-DEVELOPER_SOURCES = [
-    EXAMPLES_DIR / "developer" / "file-editor.html",
-    EXAMPLES_DIR / "developer" / "file-tree.html",
-    EXAMPLES_DIR / "developer" / "file-tree-input.html",
-    EXAMPLES_DIR / "developer" / "diff-thread-gallery.html",
-    EXAMPLES_DIR / "developer" / "worktree-diffs.html",
-    EXAMPLES_DIR / "developer" / "feature-gallery.html",
-    EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
-    EXAMPLES_DIR / "developer" / "playwright-trace-gallery.html",
-    EXAMPLES_DIR / "developer" / "motion.html",
-]
-# Keep catalog order first, then include every other example, even one whose
-# catalog card is absent or commented out. The generated corpus never includes itself.
-SOURCES = [
-    *dict.fromkeys(
-        [
-            *catalog_sources(),
-            *sorted(
-                source for source in EXAMPLES_DIR.glob("*.html") if source != CORPUS
-            ),
-        ]
-    ),
-    *regression_sources(),
-    *DEVELOPER_SOURCES,
-]
+DEVELOPER_SOURCES = (
+    "file-editor",
+    "file-tree",
+    "file-tree-input",
+    "diff-thread-gallery",
+    "worktree-diffs",
+    "feature-gallery",
+    "visual-review-gallery",
+    "playwright-trace-gallery",
+    "motion",
+)
+
+
+def sources(root: Path = ROOT) -> list[Path]:
+    """Catalog order first, then other examples, regression pages and galleries."""
+    examples = root / "examples"
+    return [
+        *dict.fromkeys(
+            [
+                *catalog_sources(root),
+                *sorted(
+                    path for path in examples.glob("*.html") if path.stem != "corpus"
+                ),
+            ]
+        ),
+        *regression_sources(root),
+        *(examples / "developer" / f"{name}.html" for name in DEVELOPER_SOURCES),
+    ]
+
 
 HEAD = """\
 <!doctype html>
@@ -96,11 +96,11 @@ FOOT = """\
 """
 
 
-def build_data() -> dict:
+def build_data(inputs: list[Path], directory: Path) -> dict:
     """Compose corpus inputs with captures relative to the generated page."""
     sources = {}
     captures = {}
-    for source in SOURCES:
+    for source in inputs:
         companion = data_file(source)
         if not companion.exists():
             continue
@@ -109,9 +109,7 @@ def build_data() -> dict:
             # `file` and `asset` both name a path beside the source (example_data).
             key = "asset" if "asset" in spec else "file"
             capture_file = (source.parent / spec[key]).resolve()
-            relative_file = capture_file.relative_to(
-                EXAMPLES_DIR.resolve(), walk_up=True
-            )
+            relative_file = capture_file.relative_to(directory.resolve(), walk_up=True)
             corpus_spec = {**spec, key: relative_file.as_posix()}
             if name in captures:
                 if captures[name] != corpus_spec:
@@ -163,11 +161,11 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     return text[start:end].strip()
 
 
-def build() -> str:
-    owner = {"corpus": CORPUS.name, "corpus-lede": CORPUS.name}
+def build(inputs: list[Path]) -> str:
+    owner = {"corpus": "corpus.html", "corpus-lede": "corpus.html"}
     tabs = []
     authored_assets = []
-    for source in SOURCES:
+    for source in inputs:
         stem = source.stem
         text = source.read_text(encoding="utf-8")
         parsed = SourceDocument(text)
@@ -192,7 +190,7 @@ def build() -> str:
     return head + "\n" + "\n".join(tabs) + "\n" + FOOT
 
 
-def build_page() -> dict[str, bytes]:
+def build_page(inputs: list[Path]) -> dict[str, bytes]:
     """The corpus's page directory: every element an example owns, with its modules.
 
     An element is the example's own when it ships the module that defines it,
@@ -202,7 +200,7 @@ def build_page() -> dict[str, bytes]:
     """
     declarations = {}
     files = {}
-    for source in SOURCES:
+    for source in inputs:
         page = page_files(source)
         if not page.is_dir():
             continue
@@ -243,14 +241,14 @@ def build_page() -> dict[str, bytes]:
     return {"registry.json": registry.encode(), **files}
 
 
-def build_events() -> str:
+def build_events(inputs: list[Path]) -> str:
     """Carry the threads embedded samples explicitly depend on.
 
     The corpus otherwise starts undecided; composing every example's history would
     settle unrelated controls before the corpus can exercise them.
     """
     combined = {}
-    for source in SOURCES:
+    for source in inputs:
         document = SourceDocument(source.read_text(encoding="utf-8"))
         selected = {
             thread
@@ -284,19 +282,42 @@ def build_events() -> str:
     )
 
 
+def generate(root: Path = ROOT) -> Path:
+    """Build a fresh snapshot at its stable, ignored path beside the examples.
+
+    The stable path lets user previews resume. Serialize writers and replace changed
+    files atomically so another preview never reads a partly written file, and a
+    repeated request doesn't wake its watcher. Source pages remain the only inputs.
+    """
+    inputs = sources(root)
+    output = root / "examples" / "corpus.html"
+    files = {
+        output: build(inputs).encode(),
+        data_file(output): (
+            json.dumps(build_data(inputs, output.parent), indent=2, ensure_ascii=False)
+            + "\n"
+        ).encode(),
+        seed_log(output): build_events(inputs).encode(),
+        **{
+            page_files(output) / name: data for name, data in build_page(inputs).items()
+        },
+    }
+    (root / ".tmp").mkdir(parents=True, exist_ok=True)
+    with flocked(root / ".tmp" / "corpus.lock"):
+        writes = []
+        for path, data in files.items():
+            if path.is_file() and path.read_bytes() == data:
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            writes.append((path, data, False))
+        replace_bytes(writes)
+        for path in page_files(output).rglob("*"):
+            if path.is_file() and path not in files:
+                path.unlink()
+    return output
+
+
 @click.command()
 def corpus() -> None:
-    """Regenerate examples/corpus.html and its companions."""
-    CORPUS.write_text(build(), encoding="utf-8")
-    CORPUS_DATA.write_text(
-        json.dumps(build_data(), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    CORPUS_EVENTS.write_text(build_events(), encoding="utf-8")
-    shutil.rmtree(CORPUS_PAGE, ignore_errors=True)
-    for name, data in build_page().items():
-        (CORPUS_PAGE / name).parent.mkdir(parents=True, exist_ok=True)
-        (CORPUS_PAGE / name).write_bytes(data)
-    print(CORPUS)
-    print(CORPUS_DATA)
-    print(CORPUS_EVENTS)
+    """Generate the ignored examples/corpus.html snapshot and its companions."""
+    click.echo(generate())

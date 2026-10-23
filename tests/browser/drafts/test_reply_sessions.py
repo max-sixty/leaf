@@ -362,7 +362,11 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         # settlement, and every other field remain strict.
         errors = consume_browser_errors(
             page,
-            {"code": "words-left-screen", "words": words, "place": ["leaf-text.lf-ui.scroll"]},
+            {
+                "code": "words-left-screen",
+                "words": words,
+                "place": ["leaf-text.lf-ui.scroll"],
+            },
         )
         assert len(errors) == 1
 

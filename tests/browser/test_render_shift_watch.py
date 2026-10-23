@@ -1569,7 +1569,8 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     judge_watches()
     moved = consume_browser_errors(page, {"code": "moved-without-input"})
     assert any(
-        within(error.values["node"], "lf-diff#patch.scroll.lf-rendered") for error in moved
+        within(error.values["node"], "lf-diff#patch.scroll.lf-rendered")
+        for error in moved
     ), moved
 
 

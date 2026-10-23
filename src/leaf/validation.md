@@ -129,7 +129,11 @@ Words a stylesheet paints with `content` have no text node and are outside these
 `render_gate/readings.py` is the list. A message's widgets render only where its thread
 is drawn, so each thread whose messages carry markup is then opened in turn, where a
 reader would find it, and the widget readings run again (`thread_findings`). Those readings run
-at a desktop and a phone viewport.
+at a desktop and a phone viewport. `page check --render` takes the desktop from the
+window of the browser that last reported viewing the page, or the fixed laptop window
+(`render_checks.RENDER_VIEWPORT`) where none has in the last day or the caller pins it
+(`render_gate.command.desktop_viewport`), and the sweep and screens use that window's
+height.
 
 Geometry that moves with the window is one reading, taken by width: sideways
 overflow, misplaced boxes, room below words and controls for a horizontal overlay

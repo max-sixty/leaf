@@ -13,7 +13,9 @@ leaf page check <page> --render
 Fix every failure; a screenshot is no substitute. The command prints one JSON object
 with the exit `status`, the browser that ran, the screens it saved, and each finding
 with its `code`, the element it names as `at`, its `severity` (`error` or `advice`) and
-its `text`.
+its `text`. The check reads the desktop at the size of the window the user last viewed
+the page in, over the last day, or in a 1280x720 laptop window before they have;
+`browser.desktop` names the size it read and which of the two it was.
 
 A clean check saves screens at desktop, widest-window and phone widths, up to eight down
 the page at each width, plus one just before each layout change, such as a sidebar

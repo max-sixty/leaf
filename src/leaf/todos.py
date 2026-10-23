@@ -25,8 +25,8 @@ counts under `queues.on_agent` in `page state`, and shows in the page's status.
 `../../skills/leaf/references/conversation-loop.md` tells the agent which work gets a to-do.
 
 A to-do on the user is a `todo` event opened with `--on user`, ended by the user's
-Done or by the agent. Obligations are separate records (`obligations`) that the lists read
-directly, never turned into to-dos. The agent's `todo_end` can also close an open
+Done or by the agent. It publishes a canonical obligation (`obligations`) that the
+lists read directly. Its explicit completion remains owned by this fold. The agent's `todo_end` can also close an open
 question the user answers in words, such as an `lf-ask` in a reply, by its obligation id:
 `done` when the user answered it elsewhere, `dropped` when it no longer applies,
 never `failed`. Neither records an answer from the user (`obligations.settle_by_words`).
@@ -51,7 +51,7 @@ empty session identity, so Leaf can't tell them apart.
 
 Admission (`todo_error`) accepts an agent's `todo` on the page, on any element, or
 on a live widget that declares `x-work` or holds an unsettled action
-(`work.widget_seat_error`), and a to-do on the user on any element or on a widget
+(`work.widget_seat_error`), and a to-do on the user on a thread, any element or a widget
 with no open obligation. It accepts a `start` on an open agent to-do or an owed update, and
 a `todo_end` of an open to-do; the user ends only a to-do opened on them.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
@@ -70,8 +70,8 @@ from pathlib import Path
 
 from .events import note_settlements, taken_back
 from .findings import Finding, Rejected
-from .obligations import replied
-from .thread_context import thread_names
+from .obligations import answered_in_words
+from .thread_context import thread_ids, thread_names
 
 # What `task open` takes for the page as a whole; any other id names a widget or an
 # element of the page.
@@ -281,9 +281,8 @@ def todo_error(
 ) -> Finding | None:
     """Why the append door refuses a to-do, start or completion, or None.
 
-    A to-do stands on an admitted widget, page element or page; a to-do on a
-    thread is opened by the reply that promises it (`todo_reading`), which the
-    schema keeps off a `todo` event. A start names an open agent to-do or an owed
+    A to-do stands on an admitted thread, widget, page element or page.
+    Replies can also open agent work on their own thread (`todo_reading`). A start names an open agent to-do or an owed
     update. Both completion carriers share `TodoReading.completion_error`.
     Either side can end a to-do within its ownership rules. An agent end may
     also end an open obligation the user answers in words (`obligations.replied`) by its id,
@@ -292,6 +291,13 @@ def todo_error(
     kind = event["kind"]
     if kind == "todo":
         subject = event["subject"]
+        if subject["kind"] == "thread":
+            if (
+                subject["id"] not in thread_ids(log.events)
+                or subject["id"] in log.withdrawn
+            ):
+                return Finding("missing-thread", values={"thread": subject["id"]})
+            return None
         if subject["kind"] == "widget":
             return (
                 seat_error(subject["id"])
@@ -323,7 +329,7 @@ def todo_error(
             None,
         )
         if item is not None:
-            if not replied(registry[item["source"]["tag"]]):
+            if not answered_in_words(item, registry):
                 return Finding("widget-obligation", values=named)
             if event["author"] != "agent":
                 return Finding("users-question", values=named)
@@ -346,9 +352,9 @@ def todo_error(
 
 def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
     """Open a to-do titled `title`, owed by `owner`, on what `subject` names: a page
-    widget, any other element of the page by its id, or `page` for the page as a
-    whole; the record. A thread takes its work from the reply that promises it, and
-    its obligation for the user from a reply that asks it."""
+    widget, thread, any other element of the page by its id, or `page` for the
+    page as a whole; the record. A thread attachment supplies discussion context
+    without making a reply complete the task."""
     from .event_contracts import append_admitted
     from .harness import message_identity
     from .leases import contract_writer

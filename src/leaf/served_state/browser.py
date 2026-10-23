@@ -38,7 +38,7 @@ def _thread_attention(
     thread: dict, records: list[dict], candidates: list[dict], todos: list[dict]
 ) -> dict | None:
     """Whose turn one thread is, read from the open obligation records in it
-    (`records`): `needs_user` while one is the user's, a widget's (`widget`) ahead of an
+    (`records`): `needs_user` while one is the user's, a request (`obligation`) ahead of an
     update handed back to them to send again (`resend`); else `waiting` while one is
     the agent's, or while a to-do the agent opened on it stands; else None, as for
     every resolved thread.
@@ -63,7 +63,7 @@ def _thread_attention(
         record["next_actor"] == "user" and record["source"]["kind"] != "update"
         for record in records
     ):
-        return {"kind": "needs_user", "reason": "widget", "workflow": None}
+        return {"kind": "needs_user", "reason": "obligation", "workflow": None}
     if resend := serving(
         lambda record: (
             record["next_actor"] == "user" and record["source"]["kind"] == "update"

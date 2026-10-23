@@ -291,12 +291,15 @@ across tabs and document revisions; they never answer a question, settle a workf
 or enter agent delivery. The one-user page assumption is the page's current
 lifecycle, not a per-account scope.
 
-An agent comment opens a thread, and a substantive reply opens or resumes one; either
-waits on the user only through a widget in its markup that asks, such as an `lf-ask`.
-An answering command declares what it leaves: `--done`, nothing further; `--todo
-<title>`, when it promises work it does not deliver, records `todo: <title>`, which
+An agent comment opens a thread, and a substantive reply opens or resumes one. Either
+can declare `obligation: true` (`--obligation`) to put its message on the user's On me
+list. Its id is `message:<event-id>` and its text is the prompt. A widget in the
+message can independently declare an obligation through `x-awaits`.
+An answering command declares what it leaves: `--done`, nothing further;
+`--todo <title>`, when it promises work it does not deliver, records `todo: <title>`, which
 opens that to-do on the thread under the reply's id (`todos.todo_reading`); or a
-question in its markup. The browser cannot write `todo`. A user reply
+message obligation or a question in its markup. The browser cannot write `todo` or
+`obligation`. A user reply
 always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`, including a
 completed delivery answer whose update was settled during the turn. A proactive
@@ -304,7 +307,7 @@ message (`leaf thread reply <page> <message-id>`) carries no `responds`. Settlem
 consumes this exact identity rather than log order, so answering older work cannot
 erase newer user input. A substantive reply reopens a resolved thread;
 reactions and harness failure receipts leave its closure in force. A later resolution
-closes the thread again. Reopening restores its still-unanswered widget obligations,
+closes the thread again. Reopening restores its still-unanswered widget and message obligations,
 as an explicit reopen does.
 A harness that gives up on an update writes the failure the update's answer takes
 (`thread.fail_answer`): a reply for a message, including one in a thread
@@ -332,7 +335,7 @@ their On me list while the comment's own obligation, the reply it is owed, stand
 agent's. A reply that promises work (`todo`) settles the comment but leaves the obligation
 the agent's until its to-do ends, resolved thread or not, so a decision the user put off
 until other work lands stays off On me until the agent ends that to-do. A question asked
-in words (`x-awaits.reply`) is the exception: the user's message after it answers it,
+in words (`obligation: true` or `x-awaits.reply`) is the exception: the user's message after it answers it,
 every one before that message at once, and
 a reaction whose token declares `settles` answers only the question in the message it
 reacts to. Neither answer resolves the thread. Later agent messages leave a question
@@ -340,11 +343,11 @@ open. An agent `todo_end` naming an open question retires it, `done` as answered
 elsewhere and `dropped` as withdrawn; neither outcome is a user answer
 (`obligations.settle_by_words`).
 
-`work_reading.WorkReading.all_obligations` combines page widgets and frozen widgets
-into one canonical inventory. Every record carries stable `id`, `source`,
+`work_reading.WorkReading.all_obligations` combines page widgets, frozen widgets, message requests,
+user-owned tasks into one canonical inventory. Every record carries stable `id`, `source`,
 `thread`, `message`, `prompt`, `answer`, `status`, `end` and `next_actor`;
-`obligations` owns the statuses, and `end` holds the agent `todo_end` that retired a
-question asked in words, its detail and event reference, or `null`. A frozen widget's
+`obligations` owns the statuses, and `end` holds the `todo_end` that retired a
+question asked in words or completed a user task, its detail and event reference, or `null`. A frozen widget's
 `message` names the exact message whose markup owns it, independently of the thread's
 root. Page widgets have no owning message and carry `null`. Widget
 identities are `widget:<source-id>`. An enclosing widget

@@ -1,7 +1,7 @@
 /* What an item on On me or On <agent> offers and what a row calls it. The server selects
  * the queues (`served_state.queues`) and the application publisher places this tab's sends
  * against them; an obligation is answered through its source, and only a to-do on the
- * user, one the agent opened on them, offers Done. Every row but a to-do's names an
+ * user, one the agent opened on them, offers Done. Every row but an agent to-do's names an
  * obligation record and carries it (`obligation`). */
 
 export const queueOffers = (item, ready, onUser) => ({
@@ -9,10 +9,13 @@ export const queueOffers = (item, ready, onUser) => ({
   done: ready && onUser && item.kind === "todo",
 });
 
-// Whether a list item asks something of the user through a widget, whose row draws
-// its record's prompt and the controls that answer it. An
+// Whether a list item asks something of the user, whose row draws its record's
+// prompt and the controls that answer or complete it. An
 // update's record is answered by a reply or a version, or by the user sending again.
-export const carriesObligation = (item) => item.kind === "widget";
+export const carriesObligation = (item) =>
+  item.kind === "widget" ||
+  item.kind === "message" ||
+  (item.kind === "todo" && item.owner === "user");
 
 // What a row names its item as: an update handed back to the user is one to send
 // again; one the agent owes is a reply when it stands in a thread, else an answer the

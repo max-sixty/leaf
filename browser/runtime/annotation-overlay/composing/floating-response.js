@@ -23,7 +23,7 @@
    presenter writes those attributes and never the bar's visibility, and composition
    writes only whether the bar stands inline (`data-lf-presentation`), so neither leaves
    a visibility behind for the other to undo. */
-import { cancelRender, nextRender } from "../../rendering.js";
+import { cancelRender, nextFrame, nextRender } from "../../rendering.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
 import { declareOffFlowSurface } from "../../off-flow.js";
 import { rightCover, shownBox } from "../../geometry.js";
@@ -504,9 +504,10 @@ export function createFloatingResponsePlacement({
     let beforeInputScroll = null;
     let inputEpoch = 0;
     fabInput.addEventListener("lf-before-edit", () => {
-      beforeInputScroll = response.open && response.floating ? pageScroller.scrollTop : null;
+      beforeInputScroll =
+        response.open && response.floating ? pageScroller.scrollTop : null;
       const epoch = ++inputEpoch;
-      requestAnimationFrame(() => {
+      nextFrame(() => {
         if (inputEpoch === epoch) beforeInputScroll = null;
       });
     });

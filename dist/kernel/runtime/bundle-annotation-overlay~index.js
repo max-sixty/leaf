@@ -197,6 +197,7 @@ import {
   move,
   nativeLayerHolding,
   nextAnimation,
+  nextFrame,
   nextRender,
   onCurrentLocation,
   onPressAway,
@@ -3155,7 +3156,7 @@ function createFloatingResponsePlacement({
     fabInput.addEventListener("lf-before-edit", () => {
       beforeInputScroll = response.open && response.floating ? pageScroller.scrollTop : null;
       const epoch = ++inputEpoch;
-      requestAnimationFrame(() => {
+      nextFrame(() => {
         if (inputEpoch === epoch) beforeInputScroll = null;
       });
     });

@@ -176,19 +176,22 @@ function watchLayout(box) {
   const root = box === pageScroller ? document.documentElement : box;
   const sizes2 = /* @__PURE__ */ new WeakMap();
   const measure = (node) => [node.clientWidth, node.clientHeight, node.scrollHeight];
-  const observer = sizeObserver((entries) => {
-    let changed = false;
-    for (const { target } of entries) {
-      const next = measure(target);
-      const before = sizes2.get(target);
-      sizes2.set(target, next);
-      if (before?.some((value, index) => value !== next[index])) changed = true;
-    }
-    if (changed) {
-      if (box.scrollTop !== lastTop.get(box)) layoutMoved.add(box);
-      else extents.set(box, extentOf(box));
-    }
-  }, { counted: false });
+  const observer = sizeObserver(
+    (entries) => {
+      let changed = false;
+      for (const { target } of entries) {
+        const next = measure(target);
+        const before = sizes2.get(target);
+        sizes2.set(target, next);
+        if (before?.some((value, index) => value !== next[index])) changed = true;
+      }
+      if (changed) {
+        if (box.scrollTop !== lastTop.get(box)) layoutMoved.add(box);
+        else extents.set(box, extentOf(box));
+      }
+    },
+    { counted: false }
+  );
   const observe = (node) => {
     sizes2.set(node, measure(node));
     observer.observe(node);
@@ -198,18 +201,19 @@ function watchLayout(box) {
     for (const child of box.children) observe(child);
     const mutation = new MutationObserver((entries) => {
       for (const entry of entries) {
-        for (const node of entry.addedNodes)
-          if (node instanceof Element) observe(node);
+        for (const node of entry.addedNodes) if (node instanceof Element) observe(node);
         for (const node of entry.removedNodes)
           if (node instanceof Element) observer.unobserve(node);
       }
     });
     mutation.observe(box, { childList: true });
-    watchOwner(box, { disconnect() {
-      observer.disconnect();
-      mutation.disconnect();
-      watchedLayout.delete(box);
-    } });
+    watchOwner(box, {
+      disconnect() {
+        observer.disconnect();
+        mutation.disconnect();
+        watchedLayout.delete(box);
+      }
+    });
   }
 }
 watchLayout(pageScroller);
@@ -277,8 +281,7 @@ document.addEventListener(
     const repeated = (scrollSteps.get(box) ?? 0) > 1;
     scrollSteps.delete(box);
     const chosenHere = wasMoving?.glide || repeated || !layoutMoved.has(box) && !changedExtent(extents.get(box), extent);
-    if (chosenHere && kept.get(box) !== box.scrollTop)
-      chooseScroll(box);
+    if (chosenHere && kept.get(box) !== box.scrollTop) chooseScroll(box);
     layoutMoved.delete(box);
     lastTop.set(box, box.scrollTop);
     extents.set(box, extent);

@@ -107,10 +107,6 @@
         outline: var(--focus-ring);
         outline-offset: -2px;
       }
-      .lf-action-icon {
-        width: 16px;
-        height: 16px;
-      }
     }
   }
   .lf-fp-row {
@@ -2131,8 +2127,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: color-mix(in srgb, var(--lf-entry-tint, var(--chip)) 92%, var(--ink));
   }
   .lf-page-map-action .lf-margin-kind {
-    width: 16px;
-    height: 16px;
     align-self: center;
   }
   .lf-page-map-action-label {
@@ -2259,9 +2253,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     .lf-inspection-dialog {
       border: 1px solid CanvasText;
       box-shadow: none;
-    }
-    .lf-page-map-action[data-lf-focus-visible] {
-      outline: 2px solid Highlight;
     }
   }
   .lf-binding-sequence {
@@ -2400,11 +2391,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       border-color: Highlight;
       background: Highlight;
       color: HighlightText;
-    }
-    :scope [data-lf-focus-visible] {
-      outline: var(--focus-ring-w) solid Highlight !important;
-      outline-offset: 2px !important;
-      box-shadow: none !important;
     }
     :scope :is([aria-pressed=true], [aria-checked=true], [aria-current]) {
       border-color: Highlight !important;

@@ -21,8 +21,7 @@ const seenDeclarations = new WeakMap();
 const scrollAncestors = new WeakSet();
 const styleRoots = new WeakSet();
 const ancestorStyles = new MutationObserver((records) => {
-  for (const { target } of records)
-    if (scrollAncestors.has(target)) reread(target);
+  for (const { target } of records) if (scrollAncestors.has(target)) reread(target);
 });
 function watchAncestorStyles(scope) {
   const tree = scope.getRootNode();

@@ -2557,7 +2557,7 @@ def test_a_scroller_reclassifies_when_an_ancestor_changes_its_style(browser, ser
         '<div id="box" class="scroll" '
         'style="width:200px;overflow-x:var(--flow);white-space:nowrap">'
         '<span style="display:inline-block;width:600px">Wide content</span>'
-        '</div></div>',
+        "</div></div>",
     )
     page = open_page(browser, serve(source))
     box = page.locator("#box")

@@ -27,6 +27,7 @@ from render_harness import (
     write,
 )
 
+from browser.test_render_drawing import draw_over
 from browser.threads import (
     PANEL_REPLY,
     open_panel_thread,
@@ -702,14 +703,44 @@ def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
         )
 
 
-def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve):
+@pytest.mark.parametrize("previous", ["reply", "reply-after-empty-composer", "drawing"])
+def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve, previous):
     """Resume writing returned to a rewrite Escape had just discarded, reopening it on
     the message's own words, ahead of the reply the user had been writing. A rewrite
-    put away hands Resume writing back to the place written in before it."""
+    put away hands Resume writing back to the place written in before it, including
+    a drawing whose accompanying words are still empty. An emptied composer between
+    the reply and rewrite has nothing to resume and must not take the reply's place."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     reply = page.locator(PANEL_REPLY)
-    reply.click()
-    page.keyboard.type("A reply in progress")
+    if previous != "drawing":
+        resume = reply
+        reply.click()
+        page.keyboard.type("A reply in progress")
+        if previous == "reply-after-empty-composer":
+            mine = message.get_attribute("data-event")
+            page.keyboard.press("Escape")
+            page.locator("#cd-lede").click(modifiers=["Alt"])
+            field = page.locator(".lf-fab-input")
+            field.click()
+            page.keyboard.type("x")
+            page.keyboard.press("Backspace")
+            expect(field).to_have_js_property("value", "")
+            page.keyboard.press("Escape")
+            page.keyboard.press("g")
+            page.keyboard.press("i")
+            expect(field).to_be_focused()
+            expect(field).to_have_js_property("value", "")
+            page.keyboard.press("Escape")
+            open_panel_thread(page, mine)
+    else:
+        mine = message.get_attribute("data-event")
+        page.keyboard.press("Escape")
+        draw_over(page, page.locator("#cd-q"))
+        resume = page.locator(".lf-fab-input")
+        expect(resume).to_be_focused()
+        expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+        page.keyboard.press("Escape")
+        open_panel_thread(page, mine)
     message.locator(".lf-msg-text").dblclick()
     page.keyboard.type(" and more")
     page.keyboard.press("Escape")
@@ -717,8 +748,12 @@ def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve):
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")
-    expect(reply).to_be_focused()
-    expect(reply).to_have_js_property("value", "A reply in progress")
+    expect(resume).to_be_focused()
+    expect(resume).to_have_js_property(
+        "value", "" if previous == "drawing" else "A reply in progress"
+    )
+    if previous == "drawing":
+        expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
 
 

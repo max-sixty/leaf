@@ -1155,16 +1155,14 @@
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
   }
+  .lf-fp-messages .lf-msg.user {
+    --lf-msg-text-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
+  }
   .lf-fp-messages .lf-msg.user .lf-msg-text {
     box-sizing: border-box;
-    padding-inline-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
   }
-  .lf-fp-messages .lf-msg-editor {
-    margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
-  }
-  .lf-fp-messages .lf-msg-editor .lf-compose-field > leaf-text {
-    min-height: calc(var(--lf-fp-line) - 2px);
-    padding-block: calc((var(--lf-fp-line) - 2px - 1lh) / 2);
+  .lf-fp-messages .lf-msg-editor > .lf-compose-field {
+    --lf-response-height: var(--lf-fp-line);
   }
   .lf-fp-plan {
     padding: 10px 8px 12px;

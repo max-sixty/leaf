@@ -687,6 +687,7 @@ var AttachedMediaShelf = class extends LitElement {
     super();
     this.model = { drawing: null, media: [] };
     this.actions = null;
+    this.sent = false;
     this.undoIcon = iconElement("undo", "lf-corner-mark-icon");
     this.removeIcon = iconElement("cross", "lf-corner-mark-icon");
     this.pictured = { drawing: null, target: null, node: null };
@@ -764,28 +765,35 @@ var AttachedMediaShelf = class extends LitElement {
               </button>
             </span>
           ` : null,
-      media.map(
-        ({ index, url }) => html`
-          <span class="lf-composer-media-item">
-            <button
-              type="button"
-              class="lf-media-open lf-composer-media-open"
-              data-lf-media-url=${url}
-              aria-label=${`View attached image ${index + 1}`}
-            >
-              <img src=${url} alt="" />
-            </button>
-            <button
-              type="button"
-              class="lf-corner-mark lf-composer-media-remove"
-              aria-label=${`Remove attached image ${index + 1}`}
-              @click=${() => this.actions.removeMedia(index)}
-            >
-              ${iconTemplate("cross", "lf-corner-mark-icon")}
-            </button>
-          </span>
-        `
-      )
+      media.map(({ index, url }) => {
+        const remove = html`<button
+          type="button"
+          class="lf-corner-mark lf-composer-media-remove"
+          aria-label=${`Remove attached image ${index + 1}`}
+          @click=${() => this.actions.removeMedia(index)}
+        >
+          ${iconTemplate("cross", "lf-corner-mark-icon")}
+        </button>`;
+        return this.sent ? html`<p class="lf-composer-media-item">
+              <button
+                type="button"
+                class="lf-media-open lf-message-media"
+                data-lf-media-url=${url}
+                aria-label=${`View attached image ${index + 1}`}
+              >
+                <img src=${url} alt="" /></button
+              >${remove}
+            </p>` : html`<span class="lf-composer-media-item">
+              <button
+                type="button"
+                class="lf-media-open lf-composer-media-open"
+                data-lf-media-url=${url}
+                aria-label=${`View attached image ${index + 1}`}
+              >
+                <img src=${url} alt="" /></button
+              >${remove}
+            </span>`;
+      })
     ];
   }
 };
@@ -864,10 +872,10 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     // Where the submit control stands: in the field beside the words, or in a group of
     // the caller's that holds it elsewhere, as a rewrite's stands at its message's head.
     submitIn = null,
-    // The attachment shelf stands on the side the box grows toward, so attaching never
-    // moves the words being written. A box held by its top takes it below the field; one held by its foot, as a
-    // reply pinned to its scroller's foot, above.
-    mediaBelow = false
+    // A box rewriting a sent message, whose attachments are the message's: they stand
+    // where and as the message draws them (`.lf-msg-media`), in the field under its
+    // words and each whole, rather than in a new draft's shelf over the field.
+    sentMedia = false
   }) {
     const field = document.createElement("div");
     field.className = "lf-compose-field";
@@ -920,10 +928,11 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       sendBtn.replaceChildren(word2.charAt(0).toUpperCase() + word2.slice(1));
     }
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
-    mediaShelf.className = "lf-composer-media scroll";
+    mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
+    mediaShelf.sent = sentMedia;
     mediaShelf.setAttribute("role", "group");
     mediaShelf.setAttribute("aria-label", "Attachments");
-    if (mediaBelow) field.after(mediaShelf);
+    if (sentMedia) field.append(mediaShelf);
     else field.before(mediaShelf);
     let attachedMedia = [];
     const draftValue = () => writeAttachedMedia(ta.value, attachedMedia);

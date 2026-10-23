@@ -3389,7 +3389,7 @@ var MessageEditor = class {
     actions.append(cancel);
     this.foot = document.createElement("span");
     this.foot.className = "lf-msg-edit-foot";
-    this.node.append(this.input, this.foot, actions);
+    this.node.append(this.input, actions);
     this.input.value = loadDraft(ctx) || said2();
     let opened = this.input.value;
     this.#follow = () => {
@@ -3425,6 +3425,7 @@ var MessageEditor = class {
       icon: null,
       sendBtn: save,
       submitIn: actions,
+      sentMedia: true,
       save: (value) => {
         saveDraft(ctx, value, { over: base });
         tellDraft(ctx, value, { over: base });
@@ -3468,6 +3469,7 @@ var MessageEditor = class {
         }
       ]
     });
+    this.input.after(this.foot);
     keys(
       this.node,
       "Editing a message",

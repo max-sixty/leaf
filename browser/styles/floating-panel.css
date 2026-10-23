@@ -1451,20 +1451,17 @@
   /* A sent reply keeps the field's reading width, so its list and code lines do
      not reflow merely because they moved above the leaf. The room matches the
      leaf, the field's two 6px edges, and the thread's two text insets. */
+  .lf-fp-messages .lf-msg.user {
+    --lf-msg-text-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
+  }
   .lf-fp-messages .lf-msg.user .lf-msg-text {
     box-sizing: border-box;
-    padding-inline-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
   }
-  /* A rewrite in a thread's view is the reply box of the field below it, at the field's
-     height, frame included: its words keep the message's face, set in the field's
-     line, and its place, the box reaching back over their inset as in a card's
-     transcript (response.css), as far as the quote's rule. */
-  .lf-fp-messages .lf-msg-editor {
-    margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
-  }
-  .lf-fp-messages .lf-msg-editor .lf-compose-field > leaf-text {
-    min-height: calc(var(--lf-fp-line) - 2px);
-    padding-block: calc((var(--lf-fp-line) - 2px - 1lh) / 2);
+  /* A rewrite in a thread's view stands where the message stood (response.css,
+     `.lf-msg-editor`), at the height of the field below it, frame included, its frame
+     reaching back over the words' inset as far as the quote's rule. */
+  .lf-fp-messages .lf-msg-editor > .lf-compose-field {
+    --lf-response-height: var(--lf-fp-line);
   }
 
   /* ---------- the plan ---------- */

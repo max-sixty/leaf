@@ -130,6 +130,8 @@ import {
   atScrollEnd,
   effectiveScroller,
   moveScrollerBy,
+  pageScroller,
+  placeKept,
   readingRegionFor,
   registerReadingRegion,
   scrollToEnd
@@ -3148,6 +3150,22 @@ function createFloatingResponsePlacement({
     returning?.();
   }
   function mount() {
+    let beforeInputScroll = null;
+    let inputEpoch = 0;
+    fabInput.addEventListener("lf-before-edit", () => {
+      beforeInputScroll = response.open && response.floating ? pageScroller.scrollTop : null;
+      const epoch = ++inputEpoch;
+      requestAnimationFrame(() => {
+        if (inputEpoch === epoch) beforeInputScroll = null;
+      });
+    });
+    fabInput.addEventListener("input", () => {
+      if (beforeInputScroll === null) return;
+      if (pageScroller.scrollTop !== beforeInputScroll) {
+        pageScroller.scrollTo({ top: beforeInputScroll, behavior: "instant" });
+        placeKept(pageScroller);
+      }
+    });
     document.addEventListener(LAYOUT, (event) => {
       const geometry = anchorGeometry(response.anchor);
       const target = response.target ?? geometry?.contextNode;

@@ -14,7 +14,8 @@ import {
   shownRect,
   skipped,
   userScrollport,
-  watchArrivals
+  watchArrivals,
+  watchOwner
 } from "./bundle-page-paint.js";
 import {
   LENT_REACH_STOP,
@@ -160,6 +161,58 @@ async function settlePageInterface() {
 // runtime/scrolling.js
 var pageScroller = document.scrollingElement;
 var moving = /* @__PURE__ */ new WeakMap();
+var scrollSteps = /* @__PURE__ */ new WeakMap();
+var layoutMoved = /* @__PURE__ */ new WeakSet();
+var watchedLayout = /* @__PURE__ */ new WeakSet();
+var lastTop = /* @__PURE__ */ new WeakMap();
+var extents = /* @__PURE__ */ new WeakMap();
+var extentOf = (box) => [box.scrollHeight, box.clientWidth, box.clientHeight];
+var changedExtent = (before, after) => before?.some((value, index) => value !== after[index]);
+function watchLayout(box) {
+  if (watchedLayout.has(box)) return;
+  watchedLayout.add(box);
+  lastTop.set(box, box.scrollTop);
+  extents.set(box, extentOf(box));
+  const root = box === pageScroller ? document.documentElement : box;
+  const sizes2 = /* @__PURE__ */ new WeakMap();
+  const measure = (node) => [node.clientWidth, node.clientHeight, node.scrollHeight];
+  const observer = sizeObserver((entries) => {
+    let changed = false;
+    for (const { target } of entries) {
+      const next = measure(target);
+      const before = sizes2.get(target);
+      sizes2.set(target, next);
+      if (before?.some((value, index) => value !== next[index])) changed = true;
+    }
+    if (changed) {
+      if (box.scrollTop !== lastTop.get(box)) layoutMoved.add(box);
+      else extents.set(box, extentOf(box));
+    }
+  }, { counted: false });
+  const observe = (node) => {
+    sizes2.set(node, measure(node));
+    observer.observe(node);
+  };
+  observe(root);
+  if (box !== pageScroller) {
+    for (const child of box.children) observe(child);
+    const mutation = new MutationObserver((entries) => {
+      for (const entry of entries) {
+        for (const node of entry.addedNodes)
+          if (node instanceof Element) observe(node);
+        for (const node of entry.removedNodes)
+          if (node instanceof Element) observer.unobserve(node);
+      }
+    });
+    mutation.observe(box, { childList: true });
+    watchOwner(box, { disconnect() {
+      observer.disconnect();
+      mutation.disconnect();
+      watchedLayout.delete(box);
+    } });
+  }
+}
+watchLayout(pageScroller);
 function stopScroll(boxes) {
   const stopped = [...boxes].filter((box) => moving.has(box)).map((box) => [box, moving.get(box)]);
   if (!stopped.length) return null;
@@ -194,6 +247,8 @@ document.addEventListener(
   "scroll",
   ({ target }) => {
     const box = eventScroller(target);
+    watchLayout(box);
+    scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
     if (moving.get(box)?.glide) return;
     const sequence = { glide: false };
     moving.set(box, sequence);
@@ -215,8 +270,18 @@ document.addEventListener(
   "scrollend",
   ({ target }) => {
     const box = eventScroller(target);
+    watchLayout(box);
+    const wasMoving = moving.get(box);
     moving.delete(box);
-    if (kept.get(box) !== box.scrollTop) chooseScroll(box);
+    const extent = extentOf(box);
+    const repeated = (scrollSteps.get(box) ?? 0) > 1;
+    scrollSteps.delete(box);
+    const chosenHere = wasMoving?.glide || repeated || !layoutMoved.has(box) && !changedExtent(extents.get(box), extent);
+    if (chosenHere && kept.get(box) !== box.scrollTop)
+      chooseScroll(box);
+    layoutMoved.delete(box);
+    lastTop.set(box, box.scrollTop);
+    extents.set(box, extent);
     kept.delete(box);
   },
   { capture: true, passive: true }

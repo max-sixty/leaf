@@ -506,7 +506,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     expect(attachment).to_be_visible()
     image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
     assert image.size == (360, 260)
-    page.get_by_role("button", name="Remove attached image 1", exact=True).tap()
+    page.get_by_role("button", name="Remove attached image 1", exact=True).tap(force=True)
     # The next press began while drag timers were held; let its native activation
     # finish before reading the result.
     page.clock.resume()

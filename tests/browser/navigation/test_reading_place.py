@@ -15,6 +15,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_control,
+    press_visible,
     panel_field,
     panel_menu,
     panel_settled,
@@ -831,7 +832,7 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     page.evaluate("scrollBy(0,-160)")
     control = panel_control(page, ALIGN_ROW, at="navigate")
     expect(control).to_be_enabled()
-    control.tap()
+    press_visible(page, control, touch=True)
     _expect_aligned(page, "#align-ask")
     page.locator("#align-heading").focus()
     page.keyboard.press("g")

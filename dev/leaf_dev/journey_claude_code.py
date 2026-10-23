@@ -86,14 +86,14 @@ from pathlib import Path
 import click
 import psutil
 
-from leaf.delivery import DELIVERY, pickup_receipts
+from leaf.delivery import DELIVERY, delivery_pointer_prompt, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import (
     ClaudeCodeHarness,
     claude_code_live_turn,
     claude_code_registry,
 )
-from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING, POINTED_OPENING
+from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -124,6 +124,9 @@ from leaf_dev.review_scenario import (
     require,
     settled,
 )
+
+# How a hook context that hands a delivery over by its pointer begins.
+POINTER_OPENING = delivery_pointer_prompt("00000000").partition(" id=")[0]
 
 # The user's own turn, which leaves a comment handed to it unanswered.
 DEFERRING_TURN = USER_TURN.replace(
@@ -341,7 +344,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             not any(
                 (attachment := record.get("attachment", {})).get("hookEvent") == "Stop"
                 and any(
-                    content.startswith((INLINE_OPENING, POINTED_OPENING))
+                    content.startswith((INLINE_OPENING, POINTER_OPENING))
                     for content in attachment.get("content") or []
                 )
                 for record in native_records(cc.home, cc.session)
@@ -664,7 +667,7 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
         ):
             count("hook error")
         elif attachment.get("type") == "hook_additional_context" and any(
-            str(part).startswith((INLINE_OPENING, POINTED_OPENING))
+            str(part).startswith((INLINE_OPENING, POINTER_OPENING))
             or ATTENTION_OPENING in str(part)
             for part in attachment.get("content") or []
         ):

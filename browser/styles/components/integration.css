@@ -177,8 +177,6 @@ html[data-lf-draw-mode] main {
   }
   & > .lf-video-icon {
     grid-area: 1 / 1;
-    inline-size: 16px;
-    block-size: 16px;
   }
 }
 .lf-video-controls:not(.lf-video-playing) .lf-video-icon[data-lf-icon="pause"],

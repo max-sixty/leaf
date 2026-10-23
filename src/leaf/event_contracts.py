@@ -20,6 +20,7 @@ from leaf.events import (
     undo_error,
 )
 from leaf.findings import Finding
+from leaf.harness import message_identity
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.obligations import (
     quoted_in,
@@ -914,6 +915,17 @@ def write_refusal(page_dir: Path) -> Finding | None:
     return incompatible_layer(page_dir, registry)
 
 
+def voiced(event: dict) -> dict:
+    """`event` in its writer's voice: an agent's event that names none takes the
+    posting session's (`harness.message_identity`), so no writer stamps it by hand.
+    A writer that speaks for another session, as the page server titling a thread
+    for its claimant does, names that voice itself, and it stands."""
+    if event["author"] != "agent" or "agent" in event or "session" in event:
+        return event
+    # The voice reads beside its author, where a writer stamping it put it.
+    return {"kind": event["kind"], "author": "agent", **message_identity(), **event}
+
+
 def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
     """Admit one event and append it, under the page transaction's log lease; the
     record, and whether this call appended it.
@@ -923,8 +935,10 @@ def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
     meaning derived from it, and the write. A refusal raises `EventRefused` on the
     finding that says what to do about it, which the CLI presents as an error and the browser
     endpoint answers as a final 400. An `attempt` the log already holds returns that record unappended,
-    or raises `AttemptConflict` when it names another payload.
+    or raises `AttemptConflict` when it names another payload. The event speaks in
+    its writer's voice (`voiced`).
     """
+    event = voiced(event)
     # Ahead of the gates, not only ahead of the write: a retry asks for the event
     # its attempt already carried, and the page it was admitted against may since
     # have moved past admitting it. Content and time play no part: an intentional

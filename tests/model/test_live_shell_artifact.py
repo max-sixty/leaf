@@ -107,8 +107,8 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         resources = destination / relative
         document = (destination / "versions" / f"v{version}.html").read_text()
         assert (destination / "revisions" / marker).read_text() == document
-        assert f'name="lf-revision" data-lf-runtime content="{revision}"' in document
-        assert f'name="lf-version" data-lf-runtime content="{version}"' in document
+        assert f'name="lf-revision" content="{revision}" data-lf-runtime' in document
+        assert f'name="lf-version" content="{version}" data-lf-runtime' in document
         assert f'src="{root}/leaf.js"' in document
         assert f'src="{root}/page/app.js"' in document
         assert f'href="{root}/page/style.css"' in document

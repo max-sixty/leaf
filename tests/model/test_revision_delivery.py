@@ -149,7 +149,7 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
     }
     resources = {
         "/runtime/prepaint.js": Resource(
-            b"window.prepaint = true;", "application/javascript"
+            b'window.prepaint = "</script>";', "application/javascript"
         ),
         "/vendor/initial-dependencies.json": Resource(
             b'{"/vendor/lit-producer.js":["/vendor/lit-initial.js"]}',
@@ -194,6 +194,7 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
     ]
     assert delivered.count("<lf-early data-lf-arriving") == 2
     assert delivered.count('window.initial = "<\\/script>";') == 1
+    assert delivered.count('window.prepaint = "<\\/script>";') == 1
     assert (
         delivered.index("window.prepaint")
         < delivered.index("window.initial")

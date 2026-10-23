@@ -462,12 +462,11 @@
      --raise-1. Its stylesheets live wherever the control does, often in a shadow tree
      or a package and on a pseudo-element no shared class reaches, so the face is
      tokens they name; each keeps its own placement. --tip-font is derived from the
-     ladder, so `.density-working` declares it again. */
+     ladder, so it is declared with the other derived tokens (below). */
   --tip-bg: var(--ink);
   --tip-ink: var(--paper);
   --tip-pad: 4px 7px;
   --tip-r: 4px;
-  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   /* Inline code's ground is measured against the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over this ivory is 1.01:1, so the chip vanished and its
      side padding read as double spaces around every span. */
@@ -518,6 +517,15 @@
      it, so there is still one place the band's thickness is decided. */
   --focus-ring-w: 2px;
   --focus-ring: var(--focus-ring-w) solid var(--accent);
+  /* A forced palette replaces the accent with its own ink for every outline, so the
+     ring would read as one more edge. Naming the platform's Highlight here gives every
+     rule that draws with the token the system's focus colour, inside the chrome and
+     out, where each surface once restated it for itself. A forced palette drops box
+     shadows outright, so --focus-shadow has no such answer: the browsed key hint that
+     wears it is told apart there only by its bold face. */
+  @media (forced-colors: active) {
+    --focus-ring: var(--focus-ring-w) solid Highlight;
+  }
   --focus-ring-gap: 3px;
   --focus-ring-room: calc(var(--focus-ring-w) + var(--focus-ring-gap));
   /* What a landing keeps clear for the ring at a scroller's edge: its room and two
@@ -542,16 +550,6 @@
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
-  /* A keyboard badge's box: the line box, which is a ratio of the font, plus
-     the ring drawn around it (chrome.css dresses one). It is a token for the
-     reason the ring's width is — a box somebody else holds room for has to be read
-     back in a calc, and the option that holds a column for one is in another layer's
-     stylesheet entirely. Written as a number there, the column stayed at the size the
-     chip was when it was measured, and a package redeclaring the ladder grows the chip
-     into whatever the column was holding beside it. Declared again on
-     `.density-working` (below), since a custom property resolves where it is
-     declared and a scope restating the ladder inherits the root's result. */
-  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover. */
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
@@ -603,6 +601,21 @@
   --series-3: light-dark(#25966a, #50a069);
   --series-4: light-dark(#6c489a, #7a4faf);
   --series-5: light-dark(#8c2d2a, #b13d54);
+}
+/* Tokens derived from the type ladder. A custom property resolves where it is declared,
+   and a scope restating the ladder would inherit the root's result, so these are
+   declared on every scope that restates it: the root and `.density-working` (below). */
+:is(:root, .density-working) {
+  /* A keyboard badge's box: the line box, which is a ratio of the font, plus the ring
+     drawn around it (chrome.css dresses one). It is a token for the reason the ring's
+     width is — a box somebody else holds room for has to be read back in a calc, and
+     the option that holds a column for one is in another layer's stylesheet entirely.
+     Written as a number there, the column stayed at the size the chip was when it was
+     measured, and a package redeclaring the ladder grows the chip into whatever the
+     column was holding beside it. The badge's own line height is read back from it
+     (surfaces.css), so the ratio has this one home. */
+  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
 }
 /* A page that is not live draws no chrome, so what sticks below the head sticks to the
    top of the window, and the page ends at the window's foot. */
@@ -1310,9 +1323,10 @@ p {
  * per line is a style and not where the block stands. The ladder and the spacing scale
  * are restated for the block's subtree, so every rule that reads them, a Layout's gutter
  * and a widget's padding included, sets at working size; shadow trees too, since custom
- * properties cross into them. A token derived from the ladder at the root is declared
- * again here, since it resolves where it is declared. The flow's larger gaps are tokens
- * restated here; its small margins are numbers, restated in the rules below.
+ * properties cross into them. The tokens derived from the ladder are declared for this
+ * scope as for the root (above), since each resolves where it is declared. The flow's
+ * larger gaps are tokens restated here; its small margins are numbers, restated in the
+ * rules below.
  *
  * `--lf-density` names the setting for what a size alone cannot carry: a widget whose
  * form changes, such as an option card becoming a row, reads it with a style query, as
@@ -1332,8 +1346,6 @@ p {
   --sp-4: 14px;
   --code-size: 12px;
   --code-line: 17px;
-  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
-  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   --pane-bar-pad: 6px 12px;
   --pane-inset: 12px;
   --h2-start: 18px;
@@ -1375,9 +1387,11 @@ figcaption {
 }
 /* Media fits its container on every page, with a Layout or without, and in a thread: the
  * live root clips what overflows sideways (html[data-lf-live], above), so an image wider
- * than its container would otherwise lose its far side with no way to scroll to it. */
+ * than its container would otherwise lose its far side with no way to scroll to it.
+ * Leaf's icons are not the page's media: they take their size from the icon rule
+ * (controls.css), which this one would outrank, unsizing a 16px icon's height. */
 img,
-svg,
+svg:where(:not([data-lf-icon])),
 video {
   max-width: 100%;
   height: auto;
@@ -2181,10 +2195,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 .lf-margin-entry-glyph {
   line-height: 1;
-}
-.lf-margin-entry-icon {
-  inline-size: 16px;
-  block-size: 16px;
 }
 .lf-margin-entry > .lf-margin-entry-space {
   display: none;

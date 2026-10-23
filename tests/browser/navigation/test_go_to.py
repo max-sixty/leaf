@@ -22,6 +22,7 @@ from render_harness import (
     leaf_page,
     open_page,
     opened_tab,
+    panel_view,
     resized,
     shown,
 )
@@ -715,7 +716,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     resized(page, 420, 800)
 
     def view(name):
-        return page.locator(f'.lf-fp-view[data-view="{name}"]:not([data-leaving])')
+        return page.locator(panel_view(name))
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")

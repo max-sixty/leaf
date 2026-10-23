@@ -166,7 +166,10 @@ message parts. A reaction a thread opens on is its root turn; any
 later reaction is drawn as the chip on the message it answers, so naming one as a
 message part throws.
 Leaf fills them and keeps the rendering, reactions, read tracking and reply draft; the
-package keeps layout, order, selection, scroll and disclosure. `parts.reply` takes
+package keeps layout, order, selection, scroll and disclosure. A rewrite of the user's
+message opens where the message stands, its frame reaching a little past the message's
+edges, so a scroller holding message parts keeps about 12px of padding beside them
+(the worked example's `.reader`). `parts.reply` takes
 `{hint, accessibleName, sent}`, where `sent()` runs after a send instead of moving the
 user to the thread. The collection holds back changes that would move what the user
 sees, behind a notice, which stands where `parts.news(thread.key, outlet)` names, or

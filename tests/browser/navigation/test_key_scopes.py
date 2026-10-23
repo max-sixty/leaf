@@ -32,6 +32,7 @@ from render_harness import (
     open_versions,
     panel_field,
     panel_settled,
+    panel_view,
     resized,
     told,
     write,
@@ -266,7 +267,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     page.wait_for_function(
         "view => view.contains(document.activeElement)", arg=threads.element_handle()
     )
@@ -1244,7 +1245,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.evaluate(press, ["m", True])  # the same grammar repeats for obligations
     expect(page.locator("#sug-refill[data-lf-obligation]")).to_have_count(1)
 
-    leaves = page.locator('.lf-fp-view[data-view="leaves"]')
+    leaves = page.locator(panel_view("leaves"))
     page.keyboard.press("g")
     page.evaluate(press, ["l", True, True])  # a panel destination does not repeat
     expect(leaves).to_be_hidden()

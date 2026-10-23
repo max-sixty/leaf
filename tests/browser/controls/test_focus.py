@@ -24,6 +24,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     resized,
     round_trip,
     scroll_settled,
@@ -158,7 +159,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     merely blurring to nowhere."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     toggle = page.locator(".lf-fp-threads")
-    panel = page.locator('.lf-fp-view[data-view="threads"]')
+    panel = page.locator(panel_view("threads"))
     ringed = """() => getComputedStyle(document.querySelector('.lf-fp-threads'))
       .outlineStyle !== 'none'"""
     top = "() => document.scrollingElement.scrollTop"

@@ -539,7 +539,7 @@ function paintFocus(node) {
     if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
   }
   paintedWithin = within;
-  const visible = next && (next.matches(":focus-visible") || next.matches(TEXT_BOX) || !next.matches(PRESSES)) ? next : null;
+  const visible = next && (next.matches(":focus-visible") || next.matches(TEXT_BOX)) ? next : null;
   if (visible !== paintedVisible) {
     if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
     if (visible) markFocus(visible, "focus-visible", true);

@@ -3,6 +3,7 @@ and forced colors, and the ring and focus-stop readings that check them."""
 
 import io
 import re
+from html import escape
 
 import pytest
 from interact_support import append_carried_log_record, element_declaration
@@ -34,6 +35,57 @@ from leaf import data as data_model
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows(
+    request, serve, engine
+):
+    """The reported diff click drew a ring below its positioned addition rows.
+
+    Real Tab arrival must paint all four viewport edges before and after sideways
+    scrolling; pointer arrival must preserve focus without painting a keyboard cue.
+    """
+    patch = (
+        "diff --git a/example.py b/example.py\n--- a/example.py\n+++ b/example.py\n"
+        "@@ -1,3 +1,3 @@\n context\n-"
+        + "old_value " * 100
+        + "\n+"
+        + "new_value " * 100
+        + "\n context\n"
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Read a diff",
+                '<h1>Read a diff</h1><lf-diff id="patch"><pre>'
+                + escape(patch)
+                + "</pre></lf-diff>",
+            ),
+            packages=("diff",),
+        ),
+    )
+    code = page.locator("#patch code[data-code]")
+    # Give the generated scrollport an address for the shared pixel-edge reader.
+    code.evaluate("node => node.id = 'diff-viewport'")
+    code.click(position={"x": 150, "y": 25})
+    expect(code).to_be_focused()
+    rendered(page)
+    assert not rings_drawn(page)
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(code).to_be_focused()
+    rendered(page)
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    for scrolled in (False, True):
+        if scrolled:
+            page.keyboard.press("ArrowRight")
+            page.wait_for_function(
+                "document.querySelector('#patch').shadowRoot.querySelector('code').scrollLeft > 0"
+            )
+        edges = mark_edges(page, "diff-viewport", accent)
+        assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 
 @pytest.mark.parametrize("reading", ["markdown", "boxed-tab", "page-tab"])

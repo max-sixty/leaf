@@ -25,6 +25,23 @@ what fails and what still works.
 
 ## Supported APIs checked
 
+### Diff focus frame invalidation
+
+- **Owner:** `packages/diff/styles/shadow.css`, the code viewport's focus frame.
+- **Observed 2026-10-22:** Playwright Firefox 155 computes the outline on
+  `pre:has(> code[data-lf-focus-visible])::after` after keyboard focus but does not
+  paint it. Another animation frame or scrolling does not repair it; inserting an
+  empty stylesheet does. Chromium paints the frame on focus.
+- **Disposition:** the selector also reads the parent's existing
+  `data-lf-focus-visible-within` mark, which invalidates its own paint. The child
+  condition keeps the viewport frame off when focus belongs to a line or button.
+  No new runtime marker or browser-specific branch is needed.
+- **Evidence:** `controls/test_rings.py`'s
+  `test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows`
+  exercises pointer and Tab arrivals, then checks all four painted edges before
+  and after horizontal scrolling in both engines. These are installed-engine
+  results, not a survey of stable browser releases.
+
 ### Highlight style inheritance
 
 - **Owners:** `runtime/annotation-overlay/annotation-marks.css` and

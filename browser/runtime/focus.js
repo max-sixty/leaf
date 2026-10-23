@@ -64,7 +64,7 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { signal } from "/vendor/browser-runtime.js";
 import { keeps } from "./keeps.js";
-import { MODIFIER_KEYS, PRESSES, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
+import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import {
   isNativeLayer,
   renderedParent,
@@ -505,13 +505,8 @@ function paintFocus(node) {
   // focus-visible (including text entry and modality changes on the same node).
   // Closed text-field roots expose their host, not the focused editor; text
   // entry always needs a cue, as it does for native editors.
-  // Non-press destinations are reading locations: keep their location band
-  // whenever they hold focus, including after a pointer click or route.
   const visible =
-    next &&
-    (next.matches(":focus-visible") || next.matches(TEXT_BOX) || !next.matches(PRESSES))
-      ? next
-      : null;
+    next && (next.matches(":focus-visible") || next.matches(TEXT_BOX)) ? next : null;
   if (visible !== paintedVisible) {
     if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
     if (visible) markFocus(visible, "focus-visible", true);

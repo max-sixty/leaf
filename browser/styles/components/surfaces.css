@@ -305,9 +305,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
 /* A visible focus destination wears the layer's band unless its own rule supplies
-   a carrier. Ordinary controls follow the browser's focus-visible reading; an
-   explicit reading destination also shows where a route landed. Logical standing
-   remains separate, so pointer focus can reveal controls without drawing a ring.
+   a carrier. Controls and reading destinations follow browser focus visibility.
+   Logical standing remains separate, so pointer focus can reveal controls without
+   drawing a ring.
    At no weight, each control's own band wins. Retargeting shadow hosts and a
    label press's intermediate nodes get no band. */
 :where([data-lf-focus-visible]) {

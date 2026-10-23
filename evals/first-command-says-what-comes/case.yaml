@@ -14,6 +14,13 @@
 # `leaf-delivery/15`, and ids, page, claim and times are substituted as before.
 # The handling is left empty: the prompt reads it from each arm's registry.
 # Not rescored.
+# The `opening` variant was added when Claude Code's hooks began posting the turn's
+# opening line as the progress of a delivery's sole reply (`progress: "opening"`),
+# which saves the model call the progress command took. It separated the arms on
+# Claude Code: base 37505d08a passed 0 of 3, the change 3 of 3, while the bare case,
+# `claude-hook-delivery-needs-no-ack` and `ephemeral-progress-reply` passed 3 of 3
+# on both. Asking for "each line of text you would write" tripped Opus 5.5's
+# safeguards on every run; asking for each message to the user did not.
 description: first-command-says-what-comes
 metadata:
   purpose: "Conversation loop: after a delivery whose message asks for work, the first command posts a short progress message in its thread saying what the agent will do, before reading or editing anything; the answer comes later."
@@ -62,17 +69,17 @@ variants:
         `when`; read them as part of the delivery.
 
         Read whatever Leaf instructions you need. Only Skill and Read run here, so write
-        out, in order, everything you would do from now until you have answered the
-        comment: each line of text you would write in your responses, and each command
-        you would run, including any that read files or the page. Then end your answer.
+        out, in order, each command you would run from now until you have answered the
+        comment, including any that read files or the page, and, in its place among
+        them, any message you would write to the user. Then end your answer.
     assert:
       - type: llm-rubric
         metric: judgment
         value: |
-          Pass only if, before its first command, the agent writes a line of text
-          telling the user what it is about to do, and no command posts a progress
+          Pass only if, before its first command, the agent lists a message to the
+          user saying in a line what it is about to do, and no command posts a progress
           message: no `leaf thread reply` with `--ephemeral` and no `leaf task
           start`. A later ordinary `leaf thread reply` (without `--ephemeral`)
           addressed to `7f20c3d9:0:5d1e8a42` must answer 5d1e8a42 after the work.
-          Fail if the first thing written is a command, if any progress command is
+          Fail if the first item listed is a command, if any progress command is
           run, or if the comment is never answered.

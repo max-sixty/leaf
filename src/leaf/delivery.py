@@ -721,7 +721,8 @@ def freeze_delivery(
     confirmation after the complete envelope reaches context. When the harness
     establishes receipt directly, omit it and the envelope records `null`.
     `turn_replies` is set where the turn the delivery opens writes its thread
-    reply with its own messages. `opening` is set where a later hook of the turn
+    reply with its own messages. `opening` is set where the turn the delivery opens
+    is for it alone (`Harness.opens_with_delivery`) and a later hook of the turn
     posts its opening as the progress line of the delivery's sole owed reply
     (`post_opening`). A delivery owing more than one reply takes no opening, since
     it could be about any of them."""
@@ -1252,7 +1253,9 @@ def post_opening(harness: Harness, payload: dict) -> None:
                     reading["item"]
                     for event in page.events
                     if (reading := start_reading(event))
-                } | {event["responds"] for event in page.events if event.get("responds")}
+                } | {
+                    event["responds"] for event in page.events if event.get("responds")
+                }
         except FileNotFoundError:
             continue
         for event_id, ref in refs.items():

@@ -530,9 +530,7 @@ def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkey
     assert hook_transport_model.remedies(hook_transport_model.read_plans("s1")) == []
 
 
-def test_claude_codes_turn_confirms_what_its_hooks_hand_over(
-    claimed, capsys, tmp_path
-):
+def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys, tmp_path):
     """Claude Code's prompt hook runs as every turn begins, including the one a
     background wait's ending opens, and its PostToolBatch hook between steps; each hands
     the turn the whole pending delivery inline, so the move reads Delivered as the
@@ -615,16 +613,23 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(
 def test_claude_codes_opening_line_posts_as_the_progress_of_its_one_reply(
     claimed, capsys, tmp_path
 ):
-    """A Claude Code delivery that owes one reply tells the agent that the line it
-    writes before its first tool call is its progress, and the turn's next hook
-    posts that line from the transcript, which starts the update, so no model call
-    goes to posting it. It posts once, and not over a progress line of the agent's
-    own; a delivery owing two replies leaves each to the agent."""
+    """In a turn Leaf's watch opened for a delivery that owes one reply, the
+    delivery tells the agent that the line it writes before its first tool call is
+    its progress, and the turn's next hook posts that line from the transcript,
+    which starts the update, so no model call goes to posting it. It posts once.
+    Input that joins a turn at a tool boundary, where the agent is doing other
+    work, leaves its progress to the agent, as does a prompt the user typed."""
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "record the release"}
     )
+    woke = session_model.wake_line(claimed, new_input=True)
     hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+        "claude-code",
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "s1",
+            "prompt": f"<task-notification>Leaf: {woke}</task-notification>",
+        },
     )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
@@ -665,19 +670,19 @@ def test_claude_codes_opening_line_posts_as_the_progress_of_its_one_reply(
     )
     assert progress["start"]["item"] == comment["id"]
 
-    for text in ("first", "second"):
-        append_carried_log_record(
-            claimed, {"kind": "comment", "author": "user", "text": text}
-        )
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "one more"}
+    )
     hooks_model.cmd_hook("claude-code", boundary)
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
     [batch] = json.loads(context.split("\n")[1])["batches"]
-    assert ["progress" in event["answer"] for event in batch["events"]] == [
-        False,
-        False,
-    ]
+    [event] = batch["events"]
+    assert "progress" not in event["answer"]
+    harness = harness_model.ClaudeCodeHarness(session="s1", agent="Claude")
+    typed = {"hook_event_name": "UserPromptSubmit", "prompt": "fix the tests"}
+    assert not harness.opens_with_delivery("UserPromptSubmit", typed)
 
 
 def test_a_handover_its_turn_never_confirmed_is_offered_again(

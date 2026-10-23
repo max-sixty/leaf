@@ -44,13 +44,19 @@ delivered at prompt:
             on your reply, so Threads lists its subject instead of its opening words.
             If Leaf has already named it from its first message, that name stays.
           h2: >-
+            If the event asks for work, first post one line in its thread saying
+            what you will do, before any other command, even reading the source:
+            `leaf thread reply <answer.ref> --ephemeral --text "<what you will do,
+            in a line>"`. It shows at once and starts the update, which reads Working
+            until you answer.
+          h3: >-
             If the event asks for work, first tell the user in one line what you
             will do, before your first tool call, even reading the source, and go
             straight on to the work in the same response. Leaf posts that line in
             the thread as your progress at that tool call, which starts the update,
             and it reads Working until you answer; post no progress line of your
             own.
-          h3: >-
+          h4: >-
             Do the work and put the result on the page, with what shows it (captures,
             a figure, the numbers). Then answer with `leaf thread reply <answer.ref>
             --done --file reply.md`: what changed, in a sentence or two, linking
@@ -69,7 +75,7 @@ delivered at prompt:
             until they answer. Omit it for progress or information that needs no
             response. A widget in `--markup` can register the answer it captures
             instead (`references/threads.md`).
-          h4: >-
+          h5: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
             and fence code or markup.
@@ -87,14 +93,13 @@ delivered at prompt:
               kind: thread
               id: event-3
             threads: [event-3]
-            handling: [h1, h2, h3, h4]
+            handling: [h1, h2, h3, h4, h5]
             answer:
               kind: reply
               parent: event-3
               responds: event-3
               ref: <delivery>:0:event-3
               writer: agent
-              progress: opening
   attention: ''
 
 acknowledged at stop: null

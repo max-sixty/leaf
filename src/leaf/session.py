@@ -529,15 +529,20 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
     return 2
 
 
+# What a watch says after the page it names as it wakes the session for new input,
+# which the prompt hook recognizes in the turn's prompt
+# (`Harness.opens_with_delivery`).
+WAKES_FOR_INPUT = (
+    "has new input; Leaf's prompt hook puts it in your context with this notification"
+)
+
+
 def wake_line(page_dir: Path, *, new_input: bool) -> str:
     """What a watch says as it wakes the session, where the harness's prompt hook
     carries what woke it into the turn: `new_input`, or an answer a closed turn left
     owed (`left_owed`)."""
     if new_input:
-        return (
-            f"{page_dir} has new input; Leaf's prompt hook puts it in your context "
-            "with this notification"
-        )
+        return f"{page_dir} {WAKES_FOR_INPUT}"
     return (
         f"{page_dir} has an update still owed an answer; Leaf's prompt hook names it "
         "in your context with this notification"

@@ -106,10 +106,17 @@ class Harness:
     # over waits for a later hook of the same turn to confirm it, and is offered
     # again if the turn ends first (`delivery.confirm_turn`).
     commits_hook_context: ClassVar[bool] = True
-    # Whether the turn's opening text, which a later hook reads (`turn_opening`),
-    # posts as the progress line of the sole reply a hook delivery owes
+    # Whether a later hook of a turn posts the turn's opening text (`turn_opening`)
+    # as the progress line of the sole reply a hook delivery owes
     # (`delivery.post_opening`), so the agent spends no model call posting one.
     posts_opening: ClassVar[bool] = False
+
+    def opens_with_delivery(self, event: str | None, payload: dict) -> bool:
+        """Whether the delivery hook `event` hands over is the whole of what its
+        turn is for, so the turn's opening says what the agent will do about it: a
+        turn Leaf opened for its input. A turn the user prompted, or one the input
+        joined mid-work, opens with words about other work."""
+        return False
 
     def turn_opening(self, payload: dict, delivery_id: str) -> str | None:
         """What the model wrote after hook delivery `delivery_id` reached its turn
@@ -325,6 +332,11 @@ class EnvironmentHarness(Harness):
         raise NotImplementedError
 
 
+# What Leaf's nudge says after the page it names (`ClaudeCodeHarness.nudge`), which
+# its hooks module and prompt hook recognize as Leaf's own prompt.
+NUDGE_WORDS = "has new input, which arrives with this message."
+
+
 @dataclass(frozen=True)
 class ClaudeCodeHarness(EnvironmentHarness):
     """Claude Code: a Stop hook that watches between turns and wakes the session,
@@ -350,6 +362,17 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # end means the model read the context.
     commits_hook_context = False
     posts_opening = True
+
+    def opens_with_delivery(self, event: str | None, payload: dict) -> bool:
+        """A prompt that is Leaf's own: the notification of the watch that woke the
+        session (`session.wake_line`), which Claude Code makes the turn's prompt, or
+        Leaf's nudge (`nudge`)."""
+        from .session import WAKES_FOR_INPUT
+
+        if event != "UserPromptSubmit":
+            return False
+        prompt = payload.get("prompt", "")
+        return WAKES_FOR_INPUT in prompt or NUDGE_WORDS in prompt
 
     def turn_opening(self, payload: dict, delivery_id: str) -> str | None:
         """The text blocks the transcript (`transcript_path`) holds after the hook
@@ -492,7 +515,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
     def nudge(self, page_dir: Path) -> bool:
         """The session's socket, or, for a background job no worker hosts, the job
         itself, resumed with the message as its prompt."""
-        text = f"leaf: {page_dir} has new input, which arrives with this message."
+        text = f"leaf: {page_dir} {NUDGE_WORDS}"
         return message_claude_code_session(self.session, text) or (
             self.job is not None and resume_claude_code_job(self.session, text)
         )

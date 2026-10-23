@@ -527,9 +527,7 @@
                   }
                 },
                 "not": {
-                  "required": [
-                    "progress"
-                  ]
+                  "required": ["progress"]
                 }
               }
             }

@@ -496,7 +496,9 @@ def carry_turn(
             ]
         )
     delivery = (
-        freeze_delivery(batches, opening=harness.posts_opening) if batches else None
+        freeze_delivery(batches, opening=harness.opens_with_delivery(event, payload))
+        if batches
+        else None
     )
     deadline = started + CONFIRM_WITHIN
     from .reconnect import notices

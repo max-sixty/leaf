@@ -10,14 +10,16 @@ from render_harness import consume_browser_errors, judge_watches
 from leaf.render_checks import one_frame
 
 # A row seating one occupant at a time. A press on Swap puts the other in its place, the
-# way the page's `data-swap` says: by replacing the node, or by hiding one and showing
-# the other. `data-tall` makes the second occupant taller than the row's line.
+# way the page's `data-swap` says: by replacing the node, by moving in one that stood on
+# the shelf, by hiding one and showing the other, or over two of the page's tasks in one
+# frame. `data-tall` makes the second occupant taller than the row's line.
 ROW = """<!doctype html><body style="margin:0">
 <div id="row" style="display:flex;align-items:center;gap:4px;width:300px">
   <button id="first" style="height:24px">First</button>
   <button id="second" style="height:24px" hidden>Second</button>
 </div>
 <button id="swap">Swap</button>
+<div id="shelf"></div>
 <script>
   const row = document.getElementById("row");
   const first = document.getElementById("first");
@@ -25,7 +27,10 @@ ROW = """<!doctype html><body style="margin:0">
   document.getElementById("swap").addEventListener("click", () => {
     const { swap, tall } = document.body.dataset;
     if (tall) second.style.height = "40px";
-    if (swap === "replace") { second.hidden = false; first.replaceWith(second); }
+    if (swap === "replace" || swap === "move") {
+      second.hidden = false;
+      first.replaceWith(second);
+    }
     if (swap === "show") { first.hidden = true; second.hidden = false; }
     if (swap === "frame") {
       first.remove();
@@ -42,10 +47,17 @@ def row_page(browser, swap, tall):
         "([swap, tall]) => Object.assign(document.body.dataset, tall ? {swap, tall} : {swap})",
         [swap, tall],
     )
+    if swap == "move":
+        page.evaluate(
+            "() => { const second = document.getElementById('second');"
+            " second.style.height = '40px'; second.hidden = false;"
+            " document.getElementById('shelf').append(second); }"
+        )
+        one_frame(page)
     return page
 
 
-@pytest.mark.parametrize("swap", ["replace", "show", "frame"])
+@pytest.mark.parametrize("swap", ["replace", "move", "show", "frame"])
 def test_an_occupant_that_grows_its_place_fails(browser, swap):
     page = row_page(browser, swap, tall=True)
     page.locator("#swap").click()
@@ -92,4 +104,18 @@ def test_an_occupant_its_words_grew_passes(browser):
     # The grown draft is laid out in a frame of its own, as a user's typing is.
     one_frame(page)
     page.keyboard.press("Enter")
+    judge_watches()
+
+
+def test_a_swap_its_own_press_undoes_before_a_frame_passes(browser):
+    """A press's mouse and touch events run in its pointerdown's task, before any frame,
+    so a swap one of them undoes was never on screen."""
+    page = row_page(browser, "none", tall=False)
+    page.evaluate("""() => {
+      const [first, second] = ['first', 'second'].map(id => document.getElementById(id));
+      second.style.height = '40px';
+      addEventListener('pointerdown', () => { first.hidden = true; second.hidden = false; });
+      addEventListener('mousedown', () => { first.hidden = false; second.hidden = true; });
+    }""")
+    page.locator("#swap").click()
     judge_watches()

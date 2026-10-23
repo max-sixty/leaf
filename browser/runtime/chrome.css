@@ -705,7 +705,8 @@
     gap: 2px;
   }
   .lf-fp-filters {
-    --lf-fp-filter-reach: max(0px, (var(--aim-floor) - 26px) / 2);
+    --lf-fp-tab: 26px;
+    --lf-fp-filter-reach: max(0px, (var(--aim-floor) - var(--lf-fp-tab)) / 2);
     display: flex;
     min-width: 0;
     overflow-x: auto;
@@ -717,7 +718,7 @@
     flex-shrink: 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
-    min-height: 26px;
+    min-height: var(--lf-fp-tab);
   }
   .lf-fp-filters button:hover,
   .lf-fp-filters [aria-pressed=true] {

@@ -242,7 +242,8 @@ def test_visual_review_allocates_focused_evidence_before_images_decode(browser, 
     })"""
     before = host.evaluate(geometry)
     assert before["frames"][0]["height"] > 500, before
-    assert before["frames"][1]["top"] >= before["frames"][0]["bottom"], before
+    assert before["frames"][1]["top"] == before["frames"][0]["top"], before
+    assert before["frames"][1]["height"] == before["frames"][0]["height"], before
     assert host.locator("img").evaluate_all(
         "images => images.every(image => image.naturalWidth === 0)"
     )
@@ -279,7 +280,9 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     # empty until the incoming pair has loaded; its declared geometry stays reserved.
     rendered(page, facts=("updatesSettled",))
     assert images.evaluate_all("images => images.every(image => !image.naturalWidth)")
-    assert host.evaluate("node => node.scrollHeight") > 1000
+    assert host.locator(".lf-shotframe").first.evaluate(
+        "node => node.getBoundingClientRect().height"
+    ) > 500
     expect(host.locator(".lf-error")).to_have_count(0)
     refuse(held[0])
     expect(host.locator(".lf-error")).to_contain_text("focus needs two decoded images")

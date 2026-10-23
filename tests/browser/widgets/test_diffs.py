@@ -474,7 +474,8 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
       const widget = document.querySelector(diff);
       const entry = widget.fileEntries[0];
       return entry.lines.map(line => {
-        const {gutterRow} = widget.threadPair(line.node);
+        const gutterRow = line.node.closest('pre').querySelector(
+          `[data-gutter] > [data-line-index="${line.node.dataset.lineIndex}"]`);
         const number = String(line.side === 'old' ? line.oldLine : line.newLine);
         return {
           datum: line.node.dataset.lfDatum,

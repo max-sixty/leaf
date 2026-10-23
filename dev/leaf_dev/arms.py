@@ -18,8 +18,7 @@ A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
 when the session has gone quiet. On macOS a Claude Code child runs under
-`claude_sandbox`, so concurrent children share no file in `/tmp` and cannot
-launch desktop applications through macOS `open`.
+`private_tmp`, so concurrent children share no file in `/tmp`.
 """
 
 import base64
@@ -104,17 +103,19 @@ def run_directory(parent: Path) -> Path:
     return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
 
 
-def environment(**extra: str) -> dict[str, str]:
+def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
-    and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
+    and settings. Inherited LEAF and LEAF_HOST_LAUNCHER would point at the parent's
+    launcher instead of the arm's.
     `CLAUDE_CONFIG_DIR` stays, since it names where the login lives. Nor does PATH
     keep `uv run`'s environment or the bin directory of a Leaf tree, such as the
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
+    When supplied, `payload` puts that arm's bin directory first on the clean PATH.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
@@ -128,6 +129,7 @@ def environment(**extra: str) -> dict[str, str]:
         not in (
             *IDENTITY_VARIABLES,
             APP_SERVER_ENV,
+            "LEAF",
             "LEAF_HOST_LAUNCHER",
             "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
         )
@@ -142,6 +144,8 @@ def environment(**extra: str) -> dict[str, str]:
         if not (venv and entry == str(Path(venv) / "bin"))
         and not (Path(entry).parent / "skills" / "leaf").is_dir()
     )
+    if payload is not None:
+        env["PATH"] = os.pathsep.join((str(payload / "bin"), env["PATH"]))
     return {**env, **extra}
 
 
@@ -387,15 +391,14 @@ def install_codex_plugin(
 
 
 def codex_home(path: Path, config: str = "") -> Path:
-    """Make `path` a Codex home holding a copy of the host's login and `config` as its
+    """Make `path` a Codex home sharing the host's login and holding `config` as its
     `config.toml`, so a Codex child run with `CODEX_HOME=path` reads none of the
     host's settings, plugins, hooks or task history. Codex still reads the user's
-    `~/.agents/skills`, which `CODEX_HOME` does not move."""
+    `~/.agents/skills`, which `CODEX_HOME` does not move. Keep one credential file:
+    a child refreshing a copied login would leave the host's refresh token stale."""
     path.mkdir(mode=0o700)
     host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-    auth = path / "auth.json"
-    shutil.copyfile(host / "auth.json", auth)
-    auth.chmod(0o600)
+    (path / "auth.json").symlink_to((host / "auth.json").resolve())
     (path / "config.toml").write_text(config)
     return path
 
@@ -535,12 +538,9 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
                 retire_sessions(payload, state if state is not None else work / "state")
 
 
-def claude_sandbox(*owned: Path) -> str:
-    """Keep a Claude Code child's temporary writes and handoffs off the host.
-
-    Eval authors hand pages to a simulated user, so macOS `open` must not launch
-    the real user's default browser. Deny execution in the sandbox, including
-    when a script or compound shell command invokes it; headless browsers still run.
+def private_tmp(*owned: Path) -> str:
+    """The macOS sandbox profile a Claude Code child runs under, so that two
+    children never share a file under `/tmp`.
 
     Its `TMPDIR` and zsh's `TMPPREFIX` are already its own (`claude_child`), but
     authoring agents also write fixed names such as `/tmp/chk.py`, which a
@@ -561,7 +561,6 @@ def claude_sandbox(*owned: Path) -> str:
         [
             "(version 1)",
             "(allow default)",
-            '(deny process-exec (literal "/usr/bin/open"))',
             '(deny file-write* (subpath "/private/tmp"))',
             f'(allow file-write* (regex #"^/private/tmp/({names})"))',
             *(
@@ -585,7 +584,7 @@ def claude_child(
 
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
-    On macOS the child runs under `claude_sandbox`, owning `cwd`, its home and
+    On macOS the child runs under `private_tmp`, owning `cwd`, its home and
     `dirs`, unless `sandbox` is False, as a child that drives the harness's own
     browser is. Its private-home CLAUDE.md names the sandbox's scratch directory
     and restriction; an unsandboxed launch retires that generated file."""
@@ -605,7 +604,7 @@ def claude_child(
             f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
             "The sandbox rejects arbitrary writes under shared `/tmp`.\n"
         )
-        profile = claude_sandbox(cwd, home, *dirs)
+        profile = private_tmp(cwd, home, *dirs)
         command = ["sandbox-exec", "-p", profile, *command]
     else:
         instructions.unlink(missing_ok=True)

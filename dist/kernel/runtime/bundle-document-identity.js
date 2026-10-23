@@ -70,6 +70,7 @@ import {
   keepRefusedWords,
   listWalkPosition,
   loadDraft,
+  loadDraftPayload,
   loadMarkdown,
   loadMessageMarkdown,
   markdownReady,
@@ -168,7 +169,7 @@ import {
   stageAuthoredStates,
   stageWidgetDescriptors,
   widgetDescriptor
-} from "./bundle-stylesheets.js";
+} from "./bundle-keyboard~disclosure.js";
 import {
   scrollBehavior
 } from "./bundle-motion.js";
@@ -259,10 +260,12 @@ import {
   wrote
 } from "./bundle-passage-facts.js";
 import {
+  LayerRefused,
   PAGE_PAINT_ATTRIBUTE,
   PRESS,
   PRESSABLE,
   TEXT_ENTRY,
+  admitReading,
   admitResponse,
   announce,
   ariaShortcuts,
@@ -839,7 +842,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var DRAFT_FORMAT = "leaf-draft/15";
+var DRAFT_FORMAT = "leaf-draft/17";
 
 // runtime/composing/text-field.js
 import {
@@ -1686,9 +1689,8 @@ function createSelectionComposer({
   let syncComposer;
   let pendingRevision = null;
   let suggestionMode = false;
-  const composerDraftValue = (text = syncComposer.value()) => JSON.stringify({
+  const composerDraftPayload = () => ({
     format: DRAFT_FORMAT,
-    text,
     anchor: pendingAnchor,
     revision: pendingRevision,
     suggest: suggestionMode,
@@ -1696,22 +1698,10 @@ function createSelectionComposer({
     drawing: pendingDrawing,
     touched: Date.now()
   });
-  const saveComposerDraft = (text = syncComposer.value()) => saveDraft(composerCtx(pendingAnchor), composerDraftValue(text));
-  const parsedRecords = /* @__PURE__ */ new Map();
+  const saveComposerDraft = (text = syncComposer.value()) => saveDraft(composerCtx(pendingAnchor), text, composerDraftPayload());
   const composerRecord = (ctx) => {
-    const stored = loadDraft(ctx);
-    const known = parsedRecords.get(ctx);
-    if (known?.stored === stored) return known.record;
-    let record = null;
-    try {
-      record = JSON.parse(stored);
-      if (!Number.isInteger(record?.revision)) record = null;
-      else if (record.format !== DRAFT_FORMAT) record = { ...record, drawing: null };
-    } catch {
-      record = null;
-    }
-    parsedRecords.set(ctx, { stored, record });
-    return record;
+    const payload = loadDraftPayload(ctx);
+    return payload?.format === DRAFT_FORMAT ? { ...payload, text: loadDraft(ctx) } : null;
   };
   const draftDrawing = (anchor) => {
     return composerRecord(composerCtx(anchor))?.drawing ?? null;
@@ -1738,8 +1728,9 @@ function createSelectionComposer({
     }
     const record = composerRecord(ctx);
     if (!record) return;
-    if (!record.text && !drawing) clearDraft(ctx);
-    else saveDraft(ctx, JSON.stringify({ ...record, format: DRAFT_FORMAT, drawing }));
+    const { text, ...payload } = record;
+    if (!text && !drawing) clearDraft(ctx);
+    else saveDraft(ctx, text, { ...payload, drawing });
   }
   const watchHeldDrawings = (callback) => watchDrafts(COMPOSER_KEY, callback);
   function pendingComposer() {
@@ -1926,7 +1917,8 @@ function createSelectionComposer({
       landFabFocus(handoff, pendingAnchor, () => focusEpoch === composerEpoch);
     }
     watchComposer();
-    if (carriedDraft) transferDraft(previousCtx, ctx, composerDraftValue());
+    if (carriedDraft)
+      transferDraft(previousCtx, ctx, syncComposer.value(), composerDraftPayload());
     else if (drawingSupplied && JSON.stringify(composerRecord(ctx)?.drawing ?? null) !== JSON.stringify(pendingDrawing)) {
       saveComposerDraft();
       rememberWriting(composerInput);
@@ -1996,6 +1988,7 @@ function createSelectionComposer({
     const record = composerRecord(ctx);
     if (!record) return null;
     return {
+      hasContent: Boolean(record.text || record.drawing),
       // A detached draft's destination is its native editor, not a guessed passage.
       // Arrival clears covering surfaces before this same field is materialized.
       where: anchorTravelAt(record.anchor) ?? composerInput,
@@ -2940,6 +2933,7 @@ async function baseReading(baseRevision, throughSeq) {
     through_seq: String(throughSeq)
   });
   const res = await fetch(pageUrl(`api/view?${params}`));
+  if (!admitReading(res)) throw new LayerRefused("Leaf changed while comparing");
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
   return (await res.json()).browser;
 }

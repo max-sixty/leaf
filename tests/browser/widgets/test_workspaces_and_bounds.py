@@ -439,16 +439,18 @@ def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
 
 
 def clear_of_the_bottom_chrome(page, selector):
-    """Scroll the page to its end and measure one box against the floating panel's row.
+    """Scroll the target's reading box to its end and measure it against the panel.
 
     The row is the fixed chrome a page's last line has to scroll clear of; a page whose
     end room is missing leaves that line under it however far the user scrolls."""
     return page.evaluate(
-        """selector => {
-          const page = document.scrollingElement;
-          page.scrollTop = page.scrollHeight;
+        """async selector => {
+          const {scrollerFor} = await window.__lfWidgetApi();
+          const target = document.querySelector(selector);
+          const scroller = scrollerFor(target) ?? document.scrollingElement;
+          scroller.scrollTop = scroller.scrollHeight;
           const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
-          const box = document.querySelector(selector).getBoundingClientRect();
+          const box = target.getBoundingClientRect();
           return {bottom: box.bottom, row: row.top, clear: box.bottom <= row.top + 1};
         }""",
         selector,

@@ -8,11 +8,12 @@ import { darkPreference, shownScheme } from "./color-scheme.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { layoutWindow, seenRect, shownWindow, watchRoom } from "./geometry.js";
 import { randomId } from "./ids.js";
-import { sessionIsActive } from "./layer-client.js";
+import { layerHeaders, sessionIsActive } from "./layer-client.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { pageReadiness } from "./presentation.js";
 import { coarsePointer } from "./pointer.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
+import { tagsDeclaring } from "./registry.js";
 import { watchSemantic } from "./semantic-state.js";
 
 const REPORT_MS = 10_000;
@@ -72,7 +73,9 @@ export function observeUserView() {
     // server; the next observation replaces it rather than queuing old geometry.
     void fetch(pageUrl("api/user-view"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // The runtime it names keeps a tab from before an update from describing the
+      // page a newer runtime draws (`_runtime_gate`).
+      headers: layerHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ ...view, checks }),
       keepalive,
       signal: keepalive ? undefined : globalThis.AbortSignal.timeout(REPORT_MS),
@@ -100,9 +103,9 @@ export function observeUserView() {
       (inspect || basis !== checkedBasis)
     ) {
       if (reading) {
-        const open = Object.entries(runtime.registry)
-          .filter(([, entry]) => ["markup", "members"].includes(entry["x-content"]))
-          .map(([tag]) => tag);
+        const open = tagsDeclaring((entry) =>
+          ["markup", "members"].includes(entry["x-content"]),
+        );
         checks = {
           sequence: view.sequence,
           revision: view.revision,

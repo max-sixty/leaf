@@ -4,7 +4,7 @@
  * (page-controls.js) whose press copies its text, derived from the state reading where
  * it is read, so a presentation follows the reading. */
 import { ago } from "./presence.js";
-import { SHARE_ROOT, runtime, shareUrl } from "./context.js";
+import { DELIVERY, SHARE_ROOT, runtime, shareUrl } from "./context.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 
 // How old a Leaf payload is, so a user who meets a problem can tell whether it
@@ -27,9 +27,10 @@ const otherPayloadLines = (relation, provenance) => [
   ...(provenance.dirty !== undefined ? [`${relation} dirty: ${provenance.dirty}`] : []),
   ...payloadDateLines(provenance).map((line) => `${relation} ${line}`),
 ];
-// Where another Leaf serves the page (`state.leaf`), it stands beside the page's own
-// with its age, so whoever meets a problem can tell how far apart the two are
-// (AGENTS.md, "Pages across Leaf updates").
+// Where another Leaf serves the page (`state.leaf`), whose runtime the page runs, it
+// stands beside the Leaf that vendored the page's layer with its age, so whoever meets
+// a problem can tell how far apart the two are (AGENTS.md, "Pages across Leaf
+// updates").
 const servedBy = (state) =>
   state.leaf
     ? ` · served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` · ${payloadAge(state.leaf)}` : ""}`
@@ -76,6 +77,7 @@ function previewDiagnostics() {
     ...payloadDateLines(producer),
     ...(state.leaf ? otherPayloadLines("served by", state.leaf) : []),
     `started: ${started}`,
+    ...runtimeLines(),
     `layer generation: ${state.layer.generation}`,
     ...(state.layer.fingerprint
       ? [`layer fingerprint: ${state.layer.fingerprint}`]
@@ -95,10 +97,17 @@ registerPageControl({
   group: "page",
 });
 
-// The vendored layer is the Leaf version this page actually runs. It can remain older
-// than the plugin now installed in the harness, so this reads the provenance captured by
-// `page init` rather than a live package or server version. Pages built outside Git
-// retain a stable identity through the composed layer fingerprint.
+// The runtime this document runs, which the server serving it supplied
+// (`runtime_selection.py`); a website release names it instead.
+function runtimeLines() {
+  return DELIVERY.runtime ? [`runtime: ${DELIVERY.runtime}`] : [];
+}
+
+// The vendored layer names the Leaf version that composed this page's registry, theme
+// and widgets. It can remain older than the plugin now installed in the harness, so
+// this reads the provenance captured by `page init` rather than a live package or
+// server version. Pages built outside Git retain a stable identity through the
+// composed layer fingerprint.
 function layerIdentity(state) {
   const producer = state.layer.producer ?? {};
   const fingerprint = state.layer.fingerprint;
@@ -128,6 +137,7 @@ function layerDiagnostics() {
     ...(state.leaf ? otherPayloadLines("served by", state.leaf) : []),
     ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
     `generation: ${state.layer.generation}`,
+    ...runtimeLines(),
     ...(state.active ? [`revision: ${state.active.revision}`] : []),
     `url: ${pageUrl()}`,
   ].join("\n");

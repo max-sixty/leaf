@@ -186,13 +186,10 @@ import {
 import {
   DISCLOSE,
   DISCLOSURE_SELECTOR,
-  annotationSheets,
-  chromeSheet,
   disclosed,
-  marksSheet,
   setChildren,
   watchDisclosures
-} from "./runtime/bundle-stylesheets.js";
+} from "./runtime/bundle-keyboard~disclosure.js";
 import {
   mediaViewer,
   readAttachedMedia,
@@ -321,10 +318,12 @@ import {
   PRESSABLE,
   advertisesKeys,
   allBindings,
+  annotationSheets,
   announce,
   bindingEnabled,
   bindings,
   buttonCommand,
+  chromeSheet,
   claimsEsc,
   clamp,
   clampedRow,
@@ -364,6 +363,7 @@ import {
   layoutWindow,
   live,
   liveEl,
+  marksSheet,
   merge,
   mountRepaint,
   nativeLayers,
@@ -480,6 +480,7 @@ import {
   upFrom
 } from "./runtime/bundle-frame-visibility.js";
 import {
+  DELIVERY,
   PRESENTATION_ORDER,
   SHARE_ROOT,
   WEBSITE_DELIVERY,
@@ -8226,8 +8227,10 @@ function createFloatingPanel({
           type="button"
           class="lf-fp-quiet lf-fp-show"
           @click=${() => {
-      close();
-      void queueActions.open(queueItemKey(item));
+      const route = trail.value.at(-1);
+      void queueActions.open(queueItemKey(item)).then((arrived) => {
+        if (arrived && trail.value.at(-1) === route) close();
+      });
     }}
         >
           Show
@@ -8791,7 +8794,6 @@ function createFloatingPanel({
           </button>` : nothing,
       exitSeat
     );
-    keepsHidden(exitSeat, !exit);
     const threadsOpen = top?.view === "threads" || top?.view === "thread";
     const onUserName = onUser ? `On me: ${onUser}` : "On me";
     const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";
@@ -10534,6 +10536,7 @@ function previewDiagnostics() {
     ...payloadDateLines(producer),
     ...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
     `started: ${started}`,
+    ...runtimeLines(),
     `layer generation: ${state.layer.generation}`,
     ...state.layer.fingerprint ? [`layer fingerprint: ${state.layer.fingerprint}`] : [],
     ...state.active ? [`revision: ${state.active.revision}`] : [],
@@ -10550,6 +10553,9 @@ registerPageControl({
   offered: () => Boolean(preview()),
   group: "page"
 });
+function runtimeLines() {
+  return DELIVERY.runtime ? [`runtime: ${DELIVERY.runtime}`] : [];
+}
 function layerIdentity(state) {
   const producer = state.layer.producer ?? {};
   const fingerprint = state.layer.fingerprint;
@@ -10586,6 +10592,7 @@ function layerDiagnostics() {
     ...state.leaf ? otherPayloadLines("served by", state.leaf) : [],
     ...fingerprint ? [`fingerprint: ${fingerprint}`] : [],
     `generation: ${state.layer.generation}`,
+    ...runtimeLines(),
     ...state.active ? [`revision: ${state.active.revision}`] : [],
     `url: ${pageUrl()}`
   ].join("\n");

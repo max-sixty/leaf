@@ -27,7 +27,6 @@ from .events import event_document
 from .passages import SourceReading, collapse, shown_words
 from .projection import frozen_thread_reading
 from .revision_artifact import read_revision
-from .thread_context import thread_structure
 
 TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
 
@@ -124,13 +123,13 @@ class GestureWords:
         revision = document.get("revision")
         if revision not in self._documents:
             if document["kind"] == "thread":
-                structure = thread_structure(self.events)
+                reading = frozen_thread_reading(self.events, self.registry)
                 self._documents[revision] = _Document(
                     [
                         fragment.authoring.content
-                        for fragment in structure.fragments.values()
+                        for fragment in reading.structure.fragments.values()
                     ],
-                    frozen_thread_reading(self.events, self.registry).spoken,
+                    reading.spoken,
                     self.registry,
                 )
             else:

@@ -305,7 +305,7 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
     assert read(1) == (
         [],
         ("widget:typed", "open"),
-        {"kind": "needs_user", "reason": "widget", "workflow": None},
+        {"kind": "needs_user", "reason": "obligation", "workflow": None},
         ["widget:typed"],
     )
 

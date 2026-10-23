@@ -208,6 +208,25 @@
         }
       ]
     </script>
+    <script id="bg-message-obligation-history" type="application/json">
+      [
+        {
+          "id": "bg-message-request",
+          "kind": "comment",
+          "author": "agent",
+          "text": "Which environment should I use for the rehearsal?",
+          "obligation": true
+        },
+        {
+          "id": "bg-message-task",
+          "kind": "todo",
+          "author": "agent",
+          "owner": "user",
+          "subject": { "kind": "thread", "id": "bg-message-request" },
+          "title": "Try the rehearsal build on your phone"
+        }
+      ]
+    </script>
     <script id="bg-window-history" type="application/json">
       [
         {
@@ -1366,6 +1385,31 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 that thread: the editor stays closed until Reopen recovers the words.
               </li>
             </ul>
+            <section id="bg-message-obligations">
+              <h3>A message waiting on me</h3>
+              <p>
+                Open Full view, then On me, and reply to the environment question. The
+                question leaves On me; the phone test stays until you press Done. Both
+                entries open the same page thread. Reset restores the question and task.
+              </p>
+              <lf-sample
+                id="bg-message-obligation-sample"
+                label="Message and task obligations"
+                window
+              >
+                <template
+                  id="bg-message-obligation-page"
+                  data-sample
+                  data-sample-events="bg-message-obligation-history"
+                >
+                  <h1>Rehearsal handoff</h1>
+                  <p>
+                    The build is ready. The page thread holds the environment question
+                    and the phone test.
+                  </p>
+                </template>
+              </lf-sample>
+            </section>
             <p id="bg-new-thread">
               <strong>A clean passage.</strong> Select some of these words, or
               <kbd>Alt</kbd>-click this paragraph, to start a comment. Type into the

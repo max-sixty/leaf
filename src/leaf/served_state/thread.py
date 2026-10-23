@@ -82,7 +82,7 @@ def browser_thread(
     workflow says the agent is replying, and an empty message would only reserve a
     bubble with nothing in it."""
     events, threads = work.events, work.threads
-    reading, widget_obligations = work.thread, work.widget_obligations
+    reading, thread_obligations = work.thread, work.thread_obligations
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
@@ -96,10 +96,15 @@ def browser_thread(
         protected = set()
         if awaits_agent(thread):
             protected.add(turn_message(unanswered_agent_turn(thread)))
+        protected.update(
+            item["message"]
+            for item in thread_obligations["unanswered"]
+            if item["thread"] == thread_id and item["source"]["kind"] == "message"
+        )
         obligation_sources = {
             item["source"]["id"]
-            for item in widget_obligations["unanswered"]
-            if item["thread"] == thread_id
+            for item in thread_obligations["unanswered"]
+            if item["thread"] == thread_id and item["source"]["kind"] == "widget"
         }
         for message_id, fragment in reading.structure.fragments.items():
             if obligation_sources.intersection(fragment.by_id):

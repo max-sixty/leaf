@@ -389,8 +389,12 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 
   // The queue walk's way onto one thread it names by id: the t/T walk's own arrival,
   // whatever list the thread is in.
-  const arriveAtThreadById = (id) =>
-    arriveAtThread(id, threadDestinations, retainUserIntent());
+  const arriveAtThreadById = (id, message = null) =>
+    message
+      ? threadDestinations
+          .openPageThread(message, { part: "message", intent: retainUserIntent() })
+          .then(Boolean)
+      : arriveAtThread(id, threadDestinations, retainUserIntent());
 
   return {
     alignTop,

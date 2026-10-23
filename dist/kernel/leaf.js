@@ -5768,6 +5768,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
 }
 var QUEUE_WORDS = Object.freeze({
   widget: ["to answer", "to answer"],
+  message: ["to answer", "to answer"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
@@ -5779,7 +5780,7 @@ function queueKinds(items2) {
     byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    return kind === "todo" ? `${words} (${all.map((row) => row.todo.title).join(" \xB7 ")})` : words;
+    return kind === "todo" ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" \xB7 ")})` : words;
   });
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
@@ -5994,7 +5995,12 @@ var stopOf = (item) => item.kind === "widget" && !(item.thread !== null && answe
   id: item.id,
   thread: item.thread,
   obligation: item.obligation
-} : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
+} : item.thread !== null ? {
+  kind: "thread",
+  id: item.thread,
+  thread: item.thread,
+  message: answeredInWords(item.obligation) ? item.obligation.message : null
+} : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
 var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 function queueStop(item) {
   const stop = stopOf(item);
@@ -6089,7 +6095,7 @@ function createQueueWalk({
       const record = readObligations().all.find((item) => item.id === stop.id);
       return record ? arriveAtRecord(record) : Promise.resolve(false);
     }
-    if (stop.kind === "thread") return arriveAtThread2(stop.id);
+    if (stop.kind === "thread") return arriveAtThread2(stop.id, stop.message);
     return arriveAtElement(() => stopElement(stop));
   }
   function position(region) {
@@ -6186,7 +6192,7 @@ function createQueueWalk({
   const arriveAtItem = (item) => arriveAt(stopOf(item));
   const arrivesAt = (item) => {
     const stop = stopOf(item);
-    return Boolean(pagePlace(stop)) || stop.kind === "obligation" && stop.thread !== null;
+    return Boolean(pagePlace(stop)) || Boolean(stop.message) || stop.kind === "obligation" && stop.thread !== null;
   };
   let wentTo = null;
   onCurrentLocation((node, cause) => {
@@ -7758,9 +7764,9 @@ function createFloatingPanel({
     const { rows: versions, picker, selection, latest } = versionsReading();
     return html`
       ${latest.failed ? html`<div class="lf-fp-failed" role="none">
-            <b>${latest.label}</b>
-            <p class="lf-fp-failed-error">${latest.error}</p>
-          </div>` : nothing}
+              <b>${latest.label}</b>
+              <p class="lf-fp-failed-error">${latest.error}</p>
+            </div>` : nothing}
       ${repeat(
       versions,
       (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
@@ -7771,17 +7777,17 @@ function createFloatingPanel({
         () => showVersion(entry),
         { title: entry.note }
       )}${entry.comparable ? html`<button
-                  type="button"
-                  role="menuitem"
-                  class="lf-fp-quiet lf-fp-compare"
-                  aria-pressed=${String(
+                    type="button"
+                    role="menuitem"
+                    class="lf-fp-quiet lf-fp-compare"
+                    aria-pressed=${String(
         selection.on && selection.base === entry.version
       )}
-                  aria-label=${`Compare with ${entry.name}`}
-                  @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
-                >
-                  Compare
-                </button>` : nothing}
+                    aria-label=${`Compare with ${entry.name}`}
+                    @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
+                  >
+                    Compare
+                  </button>` : nothing}
           </div>`
     )}
       ${versions.length ? nothing : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`}
@@ -7839,7 +7845,7 @@ function createFloatingPanel({
           </button>
         </div>`
     )}${errors.length > 1 ? html`<hr />
-          ${menuItem("Dismiss all", nothing, () => dismiss(null))}` : nothing}`;
+            ${menuItem("Dismiss all", nothing, () => dismiss(null))}` : nothing}`;
   }
   function shownThreads() {
     const words = query.trim().toLowerCase();
@@ -7872,20 +7878,20 @@ function createFloatingPanel({
       shown,
       (thread) => thread.key,
       (thread) => html`<button
-                type="button"
-                class="lf-fp-thread"
-                data-key=${thread.key}
-                ?data-unread=${hasUnread(thread)}
-                ?data-resolved=${thread.resolved}
-                ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
-                @click=${() => open({ view: "thread", thread: thread.key })}
-              >
-                <span class="lf-fp-news-mark" aria-hidden="true"></span>
-                <span class="lf-fp-label">${threadHeading(thread)}</span>
-                <span class="lf-fp-value"
-                  >${threadStatus(thread, query.trim() ? null : filter)}</span
+                  type="button"
+                  class="lf-fp-thread"
+                  data-key=${thread.key}
+                  ?data-unread=${hasUnread(thread)}
+                  ?data-resolved=${thread.resolved}
+                  ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
+                  @click=${() => open({ view: "thread", thread: thread.key })}
                 >
-              </button>`
+                  <span class="lf-fp-news-mark" aria-hidden="true"></span>
+                  <span class="lf-fp-label">${threadHeading(thread)}</span>
+                  <span class="lf-fp-value"
+                    >${threadStatus(thread, query.trim() ? null : filter)}</span
+                  >
+                </button>`
     ) : inventoried() ? html`<p class="lf-fp-empty">${empty}</p>` : nothing}
       ${// This tab's sends are listed, but the saved threads are still to come, which
     // the list says after the rows it has, so their arrival moves none of them.
@@ -8000,19 +8006,19 @@ function createFloatingPanel({
     const expanded2 = quote.localReading && quoteExpanded;
     return html`<header class="lf-fp-quote-head">
       ${quote.localReading ? html`<button
-            type="button"
-            class="lf-thread-disclosure lf-quote-expand"
-            aria-label="Full quote"
-            hidden
-            aria-expanded=${String(quoteExpanded)}
-            aria-controls="lf-fp-quote"
-            @click=${() => {
+              type="button"
+              class="lf-thread-disclosure lf-quote-expand"
+              aria-label="Full quote"
+              hidden
+              aria-expanded=${String(quoteExpanded)}
+              aria-controls="lf-fp-quote"
+              @click=${() => {
       quoteExpanded = !quoteExpanded;
       paint();
     }}
-          >
-            Full quote
-          </button>` : nothing}
+            >
+              Full quote
+            </button>` : nothing}
       <blockquote
         ${ref(watchQuote)}
         id="lf-fp-quote"
@@ -8030,10 +8036,10 @@ function createFloatingPanel({
     return html`${quoteHead(thread)}
       <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${waiting?.key === key ? html`<div class="lf-fp-foot">
-            <button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
-              ${iconTemplate("down", "lf-action-icon")}${waiting.label}
-            </button>
-          </div>` : nothing}`;
+              <button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
+                ${iconTemplate("down", "lf-action-icon")}${waiting.label}
+              </button>
+            </div>` : nothing}`;
   }
   let queueTab = "you";
   let seated = null;
@@ -8121,9 +8127,9 @@ function createFloatingPanel({
       <span class="lf-fp-plan-mark" role="img" aria-label=${PLAN_STATES[step.state]}
         >${mark2 ? iconTemplate(mark2, "lf-action-icon") : nothing}</span
       ><span class="lf-fp-plan-title">${step.title ?? ""}</span>${step.owner === "user" && step.state === "open" ? html`<button
-            type="button"
-            class="lf-fp-plan-tag"
-            @click=${() => {
+              type="button"
+              class="lf-fp-plan-tag"
+              @click=${() => {
       chooseQueueTab("you");
       paint();
       focusDestination(
@@ -8131,11 +8137,11 @@ function createFloatingPanel({
         "move"
       );
     }}
-          >
-            On me
-          </button>` : step.state === "working" && step.since ? html`<span class="lf-fp-plan-time">${shortAgo(step.since)}</span>` : nothing}${step.running ? html`<span class="lf-fp-plan-line">${step.running.text}</span>` : nothing}${step.steps.length ? html`<ol class="lf-fp-plan-steps">
-            ${step.steps.map(planStep)}
-          </ol>` : nothing}
+            >
+              On me
+            </button>` : step.state === "working" && step.since ? html`<span class="lf-fp-plan-time">${shortAgo(step.since)}</span>` : nothing}${step.running ? html`<span class="lf-fp-plan-line">${step.running.text}</span>` : nothing}${step.steps.length ? html`<ol class="lf-fp-plan-steps">
+              ${step.steps.map(planStep)}
+            </ol>` : nothing}
     </li>`;
   }
   const planCards = () => (readPlan()?.steps ?? []).map(
@@ -8191,14 +8197,13 @@ function createFloatingPanel({
           >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span
-        >${gesture2 ? html`<button
-              type="button"
-              class="lf-fp-quiet"
-              @click=${() => withdraw(gesture2)}
-            >
-              Undo
-            </button>` : nothing}`;
+      answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture2 ? html`<button
+                type="button"
+                class="lf-fp-quiet"
+                @click=${() => withdraw(gesture2)}
+              >
+                Undo
+              </button>` : nothing}`;
     else if (choices?.length)
       answers = html`${choices.map(
         (choice) => html`<button
@@ -8242,12 +8247,12 @@ function createFloatingPanel({
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
       ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
-            <div
-              class="lf-fp-asked lf-fp-outlet"
-              data-thread=${thread.key}
-              data-message=${message.key}
-            ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
-              <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
+              <div
+                class="lf-fp-asked lf-fp-outlet"
+                data-thread=${thread.key}
+                data-message=${message.key}
+              ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
+                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
       <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
   }
@@ -8281,9 +8286,9 @@ function createFloatingPanel({
     const items2 = inWalkOrder(seated.map((key) => byKey.get(key)));
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
     return html`${items2.length ? repeat(items2, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
-          Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
-        </p>`}${finished.length ? html`<h3 class="lf-fp-on-done">Done</h3>
-          ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}` : nothing}`;
+            Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
+          </p>`}${finished.length ? html`<h3 class="lf-fp-on-done">Done</h3>
+            ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}` : nothing}`;
   }
   function pagesView() {
     const rows2 = leavesRows(runtime.state);
@@ -8336,7 +8341,9 @@ function createFloatingPanel({
       choose(name2);
     }}
         >
-          ${label2(name2)}${counted === null ? nothing : html` <span class="lf-fp-count" ?data-zero=${!counted}>${counted}</span>`}
+          ${label2(name2)}${counted === null ? nothing : html` <span class="lf-fp-count" ?data-zero=${!counted}
+                  >${counted}</span
+                >`}
         </button>`;
   })}
     </div>`;
@@ -8406,19 +8413,19 @@ function createFloatingPanel({
       const inMessage = Boolean(placedAt(thread.id)?.message);
       onPageSeat ||= Boolean(thread.anchor) && (inMessage || !unplaced.has(thread.key));
       aux = html`${unreadSeat ? html`<button
-              type="button"
-              class="lf-fp-next-unread"
-              ?disabled=${!thread.unread.length}
-              ?data-unoffered=${!thread.unread.length}
-              @click=${() => void firstUnread(thread.key)}
-            >
-              ${iconTemplate("down", "lf-action-icon")}Next unread
-            </button>` : nothing}${onPageSeat ? html`<button
-              type="button"
-              class="lf-fp-quiet"
-              ?disabled=${!thread.anchor}
-              ?data-unoffered=${!thread.anchor}
-              @click=${() => {
+                type="button"
+                class="lf-fp-next-unread"
+                ?disabled=${!thread.unread.length}
+                ?data-unoffered=${!thread.unread.length}
+                @click=${() => void firstUnread(thread.key)}
+              >
+                ${iconTemplate("down", "lf-action-icon")}Next unread
+              </button>` : nothing}${onPageSeat ? html`<button
+                type="button"
+                class="lf-fp-quiet"
+                ?disabled=${!thread.anchor}
+                ?data-unoffered=${!thread.anchor}
+                @click=${() => {
         if (inMessage) {
           void openThreadSubject(thread.id, { intent: retainUserIntent() });
           return;
@@ -8431,9 +8438,9 @@ function createFloatingPanel({
           () => threadActions.open(thread.key, { part: null, intent })
         );
       }}
-            >
-              ${inMessage ? "In its message" : "On the page"}
-            </button>` : nothing}<button
+              >
+                ${inMessage ? "In its message" : "On the page"}
+              </button>` : nothing}<button
           type="button"
           class="lf-fp-icon-btn lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
           aria-label=${thread.resolved ? "Reopen" : "Resolve thread"}
@@ -8457,16 +8464,16 @@ function createFloatingPanel({
         </button>`;
     }
     const crumb = html`${parent ? html`<button
-          type="button"
-          class="lf-fp-back"
-          aria-label=${`Back to ${titleOf2(parent)}`}
-          @click=${back}
-        >
-          ${iconTemplate("next", "lf-fp-chevron")}${titleOf2(parent)}
-        </button>` : nothing}
+            type="button"
+            class="lf-fp-back"
+            aria-label=${`Back to ${titleOf2(parent)}`}
+            @click=${back}
+          >
+            ${iconTemplate("next", "lf-fp-chevron")}${titleOf2(parent)}
+          </button>` : nothing}
     ${named}${thread ? html`<span class="lf-fp-facts"
-          >${keyed(thread.key, html`<span class="lf-fp-news-outlet"></span>`)}</span
-        >` : nothing}`;
+            >${keyed(thread.key, html`<span class="lf-fp-news-outlet"></span>`)}</span
+          >` : nothing}`;
     if (!parent && named === nothing && aux === nothing && !thread) return nothing;
     return html`<div class="lf-fp-crumb">${crumb}</div>
       <div class="lf-fp-aux">${aux}</div>`;
@@ -8771,7 +8778,7 @@ function createFloatingPanel({
   function rowNoticeTemplate({ says: says2, tone: tone2, press = null }) {
     const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone2}
       >${says2}${press ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
-            ><span class="lf-fp-row-notice-act">${press.label}</span>` : nothing}</span
+              ><span class="lf-fp-row-notice-act">${press.label}</span>` : nothing}</span
     >`;
     if (!press) return face;
     return html`<button
@@ -11478,7 +11485,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     repeat: true,
     run: (binding) => move2(binding === "j" ? 60 : -60, "pixel")
   });
-  const arriveAtThreadById = (id) => arriveAtThread(id, threadDestinations, retainUserIntent());
+  const arriveAtThreadById = (id, message = null) => message ? threadDestinations.openPageThread(message, { part: "message", intent: retainUserIntent() }).then(Boolean) : arriveAtThread(id, threadDestinations, retainUserIntent());
   return {
     alignTop,
     arriveAtThread: arriveAtThreadById,

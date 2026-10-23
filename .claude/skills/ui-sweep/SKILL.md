@@ -98,8 +98,11 @@ relationships the existing tests leave unexercised.
 
 Generate experiments by perturbing the model: nest or replace an interaction,
 reverse or cancel it, exhaust its available room, or change external state while
-it remains active. Choose the operators that challenge the hypothesized mechanism.
-Vary one factor at a time across an ownership boundary and exercise both the
+it remains active. Where several modes take turns in one place, switch through
+each with no content in it and compare the place's box with the token that sizes it
+(`browser/AGENTS.md`, "What takes turns in a place doesn't size it"). Choose the
+operators that challenge the hypothesized mechanism. Vary one factor at a time
+across an ownership boundary and exercise both the
 forward and return paths. State what must change and what must survive before
 driving. When a change sends an existing surface into a different layout or
 fallback, compare the same user task against the merge base; the candidate must

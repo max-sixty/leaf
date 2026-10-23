@@ -642,7 +642,7 @@ svg[data-lf-icon] {
   border: 0;
   border-radius: 50%;
   font: inherit;
-  background: var(--lf-ground, var(--paper));
+  background: var(--lf-ground);
   color: color-mix(in srgb, var(--ink) 72%, transparent);
   box-shadow:
     0 0 0 1px var(--lf-ring, var(--border-2)),

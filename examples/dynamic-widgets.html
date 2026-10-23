@@ -4,9 +4,10 @@
     <title>Dynamic widgets: an early experiment</title>
     <meta
       name="description"
-      content="One request, three ways to build a widget. Try recorded Luna outputs using composed Leaf components, direct markup and generated HTML. An early attempt that needs work."
+      content="Type one request and compare live Leaf component composition with generated HTML, using the same model. An early attempt at dynamic widgets that needs work."
     />
     <script type="module" src="/page/frames.js"></script>
+    <script type="module" src="/page/generator.js"></script>
     <style>
       .experiment-status {
         color: var(--accent);
@@ -51,6 +52,9 @@
       .source-details {
         margin-block: 24px;
       }
+      .source-details [data-part="request"] {
+        white-space: pre-wrap;
+      }
       .source-details pre {
         white-space: pre-wrap;
         overflow-wrap: anywhere;
@@ -65,6 +69,90 @@
         color: var(--ink-2);
         font-size: var(--t-5);
       }
+      .widget-builder {
+        margin-block: 28px 48px;
+      }
+      .widget-builder label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .widget-builder textarea {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 100px;
+        resize: vertical;
+        padding: 12px;
+        font: inherit;
+        color: var(--ink);
+        background: var(--card);
+        border: 1px solid var(--border-2);
+        border-radius: 8px;
+      }
+      .builder-actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-block: 12px;
+      }
+      .builder-status {
+        color: var(--muted);
+        font-size: var(--t-5);
+      }
+      .builder-help {
+        color: var(--muted);
+        font-size: var(--t-6);
+      }
+      .builder-preview {
+        position: relative;
+      }
+      .builder-preview iframe {
+        width: 100%;
+        height: 260px;
+        border: 0;
+        display: block;
+      }
+      .live-comparison {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 28px;
+        align-items: start;
+      }
+      .comparison-lane {
+        min-width: 0;
+      }
+      .comparison-lane h2 {
+        font-size: var(--t-4);
+        margin-block: 12px 6px;
+      }
+      .lane-status {
+        margin-block: 20px 4px;
+        font-variant-numeric: tabular-nums;
+      }
+      .lane-metrics {
+        min-height: 3em;
+      }
+      @media (max-width: 740px) {
+        .live-comparison {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .builder-preview iframe[data-staging] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .builder-error {
+        color: var(--ink);
+        border-inline-start: 3px solid var(--accent);
+        padding-inline-start: 12px;
+      }
+      .builder-empty {
+        color: var(--muted);
+        padding-block: 24px;
+      }
     </style>
   </head>
   <body>
@@ -74,11 +162,104 @@
       </p>
       <h1 id="experiment-title">From a request to a widget</h1>
       <p class="lede" id="experiment-lede">
-        One goal, three ways to build an interface.
+        One request. Two ways to build it. Try both.
       </p>
-      <p id="experiment-scope">
-        An early attempt at dynamic widgets that needs work. Try these saved Luna
-        outputs; this example does not generate live.
+      <p id="experiment-scope">An early attempt at dynamic widgets that needs work.</p>
+      <section class="widget-builder" id="widget-builder" aria-label="Create a widget">
+        <form id="widget-form">
+          <label for="widget-request">What would you like to make?</label>
+          <textarea id="widget-request" name="request" required maxlength="8000">
+Help me choose a storage plan and keep my decision. Local works offline with 10 GB for free. Cloud syncs across devices with 100 GB for $8 per month. Make the tradeoffs easy to compare.</textarea
+          >
+          <div class="builder-actions">
+            <button class="button primary" type="submit" id="widget-generate">
+              Create widgets
+            </button>
+            <span class="builder-status" id="widget-status" role="status"
+              >Ready when you are.</span
+            >
+          </div>
+        </form>
+        <p class="builder-help" id="widget-help">
+          Both start together using the connected agent’s model (Luna on Codex). Compare
+          the time, output size and working result. Requires a live Leaf page claimed by
+          an agent.
+        </p>
+        <div class="live-comparison" data-width="wide">
+          <section class="comparison-lane" id="live-leaf" data-approach="leaf">
+            <h2>Compose Leaf components</h2>
+            <p class="builder-help">
+              Luna chooses and configures existing controls. Leaf supplies their
+              behavior and styling.
+            </p>
+            <p class="lane-status">
+              <strong data-part="status" role="status">Ready when you are.</strong>
+              <span data-part="clock" aria-hidden="true"></span>
+            </p>
+            <p class="builder-help lane-metrics" data-part="metrics">
+              Time and output tokens will appear here.
+            </p>
+            <p class="builder-error" data-part="error" role="alert" hidden></p>
+            <lf-sample id="live-leaf-sample" interactive label="Live result">
+              <div class="builder-preview" data-part="preview">
+                <p class="builder-empty" data-part="empty">
+                  Your widget will appear here.
+                </p>
+              </div>
+            </lf-sample>
+            <details class="source-details">
+              <summary>Request, instructions and generated source</summary>
+              <h3>Preview’s request</h3>
+              <p id="leaf-request" data-part="request">No generation yet.</p>
+              <h3>Instructions</h3>
+              <div id="leaf-instructions" data-part="instructions"></div>
+              <h3>Model output · component JSON</h3>
+              <pre id="leaf-code" data-part="code">No generation yet.</pre>
+              <h3>Compiled Leaf source · HTML</h3>
+              <pre id="leaf-compiled" data-part="compiled">No generation yet.</pre>
+            </details>
+          </section>
+          <section class="comparison-lane" id="live-html" data-approach="html">
+            <h2>Generate HTML</h2>
+            <p class="builder-help">
+              Luna writes the markup, styling and behavior from scratch.
+            </p>
+            <p class="lane-status">
+              <strong data-part="status" role="status">Ready when you are.</strong>
+              <span data-part="clock" aria-hidden="true"></span>
+            </p>
+            <p class="builder-help lane-metrics" data-part="metrics">
+              Time and output tokens will appear here.
+            </p>
+            <p class="builder-error" data-part="error" role="alert" hidden></p>
+            <lf-sample id="live-html-sample" interactive label="Live result">
+              <div class="builder-preview" data-part="preview">
+                <p class="builder-empty" data-part="empty">
+                  Your widget will appear here.
+                </p>
+              </div>
+            </lf-sample>
+            <details class="source-details">
+              <summary>Request, instructions and generated source</summary>
+              <h3>Preview’s request</h3>
+              <p id="html-request" data-part="request">No generation yet.</p>
+              <h3>Instructions</h3>
+              <div id="html-instructions" data-part="instructions"></div>
+              <h3>Model output · HTML, CSS and JavaScript</h3>
+              <pre id="html-code" data-part="code">No generation yet.</pre>
+            </details>
+          </section>
+        </div>
+        <p class="builder-help" id="comparison-limit">
+          The component catalog includes choices, tabs, boards, charts, editable drafts,
+          text and tables. Unsupported behavior is reported as a limitation. “Ready”
+          means rendered, not independently tested. Each run starts fresh.
+        </p>
+      </section>
+      <h2 id="recorded-comparison">Earlier recorded experiments</h2>
+      <p>
+        Saved first attempts from Luna: configuring Leaf components, writing Leaf
+        markup, and generating HTML.
       </p>
       <lf-tabs id="widget-tasks">
         <lf-tab id="task-tabs" label="Storage plans"
@@ -212,7 +393,8 @@ table {type:&quot;table&quot;,headers:[string],rows:[[string]]}
 All shown keys are required by the format. Text is literal, not markup. Assign unique IDs yourself and preserve the user&#x27;s facts. Choose the components, organization and wording; the compiler supplies their installed behavior and presentation.
 
 USER REQUEST:
-Help me choose between two storage plans. Local storage works offline and includes 10 GB at no monthly cost. Cloud storage syncs across devices and includes 100 GB for $8 per month. Make the differences easy to understand and compare.</pre>
+Help me choose between two storage plans. Local storage works offline and includes 10 GB at no monthly cost. Cloud storage syncs across devices and includes 100 GB for $8 per month. Make the differences easy to understand and compare.</pre
+                >
               </details></lf-tab
             >
             <lf-tab id="approach-tabs-markup" label="Write Leaf markup">
@@ -326,7 +508,8 @@ Literal Leaf API examples (replace IDs, text and data for the task):
 &lt;/pre&gt;&lt;/lf-chart&gt;
 ```
 The boolean `choose` attribute enables Leaf&#x27;s selection controls. The chart&#x27;s pre contains a Plot options object expression; Leaf calls Plot.plot itself. ariaLabel belongs inside that object.
-</pre>
+</pre
+                >
               </details></lf-tab
             >
             <lf-tab id="approach-tabs-standalone" label="Generate HTML">
@@ -548,7 +731,8 @@ Return {&quot;html&quot;:string,&quot;css&quot;:string,&quot;js&quot;:string}. H
 Return separate html, css, js string fields. html is a body fragment; put styling in css and behavior in js. No inline scripts, style elements or event-handler attributes: the host CSP refuses them. Use ordinary HTML/CSS/JavaScript without Leaf tags, imports or network dependencies. Design the presentation and interactions around the user&#x27;s goal, preserving their facts. Make the result accessible and usable at narrow widths.
 
 USER REQUEST:
-Help me choose between two storage plans. Local storage works offline and includes 10 GB at no monthly cost. Cloud storage syncs across devices and includes 100 GB for $8 per month. Make the differences easy to understand and compare.</pre>
+Help me choose between two storage plans. Local storage works offline and includes 10 GB at no monthly cost. Cloud storage syncs across devices and includes 100 GB for $8 per month. Make the differences easy to understand and compare.</pre
+                >
               </details></lf-tab
             >
           </lf-tabs></lf-tab
@@ -635,7 +819,8 @@ Help me choose between two storage plans. Local storage works offline and includ
 [What signal, issue, or new information would change this decision?]
 
 ## Review date
-[When will we check the decision again?]</pre>
+[When will we check the decision again?]</pre
+                  >
                 </lf-draft></lf-sample
               >
               <details class="source-details">
@@ -721,7 +906,8 @@ table {type:&quot;table&quot;,headers:[string],rows:[[string]]}
 All shown keys are required by the format. Text is literal, not markup. Assign unique IDs yourself and preserve the user&#x27;s facts. Choose the components, organization and wording; the compiler supplies their installed behavior and presentation.
 
 USER REQUEST:
-Help me decide how to roll out a software update. We could release to 5% of users today, release to everyone today, or postpone for more review. A small release limits initial exposure. I want to weigh the tradeoffs and record a decision I can revisit.</pre>
+Help me decide how to roll out a software update. We could release to 5% of users today, release to everyone today, or postpone for more review. A small release limits initial exposure. I want to weigh the tradeoffs and record a decision I can revisit.</pre
+                >
               </details></lf-tab
             >
             <lf-tab id="approach-decision-markup" label="Write Leaf markup">
@@ -785,7 +971,8 @@ Help me decide how to roll out a software update. We could release to 5% of user
 **Signals or review to revisit:**
 
 **Revisit date:**
-</pre>
+</pre
+                    >
                   </lf-draft>
                 </section></lf-sample
               >
@@ -842,7 +1029,8 @@ Literal Leaf API examples (replace IDs, text and data for the task):
 &lt;/pre&gt;&lt;/lf-chart&gt;
 ```
 The boolean `choose` attribute enables Leaf&#x27;s selection controls. The chart&#x27;s pre contains a Plot options object expression; Leaf calls Plot.plot itself. ariaLabel belongs inside that object.
-</pre>
+</pre
+                >
               </details></lf-tab
             >
             <lf-tab id="approach-decision-standalone" label="Generate HTML">
@@ -1136,7 +1324,8 @@ Return {&quot;html&quot;:string,&quot;css&quot;:string,&quot;js&quot;:string}. H
 Return separate html, css, js string fields. html is a body fragment; put styling in css and behavior in js. No inline scripts, style elements or event-handler attributes: the host CSP refuses them. Use ordinary HTML/CSS/JavaScript without Leaf tags, imports or network dependencies. Design the presentation and interactions around the user&#x27;s goal, preserving their facts. Make the result accessible and usable at narrow widths.
 
 USER REQUEST:
-Help me decide how to roll out a software update. We could release to 5% of users today, release to everyone today, or postpone for more review. A small release limits initial exposure. I want to weigh the tradeoffs and record a decision I can revisit.</pre>
+Help me decide how to roll out a software update. We could release to 5% of users today, release to everyone today, or postpone for more review. A small release limits initial exposure. I want to weigh the tradeoffs and record a decision I can revisit.</pre
+                >
               </details></lf-tab
             >
           </lf-tabs></lf-tab
@@ -1150,11 +1339,17 @@ Help me decide how to roll out a software update. We could release to 5% of user
           appearance and behavior, with more code to get right.
         </p>
         <p>
-          These are individual first attempts from Luna, standard service, medium
-          reasoning. “To source” measures elapsed time from submission to the complete
-          response, including setup wait. Output tokens include the JSON response
-          format. This is not time to a verified working widget or a general speed
-          ranking.
+          The saved comparisons are individual first attempts from Luna, standard
+          service, medium reasoning. “To source” measures elapsed time from submission
+          to the complete response, including setup wait. Output tokens include the JSON
+          response format. This is not time to a verified working widget or a general
+          speed ranking.
+        </p>
+        <p>
+          The live comparison uses the host’s current model settings (Luna without
+          reasoning on Codex), and measures through preview startup. Its timings are not
+          a controlled comparison with the saved runs. It returns one complete response;
+          there is no token streaming or automatic repair here.
         </p>
         <p>
           Some native Leaf runs encountered local harness failures after generation.

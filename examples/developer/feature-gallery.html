@@ -6,6 +6,7 @@
       name="description"
       content="Leaf's core page vocabulary on one synthetic page, with live examples and its core interactions to try in live samples."
     />
+    <script type="module" src="/page/generated-sample.js"></script>
     <style>
       @import url("/page/theme.css");
 
@@ -3504,6 +3505,20 @@ switch --readers checkout-api,orders-api</code></pre>
             <lf-option id="bg-delivery-express">Express delivery</lf-option>
           </lf-options>
         </lf-sample>
+      </section>
+      <section id="bg-generated-sample-section">
+        <h2>A sample created by a page module</h2>
+        <p>
+          Press Create sample, choose a delivery, then use Undo in the sample. Remove
+          sample releases its temporary history; creating it again starts fresh. This
+          fixture supplies fixed source and makes no model request.
+        </p>
+        <div>
+          <button id="bg-create-sample" type="button">Create sample</button>
+          <button id="bg-remove-sample" type="button" disabled>Remove sample</button>
+        </div>
+        <p id="bg-generated-sample-status" role="status"></p>
+        <div id="bg-generated-sample-preview"></div>
       </section>
     </main>
   </body>

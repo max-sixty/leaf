@@ -13,7 +13,6 @@ endpoint does not bound cumulative usage.
 
 import json
 import subprocess
-import threading
 from pathlib import Path
 
 from jsonschema.exceptions import SchemaError, ValidationError
@@ -26,8 +25,6 @@ from .registry.schema import check_schema, unresolved_schema_reference
 from .service import PageTransaction
 
 MAX_INPUT_BYTES = 64 * 1024
-# Refuse concurrent widget calls instead of occupying the HTTP worker pool.
-INFERENCE_SLOT = threading.Lock()
 
 
 class LLMError(Refused):
@@ -63,8 +60,6 @@ def generate(page_dir: Path, request: dict) -> dict:
     inference = claim_harness(claim).inference_generator() if claim else None
     if inference is None:
         raise LLMError("LLM access needs a page claimed by Codex or Claude Code.", 503)
-    if not INFERENCE_SLOT.acquire(blocking=False):
-        raise LLMError("LLM generation is busy. Try again after it finishes.", 429)
     try:
         return inference(
             request["input"],
@@ -84,5 +79,3 @@ def generate(page_dir: Path, request: dict) -> dict:
         Unresolvable,
     ) as error:
         raise LLMError(str(error), 502) from error
-    finally:
-        INFERENCE_SLOT.release()

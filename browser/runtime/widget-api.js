@@ -266,12 +266,15 @@ export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./ke
 
 export { LeafEditorView } from "./editor-view.js";
 
-// Internal: what Leaf's own bundled packages and kernel widgets import beyond the
-// authoring API the references/module-*.md files document. Package authors do not use these.
+// Render a declared template or a generated document as an isolated live Leaf page.
+// The returned host owns readiness, Reset and disposal (live-samples.md).
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);
 }
+
+// Internal: what Leaf's own bundled packages and kernel widgets import beyond the
+// authoring API the references/module-*.md files document. Package authors do not use these.
 export { dressSamples, wear } from "./dress.js";
 export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";

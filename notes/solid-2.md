@@ -65,7 +65,7 @@ independently of the rendering framework; neither is evidence for Solid itself.
 
 ## Review after merging current main
 
-The merge incorporates main through `0dec543` (83 commits since the original
+The merge incorporates main through `0c4bb28` (85 commits since the original
 comparison), including its repository reorganization, serving-runtime delivery,
 unified panel search, focus visibility, flat summary folds, shared screenshot
 inspection, and indexed diff preparation. These product and performance improvements
@@ -73,6 +73,8 @@ remain in the candidate independently of the renderer choice. The final integrat
 also preserves main’s shared composer draft payload and Resume writing selection,
 wrapped trace labels, publication admission simplification, bounded upload reader,
 explicit unstamped-export refusal, and startup tests for serving-runtime URLs.
+On me’s Show action keeps its route until arrival has chosen a thread or page
+destination, preserving the exit control when travel remains inside the panel.
 
 **Recommendation: retain Lit on production main.** The Solid branch improves on its
 own earlier architecture, but current main makes migration less compelling. Main

@@ -8391,8 +8391,10 @@ function createFloatingPanel({
         quiet: true,
         show: true,
         run: () => {
-          close();
-          void queueActions.open(queueItemKey(item));
+          const route = trail().at(-1);
+          void queueActions.open(queueItemKey(item)).then((arrived) => {
+            if (arrived && trail().at(-1) === route) close();
+          });
         }
       });
     const key = queueItemKey(item);

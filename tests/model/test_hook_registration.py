@@ -278,7 +278,7 @@ def test_cancelling_the_background_registration_never_wakes_the_session(
 
 
 @pytest.mark.parametrize("event", ["PostToolBatch", "UserPromptSubmit"])
-def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
+def test_the_registered_hook_delivers_or_says_nothing(claimed, event, tmp_path):
     """The harness command calls Leaf's launcher, and Leaf answers under uv.
 
     Exercise the exact registration, stdin, environment selection and returned
@@ -299,7 +299,15 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    payload = json.dumps({"hook_event_name": event, "session_id": "s1"})
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text("")
+    payload = json.dumps(
+        {
+            "hook_event_name": event,
+            "session_id": "s1",
+            "transcript_path": str(transcript),
+        }
+    )
     turn = service_model.page_claim(claimed)["turn"]
     if event == "PostToolBatch":
         worker = run(

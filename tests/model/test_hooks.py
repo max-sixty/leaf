@@ -530,7 +530,9 @@ def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkey
     assert hook_transport_model.remedies(hook_transport_model.read_plans("s1")) == []
 
 
-def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
+def test_claude_codes_turn_confirms_what_its_hooks_hand_over(
+    claimed, capsys, tmp_path
+):
     """Claude Code's prompt hook runs as every turn begins, including the one a
     background wait's ending opens, and its PostToolBatch hook between steps; each hands
     the turn the whole pending delivery inline, so the move reads Delivered as the
@@ -581,8 +583,15 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     later = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "one more"}
     )
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text("")
     hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "PostToolBatch", "session_id": "s1"}
+        "claude-code",
+        {
+            "hook_event_name": "PostToolBatch",
+            "session_id": "s1",
+            "transcript_path": str(transcript),
+        },
     )
     boundary = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert boundary["hookEventName"] == "PostToolBatch"
@@ -603,8 +612,76 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     assert page_state(claimed)["pending"] == 0
 
 
+def test_claude_codes_opening_line_posts_as_the_progress_of_its_one_reply(
+    claimed, capsys, tmp_path
+):
+    """A Claude Code delivery that owes one reply tells the agent that the line it
+    writes before its first tool call is its progress, and the turn's next hook
+    posts that line from the transcript, which starts the update, so no model call
+    goes to posting it. It posts once, and not over a progress line of the agent's
+    own; a delivery owing two replies leaves each to the agent."""
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "record the release"}
+    )
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    delivery = json.loads(context.split("\n")[1])
+    [batch] = delivery["batches"]
+    [event] = batch["events"]
+    assert event["answer"]["progress"] == "opening"
+    told = [batch["handling"][clause] for clause in event["handling"]]
+    assert any("Leaf posts that line" in text for text in told)
+    assert not any("--ephemeral" in text for text in told)
+
+    def said(*blocks: dict) -> dict:
+        return {"type": "assistant", "message": {"content": list(blocks)}}
+
+    transcript = tmp_path / "transcript.jsonl"
+    records = [
+        {"type": "attachment", "attachment": {"content": [context]}},
+        said({"type": "thinking", "thinking": ""}),
+        said({"type": "text", "text": "Adding the release\nto the board."}),
+        said({"type": "tool_use", "id": "t1", "name": "Edit", "input": {}}),
+        said({"type": "text", "text": "Narration after the call."}),
+    ]
+    transcript.write_text("".join(json.dumps(record) + "\n" for record in records))
+    boundary = {
+        "hook_event_name": "PostToolBatch",
+        "session_id": "s1",
+        "transcript_path": str(transcript),
+    }
+    for _ in range(2):
+        hooks_model.cmd_hook("claude-code", boundary)
+    capsys.readouterr()
+    replies = [e for e in events_model.read_events(claimed) if e["kind"] == "reply"]
+    [progress] = replies
+    assert (progress["text"], progress["ephemeral"]) == (
+        "Adding the release to the board.",
+        True,
+    )
+    assert progress["start"]["item"] == comment["id"]
+
+    for text in ("first", "second"):
+        append_carried_log_record(
+            claimed, {"kind": "comment", "author": "user", "text": text}
+        )
+    hooks_model.cmd_hook("claude-code", boundary)
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = json.loads(context.split("\n")[1])["batches"]
+    assert ["progress" in event["answer"] for event in batch["events"]] == [
+        False,
+        False,
+    ]
+
+
 def test_a_handover_its_turn_never_confirmed_is_offered_again(
-    claimed, interactive, monkeypatch, capsys
+    claimed, interactive, monkeypatch, capsys, tmp_path
 ):
     """Escape while another plugin's prompt hook still runs drops the whole prompt,
     Leaf's context with it, after Leaf's hook has handed its delivery over. Claude
@@ -662,8 +739,15 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
     )
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text("")
     hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "PreToolUse", "session_id": "s1"}
+        "claude-code",
+        {
+            "hook_event_name": "PreToolUse",
+            "session_id": "s1",
+            "transcript_path": str(transcript),
+        },
     )
     assert acknowledged_through(claimed) == resolve["seq"]
 

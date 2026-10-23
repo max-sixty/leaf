@@ -41,9 +41,10 @@ reported, and a region on screen does not mean the user read it.
 ## When to write
 
 When a comment asks for work, post one line in its thread saying what you are about
-to do, before you read or edit anything. If the event's `answer.writer` is `"turn"`,
-your turn's opening message is that line (your harness's "Replies"). Otherwise run
-first:
+to do, before you read or edit anything. If the event's `answer.writer` is `"turn"`
+(your harness's "Replies"), or its `answer.progress` is `"opening"`, your turn's
+opening message, written before your first tool call, is that line, and Leaf posts
+it. Otherwise run first:
 
 ```bash
 leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a line>"

@@ -28,7 +28,9 @@ Leaf's prompt hook, or the tool-batch boundary while you work, puts the whole
 delivery in your context; input that arrives after your last tool call opens the
 next turn. Leaf confirms receipt itself once your turn goes on past the delivery,
 so `acknowledge` is null and you run no acknowledgement command; if the turn is
-interrupted before then, the same input comes again in the next one. A delivery the hook could not
+interrupted before then, the same input comes again in the next one. Where the
+delivery owes one reply, Leaf also posts the line you write before your first tool
+call as its progress (`references/conversation-loop.md`, "When to write"). A delivery the hook could not
 confirm, or one too large for the context, arrives as a pointer instead: read every
 part with `leaf delivery read <id>` before working, then follow the confirmation
 instruction on the last part. An update a turn left unanswered comes back once,

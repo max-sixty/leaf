@@ -36,7 +36,7 @@
 #    and may have a `when`, a JSON Schema that must hold for the clause to apply.
 #    It is tested against the log line together with its `answer` and its
 #    `thread`'s entry in the delivery's `threads` (step 4). There are
-#    10; here they all are, with whether the comment satisfies each `when`:
+#    12; here they all are, with whether the comment satisfies each `when`:
 #
 #      clause 1, does not apply:
 #        when: {"required": ["drawing"]}
@@ -86,29 +86,40 @@
 #              it, close it with `leaf thread resolve <page> <event-id>`. It never
 #              blocks publishing a version and waits on no answer.
 #      clause 7, applies:
-#        when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+#        when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
 #        text: If the event asks for work, first post one line in its thread saying
 #              what you will do, before any other command, even reading the source:
 #              `leaf response reply <answer.ref> --ephemeral --text "<what you will
 #              do, in a line>"`. It shows at once and starts the update, which reads
-#              Working until you answer. Do the work and put the result on the page,
-#              with what shows it (captures, a figure, the numbers). Then answer with
-#              `leaf response reply <answer.ref> --done --file reply.md`: what
-#              changed, in a sentence or two, linking the section that shows it. If
-#              the event asks for no work, as a question may not, answer it with that
-#              reply at once. The page holds the work; the thread holds only the
-#              conversation about it. A successful non-progress `leaf response reply`
-#              checks any saved page edit and makes it live before posting; progress
-#              and failure reports use the active revision. If the revision removes
-#              the thread's anchor, move the thread in the same reply with `--section
-#              <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its
-#              subject left the page. Each answer takes `--done` when it delivers what
-#              was asked, or `--todo "<what you owe>"` when it promises work beyond
-#              this turn, which stays on you until `leaf task end`
-#              (`references/conversation-loop.md`, "Long-running work"). To ask the
-#              user something back, put the question in an `lf-ask` in `--markup`; it
-#              waits on them until their next message there.
-#      clause 8, does not apply:
+#              Working until you answer.
+#      clause 8, applies:
+#        when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+#        text: If the event asks for work, first tell the user in one line what you
+#              will do, before your first tool call, even reading the source, and go
+#              straight on to the work in the same response. Leaf posts that line in
+#              the thread as your progress at that tool call, which starts the update,
+#              and it reads Working until you answer; post no progress line of your
+#              own.
+#      clause 9, applies:
+#        when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+#        text: Do the work and put the result on the page, with what shows it
+#              (captures, a figure, the numbers). Then answer with `leaf response
+#              reply <answer.ref> --done --file reply.md`: what changed, in a sentence
+#              or two, linking the section that shows it. If the event asks for no
+#              work, as a question may not, answer it with that reply at once. The
+#              page holds the work; the thread holds only the conversation about it. A
+#              successful non-progress `leaf response reply` checks any saved page
+#              edit and makes it live before posting; progress and failure reports use
+#              the active revision. If the revision removes the thread's anchor, move
+#              the thread in the same reply with `--section <id>` (narrowed by
+#              `--quote` or `--part`), or `--detach` it if its subject left the page.
+#              Each answer takes `--done` when it delivers what was asked, or `--todo
+#              "<what you owe>"` when it promises work beyond this turn, which stays
+#              on you until `leaf task end` (`references/conversation-loop.md`,
+#              "Long-running work"). To ask the user something back, put the question
+#              in an `lf-ask` in `--markup`; it waits on them until their next message
+#              there.
+#      clause 10, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
 #        text: Leaf posts your opening message in the thread as your progress line and
 #              your final message as the reply, unless an explicit reply already
@@ -120,12 +131,12 @@
 #              reply explicitly with `leaf response reply <answer.ref>`
 #              (`references/threads.md`); it posts at once, and your final message is
 #              then not posted.
-#      clause 9, applies:
+#      clause 11, applies:
 #        (no `when`, so it always applies)
 #        text: Your reply renders as Markdown in a narrow column: give each point its
 #              own short paragraph or list item, link a page section as `[its
 #              name](#section-id)`, and fence code or markup.
-#      clause 10, does not apply:
+#      clause 12, does not apply:
 #        when: {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}
 #        text: The widget is in a thread message: continue the work the user's answer
 #              selects or unblocks, and answer in that thread.
@@ -171,8 +182,10 @@
 #            ],
 #            "handling": {
 #              "h1": "The thread has no title yet. Name it with `--title \"<a few words>\"` on your reply, so Threads lists its subject instead of its opening words. If Leaf has already named it from its first message, that name stays.",
-#              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even reading the source: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. It shows at once and starts the update, which reads Working until you answer. Do the work and put the result on the page, with what shows it (captures, a figure, the numbers). Then answer with `leaf response reply <answer.ref> --done --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, as a question may not, answer it with that reply at once. The page holds the work; the thread holds only the conversation about it. A successful non-progress `leaf response reply` checks any saved page edit and makes it live before posting; progress and failure reports use the active revision. If the revision removes the thread's anchor, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject left the page. Each answer takes `--done` when it delivers what was asked, or `--todo \"<what you owe>\"` when it promises work beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\"). To ask the user something back, put the question in an `lf-ask` in `--markup`; it waits on them until their next message there.",
-#              "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
+#              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even reading the source: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. It shows at once and starts the update, which reads Working until you answer.",
+#              "h3": "If the event asks for work, first tell the user in one line what you will do, before your first tool call, even reading the source, and go straight on to the work in the same response. Leaf posts that line in the thread as your progress at that tool call, which starts the update, and it reads Working until you answer; post no progress line of your own.",
+#              "h4": "Do the work and put the result on the page, with what shows it (captures, a figure, the numbers). Then answer with `leaf response reply <answer.ref> --done --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, as a question may not, answer it with that reply at once. The page holds the work; the thread holds only the conversation about it. A successful non-progress `leaf response reply` checks any saved page edit and makes it live before posting; progress and failure reports use the active revision. If the revision removes the thread's anchor, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject left the page. Each answer takes `--done` when it delivers what was asked, or `--todo \"<what you owe>\"` when it promises work beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\"). To ask the user something back, put the question in an `lf-ask` in `--markup`; it waits on them until their next message there.",
+#              "h5": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
 #            },
 #            "events": [
 #              {
@@ -198,7 +211,9 @@
 #                "handling": [
 #                  "h1",
 #                  "h2",
-#                  "h3"
+#                  "h3",
+#                  "h4",
+#                  "h5"
 #                ],
 #                "answer": {
 #                  "kind": "reply",
@@ -256,12 +271,21 @@
 #              The thread has no title yet. Name it with `--title "<a few words>"` on your
 #              reply, so Threads lists its subject instead of its opening words. If Leaf
 #              has already named it from its first message, that name stays.
-#          - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+#          - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
 #            text: >-
 #              If the event asks for work, first post one line in its thread saying what
 #              you will do, before any other command, even reading the source: `leaf response
 #              reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
 #              It shows at once and starts the update, which reads Working until you answer.
+#          - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+#            text: >-
+#              If the event asks for work, first tell the user in one line what you will
+#              do, before your first tool call, even reading the source, and go straight
+#              on to the work in the same response. Leaf posts that line in the thread
+#              as your progress at that tool call, which starts the update, and it reads
+#              Working until you answer; post no progress line of your own.
+#          - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+#            text: >-
 #              Do the work and put the result on the page, with what shows it (captures,
 #              a figure, the numbers). Then answer with `leaf response reply <answer.ref>
 #              --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -300,12 +324,21 @@ comment:
         The thread has no title yet. Name it with `--title "<a few words>"` on your
         reply, so Threads lists its subject instead of its opening words. If Leaf
         has already named it from its first message, that name stays.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -335,6 +368,13 @@ comment over App Server:
       kind: reply
       writer: turn
   told:
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
       text: >-
         Leaf posts your opening message in the thread as your progress line and
@@ -376,12 +416,21 @@ comment with a drawing:
         the comment's `id`: it prints the path of a PNG of that revision in the
         user's window size and color scheme, with the ink drawn over it. Any `text`
         explains the mark; otherwise answer it like any comment.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -415,12 +464,21 @@ comment with a pasted image:
         The message links an image in Markdown, as `/media/<digest>.<ext>` under
         the page directory the batch names. Open the image before answering; its
         alt text is only a label.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -458,12 +516,21 @@ suggestion:
       text: >-
         A suggestion proposes exact replacement text. Apply it verbatim, or reply
         with your reason for declining.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -504,12 +571,21 @@ design comment:
         re-vendor, and note the re-vendor on the stamp. A fix to Leaf itself is
         the user's to raise (the Leaf skill's "Improve Leaf through use"). Your
         reply reports the stamped version that carries the fix.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -556,12 +632,21 @@ reply:
         The user answered in a thread. The batch's `threads` holds the thread's
         context, and `leaf page state <page> <thread-id>` reads its full history
         a page at a time.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -601,12 +686,21 @@ reply in an untitled thread:
         The thread has no title yet. Name it with `--title "<a few words>"` on your
         reply, so Threads lists its subject instead of its opening words. If Leaf
         has already named it from its first message, that name stays.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -645,12 +739,21 @@ reply with a pasted image:
         The message links an image in Markdown, as `/media/<digest>.<ext>` under
         the page directory the batch names. Open the image before answering; its
         alt text is only a label.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -694,12 +797,21 @@ reply in a long thread:
         range of messages worth summarizing. As you answer, follow the Leaf skill's
         `references/threads.md`, "Summarize a long discussion". The hint needs no
         separate answer.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -746,12 +858,21 @@ rewritten message:
         and redo the work; if it didn't, say so. If `message` opens the thread and
         the title no longer fits, retitle it with `leaf thread edit <page> <message>
         --title "<a few words>"`.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -793,12 +914,21 @@ rewritten suggestion:
       text: >-
         The message is a suggestion, so `text` is now its exact replacement text.
         Apply it verbatim, or reply with your reason for declining.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -931,12 +1061,21 @@ pick inside a thread:
   told:
     - text: >-
         The user already sees the action applied.
-    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}, "not": {"required": ["progress"]}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
         you will do, before any other command, even reading the source: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
         It shows at once and starts the update, which reads Working until you answer.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
         Do the work and put the result on the page, with what shows it (captures,
         a figure, the numbers). Then answer with `leaf response reply <answer.ref>
         --done --file reply.md`: what changed, in a sentence or two, linking the
@@ -972,6 +1111,13 @@ pick inside a thread over App Server:
   told:
     - text: >-
         The user already sees the action applied.
+    - when: {"properties": {"answer": {"properties": {"progress": {"const": "opening"}}}}}
+      text: >-
+        If the event asks for work, first tell the user in one line what you will
+        do, before your first tool call, even reading the source, and go straight
+        on to the work in the same response. Leaf posts that line in the thread
+        as your progress at that tool call, which starts the update, and it reads
+        Working until you answer; post no progress line of your own.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
       text: >-
         Leaf posts your opening message in the thread as your progress line and

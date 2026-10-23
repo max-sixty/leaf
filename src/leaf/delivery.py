@@ -56,6 +56,7 @@ owner in its next delivery, with a ref of its own (`deliverable`).
 
 import re
 import secrets
+import sys
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
@@ -65,7 +66,7 @@ from typing import Literal
 from xml.etree import ElementTree
 
 from .event_log import jsonl_line
-from .harness import session_harness
+from .harness import Harness, session_harness
 from .interaction_log import acting_on
 from .refusals import Refused
 from .registry.kernel import verb_writers
@@ -244,7 +245,15 @@ _ANSWER = {
                         "agent, or the final message of the turn carrying it.",
                         {"enum": ["agent", "turn"]},
                     ),
-                }
+                },
+                {
+                    "progress": described(
+                        "Present where the turn's opening text, written before its "
+                        "first tool call, posts as the reply's progress line "
+                        "(`post_opening`), so the agent posts none.",
+                        {"const": "opening"},
+                    ),
+                },
             ),
         ),
         described(
@@ -625,6 +634,7 @@ def handled(
     batch_index: int,
     *,
     turn_replies: bool,
+    opening: bool = False,
     preserve_refs: bool = False,
 ) -> dict:
     """One captured batch with exact references, writer hints and handling.
@@ -633,7 +643,8 @@ def handled(
     digest, so each event is told only its own case and the answer it owes. The
     answer's address is a fact of the freeze, not of the capture: a Codex record
     collects batches before it knows which transport will offer it, and only the
-    freeze does."""
+    freeze does. `opening` marks each reply whose progress line the turn's opening
+    is (`post_opening`)."""
     from .registry.contract import event_clauses
 
     registry = _registry(Path(batch["page"]))
@@ -666,6 +677,11 @@ def handled(
                         if event["answer"]["kind"] == "reply"
                         else {}
                     ),
+                    **(
+                        {"progress": "opening"}
+                        if opening and event["answer"]["kind"] == "reply"
+                        else {}
+                    ),
                 }
             }
             if "answer" in event
@@ -693,6 +709,7 @@ def freeze_delivery(
     *,
     acknowledge: Callable[[str], str] | None = None,
     turn_replies: bool = False,
+    opening: bool = False,
     delivery_id: str | None = None,
     created_at: float | None = None,
     correction: dict | None = None,
@@ -704,7 +721,10 @@ def freeze_delivery(
     confirmation after the complete envelope reaches context. When the harness
     establishes receipt directly, omit it and the envelope records `null`.
     `turn_replies` is set where the turn the delivery opens writes its thread
-    reply with its own messages."""
+    reply with its own messages. `opening` is set where a later hook of the turn
+    posts its opening as the progress line of the delivery's sole owed reply
+    (`post_opening`). A delivery owing more than one reply takes no opening, since
+    it could be about any of them."""
     lock = _delivery_lock_path()
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
@@ -717,6 +737,12 @@ def freeze_delivery(
                     break
         else:
             path = delivery_path(delivery_id)
+        replies = sum(
+            event["answer"]["kind"] == "reply"
+            for batch in batches
+            for event in batch["events"]
+            if "answer" in event
+        )
         payload = {
             "id": delivery_id,
             "created_at": created_at if created_at is not None else time.time(),
@@ -730,6 +756,7 @@ def freeze_delivery(
                         delivery_id,
                         index,
                         turn_replies=turn_replies,
+                        opening=opening and replies == 1,
                         preserve_refs=correction is not None,
                     )
                     for index, batch in enumerate(batches)
@@ -1184,6 +1211,72 @@ def confirm_turn(session_id: str) -> None:
                     record_receipt(page, max(seqs[event_id] for event_id in handed))
         except FileNotFoundError:
             continue
+
+
+def post_opening(harness: Harness, payload: dict) -> None:
+    """Post the turn's opening as the progress line of each reply a hook handed
+    into the session's open turn marked `progress: "opening"`, as a later hook of
+    the turn, run by hook `payload`, reads it there (`Harness.turn_opening`). The
+    model wrote it before its first tool call, which is when that hook runs, so the
+    user reads what the agent is doing without a model call spent posting it. An
+    update already taken in hand or answered, by a progress line, a start or a
+    reply, takes none, nor does one whose opening says nothing.
+
+    The line posts as `leaf response reply --ephemeral` would, so it starts the
+    update. A refusal, such as a page whose saved source is mid-edit, costs the user
+    only the line: the turn goes on to its answer, so it is not raised into the
+    hook, which would hold the tool call."""
+    from .service import owned_pages
+    from .thread import post_response
+    from .todos import start_reading
+
+    session_id = harness.session
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                record = session_record(session_id)
+                if page.claim_of(session_id) is None or record["turn_closed"]:
+                    continue
+                handed = set(
+                    handed_into_turn(
+                        page.events, session_id, record["turn"], record["turn_opened"]
+                    )
+                )
+                refs = {
+                    event_id: ref["ref"]
+                    for pickup in pickup_receipts(page.events, phase="opened")
+                    for event_id, ref in pickup.get("refs", {}).items()
+                    if event_id in handed
+                }
+                taken = {
+                    reading["item"]
+                    for event in page.events
+                    if (reading := start_reading(event))
+                } | {event["responds"] for event in page.events if event.get("responds")}
+        except FileNotFoundError:
+            continue
+        for event_id, ref in refs.items():
+            if event_id in taken:
+                continue
+            address = response_address(ref)
+            if address.get("progress") != "opening":
+                continue
+            opening = harness.turn_opening(payload, ref.partition(":")[0])
+            if not opening:
+                continue
+            try:
+                post_response(
+                    ref,
+                    opening,
+                    attempt="opening",
+                    ephemeral=True,
+                    identity={"session": session_id},
+                    claimed_session=session_id,
+                )
+            except FileNotFoundError:
+                continue
+            except Refused as error:
+                print(f"Leaf opening not posted: {error}", file=sys.stderr, flush=True)
 
 
 def unreferenced(

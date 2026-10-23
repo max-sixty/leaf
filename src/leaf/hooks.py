@@ -45,7 +45,9 @@ prompt hook. A boundary with nothing pending adds no response-debt reminders.
 Claude Code may still drop what a hook hands over, so its PreToolUse, PostToolBatch
 and Stop hooks first confirm what the turn's earlier hooks handed into it
 (`delivery.confirm_turn`): the model reads the context before it calls a tool or
-ends its turn.
+ends its turn. Its PreToolUse and PostToolBatch hooks then post the line the model
+wrote before that tool call as the progress of the sole reply a delivery owes
+(`delivery.post_opening`).
 
 Resume and prompt hooks also inspect retained claims for disconnected pages
 (`reconnect`), including inactive ownership. That notice does not reclaim a
@@ -108,10 +110,15 @@ def cmd_hook(harness: str, payload: dict) -> None:
             # The launcher skipped this turn's prompt hook (`bin/leaf`),
             # so the turn a claim joins opens here, before the command.
             prompt_turn(sid)
-        elif not hooked.commits_hook_context:
-            from .delivery import confirm_turn
+        else:
+            if not hooked.commits_hook_context:
+                from .delivery import confirm_turn
 
-            confirm_turn(sid)
+                confirm_turn(sid)
+            if hooked.posts_opening:
+                from .delivery import post_opening
+
+                post_opening(hooked, payload)
         return
     turn_id = payload.get("turn_id")
     if event in {"UserPromptSubmit", "TurnStart"}:
@@ -161,6 +168,10 @@ def cmd_hook(harness: str, payload: dict) -> None:
         from .delivery import confirm_turn
 
         confirm_turn(sid)
+    if event == "PostToolBatch" and hooked.posts_opening:
+        from .delivery import post_opening
+
+        post_opening(hooked, payload)
     prompt, expected = hooked.offer_at_step(event, payload, expected)
     if prompt:
         print(json.dumps(hooked.hook_context(event, prompt)))

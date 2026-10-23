@@ -106,6 +106,16 @@ class Harness:
     # over waits for a later hook of the same turn to confirm it, and is offered
     # again if the turn ends first (`delivery.confirm_turn`).
     commits_hook_context: ClassVar[bool] = True
+    # Whether the turn's opening text, which a later hook reads (`turn_opening`),
+    # posts as the progress line of the sole reply a hook delivery owes
+    # (`delivery.post_opening`), so the agent spends no model call posting one.
+    posts_opening: ClassVar[bool] = False
+
+    def turn_opening(self, payload: dict, delivery_id: str) -> str | None:
+        """What the model wrote after hook delivery `delivery_id` reached its turn
+        and before its first tool call, from the harness's record of the session
+        that hook `payload` names, or None where it wrote nothing there."""
+        raise NotImplementedError
 
     @classmethod
     def from_claim(cls, claim: dict) -> Harness:
@@ -337,6 +347,38 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # was taken, so the turn's next hook confirms it: a tool call or the turn's
     # end means the model read the context.
     commits_hook_context = False
+    posts_opening = True
+
+    def turn_opening(self, payload: dict, delivery_id: str) -> str | None:
+        """The text blocks the transcript (`transcript_path`) holds after the hook
+        context that names `delivery_id` and before the first tool call after it,
+        joined into one line. Claude Code writes each content block as a record of
+        its own once the block is complete, before a hook for the tool call that
+        follows runs. A line it is still writing is no record yet."""
+        text = Path(payload["transcript_path"]).read_text()
+        lines = text.splitlines()[: None if text.endswith("\n") else -1]
+        # A long session's transcript is large, so only the records after the
+        # newest line naming the delivery are read.
+        handed = next(
+            (
+                index
+                for index in range(len(lines) - 1, -1, -1)
+                if delivery_id in lines[index]
+                and json.loads(lines[index]).get("type") == "attachment"
+            ),
+            None,
+        )
+        if handed is None:
+            return None
+        said = []
+        for record in map(json.loads, lines[handed + 1 :]):
+            if record.get("type") != "assistant":
+                continue
+            content = record["message"]["content"]
+            if any(part["type"] == "tool_use" for part in content):
+                break
+            said += [part["text"] for part in content if part["type"] == "text"]
+        return " ".join(" ".join(said).split()) or None
 
     def lifetime(self) -> dict:
         """A session the user sits at is a process, and Claude Code states it

@@ -495,7 +495,9 @@ def carry_turn(
                 *(delivery_pointer_prompt(identity) for identity in reminders),
             ]
         )
-    delivery = freeze_delivery(batches) if batches else None
+    delivery = (
+        freeze_delivery(batches, opening=harness.posts_opening) if batches else None
+    )
     deadline = started + CONFIRM_WITHIN
     from .reconnect import notices
 

@@ -822,6 +822,42 @@ def test_draft_comparison_detects_format_changes_but_not_the_same_current_edit(
     expect(page.locator("#source .lf-draft-body strong")).to_have_text("edit")
 
 
+def test_a_finger_copies_a_draft_from_anywhere_in_copy_s_reach(browser, serve):
+    """Copy runs on its shadow button's press, so its reach is the button's: under a
+    finger, a press just past its face copies. A reach on the host would stand over the
+    button and take every press from it."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Copied draft",
+                '<h1>Release note</h1><lf-draft id="note"><pre>Keep `this` note.</pre></lf-draft>',
+            )
+        ),
+        context=context,
+    )
+    copy = page.locator("#note .lf-draft-tools > wa-copy-button")
+    copy.evaluate(
+        """c => { c.presses = 0;
+        for (const t of ['wa-copy', 'wa-error']) c.addEventListener(t, () => c.presses++); }"""
+    )
+    x, top, bottom = copy.evaluate(
+        """c => { const b = c.shadowRoot.querySelector('[part~="button"]')
+          .getBoundingClientRect();
+        return [b.left + b.width / 2, b.top, b.bottom]; }"""
+    )
+    assert bottom - top < 44, "the face already meets a finger's floor"
+    # A mouse press, which Chrome's touch adjustment doesn't move onto the button.
+    page.mouse.click(x, top - 4)
+    page.wait_for_function(
+        "() => document.querySelector('#note .lf-draft-tools > wa-copy-button')"
+        ".presses === 1"
+    )
+
+
 def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, serve):
     """Raw pointer down must not move the button before the matching up arrives. Either
     edge detects a button that moves under the press, so each action, pressed in turn

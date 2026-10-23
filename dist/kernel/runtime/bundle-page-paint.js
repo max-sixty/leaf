@@ -2967,14 +2967,10 @@ document.addEventListener(
   },
   true
 );
+var generatedElement = (...args) => document.documentElement.lfInitial.generatedElement(...args);
+var generated = elementDirective("generated", generatedElement);
 function relabel(node, label, { says } = {}) {
-  if (typeof says !== "boolean" && says !== "echo")
-    throw new TypeError(
-      `Say whether this label is the page speaking: true, false, or "echo" for a copy of words it says elsewhere`
-    );
-  keeps(node, "data-lf-gen", "1");
-  node.toggleAttribute("data-lf-said", says === true);
-  node.toggleAttribute("data-lf-echo", says === "echo");
+  generatedElement(node, { says });
   keepsText(node, label);
 }
 function closeControl({ name, title = name, className = "" }) {
@@ -3635,6 +3631,8 @@ export {
   selectableOffered,
   PRESSABLE,
   reachedForWords,
+  generatedElement,
+  generated,
   relabel,
   closeControl,
   responseAction,

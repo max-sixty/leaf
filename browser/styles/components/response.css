@@ -1,11 +1,12 @@
 /* Response composition owns the shared field, actions and attachment shelf.
  * Presentation owners allocate and position this control, in the document or a
  * declared shadow tree; they do not restate its typography, focus or face. */
-/* An icon action's hit box, and the height of an empty composer field, which stands
-   that action inside its action inset on either side. Stated at the root, where a widget
-   that seats a composer in its own content reads the height to hold its room before the
-   composer is drawn, and again on each field and action, so a field whose context sizes
-   its action (lf-options' Add row) derives its height from that size. */
+/* An icon action's face; its hit box, the face or the aim floor where that is larger
+   (the box is that wide, and its reach stands out to it above and below, surfaces.css);
+   and the height of an empty composer field, which stands the face inside its action
+   inset on either side. Stated at the root, where a widget holds a composer's room
+   before it is drawn, and again on each field and action, so a context that sizes its
+   action (lf-diff's file presses) resizes its hit box with it. */
 :root {
   --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;
@@ -17,7 +18,7 @@
 }
 :root,
 .lf-compose-field {
-  --lf-compose-h: calc(var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset));
+  --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
@@ -111,9 +112,9 @@
 .lf-icon-action {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
-  height: var(--lf-icon-action-hit);
+  height: var(--lf-icon-action-face);
   min-width: var(--lf-icon-action-hit);
-  min-height: var(--lf-icon-action-hit);
+  min-height: var(--lf-icon-action-face);
   padding: 0;
   display: grid;
   place-items: center;
@@ -126,7 +127,7 @@
 }
 /* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
    whose ::before is the action's disc that stays clear at rest and takes its tint
-   on hover. The hit box around the disc is the icon-action floor above. The glyph's
+   on hover. The hit box around the disc is the icon action's above. The glyph's
    ink outranks the .lf-ui face by coming later. Reopen standing in Resolve's place
    is the same glyph drawn done, on every surface that seats a thread. */
 :is(.lf-compose-submit, .lf-compose-dictate),
@@ -451,7 +452,7 @@ button.lf-media-open {
 }
 .lf-msg-editor > .lf-compose-field {
   --lf-compose-pad-block: calc(
-    (var(--lf-response-height, max(32px, var(--aim-floor))) - 2px - 1lh) / 2
+    (var(--lf-response-height, var(--lf-line)) - 2px - 1lh) / 2
   );
   --lf-msg-edit-past-end: max(
     var(--lf-thread-text-inset) - var(--lf-msg-text-end, 0px),
@@ -500,13 +501,19 @@ button.lf-media-open {
   gap: var(--lf-msg-edit-gap);
 }
 .lf-msg-edit-actions > .lf-msg-control {
-  position: static;
+  position: relative;
+  inset: auto;
   translate: none;
   opacity: 1;
-  block-size: max(24px, var(--aim-floor));
+  block-size: 24px;
   min-width: 0;
   min-height: 0;
   font: 600 var(--t-6)/1 var(--sans);
+}
+/* The rewrite's field stands just below its head, so Discard and Save reach the floor
+   upward, over the head and the room above it, rather than over the field's top. */
+.lf-msg-edit-actions > .lf-msg-control::after {
+  inset: min(0px, 100% - var(--aim-floor)) 0 0;
 }
 .lf-msg-edit-actions > .lf-msg-edit-cancel {
   inline-size: var(--lf-msg-edit-cancel);
@@ -522,7 +529,7 @@ button.lf-media-open {
 }
 
 :is(.lf-fab-bar, .lf-margin-preview) {
-  --lf-response-height: max(32px, var(--aim-floor));
+  --lf-response-height: var(--lf-line);
 }
 /* The comment box and the card its words become share one text column, so Send
      moves no word: both start the words `--lf-thread-text-inset` inside the field's or
@@ -532,7 +539,7 @@ button.lf-media-open {
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-comment-send-inset: calc(
-    (var(--lf-response-height) - var(--lf-icon-action-hit)) / 2
+    (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
   );
   --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
 }

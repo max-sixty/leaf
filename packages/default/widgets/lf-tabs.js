@@ -4,7 +4,9 @@
  * inactive panels with hidden="until-found", so browser find-in-page and
  * fragment navigation still reach them — `beforematch` opens the owning tab,
  * and the runtime's reveal() asks the same via the lf-reveal event when it
- * scrolls to a comment anchor. The open tab is view state for this user,
+ * scrolls to a comment anchor. A page can make a panel itself scroll with CSS,
+ * so the widget declares each panel as a scroll surface; its CSS still decides
+ * whether that panel scrolls. The open tab is view state for this user,
  * remembered per browser tab (`keepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
  * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
@@ -96,6 +98,7 @@ import {
   frameFor,
   whileConnected,
   offer,
+  generated,
   openingView,
   pageScroller,
   preserveReadingRegions,
@@ -216,6 +219,7 @@ export class TabSet extends LeafElement {
       if (!index || (side && group !== panels[index - 1].getAttribute("group")))
         this.#runs.push({ panel, group, panels: [] });
       this.#runs.at(-1).panels.push(panel);
+      if (!panel.classList.contains("scroll")) panel.classList.add("scroll");
       panel.setAttribute("role", "tabpanel");
       panel.setAttribute("aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
@@ -375,8 +379,7 @@ export class TabSet extends LeafElement {
                     ? html`<span
                         class="lf-tab-group"
                         aria-hidden="true"
-                        data-lf-gen="1"
-                        data-lf-said
+                        ${generated({ says: true })}
                         >${run.group}</span
                       >`
                     : nothing
@@ -448,11 +451,11 @@ export class TabSet extends LeafElement {
       tabindex=${panel === this.#active.value ? 0 : -1}
       @click=${(event) =>
         this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
-      ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
+      ><span class="lf-tab-name" ${generated({ says: true })}
         >${panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
         this.#down && panel.hasAttribute("summary")
-          ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said
+          ? html`<span class="lf-tab-summary" ${generated({ says: true })}
               >${panel.getAttribute("summary")}</span
             >`
           : nothing

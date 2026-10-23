@@ -474,6 +474,12 @@ _TEXT = {
         "typed words left the screen without a key or press:"
         f" {json.dumps(v['words'], ensure_ascii=False)} in {placed(v['place'])}"
     ),
+    "place-resized": lambda at, v: (
+        f"{placed(v['place'])} changed size from {_size(v['before'])} to"
+        f" {_size(v['after'])} as {', '.join(map(placed, v['left']))} gave way to"
+        f" {', '.join(map(placed, v['arrived']))}"
+        + (f" after a {v['input']}" if v["input"] else " without input")
+    ),
     # The gate's own run, where it could not read the page.
     "gate-failed": lambda at, v: (
         f"the browser gate failed while running its probe module: {v['error']}"

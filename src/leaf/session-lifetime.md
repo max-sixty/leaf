@@ -350,15 +350,16 @@ unsettled. Every hook effect checks its captured session generation and revision
 including no-ID and same-ID prompt renewal, and the decision to publish is taken under
 that epoch guard.
 
-A Claude Code or Pi hook hands a delivery over inline only when the harness will
-read all of it. A harness reads a hook's output only once it exits, discards it for
-a hook it times out, and Claude Code cuts a large context to a preview, so these
-hooks hand a delivery over inline only once it fits, and only once the hook has
-recorded every batch while well inside its timeout
-(`hook_transport.CONFIRM_WITHIN`); otherwise they hand over a pointer. A Codex hook
-hands over the complete envelope as one line of JSON, or a pointer above Codex's
-context limit (`codex.HOOK_CONTEXT_BYTES`). Inline input carries the explicit reader
-acknowledgement that `delivery.reader_envelope` also gives a pointer reader.
+A hook hands a delivery over inline only when the harness will show the model all
+of it. Claude Code and Codex cut a large context to a preview, so every hook hands
+a delivery whose context exceeds its harness's limit over as the delivery's pointer
+(`Harness.fits_hook_context`). A harness reads a hook's output only once it exits
+and discards it for a hook it times out, so a Claude Code or Pi hook also hands a
+delivery over inline only once it has recorded every batch while well inside its
+timeout (`hook_transport.CONFIRM_WITHIN`), and otherwise hands over the pointer. A
+Codex hook hands over the complete envelope as one line of JSON. Its inline input
+carries the explicit reader acknowledgement that `delivery.reader_envelope` also
+gives a pointer reader.
 Neither printing nor reading Codex hook output confirms it; discarded output leaves
 the same frozen delivery pending for the idle adapter. After reading all input,
 the session follows its `acknowledge` instruction with `leaf delivery ack`.

@@ -2,10 +2,12 @@
 
 ## Handle the input
 
-Process every event in every batch. If you got a pointer, read it with
-`leaf delivery read <id>`, following each `next` command until you have every part,
-then confirm it ("Delivery and acknowledgement"). For each event, follow the
-`handling` clauses it names, in order; they say what response it needs.
+Process every event in every batch. If you got a pointer, a
+`<leaf-delivery id="<id>" operation="delivery read" />` element, read it with
+`leaf delivery read <id>` before working or replying, following each `next`
+command until you have every part, then confirm it ("Delivery and
+acknowledgement"). For each event, follow the `handling` clauses it names, in
+order; they say what response it needs.
 
 Before working, post your progress line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). Read

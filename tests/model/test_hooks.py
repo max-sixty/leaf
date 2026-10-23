@@ -4,6 +4,7 @@ confirming what they hand over within their deadline."""
 
 import fcntl
 import json
+import os
 import re
 import shutil
 import threading
@@ -440,7 +441,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     monkeypatch.setattr(hook_transport_model, "freeze_delivery", freeze_then_transfer)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     [delivery_id] = re.findall(
-        r"`leaf delivery read (\w+)`", continued(capsys.readouterr().out)
+        r'<leaf-delivery id="(\w+)"', continued(capsys.readouterr().out)
     )
     delivery = delivery_model.read_delivery(delivery_id)
     assert [batch["page"] for batch in delivery["batches"]] == [
@@ -479,25 +480,22 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
 def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     claimed, printing, capsys
 ):
-    """Claude Code replaces a hook context of HOOK_CONTEXT_LIMIT characters or more
-    with a preview, so confirming it on handover would confirm what the model never
-    read. Input that large goes as a pointer instead: the hook confirms nothing, and
-    the reader confirms after every part reaches its context."""
+    """Claude Code replaces a hook context over its limit with a preview, so
+    confirming it on handover would confirm what the model never read. Input that
+    large goes as a pointer instead: the hook confirms nothing, and the reader
+    confirms after every part reaches its context."""
+    harness = harness_model.ClaudeCodeHarness
     comment = append_carried_log_record(
         claimed,
-        {
-            "kind": "comment",
-            "author": "user",
-            "text": "x" * hook_transport_model.HOOK_CONTEXT_LIMIT,
-        },
+        {"kind": "comment", "author": "user", "text": "x" * harness.hook_context_bytes},
     )
 
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
     reason = continued(answer)
-    assert len(reason) < hook_transport_model.HOOK_CONTEXT_LIMIT
-    [delivery_id] = re.findall(r"`leaf delivery read (\w+)`", reason)
+    assert harness.fits_hook_context(reason)
+    [delivery_id] = re.findall(r'<leaf-delivery id="(\w+)"', reason)
     assert acknowledged_through(claimed) == 0
     assert all(e["kind"] != "pickup" for e in events_model.read_events(claimed))
 
@@ -513,6 +511,29 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     [batch] = pointer["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     assert acknowledged_through(claimed) == last_deliverable_seq(claimed)
+
+
+def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
+    """Leaf's Pi extension adds a hook's context to the session at any size, so
+    input too large for Claude Code's context reaches Pi's whole and confirmed."""
+    for name in harness_model.IDENTITY_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("PI_SESSION_ID", "s1")
+    monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
+    service_model.claim_page(page_dir)
+    text = "x" * harness_model.ClaudeCodeHarness.hook_context_bytes
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": text}
+    )
+
+    hooks_model.cmd_hook("pi", {"hook_event_name": "Stop", "session_id": "s1"})
+    opening, envelope, *_ = continued(capsys.readouterr().out).split("\n")
+    assert opening == hook_transport_model.INLINE_OPENING
+    [batch] = json.loads(envelope)["batches"]
+    assert [(event["id"], event["text"]) for event in batch["events"]] == [
+        (comment["id"], text)
+    ]
+    assert acknowledged_through(page_dir) == last_deliverable_seq(page_dir)
 
 
 def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkeypatch):
@@ -1104,7 +1125,7 @@ def test_a_hook_confirms_nothing_into_a_turn_that_replaced_its_own(
 
     monkeypatch.setattr(hook_transport_model, "receive_held", prompted_first)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    assert re.findall(r"`leaf delivery read (\w+)`", continued(capsys.readouterr().out))
+    assert re.findall(r'<leaf-delivery id="(\w+)"', continued(capsys.readouterr().out))
     assert acknowledged_through(claimed) < comment["seq"]
     assert all(e["kind"] != "pickup" for e in events_model.read_events(claimed))
 
@@ -1326,7 +1347,7 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
         )
         assert time.monotonic() - started < 2 * hook_transport_model.CONFIRM_WITHIN
         [delivery_id] = re.findall(
-            r"`leaf delivery read (\w+)`", continued(capsys.readouterr().out)
+            r'<leaf-delivery id="(\w+)"', continued(capsys.readouterr().out)
         )
         envelope = delivery_model.read_delivery(delivery_id)
         assert [batch["page"] for batch in envelope["batches"]] == [
@@ -1359,7 +1380,7 @@ def test_a_hook_too_slow_to_confirm_hands_over_a_pointer(
     )
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     [delivery_id] = re.findall(
-        r"`leaf delivery read (\w+)`", continued(capsys.readouterr().out)
+        r'<leaf-delivery id="(\w+)"', continued(capsys.readouterr().out)
     )
     assert acknowledged_through(claimed) < event["seq"]
     assert delivery_model.read_delivery(delivery_id)["acknowledge"] is None

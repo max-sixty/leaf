@@ -409,6 +409,29 @@
     );
     return node;
   };
+  // Words an upgrade wrote, which the page's authored source lacks: the version diff
+  // looks past them, and they are a passage cell of their own. `says` is whether they
+  // are the page speaking (data-lf-said, quotable even inside chrome), a copy of words
+  // the page says elsewhere ("echo", data-lf-echo), or neither; widget-elements.js,
+  // over `relabel`, says why each answer matters and why none is assumed.
+  /**
+   * @template {Element} T
+   * @param {T} node
+   * @param {{says?: boolean | "echo"}} [options]
+   * @returns {T}
+   */
+  const generatedElement = (node, { says } = {}) => {
+    if (typeof says !== "boolean" && says !== "echo")
+      throw new TypeError(
+        `Say whether these words are the page speaking: ` +
+          `true, false, or "echo" for a copy of words it says elsewhere`,
+      );
+    keepsAttribute(node, "data-lf-gen", "1");
+    // Toggling keeps an x-says span's attribute name (declared-words.js) where it stands.
+    node.toggleAttribute("data-lf-said", says === true);
+    node.toggleAttribute("data-lf-echo", says === "echo");
+    return node;
+  };
   const offer = (tag, cls, label, inputType, pressable = false) => {
     const node = document.createElement(tag);
     if (inputType !== undefined) {
@@ -531,8 +554,7 @@
     /** @type {SVGElement | null} */
     let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
     if (!mark) {
-      mark = externalMark();
-      mark.dataset.lfGen = "1";
+      mark = generatedElement(externalMark(), { says: false });
     }
     // Parsing may yield while this anchor is still open. Keep the mark after any
     // words the parser (or a later render) has appended since the previous pass.
@@ -1195,6 +1217,7 @@
         tabStore,
         offer,
         offerElement,
+        generatedElement,
         keeps: keepsAttribute,
       });
       if (drawing?.then)
@@ -1229,6 +1252,7 @@
     },
     offer,
     offerElement,
+    generatedElement,
     origin(node) {
       return origins.get(node);
     },

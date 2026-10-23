@@ -289,6 +289,7 @@ import {
   dataHeaders,
   el,
   frameFor,
+  generatedElement,
   growthIsSeen,
   hasArea,
   holdingError,
@@ -6398,7 +6399,7 @@ function createInlineContributions({ targetPath }) {
       let seat = hosts.get(target);
       if (!seat) {
         const host2 = el("div", "lf-ui lf-margin-inline");
-        host2.dataset.lfGen = "1";
+        generatedElement(host2, { says: false });
         host2.setAttribute("role", "group");
         seat = { host: host2, offers: [] };
         hosts.set(target, seat);
@@ -7026,7 +7027,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
           node.dataset.lfPart = item.kind;
           node.tabIndex = -1;
           node.dataset.lfRuntime = "";
-          node.dataset.lfGen = "1";
+          generatedElement(node, { says: false });
           node.dataset.lfOffer = "";
           if (item.kind === "transcript") {
             const transcript = new Transcript({

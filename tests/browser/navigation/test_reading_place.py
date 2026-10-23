@@ -1326,7 +1326,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     page.wait_for_function(
         "expected => getSelection().toString() === expected", arg=selected
     )
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    # The command closes the borrowed menu and keeps its Threads view open.
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")

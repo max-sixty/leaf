@@ -134,7 +134,7 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
-  /* An owner moving the field's edges can carry the words from where they stood with
+  /* An owner moving the field's edges can carry the words from where they were with
      them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
      --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
      its layout. The field's content box cuts off what the field doesn't hold yet,
@@ -188,9 +188,12 @@ sheet.replaceSync(`
      heading is bold, as the platform draws one, at the size of the words around it. A
      block is drawn line by line, so a code block's frame is each line's sides, closed
      above its first line and below its last. Syntax that holds its room while the
-     caret is away, as a code fence's line does, is there unseen and unspoken. */
+     caret is away, as a code fence's line does, is there unseen and unspoken. Its
+     glyphs go unfilled while its colour stays the words', because the caret can stand
+     at the end of unseen text, as just past a new item's marker, and the browser draws
+     it in that text's colour. */
   .lf-md-mark { color: var(--muted); }
-  .lf-md-unseen { color: transparent; }
+  .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
     background: var(--code-bg); border-radius: var(--code-inline-r);
     padding: var(--code-inline-pad); box-decoration-break: slice; }

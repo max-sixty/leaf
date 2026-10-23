@@ -122,8 +122,8 @@ import {
 import {
   WORKS,
   frameVisibility,
+  onCurrentLocation,
   onFrameVisibility,
-  onStanding,
   readSampleVisibility,
   releaseFocus,
   renderedParent,
@@ -134,6 +134,7 @@ import {
 } from "./bundle-frame-visibility.js";
 import {
   applicationPresented,
+  presentDocument,
   readApplication,
   readApplicationPresentation,
   selectWidgets,
@@ -212,13 +213,14 @@ export {
   marksSheet,
   nativeLayers,
   observeQueuedWork,
+  onCurrentLocation,
   onFrameVisibility,
-  onStanding,
   pageDocument,
   pageRange,
   pageScopes,
   pageText,
   placeOf,
+  presentDocument,
   quoteFrom,
   reachScrollers,
   readApplication,

@@ -1064,7 +1064,7 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
     it (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
     them and leaves them over the element. Drawn in the document's plane from the
     element's box as the panes cut it, they were rewritten on every scroll step, a frame
-    behind the words. The card's thread marks the element while the user stands in it,
+    behind the words. The card's thread marks the element while the user is located in it,
     and the trace while they stand on its marker."""
     comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": "pane-sec"}}
     page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))

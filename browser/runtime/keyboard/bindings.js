@@ -581,7 +581,7 @@ export function answers(binding, ev) {
   // business rather than the binding's. A named key carries no such ambiguity — no layout
   // hides ArrowLeft behind Shift — so there the modifier is asked for exactly, the way it
   // is on a letter. Shift+→ is how a user extends a selection through the words of a
-  // <summary> they are standing on, and the laxity here was closing the section under
+  // <summary> they are on, and the laxity here was closing the section under
   // them and eating the extension.
   return key === " " || key.length > 1
     ? ev.key === key && ev.shiftKey === shift

@@ -1,4 +1,4 @@
-import { pageScroller, readingPosture, TEXT_BOX } from "/runtime/widget-api.js";
+import { pageScroller, regionScrollBehavior, TEXT_BOX } from "/runtime/widget-api.js";
 import {
   layoutBox,
   pageDocument,
@@ -49,10 +49,10 @@ function contentBox(el) {
   };
 }
 
-// The page's own margin residents, without Leaf's rail: that holds only markers and
+// The page's own margin content, without Leaf's rail: that holds only markers and
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
-// tokens the margin layout publishes, rather than rediscovering residency from boxes.
-export function marginResidents() {
+// tokens the margin layout publishes, rather than rediscovering margin placement from boxes.
+export function marginContent() {
   return (layoutBox()?.getAttribute("data-lf-margin") ?? "")
     .split(" ")
     .filter((token) => token && token !== "rail")
@@ -71,7 +71,7 @@ export function geometryReading(open) {
     overflow: rootOverflow(),
     misplaced: misplacedBoxes(),
     scrollbars: scrollbarClearance(),
-    margin: marginResidents(),
+    margin: marginContent(),
     arrangement: arrangedBoxes(open),
     labels: shrunkLabelReading(),
     clipped: clippedControls(),
@@ -173,7 +173,8 @@ export function overflowingRegions() {
         "layout");
   return readingRegions().flatMap((region) => {
     if (!main.contains(region.host) || !screenRegion(region.host)) return [];
-    if (!shownRegionBounds(region) || readingPosture(region) !== "bounded") return [];
+    if (!shownRegionBounds(region) || regionScrollBehavior(region) !== "bounded")
+      return [];
     const over = region.body.scrollHeight - region.body.clientHeight;
     return over > 1
       ? [
@@ -194,22 +195,22 @@ export function overflowingRegions() {
 //
 // The column first: content set outside the one it belongs to. The
 // sideways-scroll reading is the same question asked of the window, and the
-// window is the wider of the two: the gate renders at 1200px against a 720px
-// column, so about 200px of margin beside it absorbs a spill that scrolls nothing.
+// window is the wider of the two: the gate renders at 1280px against a 720px
+// column, so about 250px of margin beside it absorbs a spill that scrolls nothing.
 // What is out there is the margin, where Leaf's rail and a page's notes stand, and the
 // user's own window is free to be narrower than this one — so a page that passed
 // here scrolls sideways on the machine it was written for.
 //
 // Two kinds of element answer for their own width and not to this, and both say
-// so in their computed style. The margin has legitimate residents — a sidenote,
+// so in their computed style. The margin has legitimate content — a sidenote,
 // the hidden line the paint pass writes, a page's own furniture — and
 // each is out there by its own declaration: placed absolutely or fixed, or floated
-// clear of the column. Where the box sits is what separates a resident from a spill,
+// clear of the column. Where the box sits is what separates margin content from a spill,
 // which crosses the column's edge rather than clearing it, having started inside
 // and run out. So a float that merely overflows is still reported, and a widget's
 // own float inside the column (an option's .facts rail) is never in question.
 //
-// A resident answers for what it holds, which is why both readings are made up the
+// Margin content answers for what it holds, which is why both readings are made up the
 // ancestors and not of the element alone. A sidenote is prose, so it carries the
 // <code>, links and emphasis any other prose does, and each of those inherits a box
 // its parent put in the margin on purpose — named, one by one, as spilling out of a
@@ -224,7 +225,7 @@ export function overflowingRegions() {
 // dozen times over.
 // What stands in the page's margin by its own declaration — placed absolutely or fixed,
 // or floated clear of the column — for MISPLACED_BOXES, deciding whether a wide widget
-// was drawn over one. A resident is whatever answered for itself out there, so a
+// was drawn over one. Margin content is whatever answered for itself out there, so a
 // project hanging its own furniture in the margin is covered without declaring anything.
 
 function marginReading(main) {
@@ -240,15 +241,19 @@ function marginReading(main) {
       : (s.float === "inline-start") === (s.direction !== "rtl")
         ? "left"
         : "right";
-  const isResident = (el, s = getComputedStyle(el), b = el.getBoundingClientRect()) => {
-    // An overlay at rest is a resident of the margin it starts in.
+  const isMarginContent = (
+    el,
+    s = getComputedStyle(el),
+    b = el.getBoundingClientRect(),
+  ) => {
+    // An overlay at rest belongs to the margin it starts in.
     if (restsOverPage(s)) return b.left < left - 1 || b.right > right + 1;
     if (s.position === "absolute" || s.position === "fixed")
       return b.right <= left + 1 || b.left >= right - 1;
     if (s.float === "none") return false;
     return floatSide(s) === "left" ? b.right <= left + 1 : b.left >= right - 1;
   };
-  const residents = [...main.querySelectorAll("*")].filter((el) => {
+  const marginElements = [...main.querySelectorAll("*")].filter((el) => {
     // A map's labels have boxes while its spine is at rest, but opacity and
     // pointer events keep them from occupying the margin until it opens.
     if (
@@ -261,9 +266,9 @@ function marginReading(main) {
     // Clipped to nothing is not standing in the margin: the words a page paints for
     // whoever is listening are a pixel wide and under a user's notice, so a widget
     // drawn across one has taken nothing from anybody.
-    return box.width >= 2 && isResident(el, style, box);
+    return box.width >= 2 && isMarginContent(el, style, box);
   });
-  return { isResident, left, residents, right };
+  return { isMarginContent, left, marginElements, right };
 }
 
 // Overflow is acceptable only when the user can reach it or the box explicitly signals
@@ -292,14 +297,14 @@ export function misplacedBoxes() {
   const pageBox = (el) =>
     !uiInside(el, main) ||
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
-  const { isResident, left, residents, right } = marginReading(main);
+  const { isMarginContent, left, marginElements, right } = marginReading(main);
   const wides = new Set(
     [...main.querySelectorAll(`[data-lf-space], [data-lf-content="markup"]`)].filter(
       breaksOut,
     ),
   );
-  // A widget the registry declares wide is answered for out here, the way an
-  // absolutely-positioned resident is: standing past the column is what it was
+  // A widget the registry declares wide is answered for out here, the way
+  // absolutely-positioned margin content is: standing past the column is what it was
   // declared for. What still has to hold is the page's own box — the room the layout
   // measured is the column's leftover and the rail margin rows stand in, and an
   // exhibit over that edge is in the margin whether or not the window happened to
@@ -324,9 +329,9 @@ export function misplacedBoxes() {
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot
   // of this pass having gone straight past the container that cut it.
   const answeredFor = (el) => {
-    if (isResident(el)) return true;
+    if (isMarginContent(el)) return true;
     for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
-      if (isResident(a)) return true;
+      if (isMarginContent(a)) return true;
       if (shownBand(a)) return true;
     }
     return false;
@@ -417,13 +422,13 @@ export function misplacedBoxes() {
   // The theme holds a wide widget's growth to what is free beside the page (--lf-free-l,
   // --lf-free-r), and this is what says so when a widget grows past it anyway — the same
   // bargain the framing rule above has, and the reason neither has to be a list anybody
-  // maintains. A resident is whatever `marginReading` finds standing past the column, so
+  // maintains. Margin content is whatever `marginReading` finds standing past the column, so
   // a project hanging its own furniture out there is covered without declaring anything
   // to this pass.
   for (const el of wides) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
-    const hit = residents.find((r) => {
+    const hit = marginElements.find((r) => {
       if (el.contains(r) || r.contains(el)) return false;
       // An overlay at rest states the room it takes to the column's free room.
       if (restsOverPage(getComputedStyle(r))) return false;
@@ -435,7 +440,7 @@ export function misplacedBoxes() {
         b.bottom > c.top + 1
       );
     });
-    if (hit) report(el, "over-margin", { resident: at(hit) });
+    if (hit) report(el, "over-margin", { marginContent: at(hit) });
     // The theme grows a breakout past its holder by its margins and gives it the
     // room's width (layouts.css), so it spans exactly the room its margins open. A
     // width of the box's own, such as a page rule sizing an iframe, overrides the
@@ -465,7 +470,7 @@ export function misplacedBoxes() {
         });
     }
   }
-  // The other half of excusing a resident: an excuse is only good if the user can
+  // The other half of excusing margin content: an excuse is only good if the user can
   // see the thing. Both readings above hand a box to something else to answer for —
   // the margin it was placed in, the container that took its overflow — and the
   // second is worth exactly what the user can tell from that container. A scroller
@@ -479,7 +484,7 @@ export function misplacedBoxes() {
   // page dropped. The user is the only party who loses them, which is why the
   // question is asked here, where the excuse was granted.
   //
-  // Every box and not floats alone. A float is how a resident reaches the margin, so
+  // Every box and not floats alone. A float is how margin content reaches the margin, so
   // it was the shape the failure first arrived in; the rule is about the excuse, and
   // a container grants that to whatever stands inside it. Held to floats it watched
   // one sidenote and let a question through: a row-form option 30px wider than the

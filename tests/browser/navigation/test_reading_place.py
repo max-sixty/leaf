@@ -196,7 +196,7 @@ def test_a_new_reading_passage_ends_a_travel_group(
         leaf_page(
             "A fresh reading stop",
             "<h1>Reading before the conversations</h1>"
-            '<p id="origin" tabindex="0">The reading before the thread journey.</p>'
+            '<p id="origin" tabindex="0">The reading before the thread navigation group.</p>'
             f'<div style="height:1800px"></div>{first}'
             '<div style="height:1800px"></div>'
             '<p id="second">The second discussion concerns the rollout.</p>'
@@ -262,7 +262,7 @@ def test_a_new_reading_passage_ends_a_travel_group(
     page.wait_for_function("navigation.transition === null")
     page.go_forward()
     # A margin card that has closed on Back returns through its source; one still
-    # standing returns focus to its card. Both are the second thread's working place.
+    # the current location returns focus to its card. Both are the second thread's working place.
     page.wait_for_function(
         "id => document.activeElement.id === 'second' || "
         "document.activeElement.closest('[data-thread]')?.dataset.thread === id",
@@ -310,8 +310,8 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     style = ' style="display:contents"' if concealment == "contents" else ""
     url = serve(
         leaf_page(
-            "One continuing journey",
-            "<h1>One continuing journey</h1>"
+            "One continuing navigation group",
+            "<h1>One continuing navigation group</h1>"
             '<p id="origin" tabindex="0">The original reading place.</p>'
             '<div style="height:1800px"></div>'
             f'<section id="first">{concealed}'
@@ -512,9 +512,9 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
 
 def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     """The obligation walk records the same history the thread walk does: one entry for a
-    journey to obligations somewhere else however far it goes, so Back returns to where the
-    user was reading before it, and a journey that crosses from threads to obligations is
-    still one journey."""
+    navigation group visiting obligations somewhere else however far it goes, so Back returns to where the
+    user was reading before it, and a navigation group that crosses from threads to obligations is
+    still one navigation group."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -580,7 +580,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     )
 
     # From the bottom again: `t` travels to the thread just below the first obligation, and
-    # `m` from there to the second continues that journey rather than starting another,
+    # `m` from there to the second continues that navigation group rather than starting another,
     # so one Back skips the thread's landing and returns to the bottom.
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
     page.keyboard.press("t")
@@ -744,7 +744,7 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
     alignment.get_by_role("button").click()
     expect(reference).to_be_hidden()
-    # The reference hands focus back before the standing paint. Its command can align
+    # The reference hands focus back before the current-location paint. Its command can align
     # before the ring supplies a scroll margin; either landing clears the pinned band.
     _expect_aligned(page, "#align-ask", exact_margin=False)
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()

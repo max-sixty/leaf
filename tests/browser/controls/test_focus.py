@@ -197,7 +197,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     # view's parent is the document, so Escape lands the user there rather than on
     # the mark that reopens it.
     toggle.focus()
-    assert page.evaluate(ringed), "the control the user is standing on says nothing"
+    assert page.evaluate(ringed), "the control the user is located on says nothing"
     page.keyboard.press("Enter")
     expect(panel).to_be_visible()
     expect(panel.locator(".lf-fp-thread").first).to_be_focused()

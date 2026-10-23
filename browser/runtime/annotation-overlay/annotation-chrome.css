@@ -8,7 +8,7 @@ body.lf-over-mark {
 }
 /* An element holding threads draws no contour at rest: its margin entry says so, and a
    box means "this, now". A contour appears for a moment — a draft on it, the pointer
-   on its row in Threads, the thread the user stands in — and is one hollow line.
+   on its row in Threads, the thread the user is in — and is one hollow line.
    Unlike a text highlight, an element mark is projected above everything the target
    draws, so any interior paint can obscure the target's own words or picture. The
    target painter keeps the contour above those descendants; the declarations below
@@ -39,7 +39,7 @@ body.lf-over-mark {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-/* The thread the user stands in draws the same accent contour. Focus on the element
+/* The thread the user is in draws the same accent contour. Focus on the element
    itself is the separate outer ring above. */
 .lf-mark-el.lf-mark-here {
   outline: 2px solid var(--accent);

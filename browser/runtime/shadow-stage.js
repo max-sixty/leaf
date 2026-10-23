@@ -24,7 +24,7 @@
    stage updates keeps Lit's markers, native editors, and directive lifetimes intact. */
 import { SHADOW_LEADING_CSS, shadowRules } from "./shadow.js";
 import { annotationMarkSheets, marksSheet } from "./stylesheets.js";
-import { watchStandingIn } from "./focus.js";
+import { watchCurrentLocationIn } from "./focus.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
@@ -50,7 +50,7 @@ export function shadowStage(host, nodes) {
   // boundary either. A focus move inside it reaches the document as no event at all.
   watchDisclosures(root);
   watchLayers(root);
-  watchStandingIn(root);
+  watchCurrentLocationIn(root);
   const rules = SHADOW_LEADING_CSS + shadowRules;
   let style = stageStyles.get(root);
   if (style?.textContent !== rules) {

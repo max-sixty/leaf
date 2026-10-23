@@ -35,7 +35,7 @@ import {
   workflowLabel,
 } from "./thread/workflow.js";
 import { renderedOrder, shadowHost, under } from "./shadow.js";
-import { placeOf } from "./standing-target.js";
+import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { scrollBehavior } from "./motion.js";
 import {

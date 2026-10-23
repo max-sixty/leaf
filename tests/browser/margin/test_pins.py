@@ -17,7 +17,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     panel_control,
     regions_side_by_side,
     resized,
@@ -571,7 +571,7 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     footer obligation's marker below the heading it stands beside."""
     page = open_page(browser, serve(FOOTER_OBLIGATION_PAGE))
     resized(page, 1440, 900)
-    pane_posture(page, page.locator("#ask-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#ask-pane"), "bounded")
     # Scroll the body until its obligation's last control, at the obligation's right edge where a
     # pin stands, is behind the footer obligation's heading, with the body obligation's heading in
     # view.

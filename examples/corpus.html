@@ -2584,8 +2584,47 @@
       import {
         afterPresentation,
         commands,
+        generate,
+        keepsText,
+        once,
+        PAGE_INTERFACE,
+        quoted,
         readObligations,
+        whileConnected,
       } from "/runtime/widget-api.js";
+
+      document.addEventListener(PAGE_INTERFACE, () => {
+        const section = document.querySelector("#bg-llm");
+        if (!section || quoted(section) || !once(section)) return;
+        const button = section.querySelector("button");
+        const output = section.querySelector("[role=status]");
+        whileConnected(section, (signal) => {
+          button.addEventListener(
+            "click",
+            async () => {
+              button.disabled = true;
+              keepsText(output, "Generating…");
+              try {
+                const result = await generate({
+                  input: "Write a five-word headline: A library now opens on Sundays.",
+                  schema: {
+                    type: "object",
+                    properties: { headline: { type: "string" } },
+                    required: ["headline"],
+                    additionalProperties: false,
+                  },
+                });
+                keepsText(output, `${result.value.headline} (${result.model})`);
+              } catch (error) {
+                keepsText(output, error.message);
+              } finally {
+                button.disabled = false;
+              }
+            },
+            { signal },
+          );
+        });
+      });
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
         const item = readObligations().all.find((q) => q.id === "widget:bg-choice");
@@ -12384,6 +12423,17 @@ switch --readers checkout-api,orders-api</code></pre>
         </lf-tab>
 
         <lf-tab id="bg-view-data" label="Data & work">
+          <section id="bg-llm">
+            <h2>LLM generation</h2>
+            <p id="bg-llm-guide">
+              Press Generate to ask the host's model for a five-word headline about a
+              library opening on Sundays. The response appears below with the model's
+              name. A page without an active Codex or Claude claim reports that a claim
+              is required. Each press can incur model usage; the result is not saved.
+            </p>
+            <button id="bg-llm-generate" class="button" type="button">Generate</button>
+            <p id="bg-llm-result" role="status">No generation requested.</p>
+          </section>
           <section id="bg-external-data">
             <p class="eyebrow bg-feature-elements">lf-text-document · lf-num</p>
             <h2>

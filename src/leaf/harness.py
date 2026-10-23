@@ -272,6 +272,10 @@ class Harness:
         telling, or gone along with the session it served."""
         return False
 
+    def inference_generator(self) -> Callable[..., dict] | None:
+        """Tool-free structured inference using this harness's login, if supported."""
+        return None
+
     def title_generator(self) -> Callable[[str, Path], dict] | None:
         """How the page server names a thread a user opens on this session's page,
         as the comment is admitted (`thread_titles`), or None where it cannot.
@@ -440,6 +444,11 @@ class ClaudeCodeHarness(EnvironmentHarness):
             .isoformat(),
         }
 
+    def inference_generator(self) -> Callable[..., dict]:
+        from leaf.inference import claude_code_generate
+
+        return claude_code_generate
+
     def title_generator(self) -> Callable[[str, Path], dict]:
         from leaf.thread_titles import claude_code_title
 
@@ -480,6 +489,11 @@ class CodexHarness(EnvironmentHarness):
     def process_pid(cls) -> int | None:
         """The nearest ancestor running the `codex` program (`lifetime`)."""
         return next((pid for pid, program in ancestry() if program == "codex"), None)
+
+    def inference_generator(self) -> Callable[..., dict]:
+        from leaf.inference import codex_generate
+
+        return codex_generate
 
     def title_generator(self) -> Callable[[str, Path], dict]:
         """An App Server of the page server's own, whichever transport carries the

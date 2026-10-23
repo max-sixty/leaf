@@ -181,3 +181,42 @@ the widget's own save, so read it again then. `writable` is false in captured do
 and exports. Editing the file records nothing in the page's log and takes no part in its
 Undo. The `file-editor` package's `lf-file-editor` provides this; use `lf-code` for a
 snapshot that should travel with the page.
+
+## LLM generation
+
+`generate({input, schema, instructions?})` asks the host's model for a structured
+response. `input` and optional `instructions` are strings; `schema` is the required
+JSON Schema for the response. Import it from `/runtime/widget-api.js`:
+
+```js
+import { generate } from "/runtime/widget-api.js";
+
+const result = await generate({
+  instructions: "Write a concise headline for this story.",
+  input: story,
+  schema: {
+    type: "object",
+    properties: { headline: { type: "string" } },
+    required: ["headline"],
+    additionalProperties: false,
+  },
+});
+```
+
+The result is `{value, model, usage, durationMs}`: `value` is parsed JSON matching
+the schema, `model` identifies the host-selected model, `usage` is
+`{inputTokens, outputTokens}` (counts may be `null` when unavailable), and
+`durationMs` measures the generation's elapsed time. Failures reject the promise.
+Leaf sends once; the underlying harness may retry network failures. Requests are
+limited to 64 KiB of input, instructions and schema combined.
+
+Generation is available only on live pages, not captured documents, exports or live
+samples. It collects no external data and writes no page data or events: the caller
+supplies the context and decides how to use the returned value.
+
+The page must have an active Codex or Claude claim. The host reuses that harness's
+existing login and selects its inexpensive model: Luna for Codex, Haiku for Claude.
+It may set `LEAF_LLM_MODEL` to a compatible model override. Credentials stay on the
+host; a widget cannot choose the model or supply tools. Leaf does not yet enforce a
+spending allowance: repeated calls can continue to incur charges. Usage is returned
+per call, not retained as a billing ledger.

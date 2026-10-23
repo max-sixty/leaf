@@ -26,8 +26,8 @@ from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
+from leaf import inference, thread_titles
 from leaf import interaction_log as interaction_model
-from leaf import thread_titles
 
 # What Codex's turn reports when the account cannot use the model it asks for.
 UNAVAILABLE_MODEL = {
@@ -162,7 +162,7 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
     [start] = [m for m in received if m.get("method") == "thread/start"]
     assert start["params"]["ephemeral"] is True
     # The website's tasks run on a model of their own; its titles do not.
-    assert start["params"]["model"] == thread_titles.CODEX_TITLE_MODEL
+    assert start["params"]["model"] == inference.CODEX_MODEL
     # The user's MCP servers would start with the thread and list their tools to it.
     assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
     # Both read the page's directory, so a project's own servers are among them.
@@ -437,7 +437,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
         finally:
             stopped.append(executable)
 
-    monkeypatch.setattr(thread_titles, "private_app_server", title_server)
+    monkeypatch.setattr(inference, "private_app_server", title_server)
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
     status, body = endpoint_model.accept_event(
         page_dir,
@@ -469,7 +469,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     start, *_ = [m for m in received if m.get("method") == "thread/start"]
     assert start["params"]["config"]["features"]["hooks"] is False
     assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
-    assert start["params"]["model"] == thread_titles.CODEX_TITLE_MODEL
+    assert start["params"]["model"] == inference.CODEX_MODEL
 
     # A reaction opens a thread with no words; the reply that gives it some names it.
     reaction = append_carried_log_record(
@@ -698,3 +698,62 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
             },
         )
     )
+
+
+def test_shared_inference_uses_the_host_model_and_checks_structured_results(
+    page_dir, app_server, tmp_path, monkeypatch
+):
+    """Widgets and titles use the same tool-free transports, with the host's model
+    and caller's schema; an answer outside that schema must not reach the caller."""
+    import pytest
+    from jsonschema import ValidationError
+
+    schema = {
+        "type": "object",
+        "properties": {"choice": {"type": "integer"}},
+        "required": ["choice"],
+        "additionalProperties": False,
+    }
+    programs = tmp_path / "programs"
+    programs.mkdir()
+    claude = programs / "claude"
+    claude.write_text(
+        TITLING_CLAUDE.replace('"title": " Export speed "', '"choice": 7').format(
+            python=sys.executable
+        )
+    )
+    claude.chmod(0o755)
+    record = tmp_path / "calls.jsonl"
+    monkeypatch.setenv("TITLING_RECORD", str(record))
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+    endpoint, received = titling_app_server(app_server, '{"choice": 7}')
+    for generate in (
+        inference.claude_code_generate,
+        inference.app_server_generate(endpoint),
+    ):
+        result = generate(
+            "Pick an item",
+            page_dir,
+            schema=schema,
+            instructions="Choose one item",
+            model="host-selected",
+        )
+        assert result["value"] == {"choice": 7}
+        assert result["model"] == "host-selected"
+        assert set(result["usage"]) == {"inputTokens", "outputTokens"}
+        with pytest.raises(ValidationError):
+            generate(
+                "Pick an item",
+                page_dir,
+                schema=thread_titles.OUTPUT_SCHEMA,
+                instructions="Choose one item",
+            )
+    call = json.loads(record.read_text().splitlines()[0])
+    assert "--model=host-selected" in call["argv"]
+    assert "--tools=" in call["argv"]
+    assert "--safe-mode" in call["argv"]
+    start = next(m for m in received if m.get("method") == "thread/start")
+    assert start["params"]["model"] == "host-selected"
+    assert start["params"]["baseInstructions"] == "Choose one item"
+    assert start["params"]["config"]["features"]["shell_tool"] is False
+    assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}

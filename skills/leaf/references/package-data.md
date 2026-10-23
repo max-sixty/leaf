@@ -29,7 +29,7 @@ moving a card again replaces that card's position while other cards keep theirs.
 `record` says how the state shows in markup, here as the card's place in a column. A
 new version may change the authored markup freely; the user's decisions still apply
 over it until a `restated` event takes one back. The `$keys` entries in
-`assets/registry.json` define each key exactly.
+`browser/registry.json` define each key exactly.
 
 The record kind fixes the event's payload, a closed object with every field required:
 
@@ -77,7 +77,7 @@ agent's report. A widget with such a verb also declares a boolean `overruled` at
 which a version sets to keep its authored state over the report. A worker that reacts to
 the user follows their actions with `leaf page events PAGE --follow`.
 
-`x-awaits` makes each matching widget put an obligation on the user's list, On me. Its
+`x-awaits` puts a widget's obligations on the user's list, On me. Its
 `value` names the verb whose
 state is the answer: the recorded value, or a recordless verb's latest `detail`. An
 options group uses `"value": "choose"` for the selected ids; a playground's unrecorded
@@ -101,12 +101,25 @@ on `choose` for single choice and on Done's `answer` for multiple choice. A part
 choice can be open and an empty selection complete. If the widget's `when` stops
 holding, a complete obligation stays answered and an incomplete one is withdrawn.
 
+A widget whose bound data contains independently answered records declares
+`records: {"input": "run", "label": "title"}` in `x-awaits`. The input binds to a stored
+source, which the server can read; widget outputs remain browser-local. The input's contract
+supplies `records.items` and `records.key`; each record's key identifies its obligation
+and its answering action's unit. The named label field supplies the prompt. For example,
+`value: "review"` with `answered: {"review": {"detail": {"approved": true}}}` completes
+each record's obligation while that unit's latest review approves it. Clearing or undoing
+approval reopens it. Source reordering preserves these identities; removing a record
+removes its obligation. The widget projects those same keys with `projectData` so Leaf's
+On me navigation can reveal each record.
+
 `x-awaits.retired` names the attribute an author sets to close an obligation but keep its
 widget on the page, such as a decided question collapsed with its options; `when` must
 require it to be absent. `x-awaits.encloses`, which `lf-ask` declares, makes a wrapper
 give the obligations inside it its heading and where the user lands; it asks nothing itself
-while it holds one, and with a heading it must hold at least one widget that asks or
-was retired.
+while it holds another widget declaring `x-awaits`. With `reply: true` instead of
+`value` and `answered`, a widget asks for the user's words; `lf-ask` uses this when it
+holds no answering widget. [module-reading.md, "Reading obligations and the On
+lists"](module-reading.md#reading-obligations-and-the-on-lists) describes which messages answer it.
 
 The module reads and records this state through `widgetController(owner)`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
@@ -303,8 +316,9 @@ back at that producer's error.
 A contract whose value holds keyed rows declares `records`, naming the array and each
 row's key, which must be a unique non-empty string. A row's large payload can be
 `deferred`: the file keeps it, but the page receives rows without it, and a widget
-fetches one with `loadDeferred(snapshot, key)`. That is how a collapsed `lf-diff` lists
-thousands of files without loading every patch:
+fetches one with `loadDeferred(snapshot, key)`. The widget decides when it needs that
+evidence; `lf-diff` loads and checks each patch before showing its row, and defers only
+textual rendering until the file opens:
 
 ```json
 {
@@ -329,5 +343,5 @@ thousands of files without loading every patch:
 }
 ```
 
-Browser subscriptions and rendering follow [module-state.md, "Data subscriptions and
-projections"](module-state.md#data-subscriptions-and-projections).
+Browser subscriptions and rendering follow [module-state.md, "Bound data and
+projections"](module-state.md#bound-data-and-projections).

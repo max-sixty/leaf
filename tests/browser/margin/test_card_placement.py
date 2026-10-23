@@ -5,8 +5,7 @@ import re
 from datetime import datetime, timedelta
 
 import pytest
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
@@ -37,6 +36,8 @@ from browser.margin import (
     leave_card_by_its_target,
     resized_shell,
 )
+from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -401,7 +402,7 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
 @pytest.mark.parametrize("how", ["press", "key"])
 def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     """What a press shows grows the card from where the user pressed, as a seat on
-    the page grows: opening an answer's progress, by pointer or key, grows the card up
+    the page grows: opening pending progress, by pointer or key, grows the card up
     past the disclosure, which stays where it was pressed. The hold ends with that
     input, so a draft typed next grows the card down from its head row."""
     url = serve(PANEL_PAGE)
@@ -411,7 +412,15 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     address = {"parent": root, "responds": root}
     for words in ("Comparing the banner.", "Checking both schemes.", "Measuring."):
         thread_model.post_reply(serve.page_dir, address, words, ephemeral=True)
-    thread_model.post_reply(serve.page_dir, address, "Done: the banner is quieter.")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "text": "And check the dark scheme?",
+        },
+    )
     page = open_page(browser, url)
     resized(page, 1200, 900)
     page.locator(".lf-margin-marker").first.click()

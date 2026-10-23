@@ -6,9 +6,6 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import append_command, response_reference
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_cases_navigation import DRAFT_TEXT, JOURNEY_V1, _publish
@@ -29,6 +26,9 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -505,7 +505,7 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
 def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, serve):
     """Editing operations stay in their box while the annotation layer is hidden.
 
-    The toolbar offers Save and Cancel, and Escape cancels as the button does, so a
+    The toolbar offers Save and Discard, and Escape discards as the button does, so a
     closed box holds no unsent words. The box's Copy control copies the Markdown source
     the box shows, the open editor's while it stands."""
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
@@ -731,3 +731,55 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, se
             if e.get("action") == "edit"
         ]
         assert len(edits) == (0 if saved == "Keep this note." else 1), action
+
+
+def test_pointer_cancel_returns_draft_room_without_delaying_reading_or_focus(
+    browser, serve
+):
+    from render_cases_interaction import HOLD_MOTION
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Cancel draft",
+                '<h1>Review</h1><div style="height:1100px"></div>'
+                '<lf-draft id="copy"><pre>Original short text.</pre></lf-draft>'
+                '<p id="after">Next section</p>',
+            )
+        ),
+        init_script=HOLD_MOTION,
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    draft = page.locator("#copy")
+    rest = draft.bounding_box()["height"]
+    draft_control(page, "edit", "copy").click()
+    editor = draft.locator("leaf-text")
+    editor.focus()
+    editor.evaluate("e=>e.select()")
+    page.keyboard.insert_text("\n\n".join(["A longer paragraph in the draft."] * 8))
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    scroll_settled(page)
+    before = draft.bounding_box()["height"]
+    scroll_before = page.evaluate("scrollY")
+    draft_control(page, "cancel", "copy").click()
+    expect(editor).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text("Original short text.")
+    expect(draft_control(page, "edit", "copy")).to_be_focused()
+    assert draft.bounding_box()["height"] == pytest.approx(before, abs=1)
+    assert page.evaluate("scrollY") == pytest.approx(scroll_before, abs=1)
+    draft.evaluate("d=>d.getAnimations()[0].currentTime=90")
+    middle = draft.bounding_box()["height"]
+    assert rest < middle < before
+    draft_control(page, "edit", "copy").click()
+    expect(editor).to_be_focused()
+    assert draft.evaluate("d=>d.getAnimations().length") == 0
+    page.keyboard.insert_text("\n" * 8)
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    assert draft.evaluate("d=>d.getAnimations().length") == 0
+    page.emulate_media(reduced_motion="reduce")
+    draft_control(page, "edit", "copy").click()
+    page.keyboard.insert_text("\n" * 8)
+    draft_control(page, "cancel", "copy").click()
+    assert draft.evaluate("d=>d.getAnimations().length") == 0

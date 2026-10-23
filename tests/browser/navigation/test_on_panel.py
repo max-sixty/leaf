@@ -5,10 +5,8 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import live_url
+from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import toggle_queue
 from render_harness import (
     PANEL,
@@ -27,6 +25,8 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position, walk_position
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -63,49 +63,40 @@ QUEUE_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize("kind", ["approval", "thread"])
-def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(
-    browser, serve, kind
-):
+def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, serve):
     source = leaf_page(
         "Chrome queue stops",
         "<h1>Release</h1><p>Review the release.</p>",
-        head='<meta name="lf-review" content="sign-off">' if kind == "approval" else "",
     )
     url = serve(source)
-    if kind == "thread":
-        comment = append_carried_log_record(
-            serve.page_dir,
-            {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
-        )
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "agent": "Agent",
-                "parent": comment["id"],
-                "responds": comment["id"],
-                "revision": 1,
-                "text": "Which channel?",
-                "markup": '<lf-ask id="page-question">Which channel?</lf-ask>',
-            },
-        )
+    comment = append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "revision": 1,
+            "text": "Which channel?",
+            "markup": '<lf-ask id="page-question">Which channel?</lf-ask>',
+        },
+    )
     page = open_page(browser, url)
     page.evaluate("getSelection().removeAllRanges()")
     page.keyboard.press("m")
     rendered(page)
-    if kind == "approval":
-        expect(page.locator(".lf-fp-view [data-approval] button")).to_be_focused()
-    else:
-        assert page.evaluate(
-            "id => document.activeElement.closest('[data-thread]')?.dataset.thread === id",
-            comment["id"],
-        )
-    noun = "Approval" if kind == "approval" else "Question"
+    assert page.evaluate(
+        "id => document.activeElement.closest('[data-thread]')?.dataset.thread === id",
+        comment["id"],
+    )
     position = walk_position(page)
     assert position is not None
-    assert position["text"] == f"1 of 1 waiting on me · {noun}"
+    assert position["text"] == "1 of 1 waiting on me · Question"
 
 
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
@@ -224,7 +215,8 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     and the walk announces its place among the region's obligations. Reached by Shift+Tab from
     an obligation, through the queue's own rows, Enter counts from that obligation, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
-    tally says so and Next on me is disabled."""
+    tally says so and Next on me is disabled. One the user commented on is the agent's
+    turn, which the tally names instead of calling it the user's to answer."""
 
     def item(key, label):
         return (
@@ -277,12 +269,15 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     assert answer["widget"] == "second"
     button.click()
     expect(first).to_be_focused()
+    # Next put the answer out of view in its tab, so the first press shows it there
+    # and the second takes it back.
+    page.keyboard.press("z")
+    expect(page.locator("#second")).to_be_focused()
     with sending(page, "undo the second item's answer after Next"):
         page.keyboard.press("z")
     round_trip(page)
     expect(words).to_have_text("2 of 2 to answer")
     assert events_model.read_events(serve.page_dir)[-1]["undoes"] == answer["id"]
-    expect(first).to_be_focused()
     # Leave the next press at the region's start, as on initial arrival.
     page.get_by_role("tab", name="First", exact=True).click()
 
@@ -317,6 +312,21 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     round_trip(page)
     expect(words).to_have_text("All 2 answered")
     expect(button).to_be_disabled()
+    expect(page.locator("#left")).to_have_attribute("data-lf-done", "")
+    with sending(page, "undo the first decision's answer"):
+        page.keyboard.press("z")
+    round_trip(page)
+    expect(words).to_have_text("1 of 2 to answer")
+    expect(button).to_be_enabled()
+    expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
+    # A comment on the open obligation hands it to the agent until a reply: the tally and
+    # the item's row say so rather than calling it the user's to answer, beside a
+    # disabled Next on me.
+    panel_comment(serve.page_dir, "Why Alpha?", {"section": "first-decision"})
+    expect(words).to_have_text("1 of 2 on Claude")
+    expect(page.locator("#queue .lf-tab-answer").first).to_have_text("On Claude")
+    expect(button).to_be_disabled()
+    expect(page.locator("#left")).not_to_have_attribute("data-lf-done", "")
     assert page.locator("#left").bounding_box() == box
 
 

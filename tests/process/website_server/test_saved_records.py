@@ -1,6 +1,7 @@
 """How a container's saved website record restores a fresh release: stored chunks,
 publication dates, comments, choices, private revisions and installed layers."""
 
+import asyncio
 import base64
 import hashlib
 import io
@@ -12,6 +13,7 @@ import sys
 import tarfile
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -25,6 +27,7 @@ from interact_support import (
     publish,
     running_http_server,
 )
+
 from leaf.delivery import receive_batch
 from leaf.event_log import read_events
 from leaf.files import latest_revision, revision_path
@@ -32,10 +35,10 @@ from leaf.hosting import LeafHTTPServer
 from leaf.packages import cmd_package_install
 from leaf.refusals import Refused
 from leaf.registry.storage import layer_packages
+from leaf.runtime_selection import serving_runtime
 from leaf.service import PageTransaction, acknowledged, unacknowledged
 from leaf.structure import SourceDocument
 from leaf.vendoring import cmd_init
-
 from process.website_server import (
     FakeCodexHarness,
     write_manifest,
@@ -229,8 +232,15 @@ def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     with durable_page_store() as (store_url, _stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
         restore(site)
-        with PageTransaction(private):
-            pass
+
+        async def commit_with_running_loop():
+            with PageTransaction(private):
+                pass
+
+        # Playwright's session fixture may already own this thread's event loop.
+        # Give the active-loop publication case its own loop regardless of order.
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(asyncio.run, commit_with_running_loop()).result()
         replacement = tmp_path / "replacement"
         shutil.copytree(site, replacement)
         restore(replacement)
@@ -241,6 +251,50 @@ def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
         recovered["browser"]["views"][str(activation.revision)]["published_at"]
         == expected
     )
+
+
+def test_a_saved_published_revision_loads_its_layer_from_the_release(
+    page_dir, tmp_path, monkeypatch
+):
+    """A comment on a published revision saves its document, not the revision's
+    resources: the release publishes those beside the runtime it runs, so the saved
+    document names them there, and a reload while the container sleeps loads them
+    from the edge rather than waking it for them."""
+    from leaf_website.storage import restore
+
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    page = manifest["pages"]["/example"]
+    page["states"] = {"1": "unused"}
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
+        restore(site)
+        append_command(
+            private,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Saved beside the published revision",
+                "attempt": "saved-comment-0001",
+            },
+        )
+        with PageTransaction(private):
+            pass
+        publication = stored["publications"][-1]
+    response = publication["responses"][""]
+    document = b"".join(stored["blobs"][digest] for digest in response["chunks"])
+    published = f"{page['assets']}/revisions/{revision_path(private, 1).stem}"
+    assert f'data-lf-entry="{published}/leaf.js"'.encode() in document
+    assert not any(path.startswith("revisions/") for path in publication["responses"])
 
 
 def test_saved_website_record_restores_comments_choices_and_private_revision(
@@ -376,7 +430,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
             for key in publication["responses"]
             if key.startswith("revisions/r2-") and key.endswith("/leaf.js")
         ]
-        assert body(private_entry) == (private / "leaf.js").read_bytes()
+        assert body(private_entry) == serving_runtime().resources({})["/leaf.js"].data
         # Start a fresh filesystem from the same release image.
         replacement = tmp_path / "replacement"
         shutil.copytree(site, replacement, ignore=shutil.ignore_patterns("page"))
@@ -496,23 +550,20 @@ def test_saved_website_record_restores_an_installed_layer(
         restore(replacement)
         recovered = replacement / "page"
         assert not (recovered / "vendor" / "obsolete.txt").exists()
-        for name in (
-            "registry.json",
-            "leaf.js",
-            "widgets/lf-restored.js",
-            "runtime/layer-generation.js",
-        ):
+        for name in ("registry.json", "theme.css", "widgets/lf-restored.js"):
             assert (recovered / name).read_bytes() == (private / name).read_bytes()
         assert (recovered / "instructions" / "author.md").read_bytes() == (
             private / "instructions" / "author.md"
         ).read_bytes()
         # Mutable restored layer files must not share writable inodes with the
         # immutable same-release revision used as their storage reference.
-        baseline = revision_path(recovered, 1).with_suffix("") / "resources" / "leaf.js"
+        baseline = (
+            revision_path(recovered, 1).with_suffix("") / "resources" / "theme.css"
+        )
         original = baseline.read_bytes()
-        (recovered / "leaf.js").write_bytes(b"edited mutable layer")
+        (recovered / "theme.css").write_bytes(b"edited mutable layer")
         assert baseline.read_bytes() == original
-        (recovered / "leaf.js").write_bytes((private / "leaf.js").read_bytes())
+        (recovered / "theme.css").write_bytes((private / "theme.css").read_bytes())
         state = website_server.initial_state(
             recovered, "/example", "example", manifest["release"]
         )

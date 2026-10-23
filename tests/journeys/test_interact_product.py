@@ -1,6 +1,5 @@
 """Version corpus, registry, message, and export tests."""
 
-import leaf.validation.command as checking_command
 import pytest
 from interact_support import (
     PAGE,
@@ -10,9 +9,12 @@ from interact_support import (
     fragment_errors,
     publish,
 )
-from leaf.registry import storage as registry_storage
+from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 from model.test_interact_product import PAGE_FIXTURES, run_leaf
+
+import leaf.validation.command as checking_command
+from leaf.registry import storage as registry_storage
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_dir):
@@ -53,11 +55,12 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
 # across workers rather than holding one for the whole tree.
 @pytest.mark.parametrize(
     "example",
-    PAGE_FIXTURES,
+    (*PAGE_FIXTURES, "corpus"),
     ids=[
         example.relative_to(ROOT).with_suffix("").as_posix()
         for example in PAGE_FIXTURES
-    ],
+    ]
+    + ["corpus"],
 )
 def test_page_fixtures_pass_check(example, tmp_path, monkeypatch, initialized_page):
     """Every page fixture in the tree passes the real check: each public example and
@@ -65,6 +68,8 @@ def test_page_fixtures_pass_check(example, tmp_path, monkeypatch, initialized_pa
     is built by nothing else before a user asks for it, so without this a
     playground that names media it never committed stays green until preview
     refuses it."""
+    if example == "corpus":
+        example = named_source("corpus")
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     fixture = read_fixture(example)
     d = initialized_page(tmp_path / "page", fixture.packages)

@@ -6,11 +6,11 @@ commands, and each command's `--help` says what it does.
 
 Only the root dev dependency group installs this package, so the checkout's
 environment has it and `bin/leaf`, which runs `--no-dev`, never does. Nothing in
-`skills/` may import it.
+`src/` may import it.
 
-A command writes under `.tmp/` unless its reader expects the output at a committed
-path, as with `examples/corpus.html`. Evidence, previews and probe results leave the
-tracked tree unchanged.
+A command writes under `.tmp/` unless its reader expects another path. The corpus
+uses ignored `examples/corpus.*` paths so repeated previews keep their source identity.
+Evidence, previews and probe results leave the tracked tree unchanged.
 
 ## Where tooling goes
 
@@ -45,6 +45,9 @@ here that the others import, never through `sys.path`, `PYTHONPATH` or a file pa
   takes an HTTP(S) URL, a `--journey` file, and `--record` for a trace and video
   (`recording.py`, whose `recording(page, directory)` works in any Playwright
   script). Its startup report includes layout shifts, for diagnosis only.
+- `leaf-dev claude-code-session` leaves a Claude Code session running in tmux with
+  this working tree as its live plugin and a served page, to see what
+  `hooks/claude-code.ts` draws in Claude Code itself; `--stop` ends it.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states on a base runtime
   and on HEAD's, and crops each state that changed into a before/after pair under
   `.tmp/stills/`. Repeat `--state NAME` to compare only some states.
@@ -117,7 +120,9 @@ Node evaluator smoke test is separate from `pnpm check`.
 
 - `leaf-dev preview [EXAMPLE]` serves one example or developer fixture as a live page,
   or exports it with `--export`. `/developing-leaf` says when to pass `--user`.
-- `leaf-dev corpus` generates `examples/corpus.html` and its companions.
+- `leaf-dev corpus` generates the ignored `examples/corpus.html` snapshot and its
+  companions. Named corpus consumers generate it automatically; running corpus
+  previews also regenerate when their authored sources change.
 
 ## Website and demo
 

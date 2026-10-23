@@ -2,6 +2,7 @@
 default width, elevation, coarse-pointer aims, safe areas, and phone-width wrapping."""
 
 import pytest
+from playwright.sync_api import expect
 from render_cases_layout import UNBREAKABLE_PAGE
 from render_harness import (
     LONG_PAGE,
@@ -14,6 +15,55 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, touch):
+    """Authored choices share their label's hit area and focus ring without boxing
+    selection or enlarging the native mark for a finger."""
+    source = leaf_page(
+        "Preview settings",
+        '<h1>Preview settings</h1><div role="group" aria-label="Detail">'
+        '<label class="choice"><input type="radio" name="detail" value="summary" checked>'
+        "<span>Summary</span></label>"
+        '<label class="choice"><input type="radio" name="detail" value="full">'
+        "<span>Full detail</span></label></div>"
+        '<label class="choice"><input type="checkbox" name="notes">'
+        "<span>Include notes</span></label>",
+    )
+    context = browser.new_context(has_touch=touch)
+    page = open_page(browser, serve(source), context=context)
+    full = page.get_by_role("radio", name="Full detail")
+    face = page.locator("label").filter(has=full)
+    before = face.bounding_box()
+    words = face.get_by_text("Full detail")
+    words.tap() if touch else words.click()
+    expect(full).to_be_checked()
+    full.press("ArrowLeft")
+    summary = page.get_by_role("radio", name="Summary", exact=True)
+    expect(summary).to_be_checked()
+    expect(summary).to_be_focused()
+    assert face.bounding_box() == before
+    ring = (
+        page.locator("label")
+        .filter(has=summary)
+        .evaluate("el => getComputedStyle(el).outlineStyle")
+    )
+    assert ring == "solid"
+    words = page.get_by_text("Include notes", exact=True)
+    words.tap() if touch else words.click()
+    expect(page.get_by_role("checkbox", name="Include notes")).to_be_checked()
+    readings = page.locator("label.choice").evaluate_all("""labels => labels.map(label => {
+      const style = getComputedStyle(label), box = label.getBoundingClientRect();
+      const mark = label.querySelector('input').getBoundingClientRect();
+      return {height: box.height, floor: parseFloat(style.getPropertyValue('--aim-floor')),
+        mark: mark.height, border: style.borderStyle, background: style.backgroundColor};
+    })""")
+    for reading in readings:
+        assert reading["height"] >= reading["floor"]
+        assert reading["mark"] < reading["floor"]
+        assert reading["border"] == "none"
+        assert reading["background"] == "rgba(0, 0, 0, 0)"
 
 
 def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
@@ -112,14 +162,10 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
 def test_coarse_pointer_panel_lists_give_humane_aims(browser, serve):
     """Touch keeps the panel's compact paint while its lists' rows take a finger-sized
     aim."""
-    html = LONG_PAGE.replace(
-        "<title>long</title>",
-        '<title>long</title><meta name="lf-review" content="sign-off">',
-    )
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
-    page = open_page(browser, serve(html, comments=1), context=context)
+    page = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
         "the touch fixture never reached Leaf's coarse-pointer rules"
     )

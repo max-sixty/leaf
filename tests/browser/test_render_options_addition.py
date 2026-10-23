@@ -4,7 +4,6 @@ import base64
 
 import pytest
 from interact_support import append_carried_log_record, stamp
-from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
@@ -29,6 +28,8 @@ from render_harness import (
     told,
     write,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -116,6 +117,9 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     add_box = add.bounding_box()
     assert add_box["width"] >= aim_floor
     assert add_box["height"] >= aim_floor
+    assert add_box["y"] + add_box["height"] / 2 == pytest.approx(
+        field_box["y"] + field_box["height"] / 2, abs=0.5
+    )
     assert 0 < form_box["y"] + form_box["height"] - add_box["y"] - add_box["height"] < 8
     write(field, "First line\nSecond line\nThird line")
     grown_form_box = form.bounding_box()
@@ -170,6 +174,18 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert add_box["width"] >= 44
     assert coarse["press"] == "rgba(0, 0, 0, 0)"
     assert coarse["discWidth"] == face["discWidth"]
+
+    # A one-line touch target must stay in its own row rather than covering the
+    # option above it. It shares the text line's centre even with the larger target.
+    write(field, "Portrait sketch")
+    form_box = form.bounding_box()
+    field_box = field.bounding_box()
+    add_box = add.bounding_box()
+    assert add_box["y"] >= form_box["y"]
+    assert add_box["y"] + add_box["height"] <= form_box["y"] + form_box["height"]
+    assert add_box["y"] + add_box["height"] / 2 == pytest.approx(
+        field_box["y"] + field_box["height"] / 2, abs=0.5
+    )
 
 
 def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(

@@ -2,4 +2,4 @@
 prompt: |-
   {prompt}
 
-  Author the page in {page}/index.html. The page is initialized and writable. Your working directory is {cwd}; cited capture files are relative to it. $LEAF is {payload}/bin/leaf. You can use native tools to read the registry, edit files, register or prepare media, and check the page.
+  Author the page in {page}/index.html. The page is initialized and writable. Your working directory is {cwd}; cited capture files are relative to it.

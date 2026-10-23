@@ -14,7 +14,7 @@
 // markers while updating real content, so comment-only restoration is not judged.
 // Such a rendered write still costs a style pass and a repaint, of the whole document while
 // a CSS highlight holds a range, so code writes only what changed
-// (skills/leaf/assets/AGENTS.md).
+// (browser/AGENTS.md).
 //
 // Each finding is reported once per document: a writer that fires every frame would
 // otherwise bury the report under its own repetitions.
@@ -240,6 +240,10 @@
       what === "class" &&
       is(node, "div.cm-line.lf-field-last") &&
       hosts(node)[0]?.localName === "leaf-text",
+    // CodeMirror's setAttrs assigns a line's style whenever it syncs the line's
+    // attributes, as a list item's line carries its depth and number.
+    (what, node) =>
+      what === "style" && is(node, "div.cm-line.lf-md-item") && hosts(node).length > 0,
     // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
     // editor updates, including equivalent line-break nodes in either editor host.
     (what, node) =>
@@ -257,6 +261,12 @@
     // as they update, and restate what their own shadow trees hold.
     (what, node) => what !== "children" && node.localName?.startsWith("wa-"),
     (what, node) => hosts(node).some((host) => host.localName.startsWith("wa-")),
+    // Trees restores native row focus after closing search, restating the focus
+    // marker its row renderer already painted.
+    (what, node) =>
+      what === "data-item-focused" &&
+      is(node, 'button[role="treeitem"]') &&
+      hosts(node)[0]?.localName === "lf-file-tree",
     // Viewer.js reapplies image/canvas classes and magnifier visibility when an
     // inspected image changes. It is an upstream-owned renderer; Leaf's adapter
     // controls remain watched.
@@ -270,6 +280,9 @@
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     (what, node) => what === "class" && is(node, ".lf-ghost"),
+    // Sortable's drop sets the pressed card's `draggable` to false on every release of
+    // its grip, whether or not the press became a drag.
+    (what, node) => what === "draggable" && is(node, "lf-card"),
     // PhotoSwipe reasserts its root's zoom and pointer classes while handling
     // gestures and viewport changes, including when those classes already stand.
     (what, node) => what === "class" && is(node, "div.pswp"),

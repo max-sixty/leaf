@@ -7,13 +7,7 @@ import pytest
 from interact_support import (
     add_test_widget,
 )
-from leaf import render_checks as render_checks_model
-from leaf.files import latest_revision
-from leaf.findings import Finding
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.preview import preview_server
-from leaf.revision_artifact import read_revision
+from leaf_dev.example_data import named_source
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
@@ -42,7 +36,6 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
-    CORPUS_PAGE,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
@@ -60,6 +53,14 @@ from render_harness import (
     still_page,
     take_browser_errors,
 )
+
+from leaf import render_checks as render_checks_model
+from leaf.files import latest_revision
+from leaf.findings import Finding
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.preview import preview_server
+from leaf.revision_artifact import read_revision
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -107,7 +108,7 @@ def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve, subt
     # The corpus's sort film otherwise repaints SVG values while the sheets move.
     page = open_page(
         browser,
-        serve(CORPUS_PAGE),
+        serve(named_source("corpus")),
         context=browser.new_context(
             viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
         ),
@@ -902,6 +903,24 @@ def test_page_fixture_renders(browser, serve, source):
     assert failed == {}, "\n\n".join(
         f"{journey}:\n" + "\n".join(found) for journey, found in failed.items()
     )
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_page_fixture_opens_without_firefox_console_warnings(
+    firefox_browser, serve, source
+):
+    """Firefox says in its console what Chrome never does, such as a `document.write`
+    that made it reparse the document, layout forced before the page loaded, or a
+    response blocked as opaque. Every page of the corpus, each live sample loaded,
+    leaves the console as `firefox_browser` requires: empty."""
+    page = open_page(firefox_browser, serve(source))
+    for sample in page.locator("lf-sample[data-lf-sample-live]").all():
+        sample.scroll_into_view_if_needed()
+        sample.evaluate(
+            """sample => Promise.race([sample.ready, new Promise((_, reject) =>
+              setTimeout(() => reject(new Error(`${sample.id} never got ready: ${
+                sample.textContent.trim().slice(0, 80)}`)), 60_000))])"""
+        )
 
 
 def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):

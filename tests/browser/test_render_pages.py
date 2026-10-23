@@ -12,11 +12,6 @@ from interact_support import (
     append_carried_log_record,
     record_claim,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import schema as schema_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
-from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -90,6 +85,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import schema as schema_model
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf.render_gate.scheme import console_finding
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -559,7 +559,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
     expect(view).to_be_visible()
-    expect(page.locator(".lf-fp-settle")).to_have_text("Reopen", use_inner_text=True)
+    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
 
 
@@ -717,6 +717,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     example = next(path for path in EXAMPLES if path.stem == "release-notes")
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
+    shot.get_by_role("button", name="Slider", exact=True).click()
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
     clip = {
@@ -846,7 +847,7 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
     assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
-    shot.locator('.lf-shotcap[data-lf-state="after"]').click()
+    shot.get_by_role("button", name="Pair", exact=True).click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
 
@@ -3283,7 +3284,7 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     parent is the shell it is placed in. A column whose box is a child of `main` takes
     the same column, margin residents, contents map and breakouts as one on `main`
     itself, at a width where the shell must shift the column for its sidebar, and a
-    workspace whose box is a child fills the window as it does on `main`. A `main` the
+    root workspace fills the window while a child keeps document end room. A `main` the
     page narrows, borders or gives scrollbar gutters is the shell the child column
     measures, so nothing it holds stands past its edges or over its border or gutters."""
     column_body = """
@@ -3359,8 +3360,13 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     assert on_main["contents"][2] == "fixed", on_main
     assert without_main(in_child) == without_main(on_main)
     on_main, in_child = measured(workspace_body, "workspace", 1280)
-    assert without_main(in_child) == without_main(on_main)
-    assert on_main["regions"][3] > 700, on_main
+    assert {
+        k: v for k, v in without_main(in_child).items() if k not in ("box", "regions")
+    } == {k: v for k, v in without_main(on_main).items() if k not in ("box", "regions")}
+    for key in ("box", "regions"):
+        assert in_child[key][:3] == on_main[key][:3]
+        assert in_child[key][3] < on_main[key][3]
+    assert on_main["regions"][3] == 800, on_main
 
     narrowed = "<style>main { max-width: 900px; margin-inline: auto; }</style>"
     _, in_child = measured(column_body, "column", 1440, head=narrowed)
@@ -3379,6 +3385,90 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     assert left - in_child["main"][0] == 140, in_child
     for edges in (in_child["box"], in_child["route"][0], in_child["room"][0]):
         assert left <= edges[0] and edges[1] <= right, in_child
+
+
+def test_a_page_views_sidebar_uses_the_columns_margin(browser, serve):
+    """Page navigation replaces the reading body, including its margin residents.
+
+    A view's sidebar stands beside the column just as a sidebar directly in the
+    column does. Switching to a view without one returns that margin to the page;
+    a sidebar in a nested tabbed box stays with the box instead.
+    """
+    source = leaf_page(
+        "view sidebars",
+        """<h1>Release review</h1>
+<lf-tabs id="topics">
+  <lf-tab id="evidence-view" label="Evidence">
+    <aside class="sidebar" id="view-route"><p>Read the evidence.</p></aside>
+    <h2 id="evidence-title">Evidence</h2><p>Compare the counts.</p>
+    <div id="view-evidence" data-width="available">Wide evidence.</div>
+  </lf-tab>
+  <lf-tab id="decision-view" label="Decision">
+    <h2>Decision</h2>
+    <lf-tabs id="local-views"><lf-tab id="local" label="Local detail">
+      <aside class="sidebar" id="local-route"><p>Local context.</p></aside>
+      <p>One nested view.</p>
+    </lf-tab></lf-tabs>
+  </lf-tab>
+</lf-tabs>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    sidebar = page.locator("#view-route")
+    expect(sidebar).to_have_css("float", "left")
+    box = sidebar.bounding_box()
+    heading = page.locator("#evidence-title").bounding_box()
+    assert box["x"] + box["width"] < heading["x"], (box, heading)
+    expect(page.locator("main")).to_have_attribute(
+        "data-lf-margin", re.compile("sidebar")
+    )
+    page.get_by_role("tab", name="Decision", exact=True).click()
+    rendered(page)
+    expect(page.locator("#local-route")).to_have_css("float", "none")
+    expect(page.locator("main")).not_to_have_attribute(
+        "data-lf-margin", re.compile("sidebar")
+    )
+    page.get_by_role("tab", name="Evidence", exact=True).click()
+    expect(sidebar).to_have_css("float", "left")
+    resized(page, 390, 844)
+    expect(sidebar).to_have_css("float", "none")
+    expect(sidebar).to_be_visible()
+    page.close()
+
+    # A map in another topic cannot narrow the room reserved for the current
+    # topic's ordinary sidebar, or wide evidence would draw under its words.
+    page = open_page(
+        browser,
+        serve(
+            source.replace(
+                "<h2>Decision</h2>",
+                '<aside class="sidebar"><lf-toc id="decision-contents"></lf-toc>'
+                "</aside><h2>Decision</h2>",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    route = page.locator("#view-route").bounding_box()
+    wide = page.locator("#view-evidence").bounding_box()
+    assert wide["x"] >= route["x"] + route["width"], (route, wide)
+    page.close()
+
+    # The column owns one margin slot: a page-wide sidebar takes it before the
+    # current view's, so the two never overlap after scrolling.
+    page = open_page(
+        browser,
+        serve(
+            source.replace(
+                "<h1>Release review</h1>",
+                '<h1>Release review</h1><aside class="sidebar" id="page-route">'
+                "<p>Whole-page context.</p></aside>",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    expect(page.locator("#page-route")).to_have_css("float", "left")
+    expect(page.locator("#view-route")).to_have_css("float", "none")
+    page.close()
 
 
 def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, serve):

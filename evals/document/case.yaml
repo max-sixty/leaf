@@ -11,6 +11,34 @@ metadata:
   executor: leaf_dev.arrangement_eval
   scenario: document
 variants:
+  page-question:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: page-question
+      purpose: Open a page thread and register its unanswered question as a user obligation.
+      conditions:
+        - leaf
+  page-update:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: page-update
+      purpose: Send a factual page-thread update without creating a user obligation.
+      conditions:
+        - leaf
+  clarification:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: clarification
+      purpose: Open a thread for missing information and settle its user obligation when answered in chat.
+      conditions:
+        - leaf
+  clarification-reply:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: clarification-reply
+      purpose: Ask back in a live thread and clear the obligation when the user replies there.
+      conditions:
+        - leaf
   resume:
     metadata:
       executor: leaf_dev.usability_eval

@@ -9,14 +9,6 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference, wait_for
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import structure as structure_model
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -91,6 +83,14 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import anchor_capture as anchor_capture_model
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import structure as structure_model
+from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1931,7 +1931,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
         """async (langs) => {
           const { parsePatchFiles } =
             await window.__lfVendorImport('pierre-parser.esm.js');
-          const { preloadDiffHTML } =
+          const { DiffHunksRenderer, renderHTML } =
             await window.__lfVendorImport('pierre-diffs.esm.js');
           const { themeName } =
             await window.__lfVendorImport('syntax.esm.js');
@@ -1948,10 +1948,11 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             try {
               const file = parsePatchFiles(source, undefined, true)[0].files[0];
               file.lang = lang;
-              const html = await preloadDiffHTML({
-                fileDiff: file,
-                options: {theme: themeName},
+              const renderer = new DiffHunksRenderer({
+                theme: themeName, diffStyle: 'unified', useTokenTransformer: false,
               });
+              const rendered = await renderer.asyncRender(file);
+              const html = renderHTML(rendered.unifiedContentAST);
               if (!html.includes('new')) bad.push([lang, 'rendered no source']);
             } catch (error) {
               bad.push([lang, String(error)]);
@@ -2024,16 +2025,16 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
           text: s.textContent.trim(),
           chrome: s.classList.contains('lf-ui'),
         })),
-        numbers: [...d.querySelectorAll('[data-line-number-content]')].map(n => ({
+        numbers: [...d.querySelectorAll('.lf-diff-line-comment')].map(n => ({
           text: n.textContent,
           chrome: n.classList.contains('lf-ui'),
           generated: n.dataset.lfGen === '1',
-          hidden: n.getAttribute('aria-hidden'),
+          label: n.getAttribute('aria-label'),
           userSelect: getComputedStyle(n).userSelect,
           face: [getComputedStyle(n).fontFamily, getComputedStyle(n).fontSize],
         })),
-        code: [getComputedStyle(d.querySelector('pre[data-diff]')).fontFamily,
-               getComputedStyle(d.querySelector('pre[data-diff]')).fontSize],
+        code: [getComputedStyle(d.querySelector('code[data-code]')).fontFamily,
+               getComputedStyle(d.querySelector('code[data-code]')).fontSize],
       };
     })""")
     by_path = {f["path"]: f["lines"] for f in files}
@@ -2060,7 +2061,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         number["text"].isdigit()
         and number["chrome"]
         and number["generated"]
-        and number["hidden"] == "true"
+        and number["label"].startswith("Comment on ")
         and number["userSelect"] == "none"
         for number in numbers
     ), numbers
@@ -2079,7 +2080,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       const reference = document.createElement('pre');
       reference.textContent = 'literal evidence';
       document.querySelector('main').append(reference);
-      const rendered = shadow.querySelector('pre[data-diff]');
+      const rendered = shadow.querySelector('code[data-code]');
       const statText = shadow.querySelector('.lf-diff-stat').textContent;
       const leafFont = getComputedStyle(reference).fontFamily;
       const leafFontSize = getComputedStyle(reference).fontSize;
@@ -2095,17 +2096,15 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         saysStat: says(document).includes(statText),
         wroteStat: wrote(document).includes(statText),
         lineNumberWords: segments
-          .filter(({node}) => node.parentElement?.closest('[data-line-number-content]'))
+          .filter(({node}) => node.parentElement?.closest('.lf-diff-line-comment'))
           .map(({node}) => node.data),
         separatorText: segments
           .filter(({node}) => node.parentElement?.closest('[data-separator]'))
           .map(({node}) => node.data),
-        coreSheets: shadow.querySelectorAll('style[data-core-css]').length,
-        themeSheets: shadow.querySelectorAll('style[data-theme-css]').length,
         font: getComputedStyle(rendered).fontFamily,
         fontSize: getComputedStyle(rendered).fontSize,
         lineHeight: getComputedStyle(rendered).lineHeight,
-        background: getComputedStyle(rendered).backgroundColor,
+        background: getComputedStyle(rendered.parentElement).backgroundColor,
         leafFont,
         leafFontSize,
         leafLineHeight,
@@ -2124,7 +2123,6 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert reading["separatorText"] == [], (
         f"Pierre separator chrome entered the page reading: {reading}"
     )
-    assert (reading["coreSheets"], reading["themeSheets"]) == (1, 1), reading
     assert reading["font"] == reading["leafFont"], reading
     assert reading["fontSize"] == reading["leafFontSize"] == "12.5px", reading
     assert reading["lineHeight"] == reading["leafLineHeight"] == "19px", reading
@@ -2200,6 +2198,31 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert selected == "  burst: 40"
     page.evaluate("getSelection().removeAllRanges()")
 
+    # Native multi-line copying crosses the interleaved numbered controls. Only the
+    # source belongs on the clipboard; generated indicators and buttons stay behind.
+    page.locator("lf-diff [data-line]").filter(
+        has_text="burst: 20"
+    ).scroll_into_view_if_needed()
+    ends = page.evaluate("""() => {
+      const root = document.querySelector('#patch').shadowRoot;
+      const lines = [...root.querySelectorAll('[data-line]')].filter(line =>
+        line.closest('details').querySelector('.lf-diff-path').textContent === 'gateway/config.yaml');
+      const range = document.createRange();
+      range.selectNodeContents(lines[0]);
+      const first = range.getBoundingClientRect();
+      range.selectNodeContents(lines.at(-1));
+      const last = range.getBoundingClientRect();
+      return [[first.left, first.top + first.height / 2],
+              [last.right, last.top + last.height / 2]];
+    }""")
+    select(page, *ends)
+    copied = "  burst: 20\n  burst: 40\n  window: 60"
+    assert page.evaluate("getSelection().toString()") == copied
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.keyboard.press("ControlOrMeta+C")
+    assert page.evaluate("navigator.clipboard.readText()") == copied
+    page.evaluate("getSelection().removeAllRanges()")
+
     files = page.evaluate("""() => [...document.querySelector('#patch').shadowRoot
       .querySelectorAll('details')].map(d => ({
       path: d.querySelector('.lf-diff-path').textContent,
@@ -2209,7 +2232,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         marks: [...line.querySelectorAll('[data-diff-span]')].map(span => span.textContent),
         inked: [...line.querySelectorAll('[data-diff-span] [data-lf-syn]')]
           .map(span => [span.style.color, span.textContent]),
-        linePaint: getComputedStyle(line).backgroundColor,
+        linePaint: getComputedStyle(line.parentElement).backgroundColor,
         prePaint: getComputedStyle(line.closest('pre')).backgroundColor,
         markPaint: [...line.querySelectorAll('[data-diff-span]')].map(span => {
           const style = getComputedStyle(span);
@@ -2511,7 +2534,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         rendered: host.classList.contains('lf-rendered'),
         error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         details: shadow?.querySelectorAll('details').length ?? 0,
-        diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
+        diffs: shadow?.querySelectorAll('pre').length ?? 0,
         renameCount: renames.length,
         from: rename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
         to: rename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
@@ -2588,6 +2611,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     )
     page = open_page(browser, url)
 
+    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     handle.scroll_into_view_if_needed()
@@ -4176,6 +4200,37 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
         page.unroute(view_request)
 
 
+def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, serve):
+    """A failed replacement leaves no old marks and releases its selected base."""
+    v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
+    v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, v2, "reworded the neighbour")
+    _publish(serve.page_dir, 3, v3, "reworded the compound")
+    page = open_page(browser, url.replace("v1.html", "v3.html"))
+    compare_with(page, 1)
+    expect(page.locator(".lf-ins-block")).to_have_count(2)
+
+    held = []
+    view_request = re.compile(r"/api/view\?")
+    page.route(view_request, lambda route: held.append(route))
+    compare_with(page, 2)
+    holding(page, held, 1, "the replacement comparison")
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+    held[0].fulfill(status=500, json={"error": "comparison unavailable"})
+    expect_panel_says(page, "Couldn't load v2")
+    consume_browser_errors(page, http_error_console(500))
+    page.unroute(view_request)
+
+    menu = panel_menu(page, "versions")
+    compare = menu.get_by_role("menuitem", name="Compare with v2")
+    expect(compare).to_have_attribute("aria-pressed", "false")
+    # A pending choice left behind would treat this press as cancellation.
+    compare.click()
+    expect(page.locator(".lf-ins-block")).to_have_count(1)
+    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
+
+
 def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     """A page that ships a version whenever the work moves leaves its user behind by
     more than one, and "what changed since the previous version" is then the wrong
@@ -4407,7 +4462,7 @@ def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser,
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
-    line = page.locator('lf-diff [data-content] [data-line-type="change-addition"]')
+    line = page.locator('lf-diff [data-line][data-line-type="change-addition"]')
     # Where the phrase's first and last glyphs stand, so the drag starts and ends on them.
     ends = line.evaluate(
         """line => {
@@ -5332,7 +5387,7 @@ new file mode 120000
         rendered: host.classList.contains('lf-rendered'),
         error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         details: shadow?.querySelectorAll('details').length ?? 0,
-        diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
+        diffs: shadow?.querySelectorAll('pre').length ?? 0,
         renameCount: renames.length,
         evidence: [...shadow.querySelectorAll(".lf-diff-evidence")].map(node => node.textContent),
         metadata: renames.slice(3).map(node => node.querySelector('.lf-diff-stat').textContent),

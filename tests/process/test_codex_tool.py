@@ -12,13 +12,13 @@ import time
 import pytest
 from interact_support import ROOT, STATED_TIMEOUT
 
-SERVER = ROOT / "skills" / "leaf" / "scripts" / "leaf" / "codex_tool.py"
+SERVER = ROOT / "src" / "leaf" / "codex_tool.py"
 
 # Stands in for Leaf behind the plugin's launcher, which runs a host's launcher in
 # its place: it says where it ran, for which thread, with which words and stdin.
 HOST_LAUNCHER = """#!/bin/sh
 if [ "$1" = wait ]; then echo $$ > wait.pid; exec sleep 600; fi
-printf '%s|%s|%s|%s' "$PWD" "$CODEX_THREAD_ID" "$*" "$(cat)"
+printf '%s|%s|%s|%s|%s' "$PWD" "$CODEX_THREAD_ID" "$*" "$(cat)" "$CODEX_INTERNAL_ORIGINATOR_OVERRIDE"
 echo refused >&2
 exit 3
 """
@@ -32,8 +32,14 @@ def server(tmp_path, monkeypatch):
     launcher.write_text(HOST_LAUNCHER)
     launcher.chmod(0o700)
     monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(launcher))
+    monkeypatch.setenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "Codex Desktop")
+    manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())
+    # MCP inherits its platform defaults plus the plugin's declared variables.
+    # HOME and PATH are the only platform defaults this stand-in needs.
+    forwarded = {"HOME", "PATH", *manifest["mcpServers"]["leaf"]["env_vars"]}
     process = subprocess.Popen(
         [sys.executable, "-I", str(SERVER)],
+        env={key: value for key, value in os.environ.items() if key in forwarded},
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
@@ -69,16 +75,18 @@ class Session:
         assert answer["id"] == id
         return answer["result"]
 
-    def call(self, id: int, arguments: dict) -> None:
+    def call(
+        self,
+        id: int,
+        arguments: dict,
+        thread: str = "codex-thread",
+    ) -> None:
+        meta = {"threadId": thread}
         self.send(
             {
                 "id": id,
                 "method": "tools/call",
-                "params": {
-                    "name": "run",
-                    "arguments": arguments,
-                    "_meta": {"threadId": "codex-thread"},
-                },
+                "params": {"name": "run", "arguments": arguments, "_meta": meta},
             }
         )
 
@@ -94,7 +102,10 @@ def test_a_call_runs_leaf_where_and_for_whom_codex_says(server, tmp_path):
     assert answer["id"] == 1
     assert answer["result"] == {
         "content": [
-            {"type": "text", "text": f"{tmp_path}|codex-thread|page claim page|text"},
+            {
+                "type": "text",
+                "text": f"{tmp_path}|codex-thread|page claim page|text|Codex Desktop",
+            },
             {"type": "text", "text": "refused\n"},
             {"type": "text", "text": "exit status 3"},
         ],

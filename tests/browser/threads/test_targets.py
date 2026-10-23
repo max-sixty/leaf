@@ -6,11 +6,6 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import LIST_ORDER, PANEL_PAGE, live_url, panel_comment
 from render_harness import (
@@ -39,6 +34,11 @@ from browser.threads import (
     seed_reply,
     thread_row,
 )
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -55,6 +55,42 @@ def open_from_threads(page, root):
         # A painted view can still be moving; later tests read its touch reach.
         panel_settled(page, view="thread")
     return view if view.filter(visible=True).count() else margin
+
+
+def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
+    source = leaf_page(
+        "Thread in tabs",
+        '<lf-tabs id="views">'
+        '<lf-tab id="first" label="First">'
+        '<p id="inside">Commented words in the first tab.</p>'
+        '</lf-tab><lf-tab id="second" label="Second">Other words.</lf-tab>'
+        "</lf-tabs>",
+    )
+    page = open_page(
+        browser,
+        serve(
+            source,
+            events=[
+                {
+                    "kind": "comment",
+                    "id": "inside-thread",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "About this paragraph.",
+                    "anchor": {"section": "inside"},
+                }
+            ],
+        ),
+    )
+    panel = page.locator("#first")
+    expect(panel).to_have_attribute("tabindex", "0")
+    passage = page.locator("#inside")
+    passage.hover()
+    expect(passage).to_have_css("cursor", "pointer")
+    passage.click()
+    expect(
+        page.locator('.lf-margin-preview .lf-page-thread[data-thread="inside-thread"]')
+    ).to_be_visible()
 
 
 def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(

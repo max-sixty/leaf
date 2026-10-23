@@ -8,19 +8,20 @@ import re
 
 import pytest
 from click.testing import CliRunner
-from interact_support import SKILL_ROOT
-from leaf import cli as cli_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
-from leaf.revision_delivery import json_script
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import ROOT, consume_browser_errors, displayed
 
+from leaf import cli as cli_model
+from leaf import exporting as exporting_model
+from leaf import schema as schema_model
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
+from leaf.revision_delivery import json_script
+
 
 def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
-    """A settled example whose public reading paint rejected was not drawn."""
+    """A settled example whose asynchronous drawing rejected was not drawn."""
     package = tmp_path / "package"
     made = CliRunner().invoke(
         cli_model.cli,
@@ -28,15 +29,14 @@ def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
     )
     assert made.exit_code == 0, made.output
     (package / "widgets/lf-async-panel.js").write_text("""\
-import { once, readingPaint, whileConnected } from "/runtime/widget-api.js";
-customElements.define("lf-async-panel", class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    const paint = readingPaint(this, async () => {
-      await Promise.resolve();
+import { LeafElement, html } from "/runtime/widget-api.js";
+customElements.define("lf-async-panel", class extends LeafElement {
+  render() { return html`Instrument`; }
+  updated(changed) {
+    super.updated(changed);
+    this.drawing(Promise.resolve().then(() => {
       throw new Error("The instrument paint failed");
-    });
-    whileConnected(this, () => { paint("instrument"); });
+    }));
   }
 });
 """)
@@ -166,7 +166,7 @@ def test_a_tab_set_first_paints_the_panel_it_opens_on(browser, serve):
 
 
 DIFF_EXAMPLE = json.loads(
-    (SKILL_ROOT / "packages" / "diff" / "registry.json").read_text()
+    (schema_model.BUNDLED_PACKAGES / "diff" / "registry.json").read_text()
 )["lf-diff"]["x-example"]
 
 # Each case's markup and the window width it is read at. A draft indented as the HTML
@@ -373,7 +373,7 @@ INITIAL_DRAWING_PAGE = """
 # independent galleries. Measuring just the outer widget can miss movement inside it.
 INITIAL_DRAWING_NODES = """lf-playground, lf-playground-control,
   lf-playground-preview, lf-playground-output, lf-playground-value,
-  .lf-playground-input, .lf-playground-control-label, .lf-playground-choice-face,
+  .lf-playground-input, .lf-playground-control-label, lf-playground label,
   .lf-playground-reading, .lf-playground-copy-trigger,
   lf-margin-entry-gallery, .margin-entry-gallery-name, .margin-entry-gallery-detail, .margin-entry-gallery-heading, .margin-entry-gallery-summary, .margin-entry-gallery-face,
   #after"""

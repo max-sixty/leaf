@@ -6,11 +6,6 @@ from itertools import pairwise
 
 import pytest
 from interact_support import append_carried_log_record, append_command
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
-from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
@@ -42,24 +37,24 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
+from leaf import thread as thread_model
+from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.schema import ELEMENT_ID
 
 THREAD_READER = r"""
-import {keepsText, watchProjection, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
-customElements.define('lf-thread-reader', class extends HTMLElement {
-  connectedCallback() {
-    this.output = document.createElement('pre');
-    this.append(this.output);
-    this.stop = watchProjection(this, () => {
-      const collection = readThreads();
-      this.reading = collection;
-      this.sameReading = collection === readThreads();
-      keepsText(this.output, collection.threads.map(thread =>
-        threadTurns(thread).map(message => message.body.text).join('\n')
-      ).join('\n'));
-      this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
-    });
+import {LeafElement, html, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
+customElements.define('lf-thread-reader', class extends LeafElement {
+  render() {
+    const collection = readThreads();
+    this.collection = collection;
+    this.sameReading = collection === readThreads();
+    this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
+    return html`<pre>${collection.threads.map(thread =>
+      threadTurns(thread).map(message => message.body.text).join('\n')
+    ).join('\n')}</pre>`;
   }
-  disconnectedCallback() { this.stop(); }
 });
 """
 
@@ -75,47 +70,21 @@ THREAD_READER_DECLARATION = {
 }
 
 THREAD_FILTER = r"""
-import {keepsText, threadActions, readThreads, threadSummary, watchProjection} from '/runtime/widget-api.js';
-customElements.define('lf-thread-filter', class extends HTMLElement {
-  connectedCallback() {
-    if (!this.input) {
-      this.input = document.createElement('input');
-      this.input.setAttribute('aria-label', `Filter ${this.id}`);
-      this.input.value = this.getAttribute('filter') ?? '';
-      this.list = document.createElement('ul');
-      this.input.addEventListener('input', () => this.paint());
-      this.append(this.input, this.list);
-    }
-    this.stop ??= watchProjection(this, () => {
-      const collection = readThreads();
-      this.reading = collection;
-      this.sameReading = collection === readThreads();
-      this.updates = (this.updates ?? 0) + 1;
-      this.paint();
-    });
-  }
-  paint() {
-    if (!this.reading) return;
-    const query = this.input.value.toLowerCase();
-    const shown = this.reading.threads
-      .filter(thread => threadSummary(thread).topic.toLowerCase().includes(query));
-    // Each row is kept and says only what changed.
-    const items = [...this.list.children];
-    shown.forEach((thread, index) => {
-      let item = items[index];
-      if (!item) {
-        item = document.createElement('li');
-        item.append(document.createElement('button'));
-        this.list.append(item);
-      }
-      keepsText(item.firstChild, threadSummary(thread).topic);
-      item.firstChild.onclick = () => threadActions.open(thread.key);
-    });
-    for (const item of items.slice(shown.length)) item.remove();
-  }
-  disconnectedCallback() {
-    this.stop?.();
-    this.stop = null;
+import {LeafElement, html, repeat, signal, threadActions, readThreads, threadSummary} from '/runtime/widget-api.js';
+customElements.define('lf-thread-filter', class extends LeafElement {
+  query = signal('');
+  setup() { this.query.value = this.getAttribute('filter') ?? ''; }
+  render() {
+    const collection = readThreads();
+    this.collection = collection;
+    this.sameReading = collection === readThreads();
+    this.updates = (this.updates ?? 0) + 1;
+    const shown = collection.threads.filter(thread =>
+      threadSummary(thread).topic.toLowerCase().includes(this.query.value.toLowerCase()));
+    return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query.value}
+      @input=${event => { this.query.value = event.target.value; }}>
+      <ul>${repeat(shown, thread => thread.key, thread => html`<li><button
+        @click=${() => threadActions.open(thread.key)}>${threadSummary(thread).topic}</button></li>`)}</ul>`;
   }
 });
 """
@@ -626,8 +595,8 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     assert ready["pending"] == []
 
 
-APPROVAL_PAGE = leaf_page(
-    "approval waits for admission",
+OBLIGATION_PAGE = leaf_page(
+    "obligations wait for admission",
     """
 <lf-ask id="release-decision"><h1>Ship this release?</h1>
   <lf-options id="release-options" choose>
@@ -636,36 +605,36 @@ APPROVAL_PAGE = leaf_page(
   </lf-options>
 </lf-ask>
 """,
-    head='<meta name="lf-review" content="sign-off">',
 )
 
 
-def test_approval_waits_for_a_reading_of_the_log(browser, serve):
+def test_versions_wait_for_a_reading_of_the_log(browser, serve):
     """An offline page that never read its log cannot say its obligations are answered.
 
     The first state read is refused, so presentation releases the authored page under an
     offline status with no admitted reading. Nothing then says whether the authored obligation
-    still stands, and approval stays shut rather than reading that silence as every obligation
-    answered."""
+    still stands, and version navigation waits for the saved reading."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route("**/api/state*", refuse)
-    page.goto(serve(APPROVAL_PAGE), wait_until="load")
+    page.goto(serve(OBLIGATION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
         "aria-label", re.compile("Server offline")
     )
-    # Versions, which holds the approval, waits for a reading of the log too.
+    # Versions waits for a reading of the log too.
     versions = panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
     expect(versions).to_be_disabled()
 
 
-def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve):
-    """An answer the log has not taken in cannot open the irreversible approval.
+def test_admission_keeps_the_obligation_open_until_the_answer_is_in_the_log(
+    browser, serve
+):
+    """An answer the log has not taken in leaves its obligation open.
 
     The pick is the user's at once — that is their own gesture drawn on their own
-    widget. Which obligations still stand is the server's fold, so the count and the gate
-    move when the state this POST returns is adopted, and not before."""
-    page = open_page(browser, serve(APPROVAL_PAGE))
+    widget. Which obligations still stand is the server's fold, so the count
+    moves when the state this POST returns is adopted, and not before."""
+    page = open_page(browser, serve(OBLIGATION_PAGE))
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -676,22 +645,10 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
         "aria-checked", "true"
     )
     expect_obligations_answered(page, "0/1")
-    # The leaf's menu holds the rows it opened with, so each reading is an opening.
-    expect(panel_control(page, "approval")).to_be_disabled()
-    expect(page.locator(".lf-fp-approval")).to_have_attribute(
-        "title", "Answer every open widget before approving this work"
-    )
-    page.locator(".lf-fp-leaf").click()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
-
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect_obligations_answered(page, "1/1")
-    expect(panel_control(page, "approval")).to_be_enabled()
-    expect(page.locator(".lf-fp-approval")).not_to_have_attribute(
-        "title", re.compile(".")
-    )
 
 
 PAGE_DECLARATION = {
@@ -848,18 +805,17 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.locator("#package-a").click()
     round_trip(page)
     assert page.evaluate("Number(pageLocal.dataset.readings)") == readings
-    # Another widget's action leaves this one's reading as it was, so its return draws
-    # nothing again.
+    # Another widget's action leaves this one's reading as it was. Its return draws
+    # once to restore subscriptions.
     page.evaluate("document.querySelector('main').append(pageLocal)")
     rendered(page)
-    assert page.evaluate("Number(pageLocal.dataset.readings)") == readings
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == readings + 1
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
 
 
-def test_a_returning_widget_draws_again_only_a_changed_reading(browser, serve):
-    """A widget follows the return rule data and projection watchers follow: a render
-    that failed stands across a departure and return, so the author is told once, and a
-    return draws nothing again while the reading is unchanged."""
+def test_a_returning_widget_repaints_to_restore_subscriptions(browser, serve):
+    """A returning widget draws once to restore subscriptions, including after a
+    failed render."""
     source = LIVE_V1.replace(
         "</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>'
     )
@@ -893,7 +849,7 @@ def test_a_returning_widget_draws_again_only_a_changed_reading(browser, serve):
         pending: readApplicationPresentation().pending,
       };
     }"""
-    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 0, "pending": []}
+    assert page.evaluate(leave_and_return) == {"drawn": 1, "failed": 0, "pending": []}
 
     # Resuming a deferral draws the same reading again, and this draw fails.
     page.evaluate(
@@ -903,11 +859,11 @@ def test_a_returning_widget_draws_again_only_a_changed_reading(browser, serve):
     expect(page.locator("#page-local .lf-error")).to_have_text(
         "<lf-local> failed: deliberate render failure"
     )
-    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 2, "pending": []}
     errors = take_browser_errors(page)
     assert [said(error) for error in errors] == [
         'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    ]
+    ] * 2
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
@@ -1441,16 +1397,11 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
 
 
 THREAD_ACTIONS = r"""
-import {keeps, readThreads, threadActions, watchProjection} from '/runtime/widget-api.js';
-customElements.define('lf-thread-actions', class extends HTMLElement {
-  connectedCallback() {
+import {LeafElement, noChange, keeps, readThreads, threadActions} from '/runtime/widget-api.js';
+customElements.define('lf-thread-actions', class extends LeafElement {
+  setup() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
       '<button>Resolve</button><button>Reopen</button><button>React</button>';
-    this.stop = watchProjection(this, () => {
-      this.thread = readThreads().threads[0];
-      keeps(this, 'data-resolved', Boolean(this.thread?.resolved));
-      keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.inForce));
-    });
     this.querySelectorAll('button').forEach(button => button.onclick = () => {
       const key = this.thread.key;
       const agent = this.thread.msgs.find(message => message.author === 'agent');
@@ -1464,7 +1415,12 @@ customElements.define('lf-thread-actions', class extends HTMLElement {
       keeps(this, 'data-accepted', this.last !== null);
     });
   }
-  disconnectedCallback() { this.stop(); }
+  render() {
+    this.thread = readThreads().threads[0];
+    keeps(this, 'data-resolved', Boolean(this.thread?.resolved));
+    keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.inForce));
+    return noChange;
+  }
 });
 """
 

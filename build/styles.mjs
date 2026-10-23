@@ -6,16 +6,17 @@
  * Existing layer/scope wrappers remain with composition and their source owners.
  * `build/browser/build.mjs` writes and checks these outputs with its own.
  */
-import { build } from "./esbuild.mjs";
 import { readdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const assets = "skills/leaf/assets";
-const packages = "skills/leaf/packages";
+const assets = "browser";
+const packages = "packages";
 
-export async function styleOutputs() {
+/** Source and output pairs, readable without build dependencies by the trusted
+ * dependency publisher as well as the compiler. */
+export async function styleEntries() {
   const entries = [
     [`${assets}/styles/theme.css`, `${assets}/theme.css`],
     [`${assets}/styles/shadow.css`, `${assets}/shadow.css`],
@@ -35,13 +36,18 @@ export async function styleOutputs() {
     for (const file of files.filter((file) => /^(theme|shadow)\.css$/.test(file)))
       entries.push([`${source}/${file}`, `${packages}/${packageName}/${file}`]);
   }
+  return entries;
+}
+
+export async function styleOutputs() {
   const outputs = new Map();
-  for (const [source, output] of entries)
+  for (const [source, output] of await styleEntries())
     outputs.set(output, Buffer.from(await sheet(source)));
   return outputs;
 }
 
 async function sheet(source) {
+  const { build } = await import("./esbuild.mjs");
   const result = await build({
     absWorkingDir: root,
     entryPoints: [source],

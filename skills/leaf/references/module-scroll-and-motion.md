@@ -183,7 +183,9 @@ the focus and scroll Leaf recorded.
 
 ## Motion
 
-Animate with `motion(element, keyframes, ms)`, not `element.animate`. The stylesheet's
+Animate with `motion(element, keyframes, ms, pseudoElement?)`, not `element.animate`.
+The optional native pseudo-element target lets a disclosure animate its
+`::details-content` without adding a layout wrapper. The stylesheet's
 reduced-motion rule doesn't reach Web Animations, so `motion` returns `null` for a user
 who asked for less motion, and before `body[data-lf-presented]`; treat that as a
 finished animation. `reducedMotion()`, `scrollBehavior()` and
@@ -194,6 +196,9 @@ draw a result the module already has during the gesture, not after a delay.
 A widget removing an item asks `foldDuration()` each time rather than choosing a number;
 it reads `--lf-motion-fold` on the document root, where every `--lf-motion-*` duration is
 set, even for an element in a shadow tree.
+
+`returnDuration()` reads the shorter `--lf-motion-return` duration for a retained
+frame returning from an editor to its reading.
 
 `foldBlock(element)` animates a block from its ordinary CSS size to zero, including
 its block margins, padding, borders and minimum size. It returns an Animation, or

@@ -36,6 +36,13 @@ import pytest
 import yaml
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
+from pytest_regtest.snapshot_handler import (
+    BaseSnapshotHandler,
+    SnapshotHandlerRegistry,
+)
+from websockets.sync.server import serve as serve_websocket
+from websockets.sync.server import unix_serve as serve_unix_websocket
+
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
@@ -71,21 +78,12 @@ from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
 from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
-from pytest_regtest.snapshot_handler import (
-    BaseSnapshotHandler,
-    SnapshotHandlerRegistry,
-)
-from websockets.sync.server import serve as serve_websocket
-from websockets.sync.server import unix_serve as serve_unix_websocket
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a harness installs are one tree now; PLUGIN_ROOT still
 # names the role a path plays — "what a harness runs" — for the tests built on that.
 PLUGIN_ROOT = ROOT
-# The payload's manifests, hooks and launcher hang off PLUGIN_ROOT; the six product parts
-# sit one skill directory below it. Both are wanted often enough to be worth naming, and
-# spelled by hand the two are one plausible typo apart — a glob a level short matches
-# nothing and reports nothing.
+# The skill contains agent instructions; application resources belong to the plugin.
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
 COMMAND_HUB_PACKAGE = ROOT / "tests" / "fixtures" / "packages" / "work"
 # The complete shipped vocabulary, in the order `page init` composes it for an example.
@@ -97,7 +95,7 @@ SHIPPED_PACKAGES = [
     schema_model.ASSETS,
     schema_model.DEFAULT_PACKAGE,
     *(
-        SKILL_ROOT / "packages" / name
+        schema_model.BUNDLED_PACKAGES / name
         for name in json.loads(
             (ROOT / "examples" / "layer.json").read_text(encoding="utf-8")
         )
@@ -221,9 +219,8 @@ class ModelPage:
     `packages` names the optional vocabularies the markup speaks, as `page init`
     would be told them; the default layer alone is the default.
 
-    What a page holds in files it has none of: no typed external data, and
-    nothing owed to anyone, neither of which markup can state. A rule about
-    either belongs on `page_dir`.
+    Typed external data can be supplied as the same validated reading the server
+    receives. File publication behavior and response delivery belong on `page_dir`.
     """
 
     def __init__(
@@ -232,6 +229,7 @@ class ModelPage:
         packages: tuple[str, ...] = (),
         documents: dict | None = None,
         registry: dict | None = None,
+        data: dict | None = None,
     ):
         """`documents` and `registry` are for a caller that has already parsed and
         composed them — `model_folds.reading` has, and states the same page to the
@@ -242,6 +240,7 @@ class ModelPage:
         }
         self._packages = packages
         self._registry = registry
+        self._data = data or {"version": "", "sources": {}}
 
     @property
     def revisions(self) -> list[int]:
@@ -260,12 +259,14 @@ class ModelPage:
 
     @property
     def contracts(self) -> dict:
-        """A stated page records no data source."""
-        return {}
+        """The contracts of the supplied data publications."""
+        return {
+            source: value["contract"] for source, value in self._data["sources"].items()
+        }
 
     def data(self, registry: dict) -> dict:
-        """A stated page binds no source, so every reading of its data is empty."""
-        return {"version": "", "sources": {}}
+        """The supplied validated data readings, empty unless a test names them."""
+        return self._data
 
     @property
     def within(self) -> dict:
@@ -801,7 +802,13 @@ ROUTE_ANSWERS = {
     r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
     r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
     r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),
-    r"/api/files/[^/]+": ("FileSnapshot", "null", "StaleFile", "Refusal"),
+    r"/api/files/[^/]+": (
+        "FileSnapshot",
+        "null",
+        "StaleFile",
+        "Refusal",
+        "LayerAnswer",
+    ),
 }
 
 
@@ -829,7 +836,7 @@ def served_thread(browser: dict) -> dict:
 def served_obligations(browser: dict, *, page: bool = False) -> dict:
     """The obligation records the one view `browser` serves for what the page asks, by
     the selections `obligations.collection` makes: the frozen threads' obligations, or
-    with `page` the document's and its sign-off. The records the user's updates publish
+    with `page` the document's obligations. The records the user's updates publish
     are `served_updates`."""
     [view] = browser["views"].values()
     return collection(
@@ -2877,4 +2884,15 @@ def _watched(page_dir):
         leases_model.waiter_lease_path(page_dir, session["id"])
     )
     assert lease
+    return lease
+
+
+def adapter_lease(session_id, app_server):
+    """Hold `session_id`'s adapter lease as a running adapter does, naming the App
+    Server it starts turns over, or None for one that queues them
+    (`codex_adapter.run_adapter`)."""
+    lease = leases_model.take_lease(leases_model.adapter_lease_path(session_id))
+    assert lease
+    lease.write(codex_adapter_model.ADAPTER.encode({"app_server": app_server}))
+    lease.flush()
     return lease

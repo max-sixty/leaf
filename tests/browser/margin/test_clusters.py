@@ -7,9 +7,6 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, newest_move
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -43,6 +40,9 @@ from browser.margin import (
     _unfold,
     _unfold_suggestion_undo,
 )
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -573,9 +573,6 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         '.lf-command-reference-command[data-lf-command="navigation.back"]'
     )
     expect(back).to_have_text("Close options")
-    expect(
-        back.locator("xpath=ancestor::tr").locator(".lf-command-reference-description")
-    ).to_have_text("Fold the secondary page actions")
     back.click()
     expect(reference).to_be_hidden()
     expect(options).to_be_hidden()

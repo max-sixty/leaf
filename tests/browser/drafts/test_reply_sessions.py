@@ -3,9 +3,6 @@ replaced outlet leave of its caret, focus, reading position and Send."""
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_cases_navigation import source_revision
@@ -26,6 +23,9 @@ from render_harness import (
 )
 
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -215,8 +215,8 @@ def expect_resolved(page, surface, thread, resolved):
     """The thread reads resolved, or not: the panel's by its head's Resolve or Reopen,
     a margin card by its own state."""
     if surface == "panel":
-        expect(page.locator(".lf-fp-settle")).to_have_text(
-            "Reopen" if resolved else "Resolve", use_inner_text=True
+        expect(page.locator(".lf-fp-settle")).to_have_accessible_name(
+            "Reopen" if resolved else "Resolve thread"
         )
     else:
         expect(thread).to_have_attribute("data-resolved", str(resolved).lower())

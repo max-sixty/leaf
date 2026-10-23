@@ -4,17 +4,14 @@ boundary, and a record whose pages are gone retires whichever Leaf wrote it."""
 from copy import deepcopy
 
 from interact_support import append_carried_log_record, published
+
 from leaf import codex as codex_model
-from leaf import presence as presence_model
 from leaf.delivery import batch_data, freeze_delivery
-from leaf.leases import release_lease, take_lease
-from leaf.schema import SERVER_LOCK
-from leaf.server_rows import row_path
 from leaf.service import PageTransaction
 from leaf.state import state_home, write_json
 
 
-def test_live_and_archived_readers_ignore_records_with_missing_fields(
+def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(
     tmp_path, page_dir
 ):
     page = published(page_dir)
@@ -43,39 +40,15 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
             }
         ],
     }
-    unreadable = []
-    for field in accepted:
-        record = deepcopy(accepted)
-        del record[field]
-        unreadable.append(record)
-    for field in accepted["batches"][0]:
-        record = deepcopy(accepted)
-        del record["batches"][0][field]
-        unreadable.append(record)
-    # A state this Leaf does not know, or one whose own fields are missing.
-    for state in ("hook", "opened", "a-later-state"):
-        unreadable.append({**accepted, "state": state})
+    unreadable = [
+        {**accepted, "format": "another-format"},
+        {**accepted, "state": "a-later-state"},
+        {"format": "another-format"},
+    ]
     collecting = deepcopy(accepted)
     collecting["state"] = "collecting"
     collecting.pop("pending")
     collecting["batches"] = [deepcopy(captured)]
-    # Fields only a collecting record, or one kind of answer, requires.
-    for field in ("through_seq", "threads"):
-        record = deepcopy(collecting)
-        del record["batches"][0][field]
-        unreadable.append(record)
-    for field in ("threads", "kind"):
-        record = deepcopy(collecting)
-        del record["batches"][0]["events"][0][field]
-        unreadable.append(record)
-    for answer in (
-        {"kind": "reply", "responds": "captured"},
-        {"kind": "reply", "parent": "thread"},
-        {"kind": "markup"},
-    ):
-        record = deepcopy(collecting)
-        record["batches"][0]["events"][0]["answer"] = answer
-        unreadable.append(record)
 
     for index, record in enumerate(unreadable):
         identity = f"{index:08x}"
@@ -121,7 +94,9 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
 
     freeze_delivery([captured], delivery_id="ffffffff")
     valid = codex_model.record_path("concurrent-task", "ffffffff")
-    write_json(valid, accepted)
+    codex_model.write_record(
+        valid, codex_model.Accepted(1, tuple(accepted["batches"]), (0,))
+    )
     assert codex_model.delivery_records("concurrent-task") == [
         (valid, codex_model.read_record(valid))
     ]
@@ -131,16 +106,16 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
     )
     collecting["batches"][0]["threads"][0]["title"] = None
     current = codex_model.record_path("concurrent-task", "fffffffe")
-    write_json(current, collecting)
+    codex_model.write_record(
+        current, codex_model.Collecting(1, (collecting["batches"][0],))
+    )
     assert codex_model.read_record(current) == codex_model.Collecting(
         1, (collecting["batches"][0],)
     )
 
 
 def test_a_record_of_gone_pages_retires_at_any_format(tmp_path, page_dir):
-    """Freezing a delivery retires every envelope whose pages are gone, and reading
-    the neighbours every row whose page no server holds, though this Leaf reads
-    neither format."""
+    """Freezing a delivery retires every envelope whose pages are gone."""
     page = published(page_dir)
     event = append_carried_log_record(
         page, {"kind": "comment", "id": "c", "author": "user", "text": "Hi."}
@@ -155,16 +130,3 @@ def test_a_record_of_gone_pages_retires_at_any_format(tmp_path, page_dir):
     freeze_delivery([captured], delivery_id="00000003")
     assert not envelopes["00000001"].exists()
     assert envelopes["00000002"].exists()
-
-    held = take_lease(page / SERVER_LOCK)
-    unheld = tmp_path / "unheld"
-    unheld.mkdir()
-    for served in (page, unheld):
-        row_path(served).parent.mkdir(parents=True, exist_ok=True)
-        write_json(row_path(served), {"format": "x", "page": str(served)})
-    try:
-        assert presence_model.other_leaves(tmp_path / "observer") == []
-        assert row_path(page).exists()
-        assert not row_path(unheld).exists()
-    finally:
-        release_lease(held)

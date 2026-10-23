@@ -3,8 +3,6 @@ and an obligation's digits and thread."""
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -40,6 +38,8 @@ from render_harness import (
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -611,6 +611,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     page.get_by_role("button", name="Find a thread or message").click()
     page.locator("input.lf-fp-search").fill("no matching thread")
     expect(page.locator(".lf-fp-thread")).to_have_count(0)
+    page.get_by_role("button", name="Close search").click()
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     page.evaluate(RELEASE_FOCUS)

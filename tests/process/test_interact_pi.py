@@ -21,6 +21,7 @@ from interact_support import (
     wait_for,
     write_record,
 )
+
 from leaf import event_log as events_model
 from leaf import harness as harness_model
 from leaf import leases as leases_model
@@ -31,6 +32,19 @@ from leaf import state as cleanup_model
 from leaf.refusals import Refused
 
 DRIVER = Path(__file__).parents[1].joinpath("pi_driver.mjs")
+
+
+def test_the_watch_owner_serializes_host_endings(spawn):
+    """The extension's watch owner (`hooks/watch.ts`), exercised with held
+    termination."""
+    run = spawn(
+        ["node", "--test", str(DRIVER.with_name("watch_owner.test.mjs"))],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    output, _ = run.communicate(timeout=STATED_TIMEOUT)
+    assert run.returncode == 0, output
 
 
 class Pi:

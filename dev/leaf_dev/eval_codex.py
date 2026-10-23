@@ -17,9 +17,9 @@ from collections import deque
 from contextlib import ExitStack
 from pathlib import Path
 
-from leaf.codex import private_app_server
 from websockets.exceptions import ConnectionClosed
 
+from leaf.codex import private_app_server
 from leaf_dev.codex_task import Task, trust_plugin_hooks
 
 
@@ -323,7 +323,7 @@ class CodexChild:
                         env=self.env,
                         output=output,
                     )
-            self.task = Task(self.resources.enter_context(self.server), self._hear)
+            self.task = Task(self.resources.enter_context(self.server)[0], self._hear)
             self.resources.callback(self.task.socket.close)
             if payload:
                 trust_plugin_hooks(self.task, self.cwd)

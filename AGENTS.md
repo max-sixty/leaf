@@ -64,28 +64,29 @@ reading takes longer than 100 ms, make that path faster.
 
 ### Pages across Leaf updates
 
-A page keeps the copy of Leaf's runtime and registry (its layer) that
-`leaf page init` vendored into it, while each later Leaf serves, checks and
-writes it. A change crosses that gap in one of two ways.
+A page keeps the layer (registry, theme, widgets and package modules) that
+`leaf page init` vendored into it, and runs the runtime of the Leaf that serves,
+checks or exports it. A change crosses that gap in one of two ways.
 
 - **A protocol bump** changes the kernel registry's `$events.protocol`, and every
   page vendored at another number is refused until it is re-vendored, which the
   session holding the page does itself on its first command or hook naming the
-  page. Bump it for
-  any change an earlier page would break on. It is Leaf's only version, so a
+  page. Bump it for any change an earlier page would break on: to the event
+  log, what a page sends, its vendored declarations, the public package API
+  (`widget-api.js` and what its readers return) or a record kept outside a page.
+  The served state isn't among them, since the Leaf serving a page also supplies
+  the runtime that reads it. It is Leaf's only version, so a
   record kept outside a page, such as a browser draft, carries the protocol at
   which its own shape last changed (`layer-registry.md`, "Page protocol", owns
   the rules).
   Bumps are rare, perhaps one in five hundred commits. Once Leaf is released,
   only a bump may break an existing page.
 - **Drift** may break an older page without a bump while Leaf is in alpha, as
-  when a render check imports a runtime name the page's older runtime lacks. Leaf
+  when a vendored package widget relies on runtime behavior an update changed. Leaf
   doesn't detect drift by comparing a page's files with its own, since nearly
   every update would then force a rebuild. Instead the Leaf panel's menu and
   `page check` name the Leaf that vendored the page beside the one serving or checking it,
-  with dates, and the agent re-vendors a much older page that misbehaves. Where
-  drift does cause a failure, as at the render gate, the failure names the
-  re-vendor.
+  with dates, and the agent re-vendors a much older page that misbehaves.
 
 ## Fix the underlying issue
 
@@ -115,29 +116,49 @@ underlying fix only when the change leaves it as easy to make as before.
 
 The repository is the plugin: `.claude-plugin/marketplace.json` and
 `.agents/plugins/marketplace.json` name `./` as the payload, and
-`package.json`'s `pi` key makes it a Pi package, so Claude Code, Codex and Pi
-install the tracked tree whole. Read an area's `AGENTS.md` before changing it.
+`package.json`'s `pi` key makes it a Pi package. The payload is the whole
+repository, whether a harness copies it into a cache or loads it in place.
+Read an area's `AGENTS.md` before changing it.
+
+The **plugin root** is the installation and execution boundary: manifests register
+harness components there, and `bin/leaf` runs its uv project. The **skill root**,
+`skills/leaf/`, is the agent's instruction entry point, with `SKILL.md` and its
+references. Application code lives under `src/leaf/`, browser code under
+`browser/`, packages under `packages/`, and the generated kernel under
+`dist/kernel/`. Copying only the skill directory is not an installation: its launcher, project and hook registrations
+live at the plugin root. `pyproject.toml` owns Python's module location;
+`leaf.state` locates the plugin root; `leaf.schema` derives its resource paths.
+
+Harness hooks and adapters deliver input and session lifecycle to the application;
+the skill explains how an agent uses it. Leaf packages own composable vocabulary,
+widgets and their authoring instructions. Page initialization composes those packages
+with the core browser assets into a page's layer. The compiled kernel is a generated
+delivery form of the core runtime, not a separate skill or an installation root.
 
 - `bin/leaf`, `pyproject.toml`, `uv.lock`: the launcher and its uv project.
-- `skills/leaf/scripts/leaf/`: the CLI, server, event model, validation,
-  projection, vendoring and export (`skills/leaf/scripts/AGENTS.md`).
-- `skills/leaf/assets/`: the browser runtime, registry, theme and icon
-  (`skills/leaf/assets/AGENTS.md`; `skills/leaf/assets/runtime/keyboard/AGENTS.md`
+- `src/leaf/`: the CLI, server, event model, validation,
+  projection, vendoring and export (`src/AGENTS.md`).
+- `browser/`: the browser runtime, registry, theme and icon, with authored
+  framework TypeScript under `browser/framework/` and generated modules under
+  `browser/vendor/`
+  (`browser/AGENTS.md`; `browser/runtime/keyboard/AGENTS.md`
   for commands, bindings and scopes).
-- `skills/leaf/packages/`: the bundled packages (`skills/leaf/packages/AGENTS.md`).
+- `packages/`: the bundled packages (`packages/AGENTS.md`).
 - `skills/leaf/references/`: contracts for page authors, package authors and harnesses.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
-  Code, `codex.json` for Codex) and the scripts they run, plus the modules that
-  watch a page between turns, `claude-code.ts` (opt-in, Claude Code) and `pi.ts`
-  (the Pi extension), which share `watch.ts`.
+  Code, `codex.json` for Codex) and the scripts they run, plus `claude-code.ts`,
+  Claude Code's hooks module, which draws the session's pages above the prompt,
+  and `pi.ts`, the Pi extension, whose watch between turns `watch.ts` owns.
 - `evals/`: cases a headless agent answers, scoring the shipped instructions.
 - `examples/`: the pages the site publishes, also the render corpus
   (`examples/AGENTS.md`).
 - `tests/`: the suite, with the runtime's folds under `tests/runtime/`, which
   Node runs without a browser (`tests/AGENTS.md`).
-- `build/`: the browser framework's TypeScript and the build of every committed
-  browser bundle (`build/AGENTS.md`).
+- `build/`: build tooling (`build/AGENTS.md`). The framework’s compiled modules
+  share `browser/vendor/` with third-party bundles; `vendor/` means generated
+  browser payload, not exclusively third-party code.
+- `dist/kernel/`: the generated, committed core runtime for page delivery.
 - `dev/`: the `leaf_dev` package, whose `leaf-dev` commands preview, build,
   verify, generate, probe, screenshot and compare versions of Leaf
   (`dev/AGENTS.md`).
@@ -175,17 +196,18 @@ Use maintained dependencies, including the platform and standard library, for
 established capabilities, in prototypes too. Leaf code owns product-specific
 behavior and integration, and writes a mechanism itself only when existing ones
 can't meet a concrete requirement. In the browser, use the platform's layout,
-cascade and focus model first (`skills/leaf/assets/AGENTS.md`, "The browser
+cascade and focus model first (`browser/AGENTS.md`, "The browser
 answers first"). Build browser dependencies in Leaf's pipeline and ship ready
 assets; consumers run no browser build.
 
 ### The install runs this tree
 
-An install is the tracked tree copied into a harness's plugin cache. Consumer
-installs follow `main`. Their pages vendor the browser runtime compiled into one
-kernel, committed in `skills/leaf/kernel/`, while that kernel matches the tree's
-modules; where a merge has left it stale, they vendor the source modules
-(`leaf.layer.current_kernel`). The leaf.page container, the suite's browser tiers
+Git-sourced consumer installs copy the tracked tree into a harness's plugin
+cache and follow `main`. Claude Code's `--plugin-dir` and local-path marketplace
+plugins can instead load in place. Pages run the browser runtime the serving
+install holds, compiled into one kernel, committed in `dist/kernel/`, while that
+kernel matches the tree's modules; where a merge has left it stale, they run the
+source modules (`leaf.runtime_selection.read_runtime`). The leaf.page container, the suite's browser tiers
 and developer previews compile the kernel again for their own tree
 (`dev/leaf_dev/commands/distribution.py`). Installing, authoring pages, writing
 custom packages and exporting need no browser build or npm.
@@ -198,7 +220,7 @@ one belongs in the page directory or the state home. Runtime dependencies,
 including a bundled package script's, state a minimum version and no maximum. The
 host supplies Chrome and `jq`; Leaf never downloads a browser.
 
-Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and the
+Files under `browser/vendor/`, each package's `vendor/`, and the
 kernel are generated and committed; `build/AGENTS.md` says how to regenerate them.
 
 Every tracked byte ships in every install and stays in history, so the tree holds
@@ -260,7 +282,7 @@ not that result. Everything that depends on the whole log, such as which obligat
 remain, which the user owes and whose turn a thread is, comes from the server's
 reading. The browser adds only what a gesture decides by itself; for example,
 the user's own reply appears before the server answers. Those additions are a
-required-version approval, a to-do the user ends, a thread the user opens, the
+a to-do the user ends, a thread the user opens, the
 reply a send is owed, and the resend a refused send leaves. A refusal restores
 the server's state.
 
@@ -281,7 +303,7 @@ activity only from the row `server_rows.py` writes and whether its server is
 alive, never from its log or document.
 
 The page directory is the durable record and the unit of deployment
-(`skills/leaf/scripts/leaf/page-storage.md` defines its layout).
+(`src/leaf/page-storage.md` defines its layout).
 
 ### Validate once and share readings
 
@@ -317,7 +339,7 @@ Before finishing a feature:
   for each. The route is owed to the result, not each gesture: ask what a user
   could no longer see, reach or decide without the gesture. Dragging a thread
   card aside needs no route, since Escape also uncovers the passage beneath it.
-- Follow `examples/AGENTS.md` and regenerate the derived corpus.
+- Follow `examples/AGENTS.md`; corpus consumers generate their fixture on demand.
 - If the feature changes what an agent can do or how, update
   `skills/leaf/SKILL.md` or the one reference that owns the workflow, and point
   other references at that section. Shipped instructions set goals for the user's
@@ -336,7 +358,7 @@ through: each takes minutes to over an hour and slows every session on the host.
 Before widening your selection or its parallelism, check CPU, memory pressure and
 other running suites, and on a busy host keep to focused checks.
 
-The TypeScript in `worker/src/` and `build/browser/`, and the lock every committed
+The TypeScript in `worker/src/` and `browser/framework/`, and the lock every committed
 bundle is built from, have gates the suite and pre-commit don't reach.
 `pnpm run check` runs them (the `check` script in `package.json`), and both
 landing paths run them too. The website's delivery checks (the site build, the

@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Choose the Leaf panel’s motion</title>
+    <meta
+      name="description"
+      content="Compare real panel recordings on one timeline, choose the preview you prefer, and send its timing as a playground configuration."
+    />
+    <style>
+      #motion-page {
+        max-inline-size: 80rem;
+        margin-inline: auto;
+      }
+      #motion-question {
+        max-inline-size: none;
+      }
+      #motion-question > p {
+        max-inline-size: 68ch;
+      }
+      #panel-candidates {
+        --playground-choice-columns: repeat(2, minmax(0, 1fr));
+      }
+      #panel-candidates video {
+        display: block;
+        inline-size: 100%;
+        aspect-ratio: 740 / 116;
+        object-fit: contain;
+        background: var(--paper);
+        border-radius: var(--r);
+      }
+      #panel-candidates p {
+        margin-block: var(--sp-2);
+      }
+      #panel-candidates figure {
+        margin: var(--sp-3) 0 0;
+      }
+      #panel-candidates .recording-actions {
+        display: flex;
+        justify-content: end;
+        margin-block-start: var(--sp-2);
+      }
+      #panel-candidates video:fullscreen {
+        background: black;
+        object-fit: contain;
+        inline-size: 100vw;
+        block-size: 100vh;
+      }
+      #motion-method {
+        margin-block: var(--sp-5);
+        max-inline-size: 72ch;
+      }
+      @media (max-width: 760px) {
+        #panel-candidates {
+          --playground-choice-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="motion-page">
+      <lf-ask id="motion-question">
+        <p class="eyebrow">Panel motion</p>
+        <h1>How should the panel move?</h1>
+        <p>
+          Compare the same fold, unfold and interrupted reversal.
+          <strong>Balanced</strong> is the suggested starting point: easier to follow,
+          still quick. Select a recording’s card, then send the timing you want.
+        </p>
+        <lf-playground
+          id="panel-motion"
+          submit-label="Use this timing"
+          data-width="available"
+        >
+          <lf-playground-preview>
+            <lf-motion
+              id="panel-recordings"
+              duration="2108"
+              aria-label="Compare panel recordings"
+            >
+              <div id="panel-candidates">
+                <lf-playground-control
+                  name="timing"
+                  label="Panel timing"
+                  kind="choice"
+                  value="260 ms with cubic-bezier(.3, .7, .3, 1)"
+                >
+                  <lf-playground-choice
+                    value="the original recorded 300 ms timing"
+                    label="Keep the original timing"
+                  >
+                    <small class="tag">Baseline · 300 ms</small>
+                    <p>Fast departure, long settling tail.</p>
+                    <figure>
+                      <video
+                        muted
+                        playsinline
+                        preload="metadata"
+                        src="/media/9ae71c04a6df16f3.mp4"
+                        poster="/media/4fa8d9faa76e696c.png"
+                        aria-label="Original panel animation"
+                      ></video>
+                    </figure>
+                    <div class="recording-actions">
+                      <button
+                        class="button"
+                        type="button"
+                        data-enlarge
+                        aria-label="Enlarge original recording"
+                      >
+                        Enlarge
+                      </button>
+                    </div>
+                  </lf-playground-choice>
+                  <lf-playground-choice
+                    value="220 ms with cubic-bezier(.23, 1, .32, 1)"
+                    label="Make it crisp"
+                  >
+                    <small class="tag">A · 220 ms</small>
+                    <p>Quick departure, short settle.</p>
+                    <figure>
+                      <video
+                        muted
+                        playsinline
+                        preload="metadata"
+                        src="/media/5f2524db8f37534d.mp4"
+                        poster="/media/4fa8d9faa76e696c.png"
+                        aria-label="Crisp panel animation"
+                      ></video>
+                    </figure>
+                    <div class="recording-actions">
+                      <button
+                        class="button"
+                        type="button"
+                        data-enlarge
+                        aria-label="Enlarge crisp recording"
+                      >
+                        Enlarge
+                      </button>
+                    </div>
+                  </lf-playground-choice>
+                  <lf-playground-choice
+                    value="260 ms with cubic-bezier(.3, .7, .3, 1)"
+                    label="Make it balanced"
+                  >
+                    <small class="tag">B · 260 ms</small>
+                    <small class="tag ok">recommended</small>
+                    <p>Gentler departure, clean arrival.</p>
+                    <figure>
+                      <video
+                        muted
+                        playsinline
+                        preload="metadata"
+                        src="/media/5e6beef194d61daf.mp4"
+                        poster="/media/4fa8d9faa76e696c.png"
+                        aria-label="Balanced panel animation"
+                      ></video>
+                    </figure>
+                    <div class="recording-actions">
+                      <button
+                        class="button"
+                        type="button"
+                        data-enlarge
+                        aria-label="Enlarge balanced recording"
+                      >
+                        Enlarge
+                      </button>
+                    </div>
+                  </lf-playground-choice>
+                  <lf-playground-choice
+                    value="280 ms with cubic-bezier(.4, 0, .2, 1)"
+                    label="Give it a glide"
+                  >
+                    <small class="tag">C · 280 ms</small>
+                    <p>Build speed, then ease into place.</p>
+                    <figure>
+                      <video
+                        muted
+                        playsinline
+                        preload="metadata"
+                        src="/media/80d14095f2304815.mp4"
+                        poster="/media/4fa8d9faa76e696c.png"
+                        aria-label="Gliding panel animation"
+                      ></video>
+                    </figure>
+                    <div class="recording-actions">
+                      <button
+                        class="button"
+                        type="button"
+                        data-enlarge
+                        aria-label="Enlarge gliding recording"
+                      >
+                        Enlarge
+                      </button>
+                    </div>
+                  </lf-playground-choice>
+                </lf-playground-control>
+              </div>
+            </lf-motion>
+          </lf-playground-preview>
+          <lf-playground-output
+            >Set the Leaf panel’s fold and unfold movement to
+            <lf-playground-value for="timing"></lf-playground-value>. Preserve its
+            geometry and verify that reversing the movement midway remains
+            continuous.</lf-playground-output
+          >
+        </lf-playground>
+      </lf-ask>
+      <details id="motion-method">
+        <summary>What the recordings establish</summary>
+        <p>
+          These recordings capture the real Leaf panel from the original motion study.
+          Each candidate changes its movement’s duration and easing. They were recorded
+          slowly and retimed to nominal speed for comparison; they illustrate the
+          proposed timing, rather than measure performance. The recorded panels cannot
+          be operated.
+        </p>
+        <p>
+          The baseline is the version recorded for that study, not a promise about the
+          panel in the Leaf version serving this page. Playback position and speed only
+          change inspection; the playground sends the chosen timing.
+        </p>
+      </details>
+    </main>
+    <script type="module">
+      import {
+        PAGE_INTERFACE,
+        once,
+        whileConnected,
+        announce,
+      } from "/runtime/widget-api.js";
+      function initialize() {
+        const root = document.querySelector("#panel-candidates");
+        if (!root || !once(root)) return;
+        whileConnected(root, (signal) => {
+          root.addEventListener(
+            "click",
+            async (event) => {
+              const button = event.target.closest("[data-enlarge]");
+              if (!button) return;
+              const video = button
+                .closest("lf-playground-choice")
+                .querySelector("video");
+              try {
+                await video.requestFullscreen();
+              } catch {
+                announce(
+                  "Fullscreen is unavailable. The recording remains on this page.",
+                );
+              }
+            },
+            { signal },
+          );
+        });
+      }
+      document.addEventListener(PAGE_INTERFACE, initialize);
+      initialize();
+    </script>
+  </body>
+</html>

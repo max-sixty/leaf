@@ -4,9 +4,11 @@
 # down. The user wanted the playground to lead, with the review split out. Claude Code:
 # base 0/9 across three runs (c20bf406f twice, c71562813 once), every page a column;
 # candidate 9/9, each a workspace whose first page tab is the playground's lf-ask.
+# Those historical scores used an exact workspace/tab structure. The current rubric
+# judges the leading usable playground and access to supporting reading.
 description: surface-page-takes-the-window
 metadata:
-  purpose: "Arranging a page: a page whose main item is one surface the user works gives that surface the window, a workspace, and moves its supporting reading into page tabs after it."
+  purpose: "Arranging a page: the proposed panel leads as a usable playground, with its supporting review easy to reach."
   tags:
     - layout
     - playground
@@ -25,19 +27,20 @@ vars:
     - The proposal's reasoning: eight bullet points on the sizes, the status line,
       the menu and the motion.
 
-    Read references/page-authoring.md and packages/playground/instructions/author.md
-    inside the leaf skill's base directory. The page directory is not reachable from
+    Read references/page-authoring.md and ../../packages/playground/instructions/author.md
+    relative to the leaf skill's base directory. The page directory is not reachable from
     here, so reply with the complete `index.html`, with a placeholder element for the
     sketch inside the playground's preview, rather than writing a file.
 assert:
   - type: llm-rubric
-    metric: judgment
+    metric: main-surface-and-reading
     value: |
-      Read the HTML. Pass only if the playground leads the page as its main surface:
-      `main` is a `layout-workspace`; the `lf-ask` holding the `lf-playground` is either
-      the workspace's body or the only block in the first tab of an `lf-tabs` set placed
-      directly in `main`, whose later tabs hold the review of today's panel, the
-      comparisons and the reasoning; and the `lf-playground` carries
-      `data-width="available"`. Fail if `main` is a `layout-column` or `layout-sidebar` page with the
-      playground set among the review's sections, or if the review, comparisons or
-      reasoning stand before the playground in the same view.
+      Read the HTML and CSS. Pass if the proposed panel's playground leads the first
+      usable view, with enough space to judge its desktop arrangement and operate its
+      settings, and the user can reach the review of today's panel, the comparisons
+      and the reasoning from there. Fail if supporting reading pushes the playground
+      down the page before the user can try it, if the stage is a cramped illustration
+      that cannot show the requested desktop panel, or if supporting reading is omitted.
+      Judge the resulting presentation, not a particular Layout class, placement of
+      lf-ask, tab/part structure or data-width attribute. A brief premise or navigation
+      above the playground does not displace it as the main activity.

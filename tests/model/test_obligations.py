@@ -10,6 +10,7 @@ from interact_support import (
     refused_on,
     served_obligations,
 )
+
 from leaf import obligations as obligations_model
 from leaf.gesture_words import element_name
 from leaf.passages import SourceReading
@@ -29,7 +30,7 @@ def page(attrs="choose", context=None):
 
 
 def page_obligations(state, revision=1):
-    """The obligations the page's document and sign-off make in view `revision`."""
+    """The obligations the page's document makes in view `revision`."""
     view = state["views"][str(revision)]
     return obligations_model.collection(
         [
@@ -60,27 +61,57 @@ def test_context_changes_prompt_target_without_changing_obligation_identity_or_v
     assert state["todos"] == []
 
 
-def test_an_approval_asks_about_the_version_and_names_no_element_to_go_to():
-    """A sign-off's prompt names no element of the page: the version as a whole is what
-    it asks about, and the chrome presents its approval. It once named `lf-approve`,
-    the id of a chrome button that no longer exists."""
-    document = page().replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
+def test_approval_is_independent_and_survives_revision_until_restated():
+    """Approval answers its own request, and a completion stamp does not ask again."""
+    document = model.leaf_page(
+        "Permission",
+        '<lf-approval id="permit"><h2>Publish the report?</h2></lf-approval>'
+        + OPTIONS.format(attrs="choose"),
     )
-    stamp = {"kind": "note", "author": "agent", "version": 1, "text": "Ready"}
-    state = model.reading(document, [stamp])
-    [approval] = [
-        item
-        for item in page_obligations(state)["all"]
-        if item["source"]["kind"] == "approval"
-    ]
-    assert approval["prompt"] == {"text": "Approve v1?", "target": None}
+    approved = {
+        "kind": "action",
+        "id": "approval",
+        "widget": "permit",
+        "action": "approve",
+        "detail": {},
+    }
+    state = model.reading(document, [approved])
+    items = {item["id"]: item for item in page_obligations(state)["all"]}
+    assert items["widget:permit"]["status"] == "answered"
+    assert items["widget:permit"]["answer"]["event"]["id"] == "approval"
+    assert items["widget:choice"]["status"] == "open"
+    assert any(
+        item["id"] == "update:approval"
+        for item in state["views"]["1"]["queues"]["on_agent"]
+    )
+
+    revised = document.replace("Permission", "Permission and progress")
+    stamp = {
+        "kind": "note",
+        "author": "agent",
+        "version": 1,
+        "revision": 2,
+        "text": "Published the report.",
+    }
+    state = model.reading({1: document, 2: revised}, [approved, stamp])
+    items = {item["id"]: item for item in page_obligations(state, 2)["all"]}
+    assert items["widget:permit"]["status"] == "answered"
+    assert state["views"]["2"]["queues"]["on_agent"] == []
+
+    state = model.reading(document, [approved, {"kind": "undo", "undoes": "approval"}])
+    items = {item["id"]: item for item in page_obligations(state)["all"]}
+    assert items["widget:permit"]["status"] == "open"
+
+    changed = revised.replace('id="permit"', 'id="permit" restated')
+    state = model.reading(
+        {1: document, 2: changed}, [approved, {**stamp, "restated": ["permit"]}]
+    )
+    items = {item["id"]: item for item in page_obligations(state, 2)["all"]}
+    assert items["widget:permit"]["status"] == "open"
 
 
 def test_obligations_name_their_exact_owning_message_without_conflating_thread_identity():
-    document = page().replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
-    )
+    document = page()
     events = [
         {
             "kind": "note",
@@ -119,7 +150,6 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
     }
     assert inventory == {
         "widget:choice": (None, None),
-        "approval:v1": (None, None),
         "widget:root-choice": ("thread", "thread"),
         "widget:later-choice": ("thread", "later"),
         "widget:useful": ("prompt", "prompt"),
@@ -275,7 +305,7 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
     assert read(1) == (
         [],
         ("widget:typed", "open"),
-        {"kind": "needs_user", "reason": "widget", "workflow": None},
+        {"kind": "needs_user", "reason": "obligation", "workflow": None},
         ["widget:typed"],
     )
 
@@ -899,6 +929,7 @@ def test_settled_request_repicks_keep_the_new_user_gesture_as_provenance():
 
 def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_source():
     from interact_support import ModelPage
+
     from leaf.event_contracts import EventRefused, admitted_event
 
     document = page()
@@ -1041,3 +1072,218 @@ def test_a_widget_is_quoted_where_the_browser_fences_it(case):
         rec["attrs"]["id"]: obligations_model.quoted_in(rec, EXHIBITS["registry"])
         for rec in document.lf_elements
     } == case["quoted"]
+
+
+def test_data_record_obligations_follow_approval_undo_and_source_membership():
+    """A review owes each current case, independent of ordering and sibling answers."""
+    registry = model.model_layer("visual-review")
+    source = json.loads(
+        (
+            Path(__file__).parents[2]
+            / "examples/developer/visual-review-gallery.data.json"
+        ).read_text()
+    )["gallery-visual-run"]
+    cases = source["cases"][:2]
+    source["cases"] = cases
+    document = model.leaf_page(
+        "Review",
+        '<lf-visual-review id="review" source="gallery-visual-run"></lf-visual-review>',
+    )
+
+    def read(events=(), chosen=None):
+        value = {**source, "cases": cases if chosen is None else chosen}
+        return model.reading(
+            document,
+            events,
+            registry=registry,
+            data={
+                "version": "test",
+                "sources": {
+                    "gallery-visual-run": {
+                        "contract": "visual-run",
+                        "revision": "test",
+                        "run": "test",
+                        "updated": model.NOW,
+                        "value": value,
+                    }
+                },
+            },
+        )
+
+    before = page_obligations(read())["all"]
+    assert [item["source"]["unit"] for item in before] == [case["id"] for case in cases]
+    assert [item["prompt"] for item in before] == [
+        {"text": case["title"], "target": "review"} for case in cases
+    ]
+    assert all(
+        item["status"] == "open" and item["next_actor"] == "user" for item in before
+    )
+    approval = {
+        "kind": "action",
+        "id": "approve",
+        "widget": "review",
+        "action": "review",
+        "detail": {"case": cases[0]["id"], "approved": True},
+    }
+    state = read([approval])
+    [written] = model.projected(state, 1)["entries"]
+    assert written["event"]["meaning"]["unit"] == cases[0]["id"]
+    assert "answer" in written["event"]["meaning"]
+    approved, untouched = page_obligations(state)["all"]
+    assert approved["status"] == "answered"
+    assert approved["answer"]["value"] == approval["detail"]
+    assert untouched["status"] == "open"
+    assert any(
+        item["id"] == "update:approve" for item in state["views"]["1"]["obligations"]
+    )
+    unchecked = {
+        **approval,
+        "id": "uncheck",
+        "detail": {**approval["detail"], "approved": False},
+    }
+    assert page_obligations(read([approval, unchecked]))["all"][0]["status"] == "open"
+    assert (
+        page_obligations(read([approval, {"kind": "undo", "undoes": "approve"}]))["all"]
+        == before
+    )
+    reordered = page_obligations(read([approval], list(reversed(cases))))["all"]
+    assert [item["id"] for item in reordered] == list(
+        reversed([item["id"] for item in before])
+    )
+    assert [item["status"] for item in reordered] == ["open", "answered"]
+    [remaining] = page_obligations(read([approval], cases[1:]))["all"]
+    assert remaining == untouched
+
+
+def test_data_record_feedback_hands_only_its_obligation_to_the_agent():
+    registry = model.model_layer("visual-review")
+    source = json.loads(
+        (
+            Path(__file__).parents[2]
+            / "examples/developer/visual-review-gallery.data.json"
+        ).read_text()
+    )["gallery-visual-run"]
+    cases = source["cases"][:2]
+    source["cases"] = cases
+    document = model.leaf_page(
+        "Review",
+        '<lf-visual-review id="review" source="gallery-visual-run"></lf-visual-review>',
+    )
+    data = {
+        "version": "test",
+        "sources": {
+            "gallery-visual-run": {
+                "contract": "visual-run",
+                "revision": "test",
+                "run": "test",
+                "updated": model.NOW,
+                "value": source,
+            }
+        },
+    }
+    comment = {
+        "kind": "comment",
+        "id": "feedback",
+        "text": "Please improve this case",
+        "anchor": {
+            "section": "review",
+            "datum": cases[0]["id"],
+            "identity": cases[0]["id"],
+            "source": "gallery-visual-run",
+            "source_revision": "0" * 16,
+        },
+    }
+
+    def read(events):
+        return page_obligations(
+            model.reading(document, events, registry=registry, data=data)
+        )["all"]
+
+    items = read([comment])
+    assert [item["next_actor"] for item in items] == ["agent", "user"]
+    assert all(item["status"] == "open" and item["answer"] is None for item in items)
+    reply = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "feedback",
+        "responds": "feedback",
+        "text": "Updated.",
+    }
+    assert [item["next_actor"] for item in read([comment, reply])] == ["user", "user"]
+
+
+def test_data_record_requests_keep_conditional_registration_and_framed_arrival():
+    registry = deepcopy(model.model_layer("visual-review"))
+    entry = registry["lf-visual-review"]
+    entry["properties"]["choose"] = {"type": "boolean"}
+    entry["x-awaits"]["when"] = {"choose": [True]}
+    source = json.loads(
+        (
+            Path(__file__).parents[2]
+            / "examples/developer/visual-review-gallery.data.json"
+        ).read_text()
+    )["gallery-visual-run"]
+    source["cases"] = source["cases"][:1]
+    data = {
+        "version": "test",
+        "sources": {
+            "gallery-visual-run": {
+                "contract": "visual-run",
+                "revision": "0" * 16,
+                "run": "test",
+                "updated": model.NOW,
+                "value": source,
+            }
+        },
+    }
+
+    def document(attrs):
+        return model.leaf_page(
+            "Review",
+            f'<lf-ask id="frame"><h2>Review this</h2><lf-visual-review id="review" source="gallery-visual-run" {attrs}></lf-visual-review></lf-ask>',
+        )
+
+    assert (
+        page_obligations(model.reading(document(""), registry=registry, data=data))[
+            "all"
+        ]
+        == []
+    )
+    [asked] = page_obligations(
+        model.reading(document("choose"), registry=registry, data=data)
+    )["all"]
+    assert asked["prompt"]["target"] == "frame"
+    state = model.reading(
+        {1: document("choose"), 2: document("")}, registry=registry, data=data
+    )
+    [withdrawn] = page_obligations(state, 2)["all"]
+    assert withdrawn["id"] == asked["id"]
+    assert withdrawn["status"] == "withdrawn"
+
+
+def test_record_obligations_validate_input_and_label_at_their_boundaries():
+    from leaf.data_contracts import payload_error
+    from leaf.registry.contract import RegistryError
+    from leaf.registry.validation import validate_registry
+
+    registry = deepcopy(model.model_layer("visual-review"))
+    entry = registry["lf-visual-review"]
+    entry["x-awaits"]["records"]["input"] = "missing"
+    with pytest.raises(RegistryError, match="x-awaits.records"):
+        validate_registry(registry, "test")
+    entry["x-awaits"]["records"]["input"] = "run"
+    entry["x-awaits"]["records"]["label"] = "missing"
+    source = json.loads(
+        (
+            Path(__file__).parents[2]
+            / "examples/developer/visual-review-gallery.data.json"
+        ).read_text()
+    )["gallery-visual-run"]
+    assert "obligation label 'missing'" in payload_error(
+        "run", "visual-run", source, registry
+    )
+    entry["x-awaits"]["records"]["label"] = "title"
+    assert payload_error("run", "visual-run", source, registry) is None
+    entry["x-awaits"]["answered"]["review"]["detail"] = {"approved": "yes"}
+    with pytest.raises(RegistryError, match="detail condition"):
+        validate_registry(registry, "test")

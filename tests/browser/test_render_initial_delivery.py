@@ -5,9 +5,77 @@ from threading import Event
 
 import pytest
 from interact_support import running_http_server
+from playwright.sync_api import expect
+from render_cases_interaction import live_url
+from render_harness import displayed, leaf_page, open_page
+
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.revision_artifact import Resource
 from leaf.revision_delivery import Delivery, compose_document
+
+
+def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, serve):
+    """Initial and live drawing share nodes, including restored activity rows.
+
+    Generated controls stay hidden until upgrade. The reader can already focus an
+    authored link; upgrade must retain that place and adopt the initial drawing,
+    after which both the native disclosure and the activity control work.
+    """
+    url = live_url(
+        serve(
+            leaf_page(
+                "Early drawings",
+                '<h1>Report</h1><p><a id="early-link" href="#evidence">Read the evidence</a></p>'
+                '<lf-toc id="contents" open></lf-toc>'
+                '<section id="evidence"><h2>Evidence</h2><p>Read the counts.</p>'
+                '</section><lf-activity id="feed"></lf-activity>',
+            )
+        )
+    )
+    context = browser.new_context(viewport={"width": 740, "height": 900})
+    page = open_page(browser, url, context=context)
+    page.locator("#feed .lf-activity-news").click()
+    expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
+    boot = []
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.reload(wait_until="commit")
+        displayed(page)
+        expect(page.locator("#feed .lf-activity-row")).to_be_visible()
+        expect(page.locator("#feed .lf-activity-news")).to_have_attribute(
+            "aria-expanded", "true"
+        )
+        page.keyboard.press("Tab")
+        expect(page.locator("#early-link")).to_be_focused()
+        early = page.evaluate_handle(
+            "[...document.querySelectorAll('#contents *, #feed *')]"
+        )
+        assert boot, "the runtime must remain held while the reader acts"
+        page.unroute("**/leaf.js")
+        boot.pop().continue_()
+        wait_until_ready(page)
+        assert page.evaluate("nodes => nodes.every(node => node.isConnected)", early)
+        expect(page.locator("#early-link")).to_be_focused()
+        expect(page.locator("#contents details")).to_have_attribute("open", "")
+        expect(page.locator("#feed .lf-activity-news")).to_have_attribute(
+            "aria-expanded", "true"
+        )
+        assert page.evaluate("globalThis.litHtmlVersions.length") == 1
+        # The adopted drawing responds to both native and live controls.
+        summary = page.locator("#contents summary")
+        summary.press("Enter")
+        expect(page.locator("#contents details")).not_to_have_attribute("open", "")
+        summary.press("Enter")
+        expect(page.locator('#contents a[href="#evidence"]')).to_be_visible()
+        page.locator("#feed .lf-activity-news").click()
+        expect(page.locator("#feed .lf-activity-row")).to_be_hidden()
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        context.close()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -23,7 +91,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
     so its run holds delivery to writing none.
     """
     browser = request.getfixturevalue(engine)
-    assets = compiled_installation / "skills/leaf/assets"
+    assets = compiled_installation / "browser"
     host_source = (
         '<lf-initial-outer id="outer"><aside data-lf-exhibit="">'
         '<lf-initial-inner id="inner"><p>Original nested prose</p>'
@@ -57,7 +125,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             "/" + path.relative_to(root).as_posix(): Resource(
                 path.read_bytes(), "application/javascript"
             )
-            for root in (assets, compiled_installation / "skills/leaf/kernel")
+            for root in (assets, compiled_installation / "dist/kernel")
             for path in root.rglob("*.js")
         },
         "/leaf.js": Resource(
@@ -71,6 +139,9 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             "application/javascript",
         ),
         "/vendor/initial.js": Resource(producer, "application/javascript"),
+        "/vendor/initial-dependencies.json": Resource(
+            b'{"/vendor/initial.js": []}', "application/json"
+        ),
         **{
             path: Resource(b"", "text/css")
             for path in (

@@ -1,13 +1,13 @@
 """Prepare and reuse installation trees whose committed kernel is current.
 
 An install is the tracked tree. It serves the kernel committed under
-`skills/leaf/kernel/` wherever that was compiled from the tree's own modules, and the
-source modules otherwise (`leaf.layer.current_kernel`). A developer checkout's kernel
-is stale whenever its runtime has been edited and not rebuilt, so the website, the
-suite's browser tiers, and developer previews run a prepared installation instead:
-the payload with its kernel compiled again by the same build
-(`build/runtime-bundle.mjs`), so each vendors the kernel an install of that tree
-will serve once it is rebuilt. The website's container installs that same payload
+`dist/kernel/` wherever that was compiled from the tree's own modules, and the
+source modules otherwise (`leaf.runtime_selection.read_runtime`). A developer
+checkout's kernel is stale whenever its runtime has been edited and not rebuilt, so the
+website, the suite's browser tiers, and developer previews run a prepared installation
+instead: the payload with its kernel compiled again by the same build
+(`build/runtime-bundle.mjs`), so each serves the kernel an install of that tree will
+serve once it is rebuilt. The website's container installs that same payload
 (`leaf_dev.commands.site`). Nothing compiles during installation, page init, export, or
 custom-package authoring. Package widgets remain native ESM and import the same
 widget-api entry as the compiled kernel, so their state has one owner.
@@ -25,9 +25,9 @@ import tempfile
 from pathlib import Path
 
 import click
+
 from leaf.layer import files_identity, payload_provenance
 from leaf.state import flocked, write_json
-
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, extract_payload
 
@@ -59,13 +59,35 @@ def prepare(output: Path, runtime: Path = ROOT) -> None:
     else:
         output.mkdir(parents=True)
         copy_payload(runtime, output)
+    # The selected runtime owns its resource layout. Read its locators through its
+    # own environment, since comparison arms can arrange their payload differently.
+    resources = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--quiet",
+            "--no-dev",
+            "--project",
+            str(runtime),
+            "python",
+            "-c",
+            (
+                "import json; from leaf.schema import ASSETS, KERNEL, PLUGIN_ROOT; "
+                "print(json.dumps([str(p.relative_to(PLUGIN_ROOT)) for p in (ASSETS, KERNEL)]))"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assets, kernel = json.loads(resources.stdout)
     compiler = compiler_root()
     subprocess.run(
         [
             "node",
             str(compiler / "build/runtime-bundle.mjs"),
-            str(output / "skills/leaf/assets"),
-            str(output / "skills/leaf/kernel"),
+            str(output / assets),
+            str(output / kernel),
         ],
         cwd=compiler,
         check=True,
@@ -141,15 +163,11 @@ def installation_identity(runtime: Path = ROOT) -> str:
 
 
 def cached_installation(runtime: Path = ROOT) -> Path:
-    """Share one complete compiled payload per relevant working-tree revision.
+    """Share an immutable installation for content and producer provenance.
 
-    Suite workers and preview slots serialize preparation, then use an immutable
-    installation. Authored-page edits and Git-label changes reuse its compiled
-    bytes while publishing accurate producer metadata. A payload or compiler edit
-    builds a new kernel, so every page these installations vendor gets the kernel
-    rather than the source modules. Recheck after lock acquisition and before
-    returning or publishing: an edit that overtakes this attempt retries selection
-    without needing another watcher event. A failed build publishes no cache entry.
+    Git-label changes rebuild the payload as content changes do. Recheck after
+    acquiring the lock and before publication so a racing edit is selected without
+    another watcher event. Failed builds publish no cache entry.
     """
     runtime = runtime.resolve()
     if (runtime / "leaf-distribution.json").is_file():
@@ -157,50 +175,30 @@ def cached_installation(runtime: Path = ROOT) -> Path:
     cache = compiler_root() / ".tmp/compiled-runtime"
     cache.mkdir(parents=True, exist_ok=True)
 
-    def revision_is_current(identity: str, producer: dict) -> bool:
-        return (
-            payload_provenance(root=runtime) == producer
-            and installation_identity(runtime) == identity
-        )
+    def identity():
+        return files_identity(
+            {
+                "content": installation_identity(runtime).encode(),
+                "producer": json.dumps(
+                    payload_provenance(root=runtime), sort_keys=True
+                ).encode(),
+            }
+        ).removeprefix("sha256:")
 
     while True:
-        identity = installation_identity(runtime)
-        content = cache / f"content-{identity}"
-        with flocked(cache / f"{identity}.lock"):
-            if installation_identity(runtime) != identity:
+        selected = identity()
+        output = cache / selected
+        with flocked(cache / f"{selected}.lock"):
+            if identity() != selected:
                 continue
-            if not content.is_dir():
-                with tempfile.TemporaryDirectory(
-                    prefix=".preparing-", dir=cache
-                ) as raw:
-                    staged = Path(raw) / "installation"
-                    prepare(staged, runtime)
-                    if installation_identity(runtime) != identity:
-                        continue
-                    staged.rename(content)
-            producer = payload_provenance(root=runtime)
-
-            publication = files_identity(
-                {
-                    "content": identity.encode(),
-                    "producer": json.dumps(producer, sort_keys=True).encode(),
-                }
-            ).removeprefix("sha256:")
-            output = cache / publication
             if output.is_dir():
-                if revision_is_current(identity, producer):
-                    return output
-                continue
-            with tempfile.TemporaryDirectory(prefix=".publishing-", dir=cache) as raw:
+                if identity() != selected:
+                    continue
+                return output
+            with tempfile.TemporaryDirectory(prefix=".preparing-", dir=cache) as raw:
                 staged = Path(raw) / "installation"
-                # Prepared bytes are immutable. Hard links reuse the compiled kernel;
-                # atomic JSON replacement gives this snapshot its own producer record.
-                shutil.copytree(content, staged, copy_function=os.link)
-                manifest = staged / "leaf-distribution.json"
-                record = json.loads(manifest.read_text())
-                record["producer"] = producer
-                write_json(manifest, record)
-                if not revision_is_current(identity, producer):
+                prepare(staged, runtime)
+                if identity() != selected:
                     continue
                 staged.rename(output)
             return output

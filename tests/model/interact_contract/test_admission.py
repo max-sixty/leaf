@@ -22,6 +22,7 @@ from interact_support import (
     refused_on,
     wait_for,
 )
+
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
@@ -316,9 +317,6 @@ def test_admission_decides_from_the_markup_and_the_current_log_alone():
         "unknown-parent", values={"kind": "reply", "parent": "c9"}
     )
     assert admit({**answer, "parent": "c1"})["parent"] == "c1"
-    for version in ([1], {"version": 1}, True):
-        invalid = refusal({"kind": "done", "author": "user", "version": version})
-        assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/version")
 
 
 def test_a_created_child_is_its_actions_unit_and_its_words_stay_payload():
@@ -545,9 +543,9 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         ),
         (
             {"kind": "comment", "revision": 1, "token": "keep", "text": "and"},
-            "must match exactly one of",
+            "is valid under each of",
         ),
-        ({"kind": "comment", "revision": 1}, "must match exactly one of"),
+        ({"kind": "comment", "revision": 1}, "is not valid under any of"),
         (
             {"kind": "comment", "revision": 1, "token": "keep", "suggestion": True},
             "suggestion",

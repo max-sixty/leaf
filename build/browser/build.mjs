@@ -29,8 +29,10 @@
  * in, so its file count costs requests only where a page serves source modules.
  *
  * The framework's third-party packages are minified builds from the lock and the
- * adaptations below. `vendor/lit.js` is the page's one copy of Lit (`build/lit.mjs`);
- * the framework imports Lit from it, as Web Awesome's bundle does. Signals are the
+ * adaptations below. Delivery inlines Lit only when an initial producer needs it,
+ * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
+ * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
+ * loads one implementation. Signals are the
  * framework's own and sit inside its directory. `shipped.mjs` decides whether each
  * output's imports resolve on every page and writes the notices for the packages
  * that reached them, as it does for every vendored bundle.
@@ -45,9 +47,16 @@ import { parse } from "acorn";
 import { transformSync } from "amaro";
 import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
-import { protocolBreaks } from "./protocol.mjs";
+import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
-import { litNamespace, litPath } from "../lit.mjs";
+import {
+  initialLitPath,
+  sharedLitPath,
+  litFacade,
+  litGlobal,
+  litNamespace,
+  litPath,
+} from "../lit.mjs";
 import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
@@ -55,12 +64,12 @@ import { adapt, seam, vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const assets = "skills/leaf/assets";
+const assets = "browser";
 /** The committed kernel, which installs serve while it matches the tree's modules. */
-const kernelDirectory = "skills/leaf/kernel";
-const sourceRoot = "build/browser";
+const kernelDirectory = "dist/kernel";
+const sourceRoot = "browser/framework";
 const compilerPathsFile = `${sourceRoot}/tsconfig.paths.json`;
-const packageRoot = "skills/leaf/packages";
+const packageRoot = "packages";
 const facade = "vendor/browser-runtime.js";
 const frameworkDirectory = "vendor/browser-runtime";
 /** The framework's layer paths: its facade and the directory of its modules. */
@@ -93,7 +102,7 @@ export async function compilerPaths(directory = root) {
       ]),
     ),
     "/runtime/*": [path.posix.relative(sourceRoot, `${assets}/runtime/*`)],
-    "/checks/*": ["../../skills/leaf/scripts/leaf/render-checks/*"],
+    "/checks/*": ["../../src/leaf/render-checks/*"],
   };
   return Buffer.from(`${JSON.stringify({ compilerOptions: { paths } }, null, 2)}\n`);
 }
@@ -101,6 +110,7 @@ export async function compilerPaths(directory = root) {
 const packages = {
   lit: litPath,
   "@preact/signals-core": `${frameworkDirectory}/signals-core.js`,
+  "@lit-labs/preact-signals": `${frameworkDirectory}/signals-core.js`,
 };
 
 /** Each source module's layer path. */
@@ -162,7 +172,7 @@ function compileModule(text, source) {
 }
 
 /**
- * Build `lit.js` (`build/lit.mjs`), adapting the locked published modules in memory.
+ * Build the classic Lit implementation, adapting the locked published modules in memory.
  *
  * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
  * keyed and child-part insertions through `runtime/dom-move.js`, which keeps the
@@ -170,7 +180,8 @@ function compileModule(text, source) {
  */
 async function litModule() {
   const contents = await litNamespace();
-  const move = 'import {move as leafMove} from "/runtime/dom-move.js";\n';
+  const move =
+    "const leafMove = (parent, node, before) => document.documentElement.lfInitial.move(parent, node, before);\n";
   return [
     {
       name: "leaf-lit",
@@ -223,12 +234,11 @@ async function litModule() {
 
 // Every schema a page vendored at the current protocol relies on, and every record's,
 // as it last stood (`protocol.mjs`). It is an output, so a build that passes moves it
-// forward. A build refuses a change that breaks it, and a served change until the
-// author accepts it with --accept-served.
-const baselineName = `${sourceRoot}/protocol-baseline.json`;
+// forward. A build refuses a change that breaks it.
+const baselineName = "build/browser/protocol-baseline.json";
 
 // JSON with a key per line to `depth` levels and each value below on one line, so the
-// baseline's diff names the event kinds, served definitions and records a change moved.
+// baseline's diff names the event kinds and records a change moved.
 function layout(value, depth, indent = "") {
   if (!depth || value === null || typeof value !== "object" || Array.isArray(value))
     return JSON.stringify(value);
@@ -240,24 +250,18 @@ function layout(value, depth, indent = "") {
   return `{\n${entries.join(",\n")}\n${indent}}`;
 }
 
-async function protocolOutputs({ acceptServed = false } = {}) {
+async function protocolOutputs() {
   const schemas = await protocolSchemas(new URL("../../", import.meta.url));
   const baseline = JSON.parse(await readFile(path.join(root, baselineName), "utf8"));
-  const { refused, served } = protocolBreaks(baseline, schemas);
-  const bump = "bump $events.protocol in skills/leaf/assets/registry.json";
-  const errors = [];
+  const held = baselineSchemas(schemas);
+  const refused = protocolBreaks(baseline, held);
   if (refused.length)
-    errors.push(
-      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or ${bump} (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
+    throw new Error(
+      `A page vendored at protocol ${baseline.protocol}, or a Leaf sharing a record's format, breaks on:\n${refused.join("\n")}\nKeep what it took, or bump $events.protocol in browser/registry.json (for a record, set its since to the current protocol), then run pnpm run build:browser.`,
     );
-  if (served.length && !acceptServed)
-    errors.push(
-      `A page vendored at protocol ${baseline.protocol} is served these changes:\n${served.join("\n")}\nIf a runtime vendored at ${baseline.protocol} reads one and would mishandle it, ${bump}, then run pnpm run build:browser. If none would, run pnpm run build:browser --accept-served, and name in the commit the readers you checked (layer-registry.md, "Page protocol").`,
-    );
-  if (errors.length) throw new Error(errors.join("\n\n"));
   return {
     contract: await contractTypes(new URL("../../", import.meta.url), schemas),
-    baseline: `${layout(schemas, 3)}\n`,
+    baseline: `${layout(held, 3)}\n`,
   };
 }
 
@@ -281,7 +285,7 @@ async function protocolOutputs({ acceptServed = false } = {}) {
 // the build drops it.
 const runtimeChecks = (file) =>
   file.endsWith(".js") &&
-  !/^skills\/leaf\/(?:assets|packages\/[^/]+)\/vendor\//.test(file) &&
+  !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file) &&
   !readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
 
 function typecheck(config, reports = () => true) {
@@ -311,12 +315,12 @@ function typecheck(config, reports = () => true) {
   if (diagnostics.length) throw new Error(`${config}:\n${diagnostics.join("\n")}`);
 }
 
-export async function buildOutputs({ acceptServed = false } = {}) {
+export async function buildOutputs() {
   const paths = await compilerPaths();
   if (!(await readFile(path.join(root, compilerPathsFile))).equals(paths))
     throw new Error("Stale compiler paths; run pnpm run build:browser");
   const contractPath = path.join(root, sourceRoot, "contract.d.ts");
-  const protocol = await protocolOutputs({ acceptServed });
+  const protocol = await protocolOutputs();
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
   typecheck("tsconfig.json");
@@ -343,13 +347,42 @@ export async function buildOutputs({ acceptServed = false } = {}) {
   const result = await build({
     absWorkingDir: root,
     entryPoints: Object.fromEntries(
-      Object.entries(packages).map(([name, layerPath]) => [
-        layerPath.slice("vendor/".length, -".js".length),
-        name === "lit" ? "leaf:lit" : name,
-      ]),
+      Object.entries(packages)
+        .filter(([name]) => name !== "lit")
+        .map(([, layerPath]) => [
+          layerPath.slice("vendor/".length, -".js".length),
+          "leaf:signals",
+        ]),
     ),
     outdir: `${assets}/vendor`,
-    plugins: await litModule(),
+    plugins: [
+      {
+        name: "shared-signals",
+        setup(build) {
+          build.onResolve({ filter: /^leaf:signals$/ }, () => ({
+            path: "signals",
+            namespace: "leaf-signals",
+          }));
+          build.onLoad({ filter: /.*/, namespace: "leaf-signals" }, () => ({
+            // The package barrel also initializes its optional template directives,
+            // pulling another Lit into this bundle. Build the published mixin alone.
+            contents:
+              'export * from "@preact/signals-core"; export { SignalWatcher } from ' +
+              JSON.stringify(
+                fileURLToPath(
+                  new URL(
+                    "./lib/signal-watcher.js",
+                    import.meta.resolve("@lit-labs/preact-signals"),
+                  ),
+                ),
+              ) +
+              ";",
+            resolveDir: root,
+            loader: "js",
+          }));
+        },
+      },
+    ],
     external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
@@ -372,7 +405,57 @@ export async function buildOutputs({ acceptServed = false } = {}) {
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
   }
-  const packageRoots = bundledPackages(result.metafile, root);
+  const initialLit = await build({
+    absWorkingDir: root,
+    stdin: {
+      contents: `import * as lit from "leaf:lit"; ${litGlobal} = lit;`,
+      resolveDir: root,
+      sourcefile: "leaf-initial-lit.js",
+    },
+    outfile: `${assets}/${initialLitPath}`,
+    plugins: await litModule(),
+    platform: "browser",
+    format: "iife",
+    target: "es2022",
+    bundle: true,
+    minify: true,
+    legalComments: "eof",
+    metafile: true,
+    write: false,
+    logLevel: "silent",
+  });
+  const [initialLitFile] = initialLit.outputFiles;
+  checkModule(initialLitFile.text, initialLitPath);
+  outputs.set(`${assets}/${initialLitPath}`, Buffer.from(initialLitFile.contents));
+  const moduleLit = await build({
+    absWorkingDir: root,
+    stdin: {
+      contents: `import "/runtime/dom-move.js"; import * as lit from "leaf:lit"; ${litGlobal} = lit; export * from "leaf:lit";`,
+      resolveDir: root,
+      sourcefile: "leaf-module-lit.js",
+    },
+    outfile: `${assets}/${litPath}`,
+    plugins: await litModule(),
+    external: ["/runtime/dom-move.js"],
+    platform: "browser",
+    format: "esm",
+    target: "es2022",
+    bundle: true,
+    minify: true,
+    legalComments: "eof",
+    write: false,
+    logLevel: "silent",
+  });
+  const [moduleLitFile] = moduleLit.outputFiles;
+  checkModule(moduleLitFile.text, litPath);
+  outputs.set(`${assets}/${litPath}`, Buffer.from(moduleLitFile.contents));
+  outputs.set(`${assets}/${sharedLitPath}`, Buffer.from(await litFacade()));
+  const packageRoots = [
+    ...new Set([
+      ...bundledPackages(result.metafile, root),
+      ...bundledPackages(initialLit.metafile, root),
+    ]),
+  ];
   outputs.set(
     `${assets}/vendor/browser-runtime.LICENSES.txt`,
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
@@ -459,28 +542,23 @@ export async function checkOutputs(outputs, directory = root) {
 }
 
 async function main(args) {
-  const usage = "Usage: node build/browser/build.mjs [--check | --accept-served]";
+  const usage = "Usage: node build/browser/build.mjs [--check]";
   if (args.length === 1 && args[0] === "--help") {
     console.log(
-      `${usage}\n\nBuild committed browser ESM, or check it without writing. --accept-served moves the protocol baseline past served changes that you found no vendored runtime would mishandle. Run pnpm install --frozen-lockfile first.`,
+      `${usage}\n\nBuild committed browser ESM, or check it without writing. Run pnpm install --frozen-lockfile first.`,
     );
     return;
   }
-  if (
-    args.length > 1 ||
-    (args.length && !["--check", "--accept-served"].includes(args[0]))
-  )
-    throw new Error(usage);
-  const acceptServed = args[0] === "--accept-served";
+  if (args.length > 1 || (args.length && args[0] !== "--check")) throw new Error(usage);
   if (args[0] !== "--check") {
     await writeFile(path.join(root, compilerPathsFile), await compilerPaths());
-    const { contract } = await protocolOutputs({ acceptServed });
+    const { contract } = await protocolOutputs();
     await writeFile(path.join(root, sourceRoot, "contract.d.ts"), contract);
     // The modules generated from the registry are the typecheck's inputs too.
     for (const [name, bytes] of await registryOutputs())
       await writeFile(path.join(root, name), bytes);
   }
-  const outputs = await buildOutputs({ acceptServed });
+  const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
     for (const owned of await ownedDirectories(root))

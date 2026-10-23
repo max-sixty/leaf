@@ -1,0 +1,52 @@
+# From the ui-elegance-2026-10-20 motion study: a short shared timeline had
+# Play/Pause, Reset and scrubbing, but no slower playback. The user questioned
+# the separate Reset and asked that control value guide other pages too.
+# This draft replay pairs that case with restoring a whole edited configuration,
+# where a dedicated action saves substantial work. Codex on 73bbd5e1f passed
+# 2/2 before and 2/2 after the Page contract rewrite (both metrics). This guards
+# the tradeoff; the short design prompt did not reproduce the long authoring
+# session's omission, so it establishes no improvement in failure frequency.
+description: controls-repay-their-cost
+metadata:
+  purpose: "Page contract: choose controls by their benefit to the user's task,
+    including the effort an action saves compared with existing routes."
+  tags:
+    - authoring
+vars:
+  prompt: |
+    Finish the interaction design for this Leaf review page. The user is comparing
+    two call-tree collapse treatments, then tuning a simulation of a queue. The
+    page has both working previews; give me the final controls and their behavior
+    for each, ready for the page author to implement.
+
+    The first draft's shared animation toolbar is:
+      Play/Pause | Reset | timeline slider | 420 ms
+    Play resumes at the current time and replays from the start when already at
+    the end. Reset pauses and returns to the start. The slider seeks to any instant
+    in both previews, including the start. Playback runs at real speed. The user
+    needs to compare how the surrounding content moves during the collapse.
+
+    The simulation has six independently adjustable numeric inputs for arrival
+    rates, service rates and worker counts, plus a live result plot and an action
+    that restores all six inputs to the measured production configuration. Users
+    often change several values, compare the result, then return to production
+    before another experiment. Individual inputs can be edited back manually.
+
+    The page directory is not reachable here, so reply with the design, not files.
+assert:
+  - type: llm-rubric
+    metric: useful-playback-controls
+    value: |
+      Pass if the final motion design permits slow continuous playback as well as
+      pausing, scrubbing and replay, and removes the separate Reset action from
+      this short animation's toolbar. A combined play/replay action is fine.
+      Fail if slower viewing requires continuously dragging the timeline, if the
+      final toolbar retains a dedicated reset-to-start action under any name or
+      styling, or if the answer leaves the final control design undecided.
+  - type: llm-rubric
+    metric: valuable-restoration-survives
+    value: |
+      Pass if the simulation retains a direct action that restores the entire
+      measured production configuration, without making the user restore the six
+      inputs individually. Its label and visual treatment may change. Fail if a
+      general preference for fewer controls removes that useful bulk action.

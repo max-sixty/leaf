@@ -29,19 +29,6 @@ import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
 from interact_support import declared, running_http_server
-from leaf import data as data_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import schema as schema_model
-from leaf.event_log import _parse_events, read_events
-from leaf.events import bare_reaction, build_threads
-from leaf.passages import enclosing_ids
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.revision_artifact import read_artifact
-from leaf.service import acknowledged
-from leaf.structure import SourceDocument
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
@@ -72,6 +59,19 @@ from render_harness import (
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "Waits".
 from journeys import expect_showing
+from leaf import data as data_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import layer as layer_model
+from leaf import schema as schema_model
+from leaf.event_log import _parse_events, read_events
+from leaf.events import bare_reaction, build_threads
+from leaf.passages import enclosing_ids
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate import version as render_gate_model
+from leaf.revision_artifact import read_artifact
+from leaf.service import acknowledged
+from leaf.structure import SourceDocument
 
 ROOT = Path(__file__).parents[2]
 DOCS = ROOT / "docs"
@@ -143,12 +143,10 @@ def example_title(stem: str) -> str:
 
 
 def authored_examples():
-    """The public examples, with the one generated browser-stress fixture removed."""
+    """The public examples, excluding any generated browser-stress snapshot."""
     pages = pages_under(EXAMPLES)
-    corpus = [page for page in pages if page.stem == "corpus"]
     authored = [page for page in pages if page.stem != "corpus"]
-    assert len(corpus) == 1, f"expected one internal corpus, found {corpus}"
-    assert authored, "excluding the corpus left no examples to publish"
+    assert authored, "no authored examples to publish"
     return authored
 
 
@@ -367,13 +365,9 @@ def test_product_pages_are_published_as_complete_page_records(site):
             "events.jsonl",
         ):
             assert (page / name).is_file(), f"{source.name}: no {name}"
-        for name in (
-            "instructions",
-            "revisions",
-            "runtime",
-            "vendor",
-            "widgets",
-        ):
+        # The runtime is the serving Leaf's, which the release publishes beside each
+        # revision rather than the page vendoring it (`runtime_selection`).
+        for name in ("instructions", "revisions", "vendor", "widgets"):
             assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
         artifact = read_artifact(page, files_model.latest_revision(page))
         for path, resource in artifact.resources.items():
@@ -610,19 +604,13 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         for name in (
             "events.jsonl",
             "icon.svg",
-            "leaf.js",
             "registry.json",
             "theme.css",
         ):
             assert (page_dir / name).is_file(), f"{source.name}: no {name}"
-        for sub in (
-            "instructions",
-            "media",
-            "revisions",
-            "runtime",
-            "vendor",
-            "widgets",
-        ):
+        # The runtime is the serving Leaf's, which the release publishes beside each
+        # revision rather than the page vendoring it (`runtime_selection`).
+        for sub in ("instructions", "media", "revisions", "vendor", "widgets"):
             assert list((page_dir / sub).iterdir()), f"{source.name}: {sub}/ is empty"
         assert declared(page_dir)["state"] == "idle"
         assert not (page_dir / "service.json").exists()
@@ -717,16 +705,11 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
     _, url = served_example("visual-review-gallery")
     page = open_page(browser, url)
     review = page.locator("#visual-review-run")
-    case_select = review.locator(".lf-vr-case-select")
     for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
-        option = review.locator(f'wa-option[value="{case_id}"]')
-        case_select.click()
-        expect(option).to_be_visible()
-        option.click()
-        # Web Awesome finishes hiding the listbox after it records the selection.
-        expect(case_select.locator('[part~="listbox"]')).to_have_attribute("hidden", "")
-        expect(case_select).to_have_js_property("value", case_id)
-        comparison = review.locator(".lf-vr-case[data-selected] lf-shot")
+        review.locator(
+            f'.lf-vr-case-button[aria-controls="visual-review-run-{case_id}"]'
+        ).click()
+        comparison = review.locator('.lf-vr-case[aria-hidden="false"] lf-shot')
         expect(comparison).to_be_visible()
         images = comparison.locator("img")
         expect(images).to_have_count(2)

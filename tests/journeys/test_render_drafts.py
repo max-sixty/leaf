@@ -4,8 +4,6 @@ import json
 
 import pytest
 from browser.threads import open_panel_thread, seed_panel_threads
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     SEATED_OBLIGATION_PAGE,
@@ -38,6 +36,9 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf import event_log as events_model
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -199,9 +200,13 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     typed = "Late: " + typed
 
     reply = "Typed into the reply box of the other tab."
-    # The marks stand beside the field once the caret leaves it.
+    # The marks stand beside the field once the caret leaves it. A held draft
+    # takes the quick chips' room, so travel through the Threads key route.
     first.keyboard.press("Escape")
     for page in (second, first):
+        page.locator("h1").click()
+        page.keyboard.press("Shift+t")
+        panel_settled(page, view="thread")
         open_panel_thread(page, root)
     write(panel_field(second), reply)
     expect(panel_field(first)).to_have_js_property("value", reply)

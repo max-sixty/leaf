@@ -105,8 +105,7 @@ when you start one: they now own a process that only `leaf server stop <page>` e
 
 A watcher restarts an enabled server whose process dies, at the same URL. `leaf server
 stop <page>` disables the server; a watcher keeps watching a stopped page until it is
-idle. To end the page's conversation, follow `page-checkpoints.md`, "Sign-off and
-ending".
+idle. To end the page's conversation, follow `page-checkpoints.md`, "Ending".
 
 ## Resuming a persistent or foreign page
 
@@ -140,7 +139,7 @@ and retains gap diagnostics under type filters. The raw `<page>/observations.jso
 which `tail -F` follows live while you reproduce a problem, is in arrival order and
 still holds retries. Browser wall time stays in `observed_at`; order alone does not
 prove cause. The user's decisions are in `leaf page events <page>`, and
-[page-storage.md](../scripts/leaf/page-storage.md) defines the file. The public site
+[page-storage.md](../../../src/leaf/page-storage.md) defines the file. The public site
 stores its browser batches in Workers Observability; `worker/README.md` describes
 lookup by session reference.
 

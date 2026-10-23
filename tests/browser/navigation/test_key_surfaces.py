@@ -6,7 +6,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE, live_url
 from render_cases_navigation import NOTED_PAGE
@@ -23,6 +22,7 @@ from render_harness import (
 
 from browser.navigation import expect_walk_position
 from browser.threads import open_panel_thread
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -172,12 +172,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     and worth knowing and not what the next press does."""
     page = open_page(browser, serve(NOTED_PAGE))
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Move 60% of a page down"
-    )
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Move 60% of a page up"
-    )
+    expect(page.locator(".lf-command-reference")).to_contain_text("Page down")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Page up")
     expect(page.locator(".lf-command-reference")).to_contain_text("Caret browsing")
     page.keyboard.press("Escape")
 

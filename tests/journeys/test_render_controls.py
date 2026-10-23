@@ -12,11 +12,6 @@ from interact_support import (
     record_claim,
     wait_for,
 )
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import presence as presence_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.schema import SERVICE_FILE
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -72,6 +67,11 @@ from render_harness import (
 )
 
 from journeys import expect_panel_says, panel_says
+from leaf import event_log as events_model
+from leaf import hosting as hosting_model
+from leaf import presence as presence_model
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.schema import SERVICE_FILE
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -147,7 +147,8 @@ def _sample_containment_page():
    {"kind":"reply","author":"agent","parent":"question","ephemeral":true,
     "text":"Checking the nested reading region."},
    {"kind":"reply","author":"agent","parent":"question",
-    "text":"The destination is inside the nested reading region."}]
+    "text":"The destination is inside the nested reading region.",
+    "markup":"<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
 </script>
 <script type="module">
   const sample = document.querySelector('#practice');
@@ -219,7 +220,6 @@ diff --git a/gateway/limits.py b/gateway/limits.py
     f"""<lf-shot id="stable-shot" alt="the release card"
          before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>
 """,
-    head='<meta name="lf-review" content="sign-off">',
 )
 
 
@@ -252,38 +252,19 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-playground .lf-playground-submit",
     },
     {
-        # The comparison rail: Before and After stand beside each other above the frames,
-        # and each caption chooses its own frame. Pressing After is the transition with
-        # something to prove — the caption the user leaves and the one they arrive at
-        # both change their active paint, and a rule that spent width on the active word
-        # would move the other caption under the user's pointer.
-        "name": "shot-caption",
-        "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
+        # Switching views must not move the buttons under the pointer.
+        "name": "shot-view",
+        "target": "#stable-shot .lf-shot-views button:nth-child(2)",
     },
     {
-        # The case queue's Previous, case selector, and Next controls share the
-        # row above the evidence. Selecting another title changes the select's
-        # contents without moving the buttons around it.
-        "name": "visual-review-navigation",
-        "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case-select",
-        "option": "All mobile destinations remain reachable",
-    },
-    {
-        # The visual inspector's view and size presses are joined groups whose selected
-        # treatment changes in place. Pressing Flip exercises both states while its
-        # Compare, Overlay, and size neighbours stay under the user's pointer.
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "open": ".lf-vr-inspection-summary",
-        "target": '.lf-vr-mode-group > [value="flip"]',
+        "target": '.lf-vr-case[aria-hidden="false"] .lf-shot-views button:nth-child(2)',
     },
     {
-        # A disposition changes both its selected paint and the case's durable review
-        # state while its opposite remains beside it.
-        "name": "visual-review-disposition",
+        "name": "visual-review-approval",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case[data-selected] .lf-vr-needs-work",
+        "target": '.lf-vr-case[aria-hidden="false"] .lf-vr-approval',
     },
 )
 
@@ -329,13 +310,15 @@ RING_CASES = (
             "heat-loss": ((".lf-visual-action", ".lf-visual-action"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
-                (".lf-playground-radio", ".lf-playground-choice-face"),
+                ("lf-playground input[type=radio]", ".choice:has"),
             ),
-            "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
+            "review-a-plan": (
+                ("main details > summary", ":where([data-lf-focus-visible])"),
+            ),
             "pr-walkthrough": (
                 (
                     "#pr-flow-tab",
-                    ".lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus])::after",
+                    ".lf-rendered:has(> :is(lf-tab, lf-part)",
                 ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
@@ -346,9 +329,9 @@ RING_CASES = (
                 ("main p.lf-mark-el", ".lf-mark-el"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
-                    "wa-comparison::part(lf-focus)",
+                    "wa-comparison::part(",
                 ),
-                (".lf-shotcap", "[data-lf-offer]"),
+                (".lf-shot-views button", "button"),
             ),
             "wt-merge": (
                 (
@@ -445,7 +428,7 @@ RING_CASES = (
         (),
         {
             "ship-review": (
-                (".lf-react-palette:popover-open .lf-react", ".lf-outline-chip"),
+                (".lf-react-palette:popover-open .lf-react", "[data-lf-offer]"),
             )
         },
     ),
@@ -692,7 +675,7 @@ AIM_BOXES = browser_function("aims.js", "offeredAims")
 AIM_SURFACES = (
     ".lf-fp-settle",
     '[data-row="preview"]',
-    ".lf-outline-chip",
+    ".lf-react-strip .lf-react",
     ".lf-fp-compare",
     ".lf-command-reference-command",
     ".lf-quote",
@@ -864,7 +847,11 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
     resized(page, 390, 720)
     expect(back).to_be_in_viewport()
     assert root_overflow(page) <= 1
-    child.locator(".lf-fp-threads").click()
+    # The held draft gives the field the quick chips' room. Open Threads through
+    # the child's Go-to route while the same frame stands in Full view.
+    child.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(child, view="threads")
     page.keyboard.press("Escape")
     panel_settled(child, open=False)
@@ -1189,18 +1176,14 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
     # A real child disclosure keeps its focused toggle in its own conversation.
     page.locator("#show-panel").click()
     expect(page.locator("#completed")).to_have_text("2")
-    expand = child.locator(".lf-fp-view").get_by_role(
-        "button", name="Show 1 progress message", exact=True
-    )
+    expand = child.locator(".lf-fp-view summary").filter(has_text="Read the checks")
     expand.scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
     expand.focus()
     expand.press("Enter")
-    collapse = child.locator(".lf-fp-view").get_by_role(
-        "button", name="Hide 1 progress message", exact=True
-    )
-    expect(collapse).to_be_focused()
-    expect(collapse).to_be_in_viewport()
+    expect(child.locator(".lf-fp-view details")).to_have_attribute("open", "")
+    expect(expand).to_be_focused()
+    expect(expand).to_be_in_viewport()
     rendered(child)
     assert page.evaluate("scrollY") == before
 
@@ -2633,6 +2616,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             expect(page.locator('#merge-steps-pane > [tabindex="0"]')).to_have_count(1)
         if name == "release-notes":
+            page.locator("lf-shot").get_by_role(
+                "button", name="Slider", exact=True
+            ).click()
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
                 "node => { node.classList.add('lf-mark-el'); node.tabIndex = 0; }"
@@ -2687,7 +2673,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 # Opening a collapsed file and loading its hunk finish after the key
                 # handler returns. Read the ring once the walk has actually landed.
                 expect(
-                    page.locator("#pr-exact-patch [data-content] > [data-line]:focus")
+                    page.locator("#pr-exact-patch .lf-diff-line > [data-line]:focus")
                 ).to_have_count(1)
             page_at_rest(page)
             if surface := RING_SCOPE_SURFACE.get(scope):

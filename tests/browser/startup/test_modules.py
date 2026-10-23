@@ -7,9 +7,6 @@ from urllib.parse import urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.render_checks import wait_until_ready
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE
@@ -37,6 +34,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf.render_checks import wait_until_ready
+from leaf.runtime_selection import serving_runtime
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -154,7 +155,9 @@ def _asked(context):
 
     def record(request):
         path = urlparse(request.url).path
-        paths.append(re.sub(r"^/revisions/r\d+-[0-9a-f]+", "", path))
+        paths.append(
+            re.sub(r"^/revisions/r\d+-[0-9a-f]+/[0-9a-f]+|^/[0-9a-f]+", "", path)
+        )
 
     context.on("request", record)
     return paths
@@ -181,7 +184,6 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     modules = sorted(p for p in asked if p.startswith("/widgets/"))
     assert modules == [
-        "/widgets/activity-view.js",
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
     ], modules
@@ -477,7 +479,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
     """Importing capabilities does not start a half-constructed browser application."""
     url = serve(SUGGESTION_PAGE)
-    boot = (serve.page_dir / "leaf.js").read_text()
+    boot = serving_runtime().resources({})["/leaf.js"].data.decode()
     context = browser.new_context()
     context.route(
         "**/leaf.js",

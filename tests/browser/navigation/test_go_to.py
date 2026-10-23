@@ -4,8 +4,6 @@ the links and new tabs they open."""
 import re
 
 import pytest
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE
 from render_cases_navigation import (
@@ -14,7 +12,6 @@ from render_cases_navigation import (
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
     FOOTED_PAGE,
-    NOTED_PAGE,
     _publish,
     address_code,
     address_codes,
@@ -25,14 +22,14 @@ from render_harness import (
     leaf_page,
     open_page,
     opened_tab,
-    panel_control,
     resized,
-    sending,
     shown,
 )
 
 from browser.navigation import expect_walk_position
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
+from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -759,31 +756,3 @@ def test_global_destinations_switch_from_a_covering_workspace(
     page.keyboard.press("Escape")
     expect(versions).to_have_count(0)
     expect(page.locator(PANEL)).to_have_attribute("data-open", "thread")
-
-
-def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, serve):
-    """Approval is a button action; a dead sequence destination cannot turn into it."""
-    html = NOTED_PAGE.replace(
-        "</head>",
-        '<meta name="lf-review" content="sign-off">\n</head>',
-    )
-    page = open_page(browser, serve(html))
-
-    # All pages is conditional. With no neighbouring leaf, its sequence must not be
-    # reinterpreted as a page action carrying the same final key.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    rendered(page)
-    assert not [
-        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "done"
-    ]
-
-    approve = panel_control(page, "approval")
-    expect(approve).to_contain_text("Approve version")
-    expect(approve).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
-    approve.focus()
-    with sending(page, "the approval"):
-        page.keyboard.press("Enter")
-    expect(page.locator(".lf-fp-row-notice")).to_have_text(re.compile(r"✓ v1 approved"))
-    done = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "done"]
-    assert [event["version"] for event in done] == [1], done

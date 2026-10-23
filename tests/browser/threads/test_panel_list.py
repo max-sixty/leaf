@@ -4,8 +4,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -16,12 +14,15 @@ from render_cases_interaction import (
 )
 from render_harness import (
     open_page,
+    panel_settled,
     resized,
     take_browser_errors,
     told,
 )
 
 from browser.threads import claim_for_codex, open_panel_thread, thread_row
+from leaf import thread as thread_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -119,8 +120,9 @@ def test_an_answer_without_a_title_leaves_the_opening_words(browser, serve):
 
 def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     """While an agent holds the page and owes an untitled thread its work, a title is
-    on its way (thread_titles.py), so Threads' row and the thread's view say so rather
-    than heading the thread with its opening words, until the title lands. A page
+    on its way (thread_titles.py), so every surface drawing the thread's name says so
+    rather than naming the thread with its opening words, until the title lands:
+    Threads' row, Page Map's row, the agent's card in On and the thread's view. A page
     nobody holds is sent no title, so there the thread reads its opening words."""
     url = serve(PANEL_PAGE)
     opening = "Is the workshop room accessible?"
@@ -138,6 +140,18 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     expect(thread_row(page, root)).to_have_accessible_name(
         re.compile(f"^{re.escape(spoken)} Sent$")
     )
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    mapped = page.locator(".lf-page-map-dialog .lf-page-map-action-label-word")
+    expect(mapped.locator(".lf-thread-name-pending")).to_have_text(pending)
+    page.keyboard.press("Escape")
+    page.locator(".lf-fp-on-user").click()
+    panel_settled(page, view="queue")
+    page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
+    owed = page.locator('.lf-fp-on-item[data-list="agent"]')
+    expect(owed.locator(".lf-thread-name-pending")).to_have_text(pending)
     open_panel_thread(page, root)
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(title.locator(".lf-thread-name-pending")).to_have_text(pending)
@@ -171,6 +185,6 @@ def test_a_thread_nobody_picked_up_reads_its_opening_words(browser, serve):
     )["id"]
     page = open_page(browser, url)
     row = thread_row(page, root)
-    expect(row.locator(".lf-fp-value")).to_have_text("Waiting for pickup")
+    expect(row.locator(".lf-fp-value")).to_have_text("Waiting for delivery")
     expect(row.locator(".lf-fp-label")).to_have_text(opening)
     assert not take_browser_errors(page)

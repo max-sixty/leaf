@@ -37,7 +37,6 @@ from pathlib import Path
 
 import pytest
 from interact_support import wait_for
-from leaf.render_checks import rendered, wait_until_ready
 from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
@@ -60,6 +59,8 @@ from render_harness import (
     sending,
     write,
 )
+
+from leaf.render_checks import rendered, wait_until_ready
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
 LONG = (
@@ -1270,7 +1271,11 @@ def test_send_grows_thread_around_the_words(
       window.beforePageScroll = scrollY;
       const bar = document.querySelector('.lf-fab-bar');
       const style = getComputedStyle(bar);
-      window.box = {frame: bar.getBoundingClientRect().toJSON(),
+      const field = bar.querySelector('.lf-compose-field').getBoundingClientRect();
+      const left = parseFloat(style.paddingLeft), right = parseFloat(style.paddingRight);
+      const top = parseFloat(style.paddingTop), bottom = parseFloat(style.paddingBottom);
+      window.box = {frame: new DOMRect(field.left - left, field.top - top,
+        field.width + left + right, field.height + top + bottom).toJSON(),
         painted: style.backgroundColor !== 'rgba(0, 0, 0, 0)' || style.boxShadow !== 'none'};
       window.sendFrames = [];
       window.grew = false;
@@ -1311,8 +1316,8 @@ def test_send_grows_thread_around_the_words(
     assert not reading["box"]["painted"], "The box being written painted its frame"
     assert reading["grew"], "Send showed the card without growing it out of the box"
     assert reading["frames"]
-    # The card takes the box's rectangle, less the response choices the box alone
-    # carries under its field.
+    # The card takes the editor's reserved rectangle. The Other responses button
+    # stands beside that rectangle and disappears when the card opens.
     edges = ("left", "right", "top") if options else ("left", "right", "top", "bottom")
     for frame in reading["frames"]:
         assert {edge: frame["frame"][edge] for edge in edges} == pytest.approx(

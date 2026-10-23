@@ -6,7 +6,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_KEYS_APPARATUS,
@@ -46,6 +45,7 @@ from render_harness import (
 )
 
 from browser.threads import PANEL_REPLY, open_panel_thread, thread_row
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -838,9 +838,9 @@ def test_escape_lets_go_of_the_obligation_the_user_is_standing_on(browser, serve
     # standing on a decision is the user holding something, with no layer over the
     # page at all.
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Let go of the current item"
-    )
+    expect(
+        page.locator('.lf-command-reference tr[data-lf-command="navigation.release"]')
+    ).to_contain_text("Let go")
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(page.locator("#live-question-decision[data-lf-obligation]")).to_have_count(1)

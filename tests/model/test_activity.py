@@ -32,6 +32,7 @@ from interact_support import (
     yaml_document,
 )
 from interact_support import declare as declare_status
+
 from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -84,7 +85,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     assert codex["turn_opened"] and not codex["turn_takes_input"]
     assert codex["listening"] is False
     assert codex["activity"]["kind"] == "away"
-    leases_model.mark_step_hook("codex-thread")
+    leases_model.mark_hooks("codex-thread")
     codex = page_state(codex_claimed_page)
     assert codex["turn_takes_input"] and codex["listening"] is False
     assert codex["activity"]["kind"] == "listening"

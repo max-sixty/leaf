@@ -150,9 +150,8 @@ def test_folds_without_summary_prose_keep_corrected_originals():
 
 
 def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
-    """Only marked progress folds, a one-message run included, and no progress is
-    unread, pending or folded. Progress the user spoke after stays where it was said:
-    the answer folds only the run it follows."""
+    """An answer hides every preceding progress run, including across a user reply.
+    User messages and newer progress remain, and progress is never unread."""
     identity = {"author": "agent", "agent": "Codex", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "Check the schedule."},
@@ -187,10 +186,12 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
     completed = model.threads(model.reading(HUB, (*messages, answer, later_progress)))[
         "e1"
     ]
-    assert [
-        (fold["covers"], fold["label"], fold["text"], fold["trigger"])
-        for fold in completed["summaries"]
-    ] == [(["e4"], "Previous progress messages", "", "e5")]
+    assert completed["summaries"] == []
+    assert {
+        message["id"]: message["completed_by"]
+        for message in completed["msgs"]
+        if "completed_by" in message
+    } == {"e2": "e5", "e4": "e5"}
     assert [message["text"] for message in completed["msgs"]] == [
         "Check the schedule.",
         "Checking mounts.",
@@ -202,7 +203,7 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
     assert completed["unread"] == [{"message": "e5", "version": "e5"}]
 
 
-def test_explicit_summaries_own_progress_overlap_and_progress_edits_keep_the_fold():
+def test_progress_completion_survives_edits_and_explicit_summaries():
     identity = {"author": "agent", "agent": "Codex", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "Check the schedule."},
@@ -236,7 +237,9 @@ def test_explicit_summaries_own_progress_overlap_and_progress_edits_keep_the_fol
             ),
         )
     )["e1"]
-    assert [fold["covers"] for fold in corrected["summaries"]] == [["e2", "e3"]]
+    assert corrected["summaries"] == []
+    assert corrected["msgs"][1]["completed_by"] == "e4"
+    assert corrected["msgs"][2]["completed_by"] == "e4"
     assert corrected["msgs"][1]["text"] == "Mounts checked."
     assert corrected["unread"] == [{"message": "e4", "version": "e4"}]
 
@@ -258,8 +261,9 @@ def test_explicit_summaries_own_progress_overlap_and_progress_edits_keep_the_fol
     )["e1"]
     assert [(fold["covers"], fold["text"]) for fold in explicit["summaries"]] == [
         (["e1", "e2"], "The mounts were checked."),
-        (["e3"], ""),
     ]
+    assert explicit["msgs"][1]["completed_by"] == "e4"
+    assert explicit["msgs"][2]["completed_by"] == "e4"
     assert explicit["unread"] == [{"message": "e4", "version": "e4"}]
 
 
@@ -289,7 +293,12 @@ def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
     assert thread["unread"] == [
         {"message": identity, "version": identity} for identity in ("e4", "e8")
     ]
-    assert [fold["trigger"] for fold in thread["summaries"]] == ["e8", "e8"]
+    assert thread["summaries"] == []
+    assert {
+        message["id"]: message["completed_by"]
+        for message in thread["msgs"]
+        if "completed_by" in message
+    } == {"e2": "e8", "e5": "e8"}
 
     revised = model.threads(
         model.reading(
@@ -410,7 +419,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     threads = model.threads(state)
     assert threads["e1"]["attention"] == {
         "kind": "needs_user",
-        "reason": "widget",
+        "reason": "obligation",
         "workflow": None,
     }
     assert threads["e4"]["attention"] == {
@@ -533,7 +542,7 @@ def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task(
     thread = model.threads(state)["e1"]
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "widget",
+        "reason": "obligation",
         "workflow": None,
     }
     assert state["todos"] == []

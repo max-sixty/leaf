@@ -10,12 +10,6 @@ from interact_support import (
     _start,
     wait_for,
 )
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     NESTED_PROPOSAL_PAGE,
@@ -55,10 +49,16 @@ from render_harness import (
     write,
 )
 
+from leaf import data as data_model
+from leaf import delivery as delivery_model
+from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf import thread as thread_model
+from leaf.render_checks import rendered, wait_until_ready
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.widgets import PLAYGROUND_PAGE
-
 from journeys import first_thread_quote
 
 
@@ -1290,6 +1290,8 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     expect(rows.first.get_by_label("Value")).to_have_value("asia")
     expect(instruction).to_contain_text("region is asia and risk above 40")
     undo(page)
+    expect(rows.first.get_by_label("Value")).to_have_value("asia")
+    playground.get_by_role("button", name="Reset").click()
     expect(rows.first.get_by_label("Value")).to_have_value("europe")
     expect(instruction).to_contain_text("region is europe and risk above 40")
     resized(page, 480, 760)

@@ -4,7 +4,6 @@ keyboard layer."""
 import re
 
 import pytest
-from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE
 from render_cases_navigation import CONTROL_LABEL_PAGE, NOTED_PAGE
@@ -17,6 +16,8 @@ from render_harness import (
     resized,
     round_trip,
 )
+
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -80,6 +81,17 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     results.focus()
     expect(results).to_be_focused()
     page.keyboard.press("Escape")
+
+
+def test_a_first_keyboard_opening_wires_the_references_close_control(browser, serve):
+    """A first render's retained Close invokes the command its Escape key names."""
+    page = open_page(browser, serve(CONTROL_LABEL_PAGE))
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    page.get_by_role("combobox", name="Search commands").fill("comment")
+    page.get_by_role("button", name="Close the command reference").click()
+    expect(reference).to_be_hidden()
 
 
 def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
@@ -362,7 +374,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     assert "draw.mode.exit" in w_matches, w_matches
     assert w_results.index("page.down") >= len(w_matches), w_results
 
-    search.fill("resolve it")
+    search.fill("r resolve")
     result = help_el.locator(
         '.lf-command-reference-command[data-lf-command="thread.resolution.toggle"]'
     )
@@ -376,7 +388,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         "aria-selected", "true"
     )
     page.keyboard.type("!")
-    expect(search).to_have_value("resolve it!")
+    expect(search).to_have_value("r resolve!")
     expect(help_el.locator(".lf-command-reference-empty")).to_be_visible()
     page.keyboard.press("Backspace")
     page.keyboard.press("ArrowDown")
@@ -386,7 +398,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
         "Available in a thread"
     )
-    search.fill("close response choices")
+    search.fill("reaction.cancel")
     cancel_reaction = help_el.locator(
         '.lf-command-reference-command[data-lf-command="reaction.cancel"]'
     )
@@ -414,7 +426,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     # The last thread, which has no card on the page, opens in the panel.
     expect(page.locator(PANEL_THREAD)).to_be_focused()
     page.keyboard.press("?")
-    search.fill("resolve it")
+    search.fill("r resolve")
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(result).to_have_attribute("data-lf-selected", "true")
@@ -574,11 +586,11 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
         }"""
     )
 
-    search.fill("resolveit")
-    search.evaluate("input => input.setSelectionRange(7, 7)")
+    search.fill("rresolve")
+    search.evaluate("input => input.setSelectionRange(1, 1)")
     page.keyboard.type(" ")
-    expect(search).to_have_value("resolve it")
-    assert search.evaluate("input => input.selectionStart") == 8
+    expect(search).to_have_value("r resolve")
+    assert search.evaluate("input => input.selectionStart") == 2
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(result).to_have_attribute("data-lf-selected", "true")
@@ -606,7 +618,7 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
     search.fill("no command has these words")
     expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
     assert search.evaluate("input => input.ariaActiveDescendantElement") is None
-    search.fill("resolve it")
+    search.fill("r resolve")
     expect(result).to_have_attribute("data-lf-selected", "false")
     assert page.evaluate(
         """() =>

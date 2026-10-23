@@ -20,23 +20,6 @@ from interact_support import (
     running_http_server,
 )
 from known_widget_findings import KNOWN, PACKAGES
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import hosting as hosting_model
-from leaf import http as http_model
-from leaf import leases as leases_model
-from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf.findings import Finding
-from leaf.registry.contract import is_element_name
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import readings as render_gate_readings
-from leaf.render_gate import scheme as render_gate_scheme
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.widget_quality import own_tags
-from leaf.schema import ELEMENT_ID
-from leaf.validation import composition as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -107,6 +90,23 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
+from leaf import leases as leases_model
+from leaf import render_checks as render_checks_model
+from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf.findings import Finding
+from leaf.registry.contract import is_element_name
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate import readings as render_gate_readings
+from leaf.render_gate import scheme as render_gate_scheme
+from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.widget_quality import own_tags
+from leaf.schema import ELEMENT_ID
+from leaf.validation import composition as validation_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1681,11 +1681,13 @@ customElements.define("field-host", class extends HTMLElement {{
     }, failures
     # Delivery serves media under the revision, so the issue names that URL.
     issues = reported("devtools-issue")
-    assert sorted((f.scheme, f.at, f.values["issue"]) for f in issues) == sorted(
+    # Chromium may emit the same issue for a frame more than once. The gate's
+    # contract is which owned source nodes receive it, not CDP's event count.
+    assert {(f.scheme, f.at, f.values["issue"]) for f in issues} == {
         (scheme, where, "LazyLoadImageIssue")
         for scheme in ("light", "dark")
         for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
-    ), failures
+    }, failures
     assert all(
         [key for key, _ in f.values["details"]] == ["url"]
         and dict(f.values["details"])["url"].endswith(src)

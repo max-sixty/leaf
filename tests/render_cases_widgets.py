@@ -4,15 +4,16 @@ import html
 import json
 
 from browser_sources import browser_source
+from render_harness import (
+    SHELL_BOX,
+    leaf_page,
+)
+
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
 from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
-from render_harness import (
-    SHELL_BOX,
-    leaf_page,
-)
 
 # ---------- anchors written without a browser ----------
 # `leaf thread open` writes an anchor by reading the mapped revision; the runtime
@@ -725,7 +726,7 @@ MANIFEST_DIFF_PAGE = leaf_page(
 # the patch however many line boxes it takes, and neither box in play is the line: the
 # row is sized to the longest line in its file so its fill reaches the end of it, and the
 # code box is the scrollport. So the room is measured out here — the code box's own width
-# less the gutter standing in front of the content column — and the line is measured by a
+# less the source row's gutter and edge padding — and the line is measured by a
 # Range over the row's contents, which is what `_SELECT_IN_ROW` reads for the same reason.
 # Reading the row's own box instead gives every row in a file the file's overhang, which
 # is how this last went wrong: 18 of 24 rows counted cut where one line overflowed, and
@@ -737,10 +738,10 @@ DIFF_CLIPPING = """() => {
     const diff = document.querySelector('lf-diff');
     const rows = [];
     for (const code of diff.shadowRoot.querySelectorAll('code[data-code]')) {
-        const gutter = code.querySelector('[data-gutter]');
-        const room = code.clientWidth - (gutter ? gutter.getBoundingClientRect().width : 0);
         const range = document.createRange();
-        for (const row of code.querySelectorAll('[data-content] [data-line]')) {
+        for (const row of code.querySelectorAll('.lf-diff-line > [data-line]')) {
+            const style = getComputedStyle(row);
+            const room = code.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
             range.selectNodeContents(row);
             rows.push({ row, over: Math.round(range.getBoundingClientRect().width - room) });
         }
@@ -768,10 +769,9 @@ DIFF_ROW_FILL = """() => {
     for (const code of diff.shadowRoot.querySelectorAll('code[data-code]')) {
         out.files += 1;
         if (code.scrollWidth > code.clientWidth) out.scrolls += 1;
-        const gutter = code.querySelector('[data-gutter]');
-        const room = code.clientWidth - (gutter ? gutter.getBoundingClientRect().width : 0);
-        for (const row of code.querySelectorAll('[data-content] [data-line]')) {
-            const painted = row.getBoundingClientRect().width;
+        const room = code.clientWidth;
+        for (const row of code.querySelectorAll('.lf-diff-line > [data-line]')) {
+            const painted = row.parentElement.getBoundingClientRect().width;
             out.rows += 1;
             const gap = Math.round(row.scrollWidth - painted);
             if (gap > 1) { out.short += 1; out.gap = Math.max(out.gap, gap); }

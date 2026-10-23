@@ -16,17 +16,17 @@ Leaf's canonical vocabulary and the voice its visible copy speaks in.
 ## Read the owning contract
 
 A contract shared across modules or runtimes lives in a reference beside the Python
-code that owns it; `<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol
+code that owns it; `<root>/src/AGENTS.md` lists them under "Protocol
 references". To check what the code does, call it: `leaf` and `leaf_dev` are installed
 editable, so `uv run python -c 'from leaf... import ...'` works as is. A tag's schema
 is in the registry of the package that ships it:
 
 ```bash
 jq 'select(has("lf-shot"))."lf-shot"' \
-  skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
+  browser/registry.json packages/*/registry.json
 ```
 
-A fact both runtimes use has one home (`skills/leaf/assets/AGENTS.md`, "Facts both
+A fact both runtimes use has one home (`browser/AGENTS.md`, "Facts both
 runtimes know"). When a change adds a parity fixture, or a test that scans one
 language's source for the other's names, ask why the fact isn't generated.
 
@@ -124,7 +124,7 @@ when it covers the same decision.
 
 The exploration is one HTML file under `.tmp/`, served with
 `uv run leaf-dev preview --source <file> --user` ("Preview a page"); its CSS reads the
-live theme's tokens. Follow `<root>/skills/leaf/packages/playground/instructions/author.md`
+live theme's tokens. Follow `<root>/packages/playground/instructions/author.md`
 to choose the elements, present the candidates, and say what to build.
 
 To compare against an existing interface, cover the controls and states the named
@@ -132,8 +132,8 @@ property affects, with this checkout's rendered interface as the baseline and
 candidates that differ from it only in the requested change. Build runtime candidates
 in the runtime and theme that own the surface; a separate sketch follows "Decision
 fidelity" in the playground author instructions, copying Leaf's mark from
-`skills/leaf/assets/icon.svg` as inline SVG and each icon's path from
-`skills/leaf/assets/runtime/icons.js`. Drive the baseline and every candidate
+`browser/icon.svg` as inline SVG and each icon's path from
+`browser/runtime/icons.js`. Drive the baseline and every candidate
 through the same journey before handoff. For a live Leaf interface, embed each as an
 `lf-sample window` child (`skills/leaf/references/live-samples.md`) and start their
 histories with `data-sample-events`.
@@ -245,10 +245,13 @@ For response timing, run `uv run leaf-dev response-times PAGE... --json`;
 
 To benchmark replies, run each harness's journey a few times in each case: its
 first comment asks for a small page change while the harness waits, or with
-`--case working` while the user's own turn runs. Each reply splits into the whole
-reply, Leaf's share and the model calls (`dev/leaf_dev/reply_phases.py`), and
-`uv run leaf-dev journey-chart --replies` tabulates the kept samples by target and
-case, `--since` selecting a batch.
+`--case working` while the user's own turn runs. The benchmark is the whole reply's
+time, which `dev/leaf_dev/reply_phases.py` attributes to Leaf's delivery, commands
+and hooks, the harness, the model's wait for its first output and its generation,
+and the agent's other tools; `uv run leaf-dev journey-chart --replies` tabulates the
+kept samples by target and case, `--since` selecting a batch. Model time varies
+widely from run to run, so compare a phase Leaf owns directly, and the whole reply
+over enough runs to see past that spread.
 
 `uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a real
 agent. On the triage board, it tells the agent that a release passed its checks and
@@ -331,7 +334,10 @@ by many people, in the reference that owns that kind of page.
 
 When pages keep failing the same way, improve the guidance the author reads while
 writing, and measure it in `evals/`, where a judge reading the page cold can stand in
-for the user.
+for the user. That guidance is usually the workflow's reference rather than a registry
+entry (`skills/leaf/references/packages.md`, "A widget"), and a passage that has grown
+into a list is rewritten around its goals (`/improving-instructions`, "Authoring the
+change").
 
 ## Score an instruction change
 
@@ -361,6 +367,10 @@ pnpm run eval:view
 `evals/README.md` owns selection, arms, the case format, where results go and how far
 a pass can be trusted. Read the outputs as well as the pass counts.
 
+Score every case whose `metadata.tags` covers the passage, such as `asks` for
+decisions, counting only runs that opened the changed file (`/improving-instructions`,
+"Confirming each arm loaded what you edited").
+
 Use an existing case wherever one fits, extending its assertions or prompt if it nearly
 does, since every case costs time and money on each later run. Add a case only when no
 existing one can carry the behavior, and keep it small: one prompt with only the
@@ -368,7 +378,15 @@ context the behavior needs, and a few assertions. Explore freely, but keep only 
 that cover distinct failures or necessary controls. The case's leading comment records
 where it came from and whether it told the two versions apart.
 
-The prompt never states the behavior under test. Grade what the agent wrote with an
+For every agent eval, give the subject the task, context, tools and handoff it would
+receive in normal use, adding only fixture facts needed to run the case. Keep grading
+criteria and harness bookkeeping outside its input. Let the installed instructions
+teach the workflow; don't repeat their procedure or direct the subject to the rule
+being measured. A replay preserves what the recorded session had read. A diagnostic
+that deliberately supplies a skill or rule measures behavior with that context,
+not whether ordinary use discovers it; name that limit when interpreting its result.
+
+Grade what the agent wrote with an
 `llm-rubric` assertion whose `value` describes the passing behavior without requiring
 particular wording; use `regex` only for a literal such as a command or URL
 (`evals/README.md`, "Case format").

@@ -119,17 +119,17 @@ Put everything the `aside` holds in one block, as the `div` above does. While th
 sit side by side, Leaf keeps that block in view at the window's top as the body scrolls.
 Write no `position`, `top`, height or overflow for it.
 
-Draw each region as a `section.panel` with a short heading. Use one `.callout` with a
-status tone (`warn`, `danger`, `ok`) for the thing the reader must act on, and `.tag`
-chips under the lede for the page's state.
+Group a working region with a short heading; `section.panel` supplies compact heading
+and spacing without a surrounding card. Use a `.callout` when a point needs emphasis,
+with a status tone (`warn`, `danger`, `ok`) when it reports a status.
 
 ## A workspace
 
-`<main class="layout-workspace">` fills the window above Leaf's panel, and the reader
-works in its regions rather than scrolling the page. The `header` and `footer` take
-their content's height and the body takes the rest. Keep the header to one row: the
-title, `.tag` chips for the page's state, and an `lf-tally` for the obligations left. Put what
-a lede would say at the top of the region it is about.
+`<main class="layout-workspace">` fills the window behind Leaf's floating panel, and the reader
+works in its regions rather than scrolling the page. Pane scrollers leave room at their
+ends so the panel does not cover their last lines. The `header` and `footer` take
+their content's height and the body takes the rest. Keep shared context concise enough
+to leave the working regions usable; place region-specific explanation with its subject.
 
 The body is one `lf-pane`, a widget that lays out its own regions, or the page's own
 grid of panes:
@@ -159,11 +159,10 @@ grid of panes:
 }
 ```
 
-Stack the panes below 720px, where the page can scroll; above that, stacked panes share
-one window height. Each pane's body scrolls on its own, so write no positioning to keep
-a pane or footer in view. Keep a region's decision in view with its supporting content,
-trimming or splitting a pane that overflows; a pane holding a long file or log can
-scroll.
+Keep enough space to read each region's evidence and reach its decision. Stacked panes
+share the remaining height while the workspace is bounded; in a flowing layout they
+can grow with their content. Each pane's body can scroll on its own, which helps with
+a long file or log but cannot make a cramped working region usable.
 
 `density-working` is a style, not a Layout. It sets smaller type, tighter spacing and
 options as rows on any block, for a surface the reader operates. A workspace usually
@@ -177,9 +176,10 @@ grouping and counting.
 
 ## Bounds and widths
 
-Prefer one page scroll: let content grow in place, with supporting detail in
-disclosures. Bound a region's height only when the reader keeps it in view while its
-content changes, as in a workspace or a live stream. Length alone is no reason.
+Keep related content easy to read and compare without managing several scroll
+positions. A shared page scroll lets content grow together; separate regions help
+when the task needs independent positions kept in view. Live updates should preserve
+the reader's place and input as content grows.
 
 For a live stream, set `data-bound` to the end where new entries arrive:
 `data-bound="end"` for a list that grows downward, which follows the last line while
@@ -220,8 +220,11 @@ nothing beside it is free. Don't pad a heading to make room for its marker; the 
 hides markers with `o`, or the leaf's menu → Annotations → Hide annotations, to read
 what's under one.
 
-On a column page, write the contents outline in the first `aside.sidebar` and short
-notes in `aside.sidenote`. Leaf moves them into the margin when they fit and leaves
+On a column page, write the contents outline in the first `aside.sidebar`. With page
+tabs, each tab can instead start with its own `aside.sidebar` and empty `lf-toc`:
+the tab's outline stands below its strip in flow and becomes its spine when the margin
+has room. A sidebar directly in the column keeps that slot if one is present; nested
+tabbed boxes keep their sidebars in flow. Write short notes in `aside.sidenote`. Leaf moves them into the margin when they fit and leaves
 them where you wrote them in a narrow window. For CSS that depends on what is in the
 margin, read the tokens in the `data-lf-margin` of the box carrying `layout-column`
 (`rail`, `map`, `sidebar`, `note`), such as
@@ -255,7 +258,10 @@ change".
 
 To make a control you write match Leaf's, give it `class="button"`,
 `class="button primary"` for the committing action, or `class="field"` for a text
-input or select.
+input or select. A native radio or checkbox uses
+`<label class="choice"><input type="radio" name="view" value="summary">Summary</label>`
+(or `type="checkbox"`). The label supplies the hit area and focus ring; the native
+mark shows selection without a surrounding box.
 
 Leaf's panel, thread cards and markers draw over everything in `main`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown

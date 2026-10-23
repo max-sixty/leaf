@@ -6,7 +6,6 @@ import re
 
 import pytest
 from interact_support import add_test_widget, append_carried_log_record, declare_work
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     BOXLESS_SECTION_PAGE,
@@ -35,6 +34,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -166,7 +167,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     ],
 )
 def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where):
-    """A content revision keeps the reader on a page that still asks for approval.
+    """A content revision keeps the reader on the same passage.
 
     Native scroll anchoring is disabled by this page's layout, so it cannot conceal
     a broken semantic carry when five paragraphs arrive above the reader. Where the
@@ -179,7 +180,7 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where)
     anchoring = "<style>html { overflow-anchor: none; }</style>"
     first = LIVE_V1.replace(
         "</head>",
-        '<meta name="lf-review" content="sign-off">' + anchoring + "</head>",
+        anchoring + "</head>",
     )
     second = LIVE_V2.replace("</head>", anchoring + "</head>")
     if where == "inside":

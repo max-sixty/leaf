@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 
 import pytest
+
 from leaf import user_views
 from leaf.files import read_json
 from leaf.state import write_json
@@ -141,14 +142,6 @@ def test_obsolete_records_are_absent_and_inactive_documents_are_pruned_on_write(
     assert user_views.read_user_views(tmp_path, 1)["sessions"] == []
     user_views.observe_user_view(tmp_path, report(session="b" * 32))
     assert list(read_json(path)["sessions"]) == ["b" * 32]
-    # A record with missing fields from another checkout does not take down a
-    # page: it reads as absent until the next report replaces it.
-    storage = read_json(path)
-    storage["sessions"]["obsolete"] = {"session": "obsolete"}
-    write_json(path, storage)
-    assert user_views.read_user_views(tmp_path, 1)["sessions"] == []
-    user_views.observe_user_view(tmp_path, report(session="c" * 32))
-    assert len(user_views.read_user_views(tmp_path, 1)["sessions"]) == 1
 
 
 def test_viewed_records_the_last_visible_report_and_outlives_pruning(

@@ -36,10 +36,12 @@ from interact_support import (
     published,
     refused_on,
     response_reference,
-    served_thread,
     state_json,
     words,
 )
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import prepare_page, read_fixture
+
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
@@ -61,8 +63,6 @@ from leaf.validation.admission import (
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
-from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -237,16 +237,13 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
     assert not (page_dir / "versions").exists()
 
 
-def test_page_events_name_revisions_stamps_name_both_and_signoff_a_version(page_dir):
+def test_page_events_name_revisions_and_stamps_name_both(page_dir):
     kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
     required = kinds["note"]["record"]["required"]
     assert "revision" in required and "version" in required
-    # A sign-off names the stamp it approves; the note already maps that to a revision.
-    required = kinds["done"]["record"]["required"]
-    assert "version" in required and "revision" not in required
     result = CliRunner().invoke(cli_model.cli, ["page", "--help"])
     assert result.exit_code == 0
     assert "\n  stamp " in result.output and "\n  publish " not in result.output
@@ -492,7 +489,6 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 
 PAGE_FIXTURES = (
     *CORPUS_SOURCES,
-    ROOT / "examples" / "corpus.html",
     *sorted((ROOT / "notes").glob("**/*.html")),
 )
 
@@ -574,12 +570,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     assert apparatus.isdisjoint(indexed), (
         f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & indexed))}"
     )
-    # `leaf-dev corpus` strips the contents sidebar when it composes the tab, so
-    # lf-toc is page chrome rather than a sample a section demonstrates.
-    sections = re.sub(
-        r'<aside class="sidebar".*?</aside>', "", authored, flags=re.DOTALL
-    )
-    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", sections)) - apparatus
+    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", authored)) - apparatus
     assert tags
     assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
 
@@ -1357,11 +1348,6 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert completed["responds"] == root["id"]
     state = page_state(claimed)
     assert state["workflows"] == []
-    [thread] = served_thread(state["browser"])["threads"]
-    assert thread["summaries"][0]["covers"] == [
-        update["id"],
-        json.loads(again.output.splitlines()[0])["id"],
-    ]
     # Once nothing is owed, an update takes nothing in hand, so it may run long.
     later = progress("The clock drifts.\n\nWatching it overnight.", proactive=True)
     assert later.exit_code == 0, later.output

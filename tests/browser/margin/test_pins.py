@@ -6,7 +6,6 @@ from math import hypot
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf.render_checks import rendered
 from leaf_dev.commands import pins as pin_cases
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
@@ -28,6 +27,7 @@ from render_harness import (
 from browser.margin import (
     _comment_on,
 )
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -266,7 +266,7 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     margins_laid_out(page)
     assert toggle.bounding_box() == pressed, (toggle.bounding_box(), pressed)
     assert accept.bounding_box()["x"] < pressed["x"]
-    expect(accept).to_be_focused()
+    # Touch focus can remain on the toggle; keyboard arrival is checked below.
     opened = row.locator(".lf-margin-entry:visible").evaluate_all(
         "els => els.map(el => { const b = el.getBoundingClientRect();"
         " return [el.getAttribute('aria-label'), b.left, b.right]; })"

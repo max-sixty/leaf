@@ -112,8 +112,7 @@ widget.
 ### Text alignment
 
 `alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
-with `kind` `same`, `delete` or `insert`. A large rewritten middle comes back as one
-delete and one insert. To align by sentences, pass an `Intl.Segmenter` with
+with `kind` `same`, `delete` or `insert`. A large rewrite comes back as one delete and one insert. To align by sentences, pass an `Intl.Segmenter` with
 `granularity: "sentence"` as the third argument.
 
 ### Image comparison
@@ -143,20 +142,17 @@ For a thread control, put `iconElement("comment", "lf-action-icon")` in an
 
 ## Page readings
 
-A widget that draws from the readings below registers its drawing once with
-`watchProjection(owner, paint)`. Leaf calls `paint()` on the next microtask, again when
-the page first presents, and again whenever a reader it called, such as `readObligations()` or a
-controller's `read()`, returns something new. So a paint never lists its inputs. Only
-reads before the first `await` count, and reads of DOM nodes don't; watch those
-yourself. The watcher pauses while the owner is out of the page. Call the returned
-function to end it, or its `refresh()` to repaint after a change Leaf can't see, such as
-revealing held news. An optional third argument, `ready()`, holds every paint until it
-returns true.
+A widget reads these values in its `LeafElement.render()`. Lit follows the signals
+read synchronously there and redraws when they change, pausing while the element is
+away. Use `requestUpdate()` for inputs outside that reading, such as revealing held
+news, and `performUpdate()` when the gesture must draw immediately. DOM reads and
+reads after an `await` are not tracked. `module-authoring.md`, "Drawing what a widget
+reads", owns the rendering and readiness contract.
 
 ### Reading obligations and the On lists
 
-An obligation is what a widget or a version's sign-off waits on the user for, or what an
-update the user handed over is owed, and the On lists list it by its next actor.
+An obligation is what a widget waits on the user for, or what an update the user
+handed over is owed, and the On lists list it by its next actor.
 `readObligations()` returns `{phase, all, user, unanswered}`. `all` holds every obligation
 whose source is still there, answered and withdrawn ones included; `user` the open
 obligations waiting on the user; and `unanswered` every open obligation, including those
@@ -164,7 +160,7 @@ with the agent. Each record looks like this:
 
 ```js
 {
-  id: "widget:release-disposition", // or "approval:v<version>"
+  id: "widget:release-disposition",
   source: {kind: "widget", id: "release-disposition", tag: "lf-options"},
   thread: null,
   message: null,
@@ -184,16 +180,17 @@ answer, and `answer.event` is `null` for authored state. An `lf-ask` or another 
 declaring `x-awaits.encloses` around it supplies the prompt and where the user lands;
 `prompt.text` is `null` for a widget with no heading.
 
+For a bound-data record obligation, `source.id` names the owning widget and
+`source.unit` names the record key. Its prompt names that record, and its answer comes
+from that unit of the declared verb. The widget's `projectData` projection supplies its
+current place on the page, including records hidden behind another selection.
+
 A widget whose entry declares `x-awaits.reply`, such as an `lf-ask` holding no
 widget, is a question the user answers in words: their next message in its thread, or
 a comment on it on the page, is its `answer.value` (`{text}`, or `{token}` for a
 settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the
 agent ends it with `leaf task end` instead, `status` is `answered_elsewhere` or
 `withdrawn` and `end.detail` says why.
-
-An approval obligation, `source.kind === "approval"`, asks the user to approve the stamped
-version `source.version`. Approving sets `answer.value` to `true`, and Undo reopens it.
-It asks about the version as a whole, so its `prompt.target` is `null`.
 
 An update's obligation, `source.kind === "update"`, is what a message the user sent, or an
 action in an answered widget's obligation, is owed. `source.id` names the event and
@@ -222,14 +219,14 @@ own command.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>.
-Each row has a `kind`, its obligation's `source.kind` (`widget`, `approval` or `update`,
+Each row has a `kind`, its obligation's `source.kind` (`widget` or `update`,
 the obligation it carries as `obligation`) or `todo` (the to-do it carries as `todo`),
 and an `owner`, `user` or `agent`: an `update` row is one to resend on the user's list,
 and a reply or version owed on the agent's. Rows not done carry `offers: {open, done}`. `queueItemKey(row)` names a row
 across moves between lists, and `queueTitle(row)` gives its title.
 `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do the agent
 opened on the user, returning its admission promise, and returns `null` for any other
-row; obligations end through their own widget, reply or approval. Act on a collection only
+row; obligations end through their own widget or reply. Act on a collection only
 when its `phase` is `ready`.
 
 ### Work hierarchies
@@ -253,9 +250,8 @@ carrying its thread, whether it was undone, the agent's name as `agent`, and a g
 words. The widget only words these. A widget restoring something from `tabStore` compares
 it with the history once `phase` is `ready`.
 
-A widget an agent reports on reads the reports with `reportSequence(this)`, in a paint
-registered as `watchProjection(this, paint, () => reportsPresented(this))`. A
-`LeafElement` checks `reportsReady(this)` in `render()` instead and returns `noChange`
+A widget an agent reports on reads reports with `reportSequence(this)`. Its
+`LeafElement.render()` first checks `reportsReady(this)` and returns `noChange`
 while it is false. Each entry has `id`, `target`, `source`, `action`, `detail`, `text`,
 `ts` and `disposition`: `effective`, `outranked` by a newer report on the same unit and
 verb, or `settled` by a stamped version. Pass `{kind: "thread", id}` for a Thread's
@@ -263,12 +259,16 @@ reports, or nothing for all of them. `saidAt(element)` is when the message holdi
 `element` was sent, or the page published, for showing how long a worker has been
 quiet.
 
+`reportsPresented(target)` queries report presentation readiness synchronously.
+Inside `LeafElement.render()`, use `reportsReady(this)` to also arrange an update
+when the reports become ready.
+
 ### Reading version changes
 
 `comparisonChanges(owner)` returns the changed elements inside `owner` in the current
 version comparison, or every changed element with no owner, and an empty array with no
-comparison active. `watchComparison(owner, callback)` calls back at once and on each
-change to the comparison; its returned function ends the watch.
+comparison active. Reading it during a `LeafElement` render subscribes that render
+to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

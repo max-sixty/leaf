@@ -14,16 +14,6 @@ from interact_support import (
     declare_idle,
     wait_for,
 )
-from leaf import anchor_capture as anchor_capture_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import passages as passages_model
-from leaf import service as service_model
-from leaf import structure as structure_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate.scheme import collect_page_exceptions
-from leaf.served_state import context as served_context
-from leaf.validation import composition as validation_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -90,6 +80,7 @@ from render_harness import (
     selection_field,
     sending,
     stamp_page,
+    stored_draft,
     stored_draft_text,
     told,
     wait_for_revision,
@@ -97,6 +88,16 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import anchor_capture as anchor_capture_model
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import passages as passages_model
+from leaf import service as service_model
+from leaf import structure as structure_model
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate.scheme import collect_page_exceptions
+from leaf.served_state import context as served_context
+from leaf.validation import composition as validation_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1607,7 +1608,9 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     told(page)
 
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"^Waiting for delivery,")
+    )
     marker.hover()
     label = marker.locator(":scope > .lf-margin-entry-label")
     trace = page.locator('.lf-target-trace[data-for="jobs"]')
@@ -3845,13 +3848,13 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
     judge_watches()
     assert _draft_in_view(page, words)
     assert draft_key(page, context) == saved
-    draft = json.loads(stored_draft_text(page, context))
-    assert draft["anchor"] == {"section": "bg-contents"}
+    draft = page.evaluate("([read, ctx]) => read(ctx)", [stored_draft(page), context])
+    assert draft["payload"]["anchor"] == {"section": "bg-contents"}
     assert draft["text"] == words
     page.keyboard.press("Escape")
     rendered(page)
     assert not page.locator(".lf-fab-input").is_visible()
-    assert json.loads(stored_draft_text(page, context))["text"] == words
+    assert stored_draft_text(page, context) == words
 
 
 @pytest.mark.parametrize("reopen", ["resume", "reload", "withheld", "comment"])

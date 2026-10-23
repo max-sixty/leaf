@@ -7,15 +7,6 @@ import time
 import pytest
 from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record, served_thread
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import (
-    PROBE_POLL_MS,
-    SERVED_TIMEOUT_MS,
-    rendered,
-    wait_until_ready,
-)
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_navigation import source_revision
@@ -38,6 +29,16 @@ from render_harness import (
     sending,
     told,
     write,
+)
+
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf import thread as thread_model
+from leaf.render_checks import (
+    PROBE_POLL_MS,
+    SERVED_TIMEOUT_MS,
+    rendered,
+    wait_until_ready,
 )
 
 
@@ -121,7 +122,7 @@ def _agent_update_reply(page_dir, root, number, for_event=None):
 def test_progress_is_never_unread_and_reading_its_answer_reads_only_it(browser, serve):
     """Pending progress pulls the user back to nothing; the answer after it is the
     thread's one unread message, and reading the thread, which the panel draws as its
-    card does, the progress folded behind the answer, acknowledges that answer alone."""
+    card does, the completed progress hidden, acknowledges that answer alone."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "An earlier conversation.")
     root = panel_comment(serve.page_dir, "Check the schedule.")

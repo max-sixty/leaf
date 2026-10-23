@@ -33,14 +33,15 @@ from interact_support import (
     stamp,
     wait_for,
 )
+from leaf_dev import arms, page_fixtures
+from leaf_dev.commands import preview
+from leaf_dev.page_fixtures import prepare_page, read_fixture
+
 from leaf import cli as cli_model
 from leaf import codex_adapter, leases, server, service, session
 from leaf.interaction_log import read_interactions
 from leaf.media import media_name
 from leaf.structure import SourceDocument
-from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
 def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, request):
@@ -299,7 +300,7 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     source.parent.mkdir()
     source.write_text("first", encoding="utf-8")
     runtime = tmp_path / "runtime"
-    scripts = runtime / "skills" / "leaf" / "scripts" / "nested"
+    scripts = runtime / "src" / "nested"
     scripts.mkdir(parents=True)
     existing_script = scripts / "existing.py"
     existing_script.write_text("first", encoding="utf-8")
@@ -371,7 +372,7 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
     (source.parent / "media").mkdir()
     pin = tmp_path / "leaf-assets.json"
     pin.write_text("{}")
-    scripts = tmp_path / "skills/leaf/scripts"
+    scripts = tmp_path / "src"
     scripts.mkdir(parents=True)
     (tmp_path / "pyproject.toml").write_text("")
     (tmp_path / "uv.lock").write_text("")
@@ -391,6 +392,113 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
             )
     finally:
         changes.close()
+
+
+def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
+    """Native source events regenerate the corpus before its live page is refreshed."""
+    from leaf_dev.commands import corpus
+    from leaf_dev.example_data import data_file, named_source, page_files
+
+    from leaf.data import read_data
+    from leaf.registry.storage import load_registry
+
+    examples = tmp_path / "examples"
+    examples.mkdir()
+    (examples / "layer.json").write_text('["default"]')
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "examples.html").write_text("")
+    (tmp_path / "tests/fixtures/pages").mkdir(parents=True)
+    monkeypatch.setattr(corpus, "DEVELOPER_SOURCES", ())
+    source = examples / "reading.html"
+    source.write_text(
+        "<html><head><title>Reading</title></head><body><main><h1>Before</h1>"
+        '<lf-text-document id="reading" source="text"></lf-text-document>'
+        "</main></body></html>"
+    )
+    captured = tmp_path / "code.txt"
+    captured.write_text("First capture")
+    data_file(source).write_text(
+        json.dumps({"$captures": {"text": {"file": "../code.txt"}}})
+    )
+    files = page_files(source)
+    files.mkdir()
+    module = files / "reading.js"
+    module.write_text("// before")
+    output = named_source("corpus", root=tmp_path)
+    page = tmp_path / "preview"
+    native_watch = preview.watch_changes
+
+    def editing_watch(watched):
+        native = native_watch(watched)
+
+        def changed(path):
+            return wait_for(
+                lambda: next(native),
+                lambda paths: str(path) in paths,
+                failure=f"native corpus subscription missed {path}",
+            )
+
+        def edits():
+            try:
+                source.write_text(source.read_text().replace("Before", "After"))
+                module.write_text("// after")
+                yield changed(source)
+                assert "After" in (page / "index.html").read_text()
+                assert (page / "page/reading.js").read_text() == "// after"
+
+                captured.write_text("Edited capture")
+                yield changed(captured)
+                assert (
+                    read_data(page, load_registry(page))["sources"]["text"]["value"]
+                    == "Edited capture"
+                )
+
+                # A companion can change how a capture is read without new markup.
+                data_file(source).write_text(
+                    json.dumps(
+                        {"$captures": {"text": {"file": "../code.txt", "lines": "1:1"}}}
+                    )
+                )
+                yield changed(data_file(source))
+                assert (
+                    json.loads(data_file(output).read_text())["$captures"]["text"][
+                        "lines"
+                    ]
+                    == "1:1"
+                )
+
+                added = examples / "added.html"
+                added.write_text(
+                    "<html><head><title>Added</title></head><body><main><p>New example</p></main></body></html>"
+                )
+                yield changed(added)
+                assert "New example" in (page / "index.html").read_text()
+
+                added.unlink()
+                module.unlink()
+                yield changed(added)
+                assert "New example" not in (page / "index.html").read_text()
+                assert not (page / "page/reading.js").exists()
+
+                source.write_text(
+                    source.read_text().replace("<h1>", '<h1 id="reading">')
+                )
+                yield changed(source)
+                assert "Preview update refused" in capsys.readouterr().err
+                source.write_text(
+                    source.read_text().replace('<h1 id="reading">After', "<h1>Repaired")
+                )
+                yield changed(source)
+                assert "Repaired" in (page / "index.html").read_text()
+            finally:
+                native.close()
+
+        return _ScriptedChanges(edits(), watched)
+
+    monkeypatch.setattr(preview, "watch_changes", editing_watch)
+    with pytest.raises(StopIteration):
+        preview.serve_preview(output, page, ROOT / "bin/leaf", ROOT, False)
 
 
 def test_preview_rearms_a_replaced_native_input_tree(tmp_path):
@@ -956,7 +1064,7 @@ def test_fixture_captures_use_the_selected_runtime_producer(
     """A producer belongs to the consuming arm, wherever the authored source lives."""
     runtime = tmp_path / "runtime"
     arms.extract_payload(runtime)
-    producer = runtime / "skills/leaf/packages/diff/scripts/patch_manifest.py"
+    producer = runtime / "packages/diff/scripts/patch_manifest.py"
     producer.write_text(
         "# /// script\n# dependencies = []\n# ///\n"
         "import json, sys\n"
@@ -965,7 +1073,7 @@ def test_fixture_captures_use_the_selected_runtime_producer(
     )
     host_state = tmp_path / "host-state"
     foreign = tmp_path / "host-diff"
-    shutil.copytree(runtime / "skills/leaf/packages/diff", foreign)
+    shutil.copytree(runtime / "packages/diff", foreign)
     (foreign / "scripts/patch_manifest.py").write_text(
         "raise RuntimeError('host producer')"
     )
@@ -1015,10 +1123,11 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     The source and value publication use the same real refresh as a resumed or
     live preview; a literal seed edited on the page remains that page's data.
     """
+    from leaf_dev.commands.distribution import cached_installation
+
     from leaf.data import read_data
     from leaf.publishing import authored_digest
     from leaf.registry.storage import load_registry
-    from leaf_dev.commands.distribution import cached_installation
 
     source = tmp_path / "reading.html"
     source.write_text(

@@ -5,9 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
@@ -41,6 +38,9 @@ from browser.threads import (
     seated_page,
     to_window_foot,
 )
+from leaf import data as data_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -898,7 +898,7 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         # A resolved thread the page draws nowhere opens in the panel.
         open_panel_thread(page, root)
         settle = page.locator(".lf-fp-settle")
-        expect(settle).to_have_text("Reopen", use_inner_text=True)
+        expect(settle).to_have_accessible_name("Reopen")
         with sending(page, "reopen the thread with the saved reply"):
             settle.click()
         round_trip(page)

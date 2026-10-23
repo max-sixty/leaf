@@ -25,6 +25,31 @@ what fails and what still works.
 
 ## Supported APIs checked
 
+### Highlight style inheritance
+
+- **Owners:** `runtime/annotation-overlay/annotation-marks.css` and
+  `runtime/marks.css`. Their universal `::highlight()` rules paint native ranges
+  in the document and declared shadow stages.
+- **Observed 2026-10-22:** installed Playwright Chromium 153.0.8010.12 inherits
+  highlight paint from `:root::highlight()` and `:host::highlight()` into nested
+  syntax spans. Installed Firefox 155 accepts those selectors but paints no
+  highlight on descendants, in both light DOM and shadow trees. Putting the rule
+  on the shadow tree's direct child or declaring `inherit` explicitly does not
+  restore it. A universal selector paints the same native range correctly.
+  These are installed-engine results, not a current stable-browser survey.
+- **Evidence:** the focused browser test
+  `navigation/test_comment_marks.py::test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme`
+  checks computed paint, actual screenshot changes, and a widget-local palette in
+  light and dark schemes in both engines. Restricting the existing rules to the
+  document and host makes its Firefox case fail. A separate minimal fixture
+  confirmed zero changed pixels for the inheritance variants and visible paint
+  for the universal-rule control.
+- **Disposition:** retain universal highlight rules. Root inheritance reduced
+  forced style/layout work by 20–35% on a 2,000-row diff in Chromium, but removes
+  annotation paint in the tested Firefox. This optimization does not justify a
+  new startup capability probe or per-range styling mechanism. Revisit when the
+  focused test passes with root-scoped rules in supported engines.
+
 ### Adaptive contents disclosure
 
 - **Owners:** default package `lf-toc.js` and `styles/toc.css`. In-flow contents
@@ -149,6 +174,13 @@ what fails and what still works.
   presented frame, and `anchor-size()`, which sizes the bar to the video, both run in
   both engines; MDN lists `requestVideoFrameCallback` from Chrome 83, Firefox 132 and
   Safari 15.4.
+- **Observed 2026-10-21, full screen:** in Playwright Firefox 155 and Chromium 153,
+  the bar's Full screen button and `f` put the video in full screen with the
+  browser's own controls, Space and a press on the picture each toggle playback
+  once there, and leaving gives the bar back. Not observed: an iPhone, whose Safari
+  has no `requestFullscreen` for an element (MDN, unchecked here), so the bar calls
+  the video's `webkitEnterFullscreen`, which opens the system player with its own
+  controls.
 - **Disposition:** adopted without a fallback.
 
 ## Known gaps
@@ -174,6 +206,22 @@ what fails and what still works.
   The runtime explicitly declines the animation rather than letting unsupported
   intrinsic-size interpolation jump halfway through a fade. Content, Undo and
   Reopen remain available through their ordinary paths.
+
+### Evidence disclosure motion
+
+- **Owners:** diff package `styles/disclosure.css`, shared by file and call-tree
+  disclosures. Native `details.open` governs state; supported CSS folds a closing
+  body's room while `interactivity: inert` immediately retires its controls.
+- **Observed 2026-10-21:** installed Playwright Chromium 153.0.8010.12 supports
+  intrinsic-size interpolation and `interactivity`; Firefox 155 supports neither.
+  Chromium folds a pointer close; Firefox closes immediately. Both preserve Tab
+  access outside a closed body and reopen at full size, including during a fold.
+  Summary keyboard activation and reduced motion close immediately; print
+  retains native full evidence.
+- **Disposition:** accepted visual difference. The CSS enhancement requires both
+  capabilities; other engines retain native disclosure semantics. Closing from a
+  toolbar or programmatically can fold when focus is outside the summary; every
+  opening is instant. These are installed-engine checks, not a stable-browser survey.
 
 ### Browser dictation in comment boxes
 
@@ -314,6 +362,16 @@ what fails and what still works.
   the host does. Playwright disables both page caches
   (`--disable-back-forward-cache`, `fission.bfcacheInParent`), so the suite hands
   the child a cached round trip's events instead. Safari has not been exercised.
+- **Page cache, 2026-10-20:** the local page server now sends `no-cache`
+  (`http.py`, `PageEndpoint.cache_control`); leaf.page keeps `no-store`. Playwright's
+  full Chromium 153.0.8010.12, with its bfcache flag removed, and the installed
+  Firefox 158.0.1, driven through geckodriver since Playwright's Firefox can't
+  restore a cached page, both restored `release-notes` on Back after a link, and
+  the page applied a thread opened while it was away 43 ms (Chromium) and 31 ms
+  (Firefox) after Back. Firefox still refused `corpus`, which holds samples, and
+  loaded it afresh; that Back, and Chromium's with an `unload` handler keeping the
+  page out of its cache, fetched the whole document again (`transferSize` 767,652
+  and 183,869 bytes) and showed the current state, as did each fresh load.
 
 ### Back during smooth arrival
 
@@ -339,8 +397,8 @@ what fails and what still works.
   bare wrappers, skips generated apparatus, and stops at a declared row boundary.
   Native `margin-trim` cannot replace that mechanism across the checked engines.
 - **Owner:** frame-edge rules in
-  [`styles/theme.css`](../skills/leaf/assets/styles/theme.css), with readings in
-  [`framing.js`](../skills/leaf/scripts/leaf/render-checks/framing.js).
+  [`styles/theme.css`](../browser/styles/theme.css), with readings in
+  [`framing.js`](../src/leaf/render-checks/framing.js).
 - **Observed, 2026-10-08:** installed Chrome 155 and Playwright WebKit 26.6 accept
   `margin-trim: block`; Playwright Chromium 153.0.8010.12 and Firefox 155 do not.
   Chrome 155 trims block-flow margins but leaves flex and grid item margins intact.
@@ -369,8 +427,8 @@ what fails and what still works.
   `scroll-state` is written after the same declaration without it, so an engine
   without scroll-state keeps the size container.
 - **Owner:** the table rules in
-  [`reading.css`](../skills/leaf/assets/styles/components/reading.css) and the
-  granted-room table in [`layouts.css`](../skills/leaf/assets/layouts.css).
+  [`reading.css`](../browser/styles/components/reading.css) and the
+  granted-room table in [`layouts.css`](../browser/layouts.css).
 - **Observed, 2026-10-14:** Firefox 157 (a user's page) and Playwright's Firefox and
   WebKit 26.6 drop `container-type: inline-size scroll-state` whole, so the table was
   no size container and the 100cqi a caption read measured the window: an `lf-ask`'s
@@ -384,7 +442,7 @@ what fails and what still works.
 ### State-preserving content reordering (review #22)
 
 - **Impact: state preservation; functional fallback implemented.** Retained-node
-  reordering uses [`move` in `dom-move.js`](../skills/leaf/assets/runtime/dom-move.js).
+  reordering uses [`move` in `dom-move.js`](../browser/runtime/dom-move.js).
   Within one composed root it uses `moveBefore` when available; new nodes,
   cross-root transfers, and engines without the API use `insertBefore` and restore
   the user's focus and caret in the moved node.
@@ -447,8 +505,8 @@ application. Recheck the affected Leaf journey when resolving this entry.
   the library's reported missing-image fallback and a notice that an image near the
   area may be missing, since SnapDOM reads resources a margin beyond the crop and does
   not say where the image was; it cannot detect every omitted resource.
-- **Owner:** [`region-selector.js`](../skills/leaf/assets/runtime/composing/region-selector.js)
-  selects and anchors the crop; [`page-image.js`](../skills/leaf/assets/runtime/composing/page-image.js)
+- **Owner:** [`region-selector.js`](../browser/runtime/composing/region-selector.js)
+  selects and anchors the crop; [`page-image.js`](../browser/runtime/composing/page-image.js)
   draws it, and the vendored SnapDOM module owns rendering.
 - **Observed, 2026-10-09:** Chrome 155.0.8059.39, Playwright 1.63.0's Firefox
   155.0, and its WebKit 26.6 produced the same 600 × 300 crop dimensions and
@@ -507,31 +565,6 @@ application. Recheck the affected Leaf journey when resolving this entry.
   and `test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing` in
   `tests/browser/threads/test_media.py` and `tests/journeys/test_render_threads.py`. Compare the rasterizer's same crop with a
   native screenshot in each installed engine when updating SnapDOM.
-
-### Anchoring from a shadow root to the outer document
-
-- **Disposition: blocks moving the chrome into a shadow root.** Leaf's chrome is a
-  light-DOM `div` (`runtime/chrome.js`), and its anchored surfaces (the floating
-  card, passage outlines, page-search paint, design hints, margin carriers) name
-  anchors on page elements. A spike that moved the chrome into a shadow root left
-  each of them at its fallback position.
-- **Spec:** the [anchor positioning draft](https://drafts.csswg.org/css-anchor-1/)
-  makes anchor names loosely matched tree-scoped names, so an element in a shadow
-  tree may anchor to a name declared in an outer tree.
-- **Observed, 2026-10-13:** a `position: fixed` element in an open shadow root with
-  `position-anchor` naming an `anchor-name` declared in the document stays at its
-  static position in Playwright Chromium 153.0.8010.12, installed Chrome
-  155.0.8059.40, Firefox 155 and WebKit 26.6, whether the rule is inline or in the
-  root's sheet. The same element anchors to a name declared inside its own root,
-  and a light-DOM element anchors to the document's name. In Chromium 153, a
-  document-level rule that positions the host's `::part()` does anchor, which is
-  the only bridge found.
-- **Recheck:** set `anchor-name` on a document element, attach a shadow root after
-  it, and compare a fixed child's `getBoundingClientRect()` against the anchor in
-  each engine.
-
-The reverse direction works: a box in a widget's shadow tree can be named from the
-document, and the runtime relies on it (next entry).
 
 ### Naming a shadow-tree box from the document
 
@@ -698,3 +731,47 @@ container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
   past its end; Tab onto each from the control before it and read the scroll
   offset. `test_tab_onto_a_control_partly_past_a_scrollers_edge_brings_it_in`
   reads Leaf's correction, so it passes whatever the engines do.
+
+### Floating content and its focus outline
+
+- **Owner:** `runtime/box-motion.js` and the `--lf-box-carry` / `--lf-box-cut`
+  registrations in `styles/theme.css`.
+- **Observed 2026-10-22:** natural fold/unfold captures in installed Chromium
+  153.0.8010.12 and Firefox 155 showed the leaf separated from its moving focus
+  outline. Animation clocks and held-frame geometry agreed; actual paint did not.
+  In Chromium, changing translation alone to a registered property still left a
+  first frame with the compositor-driven clip ahead of the mark.
+- **Disposition:** both translation and clip insets interpolate registered length
+  properties, so the mark, outline, reveals and surface paint from the same sample.
+  The translation expression lives in ordinary style while it moves: Firefox can
+  still composite a constant `translate` keyframe independently of the property it
+  reads. The clip expression stays constant. This trades independent
+  compositor advancement for the visual coherence the shared motion requires.
+- **Recheck:** `test_the_leaf_paints_inside_its_moving_focus_ring` compares the mark
+  and outline in natural captured frames in both directions; the neighboring
+  `test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands` covers
+  interruption, both color schemes and reduced motion.
+
+### Fixed layers missing from Firefox screencast frames
+
+- **Investigation boundary:** Firefox's headless compositor/capture path; the
+  precise cause remains unresolved. No observed Leaf visibility or geometry change
+  explains the missing pixels.
+- **Observed 2026-10-22, Playwright Firefox 155:** natural panel fold/unfold
+  screencasts occasionally omit the whole panel and an independent, stationary
+  fixed marker appended directly to the body. The document heading remains.
+  This also reproduces before the logo motion repair. Starting one persistent
+  capture still omitted both in 2 of 31 frames; separate captures omitted both
+  in 5 of 51. All frames retained their 1200 × 900 dimensions. Native screenshots
+  sampled 48 frames, including intermediate positions, with neither missing.
+  Another capture lost the whole panel and ground while retaining the marker,
+  so that marker cannot reliably distinguish affected frames.
+- **Disposition:** unresolved rendering-versus-capture gap. Do not claim Firefox
+  all-frame visibility from these recordings. The motion regression requires every
+  Chromium frame to show the mark and its keyboard outline to enclose it. Firefox
+  remains manual diagnostic coverage, with this visibility limitation unresolved;
+  no missing frames are filtered from the automated test. Container, clipping,
+  shadow, layer-promotion and disabled-APZ experiments did not remove the omission.
+- **Recheck:** record the same pointer and keyboard fold/unfold routes with
+  `page.screencast`, keeping a stationary fixed marker outside `.lf-chrome`;
+  compare with native screenshots and, when available, a native-window recording.

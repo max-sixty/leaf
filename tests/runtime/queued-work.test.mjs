@@ -5,7 +5,7 @@ import test from "node:test";
 import {
   bindQueuedWork,
   observeQueuedWork,
-} from "../../skills/leaf/assets/runtime/queued-work.js";
+} from "../../browser/runtime/queued-work.js";
 
 test("a queued invocation preserves arguments and leaves the callback receiver unbound", () => {
   const value = Object.freeze({});

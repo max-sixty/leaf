@@ -3386,9 +3386,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_in_place(
     working(page, "answering the last comment")
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
-        shlex.join(
-            [*LEAF_COMMAND, "codex", "start", str(page), "--codex-path", str(program)]
-        ),
+        shlex.join(claim_command(page, program)),
         codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
         finished=finished,
         stdout=subprocess.PIPE,

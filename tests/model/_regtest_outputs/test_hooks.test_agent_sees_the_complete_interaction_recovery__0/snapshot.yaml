@@ -7,8 +7,8 @@ idle before pickup:
   stdout: ''
   stderr:
     - error: >-
-        1 event nobody has picked up, so the page cannot idle yet. Leaf's hook puts
-        them in your context at your next turn.
+        1 event nobody has picked up, so the page cannot close yet. Leaf's hook
+        puts them in your context at your next turn.
       findings: []
 
 the watch wakes the session: >-
@@ -118,7 +118,7 @@ idle before answer:
   stderr:
     - error: >-
         1 acknowledged user update with no answer (`leaf thread reply <delivery>:0:event-3`);
-        answer before idling. Each update takes the answer named for it. Read current
+        answer before closing. Each update takes the answer named for it. Read current
         obligations with `leaf page state <page>` and thread history with `leaf
         page state <page> <id>`.
       findings: []

@@ -575,8 +575,8 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
     session_model.cmd_waiting(page, "comment on the prototype")
     selected = page.parent / "selected"
     first = under_codex(
-        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)])
-        + " && "
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page), "--manual-delivery"])
+        + " >/dev/null && "
         + shlex.join(held_selection(selected, page, "wait", str(page))),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
         stdin=subprocess.PIPE,
@@ -1629,8 +1629,8 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     session_model.cmd_waiting(page, "comment on the prototype")
     selected = page.parent / "waiter-selected-page"
     first = under_codex(
-        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)])
-        + " && "
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page), "--manual-delivery"])
+        + " >/dev/null && "
         + shlex.join(held_selection(selected, page, "wait", str(page))),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
         stdin=subprocess.PIPE,

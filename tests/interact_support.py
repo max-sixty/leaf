@@ -2553,7 +2553,7 @@ def claim_and_wait_command(page: Path) -> str:
     """Explicit ownership handoff followed by its ordinary observing wait."""
     return (
         shlex.join([*LEAF_COMMAND, "page", "claim", str(page), "--manual-delivery"])
-        + " && "
+        + " >/dev/null && "
         + shlex.join([*LEAF_COMMAND, "wait", str(page)])
     )
 

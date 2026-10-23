@@ -5971,12 +5971,9 @@ def test_test_teardown_ends_detached_delivery_before_removing_state(
     its detached adapter releases its leases before temporary state disappears.
     """
     page = codex_claimed_page
-    program = Path(codex_queue["PATH"].split(os.pathsep)[0]) / "codex"
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
-        shlex.join(
-            [*LEAF_COMMAND, "codex", "start", str(page), "--codex-path", str(program)]
-        ),
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)]),
         codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
         finished=finished,
         stdout=subprocess.PIPE,

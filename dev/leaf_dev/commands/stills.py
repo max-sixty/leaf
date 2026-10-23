@@ -575,6 +575,10 @@ def screenshot_options(page: Page) -> None:
     screenshot_comparison(page)
     shot = page.locator("#bg-shot")
     shot.locator(".lf-shot-scale").click()
+    # Opening a popover may reveal a taller Pair differently from Slider.
+    shot.locator(".lf-shot-toolbar").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
     shot.scroll_into_view_if_needed()
 
 

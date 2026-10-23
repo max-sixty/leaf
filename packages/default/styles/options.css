@@ -83,7 +83,8 @@
   :scope:is(lf-options):has(> lf-option > strong) > lf-option {
     border: 1px solid var(--rule);
     border-radius: var(--r);
-    background: var(--card);
+    --lf-ground: var(--card);
+    background: var(--lf-ground);
   }
   /* The field takes the border's room unpainted, so the card it becomes is its size. */
   :scope:is(lf-options):has(> lf-option > strong) > .lf-another {
@@ -425,7 +426,8 @@
 @media screen {
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid;
-    background: var(--card);
+    --lf-ground: var(--card);
+    background: var(--lf-ground);
     border: 1px solid var(--border-2);
     border-radius: var(--r);
     /* Clip, not hidden: a hidden box is a scroll container, which would take a sticky
@@ -475,9 +477,6 @@
     --lf-joined: 1;
     /* Cells butt: the hairline is the only separation, so no child brings a block
      * margin. Every child but an option spans the group's columns. */
-    & > * {
-      margin-block: 0;
-    }
     & > :not(lf-option) {
       grid-column: 1 / -1;
     }
@@ -493,15 +492,17 @@
      * takes what passes the frame. This needs no knowledge of which row a cell ends. */
     --lf-cell-rule: 0 0 0 1px var(--rule);
     & > * {
+      margin-block: 0;
       box-shadow: var(--lf-cell-rule);
       --fill: var(--card);
-      background-color: var(--fill);
+      --lf-ground: var(--fill);
+      background-color: var(--lf-ground);
     }
     /* The aim wash: the cell under the pointer or the keyboard deepens toward the ink,
      * which reads in both palettes. The fill is not transitioned, since the tokens
      * change when the palette flips and every cell would animate between them. */
     & > lf-option:is(:hover, :has(> .lf-pick[data-lf-focus])) {
-      background: color-mix(in srgb, var(--fill) 92%, var(--ink));
+      --lf-ground: color-mix(in srgb, var(--fill) 92%, var(--ink));
     }
     & > lf-option[chosen] {
       --fill: var(--ok-tint);
@@ -744,18 +745,20 @@
     border-radius: var(--r);
   }
   :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option[chosen] {
-    background: var(--ok-tint);
+    --lf-ground: var(--ok-tint);
+    background: var(--lf-ground);
   }
 }
 /* A standalone option answers the pointer with a wash, without moving its words. */
 @media screen {
   @container style(--lf-joined: 0) {
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
-      background: var(--chip);
+      --lf-ground: var(--chip);
+      background: var(--lf-ground);
     }
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)
       > lf-option[chosen]:hover {
-      background: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
+      --lf-ground: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
     }
   }
 }

@@ -119,8 +119,26 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         })()""",
     )
     shot = page.locator("lf-shot")
+
+    def assert_source_words():
+        reading = shot.evaluate("""async node => {
+          const {says} = await import('/runtime/widget-api.js');
+          const labels = [...node.querySelectorAll('.lf-shotcap')]
+            .filter(label => label.checkVisibility());
+          return {whole: says(node), visible: labels.map(label =>
+            ({text: label.textContent, said: says(label)}))};
+        }""")
+        assert len(reading["visible"]) == 2
+        assert reading["whole"] == " ".join(
+            label["text"] for label in reading["visible"]
+        )
+        for label in reading["visible"]:
+            assert label["said"] == label["text"]
+
+    assert_source_words()
     shot.get_by_role("button", name="Slider", exact=True).click()
     expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
+    assert_source_words()
     assert (
         shot.locator(".lf-shotstage").evaluate(
             "node => node.offsetWidth - node.clientWidth"
@@ -213,6 +231,11 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
             view,
         )
         assert geometry["painted"] == geometry["immediate"], (view, geometry)
+        assert_source_words()
+    for width, layout in ((1000, "side"), (390, "stack")):
+        page.set_viewport_size({"width": width, "height": 844})
+        expect(shot).to_have_attribute("data-lf-shot-layout", layout)
+        assert_source_words()
 
 
 @pytest.mark.parametrize("touch", [False, True])

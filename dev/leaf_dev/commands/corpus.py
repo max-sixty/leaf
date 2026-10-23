@@ -15,7 +15,6 @@ corpus's own page directory, so its markup still names a declared element there.
 
 import html
 import json
-import sys
 from pathlib import Path
 
 import click
@@ -28,7 +27,9 @@ from leaf.structure import SourceDocument, rel_tokens
 from leaf.thread_context import sample_events, thread_ids
 from leaf_dev import ROOT
 from leaf_dev.example_data import (
+    capture_file,
     catalog_sources,
+    data_companion,
     data_file,
     page_files,
     regression_sources,
@@ -65,6 +66,46 @@ def sources(root: Path = ROOT) -> list[Path]:
         *regression_sources(root),
         *(examples / "developer" / f"{name}.html" for name in DEVELOPER_SOURCES),
     ]
+
+
+def source_root(source: Path) -> Path | None:
+    """The checkout owning the reserved generated corpus source, if selected."""
+    if source.name == "corpus.html" and source.parent.name == "examples":
+        return source.parent.parent
+    return None
+
+
+def composition_inputs(root: Path) -> tuple[list[Path], list[Path]]:
+    """Authored inputs and discovery directories a live corpus follows.
+
+    Keep the selection with the generator: examples and regression pages can arrive
+    or disappear, while the developer galleries are explicitly selected above.
+    Captures may live outside those directories; asset captures follow the asset pin
+    through the ordinary fixture reader.
+    """
+    inputs = [root / "docs" / "examples.html"]
+    discovering = [
+        root / "examples",
+        root / "tests" / "fixtures" / "pages",
+    ]
+    for source in sources(root):
+        companions = page_files(source)
+        discovering.append(companions)
+        inputs.extend(
+            [
+                source,
+                data_file(source),
+                seed_log(source),
+                companions,
+                *companions.rglob("*"),
+                *(
+                    capture_file(source, spec)
+                    for spec in data_companion(source).get("$captures", {}).values()
+                    if "asset" not in spec
+                ),
+            ]
+        )
+    return inputs, discovering
 
 
 HEAD = """\
@@ -104,7 +145,7 @@ def build_data(inputs: list[Path], directory: Path) -> dict:
         companion = data_file(source)
         if not companion.exists():
             continue
-        document = json.loads(companion.read_text(encoding="utf-8"))
+        document = data_companion(source)
         for name, spec in document.pop("$captures", {}).items():
             # `file` and `asset` both name a path beside the source (example_data).
             key = "asset" if "asset" in spec else "file"
@@ -113,14 +154,16 @@ def build_data(inputs: list[Path], directory: Path) -> dict:
             corpus_spec = {**spec, key: relative_file.as_posix()}
             if name in captures:
                 if captures[name] != corpus_spec:
-                    sys.exit(
+                    raise ValueError(
                         f"corpus examples contribute conflicting data capture {name!r}"
                     )
                 continue
             captures[name] = corpus_spec
         for name, value in document.items():
             if name in sources and sources[name] != value:
-                sys.exit(f"corpus examples contribute conflicting data source {name!r}")
+                raise ValueError(
+                    f"corpus examples contribute conflicting data source {name!r}"
+                )
             sources[name] = value
     return ({"$captures": captures} if captures else {}) | sources
 
@@ -140,7 +183,7 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     """
     mains = parsed.tree.select("main")
     if len(mains) != 1:
-        sys.exit(f"{source.name}: expected exactly one <main>…</main>")
+        raise ValueError(f"{source.name}: expected exactly one <main>…</main>")
     [main] = mains
     text = parsed.html
     _, start = parsed.offsets(main.source_location.start_tag)
@@ -179,7 +222,7 @@ def build(inputs: list[Path]) -> str:
         )
         for i in ["corpus-" + stem] + parsed.all_ids:
             if i in owner:
-                sys.exit(
+                raise ValueError(
                     f"id '{i}' is in both {owner[i]} and {source.name}; rename one"
                 )
             owner[i] = source.name
@@ -221,7 +264,7 @@ def build_page(inputs: list[Path]) -> dict[str, bytes]:
         merge_layer_declarations(declarations, shared)
         for tag, entry in owned.items():
             if tag in declarations:
-                sys.exit(f"corpus examples both declare {tag!r}")
+                raise ValueError(f"corpus examples both declare {tag!r}")
             declarations[tag] = entry
         for path in sorted(page.rglob("*")):
             name = path.relative_to(page).as_posix()
@@ -233,7 +276,9 @@ def build_page(inputs: list[Path]) -> dict[str, bytes]:
                 ) + path.read_bytes()
                 continue
             if name in files and files[name] != path.read_bytes():
-                sys.exit(f"corpus examples contribute conflicting page file {name!r}")
+                raise ValueError(
+                    f"corpus examples contribute conflicting page file {name!r}"
+                )
             files[name] = path.read_bytes()
     if not declarations:
         return files
@@ -267,13 +312,13 @@ def build_events(inputs: list[Path]) -> str:
         # from every page built from this source. `sample_events` seeds what a log
         # holds, because a served page may legitimately hold none of it yet.
         if unknown := selected - thread_ids(events):
-            sys.exit(
+            raise ValueError(
                 f"{source.name} declares sample threads its log does not "
                 f"hold: {', '.join(sorted(unknown))}"
             )
         for event in sample_events(document, events, selected):
             if event["id"] in combined and combined[event["id"]] != event:
-                sys.exit(
+                raise ValueError(
                     f"corpus examples contribute conflicting event {event['id']!r}"
                 )
             combined[event["id"]] = event
@@ -320,4 +365,7 @@ def generate(root: Path = ROOT) -> Path:
 @click.command()
 def corpus() -> None:
     """Generate the ignored examples/corpus.html snapshot and its companions."""
-    click.echo(generate())
+    try:
+        click.echo(generate())
+    except (ValueError, OSError) as error:
+        raise click.ClickException(str(error)) from None

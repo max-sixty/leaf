@@ -121,7 +121,8 @@ Node evaluator smoke test is separate from `pnpm check`.
 - `leaf-dev preview [EXAMPLE]` serves one example or developer fixture as a live page,
   or exports it with `--export`. `/developing-leaf` says when to pass `--user`.
 - `leaf-dev corpus` generates the ignored `examples/corpus.html` snapshot and its
-  companions. Named corpus consumers generate it automatically.
+  companions. Named corpus consumers generate it automatically; running corpus
+  previews also regenerate when their authored sources change.
 
 ## Website and demo
 

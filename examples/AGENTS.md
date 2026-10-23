@@ -35,7 +35,9 @@ routes.
 `corpus.html` and its companions are ignored snapshots composed from the public
 examples, developer pages and regression fixtures. Preview, probe, benchmarks and
 the combined-page tests generate them on demand; `leaf-dev corpus` also builds a
-snapshot explicitly. Edit the source pages, with no regeneration step before committing.
+snapshot explicitly. Running corpus previews follow source edits through the same
+live-update rules as individual previews (`dev/leaf_dev/commands/preview.py`). Edit
+the source pages, with no regeneration step before committing.
 Measure runtime cost on the corpus; a small fixture can establish a cause but not
 the cost.
 

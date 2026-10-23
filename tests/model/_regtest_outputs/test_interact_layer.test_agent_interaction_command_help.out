@@ -99,9 +99,9 @@ Usage: leaf thread open [OPTIONS] PAGE
   Open a thread as the agent: anchored where --quote or --section points at a
   passage, general where neither does \u2014 a question about the work as a whole.
 
-  The user answers it in the browser; a question in an `<lf-ask>` in --markup
-  waits on them until they do. Refuses a quote the active revision does not
-  hold, or holds more than once. The comment's id is the thread's.
+  Use --obligation when the next move is the user's: the message waits on On me
+  until their reply or settling reaction. Refuses a quote the active revision
+  does not hold, or holds more than once. The comment's id is the thread's.
 
 Options:
   --quote TEXT   passage text from the active revision
@@ -113,6 +113,7 @@ Options:
   --markup TEXT  HTML fragment after the text, validated here
   --title TEXT   name the thread for the panel unless it has a name: a few
                  words, at most 80 characters
+  --obligation   put this message on On me until the user replies or settles it
   --help         Show this message and exit.
 
 ## leaf thread reply --help
@@ -125,6 +126,7 @@ Usage: leaf thread reply [OPTIONS] PAGE THREAD
   checked and published as `leaf response reply` says.
 
 Options:
+  --obligation   put this message on On me until the user replies or settles it
   --title TEXT   name the thread for the panel unless it has a name: a few
                  words, at most 80 characters
   --ephemeral    one-line progress, without answering
@@ -147,9 +149,9 @@ Usage: leaf response reply [OPTIONS] REFERENCE
 
   Mark every answer with --done (it delivers what the message asked for) or
   --todo TITLE (it promises work it doesn't deliver, which stays on you as a to-
-  do), or ask the user something back with an `<lf-ask>` in its --markup, which
-  waits on them until their next message in the thread. A progress line
-  (--ephemeral) or a failure (--failure) takes none of them.
+  do), or --obligation when the next move is the user's. A widget in --markup
+  can also register its own obligation. A progress line (--ephemeral) or a
+  failure (--failure) takes none of them.
 
   The reply can also set frozen HTML, the thread's title and a new anchor. It
   publishes your saved page edits with it, checking them as `page check` does
@@ -167,6 +169,7 @@ Options:
   --failure TEXT  failure code when no answer is coming; refused while your
                   turn's final message is to be the reply
   --done          the reply delivers what the message asked for
+  --obligation    put this message on On me until the user replies or settles it
   --title TEXT    name the thread for the panel unless it has a name: a few
                   words, at most 80 characters
   --ephemeral     one-line progress, without answering

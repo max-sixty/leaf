@@ -29,6 +29,7 @@ from interact_support import (
     refused_on,
     response_reference,
     served_obligations,
+    served_thread,
     serving,
     stamp,
     state_json,
@@ -371,12 +372,8 @@ def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
     assert missing.code == "unknown-subject"
     [unknown] = command_findings("task", "end", page_dir, "no-such-task", "done")
     assert unknown.code == "unknown-todo"
-    # Work in a thread is opened by the reply that promises it, so a to-do's subject
-    # is never a thread.
-    [threaded] = command_findings(
-        "task", "open", page_dir, comment["id"], "Look into it"
-    )
-    assert (threaded.code, threaded.values["field"]) == ("invalid-event", "/subject")
+    threaded = written(leaf("task", "open", page_dir, comment["id"], "Look into it"))
+    assert threaded["subject"] == {"kind": "thread", "id": comment["id"]}
 
     todo = written(leaf("task", "open", page_dir, "page", "Look into it"))
     written(leaf("task", "end", page_dir, todo["id"], "dropped", "not needed"))
@@ -389,7 +386,7 @@ def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
         {"author": "user"},
         {"title": "Two\nlines"},
         {"title": "x" * 81},
-        {"subject": {"kind": "thread", "id": comment["id"]}},
+        {"subject": {"kind": "thread", "id": "missing-thread"}},
         {"subject": {"kind": "widget", "id": "s-1"}},
     ):
         with pytest.raises(events_model.EventRefused):
@@ -649,7 +646,7 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     ]
     assert state["queues"]["on_agent"] == []
     [thread] = state["threads"]
-    assert thread["attention"]["reason"] == "widget"
+    assert thread["attention"]["reason"] == "obligation"
 
 
 def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir):
@@ -1300,11 +1297,20 @@ def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
             *question_options("rollback", "Is the rollback plan enough?"),
         )
     )
-    [refused] = command_findings(
-        "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
+    task = written(
+        leaf(
+            "task", "open", page_dir, comment["id"], "Try the rollback", "--on", "user"
+        )
     )
-    # A to-do's subject is never a thread; the thread asks with an lf-ask.
-    assert (refused.code, refused.values["field"]) == ("invalid-event", "/subject")
+    [task_obligation] = [
+        item for item in state_json(page_dir)["obligations"] if item["id"] == task["id"]
+    ]
+    assert task_obligation["source"] == {
+        "kind": "todo",
+        "id": task["id"],
+        "subject": {"kind": "thread", "id": comment["id"]},
+    }
+    assert task_obligation["thread"] == comment["id"]
 
     status, answer = done(page_dir, "widget:rollback")
     assert status == 400, answer
@@ -1327,6 +1333,13 @@ def test_a_thread_obligation_remains_distinct_from_explicit_user_work(page_dir):
     assert ("widget", "widget:rollback") not in kinds(
         state_json(page_dir)["queues"]["on_user"]
     )
+    assert ("todo", task["id"]) in kinds(state_json(page_dir)["queues"]["on_user"])
+    assert done(page_dir, task["id"])[0] == 200
+    [ended] = [
+        item for item in state_json(page_dir)["obligations"] if item["id"] == task["id"]
+    ]
+    assert ended["status"] == "answered"
+    assert ended["answer"]["value"] == "done"
 
 
 def test_the_user_ends_only_explicit_user_work_and_not_an_obligation(page_dir):
@@ -1982,3 +1995,183 @@ def test_the_input_a_reply_answers_moves_to_its_lists_done():
         ("agent", "update", "update:e1", "e2", "e3", "2026-10-13T10:00:00z")
     ]
     assert [item["id"] for item in view["queues"]["on_agent"]] == ["update:e2"]
+
+
+@pytest.mark.parametrize("route", ["open", "thread", "response"])
+def test_explicit_message_obligations_need_no_markup(page_dir, route):
+    """Every author route atomically sends the question and registers On me."""
+    publish(page_dir)
+    if route == "open":
+        command = ["thread", "open", page_dir]
+        thread = None
+    else:
+        root = append_carried_log_record(
+            page_dir,
+            {
+                "kind": "comment",
+                "author": "user" if route == "response" else "agent",
+                "revision": 1,
+                "text": "Release notes",
+            },
+        )
+        thread = root["id"]
+        command = (
+            ["response", "reply", response_reference(page_dir, thread)]
+            if route == "response"
+            else ["thread", "reply", page_dir, thread]
+        )
+    message = written(leaf(*command, "--obligation", "--text", "Which environment?"))
+    identity = f"message:{message['id']}"
+    state = state_json(page_dir)
+    [item] = [item for item in state["obligations"] if item["id"] == identity]
+    assert item["source"] == {"kind": "message", "id": message["id"]}
+    assert (item["thread"], item["message"], item["prompt"]) == (
+        thread or message["id"],
+        message["id"],
+        {"text": "Which environment?", "target": None},
+    )
+    assert ("message", identity) in kinds(state["queues"]["on_user"])
+    assert "markup" not in message
+    answer = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": thread or message["id"],
+            "text": "Staging.",
+        },
+    )
+    [item] = [
+        item for item in state_json(page_dir)["obligations"] if item["id"] == identity
+    ]
+    assert item["status"] == "answered"
+    assert item["answer"] == {
+        "value": {"text": "Staging."},
+        "event": {key: answer[key] for key in ("id", "kind", "seq", "ts", "author")},
+    }
+
+
+@pytest.mark.parametrize("attach_first", [True, False])
+def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
+    """A task cannot lose its thread to Undo or attach after Undo removed it."""
+    publish(page_dir)
+    root = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "keep",
+            "anchor": {"section": "plan"},
+        },
+    )
+    task = {
+        "kind": "todo",
+        "author": "agent",
+        "owner": "user",
+        "subject": {"kind": "thread", "id": root["id"]},
+        "title": "Check on a phone",
+    }
+    undo = {"kind": "undo", "author": "user", "undoes": root["id"]}
+    if attach_first:
+        opened = append_command(page_dir, task)
+        with pytest.raises(events_model.EventRefused, match="reply or task attached"):
+            append_command(page_dir, undo)
+        assert root["id"] in {
+            thread["id"]
+            for thread in served_thread(
+                full_state(page_dir, events_model.read_events(page_dir))["browser"]
+            )["threads"]
+        }
+        assert opened["id"] in {
+            item["id"] for item in state_json(page_dir)["queues"]["on_user"]
+        }
+    else:
+        append_command(page_dir, undo)
+        with pytest.raises(events_model.EventRefused, match="thread"):
+            append_command(page_dir, task)
+
+
+def test_explicit_obligation_reactions_and_agent_end(page_dir):
+    """Reaction undo restores the request; an outside answer or withdrawal retires it."""
+    publish(page_dir)
+    message = written(
+        leaf("thread", "open", page_dir, "--obligation", "--text", "Ready?")
+    )
+    identity = f"message:{message['id']}"
+    reaction = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": message["id"],
+            "token": "keep",
+        },
+    )
+    assert ("message", identity) not in kinds(state_json(page_dir)["queues"]["on_user"])
+    append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": reaction["id"]}
+    )
+    assert ("message", identity) in kinds(state_json(page_dir)["queues"]["on_user"])
+    [failed] = command_findings("task", "end", page_dir, identity, "failed")
+    assert failed.code == "failed-question"
+    written(leaf("task", "end", page_dir, identity, "done", "Answered in chat"))
+    [item] = [
+        item for item in state_json(page_dir)["obligations"] if item["id"] == identity
+    ]
+    assert item["status"] == "answered_elsewhere"
+    assert item["answer"] is None
+    question = written(
+        leaf(
+            "thread",
+            "reply",
+            page_dir,
+            message["id"],
+            "--obligation",
+            "--text",
+            "Anything else?",
+        )
+    )
+    written(
+        leaf(
+            "task",
+            "end",
+            page_dir,
+            f"message:{question['id']}",
+            "dropped",
+            "No longer needed",
+        )
+    )
+    assert not [
+        row
+        for row in state_json(page_dir)["queues"]["on_user"]
+        if row["kind"] == "message"
+    ]
+
+
+def test_obligations_are_not_progress_or_user_authored(page_dir):
+    """The admission boundary prevents unanswerable requests on non-agent messages."""
+    publish(page_dir)
+    root = written(leaf("thread", "open", page_dir, "--text", "Status"))
+    before = events_model.read_events(page_dir)
+    for extra in (
+        {"author": "user"},
+        {"ephemeral": True},
+        {"todo": "Work"},
+        {"failure": "failed", "responds": root["id"]},
+    ):
+        with pytest.raises(events_model.EventRefused):
+            append_command(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": root["id"],
+                    "text": "Question?",
+                    "obligation": True,
+                    **extra,
+                },
+            )
+    assert events_model.read_events(page_dir) == before

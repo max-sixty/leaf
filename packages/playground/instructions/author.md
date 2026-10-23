@@ -21,27 +21,10 @@ in the preview, presets precede the full-width preview and the instruction follo
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
-<<<<<<< HEAD
 break out of a reading column; a workspace gives it the window. A long comparison can
 flow down the page. Shared controls stay in their rail on wide layouts and above the
 preview on narrow layouts, where their own contents scroll if needed to leave room for
 the candidates. Controls authored beside an individual candidate stay beside it.
-||||||| 13e64e6a0
-Give the `lf-playground` `data-width="available"` wherever it stands, so it takes the
-room it is given while the question and premise in its `lf-ask` keep the prose width.
-Where the playground is the page's subject, make the page a workspace (`<main
-class="layout-workspace density-working">`) whose body is that `lf-ask`. When the page
-also carries reading that supports the playground, make it a page of parts instead: the
-first part is that workspace, `<div class="layout-workspace density-working">` holding
-the `lf-ask`, and the reading goes in later parts, each a column
-(`references/page-layout.md`, "A page of parts"). Either way the playground fills the
-window. Where the playground is one exhibit in a document, it breaks out of the
-document's column. Draw the candidates directly in the preview, without a card around
-each.
-=======
-break out of a reading column; a workspace gives it the window. Draw the candidates
-directly in the preview, without a card around each.
->>>>>>> origin/main
 
 In a workspace, every line between the question and the playground pushes the
 instruction and its Send button further below the window. Keep that premise to one or

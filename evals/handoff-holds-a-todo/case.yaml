@@ -48,7 +48,7 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Pass only if the commands answer 3b9e51a0 with `leaf response reply` carrying
+      Pass only if the commands answer 3b9e51a0 with `leaf thread reply` carrying
       `--todo "<title>"` for the parser investigation; and if the brief gives the
       dispatched session what it needs to end that to-do where its result lands (the
       page and the to-do's id, with `leaf task end`), or otherwise names how the to-do

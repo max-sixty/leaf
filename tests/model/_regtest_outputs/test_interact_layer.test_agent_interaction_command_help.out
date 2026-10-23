@@ -117,51 +117,31 @@ Options:
   --help         Show this message and exit.
 
 ## leaf thread reply --help
-Usage: leaf thread reply [OPTIONS] PAGE THREAD
+Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]
 
-  Post a new agent message to THREAD.
+  Reply to a delivered update using its `answer.ref` as the only argument, or
+  post an agent-initiated message using PAGE THREAD. A page and thread cannot
+  bypass an owed answer: use its delivered reference instead.
 
-  A message is refused while the thread owes a response; answer it with `leaf
-  response reply <answer.ref>`. --ephemeral posts progress. Saved page edits are
-  checked and published as `leaf response reply` says.
-
-Options:
-  --obligation   put this message on On me until the user replies or settles it
-  --title TEXT   name the thread for the panel unless it has a name: a few
-                 words, at most 80 characters
-  --ephemeral    one-line progress, without answering
-  --todo TITLE   the reply promises work it doesn't deliver; opens that to-do on
-                 the thread, ended by `leaf task end` with the reply's id
-  --markup TEXT  frozen HTML fragment after the text
-  --text TEXT    the reply's text
-  --file PATH    read the reply's text from PATH, - for stdin; with neither
-                 option, from piped stdin
-  --detach       remove the thread's page target
-  --part ID      new declared visual part within --section
-  --section ID   new element ID, or scope for --quote
-  --quote TEXT   new passage text to move this thread onto
-  --help         Show this message and exit.
-
-## leaf response reply --help
-Usage: leaf response reply [OPTIONS] REFERENCE
-
-  Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
-
-  Mark every answer with --done (it delivers what the message asked for) or
-  --todo TITLE (it promises work it doesn't deliver, which stays on you as a to-
-  do), or --obligation when the next move is the user's. A widget in --markup
-  can also register its own obligation. A progress line (--ephemeral) or a
-  failure (--failure) takes none of them.
+  With a reference, mark every answer with --done (it delivers what the message
+  asked for) or --todo TITLE (it promises work it doesn't deliver, which stays
+  on you as a to-do), or --obligation when the next move is the user's. A widget
+  in --markup can also register its own obligation. A progress line
+  (--ephemeral) or a failure (--failure) takes none of them.
 
   The reply can also set frozen HTML, the thread's title and a new anchor. It
   publishes your saved page edits with it, checking them as `page check` does
   without a browser: an error refuses the reply, and the first reply on a
   revision notes the advice `page check` gives on its source. Nothing runs in a
   browser, where `page check` runs a page's scripts and data widgets; one that
-  fails for the user arrives as an `error` event. After an answer posts, your
-  turn's final message is not posted as a second reply; an --ephemeral line does
-  not change that. Rerunning a reply that already posted prints the earlier one;
-  give a retried --ephemeral line an --attempt so it posts once.
+  fails for the user arrives as an `error` event.
+
+  With a reference, an answer suppresses your turn's final message as a second
+  reply; an --ephemeral line does not. Rerunning a reply that already posted
+  prints the earlier one; give a retried --ephemeral line an --attempt so it
+  posts once. --done, --failure and --attempt require a reference. PAGE THREAD
+  accepts --obligation when the message needs the user's next move, or --todo
+  for promised work.
 
 Options:
   --attempt TEXT  retry key: a rerun with the same key posts nothing new
@@ -169,20 +149,20 @@ Options:
   --failure TEXT  failure code when no answer is coming; refused while your
                   turn's final message is to be the reply
   --done          the reply delivers what the message asked for
-  --obligation    put this message on On me until the user replies or settles it
-  --title TEXT    name the thread for the panel unless it has a name: a few
-                  words, at most 80 characters
-  --ephemeral     one-line progress, without answering
-  --todo TITLE    the reply promises work it doesn't deliver; opens that to-do
-                  on the thread, ended by `leaf task end` with the reply's id
-  --markup TEXT   frozen HTML fragment after the text
   --text TEXT     the reply's text
   --file PATH     read the reply's text from PATH, - for stdin; with neither
                   option, from piped stdin
-  --detach        remove the thread's page target
-  --part ID       new declared visual part within --section
-  --section ID    new element ID, or scope for --quote
+  --markup TEXT   frozen HTML fragment after the text
+  --todo TITLE    the reply promises work it doesn't deliver; opens that to-do
+                  on the thread, ended by `leaf task end` with the reply's id
+  --ephemeral     one-line progress, without answering
+  --title TEXT    name the thread for the panel unless it has a name: a few
+                  words, at most 80 characters
+  --obligation    put this message on On me until the user replies or settles it
   --quote TEXT    new passage text to move this thread onto
+  --section ID    new element ID, or scope for --quote
+  --part ID       new declared visual part within --section
+  --detach        remove the thread's page target
   --help          Show this message and exit.
 
 ## leaf thread edit --help

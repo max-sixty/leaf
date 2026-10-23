@@ -41,7 +41,7 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Pass only if this turn answers da47301f with `leaf response reply` carrying
+      Pass only if this turn answers da47301f with `leaf thread reply` carrying
       `--todo "<title>"` (or otherwise opens a to-do on that thread) that holds the c13
       decision until the backing-box change lands, and if, once it merges, the agent
       ends that to-do with `leaf task end` so the decision comes back to the user

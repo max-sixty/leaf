@@ -438,7 +438,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         responded(9.35),
         result(10, "d"),
         responded(12),
-        use(12, "e", "leaf response reply c1"),
+        use(12, "e", "leaf thread reply c1"),
     ]
 
     def ran(started: float, ended: float) -> dict:
@@ -475,7 +475,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         "modelCalls": [
             {"ms": 1800, "calls": ["leaf task start . c1", "cat index.html"]},
             {"ms": 1700, "calls": ["Edit", "/x/bin/leaf page check ."]},
-            {"ms": 2000, "calls": ["leaf response reply c1"]},
+            {"ms": 2000, "calls": ["leaf thread reply c1"]},
         ],
     }
     assert [phase["phase"] for phase in reply["phases"][:3]] == [
@@ -598,13 +598,13 @@ def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_outpu
 
     records = [
         {"type": "turn_start", "received_at": at(0.5)},
-        use(4, "a", "leaf response reply c1 --ephemeral"),
+        use(4, "a", "leaf thread reply c1 --ephemeral"),
         responded(4, 200),
         result(4.5, "a"),
         use(7, "b", "Edit"),
         responded(7, 300),
         result(7.05, "b"),
-        use(10, "c", "leaf response reply c1 --done"),
+        use(10, "c", "leaf thread reply c1 --done"),
         responded(10, 150),
         *claude_code_debug_records(log),
     ]
@@ -636,7 +636,7 @@ def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_outpu
                 "waitMs": 1000,
                 "generationMs": 2400,
                 "outputTokens": 200,
-                "calls": ["leaf response reply c1 --ephemeral"],
+                "calls": ["leaf thread reply c1 --ephemeral"],
             },
             {"ms": 2500, "harnessMs": 100, "outputTokens": 300, "calls": ["Edit"]},
             {
@@ -645,7 +645,7 @@ def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_outpu
                 "waitMs": 1000,
                 "generationMs": 1700,
                 "outputTokens": 150,
-                "calls": ["leaf response reply c1 --done"],
+                "calls": ["leaf thread reply c1 --done"],
             },
         ],
     }

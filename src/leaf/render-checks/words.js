@@ -231,7 +231,7 @@ export function coveredWords({
         at: at(a.el),
         // Both elements' places (locate.js), so the gate's sweep meets the same pair
         // again at another width and tells it from another pair sharing a name.
-        place: `${place(a.el)} ${place(b.el)}`,
+        place: [place(a.el), place(b.el)],
         words: a.text,
         under: at(b.el),
         covered: b.text,

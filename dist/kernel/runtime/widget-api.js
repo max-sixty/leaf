@@ -52,7 +52,6 @@ import {
   clearDraft,
   copyBlock,
   ensureSyntaxLanguage,
-  fitsWhole,
   heldGrowth,
   highlightBlocks,
   inlineMarkdownFragment,
@@ -74,11 +73,8 @@ import {
   releaseOutlets,
   renderMarkdown,
   restorePlace,
-  retainUserIntent,
   rowWalk,
   saveDraft,
-  scrollIntoReadingBand,
-  scrollIntoView,
   sendDraft,
   synNodes,
   syntax,
@@ -87,7 +83,7 @@ import {
   threadSurface,
   tokenLines,
   watchDraft
-} from "./bundle-user-intent.js";
+} from "./bundle-user-place.js";
 import {
   DISCLOSE,
   aborted,
@@ -103,7 +99,12 @@ import {
   setRenderedChildren,
   shadowStage
 } from "./bundle-keyboard~disclosure.js";
-import "./bundle-copy-control.js";
+import {
+  fitsWhole,
+  retainUserIntent,
+  scrollIntoReadingBand,
+  scrollIntoView
+} from "./bundle-user-intent.js";
 import {
   isCanonicalMediaUrl,
   scopedMediaUrl

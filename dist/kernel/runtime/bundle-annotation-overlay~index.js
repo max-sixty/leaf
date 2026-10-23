@@ -64,7 +64,6 @@ import {
   placeKeeper,
   releaseAuthoredUnder,
   releaseReplies,
-  retainUserIntent,
   revealHeld,
   rowWalk,
   selectionAnchor,
@@ -75,12 +74,14 @@ import {
   threadIdNamed,
   threadNamed,
   writingIn
-} from "./bundle-user-intent.js";
+} from "./bundle-user-place.js";
 import {
   setChildLists,
   setChildren
 } from "./bundle-keyboard~disclosure.js";
-import "./bundle-copy-control.js";
+import {
+  retainUserIntent
+} from "./bundle-user-intent.js";
 import "./bundle-media.js";
 import {
   reducedMotion

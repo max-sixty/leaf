@@ -118,7 +118,14 @@ export function arrangedBoxes(open, { shown = false } = {}) {
       if (row) row.count++;
       else rows.push({ top, count: 1 });
     }
-    return [{ path, at: element(box), rows: rows.map((r) => r.count).join("+") }];
+    return [
+      {
+        path,
+        at: element(box),
+        place: place(box),
+        rows: rows.map((r) => r.count).join("+"),
+      },
+    ];
   });
 }
 
@@ -181,6 +188,7 @@ export function overflowingRegions() {
           {
             id: region.id,
             at: element(region.host),
+            place: place(region.host),
             over: Math.round(over),
           },
         ]

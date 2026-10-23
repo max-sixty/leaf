@@ -11,18 +11,17 @@ content inputs in their callers.
 import functools
 import json
 import shutil
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from leaf.delivery import record_receipt
 from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
-from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
@@ -39,6 +38,8 @@ DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
 @dataclass(frozen=True, slots=True)
 class PageFixture:
     source: Path
+    runtime: Path
+    environment: dict[str, str] | None
     page_files: Path | None
     packages: tuple[str, ...]
     media: Path
@@ -173,6 +174,8 @@ def read_fixture(
     files = page_files(source)
     return PageFixture(
         source=source,
+        runtime=runtime.resolve(),
+        environment=env,
         page_files=files if files.is_dir() else None,
         packages=tuple(source_packages(source)),
         media=media_source(source),
@@ -299,9 +302,33 @@ def _seed_log(fixture: PageFixture, page: Path) -> None:
 def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
     if fixture.seed is None:
         return
-    with PageTransaction(page) as transaction:
-        if transaction.events:
-            record_receipt(transaction, transaction.events[-1]["seq"])
+    # The selected runtime owns admission, including a comparison arm whose
+    # protocol differs from the developer process preparing its fixture. Stamping
+    # has already prepared its environment; acknowledging must not resync it.
+    subprocess.run(
+        [
+            "uv",
+            "run",
+            "-q",
+            "--no-sync",
+            "--project",
+            str(fixture.runtime),
+            "python",
+            "-c",
+            """from pathlib import Path
+import sys
+from leaf.delivery import record_receipt
+from leaf.service import PageTransaction
+
+with PageTransaction(Path(sys.argv[1])) as page:
+    if page.events:
+        record_receipt(page, page.events[-1]["seq"])
+""",
+            str(page),
+        ],
+        env=fixture.environment,
+        check=True,
+    )
 
 
 def prepare_page(

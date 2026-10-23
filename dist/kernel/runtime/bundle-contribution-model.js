@@ -3,7 +3,7 @@ import {
   progressFace,
   threadAttention,
   workflowLabel
-} from "./bundle-user-intent.js";
+} from "./bundle-user-place.js";
 import {
   agentArrivalDuration,
   reducedMotion

@@ -1,5 +1,6 @@
 import {
   darkPreference,
+  pageIdentity,
   shownScheme
 } from "./bundle-color-scheme.js";
 import {
@@ -53,6 +54,7 @@ function context() {
   const clips = /* @__PURE__ */ new Map();
   return {
     session,
+    identity: pageIdentity(),
     sequence: ++sequence,
     visible: document.visibilityState !== "hidden",
     revision: runtime.currentRevision,
@@ -79,6 +81,7 @@ function readChecks(view) {
   );
   return {
     sequence: view.sequence,
+    identity: view.identity,
     revision: view.revision,
     through_seq: view.through_seq,
     viewport: view.viewport,

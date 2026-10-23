@@ -478,8 +478,14 @@ def check(page_dir: Path, render: bool) -> Reported:
     metavar="N",
     help="inspect captured revision N instead of mutable source",
 )
-def inspect_page(page_dir: Path, revision: int | None) -> dict:
-    """Report attributed CSS counts and retained browser views as JSON.
+@click.option(
+    "--compare-to",
+    type=click.IntRange(min=1),
+    metavar="N",
+    help="compare inspected source with captured revision N",
+)
+def inspect_page(page_dir: Path, revision: int | None, compare_to: int | None) -> dict:
+    """Report attributed source inventories and retained browser views as JSON.
 
     Metrics are observations, not a quality score or a pass/fail check. Opens no
     browser and changes no page state. Browser observations name their own revision,
@@ -487,7 +493,7 @@ def inspect_page(page_dir: Path, revision: int | None) -> dict:
     """
     from leaf.page_inspection import cmd_inspect
 
-    return cmd_inspect(page_dir, revision)
+    return cmd_inspect(page_dir, revision, compare_to)
 
 
 @page.command()

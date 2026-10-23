@@ -30,6 +30,9 @@ sources and regenerates their composition before refreshing its page.
 The preview vendors from a cached compiled installation, shared with the suite and
 developer probes. Runtime and compiler edits prepare a new kernel; authored-page edits
 reuse it. The source checkout remains the owner of its watched inputs and provenance.
+Loaded Python and kernel-registry changes re-exec the worker before refreshing the
+page. The slot lease, claim and address survive that exec; fixture history is not
+replayed. This keeps the watcher and its server on the same current contract.
 
 While it runs, `watchfiles` reports edits. Initialization decides whether the layer
 actually changed; identical saves leave the browser and server alone. A source or
@@ -114,6 +117,30 @@ WATCH_INTERVAL_MS = 250
 # starts apart while the port is occupied; repeat diagnostics only when they change.
 REVIVE_INTERVAL_SECS = 1
 STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+RESUME_ENV = "LEAF_PREVIEW_RESUME"
+
+
+def worker_inputs(runtime: Path) -> list[Path]:
+    """Inputs loaded by Python, which a server restart alone cannot refresh."""
+    return [
+        *runtime.joinpath("src").rglob("*.py"),
+        *runtime.joinpath("dev/leaf_dev").rglob("*.py"),
+        runtime / "browser/registry.json",
+        runtime / "pyproject.toml",
+        runtime / "uv.lock",
+        runtime / "dev/pyproject.toml",
+    ]
+
+
+def worker_identity(runtime: Path) -> str:
+    from leaf.layer import files_identity
+
+    return files_identity(
+        {
+            str(path.relative_to(runtime)): path.read_bytes()
+            for path in sorted(worker_inputs(runtime))
+        }
+    )
 
 
 class LeafFailed(RuntimeError):
@@ -299,12 +326,21 @@ class PreviewService:
         self.prepared_claim = prepared_claim
 
     @contextlib.contextmanager
-    def starting(self):
+    def starting(self, *, revive: bool = False):
         """Prepare serving; claim the page only when the caller accepts on exit."""
-        from leaf.hosting import claim_and_start
+        from leaf.harness import claim_harness
+        from leaf.hosting import claim_and_start, start_server
 
         if not self.user:
             yield self._serve_temporary()
+            return
+        if revive:
+            started = start_server(
+                self.page,
+                revive=True,
+                harness=claim_harness(self.claim) if self.claim else None,
+            )
+            yield started.url
             return
         with claim_and_start(self.page, prepared_claim=self.prepared_claim) as started:
             self.claim = started.claim
@@ -603,6 +639,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     layer = {
         *(str(path) for path in package),
         *(str(path) for path in payload_server_inputs(runtime)),
+        *(str(path) for path in worker_inputs(runtime)),
         *(str(compiler_root() / path) for path in COMPILER_INPUTS),
     }
     manifest = source_manifest(source)
@@ -645,6 +682,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     trees = {
         *resolved_roots,
         scripts,
+        runtime / "dev/leaf_dev",
         *(path.parent for path in package),
         *discovering,
     }
@@ -734,14 +772,19 @@ def run_preview(
     """Take the slot, resume a user's page or build a plain preview, then serve."""
     from leaf.leases import release_lease, take_lease
 
-    lease = take_lease(preview_lease(page))
+    continuation = json.loads(os.environ.pop(RESUME_ENV, "null"))
+    if continuation:
+        lease = os.fdopen(continuation["lease"], "a+b")
+        os.set_inheritable(lease.fileno(), False)
+    else:
+        lease = take_lease(preview_lease(page))
     if lease is None:
         raise ValueError(
             f"another preview is serving {page}; stop that process, or choose "
             "another --slot"
         )
     try:
-        if not user:
+        if not user and not continuation:
             discard_preview(page)
         serve_preview(
             source,
@@ -751,6 +794,8 @@ def run_preview(
             user,
             prepared_claim=prepared_claim,
             handshake=handshake,
+            continuation=continuation,
+            lease=lease,
         )
     finally:
         release_lease(lease)
@@ -765,25 +810,28 @@ def serve_preview(
     *,
     prepared_claim: dict | None = None,
     handshake=None,
+    continuation: dict | None = None,
+    lease=None,
 ) -> None:
     """Build this slot's page, serve it, and follow its inputs until stopped."""
     from leaf.files import read_json
     from leaf.layer import layer_inputs
     from leaf.server import PREVIEW
 
+    loaded = worker_identity(runtime)
     # Fixture progress is distinct from the page's own authored inputs: an agent
     # may have revised those while this watcher was absent.
     refresh_composition(source)
     state = {
         "authored": authored_digest(incoming_files(source)),
     }
-    resumed = user and page.exists()
+    resumed = bool(continuation) or (user and page.exists())
     if resumed:
         record = PREVIEW.read(page / "preview.json")
         if (
             record is None
             or record["input"]["source"] != fixture_identity(source)
-            or record["interaction"] != "user"
+            or record["interaction"] != ("user" if user else "author")
         ):
             raise ValueError(
                 f"{page} belongs to another preview; choose another --slot"
@@ -796,6 +844,19 @@ def serve_preview(
         prepared_page = None
         if resumed:
             service = PreviewService(page, user, prepared_claim)
+            if continuation:
+                service.address = continuation["address"]
+                service.claim = continuation["claim"]
+                service.prepared_claim = continuation["claim"]
+                if user and service.ended:
+                    return
+                # Readers already have this URL. Subscribe before restarting its
+                # server, so edits made while it comes back remain queued.
+                roots = layer_inputs(
+                    tuple(read_json(page / "registry.json")["$layer"]["packages"])
+                )
+                watched = watch_paths(source, runtime, roots)
+                changes = watch_changes(watched)
             refresh_preview(source, page, launcher, runtime, state, service)
         else:
             # The fixture owner builds all versions, seed history, data and media
@@ -820,13 +881,20 @@ def serve_preview(
             run=page,
             authored_source=source,
         )
-        with service.starting() as url:
-            pass
+        if not user and service.running:
+            url = service.temporary.url
+        else:
+            with service.starting(revive=bool(continuation)) as url:
+                pass
         roots = layer_inputs(
             tuple(read_json(page / "registry.json")["$layer"]["packages"])
         )
         watched = watch_paths(source, runtime, roots)
-        changes = watch_changes(watched)
+        if changes is not None and not changes.matches(watch_roots(watched)):
+            changes.close()
+            changes = None
+        if changes is None:
+            changes = watch_changes(watched)
         if handshake is not None and not handshake.announce({"url": url}):
             return
         if service.user:
@@ -845,11 +913,11 @@ def serve_preview(
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
         while True:
             reported = next(changes)
+            replaced = not changes.matches(watch_roots(watched))
             if service.ended:
                 return  # the service was stopped, or the owning session ended
             if service.user and not service.running:
                 service.serve_again()
-            replaced = not changes.matches(watch_roots(watched))
             if replaced:
                 # Native directory watches expire when their directory is
                 # removed, even if its pathname and selected inputs return.
@@ -872,6 +940,22 @@ def serve_preview(
                         continue
                     if not reported & current.paths:
                         continue
+            if worker_identity(runtime) != loaded:
+                changes.close()
+                service._close_temporary()
+                os.environ[RESUME_ENV] = json.dumps(
+                    {
+                        "lease": lease.fileno(),
+                        "address": service.address,
+                        "claim": service.claim,
+                    }
+                )
+                os.set_inheritable(lease.fileno(), True)
+                command = [
+                    worker_python(runtime),
+                    *worker_arguments(source, page, runtime, user),
+                ]
+                os.execv(command[0], command)
             refreshed = refresh_preview(source, page, launcher, runtime, state, service)
             # Init can commit a selection even when the following source stamp
             # refuses. Follow the installed layer after every attempt, so that
@@ -907,26 +991,49 @@ def serve_preview(
             service.stop()
 
 
-def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) -> None:
-    """Become the preview, in the selected checkout's uv environment.
+def worker_python(runtime: Path) -> str:
+    """Sync the two workspace packages and resolve their stable interpreter.
 
-    That environment is the one `bin/leaf` syncs, which carries no dev group, so
-    `leaf_dev`, which builds the page from the fixture, is overlaid onto it. The selected
-    checkout owns both the worker and `leaf`, so their startup and serving contracts
-    stay together when comparing versions. The launcher is replaced rather than
-    kept as a parent, so whatever stops this process — Ctrl-C, or a runner's
-    SIGTERM, which `uv run` forwards — reaches the preview itself.
+    An editable `uv run --with` overlay disappears when uv exits. Syncing the
+    workspace lets the watcher exec Python itself, without growing uv parents
+    on reload. Inexact sync retains the developer's other installed tooling.
     """
-    command = [
-        "uv",
-        "run",
-        "-q",
-        "--no-dev",
-        "--project",
-        str(runtime),
-        "--with-editable",
-        str(runtime / "dev"),
-        "python",
+    subprocess.run(
+        [
+            "uv",
+            "sync",
+            "-q",
+            "--no-dev",
+            "--inexact",
+            "--project",
+            str(runtime),
+            "--package",
+            "leaf",
+            "--package",
+            "leaf-dev",
+        ],
+        check=True,
+    )
+    return subprocess.run(
+        [
+            "uv",
+            "run",
+            "-q",
+            "--no-sync",
+            "--project",
+            str(runtime),
+            "python",
+            "-c",
+            "import sys; print(sys.executable)",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def worker_arguments(source: Path, page: Path, runtime: Path, user: bool) -> list[str]:
+    return [
         "-m",
         "leaf_dev.commands.preview",
         "--source",
@@ -936,7 +1043,17 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
         "--slot",
         page.name,
         "--worker",
+        *(["--user"] if user else []),
     ]
+
+
+def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) -> None:
+    """Become the preview in the selected checkout's uv environment.
+
+    Its two workspace packages share the environment `bin/leaf` uses. Exec keeps
+    Ctrl-C and the caller's process lifetime attached to the watcher.
+    """
+    command = [worker_python(runtime), *worker_arguments(source, page, runtime, user)]
     # The worker runs in the selected checkout, so it is handed the slot by name and
     # the root as this launcher resolved it, rather than reading a relative setting
     # against a directory of its own.
@@ -945,8 +1062,6 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     # browser build dependencies. Compile its modules with the checkout that
     # launched the preview, which also owns the shared compilation cache.
     os.environ["LEAF_PREVIEW_COMPILER_ROOT"] = str(ROOT)
-    if user:
-        command.append("--user")
     os.chdir(runtime)
     os.execvp(command[0], command)
 
@@ -1072,7 +1187,9 @@ def preview(
             source = source.resolve()
             runtime = runtime.resolve()
             page = preview_directory(source, slot, user)
-            if handshake is not None:
+            if RESUME_ENV in os.environ:
+                run_preview(source, page, runtime / "bin" / "leaf", runtime, user)
+            elif handshake is not None:
                 with Handshake(handshake) as announcement:
                     run_preview(
                         source,

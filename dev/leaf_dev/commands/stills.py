@@ -81,7 +81,10 @@ def at_rest(page: Page) -> None:
 
 def plan_execution(page: Page) -> None:
     """The execution step with its security qualification in view."""
-    page.locator("#plan-execute").scroll_into_view_if_needed()
+    page.locator("#plan-execute > h3").evaluate(
+        "element => element.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    scroll_settled(page)
 
 
 def captured_source(page: Page) -> None:

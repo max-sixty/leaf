@@ -4,7 +4,7 @@ import {
   stances,
   textEntryScope,
   universalCommandReference
-} from "./bundle-user-intent.js";
+} from "./bundle-user-place.js";
 import {
   whenArrived,
   whenArriving

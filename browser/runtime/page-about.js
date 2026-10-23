@@ -3,8 +3,9 @@
  * runs, and the website's session reference. Each is one row of the page's controls
  * (page-controls.js) whose press copies its text, derived from the state reading where
  * it is read, so a presentation follows the reading. */
+import { pageIdentity } from "./page-identity.js";
 import { ago } from "./presence.js";
-import { DELIVERY, SHARE_ROOT, runtime, shareUrl } from "./context.js";
+import { SHARE_ROOT, runtime, shareUrl } from "./context.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
@@ -54,11 +55,6 @@ const servedBy = (state) =>
   state.leaf
     ? ` · served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` · ${payloadAge(state.leaf)}` : ""}`
     : "";
-const pageUrl = () => {
-  const url = new URL(location.href);
-  url.searchParams.delete("t");
-  return String(url);
-};
 
 if (SHARE_ROOT)
   registerPageControl({
@@ -75,7 +71,8 @@ if (SHARE_ROOT)
 // back to the session as user input; that is the mode worth marking.
 const preview = () => /** @type {any} */ (runtime.state)?.preview ?? null;
 function previewLabel() {
-  const state = /** @type {any} */ (runtime.state);
+  const identity = pageIdentity();
+  const state = { layer: identity.layer, leaf: identity.served_by };
   const producer = state.layer.producer ?? {};
   const kind = preview().interaction === "user" ? "User" : "Preview";
   const stem = `${kind} · ${preview().checkout}${producer.commit ? `@${producer.commit}` : ""}`;
@@ -83,9 +80,10 @@ function previewLabel() {
   return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${servedBy(state)}`;
 }
 function previewDiagnostics() {
-  const state = /** @type {any} */ (runtime.state);
+  const identity = pageIdentity();
+  const state = { layer: identity.layer, leaf: identity.served_by };
   const producer = state.layer.producer ?? {};
-  const { example, checkout, interaction, started } = preview();
+  const { example, checkout, interaction, started } = identity.preview;
   return [
     "Leaf preview",
     `example: ${example}`,
@@ -101,9 +99,9 @@ function previewDiagnostics() {
     ...(state.layer.fingerprint
       ? [`layer fingerprint: ${state.layer.fingerprint}`]
       : []),
-    ...(state.active ? [`revision: ${state.active.revision}`] : []),
-    `event sequence: ${state.events.at(-1)?.seq ?? 0}`,
-    `url: ${pageUrl()}`,
+    ...(runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : []),
+    `event sequence: ${runtime.lastEventSeq ?? 0}`,
+    `url: ${identity.url}`,
   ].join("\n");
 }
 registerPageControl({
@@ -119,7 +117,8 @@ registerPageControl({
 // The runtime this document runs, which the server serving it supplied
 // (`runtime_selection.py`); a website release names it instead.
 function runtimeLines() {
-  return DELIVERY.runtime ? [`runtime: ${DELIVERY.runtime}`] : [];
+  const { delivery } = pageIdentity();
+  return delivery.runtime ? [`runtime: ${delivery.runtime}`] : [];
 }
 
 // The vendored layer names the Leaf version that composed this page's registry, theme
@@ -136,16 +135,19 @@ function layerIdentity(state) {
     : null;
 }
 const layerShown = () => {
-  const state = /** @type {any} */ (runtime.state);
-  return Boolean(state && !state.preview && layerIdentity(state));
+  const identity = pageIdentity();
+  const state = { layer: identity.layer, leaf: identity.served_by };
+  return Boolean(state.layer && !identity.preview && layerIdentity(state));
 };
 function layerNamed() {
-  const state = /** @type {any} */ (runtime.state);
+  const identity = pageIdentity();
+  const state = { layer: identity.layer, leaf: identity.served_by };
   const age = payloadAge(state.layer.producer ?? {});
   return `Leaf ${layerIdentity(state)}${age ? ` · ${age}` : ""}${servedBy(state)}`;
 }
 function layerDiagnostics() {
-  const state = /** @type {any} */ (runtime.state);
+  const identity = pageIdentity();
+  const state = { layer: identity.layer, leaf: identity.served_by };
   const producer = state.layer.producer ?? {};
   const fingerprint = state.layer.fingerprint;
   return [
@@ -157,8 +159,8 @@ function layerDiagnostics() {
     ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
     `generation: ${state.layer.generation}`,
     ...runtimeLines(),
-    ...(state.active ? [`revision: ${state.active.revision}`] : []),
-    `url: ${pageUrl()}`,
+    ...(runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : []),
+    `url: ${identity.url}`,
   ].join("\n");
 }
 registerPageControl({

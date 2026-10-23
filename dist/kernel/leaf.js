@@ -4,6 +4,7 @@ import {
 } from "./runtime/bundle-composing~page-image-2.js";
 import "./runtime/bundle-sample-2.js";
 import {
+  pageIdentity,
   shownScheme
 } from "./runtime/bundle-color-scheme.js";
 import {
@@ -123,7 +124,6 @@ import {
   holdToRead,
   isExternalPageLink,
   landingPlace,
-  landingRoom,
   leftThePage,
   listWalkPosition,
   loadDraft,
@@ -155,12 +155,8 @@ import {
   replyContext,
   replyDraftContext,
   replyDraftsHold,
-  restrictUserIntent,
-  retainUserIntent,
   rowWalk,
   saveDraft,
-  scrollIntoReadingBand,
-  scrollIntoView,
   scrollThreadIntoView,
   selectionAnchor,
   sendMessage,
@@ -180,7 +176,7 @@ import {
   walkPosition,
   walkPositionLabel,
   workflowStep
-} from "./runtime/bundle-user-intent.js";
+} from "./runtime/bundle-user-place.js";
 import {
   DISCLOSE,
   DISCLOSURE_SELECTOR,
@@ -189,8 +185,13 @@ import {
   watchDisclosures
 } from "./runtime/bundle-keyboard~disclosure.js";
 import {
-  copyControl
-} from "./runtime/bundle-copy-control.js";
+  copyControl,
+  landingRoom,
+  restrictUserIntent,
+  retainUserIntent,
+  scrollIntoReadingBand,
+  scrollIntoView
+} from "./runtime/bundle-user-intent.js";
 import {
   mediaViewer,
   readAttachedMedia,
@@ -228,7 +229,6 @@ import {
   anchoringIsReady,
   annotationAt,
   designPressAt,
-  elementFrame,
   exactTarget,
   fragmentTarget,
   holdArrivingBounds,
@@ -255,7 +255,8 @@ import {
 } from "./runtime/bundle-initial-render.js";
 import {
   chromeForeground,
-  chromeRoot
+  chromeRoot,
+  elementFrame
 } from "./runtime/bundle-chrome.js";
 import {
   JUST_NOW,
@@ -489,7 +490,6 @@ import {
   upFrom
 } from "./runtime/bundle-frame-visibility.js";
 import {
-  DELIVERY,
   PRESENTATION_DOM,
   SHARE_ROOT,
   WEBSITE_DELIVERY,
@@ -9749,11 +9749,6 @@ var otherPayloadLines = (relation, provenance) => [
   ...payloadDateLines(provenance).map((line) => `${relation} ${line}`)
 ];
 var servedBy = (state) => state.leaf ? ` \xB7 served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` \xB7 ${payloadAge(state.leaf)}` : ""}` : "";
-var pageUrl = () => {
-  const url = new URL(location.href);
-  url.searchParams.delete("t");
-  return String(url);
-};
 if (SHARE_ROOT)
   registerPageControl({
     key: "share",
@@ -9768,10 +9763,8 @@ var preview = () => (
   runtime.state?.preview ?? null
 );
 function previewLabel() {
-  const state = (
-    /** @type {any} */
-    runtime.state
-  );
+  const identity = pageIdentity();
+  const state = { layer: identity.layer, leaf: identity.served_by };
   const producer = state.layer.producer ?? {};
   const kind = preview().interaction === "user" ? "User" : "Preview";
   const stem = `${kind} \xB7 ${preview().checkout}${producer.commit ? `@${producer.commit}` : ""}`;
@@ -9779,12 +9772,10 @@ function previewLabel() {
   return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` \xB7 ${age}` : ""}${servedBy(state)}`;
 }
 function previewDiagnostics() {
-  const state = (
-    /** @type {any} */
-    runtime.state
-  );
+  const identity = pageIdentity();
+  const state = { layer: identity.layer, leaf: identity.served_by };
   const producer = state.layer.producer ?? {};
-  const { example, checkout, interaction, started } = preview();
+  const { example, checkout, interaction, started } = identity.preview;
   return [
     "Leaf preview",
     `example: ${example}`,
@@ -9798,9 +9789,9 @@ function previewDiagnostics() {
     ...runtimeLines(),
     `layer generation: ${state.layer.generation}`,
     ...state.layer.fingerprint ? [`layer fingerprint: ${state.layer.fingerprint}`] : [],
-    ...state.active ? [`revision: ${state.active.revision}`] : [],
-    `event sequence: ${state.events.at(-1)?.seq ?? 0}`,
-    `url: ${pageUrl()}`
+    ...runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : [],
+    `event sequence: ${runtime.lastEventSeq ?? 0}`,
+    `url: ${identity.url}`
   ].join("\n");
 }
 registerPageControl({
@@ -9813,7 +9804,8 @@ registerPageControl({
   group: "page"
 });
 function runtimeLines() {
-  return DELIVERY.runtime ? [`runtime: ${DELIVERY.runtime}`] : [];
+  const { delivery } = pageIdentity();
+  return delivery.runtime ? [`runtime: ${delivery.runtime}`] : [];
 }
 function layerIdentity(state) {
   const producer = state.layer.producer ?? {};
@@ -9822,25 +9814,19 @@ function layerIdentity(state) {
   return fingerprint ? `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}` : null;
 }
 var layerShown = () => {
-  const state = (
-    /** @type {any} */
-    runtime.state
-  );
-  return Boolean(state && !state.preview && layerIdentity(state));
+  const identity = pageIdentity();
+  const state = { layer: identity.layer, leaf: identity.served_by };
+  return Boolean(state.layer && !identity.preview && layerIdentity(state));
 };
 function layerNamed() {
-  const state = (
-    /** @type {any} */
-    runtime.state
-  );
+  const identity = pageIdentity();
+  const state = { layer: identity.layer, leaf: identity.served_by };
   const age = payloadAge(state.layer.producer ?? {});
   return `Leaf ${layerIdentity(state)}${age ? ` \xB7 ${age}` : ""}${servedBy(state)}`;
 }
 function layerDiagnostics() {
-  const state = (
-    /** @type {any} */
-    runtime.state
-  );
+  const identity = pageIdentity();
+  const state = { layer: identity.layer, leaf: identity.served_by };
   const producer = state.layer.producer ?? {};
   const fingerprint = state.layer.fingerprint;
   return [
@@ -9852,8 +9838,8 @@ function layerDiagnostics() {
     ...fingerprint ? [`fingerprint: ${fingerprint}`] : [],
     `generation: ${state.layer.generation}`,
     ...runtimeLines(),
-    ...state.active ? [`revision: ${state.active.revision}`] : [],
-    `url: ${pageUrl()}`
+    ...runtime.currentRevision ? [`revision: ${runtime.currentRevision}`] : [],
+    `url: ${identity.url}`
   ].join("\n");
 }
 registerPageControl({

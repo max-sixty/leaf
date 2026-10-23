@@ -206,10 +206,13 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """
     from leaf_dev.commands.distribution import cached_installation
 
+    installed = cached_installation(arm)
     prepare_page(
         page,
-        read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
-        partial(run_leaf, cached_installation(arm), state, check=True),
+        read_fixture(
+            source, runtime=installed, env=environment(XDG_STATE_HOME=str(state))
+        ),
+        partial(run_leaf, installed, state, check=True),
     )
     record_run_context(page, purpose="automated", run=state, authored_source=source)
 

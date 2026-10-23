@@ -140,6 +140,54 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
     assert str(ROOT / "uv.lock") in watched.paths
 
 
+def test_fixture_acknowledges_seed_with_its_selected_runtime(tmp_path):
+    """A comparison's history is acknowledged even across a protocol change."""
+    from leaf.event_log import read_events
+
+    runtime = tmp_path / "runtime"
+    arms.build_arm(None, runtime)
+    registry_path = runtime / "browser/registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$events"]["protocol"] += 1
+    registry_path.write_text(json.dumps(registry))
+    source = tmp_path / "fixture.html"
+    source.write_text(
+        "<!doctype html><html><head><title>History</title></head>"
+        "<body><main><h1>History</h1></main></body></html>"
+    )
+    (tmp_path / "layer.json").write_text("[]")
+    source.with_suffix(".jsonl").write_text(
+        json.dumps(
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Historical input",
+                "id": "seed-comment",
+                "ts": "2026-10-23T00:00:00Z",
+            }
+        )
+        + "\n"
+    )
+    page = tmp_path / "page"
+    state = tmp_path / "arm-state"
+    fixture = read_fixture(
+        source, runtime=runtime, env=arms.environment(XDG_STATE_HOME=str(state))
+    )
+    prepare_page(
+        page,
+        fixture,
+        partial(arms.run_leaf, runtime, state, check=True),
+        final_status=None,
+    )
+    installed = json.loads((page / "registry.json").read_text())
+    assert installed["$events"]["protocol"] == registry["$events"]["protocol"]
+    events = read_events(page)
+    assert events[-1]["kind"] == "receipt"
+    assert events[-1]["through"] == events[-2]["seq"]
+    assert events[-2]["id"] == "seed-comment"
+
+
 @pytest.mark.parametrize("name", ["how-it-works", "index", "examples"])
 def test_product_previews_prepare_the_authored_layer_and_media(
     tmp_path, monkeypatch, name
@@ -843,6 +891,71 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
     output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     assert server.running_server(page) == before
+
+
+@pytest.mark.parametrize(
+    ("claimed", "interruption"),
+    [(True, "stop"), (False, "stop"), (True, "successor")],
+)
+def test_preview_continuation_respects_ownership_changes_during_refresh(
+    page_dir, tmp_path, monkeypatch, claimed, interruption
+):
+    """A runtime refresh cannot undo a stop or reclaim a successor's page."""
+    from leaf.harness import ClaudeCodeHarness
+    from leaf.hosting import cmd_stop
+    from leaf.refusals import Refused
+
+    if not claimed:
+        monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+    original = preview.PreviewService(page_dir, user=True)
+    with original.starting() as url:
+        pass
+    source = tmp_path / "fixture.html"
+    source.write_bytes((page_dir / "index.html").read_bytes())
+    preview.mark_preview(
+        source,
+        page_dir,
+        ROOT,
+        True,
+        preview.authored_digest(preview.incoming_files(source)),
+    )
+
+    def interrupt_refresh(*_args):
+        if interruption == "stop":
+            cmd_stop(page_dir)
+        else:
+            with service.PageTransaction(page_dir) as page:
+                page.take_claim(ClaudeCodeHarness("successor", "Claude"))
+        return False
+
+    # Arrange the external action at the refresh boundary; real serving and claim
+    # owners decide whether the resumed watcher can publish anything afterward.
+    monkeypatch.setattr(preview, "refresh_preview", interrupt_refresh)
+    monkeypatch.setattr(preview, "cached_installation", lambda _runtime: ROOT)
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges((item for item in ()), watched),
+    )
+    try:
+        with pytest.raises(Refused):
+            preview.serve_preview(
+                source,
+                page_dir,
+                ROOT / "bin/leaf",
+                ROOT,
+                True,
+                continuation={"address": {}, "claim": original.claim},
+            )
+        if interruption == "stop":
+            assert not server.read_service(page_dir)["enabled"]
+            assert server.running_server(page_dir) is None
+        else:
+            assert service.page_claim(page_dir)["id"] == "successor"
+            assert server.running_server(page_dir)["url"] == url
+            assert fetch(url)[0] == 200
+    finally:
+        cmd_stop(page_dir)
 
 
 @pytest.mark.parametrize("failure", [RuntimeError, KeyboardInterrupt])

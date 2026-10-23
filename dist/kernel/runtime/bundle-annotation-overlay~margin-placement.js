@@ -15,11 +15,13 @@ import {
   headerLevels,
   nameAnchor,
   passageBoxes,
-  scrollAxes,
   scrollsWith,
   targetRange,
   targetSegments
 } from "./bundle-visual-parts.js";
+import {
+  scrollAxes
+} from "./bundle-chrome.js";
 import {
   afterPresentation,
   containingReadingRegionFor,

@@ -14,14 +14,12 @@ import {
   PAGE_SCOPE,
   SAY_BOX,
   THREAD,
-  alreadyShown,
   blocksOnScreen,
   bringBackSurfaceOf,
   captureDraftEditing,
   claimed,
   completeReadingReturn,
   draftStore,
-  fitsWhole,
   heldObligation,
   pageScopes,
   placeOf,
@@ -35,11 +33,14 @@ import {
   walkOrigin,
   walkPosition,
   whereDraft
-} from "./bundle-user-intent.js";
+} from "./bundle-user-place.js";
 import {
   domValue
 } from "./bundle-keyboard~disclosure.js";
-import "./bundle-copy-control.js";
+import {
+  alreadyShown,
+  fitsWhole
+} from "./bundle-user-intent.js";
 import "./bundle-media.js";
 import {
   agentArrivalDuration,
@@ -50,13 +51,14 @@ import {
   aimTargetAt,
   aimTargets,
   anchorForRange,
-  elementFrame,
   resolveAnchor,
-  scrollAxes,
   visualPartProblems
 } from "./bundle-visual-parts.js";
 import "./bundle-initial-render.js";
-import "./bundle-chrome.js";
+import {
+  elementFrame,
+  scrollAxes
+} from "./bundle-chrome.js";
 import {
   effectiveScroller,
   reachScrollers,

@@ -32,7 +32,6 @@ import {
   Transcript,
   allButCommandReference,
   allThreads,
-  alreadyShown,
   anchorLabel,
   answeredInWords,
   authoredHolder,
@@ -53,7 +52,6 @@ import {
   draftEditingDestination,
   draftEditingStands,
   drawnThreadId,
-  fitsWhole,
   focusThread,
   focusedInView,
   focusedThreadTarget,
@@ -116,13 +114,9 @@ import {
   restoreDraftEditing,
   restorePlace,
   restoreReplyEditing,
-  restrictUserIntent,
   retainThreadSeats,
-  retainUserIntent,
   revealHeld,
   saveDraft,
-  scrollIntoReadingBand,
-  scrollIntoView,
   sendLanding,
   sendMessage,
   settleAcceptedDrafts,
@@ -149,7 +143,7 @@ import {
   watchThreadSurfaces,
   wholeThread,
   workflowLabel
-} from "./bundle-user-intent.js";
+} from "./bundle-user-place.js";
 import {
   aborted,
   authoredStates,
@@ -170,6 +164,14 @@ import {
   stageWidgetDescriptors,
   widgetDescriptor
 } from "./bundle-keyboard~disclosure.js";
+import {
+  alreadyShown,
+  fitsWhole,
+  restrictUserIntent,
+  retainUserIntent,
+  scrollIntoReadingBand,
+  scrollIntoView
+} from "./bundle-user-intent.js";
 import {
   scrollBehavior
 } from "./bundle-motion.js";

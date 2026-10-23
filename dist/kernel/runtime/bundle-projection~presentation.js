@@ -1,7 +1,7 @@
 import {
   isPagePaint,
   renderQuiet
-} from "./bundle-user-intent.js";
+} from "./bundle-user-place.js";
 import {
   authoredStates,
   widgetElement

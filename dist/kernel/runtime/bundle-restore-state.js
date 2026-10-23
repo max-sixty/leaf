@@ -1,7 +1,7 @@
 import {
   DESIGN_MODE_KEY,
   tabStore
-} from "./bundle-user-intent.js";
+} from "./bundle-user-place.js";
 
 // runtime/restore-state.js
 var ANNOTATIONS_KEY = "lf-annotations";

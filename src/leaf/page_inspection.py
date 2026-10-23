@@ -7,15 +7,20 @@ custom properties. Files count
 once, even when several documents or widgets use them. Inline CSS belongs to its
 document, with sample children named separately. Selected-layer CSS stays separate
 from page CSS. Page-owned widget implementations are listed from captured
-provenance; their JavaScript is not parsed for strings that might become CSS.
+provenance. JavaScript bytes include executable inline scripts and captured files,
+including downloads; no byte count implies execution. JavaScript is not parsed for
+strings that might become CSS.
 
-This is a static CSS inventory, not network transfer or CSS coverage. Styles made
+This is a static source inventory, not network transfer or CSS coverage. Styles made
 by JavaScript, including widget template strings, are outside it. Browser views
 retain their own revision, viewport and freshness; only a matching artifact digest
 lets one describe the inspected source. Inspection never activates the candidate,
 opens a browser, alters a disclosure, or makes a measurement a pass/fail verdict.
+Revision comparisons name changed captured sources and CSS deltas beside their
+text diffs. Non-UTF-8 downloads keep byte counts and digests without a text diff.
 """
 
+from difflib import unified_diff
 from pathlib import Path
 
 from .files import latest_revision, list_revisions
@@ -23,15 +28,17 @@ from .leases import page_locked
 from .refusals import Refused
 from .registry.storage import read_page_registry
 from .revision_artifact import (
+    Resource,
     RevisionArtifact,
     capture_artifact,
     css_dependencies,
+    javascript_imports,
     read_artifact,
     read_revision,
     resolve_dependency,
     resource_dependencies,
 )
-from .structure import SourceDocument, links_with_rel
+from .structure import SourceDocument, links_with_rel, script_kind
 from .styles import css_block, css_stylesheet, css_syntax_errors
 from .user_views import read_user_views
 
@@ -63,6 +70,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
     """Read static source facts for the exact artifact a caller names."""
     document = SourceDocument(artifact.html.decode("utf-8"))
     sources = []
+    scripts = []
     references = {}
 
     def add_source(css, path, line, kind, owner, documents):
@@ -83,7 +91,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
             }
         )
 
-    def refer(path, *, document):
+    def refer(path, *, document, mime="text/css"):
         pending = [path]
         visited = set()
         while pending:
@@ -92,7 +100,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
                 continue
             visited.add(target)
             resource = artifact.resources[target]
-            if resource.mime != "text/css":
+            if resource.mime != mime:
                 continue
             references.setdefault(target, set()).add(document)
             pending.extend(resource_dependencies(target, resource.data, resource.mime))
@@ -104,6 +112,35 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
             for sample in authored.samples
         )
         authoring = authored.authoring
+        for script in authoring.inline_scripts:
+            if script_kind(script["attrs"]) not in {"module", "classic"}:
+                continue
+            body = script["body"].encode("utf-8")
+            scripts.append(
+                {
+                    "path": "index.html",
+                    "line": script["line"],
+                    "kind": "script",
+                    "owner": "page",
+                    "documents": [name],
+                    "bytes": len(body),
+                }
+            )
+            for _, _, specifier in javascript_imports(body, "/index.html"):
+                refer(
+                    resolve_dependency(specifier, "/index.html", module=True),
+                    document=name,
+                    mime="application/javascript",
+                )
+        for script in authoring.external_scripts:
+            if script_kind(script["attrs"]) in {"module", "classic"}:
+                refer(
+                    resolve_dependency(
+                        script["attrs"]["src"], "/index.html", module=True
+                    ),
+                    document=name,
+                    mime="application/javascript",
+                )
         for sheet in authoring.style_blocks:
             add_source(
                 sheet["css"], "index.html", sheet["line"], "style", "page", [name]
@@ -132,6 +169,18 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
             )
 
     for path, resource in sorted(artifact.resources.items()):
+        owner = "page" if path.startswith(("/page/", "/media/")) else "layer"
+        if resource.mime == "application/javascript":
+            scripts.append(
+                {
+                    "path": path.lstrip("/"),
+                    "line": 1,
+                    "kind": "file",
+                    "owner": owner,
+                    "documents": sorted(references.get(path, ())),
+                    "bytes": len(resource.data),
+                }
+            )
         if resource.mime != "text/css":
             continue
         add_source(
@@ -139,7 +188,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
             path.lstrip("/"),
             1,
             "stylesheet",
-            "page" if path.startswith(("/page/", "/media/")) else "layer",
+            owner,
             sorted(references.get(path, ())),
         )
 
@@ -147,6 +196,14 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
         return {
             key: sum(source[key] for source in sources if source["owner"] == owner)
             for key in _css_counts("")
+        }
+
+    def script_total(owner):
+        owned = [script for script in scripts if script["owner"] == owner]
+        return {
+            "bytes": sum(script["bytes"] for script in owned),
+            "inline_scripts": sum(script["kind"] == "script" for script in owned),
+            "files": sum(script["kind"] == "file" for script in owned),
         }
 
     return {
@@ -173,6 +230,16 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
             ],
         },
         "page_widgets": page_widgets,
+        "javascript": {
+            "page": script_total("page"),
+            "layer": script_total("layer"),
+            "sources": scripts,
+            "coverage": [
+                "Executable inline scripts and captured JavaScript files; each file counts once.",
+                "These are source bytes, not transferred or executed bytes. The serving runtime and remote modules are not counted.",
+                "JavaScript is not searched for strings that may become CSS.",
+            ],
+        },
     }
 
 
@@ -194,7 +261,72 @@ def inspection_views(page_dir: Path, artifact_digest: str) -> dict:
     return views
 
 
-def cmd_inspect(page_dir: Path, revision: int | None = None) -> dict:
+def compare_artifacts(before: RevisionArtifact, after: RevisionArtifact) -> list[dict]:
+    """Changed captured sources, with textual diffs for authored HTML, CSS and JS.
+
+    This compares source inputs only. Browser geometry has an independent runtime,
+    event position and interaction state and is deliberately not subtracted here.
+    """
+
+    def files(artifact):
+        return {
+            "/index.html": Resource(artifact.html, "text/html"),
+            **artifact.resources,
+        }
+
+    old, new = files(before), files(after)
+    changes = []
+    for path in sorted(old.keys() | new.keys()):
+        left, right = old.get(path), new.get(path)
+        if left and right and left.digest == right.digest:
+            continue
+        change = {
+            "path": path.lstrip("/"),
+            "status": "added"
+            if left is None
+            else "removed"
+            if right is None
+            else "changed",
+            "before": {"bytes": len(left.data), "digest": left.digest}
+            if left
+            else None,
+            "after": {"bytes": len(right.data), "digest": right.digest}
+            if right
+            else None,
+        }
+        if (right or left).mime in {"text/html", "text/css", "application/javascript"}:
+            try:
+                old_lines = (
+                    left.data.decode("utf-8").splitlines(keepends=True) if left else []
+                )
+                new_lines = (
+                    right.data.decode("utf-8").splitlines(keepends=True)
+                    if right
+                    else []
+                )
+            except UnicodeDecodeError:
+                change["diff_unavailable"] = (
+                    "Source is not UTF-8 text; byte counts and digests describe the change."
+                )
+            else:
+                change["diff"] = "".join(
+                    line
+                    if line.endswith("\n")
+                    else f"{line}\n\\ No newline at end of file\n"
+                    for line in unified_diff(
+                        old_lines,
+                        new_lines,
+                        fromfile=f"before{path}",
+                        tofile=f"after{path}",
+                    )
+                )
+        changes.append(change)
+    return changes
+
+
+def cmd_inspect(
+    page_dir: Path, revision: int | None = None, compare_to: int | None = None
+) -> dict:
     """Inspect mutable candidate inputs, or an explicitly named captured revision."""
     with page_locked(page_dir):
         if revision is not None:
@@ -217,4 +349,46 @@ def cmd_inspect(page_dir: Path, revision: int | None = None) -> dict:
             )
         report = inspect_artifact(artifact, revision)
         report["views"] = inspection_views(page_dir, artifact.digest)
+        if compare_to is not None:
+            if compare_to not in list_revisions(page_dir):
+                raise Refused(f"unknown revision r{compare_to}")
+            previous = read_artifact(page_dir, compare_to)
+            baseline = inspect_artifact(previous, compare_to)
+            changes = compare_artifacts(previous, artifact)
+            for change in changes:
+                old_css = [
+                    source
+                    for source in baseline["css"]["sources"]
+                    if source["path"] == change["path"]
+                ]
+                new_css = [
+                    source
+                    for source in report["css"]["sources"]
+                    if source["path"] == change["path"]
+                ]
+                if old_css or new_css:
+                    change["css_delta"] = {
+                        key: sum(source[key] for source in new_css)
+                        - sum(source[key] for source in old_css)
+                        for key in _css_counts("")
+                    }
+            report["comparison"] = {
+                "basis": baseline["basis"],
+                "sources": changes,
+                "css": {
+                    owner: {
+                        key: value - baseline["css"][owner][key]
+                        for key, value in report["css"][owner].items()
+                    }
+                    for owner in ("page", "layer")
+                },
+                "javascript": {
+                    owner: {
+                        key: value - baseline["javascript"][owner][key]
+                        for key, value in report["javascript"][owner].items()
+                    }
+                    for owner in ("page", "layer")
+                },
+                "coverage": "Source changes only. Browser observations are not subtracted across rendering environments or interaction states.",
+            }
         return report

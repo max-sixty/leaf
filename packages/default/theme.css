@@ -2915,6 +2915,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       border: 1px solid var(--code-border);
       border-radius: var(--r);
       padding: var(--lf-code-inset-block) var(--lf-code-inset-inline) var(--lf-code-inset-block) calc(var(--lf-code-gutter) + var(--lf-code-gap));
+      padding-block-end: calc(var(--lf-code-inset-block) + var(--lf-text-scroll-clearance));
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }

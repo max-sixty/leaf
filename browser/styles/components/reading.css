@@ -1,5 +1,8 @@
 /* Prose faces reach the document and the layer's reading regions in declared
  * shadow trees. A widget's own source or controls keep its own sheet. */
+:root {
+  --lf-text-scroll-clearance: 8px;
+}
 :where(:root, .lf-thread-transcript) a {
   color: var(--accent);
   text-underline-offset: var(--link-underline-offset);
@@ -104,7 +107,7 @@
     grid-column: 1 / -1;
   }
   :where(:root, .lf-thread-transcript) :is(pre, table)::after {
-    block-size: 8px;
+    block-size: var(--lf-text-scroll-clearance);
   }
 }
 /* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code

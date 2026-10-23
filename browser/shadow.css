@@ -621,6 +621,9 @@ button.lf-primary-news {
 }
 
 /* browser/styles/components/reading.css */
+:root {
+  --lf-text-scroll-clearance: 8px;
+}
 :where(:root, .lf-thread-transcript) a {
   color: var(--accent);
   text-underline-offset: var(--link-underline-offset);
@@ -669,7 +672,7 @@ button.lf-primary-news {
     grid-column: 1 / -1;
   }
   :where(:root, .lf-thread-transcript) :is(pre, table)::after {
-    block-size: 8px;
+    block-size: var(--lf-text-scroll-clearance);
   }
 }
 @media print {

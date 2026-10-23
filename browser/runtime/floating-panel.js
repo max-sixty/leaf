@@ -824,7 +824,7 @@ export function createFloatingPanel({
   // them, as its placeholder says, rather than writing on the page (`selectedWords`).
   // The words are the ones the field quotes as the press begins, so the press does what
   // the field says (an error the field says instead hides the words, and the press
-  // writes on the page). The press's mousedown is cancelled, so the editor never takes
+  // writes on the page). The press's pointerdown is cancelled, so the editor never takes
   // focus, a phone raises no keyboard for it, and the page's selection stands until the
   // comment takes it. The comment opens as the press completes, since the press is
   // still one away from whatever comment box stands open on the page, which goes as it
@@ -844,12 +844,6 @@ export function createFloatingPanel({
         event.isPrimary && event.composedPath().includes(general?.input)
           ? quotedWords()
           : null;
-    },
-    true,
-  );
-  field.addEventListener(
-    "mousedown",
-    (event) => {
       if (pressedWords) event.preventDefault();
     },
     true,

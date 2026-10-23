@@ -365,7 +365,10 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     rendered(page)
     # The words keep their first line, and nothing around the message moves.
     editing_line = editor.evaluate(FIRST_LINE)
-    assert editing_line == pytest.approx(first_line, abs=0.5), (editing_line, first_line)
+    assert editing_line == pytest.approx(first_line, abs=0.5), (
+        editing_line,
+        first_line,
+    )
     unmoved()
     field = message.locator(".lf-msg-editor > .lf-compose-field").bounding_box()
     reply_field = reply_row(page, thread).locator(".lf-compose-field").bounding_box()

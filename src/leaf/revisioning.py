@@ -33,18 +33,15 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.event_contracts import admitted_event, append_admitted
-from leaf.event_log import APPEND_STAMPED
+from leaf.event_contracts import append_admitted
 from leaf.files import list_revisions
 from leaf.page_memory import memo
-from leaf.page_view import CandidatePageView, PageView
+from leaf.page_view import CandidatePageView
 from leaf.revision_artifact import (
-    artifact_name,
     publish_artifact,
     read_revision,
     stage_artifact,
     staged_reading,
-    write_artifact,
 )
 from leaf.served_state.reading import source_readings
 from leaf.service import PageTransaction
@@ -179,7 +176,9 @@ def _publish_checked_source(page, checked, event=None):
     moves = checked.reanchors or {}
     accepted = None
     publication = (
-        artifact_name(revision, checked.artifact) if activation.created else None
+        stage_artifact(page.page_dir, revision, checked.artifact)
+        if activation.created
+        else None
     )
     view = (
         CandidatePageView(page.page_dir, revision, checked.reading, publication)
@@ -192,13 +191,10 @@ def _publish_checked_source(page, checked, event=None):
             "revision": revision,
             **({"publication": publication} if publication else {}),
         }
-        # Judge the complete prospective log before making any prerequisite durable:
-        # a stamp can reopen a thread by retracting the action that had settled it.
-        prospective = {
-            **APPEND_STAMPED,
-            **admitted_event(view or PageView(page.page_dir), page.events, event),
-            "seq": page.events[-1]["seq"] + 1 if page.events else 1,
-        }
+        # A note may take back the decision that resolved a quoted thread. Read
+        # its effects from the admitted log, as interrupted publication does,
+        # before making the revision discoverable.
+        accepted, _ = append_admitted(page, event, view=view)
         previous = checked.revision.active if activation.created else revision
         predecessor = PredecessorReading(
             previous,
@@ -209,30 +205,20 @@ def _publish_checked_source(page, checked, event=None):
             read_revision(page.page_dir, previous) if previous else EMPTY_READING,
         )
         moves, _advice = revision_reanchors(
-            [*page.events, prospective],
+            page.events,
             checked.reading,
             predecessor,
             candidate_revision=revision,
         )
-        event["id"] = prospective["id"]
-    if activation.created and (event is not None or moves):
-        stage_artifact(page.page_dir, revision, checked.artifact)
-        if event is not None:
-            accepted, _ = append_admitted(page, event, view=view)
-        _append_reanchors(
-            page,
-            revision,
-            moves,
-            view=view,
-            publication=publication if event is None else None,
-        )
+    _append_reanchors(
+        page,
+        revision,
+        moves,
+        view=view,
+        publication=publication if event is None else None,
+    )
+    if publication:
         publish_artifact(page.page_dir, publication, checked.reading)
-    else:
-        if activation.created:
-            write_artifact(page.page_dir, revision, checked.artifact, checked.reading)
-        if event is not None:
-            accepted, _ = append_admitted(page, event)
-        _append_reanchors(page, revision, moves)
     return activation, accepted
 
 

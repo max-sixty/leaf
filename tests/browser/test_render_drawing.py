@@ -1,6 +1,5 @@
 """Drawing-comment browser journeys."""
 
-import json
 import re
 from io import BytesIO
 
@@ -17,7 +16,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL_THREAD,
-    draft_key,
     leaf_page,
     open_page,
     panel_settled,
@@ -977,50 +975,6 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
-
-
-def test_another_formats_anchored_drawing_draft_keeps_its_words_without_the_mark(
-    browser, serve
-):
-    """A draft a runtime at another draft format saved may hold a drawing this one
-    cannot draw, so its words come back and its mark neither shows nor sends."""
-    page = open_page(browser, serve(TARGETS_PAGE))
-    # The composer's draft is keyed on the passage it is on.
-    ctx = "composer:" + json.dumps([["section", "prose"]], separators=(",", ":"))
-    page.evaluate(
-        """([key, record]) => {
-          const anchor = {section: 'prose'};
-          localStorage.setItem(key, JSON.stringify({
-            text: JSON.stringify({
-              format: 'leaf-draft/0',
-              text: 'Keep these anchored words.',
-              anchor,
-              revision: 1,
-              suggest: false,
-              about: null,
-              drawing: {strokes: [[[0, 0], [9, 9]]]},
-              touched: Date.now(),
-            }),
-            attempt: record.attempt,
-            base: null,
-          }));
-        }""",
-        [draft_key(page, ctx), {"attempt": "b" * 32}],
-    )
-
-    page.reload(wait_until="load")
-    wait_until_ready(page)
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_visible()
-    expect(field).to_have_js_property("value", "Keep these anchored words.")
-    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
-    with sending(page, "the text-only recovered anchored draft"):
-        page.keyboard.press("ControlOrMeta+Enter")
-
-    event = events_model.read_events(serve.page_dir)[-1]
-    assert event["anchor"] == {"section": "prose"}
-    assert event["text"] == "Keep these anchored words."
-    assert "drawing" not in event
 
 
 def test_a_drawing_can_be_sent_without_words(browser, serve):

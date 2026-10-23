@@ -88,16 +88,12 @@ class WorkReading:
             data=self.data,
         )
 
-    @property
-    def items(self) -> dict:
-        return self.widget_obligations
-
     @cached_property
     def all_obligations(self) -> dict:
         return collection(
             [
                 *(self.document.items["all"] if self.document is not None else []),
-                *self.items["all"],
+                *self.widget_obligations["all"],
             ]
         )
 

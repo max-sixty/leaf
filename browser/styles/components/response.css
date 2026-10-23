@@ -1,14 +1,12 @@
 /* Response composition owns the shared field, actions and attachment shelf.
  * Presentation owners allocate and position this control, in the document or a
  * declared shadow tree; they do not restate its typography, focus or face. */
-/* An icon action's face and hit box, and the height of an empty composer field, which
-   stands that action's face inside its action inset on either side. The hit box is the
-   face or the aim floor where that is larger: sideways the action's box is that wide,
-   and above and below its reach stands out to it (surfaces.css), so a finger's floor
-   grows no field. Stated at the root, where a widget that seats a composer in its own
-   content reads the height to hold its room before the composer is drawn, and again on
-   each field and action, so a context that sizes its action (lf-diff's file presses)
-   resizes its hit box with it. */
+/* An icon action's face; its hit box, the face or the aim floor where that is larger
+   (the box is that wide, and its reach stands out to it above and below, surfaces.css);
+   and the height of an empty composer field, which stands the face inside its action
+   inset on either side. Stated at the root, where a widget holds a composer's room
+   before it is drawn, and again on each field and action, so a context that sizes its
+   action (lf-diff's file presses) resizes its hit box with it. */
 :root {
   --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;

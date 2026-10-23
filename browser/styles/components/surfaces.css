@@ -445,24 +445,16 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-quote {
   min-height: var(--aim-floor);
 }
-/* A control a line tall, or shorter, meets the floor with a reach rather than a taller
-   face: a box of its own that paints nothing, standing out from its face to the floor on
-   each axis the face is shorter. The face keeps the line its place sets (`--lf-line`),
-   so a finger's floor grows no row, toolbar or field it stands in; before, every one of
-   these grew its box to the floor, and a place that seated one beside a control that
-   didn't stood at the taller of the two. Sideways most of them are floor-wide boxes
-   (above), which leaves their reach nothing to add there, since a reach sideways would
-   lie over the neighbour's face. Room a place keeps beside a control is its box's
-   width, then, not its face's.
-
-   The reach lies in room the place keeps around its controls: a line's padding, a
-   toolbar's gap above and below, at least `--lf-reach-room` (theme.css) on the side
-   where something else takes presses. A box that clips at the control's edge cuts it
-   short, and the aim sweeps in the suite (tests/page_scripts/aims.js) press the floor's
-   extent to find one. A replaced element, a native field, picker or range, can draw no
-   box of its own, so those stand at the line and reach no further. A press that is a
-   row of a stack, such as a group's Done, has no room between rows for a reach and
-   keeps the floor as its face instead. */
+/* A control a line tall or shorter meets the aim floor with a reach: a box of its own
+   that paints nothing, standing out from its face to the floor on each axis the face
+   is shorter, so a finger's floor grows no place the control stands in. The reach lies
+   in the room a place keeps around its controls, at least `--lf-reach-room` where
+   something else takes presses, and the aim sweeps (tests/page_scripts/aims.js) press
+   its ends to find one cut short or lying over another control. Sideways these
+   controls are floor-wide boxes, so a place keeps room by the box's width, not the
+   face's. A native field, picker or range can draw no box, so it stands at the line;
+   a row of a stack, such as a group's Done, has no room for a reach and keeps the
+   floor as its face. */
 :where(
   .lf-btn,
   .button,
@@ -475,21 +467,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-corner-mark
 ) {
   position: relative;
-}
-:is(
-  .lf-btn,
-  .button,
-  .lf-icon-action,
-  .lf-msg-control,
-  .lf-thread-action,
-  .lf-thread-notice:is(button),
-  .lf-code-copy,
-  .lf-draft-action,
-  .lf-corner-mark
-)::after {
-  content: "";
-  position: absolute;
-  inset: min(0px, (100% - var(--aim-floor)) / 2);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, (100% - var(--aim-floor)) / 2);
+  }
 }
 /* A native summary retains its list marker and centers its content within the
    target floor. Extra hit area surrounds the label rather than trailing it. */

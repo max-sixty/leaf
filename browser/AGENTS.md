@@ -88,10 +88,9 @@ representative desktop viewport.
   token and each occupant fills it. Only content grows it, such as typed words, or a
   gesture that asks for room, such as More room. A label's words (`data-room`, below)
   and a widget's first paint (`keeps-first-box`) are cases of the same rule. A
-  one-line control's face is the line (`--lf-line`), read in the control's own rule so
-  a place that sets it sets it for all it seats, and a finger's floor is the control's
-  reach, never a taller face (surfaces.css); a control that brings its own height
-  instead, from its type or the floor, sizes every place it is seated in. Check:
+  one-line control's face is the line (`--lf-line`, theme.css) and a finger's floor its
+  reach (surfaces.css); a control that brings its own height instead, from its type or
+  the floor, sizes every place it is seated in. Check:
   `test_whatever_the_field_holds_the_row_keeps_its_line`
   compares the row with its token in each mode; that a place still contains its
   occupant proves nothing, since a grown place always does.

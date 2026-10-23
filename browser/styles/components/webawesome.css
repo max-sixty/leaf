@@ -56,9 +56,8 @@
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);
   --wa-form-control-value-color: var(--ink);
-  /* A control is a line tall (`--lf-line`), whatever its type would make it, so a
-     vendor control stands as tall as a button beside it, or a field it takes turns
-     with. Restated on each control, so a place that sets the line sets it here too. */
+  /* A line tall (`--lf-line`) whatever its type would make it, restated on each
+     control so a place that sets the line sets it here too. */
   --wa-form-control-height: var(--lf-line);
 }
 

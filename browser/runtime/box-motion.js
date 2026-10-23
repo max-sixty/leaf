@@ -57,13 +57,17 @@
  * ancestor's transform, so a part holding one is never carried whole: its parts are
  * placed one by one. The motion is presentation only: each part's layout is where it
  * stands from the change on, and a part's motion ends with the tween, so nothing it
- * leaves behind needs undoing.
+ * leaves behind needs undoing. Each part's motion plays through motion.js's `playMotion`,
+ * so reduced motion and the presentation boundary are answered there: while motion
+ * does not play, each reading takes the box as it stands, and a user asking for
+ * stillness mid-tween finishes what is moving.
  *
  * The platform's own way to move a layout change, a view transition, draws the old
  * state as a picture, sends every press to the root while it runs, and abandons a
  * running one when the next change starts, as each keystroke would; here every part
  * stays live and pressable, which takes reading where each was drawn. */
 import { keeps } from "./keeps.js";
+import { motionPlays, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { nextRender } from "./rendering.js";
 
@@ -222,12 +226,12 @@ export function boxMotion({
   function drawn(progress, carried) {
     const at = new Map();
     for (const [element, rest] of rests) {
-      const motion = motions.get(element);
-      if (motion?.revealed && progress < 1) continue;
+      const moving = motions.get(element);
+      if (moving?.revealed && progress < 1) continue;
       at.set(
         element,
-        motion
-          ? (element === box ? interpolate : between)(motion.from, motion.to, progress)
+        moving
+          ? (element === box ? interpolate : between)(moving.from, moving.to, progress)
           : shifted(rest, ...carried(element)),
       );
     }
@@ -263,7 +267,7 @@ export function boxMotion({
     watch();
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
 
-  function follow(timing, compact = false) {
+  function follow({ duration, easing }, compact = false) {
     const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     const parts = [];
@@ -295,12 +299,13 @@ export function boxMotion({
       motions = new Map();
       return;
     }
-    const was = timing && rests ? drawn(progress, carried) : null;
+    // The first reading, and any while motion does not play, is taken as it stands.
+    const was = motionPlays() && rests ? drawn(progress, carried) : null;
     const gesture = theirs();
     // A part holding parts of its own that was growing is drawn at a size of its own,
     // so its parts are placed again from where each is drawn.
     const framed = new Set(
-      [...motions].filter(([, motion]) => motion.frames).map(([element]) => element),
+      [...motions].filter(([, moving]) => moving.frames).map(([element]) => element),
     );
     const before = rests;
     motions = new Map();
@@ -331,8 +336,10 @@ export function boxMotion({
     const boxFrom = was.get(box);
     shapeUntil = compact ? 0.55 : 1;
     rtl = getComputedStyle(box).direction === "rtl";
+    // Every part moves on one clock, through the one door for motion; it plays here,
+    // since this reading found that it does.
     const start = (element, keyframes) =>
-      running.push(element.animate(keyframes, timing));
+      running.push(playMotion(element, keyframes, { duration, easing }));
     const contour = (from, to, grow, radius, compact = false) => {
       const frames = [clipFrame(...outline(from, grow, radius))];
       if (compact)
@@ -454,9 +461,9 @@ export function boxMotion({
       const end = [0, 0, 0, 0];
       const overlaps = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
       for (const sibling of siblings) {
-        const motion = motions.get(sibling.element);
-        if (!motion || motion.revealed) continue;
-        const { from: then, to: at } = motion;
+        const moving = motions.get(sibling.element);
+        if (!moving || moving.revealed) continue;
+        const { from: then, to: at } = moving;
         const across = overlaps(at, to, "top", "bottom");
         const along = overlaps(at, to, "left", "right");
         // On each side the part stands beside it, how far in it reaches, then and at

@@ -230,7 +230,7 @@ export function createQueueWalk({
     );
   }
 
-  // The stop `dir` steps to, and whether it came round an end to reach it: off the one
+  // The stop `dir` steps to: off the one
   // the user is on, else from their place by the page walks' rule (`stepFrom`,
   // current-target.js). Within a region, a place outside it enters at the end the step
   // faces. `enter` starts inside a selected tab's panel; `at` starts at a visible obligation
@@ -291,14 +291,14 @@ export function createQueueWalk({
   function walk(dir, region = null, origin = walkOrigin()) {
     const list = stopsOf(region);
     if (!list.length) return Promise.resolve(false);
-    const { row: next, wrapped } = step(list, dir, region, origin);
+    const next = step(list, dir, region, origin);
     // The walk reads the current destination, so begin it once the arrival has moved
     // focus. A failed arrival has not arrived and must not register the prior item as
     // this walk's destination.
     const ready = arriveAt(next).then((arrived) => {
       if (!arrived) return false;
       announce(
-        beginWalk("queue", null, () => position(region), wrapped) ??
+        beginWalk("queue", null, () => position(region)) ??
           walkPositionLabel(
             null,
             list.indexOf(next) + 1,

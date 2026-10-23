@@ -198,6 +198,10 @@ import {
   writeAttachedMedia
 } from "./runtime/bundle-media.js";
 import {
+  motionEasing,
+  motionPlays,
+  motionTime,
+  playMotion,
   reducedMotion,
   scrollBehavior
 } from "./runtime/bundle-motion.js";
@@ -4085,8 +4089,8 @@ function createHintSession({
   function walk(direction) {
     const targets2 = hinted();
     if (!targets2.length) return;
-    at = at < 0 ? direction > 0 ? 0 : targets2.length - 1 : (at + direction + targets2.length) % targets2.length;
-    const target = targets2[at];
+    const target = cycledRow(targets2, targets2[at], direction);
+    at = targets2.indexOf(target);
     beginWalk(
       walkKey,
       "Target",
@@ -4611,12 +4615,13 @@ function createTargetPicker({
   function moveMatch(direction) {
     refreshMatches();
     if (!matches.value.length) return presentSearchStatus();
-    const { row, wrapped } = cycledRow(matches.value, matches.value[active], direction);
-    active = matches.value.indexOf(row);
+    active = matches.value.indexOf(
+      cycledRow(matches.value, matches.value[active], direction)
+    );
     presentSearchStatus();
     showMatch();
     const query = pageSearchInput.value.trim();
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    beginWalk("page-search", "Match", () => matchWalkPosition(query));
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`
     );
@@ -4646,7 +4651,7 @@ function createTargetPicker({
       `Selected match: ${quote}. ${coarsePointer.matches || !bindingEnabled("c") ? "A press on the comment field comments on it." : "Press n for next, Shift+n for previous, or c to comment."}`
     );
   }
-  function landOnMatch(wrapped = false) {
+  function landOnMatch() {
     releaseFocus();
     const range = rangeOf(matches.value[active]);
     selectEnds(
@@ -4655,7 +4660,7 @@ function createTargetPicker({
     );
     updateFab();
     const query = repeatedSearch.query;
-    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
+    beginWalk("page-search", "Match", () => matchWalkPosition(query));
   }
   function repeatSearch(direction) {
     matches.value = find(repeatedSearch.query);
@@ -4666,11 +4671,12 @@ function createTargetPicker({
       return repaint();
     }
     const from = Math.min(repeatedSearch.index, matches.value.length - 1);
-    const { row, wrapped } = cycledRow(matches.value, matches.value[from], direction);
-    active = matches.value.indexOf(row);
+    active = matches.value.indexOf(
+      cycledRow(matches.value, matches.value[from], direction)
+    );
     repeatedSearch.index = active;
     showMatch();
-    landOnMatch(wrapped);
+    landOnMatch();
     announce(
       `Match ${active + 1} of ${matches.value.length}: ${matchDescription(matches.value[active])}.`
     );
@@ -6118,11 +6124,11 @@ function createQueueWalk({
   function walk(dir, region = null, origin = walkOrigin()) {
     const list = stopsOf(region);
     if (!list.length) return Promise.resolve(false);
-    const { row: next, wrapped } = step(list, dir, region, origin);
+    const next = step(list, dir, region, origin);
     const ready = arriveAt(next).then((arrived) => {
       if (!arrived) return false;
       announce2(
-        beginWalk("queue", null, () => position(region), wrapped) ?? walkPositionLabel(
+        beginWalk("queue", null, () => position(region)) ?? walkPositionLabel(
           null,
           list.indexOf(next) + 1,
           list.length,
@@ -6237,7 +6243,7 @@ var context = Z(EMPTY);
 var lastWalk = null;
 var statusContextReading = () => context.value;
 var shownWalk = ({ walk }) => walk?.shown ? walk : null;
-var same2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
+var same2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target;
 function paintStatusContext(goToStatus) {
   const position = walkPosition();
   const goTo = goToStatus();
@@ -6247,8 +6253,7 @@ function paintStatusContext(goToStatus) {
       target: position.target,
       position: position.position,
       total: position.total,
-      text: position.text,
-      boundary: position.boundary
+      text: position.text
     });
   const next = Object.freeze({
     goTo,
@@ -6376,11 +6381,11 @@ function boxMotion({
   function drawn2(progress, carried) {
     const at = /* @__PURE__ */ new Map();
     for (const [element, rest] of rests) {
-      const motion = motions.get(element);
-      if (motion?.revealed && progress < 1) continue;
+      const moving = motions.get(element);
+      if (moving?.revealed && progress < 1) continue;
       at.set(
         element,
-        motion ? (element === box ? interpolate : between)(motion.from, motion.to, progress) : shifted(rest, ...carried(element))
+        moving ? (element === box ? interpolate : between)(moving.from, moving.to, progress) : shifted(rest, ...carried(element))
       );
     }
     return at;
@@ -6405,7 +6410,7 @@ function boxMotion({
         if (node instanceof Element && !insideWhole(node)) arrived.add(node);
     watch();
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
-  function follow(timing, compact = false) {
+  function follow({ duration, easing }, compact = false) {
     const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     const parts = [];
@@ -6430,10 +6435,10 @@ function boxMotion({
       motions = /* @__PURE__ */ new Map();
       return;
     }
-    const was = timing && rests ? drawn2(progress, carried) : null;
+    const was = motionPlays() && rests ? drawn2(progress, carried) : null;
     const gesture = theirs();
     const framed = new Set(
-      [...motions].filter(([, motion]) => motion.frames).map(([element]) => element)
+      [...motions].filter(([, moving]) => moving.frames).map(([element]) => element)
     );
     const before = rests;
     motions = /* @__PURE__ */ new Map();
@@ -6463,7 +6468,7 @@ function boxMotion({
     const boxFrom = was.get(box);
     shapeUntil = compact ? 0.55 : 1;
     rtl = getComputedStyle(box).direction === "rtl";
-    const start = (element, keyframes) => running.push(element.animate(keyframes, timing));
+    const start = (element, keyframes) => running.push(playMotion(element, keyframes, { duration, easing }));
     const contour = (from, to, grow2, radius, compact2 = false) => {
       const frames = [clipFrame(...outline(from, grow2, radius))];
       if (compact2)
@@ -6560,9 +6565,9 @@ function boxMotion({
       const end = [0, 0, 0, 0];
       const overlaps2 = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
       for (const sibling of siblings) {
-        const motion = motions.get(sibling.element);
-        if (!motion || motion.revealed) continue;
-        const { from: then, to: at } = motion;
+        const moving = motions.get(sibling.element);
+        if (!moving || moving.revealed) continue;
+        const { from: then, to: at } = moving;
         const across = overlaps2(at, to, "top", "bottom");
         const along = overlaps2(at, to, "left", "right");
         [
@@ -6640,13 +6645,6 @@ function boxMotion({
 
 // runtime/floating-panel.js
 var prefs = () => document.documentElement.lfChrome;
-var EASE = "cubic-bezier(.23, 1, .32, 1)";
-var RESIZE_MS = 300;
-var FOLD_MS = 280;
-var FOLD_EASE = "cubic-bezier(.77, 0, .175, 1)";
-var VIEW_RESIZE_MS = 120;
-var FADE_MS = 90;
-var OUT_MS = 60;
 var GROUPS = Object.freeze({
   navigate: "Navigate",
   annotate: "Annotations",
@@ -6705,6 +6703,13 @@ function createFloatingPanel({
 }) {
   const host = new FloatingPanel();
   host.className = "lf-ui lf-floating-panel";
+  const ease = () => motionEasing("--lf-motion-panel-ease", host);
+  const foldEase = () => motionEasing("--lf-motion-panel-fold-ease", host);
+  const resizeMs = () => motionTime("--lf-motion-panel-resize", host);
+  const foldMs = () => motionTime("--lf-motion-panel-fold", host);
+  const viewResizeMs = () => motionTime("--lf-motion-disclosure", host);
+  const fadeMs = () => motionTime("--lf-motion-view-in", host);
+  const outMs = () => motionTime("--lf-motion-view-out", host);
   host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
   const ground = el("div", "lf-ui lf-fp-ground");
@@ -7205,14 +7210,15 @@ function createFloatingPanel({
       paint();
     }
     const page = menu.firstElementChild;
-    if (before !== void 0 && page && !reducedMotion()) {
+    if (before !== void 0 && page) {
       const side = (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
-      page.animate(
+      playMotion(
+        page,
         [
           { translate: `${side * 16}px 0`, opacity: 0 },
           { translate: "0 0", opacity: 1 }
         ],
-        { duration: VIEW_RESIZE_MS, easing: EASE }
+        { duration: viewResizeMs(), easing: ease() }
       );
     }
     if (pointedInPanel) return;
@@ -7230,7 +7236,7 @@ function createFloatingPanel({
     readCorner();
     followBox();
   });
-  const motion = boxMotion({
+  const following = boxMotion({
     root: host,
     box: card,
     room: ground,
@@ -7272,16 +7278,12 @@ function createFloatingPanel({
       "--lf-panel-reach",
       layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0)
     );
-    const moving = !reducedMotion() && pagePresented();
     const compact = host.dataset.rest === "mark";
-    const duration = compact ? FOLD_MS : performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    motion.follow(
-      moving ? { duration, easing: compact ? FOLD_EASE : EASE } : null,
-      compact
-    );
+    const duration = compact ? foldMs() : performance.now() < viewMovingUntil ? viewResizeMs() : resizeMs();
+    following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
   }
   addEventListener("resize", () => {
-    motion.forget();
+    following.forget();
     followBox();
   });
   let onPageSeat = false;
@@ -7374,7 +7376,7 @@ function createFloatingPanel({
   let refitting = false;
   function refit() {
     room = null;
-    viewMovingUntil = performance.now() + VIEW_RESIZE_MS;
+    viewMovingUntil = performance.now() + viewResizeMs();
     if (refitting) return;
     refitting = true;
     nextRender(() => {
@@ -7507,27 +7509,26 @@ function createFloatingPanel({
     if (changed && before?.view === "thread")
       dismissReply(threadByKey(before.thread)?.key ?? before.thread);
     leaving = changed && before && after2 ? before : null;
-    if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
+    if (changed) viewMovingUntil = performance.now() + outMs() + viewResizeMs();
     paint();
     const drawn2 = reading || before?.view === "queue" ? present({ release: reading }) : null;
-    if (!changed || reducedMotion() || !pagePresented()) {
+    if (!changed || !motionPlays()) {
       leaving = null;
       paint();
       if (focus) focusView(after2, drawn2, stoodIn);
       return;
     }
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-    arriving?.animate([{ opacity: 0 }, { opacity: 1 }], {
-      duration: FADE_MS,
-      delay: leaving ? OUT_MS : 0,
-      easing: "linear",
-      fill: "backwards"
-    });
+    if (arriving)
+      playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
+        duration: fadeMs(),
+        delay: leaving ? outMs() : 0,
+        easing: "linear"
+      });
     const gone = stage.querySelector(".lf-fp-view[data-leaving]");
-    const fade = gone?.animate([{ opacity: 1 }, { opacity: 0 }], {
-      duration: OUT_MS,
-      easing: "linear",
-      fill: "forwards"
+    const fade = gone && playMotion(gone, [{ opacity: 1 }, { opacity: 0 }], {
+      duration: outMs(),
+      easing: "linear"
     });
     const release2 = fade ? holdRendering() : null;
     const settle = () => {
@@ -11319,18 +11320,13 @@ function stepThread(dir, destinations, placedAt) {
   const current = currentThread(threads, threadHere);
   const targetId = !current && origin.kind === "current-location" && threadAtCurrentLocation();
   const atTarget = targetId && threads.includes(targetId) ? targetId : null;
-  const { row: next, wrapped } = current ? cycledRow(threads, current, dir) : atTarget ? { row: atTarget, wrapped: false } : stepFrom(threads, origin, dir, threadPlace);
+  const next = current ? cycledRow(threads, current, dir) : atTarget ?? stepFrom(threads, origin, dir, threadPlace);
   if (!next) return;
   const ready = arriveAtThread(next, destinations, retainUserIntent()).then(
     (arrived) => {
       if (!arrived) return;
       announce(
-        beginWalk(
-          "thread",
-          "Thread",
-          () => threadPosition(threadHere, placedAt),
-          wrapped
-        ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length)
+        beginWalk("thread", "Thread", () => threadPosition(threadHere, placedAt)) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length)
       );
     }
   );

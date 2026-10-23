@@ -7,6 +7,7 @@ from render_cases_interaction import live_url
 from render_harness import (
     CORPUS_SOURCES,
     example_media,
+    expect_panel_says,
     leaf_page,
     open_page,
     resized,
@@ -36,8 +37,11 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     widget.locator('.lf-vr-case-button[aria-current="true"]').click()
     page.keyboard.press("n")
     expect(case).not_to_have_attribute("data-lf-datum", first)
+    # The walk says where it stands among the cases, as every walk does.
+    expect_panel_says(page, "Case 2 of")
     page.keyboard.press("Shift+n")
     expect(case).to_have_attribute("data-lf-datum", first)
+    expect_panel_says(page, "Case 1 of")
     with sending(page, "approve the selected comparison"):
         page.keyboard.press("a")
     expect(case.get_by_role("checkbox", name="Looks right")).to_be_checked()

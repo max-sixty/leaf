@@ -182,7 +182,10 @@
   inline-size: var(--lf-shot-frame-width);
   block-size: var(--lf-shot-frame-height);
 }
+/* Each capture's window keeps the height the fit gave it, and at actual size the reader
+   scrolls the capture inside it, so both frames keep one size. */
 :scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotviewport {
+  --lf-holds-height: 1;
   inline-size: var(--lf-shot-viewport-width);
   block-size: var(--lf-shot-viewport-height);
   overflow: auto;
@@ -229,7 +232,10 @@
   background: var(--add-tint);
   color: var(--ok-ink);
 }
+/* The window onto the capture: a crop to its focus hides the rest of the plane on
+   purpose, so the image's coordinates are its own (`--lf-drawing`). */
 .lf-shotimage {
+  --lf-drawing: 1;
   position: relative;
   overflow: clip;
   inline-size: var(--lf-shot-frame-width);

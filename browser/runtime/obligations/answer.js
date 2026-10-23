@@ -15,6 +15,8 @@ export function ownedObligationControl(source, commandSource) {
    lf-options reads Options; Approval for a version's sign-off. */
 export function obligationWord(item) {
   if (item.source.kind === "approval") return "Approval";
+  if (item.source.kind === "message") return "Reply";
+  if (item.source.kind === "todo") return "To-do";
   const word = widgetWord(item.source.tag, elementById(item.source.id));
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
@@ -38,6 +40,12 @@ export function answerWords(item) {
    its answer, after a colon so the two never read as one phrase, an answer given
    elsewhere, or its withdrawal. */
 export function obligationEnding(item) {
+  if (item.source.kind === "todo")
+    return item.status === "withdrawn"
+      ? "Dropped"
+      : item.answer?.value === "failed"
+        ? "Failed"
+        : "Done";
   if (item.status === "withdrawn") return "Withdrawn";
   if (item.status === "answered_elsewhere") return "Answered elsewhere";
   const words = answerWords(item);

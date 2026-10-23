@@ -8132,7 +8132,7 @@ function mountApplication(dependencies) {
     openObligation(id) {
       const item = readObligations().all.find((item2) => item2.id === id);
       if (!item) return Promise.resolve(false);
-      if (item.source.kind === "approval" || item.source.kind === "update")
+      if (item.source.kind === "approval" || item.source.kind === "update" || item.source.kind === "todo")
         return queueActions2.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
@@ -8958,6 +8958,8 @@ function ownedObligationControl(source, commandSource) {
 }
 function obligationWord(item) {
   if (item.source.kind === "approval") return "Approval";
+  if (item.source.kind === "message") return "Reply";
+  if (item.source.kind === "todo") return "To-do";
   const word2 = widgetWord(item.source.tag, elementById(item.source.id));
   return word2.charAt(0).toUpperCase() + word2.slice(1);
 }
@@ -8974,6 +8976,8 @@ function answerWords(item) {
   return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
 }
 function obligationEnding(item) {
+  if (item.source.kind === "todo")
+    return item.status === "withdrawn" ? "Dropped" : item.answer?.value === "failed" ? "Failed" : "Done";
   if (item.status === "withdrawn") return "Withdrawn";
   if (item.status === "answered_elsewhere") return "Answered elsewhere";
   const words = answerWords(item);

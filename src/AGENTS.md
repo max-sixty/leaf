@@ -42,12 +42,12 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `work_reading`: the durable work state shared by admission, serving and delivery;
 - `workflows`, `activity`: unfinished updates with their evidence, and the page-level
   summary over workflows, to-dos, status, claim, turn and watcher;
-- `obligations`: every widget's and sign-off's obligation on On me, with typed answers, completion
-  and attention;
+- `obligations`: the canonical inventory of widget, message, user-task and sign-off
+  obligations, with typed answers, completion and attention;
 - `work`: what an id names, which widgets hold a to-do, and which widget to-dos a
   version would leave without a target;
 - `todos` (experimental): committed work on either side until it ends, the `start`
-  that takes an update or to-do in hand, and `leaf task`. Obligations never become to-dos;
+  that takes an update or to-do in hand, and `leaf task`. User to-dos publish obligations;
 - `plans` (experimental): the agent's outline of the work, whose steps are plain or
   name a to-do or obligation without owning it, and `leaf task plan`;
 - `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope

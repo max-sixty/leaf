@@ -1071,7 +1071,7 @@
       "additionalProperties": false
     },
     "Obligation": {
-      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a widget or a version's sign-off waits on the user for, or what an update the user handed over is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
+      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message, user task, widget or version sign-off waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -1105,6 +1105,25 @@
               "type": "object",
               "properties": {
                 "kind": { "const": "update" },
+                "id": { "type": "string" },
+                "subject": { "$ref": "#/$defs/Subject" }
+              },
+              "required": ["kind", "id", "subject"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "message" },
+                "id": { "type": "string" }
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "todo" },
                 "id": { "type": "string" },
                 "subject": { "$ref": "#/$defs/Subject" }
               },
@@ -1186,7 +1205,7 @@
       "additionalProperties": false
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its to-do by `id`, whose record is the page's `todos` entry.",
+      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and an agent to-do row names its record in the page's `todos` entry.",
       "anyOf": [
         { "$ref": "#/$defs/ObligationRow", "unevaluatedProperties": false },
         { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false }
@@ -1198,7 +1217,7 @@
       "properties": {
         "kind": {
           "description": "The record's `source.kind`.",
-          "enum": ["widget", "approval", "update"]
+          "enum": ["widget", "approval", "update", "message", "todo"]
         },
         "id": {
           "description": "The obligation, whose record is the view's `obligations` entry.",
@@ -1221,7 +1240,7 @@
       "required": ["kind", "id", "owner", "subject", "thread", "live"]
     },
     "TodoRow": {
-      "description": "A to-do's row in On me or On <agent> (`served_state.queues`).",
+      "description": "An agent to-do's row in On <agent> (`served_state.queues`).",
       "type": "object",
       "properties": {
         "kind": { "const": "todo" },
@@ -1231,7 +1250,7 @@
         },
         "owner": {
           "description": "The list the row stands on.",
-          "enum": ["agent", "user"]
+          "const": "agent"
         },
         "subject": { "$ref": "#/$defs/Subject" },
         "thread": {
@@ -1351,7 +1370,7 @@
           "type": "object",
           "properties": {
             "kind": { "const": "needs_user" },
-            "reason": { "enum": ["widget", "resend"] },
+            "reason": { "enum": ["obligation", "resend"] },
             "workflow": { "type": ["string", "null"] }
           },
           "required": ["kind", "reason", "workflow"],

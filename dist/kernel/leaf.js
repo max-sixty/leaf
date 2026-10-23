@@ -5762,6 +5762,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
 }
 var QUEUE_WORDS = Object.freeze({
   widget: ["to answer", "to answer"],
+  message: ["to answer", "to answer"],
   approval: ["approval", "approvals"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
@@ -5774,7 +5775,7 @@ function queueKinds(items2) {
     byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    return kind === "todo" ? `${words} (${all.map((row) => row.todo.title).join(" \xB7 ")})` : words;
+    return kind === "todo" ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" \xB7 ")})` : words;
   });
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
@@ -6048,7 +6049,12 @@ var stopOf = (item) => item.kind === "approval" ? { kind: "approval", id: item.i
   id: item.id,
   thread: item.thread,
   obligation: item.obligation
-} : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
+} : item.thread !== null ? {
+  kind: "thread",
+  id: item.thread,
+  thread: item.thread,
+  message: answeredInWords(item.obligation) ? item.obligation.message : null
+} : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
 var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 function queueStop(item) {
   const stop = stopOf(item);
@@ -6145,7 +6151,7 @@ function createQueueWalk({
       const record = readObligations().all.find((item) => item.id === stop.id);
       return record ? arriveAtRecord(record) : Promise.resolve(false);
     }
-    if (stop.kind === "thread") return arriveAtThread2(stop.id);
+    if (stop.kind === "thread") return arriveAtThread2(stop.id, stop.message);
     if (stop.kind === "approval" && presentedApproval())
       return presentedApproval().arrive();
     return arriveAtElement(() => stopElement(stop));
@@ -6244,7 +6250,7 @@ function createQueueWalk({
   const arriveAtItem = (item) => arriveAt(stopOf(item));
   const arrivesAt = (item) => {
     const stop = stopOf(item);
-    return Boolean(pagePlace(stop)) || stop.kind === "obligation" && stop.thread !== null;
+    return Boolean(pagePlace(stop)) || Boolean(stop.message) || stop.kind === "obligation" && stop.thread !== null;
   };
   let wentTo = null;
   onStanding((node, cause) => {
@@ -11563,7 +11569,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     repeat: true,
     run: (binding) => move2(binding === "j" ? 60 : -60, "pixel")
   });
-  const arriveAtThreadById = (id) => arriveAtThread(id, threadDestinations, retainUserIntent());
+  const arriveAtThreadById = (id, message = null) => message ? threadDestinations.openPageThread(message, { part: "message", intent: retainUserIntent() }).then(Boolean) : arriveAtThread(id, threadDestinations, retainUserIntent());
   return {
     alignTop,
     arriveAtThread: arriveAtThreadById,

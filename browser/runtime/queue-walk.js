@@ -119,7 +119,12 @@ const stopOf = (item) =>
           obligation: item.obligation,
         }
       : item.thread !== null
-        ? { kind: "thread", id: item.thread, thread: item.thread }
+        ? {
+            kind: "thread",
+            id: item.thread,
+            thread: item.thread,
+            message: answeredInWords(item.obligation) ? item.obligation.message : null,
+          }
         : item.subject.kind === "page"
           ? { kind: "page", id: "page", thread: null }
           : { kind: "widget", id: item.subject.id, thread: null };
@@ -279,7 +284,7 @@ export function createQueueWalk({
       const record = readObligations().all.find((item) => item.id === stop.id);
       return record ? arriveAtRecord(record) : Promise.resolve(false);
     }
-    if (stop.kind === "thread") return arriveAtThread(stop.id);
+    if (stop.kind === "thread") return arriveAtThread(stop.id, stop.message);
     // A chrome presenting the approval elsewhere brings the user to it itself.
     if (stop.kind === "approval" && presentedApproval())
       return presentedApproval().arrive();
@@ -410,13 +415,15 @@ export function createQueueWalk({
   const arriveAtItem = (item) => arriveAt(stopOf(item));
   // Whether the walk takes the user somewhere for an item that its card does not already
   // offer: its place on the page, or a widget in a thread the page draws no passage for,
-  // which the panel opens with the user on the widget. A thread with no place opens in
-  // the panel as the card's Discuss opens it, and the version's approval stands in On me
-  // (`stopElement`), so neither goes anywhere further.
+  // which the panel opens with the user on the widget. A question can also arrive at
+  // its exact message, including in an unanchored thread. The version's approval
+  // stands in On me (`stopElement`), so it goes nowhere further.
   const arrivesAt = (item) => {
     const stop = stopOf(item);
     return (
-      Boolean(pagePlace(stop)) || (stop.kind === "obligation" && stop.thread !== null)
+      Boolean(pagePlace(stop)) ||
+      Boolean(stop.message) ||
+      (stop.kind === "obligation" && stop.thread !== null)
     );
   };
 

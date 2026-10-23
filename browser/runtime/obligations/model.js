@@ -13,10 +13,10 @@ export const readObligations = readPart((root) => root.effective.obligations);
 
 export const obligationEntry = (obligation) =>
   registry[obligation?.source.tag]?.["x-awaits"];
-// Whether the user's words answer this obligation (`x-awaits.reply`), as they do an `lf-ask`
-// holding no widget: in its thread, it reads and is answered as a message.
+// Explicit message obligations and widgets declaring `x-awaits.reply` are answered
+// in words: in their thread, they read and are answered as messages.
 export const answeredInWords = (obligation) =>
-  Boolean(obligationEntry(obligation)?.reply);
+  obligation?.source.kind === "message" || Boolean(obligationEntry(obligation)?.reply);
 // The obligations approving the shown version waits on, which the server names
 // (`obligations.approval_blocking`, the rule its append door refuses a sign-off by).
 // Approval needs an admitted inventory, so its gate never reads unknown as empty: with

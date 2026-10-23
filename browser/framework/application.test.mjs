@@ -550,7 +550,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
           text: "Second",
         },
       ],
-      { attention: { kind: "needs_user", reason: "widget", workflow: null } },
+      { attention: { kind: "needs_user", reason: "obligation", workflow: null } },
     ),
   ];
   reading.workflows = [
@@ -568,7 +568,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
   );
   assert.deepEqual(thread.attention, {
     kind: "needs_user",
-    reason: "widget",
+    reason: "obligation",
     workflow: null,
   });
   assert.equal(thread.workflows.length, 2);
@@ -1295,7 +1295,7 @@ for (const resolved of [null, { author: "user" }]) {
         resolved,
         attention: resolved
           ? null
-          : { kind: "needs_user", reason: "widget", workflow: null },
+          : { kind: "needs_user", reason: "obligation", workflow: null },
       }),
     ];
     app.adopt(accepted);
@@ -1401,7 +1401,7 @@ test("a pending gesture leaves obligations and On me as served until the log ans
   answeredUndo.browser.views[1].queues = obligationQueues([reopened]);
   answeredUndo.browser.views[1].thread.threads = [
     servedThread([item], {
-      attention: { kind: "needs_user", reason: "widget", workflow: null },
+      attention: { kind: "needs_user", reason: "obligation", workflow: null },
     }),
   ];
   app.adopt(answeredUndo);

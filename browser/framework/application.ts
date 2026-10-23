@@ -328,8 +328,28 @@ function normalizedObligations(
   document: SemanticDocument,
   projection: ReturnType<typeof foldProjection>,
   local: readonly LedgerEntry[],
+  todos: ReturnType<typeof localTodos>,
 ): ObligationLists {
+  const todoRecords = new Map(
+    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo]),
+  );
   const all = (view?.obligations ?? []).map((item): ObligationRecord => {
+    // Done and its Undo decide the user's task directly. Reuse the pending to-do
+    // reading so the canonical inventory and its queue row show the same gesture.
+    if (item.source.kind === "todo") {
+      const todo = todoRecords.get(item.source.id)!;
+      if (todo.state === "open" && item.status !== "open")
+        return { ...item, answer: null, status: "open", next_actor: "user", end: null };
+      if (todo.state !== "open" && item.status === "open")
+        return {
+          ...item,
+          answer: { value: todo.state, event: null },
+          status: "answered",
+          next_actor: null,
+          end: null,
+        };
+      return item;
+    }
     if (item.source.kind === "approval") {
       const version = item.source.version;
       const undone = new Set(
@@ -522,7 +542,7 @@ function localQueues(
   // record still on the list's side, unless it is an update in a thread this tab has
   // sent to since, whose own record stands for it.
   const standsOpen = (item: QueueItem) => {
-    if (item.kind === "todo") return open.has(item.id);
+    if (!namesRecord(item)) return open.has(item.id);
     const current = obligationOf(item);
     return (
       current.next_actor === item.owner &&
@@ -655,9 +675,8 @@ function localUpdates(workflows: readonly Workflow[]) {
 const onUserRank = (item: QueueItem) =>
   item.kind === "todo" ? 1 : item.kind === "update" ? 2 : 0;
 
-// Whether a list item names an obligation record, which it carries: every row but a
-// to-do's.
-const namesRecord = (item: QueueItem) => item.kind !== "todo";
+// Every row but an agent-owned to-do names the canonical obligation inventory.
+const namesRecord = (item: QueueItem) => item.kind !== "todo" || item.owner === "user";
 
 type SemanticRoot = ReturnType<ReturnType<typeof createSemanticApplication>["read"]>;
 type RootProjection = SemanticRoot["effective"]["projection"];
@@ -940,10 +959,10 @@ export function createSemanticApplication({
       widgets,
       projection,
     );
-    const servedItems = ready
-      ? normalizedObligations(view, widgets, document, projection, local)
-      : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
+    const servedItems = ready
+      ? normalizedObligations(view, widgets, document, projection, local, todos)
+      : NO_OBLIGATIONS;
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
     // whose Retry it is.

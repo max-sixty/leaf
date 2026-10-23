@@ -1,11 +1,11 @@
 # Decisions and sign-off
 
-Put every decision waiting on the user on their list, On me, as a widget that records
-the answer. Recommending an answer doesn't make the decision. `conversation-loop.md`,
+Put every decision waiting on the user on their list, On me. A widget records a
+structured answer; a thread message with `--obligation` requests an answer in words. Recommending an answer doesn't make the decision. `conversation-loop.md`,
 "The On lists", covers everything the user is asked for, including questions in the
 conversation and actions outside the page.
 
-Make each decision understandable and answerable where On me takes the user, without
+For decisions on the document, make each understandable and answerable where On me takes the user, without
 reading earlier content. Pressing `m` brings that decision to the top of the window,
 leaving preceding prose out of view. So the decision opens with a heading that asks
 its question, and holds the current state, the evidence that bears on the answer and
@@ -27,14 +27,16 @@ Write decisions the user can answer independently in page order. If a later one 
 on an earlier answer, pose it in the next turn rather than writing every branch.
 
 Let the user answer in the form the answer takes: a widget wherever it is a choice or
-an edit, and an `lf-ask` holding no widget for an open question they answer in words.
+an edit, and a thread message with `--obligation` for a conversational answer. An
+`lf-ask` holding no widget can also put an open question directly on the page.
 Each widget puts one obligation on On me and records its answer. A choice can hold a
 partial answer before the user presses Done, and an empty selection can be a complete
 answer.
 
-On me lists only what still needs the user. Retire a decision or question you
-introduced once it stops mattering, by removing its widget in a new version or marking
-it `restated` (`authoring-revisions.md`). A request the user made stays open until you
+On me lists only what still needs the user. Retire a document decision or question
+once it stops mattering, by removing its widget in a new version or marking it
+`restated` (`authoring-revisions.md`). For a conversational obligation, use
+`leaf task end` as "The On lists" describes. A request the user made stays open until you
 answer it or they withdraw it; deciding something else, however related, doesn't
 answer it. To retire one yourself, say what changed to make it unnecessary. A to-do you
 put on the user is work for them to do, such as trying a build, not a question.
@@ -83,4 +85,5 @@ the version answers and Undo reopens. Later widget edits do not withdraw that ap
 or approve the new wording. For editable content, distinguish the approved wording from
 the current draft. Approval needs every widget's obligation on the page and in its unresolved
 threads answered or withdrawn, a question in an `lf-ask` included; obligations in resolved
-threads don't block it.
+threads don't block it. Plain message requests and user tasks appear on On me but do not
+block version approval.

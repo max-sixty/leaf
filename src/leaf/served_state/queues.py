@@ -1,30 +1,26 @@
 """The two lists, On me (`on_user`) and On <agent> (`on_agent`): what is on the user,
 what is on the agent, and what each has finished (`done`).
 
-Every row but a to-do is an obligation record (`obligations.py`): a widget's, a version's
-sign-off, or an update the user handed over (`workflows.handed_over`). This is the one
-selection that lists them by their next actor beside the to-dos. An obligation is never
-a to-do: its source owns its answer, and only a to-do on the user, which the agent
-opened, ends at their Done. A browser view serves these lists and `page state` prints
-them, so the panel's counts, its On lists and an agent picking the page up read one
-selection. The browser places its own unresolved sends against the served lists
-(`browser/framework/application.ts`, `localQueues`); it never selects them again.
+Every user row is an obligation record (`obligations.py`): a message request,
+a user task, a widget's input, a version's sign-off, or an update handed back for
+resending (`workflows.handed_over`). Each source owns completion: conversational
+requests take a reply, tasks take explicit Done, widgets take their declared answer.
+A browser view serves these lists and `page state` prints them, so their counts and
+membership agree. The browser places its own unresolved sends against the served
+lists (`browser/framework/application.ts`, `localQueues`); it never selects them again.
 
-On me holds the open records whose next actor is the user, which are the obligations
-widgets and sign-off ask and the updates handed back for the user to send again, then the
-to-dos on the user. On <agent> holds the open update records whose next actor is the
-agent, which are the answers it owes, then the agent's to-dos. A widget's obligation
-is the agent's only while a thread about it awaits the agent's word, and that thread's
-newest unanswered turn already publishes an update record there; so On <agent> lists
-update records alone, and the comment's row stands for the widget's side
-(`obligations.anchors_with_agent`, `thread_obligation_readings`).
+On me holds records whose next actor is the user. On <agent> holds the open update
+records the agent owes, then the agent's to-dos. A widget's obligation becomes the
+agent's while a thread about it awaits the agent's word, and that thread's newest
+unanswered turn already publishes an update record there; On <agent> lists that
+update alone (`obligations.anchors_with_agent`, `thread_obligation_readings`).
 
 A row names its kind (its record's `source.kind`, or `todo`), its subject, the list it
 stands on (`owner`), the thread it stands in, and whether the agent has it in hand now
 (`live`): a to-do a start holds, or an update the agent is at work on whose work has not
 gone quiet or stopped. A row names its record by `id` and carries no copy of it: the
-view serves each obligation record once, in `obligations`, the page serves each to-do
-once, in `todos`, and the browser's publisher joins the row to its current record. On <agent>
+view serves each obligation record in `obligations`; an agent to-do row instead
+reads the page's `todos`. The browser's publisher joins each row to its current record. On <agent>
 orders the updates by their strongest workflow (`work.served_workflows`), the order
 every surface showing one of several reads.
 
@@ -58,8 +54,10 @@ def _todo_item(todo: dict) -> dict:
 def _subject(record: dict) -> dict:
     """What a record's row stands on: an update's own subject, a widget, or the page."""
     source = record["source"]
-    if source["kind"] == "update":
+    if source["kind"] in {"update", "todo"}:
         return source["subject"]
+    if source["kind"] == "message":
+        return {"kind": "thread", "id": record["thread"]}
     if source["kind"] == "widget":
         return {"kind": "widget", "id": source["id"]}
     return {"kind": "page"}
@@ -86,14 +84,13 @@ def queues(workflows: list[dict], todos: list[dict], records: list[dict]) -> dic
     included, in inventory order."""
     open_todos = [todo for todo in todos if todo["state"] == "open"]
     users = [record for record in records if record["next_actor"] == "user"]
-    # What the page asks, then the to-dos, then the updates to send again.
+    # Requests and explicit tasks, then the updates to send again.
     on_user = [
         *(
             _record_row(record, "user")
             for record in users
             if record["source"]["kind"] != "update"
         ),
-        *(_todo_item(todo) for todo in open_todos if todo["owner"] == "user"),
         *(
             _record_row(record, "user")
             for record in users
@@ -123,7 +120,13 @@ def queues(workflows: list[dict], todos: list[dict], records: list[dict]) -> dic
             **_record_row(
                 record, "agent" if record["source"]["kind"] == "update" else "user"
             ),
-            "state": "dropped" if record["status"] == "withdrawn" else "done",
+            "state": "dropped"
+            if record["status"] == "withdrawn"
+            else (
+                record["answer"]["value"]
+                if record["source"]["kind"] == "todo"
+                else "done"
+            ),
             "ended": ((record["end"] or record["answer"] or {}).get("event") or {}).get(
                 "ts"
             ),
@@ -140,7 +143,7 @@ def queues(workflows: list[dict], todos: list[dict], records: list[dict]) -> dic
             "detail": (todo["outcome"] or {}).get("detail"),
         }
         for todo in todos
-        if todo["state"] != "open"
+        if todo["state"] != "open" and todo["owner"] == "agent"
     ]
     done.sort(
         key=lambda item: (

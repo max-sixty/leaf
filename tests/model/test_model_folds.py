@@ -419,7 +419,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     threads = model.threads(state)
     assert threads["e1"]["attention"] == {
         "kind": "needs_user",
-        "reason": "widget",
+        "reason": "obligation",
         "workflow": None,
     }
     assert threads["e4"]["attention"] == {
@@ -542,7 +542,7 @@ def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task(
     thread = model.threads(state)["e1"]
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "widget",
+        "reason": "obligation",
         "workflow": None,
     }
     assert state["todos"] == []

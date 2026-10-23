@@ -1768,8 +1768,7 @@ _TEXT = {
         " is said rather than unsaid"
     ),
     "answered-reaction": lambda at, v: (
-        f"reaction {v['undoes']} has been answered; withdraw it in the thread the"
-        " answer opened"
+        f"reaction {v['undoes']} has a reply or task attached; continue in its thread"
     ),
     "resolved-reaction": lambda at, v: (
         f"reaction {v['undoes']} stands on a resolved thread"
@@ -1941,7 +1940,7 @@ _TEXT = {
         f"{v['name']} is a widget on the page, not a thread"
     ),
     "unknown-subject": lambda at, v: (
-        f"{v['subject']!r} names no widget or element on this page; `{v['page']}`"
+        f"{v['subject']!r} names no thread, widget or element on this page; `{v['page']}`"
         " names the page as a whole"
     ),
     "invalid-source": lambda at, v: (
@@ -2000,8 +1999,8 @@ _TEXT = {
     ),
     "undeclared-answer": lambda at, v: (
         "say what the answer leaves: --done when it delivers what was asked, --todo"
-        " TITLE when it promises work it doesn't deliver, or a question for the user"
-        " as an <lf-ask> in --markup"
+        " TITLE when it promises work it doesn't deliver, or --obligation when it needs"
+        " the user's next move (a widget in --markup may also ask)"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
 }

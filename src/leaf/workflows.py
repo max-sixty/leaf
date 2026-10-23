@@ -96,7 +96,6 @@ def obligation_reading(readings) -> dict:
     page = work.page
     thread = work.thread
     workflows = work.workflows
-    thread_obligations = work.widget_obligations
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
@@ -114,26 +113,11 @@ def obligation_reading(readings) -> dict:
         if source["author"] == "user"
     ]
     return {
-        "on_user": {
-            "page": [
-                item["id"]
-                for item in work.document.items["unanswered"]
-                if item["next_actor"] is not None
-            ]
-            if page is not None
-            else [],
-            "thread": [
-                item["id"]
-                for item in thread_obligations["unanswered"]
-                if item["next_actor"] is not None
-            ],
-            # The to-dos the agent put on the user, which their Done ends.
-            "todos": [
-                todo["id"]
-                for todo in work.log.todos
-                if todo["owner"] == "user" and todo["state"] == "open"
-            ],
-        },
+        "on_user": [
+            item["id"]
+            for item in work.all_obligations["unanswered"]
+            if item["next_actor"] is not None
+        ],
         # The updates the agent owes an answer, by their records.
         "answers": [
             record["id"]

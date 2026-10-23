@@ -1044,7 +1044,7 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 // runtime/obligations/model.js
 var readObligations = readPart((root) => root.effective.obligations);
 var obligationEntry = (obligation) => registry[obligation?.source.tag]?.["x-awaits"];
-var answeredInWords = (obligation) => Boolean(obligationEntry(obligation)?.reply);
+var answeredInWords = (obligation) => obligation?.source.kind === "message" || Boolean(obligationEntry(obligation)?.reply);
 var approvalBlockingObligations = readPart((root) => {
   const { obligations, view } = root.effective;
   if (obligations.phase !== "ready" || !view) return null;
@@ -3662,7 +3662,7 @@ function threadAttention(thread) {
     (candidate) => candidate.id === thread.attention.workflow
   ) ?? null : null;
   if (thread.attention?.kind === "needs_user") {
-    const answering = thread.attention.reason === "widget";
+    const answering = thread.attention.reason === "obligation";
     const nextMove = answering ? "answer" : workflow?.subject.kind === "thread" ? "resend" : "retry";
     const owed = new Set(
       (thread.obligations ?? []).filter((item) => item.source.kind === "update" && item.next_actor === "agent").map((item) => item.id)

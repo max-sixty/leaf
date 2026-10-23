@@ -173,6 +173,15 @@ class UndoReading:
                     answered_reactions.add(message["parent"])
                 if thread["resolved"] and message["id"] in reaction_ids:
                     resolved_reactions.add(message["id"])
+        # Attached work depends on the thread's root just as a reply does.
+        # Completed work keeps its discussion available in the Done list.
+        for event in events:
+            if (
+                event["kind"] == "todo"
+                and event["subject"]["kind"] == "thread"
+                and event["subject"]["id"] in reaction_ids
+            ):
+                answered_reactions.add(event["subject"]["id"])
         self.answered_reactions = answered_reactions
         self.resolved_reactions = resolved_reactions
 
@@ -225,8 +234,8 @@ def undo_error(
     whose every other line is something the user did.
 
     A reaction is the one message a user takes back rather than answers,
-    and only while it still paints: once a turn answers it the withdrawal
-    would orphan those words, and the user's update is in the thread that
+    and only while it still paints: once a turn answers it or a task attaches,
+    withdrawal would orphan that discussion or work, and the user's update is in the thread that
     turn opened; once its thread is resolved, resolve being its floor, there
     is nothing left to take back. The browser offers exactly the gestures
     this reading admits (`served_state.document.browser_undo_candidates`).

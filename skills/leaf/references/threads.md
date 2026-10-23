@@ -1,16 +1,16 @@
 # Threads
 
-Open a thread when the answer depends on the user. Put the question in an `lf-ask`
-in its `--markup`, which keeps it on the user's On me list until they answer; words
-in `--text` alone wait on nobody. Anchor it with a quote for a passage, a section id
+Open a thread when the answer depends on the user. Add `--obligation` to put the
+message on their On me list until they answer. The message itself supplies the
+request; no widget or markup is needed. Anchor it with a quote for a passage, a section id
 for a diagram or image, a declared part for one box within a visual, or nothing for
 the page as a whole:
 
 ```bash
-leaf thread open <page> --quote "<passage in the current page>" --text "…" --markup '<lf-ask id="<new-id>">…?</lf-ask>'
+leaf thread open <page> --quote "<passage in the current page>" --obligation --text "…?"
 leaf thread open <page> --section <element-id> --text "…"
 leaf thread open <page> --section <diagram-id> --part node:<source-id> --text "…"
-leaf thread open <page> --text "…"
+leaf thread open <page> --obligation --text "…?"
 ```
 
 For a diagram, percent-encode the entire source id in the part token:
@@ -134,14 +134,13 @@ Every answer declares what it leaves the thread with:
 - `--todo "<what you owe>"`: it promises work it does not deliver, and opens that
   to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
-- A question back: put it in an `lf-ask` in `--markup`. It is an obligation on the user's
-  On me list, `widget:<its id>` in `page state`'s `obligations`, until their next message in
-  the thread answers it or you end it
-  ([The On lists](conversation-loop.md#the-on-lists)). An answer that asks this way
-  needs no flag.
+- `--obligation`: the message needs the user's answer, decision, permission or review.
+  It creates `message:<its id>` on On me until their next reply or a settling
+  reaction answers it. A widget in `--markup` can instead register the answer it
+  captures ([The On lists](conversation-loop.md#the-on-lists)).
 
 ```bash
-leaf response reply <answer.ref> --text "One choice first." --markup '<lf-ask id="store-owner">Which store should own it?</lf-ask>'
+leaf response reply <answer.ref> --obligation --text "Which store should own it?"
 leaf response reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
 ```
 
@@ -151,7 +150,7 @@ finished work.
 
 To post in a thread that owes no reply, use
 `leaf thread reply <page> <message-id>`. It takes the same content and anchor
-options, and `--todo`. While the thread owes a reply, Leaf refuses an
+options, `--obligation`, and `--todo`. While the thread owes a reply, Leaf refuses an
 ordinary `leaf thread reply`; answer with `leaf response reply <answer.ref>`, and
 post progress on that input the same way.
 
@@ -179,8 +178,9 @@ their own.
 
 Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
 `lf-options` or an `lf-ask`, waits on the user and keeps its thread at "My turn to answer"
-until they answer it. A thread you open waits on nobody by itself: to wait on the
-user's answer, its markup holds an `lf-ask`.
+until they answer it. A thread you open waits on nobody by itself: `--obligation` registers the
+message's request without markup. A user task attached to the thread instead waits
+for Done; discussing it does not complete it.
 
 Correct a message you or an earlier agent wrote, without adding a turn:
 

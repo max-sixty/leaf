@@ -79,6 +79,11 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def plan_execution(page: Page) -> None:
+    """The execution step with its security qualification in view."""
+    page.locator("#plan-execute").scroll_into_view_if_needed()
+
+
 def captured_source(page: Page) -> None:
     """The gallery's captured source file, with its numbered syntax presentation."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -1769,6 +1774,7 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
+    State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
     State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
     State(
         "accepted-page-search",

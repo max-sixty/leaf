@@ -1374,7 +1374,12 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(1)
     page.evaluate("document.querySelector('main').append(detachedCodeSource)")
     expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator("#source").focus()
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("button", name="Code copied", exact=True)).to_have_count(1)
+    assert page.evaluate("navigator.clipboard.readText()") == "See details"
+    expect(page.locator("#source")).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator("#code-link")).to_be_focused()
     # A link inside the block keeps its Enter from the block's Copy.
@@ -2274,17 +2279,18 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         for line in lines
     )
 
-    # The same host then serves as a widget's shadow stage. Restaging retains a Lit
+    # The same host then serves as a widget's shadow stage. Restaging retains a Solid
     # container and its editor while other nodes leave, and a passage spanning the
     # stage's children reads the stage as the host's section.
     result = page.evaluate(
         """async () => {
-          const {html, render, shadowStage} = await window.__lfWidgetApi();
+          const {html, createView, shadowStage} = await window.__lfWidgetApi();
           const host = document.querySelector('lf-diff');
           const container = document.createElement('div');
           const input = document.createElement('input');
           input.value = 'draft reply';
-          const paint = text => render(html`<p>${text}</p>${input}`, container);
+          const drawing = createView(container, read => html`<p>${() => read().text}</p>${input}`, {text: ""});
+          const paint = text => drawing.update({text});
           paint('Before restaging');
           const old = document.createElement('p');
           old.textContent = 'old reading';
@@ -2632,7 +2638,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
 def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
     browser, serve
 ):
-    """A component that makes its own shadow root, as a Web Awesome control does, moves
+    """A component that makes its own shadow root, as an independent package can, moves
     focus between its own controls with no event reaching any root focus.js listens on.
     Where the user stands is still read once the key's task ends, so every reader of it
     hears the move as the Tab it was."""

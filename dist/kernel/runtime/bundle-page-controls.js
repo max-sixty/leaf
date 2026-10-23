@@ -10,23 +10,23 @@ import {
   pageText
 } from "./bundle-passage-facts.js";
 import {
-  clamp,
-  layoutChanged,
-  repaintPage,
-  shownParts
-} from "./bundle-page-paint.js";
-import {
   afterScript,
+  clamp,
   drawn,
+  layoutChanged,
   nextFrame,
   nextRender,
+  repaintPage,
+  shownParts,
   sizeObserver,
   under,
   upFrom
-} from "./bundle-frame-visibility.js";
+} from "./bundle-page-paint.js";
 import {
-  Z
-} from "./bundle-queued-work.js";
+  createSignal,
+  flush,
+  untrack
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/page-controls.js
 var EMPTY = Object.freeze([]);
@@ -50,7 +50,7 @@ var PAGE_CONTROL_RANK = Object.freeze({
 var GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
 var rows = /* @__PURE__ */ new Map();
 var sequence = 0;
-var revision = Z(0);
+var [revision, setRevision] = createSignal(0, { ownedWrite: true });
 var read = (value) => typeof value === "function" ? value() : value;
 function registerPageControl(row) {
   if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group)
@@ -62,7 +62,7 @@ function registerPageControl(row) {
   pageControlsChanged();
 }
 function pageControls() {
-  revision.value;
+  revision();
   return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true).map((row) => {
     const group = read(row.group);
     if (!GROUPS.includes(group))
@@ -86,7 +86,7 @@ function pageControls() {
 }
 var pageControlsChanged = () => afterScript(tell);
 function tell() {
-  revision.value = revision.peek() + 1;
+  flush(() => setRevision(untrack(revision) + 1));
 }
 
 // runtime/content-layout.js

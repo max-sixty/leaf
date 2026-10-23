@@ -23,14 +23,9 @@
    activation checks the current command. Withdrawal returns both original attributes.
    Preserve the order of that list because the dispatcher and hints walk inward to
    outward while the full reference groups the same scopes for reading. */
+import { createEffect, watchReaction, onCleanup } from "/vendor/browser-runtime.js";
 import { focusRevision } from "../focus.js";
-import {
-  AsyncDirective,
-  PartType,
-  directive,
-  effect,
-  nothing,
-} from "/vendor/browser-runtime.js";
+import { watchOwner } from "../arrivals.js";
 import {
   activeRows,
   ariaShortcuts,
@@ -171,10 +166,9 @@ function releaseButtons(declarations) {
     forgetScopedElement(control);
   }
 }
-// One button's availability, as a tracked effect: a signal its command's predicates read
-// moving marks this button alone for the next frame. The effect stays subscribed to
-// those signals, so it holds the button and its declarations only while it first reads
-// them, and a later run that finds the button gone disposes it.
+// One button's availability is read once per reflection. A native reaction marks
+// only that button dirty when its inputs change, then releases those subscriptions.
+// The next reflection follows its current declarations again.
 const buttonAvailability = new WeakMap();
 // The declarations each button's availability was last read from, so a pass reads a
 // button again when what names it changed.
@@ -193,8 +187,8 @@ function reflectButton(control, candidates) {
   const ref = new WeakRef(control);
   let reading = candidates;
   let failure = null;
-  const dispose = effect(() => {
-    if (reading) {
+  const dispose = watchReaction(
+    () => {
       const read = reading;
       reading = null;
       try {
@@ -210,14 +204,15 @@ function reflectButton(control, candidates) {
       } catch (error) {
         failure = error;
       }
-      return;
-    }
-    const moved = ref.deref();
-    if (moved) {
-      dirtyButtons.add(moved);
-      repaint();
-    } else dispose();
-  });
+    },
+    () => {
+      const moved = ref.deref();
+      if (moved) {
+        dirtyButtons.add(moved);
+        repaint();
+      }
+    },
+  );
   buttonAvailability.set(control, dispose);
   if (failure) throw failure;
 }
@@ -597,48 +592,59 @@ export function keys(where, title, rows, options) {
   return attachScope(where, declaredScope(title, rows, options)).rows;
 }
 
-// Template scopes use the same attachment as `keys`. Each render stands its latest
-// declaration — title, rows, callbacks and availability — in place of the last, owing
-// one reading of this element alone, so an unchanged render costs that one element.
-// Removing the directive withdraws only its own attachment, including when Lit keeps
-// the element. Temporary disconnection restores that declaration on reconnection. Rows
-// that read the element they stand on, as a disclosure's toggle does, come as a function
-// of it, called on each render, since the template declaring them renders that element.
-export const commandsOn = directive(
-  class extends AsyncDirective {
-    #element;
-    #declaration;
-    #scope = null;
-    constructor(part) {
-      super(part);
-      if (part.type !== PartType.ELEMENT)
-        throw new TypeError("commandsOn belongs in a template's element part");
-    }
-    // The values the template passes, which `update` reads.
-    render(title, rows, options) {
-      return nothing;
-    }
-    update(part, [title, rows, options]) {
-      this.#element = part.element;
-      this.#declaration =
-        rows === undefined && isCommandScope(title)
-          ? title.scope
+/** A Solid ref owns one command attachment through DOM and view lifetimes.
+ * A capability accessor publishes changing declarations; null withdraws only this
+ * attachment, preserving independent projected scopes. Static title/rows use the
+ * same declaration contract as commands(). Rows can read their native element.
+ */
+export function commandsOn(title, rows, options) {
+  let element;
+  let attachment;
+  let declaration;
+  let connected = true;
+  let stop;
+  const withdraw = () => {
+    if (element && detachScope(element, attachment)) repaint();
+    attachment = null;
+  };
+  const connect = () => {
+    connected = true;
+    if (declaration) attachment ??= attachScope(element, declaration);
+  };
+  onCleanup(() => {
+    stop?.();
+    withdraw();
+  });
+  return (node) => {
+    element = node;
+    createEffect(
+      () => {
+        const capability =
+          rows === undefined && typeof title === "function" ? title(node) : title;
+        if (capability === null) return null;
+        return rows === undefined && isCommandScope(capability)
+          ? capability.scope
           : declaredScope(
-              title,
-              typeof rows === "function" ? rows(part.element) : rows,
+              capability,
+              typeof rows === "function" ? rows(node) : rows,
               options,
             );
-      if (this.isConnected) this.reconnected();
-      return nothing;
-    }
-    reconnected() {
-      this.#scope = attachScope(this.#element, this.#declaration);
-    }
-    disconnected() {
-      if (detachScope(this.#element, this.#scope)) repaint();
-    }
-  },
-);
+      },
+      (next) => {
+        declaration = next;
+        if (!next) withdraw();
+        else if (connected) attachment = attachScope(element, next);
+      },
+    );
+    stop = watchOwner(node, {
+      connect,
+      disconnect: () => {
+        connected = false;
+        withdraw();
+      },
+    });
+  };
+}
 
 /** Declare a command scope that presentation owners attach to generated controls.
  *
@@ -784,7 +790,7 @@ export function reflectFirstScopes() {
 //
 // An element's reflection reads its rows' liveness, and that reads two kinds of input.
 // What it reads from the semantic root or from a signal is tracked: each reflection runs
-// as a signals effect, and a publication or signal that moves something it read marks
+// as a native reaction, and a publication or signal that moves something it read marks
 // that element alone for the next frame. So a module's own state that a row reads is a
 // signal: a plain variable is read once, and a change to it reaches the element only
 // when something else marks it. What it reads from the document is a mechanical
@@ -798,7 +804,7 @@ const tracked = new WeakMap();
 // Native buttons read the same predicates for their availability. Which button a
 // command names is gathered across every scope on each pass, since a command may name a
 // control outside the element declaring it; each button's availability is its own
-// tracked effect (`reflectButton`), read again when a signal it read moves or a key
+// native reaction (`reflectButton`), read again when a signal it read moves or a key
 // paint reaches it; where the user stands is such a signal (focus.js, `focusRevision`). Every
 // button is read again when a declaration is attached or withdrawn, a command reader
 // registers, and on `paintKeys()`. Contribution projections read the same predicates,
@@ -809,22 +815,21 @@ let availabilityDirty = true;
 function reflectAvailabilityReaders() {
   availabilityDirty = false;
   availabilityTracking?.();
-  let first = true;
   let failure = null;
-  availabilityTracking = effect(() => {
-    if (first) {
-      first = false;
+  availabilityTracking = watchReaction(
+    () => {
       try {
         focusRevision();
         reflectCommandAvailability();
       } catch (error) {
         failure = error;
       }
-      return;
-    }
-    availabilityDirty = true;
-    repaint();
-  });
+    },
+    () => {
+      availabilityDirty = true;
+      repaint();
+    },
+  );
   if (failure) throw failure;
 }
 function reflectButtonsTracked() {
@@ -873,25 +878,24 @@ function reflectButtonsTracked() {
 function reflectTracked(element) {
   tracked.get(element)?.();
   const ref = new WeakRef(element);
-  let first = true;
   let failure = null;
-  const dispose = effect(() => {
-    if (first) {
-      first = false;
+  const dispose = watchReaction(
+    () => {
       try {
         focusRevision();
         reflectElementShortcuts(ref.deref());
       } catch (error) {
         failure = error;
       }
-      return;
-    }
-    const moved = ref.deref();
-    if (moved) {
-      dirtyElements.add(moved);
-      repaint();
-    } else dispose();
-  });
+    },
+    () => {
+      const moved = ref.deref();
+      if (moved) {
+        dirtyElements.add(moved);
+        repaint();
+      }
+    },
+  );
   tracked.set(element, dispose);
   if (failure) throw failure;
 }

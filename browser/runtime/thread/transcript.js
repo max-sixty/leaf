@@ -31,14 +31,14 @@
      open. Completed progress disappears even if the reader had opened it. */
 import { setChildren } from "../dom-children.js";
 import { focusDestination, focused } from "../focus.js";
-import { html, render, nothing } from "/vendor/browser-runtime.js";
+import { html, createView, Show } from "/vendor/browser-runtime.js";
 import { MessageView } from "./messages.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress, workingPlace } from "./summary-ranges.js";
 import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
-import { iconTemplate } from "../icons.js";
+import { iconElement } from "../icons.js";
 
 // A progress run's face: its latest step, drawn as a message is, with who wrote it and
 // when at its head, but dimmed, and under a passing sheen while it is the working
@@ -49,24 +49,37 @@ import { iconTemplate } from "../icons.js";
 // class, since it is no message: a message head's places (a margin's sticky head, held
 // news) skip it. `controls` stand at its head's end, as a reply's progress disclosure
 // stands at its own.
-function workingView(working, controls = nothing) {
+function workingView(read) {
+  const working = () => read().working;
+  const optional = (when, template) =>
+    Show({
+      get when() {
+        return when();
+      },
+      children: (_value) => template(),
+    });
   return html`<div class="lf-thread-working-head">
-      ${working.who ? html`<b>${working.who}</b>` : nothing}
-      ${
-        working.timestamp || working.condition
-          ? html`<span class="lf-msg-meta"
-              >${
-                working.timestamp
-                  ? html`<time datetime=${working.timestamp}>${working.age}</time>`
-                  : nothing
-              }
-              ${working.condition}</span
-            >`
-          : nothing
-      }
-      ${controls}
+      ${optional(
+        () => working().who,
+        () => html`<b>${() => working().who}</b>`,
+      )}
+      ${optional(
+        () => working().timestamp || working().condition,
+        () =>
+          html`<span class="lf-msg-meta">
+            ${optional(
+              () => working().timestamp,
+              () =>
+                html`<time datetime=${() => working().timestamp}
+                  >${() => working().age}</time
+                >`,
+            )}
+            ${() => working().condition}</span
+          >`,
+      )}
+      ${() => read().controls}
     </div>
-    <div class="lf-thread-working-words">${working.words}</div>`;
+    <div class="lf-thread-working-words">${() => working().words}</div>`;
 }
 
 // The face of a run the work in hand does not speak through: its latest step, still.
@@ -103,6 +116,9 @@ export class Transcript {
   #checkpoints = new Map();
   #expandedSummaries = new Set();
   #id = ++nextTranscriptId;
+  #faceDrawings = new WeakMap();
+  #toggles = new Map();
+  #usedToggles = new Set();
   // Counts the names this transcript gives: a covered message's id, a fold's anchors.
   #named = 0;
 
@@ -206,6 +222,7 @@ export class Transcript {
    */
   present(model, { arrived = false, appends = false, notice = null } = {}) {
     const prior = this.#model;
+    this.#usedToggles.clear();
     const standing = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
     // Only a summary that was not present before can swallow what the user
@@ -293,7 +310,7 @@ export class Transcript {
         );
       view.present(message, {
         arrived,
-        headerControls: notice && message === lead ? notice : nothing,
+        headerControls: notice && message === lead ? notice : null,
       });
       // A reply still streaming at the thread's end grows at its foot as its words
       // come, as the working message does with each step (shift_watch.js).
@@ -325,7 +342,13 @@ export class Transcript {
     const facing = new Map();
     const face = (node, reading, controls) => {
       keeps(node, "data-lf-live", reading.live ? "" : null);
-      render(workingView(reading, controls), node);
+      const props = { working: reading, controls: controls ?? null };
+      let drawing = this.#faceDrawings.get(node);
+      if (drawing) drawing.update(props);
+      else {
+        drawing = createView(node, workingView, props);
+        this.#faceDrawings.set(node, drawing);
+      }
       transcript.push(node);
       return node;
     };
@@ -355,7 +378,7 @@ export class Transcript {
         face(
           node,
           hosts ? model.working : stepOf(range.messages.at(-1)),
-          kept ? this.#summaryToggle([range], true) : nothing,
+          kept ? this.#summaryToggle([range], true) : null,
         );
         facing.set(range.messages.at(-1).key, node);
         if (hosts) working = node;
@@ -386,6 +409,11 @@ export class Transcript {
     }
     keeps(this.node, "data-lf-reflow", appends ? "append" : null);
     setChildren(this.node, transcript);
+    for (const [key, toggle] of this.#toggles)
+      if (!this.#usedToggles.has(key)) {
+        toggle.drawing.dispose();
+        this.#toggles.delete(key);
+      }
     if (!standingToggle || standingToggle.isConnected) return null;
     /** @type {(id: string) => HTMLElement | null} */
     const toggleFor = (id) =>
@@ -424,42 +452,66 @@ export class Transcript {
     return { node, foot };
   }
 
-  #paintCheckpoint({ node }, range, covered) {
+  #paintCheckpoint(checkpoint, range, covered) {
+    const { node } = checkpoint;
     const progress = Boolean(range.summary.pending);
     keeps(node, "data-expanded", range.expanded);
     keepsHidden(node, progress && !range.expanded);
     keeps(node, "aria-owns", covered.map(({ id }) => id).join(" "));
-    render(
-      html`${
-        progress
-          ? nothing
-          : html`<div class="lf-summary-checkpoint">
-              <div class="lf-summary-header">
-                <div class="lf-summary-label">${range.summary.label}</div>
-                ${range.forced ? nothing : this.#summaryToggle([range])}
-              </div>
-              ${
-                range.summary.text
-                  ? html`<div
+    const props = {
+      range,
+      progress,
+      toggle: !progress && !range.forced ? this.#summaryToggle([range]) : null,
+    };
+    if (checkpoint.drawing) checkpoint.drawing.update(props);
+    else
+      checkpoint.drawing = createView(
+        node,
+        (read) => {
+          const optional = (when, template) =>
+            Show({
+              get when() {
+                return when();
+              },
+              children: (_value) => template(),
+            });
+          return html`${optional(
+            () => !read().progress,
+            () =>
+              html`<div class="lf-summary-checkpoint">
+                <div class="lf-summary-header">
+                  <div class="lf-summary-label">
+                    ${() => read().range.summary.label}
+                  </div>
+                  ${() => read().toggle}
+                </div>
+                ${optional(
+                  () => read().range.summary.text,
+                  () =>
+                    html`<div
                       class="lf-summary-text"
-                      .innerHTML=${renderMarkdown(range.summary.text)}
-                    ></div>`
-                  : nothing
-              }
-              ${
-                range.forced
-                  ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-                  : nothing
-              }
-            </div>`
-      }
-      ${
-        progress && range.forced
-          ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-          : nothing
-      }`,
-      node,
-    );
+                      prop:innerHTML=${() => renderMarkdown(read().range.summary.text)}
+                    ></div>`,
+                )}
+                ${optional(
+                  () => read().range.forced,
+                  () =>
+                    html`<div class="lf-summary-required">
+                      ${() => read().range.requiredText}
+                    </div>`,
+                )}
+              </div>`,
+          )}
+          ${optional(
+            () => read().progress && read().range.forced,
+            () =>
+              html`<div class="lf-summary-required">
+                ${() => read().range.requiredText}
+              </div>`,
+          )}`;
+        },
+        props,
+      );
   }
 
   #summaryToggle(ranges, progress = false) {
@@ -468,22 +520,42 @@ export class Transcript {
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
     const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
-    return html`<button
-      type="button"
-      class="lf-thread-disclosure lf-summary-expand ${
-        progress ? "lf-progress-expand" : ""
-      }"
-      data-summary-toggle=${ids[0]}
-      aria-expanded=${String(expanded)}
-      aria-controls=${ranges
+    const key = `${progress}/${ids[0]}`;
+    this.#usedToggles.add(key);
+    const props = { ids, expanded, label, subject, progress };
+    let toggle = this.#toggles.get(key);
+    if (toggle) toggle.drawing.update(props);
+    else {
+      const node = document.createElement("button");
+      node.type = "button";
+      node.className = `lf-thread-disclosure lf-summary-expand${progress ? " lf-progress-expand" : ""}`;
+      node.addEventListener("click", () =>
+        this.#setSummaryExpanded(toggle.props.ids, !toggle.props.expanded),
+      );
+      const drawing = createView(
+        node,
+        (read) =>
+          html`${iconElement("down", "lf-disclosure-icon")}
+            <span data-lf-room=${() => `Show ${read().subject}`}
+              ><span>${() => read().label}</span></span
+            >`,
+        props,
+      );
+      toggle = { node, drawing, props };
+      this.#toggles.set(key, toggle);
+    }
+    toggle.props = props;
+    keeps(toggle.node, "data-summary-toggle", ids[0]);
+    keeps(toggle.node, "aria-expanded", String(expanded));
+    keeps(
+      toggle.node,
+      "aria-controls",
+      ranges
         .flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id))
         .filter(Boolean)
-        .join(" ")}
-      @click=${() => this.#setSummaryExpanded(ids, !expanded)}
-    >
-      ${iconTemplate("down", "lf-disclosure-icon")}
-      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
-    </button>`;
+        .join(" "),
+    );
+    return toggle.node;
   }
 
   #setSummaryExpanded(ids, expanded) {
@@ -516,5 +588,15 @@ export class Transcript {
     this.#stopWorkingExposure?.();
     this.#stopWorkingExposure = null;
     for (const view of this.#messages.values()) view.retire();
+    for (const node of [...this.#faces.values(), this.#working]) {
+      this.#faceDrawings.get(node)?.dispose();
+      this.#faceDrawings.delete(node);
+    }
+    for (const checkpoint of this.#checkpoints.values()) {
+      checkpoint.drawing?.dispose();
+      checkpoint.drawing = null;
+    }
+    for (const toggle of this.#toggles.values()) toggle.drawing.dispose();
+    this.#toggles.clear();
   }
 }

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
-import { LeafElement, nothing, html } from "/runtime/widget-api.js";
+import { LeafElement, createView, html } from "/runtime/widget-api.js";
 
 let fixtureSequence = 0;
 async function scene() {
@@ -48,7 +48,7 @@ async function feed(
     class extends LeafElement {
       render() {
         this.snapshot = this.data("rows");
-        return nothing;
+        return;
       }
       updated(changed) {
         super.updated(changed);
@@ -96,7 +96,7 @@ test("a widget reads its own binding, captured at its first read", async () => {
   assert.deepEqual(unbound, [null]);
 });
 
-test("a Lit renderer follows conditional clock reads and its owner lifetime", async () => {
+test("a renderer follows conditional clock reads and its owner lifetime", async () => {
   await scene();
   const { clockValue, tickClock } = await import("/runtime/presence.js");
   let clock = 0;
@@ -105,10 +105,11 @@ test("a Lit renderer follows conditional clock reads and its owner lifetime", as
   customElements.define(
     "leaf-conditional-clock",
     class extends LeafElement {
+      #drawing;
       render() {
         calls += 1;
         if (trackClock) clockValue(() => clock);
-        return html`<span>Clock</span>`;
+        this.#drawing ??= createView(this, () => html`<span>Clock</span>`, {});
       }
     },
   );
@@ -136,26 +137,34 @@ test("a Lit renderer follows conditional clock reads and its owner lifetime", as
     assert.equal(calls, 2, "a mechanical redraw establishes its current dependencies");
     await tick();
     assert.equal(calls, 3);
-    // Native connection callbacks redraw on a move; Lit retains the rendered nodes.
+    // A same-turn move retains the view; no redraw is required to retain its nodes.
     const content = owner.querySelector("span");
     owner.remove();
     document.body.append(owner);
     await settle();
-    assert.equal(calls, 4);
+    const afterMove = calls;
     assert.equal(owner.querySelector("span"), content);
     owner.remove();
     await settle();
     await tick();
-    assert.equal(calls, 4, "a disconnected element does not repaint");
+    assert.equal(calls, afterMove, "a disconnected element does not repaint");
     document.body.append(owner);
     await settle();
-    assert.equal(calls, 5, "reconnection draws the reading that aged while away");
+    assert.equal(
+      calls,
+      afterMove + 1,
+      "reconnection draws the reading that aged while away",
+    );
     trackClock = false;
     owner.requestUpdate();
     owner.performUpdate();
-    assert.equal(calls, 6);
+    assert.equal(calls, afterMove + 2);
     await tick();
-    assert.equal(calls, 6, "a conditional read that ends releases its dependency");
+    assert.equal(
+      calls,
+      afterMove + 2,
+      "a conditional read that ends releases its dependency",
+    );
   } finally {
     owner.remove();
   }
@@ -329,7 +338,7 @@ function outputScene(draw) {
     class extends LeafElement {
       render() {
         this.snapshot = this.data("rows");
-        return nothing;
+        return;
       }
       updated(changed) {
         super.updated(changed);
@@ -430,7 +439,7 @@ test("source readiness includes asynchronous LeafElement output consumers", asyn
     class extends LeafElement {
       render() {
         this.snapshot = this.data("rows");
-        return nothing;
+        return;
       }
       updated(changed) {
         super.updated(changed);

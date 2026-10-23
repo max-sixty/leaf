@@ -38,44 +38,42 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   PRESSABLE,
+  PRESSES,
+  WORKS,
   clippedContents,
   headerCuts,
   hostIn,
   inUi,
+  keeps,
   layoutChanged,
+  layoutPx,
+  nativeLayerHolding,
   nearObserver,
   nearWindow,
   overlaps,
   registry,
+  renderedParent,
   scrollContainer,
   scrollsContent,
+  shadowHost,
   shownBox,
   shownParts,
+  sizeObserver,
   skipped,
   tagsDeclaring,
   uiInside,
+  under,
+  upFrom,
   watchArrivals
 } from "./bundle-page-paint.js";
 import {
-  PRESSES,
-  WORKS,
-  keeps,
-  layoutPx,
-  move,
-  nativeLayerHolding,
-  renderedParent,
-  shadowHost,
-  sizeObserver,
-  under,
-  upFrom
-} from "./bundle-frame-visibility.js";
-import {
-  documentChanged
-} from "./bundle-semantic-state.js";
+  move
+} from "./bundle-dom-move.js";
 import {
   anchorKey,
+  documentChanged,
   isElementName
-} from "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/chrome.js
 var chromeRoot = document.createElement("div");

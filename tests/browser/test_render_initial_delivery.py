@@ -15,7 +15,7 @@ from leaf.revision_artifact import Resource
 from leaf.revision_delivery import Delivery, compose_document
 
 
-def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, serve):
+def test_initial_solid_drawings_keep_the_readers_nodes_through_upgrade(browser, serve):
     """Initial and live drawing share nodes, including restored activity rows.
 
     Generated controls stay hidden until upgrade. The reader can already focus an
@@ -62,7 +62,9 @@ def test_initial_lit_drawings_keep_the_readers_nodes_through_upgrade(browser, se
         expect(page.locator("#feed .lf-activity-news")).to_have_attribute(
             "aria-expanded", "true"
         )
-        assert page.evaluate("globalThis.litHtmlVersions.length") == 1
+        assert page.evaluate(
+            "async () => (await import('/vendor/solid.js')).html === document.documentElement.lfInitial.solid.html"
+        )
         # The adopted drawing responds to both native and live controls.
         summary = page.locator("#contents summary")
         summary.press("Enter")

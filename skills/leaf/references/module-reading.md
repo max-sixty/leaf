@@ -136,7 +136,7 @@ on a generated image or link, so it resolves on published pages too.
 
 ### Icons
 
-`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons.
+`iconElement(name, className)` draws a native SVG from Leaf's icon vocabulary.
 For a thread control, put `iconElement("comment", "lf-action-icon")` in an
 `lf-icon-action` button, which gives the label.
 
@@ -255,7 +255,7 @@ words. The widget only words these. A widget restoring something from `tabStore`
 it with the history once `phase` is `ready`.
 
 A widget an agent reports on reads reports with `reportSequence(this)`. Its
-`LeafElement.render()` first checks `reportsReady(this)` and returns `noChange`
+`LeafElement.render()` first checks `reportsReady(this)` and returns without changing its view
 while it is false. Each entry has `id`, `target`, `source`, `action`, `detail`, `text`,
 `ts` and `disposition`: `effective`, `outranked` by a newer report on the same unit and
 verb, or `settled` by a stamped version. Pass `{kind: "thread", id}` for a Thread's

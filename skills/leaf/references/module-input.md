@@ -31,10 +31,13 @@ const actions = commandScope("In a classifier", [
 commands(classifier, actions);
 ```
 
-In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
-bound on, takes the current rows on each render, and detaches when the element goes.
-Where the rows need the element, pass a function of it, such as
+In a Solid template, `ref=${commandsOn(title, rows, options)}` attaches a scope
+for the view's lifetime and restores it after a DOM reconnection. Where rows need
+the native element, pass a function of it, such as
 `commandsOn(title, (summary) => [{ keys: () => DISCLOSE(summary), … }])`.
+For changing declarations use `commandsOn(() => props().scope)`, where `scope`
+is a `commandScope()` capability or null; withdrawal leaves independently projected
+scopes intact.
 
 ### Command rows
 
@@ -61,7 +64,7 @@ it lacks. `ready` is described in `module-authoring.md`, "Startup and presentati
 in "Inline shortcut hints".
 
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
-a widget's state or the threads. For other state it reads, hold the value in a `signal`
+a widget's state or the threads. For other state it reads, hold the value in a `createSignal`
 or call `paintKeys()` after changing it, since Leaf can't see a plain variable change.
 
 ### How scopes compose

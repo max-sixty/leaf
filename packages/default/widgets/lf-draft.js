@@ -49,11 +49,12 @@ import {
   commandScope,
   motion,
   returnDuration,
-  iconTemplate,
+  iconElement,
   html,
-  render,
+  createView,
+  afterRender,
+  Show,
   offered,
-  nothing,
   LeafElement,
   offer,
   TEXT_FIELD,
@@ -119,6 +120,7 @@ customElements.define(
     #sending = false;
     #failed = false;
     #tools = null;
+    #toolsDrawing = null;
     #copy = null;
     #commandScope = null;
     #resumeProjection = null;
@@ -311,28 +313,38 @@ customElements.define(
       if (!this.#tools) return;
       const editing = Boolean(this.#editor);
       if (this.#editor) this.#editor.readOnly = !this.#available();
-      render(
-        html`<span ${offered("lf-draft-status")} role="status"
-            >${this.#failed ? "Save failed. The edit is kept." : ""}</span
-          >
-          ${ACTIONS.map(([key, title, icon]) => {
-            const retry = key === "save" && this.#failed;
-            const name = retry ? "Retry" : title;
-            return html`<button
-              ${offered("lf-btn lf-quiet-action lf-draft-action")}
-              data-lf-draft-action=${key}
-              ?hidden=${key === "edit" ? editing : !editing}
-              aria-expanded=${key === "edit" ? String(editing) : nothing}
-              aria-label=${name}
-              title=${name}
-            >
-              ${iconTemplate(retry ? "retry" : icon, "lf-draft-icon")}
-            </button>`;
-          })}
-          ${this.#copy}`,
-        this.#tools,
-      );
-      paintKeys();
+      const props = { editing, failed: this.#failed };
+      if (!this.#toolsDrawing) {
+        this.#toolsDrawing = createView(
+          this.#tools,
+          (state) =>
+            html` <span ref=${offered("lf-draft-status")} role="status"
+                >${() => (state().failed ? "Save failed. The edit is kept." : "")}</span
+              >
+              ${ACTIONS.map(([key, title, icon]) => {
+                const name = () => (key === "save" && state().failed ? "Retry" : title);
+                return html`<button
+                  ref=${offered("lf-btn lf-quiet-action lf-draft-action")}
+                  data-lf-draft-action=${key}
+                  hidden=${() => (key === "edit" ? state().editing : !state().editing)}
+                  aria-expanded=${() => (key === "edit" ? String(state().editing) : undefined)}
+                  aria-label=${name}
+                  title=${name}
+                >
+                  ${Show({
+                    get when() {
+                      return key === "save" && state().failed ? "retry" : icon;
+                    },
+                    keyed: true,
+                    children: (icon) => iconElement(icon, "lf-draft-icon"),
+                  })}
+                </button>`;
+              })}
+              ${this.#copy}`,
+          props,
+        );
+      } else this.#toolsDrawing.update(props);
+      afterRender(paintKeys);
     }
 
     #available() {
@@ -472,14 +484,14 @@ customElements.define(
     render() {
       const { state, actions } = this.reading;
       paintMarkdown(this.#body, state.edit.value);
-      if (quoted(this)) return nothing;
+      if (quoted(this)) return;
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Discard, without briefly publishing the resting Edit control.
       this.#recoverEdit();
       this.#paintTools();
       if (this.#editor && !this.#resumeProjection && actions.edit.available)
         this.#resumeProjection = this.controller.defer();
-      return nothing;
+      return;
     }
   },
 );

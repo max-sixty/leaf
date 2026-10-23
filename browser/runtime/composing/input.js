@@ -59,15 +59,9 @@ import {
 } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
-import { iconElement, iconTemplate } from "../icons.js";
+import { iconElement } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
-import {
-  LitElement,
-  html,
-  render as renderHint,
-  effect,
-  untracked,
-} from "/vendor/browser-runtime.js";
+import { html, createView, Show, For, subscribe } from "/vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
@@ -91,10 +85,8 @@ let thumbnailVersion = 0;
 // drawing also takes back its last stroke here: the route a pointer or a finger has to
 // that, wherever the composer stands.
 /** @typedef {AttachedMediaShelf} AttachedMediaShelfElement For its tag (`runtime-globals.d.ts`). */
-class AttachedMediaShelf extends LitElement {
-  static properties = {
-    model: { attribute: false },
-  };
+class AttachedMediaShelf extends HTMLElement {
+  #drawing = null;
 
   constructor() {
     super();
@@ -125,101 +117,102 @@ class AttachedMediaShelf extends LitElement {
     return this.pictured.node;
   }
 
-  createRenderRoot() {
-    return this;
-  }
-
   present(model, actions) {
     this.model = model;
     this.actions = actions;
-    this.performUpdate();
+    const props = {
+      ...model,
+      picture: model.drawing ? this.picture(model.drawing) : null,
+    };
+    if (!this.#drawing)
+      this.#drawing = createView(this, (state) => this.#view(state), props);
+    else this.#drawing.update(props);
+    keepsHidden(this, !model.drawing && model.media.length === 0);
   }
 
-  updated() {
-    keepsHidden(this, !this.model.drawing && this.model.media.length === 0);
-  }
-
-  render() {
-    const { drawing, media } = this.model;
-    const strokes = drawing?.strokes.length ?? 0;
-    return [
-      drawing
-        ? html`
-            <span class="lf-composer-media-item lf-composer-drawing">
-              <button
-                type="button"
-                class="lf-media-open lf-composer-media-open"
-                data-lf-media-canvas
-                aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
-                title="Inspect drawing"
-                @click=${(event) => {
-                  const canvas = this.picture(drawing);
-                  keeps(
-                    event.currentTarget,
-                    "data-lf-media-alt",
-                    canvas.dataset.lfDrawingContext === "ready"
-                      ? "Drawing over its frozen page context"
-                      : "Drawing",
-                  );
-                  keeps(
-                    event.currentTarget,
-                    "data-lf-media-caption",
-                    canvas.dataset.lfDrawingContext === "ready"
-                      ? ""
-                      : canvas.dataset.lfDrawingContext === "pending"
-                        ? "Drawing only; page preview was not ready when opened."
-                        : "Drawing only; page preview unavailable.",
-                  );
-                }}
-              >
-                ${this.picture(drawing)}
-              </button>
-              <button
-                type="button"
-                class="lf-corner-mark lf-composer-drawing-undo"
-                aria-label="Undo last stroke"
-                title="Undo last stroke"
-                @mousedown=${(event) => event.preventDefault()}
-                @click=${() => this.actions.undoStroke()}
-              >
-                ${this.undoIcon}
-              </button>
-              <button
-                type="button"
-                class="lf-corner-mark"
-                aria-label="Remove drawing"
-                title="Remove drawing"
-                @mousedown=${(event) => event.preventDefault()}
-                @click=${() => this.actions.removeDrawing()}
-              >
-                ${this.removeIcon}
-              </button>
-            </span>
-          `
-        : null,
-      media.map(
-        ({ index, url }) => html`
-          <span class="lf-composer-media-item">
-            <button
-              type="button"
-              class="lf-media-open lf-composer-media-open"
-              data-lf-media-url=${url}
-              aria-label=${`View attached image ${index + 1}`}
-            >
-              <img src=${url} alt="" />
-            </button>
-            <button
-              type="button"
-              class="lf-corner-mark lf-composer-media-remove"
-              aria-label=${`Remove attached image ${index + 1}`}
-              @click=${() => this.actions.removeMedia(index)}
-            >
-              ${iconTemplate("cross", "lf-corner-mark-icon")}
-            </button>
-          </span>
-        `,
-      ),
-    ];
+  #view(state) {
+    return html`${Show({
+      get when() {
+        return state().drawing;
+      },
+      children: (drawing) => {
+        const strokes = () => drawing().strokes.length;
+        return html`<span class="lf-composer-media-item lf-composer-drawing">
+          <button
+            type="button"
+            class="lf-media-open lf-composer-media-open"
+            data-lf-media-canvas
+            aria-label=${() => `Inspect drawing, ${strokes()} ${strokes() === 1 ? "stroke" : "strokes"}`}
+            title="Inspect drawing"
+            onClick=${(event) => {
+              const canvas = this.picture(this.model.drawing);
+              keeps(
+                event.currentTarget,
+                "data-lf-media-alt",
+                canvas.dataset.lfDrawingContext === "ready"
+                  ? "Drawing over its frozen page context"
+                  : "Drawing",
+              );
+              keeps(
+                event.currentTarget,
+                "data-lf-media-caption",
+                canvas.dataset.lfDrawingContext === "ready"
+                  ? ""
+                  : canvas.dataset.lfDrawingContext === "pending"
+                    ? "Drawing only; page preview was not ready when opened."
+                    : "Drawing only; page preview unavailable.",
+              );
+            }}
+          >
+            ${() => state().picture}
+          </button>
+          <button
+            type="button"
+            class="lf-corner-mark lf-composer-drawing-undo"
+            aria-label="Undo last stroke"
+            title="Undo last stroke"
+            onMouseDown=${(event) => event.preventDefault()}
+            onClick=${() => this.actions.undoStroke()}
+          >
+            ${this.undoIcon}
+          </button>
+          <button
+            type="button"
+            class="lf-corner-mark"
+            aria-label="Remove drawing"
+            title="Remove drawing"
+            onMouseDown=${(event) => event.preventDefault()}
+            onClick=${() => this.actions.removeDrawing()}
+          >
+            ${this.removeIcon}
+          </button>
+        </span>`;
+      },
+    })}${For({
+      get each() {
+        return state().media;
+      },
+      keyed: (item) => item.index,
+      children: (item) =>
+        html`<span class="lf-composer-media-item">
+          <button
+            type="button"
+            class="lf-media-open lf-composer-media-open"
+            data-lf-media-url=${() => item().url}
+            aria-label=${() => `View attached image ${item().index + 1}`}
+          >
+            <img src=${() => item().url} alt="" />
+          </button>
+          <button
+            type="button"
+            class="lf-corner-mark lf-composer-media-remove"
+            aria-label=${() => `Remove attached image ${item().index + 1}`}
+            onClick=${() => this.actions.removeMedia(item().index)}
+          >
+            ${iconElement("cross", "lf-corner-mark-icon")}
+          </button>
+        </span>`,
+    })}`;
   }
 }
 
@@ -281,12 +274,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
   // A box an error is about, or was about, paints its cover again when the errors change.
   /** @type {ReturnType<typeof errorsReading>} */
   let errorsPainted = [];
-  effect(() => {
-    const errors = errorsReading();
+  subscribe(errorsReading, (errors) => {
     for (const { subject } of [...errorsPainted, ...errors])
       if (inputPaints.has(subject)) stale.add(subject);
     errorsPainted = errors;
-    untracked(repaint);
+    repaint();
   });
   // `sends` states the box's own submit action. Composers send by default; a caller whose
   // action differs, such as adding an option, supplies the matching icon.
@@ -297,6 +289,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // A structured visual hint can mark the exact words its owner observes. It
       // shares the existing placeholder slot and send key; null keeps the plain hint.
       hintParts = null,
+      hintView = null,
       accessibleName = null,
       save,
       send,
@@ -338,6 +331,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     visibleHint.className = "lf-compose-placeholder";
     visibleHint.slot = "placeholder";
     const hintLabel = document.createElement("span");
+    const hintDrawing = hintView
+      ? createView(hintLabel, hintView, { parts: null, word: "" })
+      : null;
     const hintKey = document.createElement("kbd");
     hintKey.className = "lf-key-badge";
     visibleHint.append(hintLabel, hintKey);
@@ -535,9 +531,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const placeholder = suffix && !status ? `${word} ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       const parts = status ? null : hintParts?.();
-      if (hintParts) renderHint(parts ?? word, hintLabel);
+      hintDrawing?.update({ parts, word });
       if ((suffix && !status) || (parts !== null && parts !== undefined)) {
-        if (!hintParts) keepsText(hintLabel, word);
+        if (!hintDrawing) keepsText(hintLabel, word);
         keepsText(hintKey, suffix);
         if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();

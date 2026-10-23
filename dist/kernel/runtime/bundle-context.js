@@ -15,8 +15,7 @@ import {
   runtimeModule,
   runtimeResource,
   shareUrl
-} from "./bundle-semantic-state.js";
-import "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 import "./bundle-__export.js";
 export {
   DELIVERY,

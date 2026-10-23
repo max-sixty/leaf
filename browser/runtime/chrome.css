@@ -883,7 +883,7 @@
     width: 100cqi;
     font: 13px / 1.45 var(--sans);
   }
-  .lf-fp-copy-item wa-icon {
+  .lf-fp-copy-item .lf-action-icon {
     color: var(--lf-fp-muted);
     font-size: 13px;
   }
@@ -2293,6 +2293,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
+  }
+  .lf-page-search-box > input {
+    flex: 1 1 4em;
+  }
+  .lf-page-search-status > span {
+    min-inline-size: max(100%, max-content);
+  }
+  .lf-page-search-status {
+    flex-shrink: 1;
+    min-inline-size: 0;
   }
   .lf-page-search-step {
     flex: none;

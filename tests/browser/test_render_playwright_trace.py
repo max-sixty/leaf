@@ -601,9 +601,7 @@ def test_trace_initial_moment_uses_capture_order_and_skips_unavailable_targets(
     data_model.cmd_data_set(serve.page_dir, "review-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
-    expect(widget.get_by_role("radio", name="Stream 2", exact=True)).to_have_attribute(
-        "aria-checked", "true"
-    )
+    expect(widget.get_by_role("radio", name="Stream 2", exact=True)).to_be_checked()
     expect(
         widget.locator(
             ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
@@ -624,9 +622,7 @@ def test_trace_initial_moment_uses_capture_order_and_skips_unavailable_targets(
     )
     # A manual scope choice is retained instead of reopening the authored Moment.
     widget.get_by_role("radio", name="Stream 1", exact=True).click()
-    expect(widget.get_by_role("radio", name="Stream 1", exact=True)).to_have_attribute(
-        "aria-checked", "true"
-    )
+    expect(widget.get_by_role("radio", name="Stream 1", exact=True)).to_be_checked()
     expect(widget.locator(".lf-trace-position")).to_have_text("No recorded points")
     widget.get_by_role("radio", name="Stream 2", exact=True).click()
     expect(
@@ -1297,7 +1293,7 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     for route in held:
         route.continue_()
     wait_until_ready(user)
-    user.locator("lf-trace-compare wa-radio").filter(has_text="After").click()
+    user.get_by_role("radio", name="After", exact=True).click()
     wrapper = user.locator("figure:has(#paired-after)")
     expect(wrapper.locator("figcaption")).to_be_visible()
     expect(user.locator("#paired-after")).to_be_visible()
@@ -1308,7 +1304,7 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     wait_until_ready(user)
     expect(wrapper.locator("figcaption")).to_be_visible()
     expect(user.locator("#paired-before")).to_be_hidden()
-    user.locator("lf-trace-compare wa-radio").filter(has_text="Before").click()
+    user.get_by_role("radio", name="Before", exact=True).click()
     expect(wrapper).to_be_hidden()
 
 

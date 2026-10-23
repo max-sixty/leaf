@@ -105,12 +105,19 @@ import {
   verbatimOwnerIdentity
 } from "./bundle-passage-facts.js";
 import {
+  CARET_KEYS,
   PAGE_PAINT_ATTRIBUTE,
   PRESS,
+  TEXT_FIELD,
   admitResponse,
   adoptRegistry,
+  afterScript,
   announce,
+  atLayoutPrecision,
   bindings,
+  cancelRender,
+  caretAtKey,
+  carriedFrom,
   checked,
   clampedRow,
   clippedContents,
@@ -119,25 +126,38 @@ import {
   cycledRow,
   declarationFor,
   declareCommandReadiness,
+  deepFocus,
   descriptionOf,
+  drawn,
   el,
   elementDeclarations,
   elementsDeclaring,
+  focusDestination,
+  focused,
   growthAfterIsSeen,
   growthIsSeen,
   headerInset,
+  holdFocus,
+  holdStanding,
   holdStatus,
   iconElement,
-  iconTemplate,
   inUi,
   inWindowChrome,
+  inputCount,
+  keeps,
+  keepsHidden,
   keys,
   landingBand,
+  layoutPx,
   loadShadowRules,
   measure,
   nearestScrollBy,
+  nextFrame,
+  nextRender,
   notice,
   offer,
+  onPress,
+  onStanding,
   pagePresented,
   paintKeys,
   passErrorsAt,
@@ -149,22 +169,36 @@ import {
   projectCommandScope,
   raiseError,
   randomId,
+  readCaret,
+  recentPlaceInput,
   registry,
+  renderedOrder,
+  renderedParent,
+  renderedUnder,
   repaint,
   reportPageError,
   revealLayer,
+  ringBox,
   sameLayer,
   seenRect,
+  selectsAll,
   shownBox,
   shownRect,
   shownWindow,
+  sizeObserver,
   skipped,
+  standingIn,
+  standingNodes,
+  standsOn,
   stuckBox,
   tagsDeclaring,
+  takesLetters,
   titleOf,
   tokenEntry,
   touchPresses,
+  under,
   union,
+  upFrom,
   userScrollport,
   visibleBand,
   watchArrivals,
@@ -173,80 +207,45 @@ import {
   whenNone
 } from "./bundle-page-paint.js";
 import {
-  CARET_KEYS,
-  TEXT_FIELD,
-  afterScript,
-  atLayoutPrecision,
-  cancelRender,
-  caretAtKey,
-  carriedFrom,
-  deepFocus,
-  drawn,
-  focusDestination,
-  focused,
-  holdFocus,
-  holdStanding,
-  inputCount,
-  keeps,
-  keepsHidden,
-  layoutPx,
-  move,
-  nextFrame,
-  nextRender,
-  onPress,
-  onStanding,
-  readCaret,
-  recentPlaceInput,
-  renderedOrder,
-  renderedParent,
-  renderedUnder,
-  ringBox,
-  selectsAll,
-  sizeObserver,
-  standingIn,
-  standingNodes,
-  standsOn,
-  takesLetters,
-  under,
-  upFrom
-} from "./bundle-frame-visibility.js";
+  move
+} from "./bundle-dom-move.js";
 import {
+  For,
+  PENDING,
+  Show,
+  afterRender,
   applicationState,
   attachApplicationPresentation,
+  bindQueuedWork,
+  createSignal,
+  createView,
+  default as default2,
+  editable,
+  flush,
+  isElementName,
+  isReaction,
+  lastMovedAt,
+  messageKey,
+  moved,
   offlineInteractive,
   pageClaimed,
+  pendingForParent,
   readApplication,
   readPart,
   runtime,
   runtimeModule,
   runtimeResource,
-  whenApplicationPresented,
-  whenDocumentPresented,
-  whenWidgetsPresented
-} from "./bundle-semantic-state.js";
-import {
-  PENDING,
-  Z,
-  bindQueuedWork,
-  editable,
-  html,
-  isElementName,
-  isReaction,
-  keyed,
-  lastMovedAt,
-  messageKey,
-  moved,
-  nothing,
-  pendingForParent,
-  render,
-  repeat,
   sameAnchor,
   seatRoot,
   share,
   threadKey,
   threadNames,
-  turns
-} from "./bundle-queued-work.js";
+  turns,
+  untrack,
+  whenApplicationPresented,
+  whenDocumentPresented,
+  whenWidgetsPresented
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/user-intent.js
 var passed = /* @__PURE__ */ new WeakMap();
@@ -1587,7 +1586,10 @@ function prepareCodeBlock(pre, source, noun) {
         if (event.detail && !pressedPath.has(copy)) {
           event.preventDefault();
           event.stopImmediatePropagation();
-        } else copy.value = source();
+        } else {
+          const value = source();
+          if (copy.value !== value) copy.value = value;
+        }
       },
       { capture: true }
     );
@@ -1639,7 +1641,7 @@ function watchCodeBlocks() {
       for (const [pre, pending, levels] of prepared) {
         const copy = aimControl(pending);
         standInChrome(copy, pre, levels);
-        copy.tabIndex = -1;
+        if (copy.tabIndex !== -1) copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {
           const events = new AbortController();
@@ -1649,22 +1651,22 @@ function watchCodeBlocks() {
           tabFromBlock(copy, pre, events.signal);
           pre.addEventListener(
             "pointerenter",
-            () => copy.classList.add("lf-code-copy-hover"),
+            () => copy.classList.toggle("lf-code-copy-hover", true),
             options
           );
           pre.addEventListener(
             "pointerleave",
-            () => copy.classList.remove("lf-code-copy-hover"),
+            () => copy.classList.toggle("lf-code-copy-hover", false),
             options
           );
           pre.addEventListener(
             "focus",
-            () => copy.classList.add("lf-code-copy-focused"),
+            () => copy.classList.toggle("lf-code-copy-focused", true),
             options
           );
           pre.addEventListener(
             "blur",
-            () => copy.classList.remove("lf-code-copy-focused"),
+            () => copy.classList.toggle("lf-code-copy-focused", false),
             options
           );
         }
@@ -1686,14 +1688,14 @@ function watchCodeBlocks() {
 // runtime/markdown.js
 var escapeHtml = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 var escapedSource = (text) => escapeHtml(text);
-var render2 = escapedSource;
+var render = escapedSource;
 var renderInline = escapedSource;
 var tokenize = null;
 var ready;
-var renderMarkdown = (text) => render2(text);
-function renderedWords(html2, imageAlt = false) {
+var renderMarkdown = (text) => render(text);
+function renderedWords(html, imageAlt = false) {
   const parsed = document.createElement("template");
-  parsed.innerHTML = html2;
+  parsed.innerHTML = html;
   return fragmentWords(parsed.content, imageAlt);
 }
 function fragmentWords(fragment, imageAlt = false) {
@@ -1704,7 +1706,7 @@ function fragmentWords(fragment, imageAlt = false) {
       image.replaceWith(document.createTextNode(image.alt));
   return fragment.textContent;
 }
-var markdownWords = (text) => renderedWords(render2(text));
+var markdownWords = (text) => renderedWords(render(text));
 var renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
 function inlineMarkdownFragment(text, breaks = true) {
   const parsed = document.createElement("template");
@@ -1895,7 +1897,7 @@ function markdownSourceOffset(body, node, offset) {
   }
   return sourceEnd;
 }
-var markdownReady = () => render2 !== escapedSource;
+var markdownReady = () => render !== escapedSource;
 var WEB_PROTOCOLS = /* @__PURE__ */ new Set(["http:", "https:", "mailto:"]);
 function safeUrl(href) {
   if (href.startsWith("#")) return true;
@@ -2168,7 +2170,7 @@ function loadMarkdown(onError = null) {
     const markdown = makeMarkdown(module, true);
     let singleLine;
     let positioned;
-    render2 = (text) => markdown.render(text);
+    render = (text) => markdown.render(text);
     renderInline = (text, breaks) => (breaks ? markdown : singleLine ??= makeMarkdown(module, false)).renderInline(
       text
     );
@@ -3711,6 +3713,7 @@ var ReactionStripView = class {
   #commands;
   #registration = null;
   #model = null;
+  #view = null;
   #paletteId = `lf-reactions-${++ordinal}`;
   constructor(commands2) {
     this.#commands = commands2;
@@ -3722,54 +3725,62 @@ var ReactionStripView = class {
   present(model) {
     this.#model = model;
     this.node.classList.toggle("lf-open", model.latest);
-    render(
-      html` <button
-          type="button"
-          class="lf-msg-control lf-react-trigger lf-ui"
-          data-lf-gen="1"
-          data-lf-offer="button"
-          aria-expanded="false"
-          aria-controls=${this.#paletteId}
-          aria-label="Add reaction"
-          title="Add reaction"
-          @click=${() => this.#registration.toggle()}
-        >
-          ${iconTemplate("reaction", "lf-msg-control-icon")}
-        </button>
-        <span
-          class="lf-react-palette"
-          id=${this.#paletteId}
-          popover="auto"
-          role="group"
-          @toggle=${(event) => {
-        if (event.newState === "closed") this.#registration.close();
-      }}
-          aria-label="Reactions for this reply"
-        >
-          ${repeat(
-        model.choices,
-        (choice) => choice.name,
-        (choice) => html` <button
-                type="button"
-                class="lf-react ${HOLDS_WORD} lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
-                data-token=${choice.name}
-                title=${choice.label}
-                aria-label=${choice.label}
-                aria-pressed=${String(Boolean(choice.inForce))}
-                aria-busy=${String(Boolean(choice.inForce?.pending))}
-                @click=${() => this.#press(choice.name)}
-              >
-                <span class="lf-react-glyph">${choice.glyph}</span>
-              </button>`
-      )}
-        </span>`,
-      this.node
-    );
-    this.#registration ??= this.#commands.registerSurface(this.node, {
-      trigger: this.node.querySelector(".lf-react-trigger"),
-      palette: this.node.querySelector(".lf-react-palette")
+    if (!this.#view) {
+      this.#view = createView(
+        this.node,
+        (reading) => default2` <button
+              type="button"
+              class="lf-msg-control lf-react-trigger lf-ui"
+              data-lf-gen="1"
+              data-lf-offer="button"
+              aria-expanded="false"
+              aria-controls=${this.#paletteId}
+              aria-label="Add reaction"
+              title="Add reaction"
+              onClick=${() => this.#registration.toggle()}
+            >
+              ${iconElement("reaction", "lf-msg-control-icon")}
+            </button>
+            <span
+              class="lf-react-palette"
+              id=${this.#paletteId}
+              popover="auto"
+              role="group"
+              onToggle=${(event) => {
+          if (event.newState === "closed") this.#registration.close();
+        }}
+              aria-label="Reactions for this reply"
+              >${For({
+          get each() {
+            return reading().choices;
+          },
+          keyed: (choice) => choice.name,
+          children: (choice) => default2`<button
+                    type="button"
+                    class=${`lf-react ${HOLDS_WORD} lf-ui`}
+                    data-lf-gen="1"
+                    data-lf-offer="button"
+                    data-token=${() => choice().name}
+                    title=${() => choice().label}
+                    aria-label=${() => choice().label}
+                    aria-pressed=${() => String(Boolean(choice().inForce))}
+                    aria-busy=${() => String(Boolean(choice().inForce?.pending))}
+                    onClick=${() => this.#press(choice().name)}
+                  >
+                    <span class="lf-react-glyph">${() => choice().glyph}</span>
+                  </button>`
+        })}</span
+            >`,
+        model
+      );
+    } else this.#view.update(model);
+    const view = this.#view;
+    afterRender(() => {
+      if (this.#model !== model || this.#view !== view) return;
+      this.#registration ??= this.#commands.registerSurface(this.node, {
+        trigger: this.node.querySelector(".lf-react-trigger"),
+        palette: this.node.querySelector(".lf-react-palette")
+      });
     });
     return this.node;
   }
@@ -3787,6 +3798,9 @@ var ReactionStripView = class {
   }
   retire() {
     this.#registration?.close();
+    this.#view?.dispose();
+    this.#view = null;
+    this.#registration = null;
   }
 };
 
@@ -3801,16 +3815,16 @@ function proseReading(message) {
   let reading = renderedProse.get(key);
   if (!reading || reading.id !== message.id || reading.edited !== edited || reading.text !== text || reading.markdown !== markdown) {
     const pasted = readAttachedMedia(text);
-    const html2 = renderMarkdown(pasted.text);
+    const html = renderMarkdown(pasted.text);
     const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths));
     reading = Object.freeze({
       id: message.id,
       edited,
       text,
       markdown,
-      html: html2,
+      html,
       mediaHtml,
-      plainText: renderedWords(html2 + mediaHtml)
+      plainText: renderedWords(html + mediaHtml)
     });
     renderedProse.set(key, reading);
   }
@@ -3832,8 +3846,18 @@ function threadName(thread) {
   return words || (root.drawing ? "Drawing" : "");
 }
 var titlePending = (thread) => thread.title == null && thread.attention?.kind === "waiting" && thread.attention.reason === "workflow" && pageClaimed();
-var threadHeading = (thread) => titlePending(thread) ? html`<span class="lf-thread-name-pending">Generating thread name…</span
-        ><span class="lf-quiet"> ${threadName(thread)}</span>` : threadName(thread);
+var threadHeadingModel = (thread) => ({
+  pending: titlePending(thread),
+  name: threadName(thread)
+});
+var threadHeadingView = (read) => default2`${Show({
+  get when() {
+    return read().pending;
+  },
+  fallback: default2`${() => read().name}`,
+  children: (_visible) => default2`<span class="lf-thread-name-pending">Generating thread name…</span
+        ><span class="lf-quiet"> ${() => read().name}</span>`
+})}`;
 var threadSummary = (thread) => ({
   topic: threadName(thread),
   latest: lastMovedAt(thread)
@@ -3987,6 +4011,8 @@ var MessageView = class {
   #arrivalMotion = null;
   #stopRead = null;
   #header = document.createElement("div");
+  #headerDrawing = null;
+  #drawing = null;
   #editor = null;
   #kept = false;
   #stopKept = null;
@@ -3994,7 +4020,7 @@ var MessageView = class {
     this.#commands = commands2;
     this.node = document.createElement("div");
   }
-  present(model, { arrived = false, headerControls = nothing } = {}) {
+  present(model, { arrived = false, headerControls = null } = {}) {
     const prior = this.#model;
     this.#model = model;
     if (!prior) {
@@ -4074,74 +4100,53 @@ var MessageView = class {
     if (!model.reactions) this.#reaction?.retire();
     const strip = model.reactions ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(
       model.reactions
-    ) : nothing;
-    const receipt = model.workflowLabel ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
-          >${model.workflowLabel}</span
-        >` : nothing;
-    render(
-      html`
-        <b>${model.by}</b
-        ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
-          ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
-          ${model.failure ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>` : nothing}
-          ${model.body.kind === "suggestion" ? html`<span class="lf-suggest-label">Suggestion</span>` : nothing}
-          ${model.edited ? html`<span class="lf-edited" title=${model.edited}>edited</span>` : nothing}
-          ${this.#kept ? html`<span
-                  class="lf-msg-kept"
-                  title="The rewrite is kept; open it to save or cancel"
-                  >unsaved edit</span
-                >` : nothing}
-        </span>
-        ${headerControls}
-      `,
-      this.#header
-    );
-    const rewrite = model.editable && !editing ? html`<button
-            type="button"
-            class="lf-msg-control lf-msg-edit lf-ui"
-            tabindex="-1"
-            data-lf-gen="1"
-            data-lf-offer="button"
-            aria-label="Edit message"
-            title="Edit message"
-            @click=${() => this.openEdit()}
-          >
-            ${iconTemplate("edit", "lf-msg-control-icon")}
-          </button>` : nothing;
-    render(
-      html`
-        ${this.#header}
-        <div
-          class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
-        >
-          ${editing ? this.#editor.node : this.#body(model.body)}
-          ${model.body.drawing ? html`<span class="lf-drawing-reference">Drawing comment</span>` : nothing}
-          ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
-        </div>
-        ${strip} ${rewrite}
-      `,
-      this.node
-    );
-    if (this.#authored && !this.#dressed) {
-      markDeclared(this.node);
-      renderSaid(this.node);
-      renderQuiet(this.node);
-      this.#dressed = true;
-    }
-    highlightBlocks(this.node);
-    this.#stopRead = this.#commands.read.observeMessage(
-      this.node.querySelector(":scope > .lf-msg-body"),
-      model
-    );
-    displaced2?.present(displaced2.model);
-    if (!prior && (model.pending || arrived)) {
-      this.#arrivalMotion = motion(
-        this.node,
-        [{ "--lf-msg-arrival": 1, offset: 0 }],
-        flashDuration()
+    ) : null;
+    const props = {
+      model,
+      headerControls,
+      kept: this.#kept,
+      editor: editing ? this.#editor.node : null,
+      strip,
+      authored: holds ? this.#authored : null,
+      authoredTake: this.#authoredTake
+    };
+    if (this.#headerDrawing) this.#headerDrawing.update(props);
+    else
+      this.#headerDrawing = createView(
+        this.#header,
+        (read) => this.#headerTemplate(read),
+        props
       );
-    }
+    if (this.#drawing) this.#drawing.update(props);
+    else
+      this.#drawing = createView(
+        this.node,
+        (read) => this.#messageTemplate(read),
+        props
+      );
+    const drawing = this.#drawing;
+    afterRender(() => {
+      if (this.#model !== model || this.#drawing !== drawing) return;
+      if (this.#authored && !this.#dressed) {
+        markDeclared(this.node);
+        renderSaid(this.node);
+        renderQuiet(this.node);
+        this.#dressed = true;
+      }
+      highlightBlocks(this.node);
+      this.#stopRead = this.#commands.read.observeMessage(
+        this.node.querySelector(":scope > .lf-msg-body"),
+        model
+      );
+      displaced2?.present(displaced2.model);
+      if (!prior && (model.pending || arrived)) {
+        this.#arrivalMotion = motion(
+          this.node,
+          [{ "--lf-msg-arrival": 1, offset: 0 }],
+          flashDuration()
+        );
+      }
+    });
     return this.node;
   }
   // Open the user's own words for rewriting here, with the caret after them. False where
@@ -4153,7 +4158,7 @@ var MessageView = class {
       this.#commands.edit.opening(model.id, this);
       this.#commands.edit.paint(this.node);
     }
-    this.#editor?.enter();
+    afterRender(() => this.#editor?.enter());
     return true;
   }
   // Draw the message as it stands, its rewrite having opened in another view.
@@ -4173,15 +4178,127 @@ var MessageView = class {
   get editing() {
     return this.#editor !== null;
   }
-  #body(body) {
-    if (body.kind === "reaction")
-      return html`<div class="lf-msg-text">
-        <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
-      </div>`;
-    if (body.kind === "suggestion")
-      return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
-      ${body.mediaHtml ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>` : nothing}`;
+  #headerTemplate(read) {
+    const model = () => read().model;
+    const optional = (when, template) => Show({
+      get when() {
+        return when();
+      },
+      children: (_value) => template()
+    });
+    return default2`<b>${() => model().by}</b
+      ><span class="lf-msg-meta">
+        <time datetime=${() => model().timestamp}>${() => model().age}</time>
+        ${optional(
+      () => model().workflowLabel,
+      () => default2`<span class="lf-msg-sending" title=${() => model().workflowTitle}
+              >${() => model().workflowLabel}</span
+            >`
+    )}
+        ${optional(
+      () => model().leaves,
+      () => default2`<span class="lf-msg-leaves">${() => model().leaves}</span>`
+    )}
+        ${optional(
+      () => model().failure,
+      () => default2`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
+    )}
+        ${optional(
+      () => model().body.kind === "suggestion",
+      () => default2`<span class="lf-suggest-label">Suggestion</span>`
+    )}
+        ${optional(
+      () => model().edited,
+      () => default2`<span class="lf-edited" title=${() => model().edited}>edited</span>`
+    )}
+        ${optional(
+      () => read().kept,
+      () => default2`<span
+              class="lf-msg-kept"
+              title="The rewrite is kept; open it to save or cancel"
+              >unsaved edit</span
+            >`
+    )} </span
+      >${() => read().headerControls}`;
+  }
+  #messageTemplate(read) {
+    const optional = (when, template) => Show({
+      get when() {
+        return when();
+      },
+      children: (_value) => template()
+    });
+    return default2`${this.#header}
+      <div
+        class=${() => `lf-msg-body${read().model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
+      >
+        ${Show({
+      get when() {
+        return read().editor;
+      },
+      keyed: true,
+      children: (editor) => editor,
+      fallback: this.#body(() => read().model.body)
+    })}
+        ${optional(
+      () => read().model.body.drawing,
+      () => default2`<span class="lf-drawing-reference">Drawing comment</span>`
+    )}
+        ${Show({
+      get when() {
+        return read().authored && read().authoredTake + 1;
+      },
+      keyed: true,
+      children: (_take) => read().authored
+    })}
+      </div>
+      ${() => read().strip}
+      ${optional(
+      () => read().model.editable && !read().editor,
+      () => default2`<button
+            type="button"
+            class="lf-msg-control lf-msg-edit lf-ui"
+            tabindex="-1"
+            data-lf-gen="1"
+            data-lf-offer="button"
+            aria-label="Edit message"
+            title="Edit message"
+            onClick=${() => this.openEdit()}
+          >
+            ${iconElement("edit", "lf-msg-control-icon")}
+          </button>`
+    )}`;
+  }
+  #body(read) {
+    return Show({
+      get when() {
+        return read().kind;
+      },
+      keyed: true,
+      children: (kind) => {
+        if (kind === "reaction")
+          return default2`<div class="lf-msg-text">
+            <span class="lf-react-said"
+              >${() => `${read().glyph} ${read().token}`.trim()}</span
+            >
+          </div>`;
+        if (kind === "suggestion")
+          return default2`<div
+            class="lf-msg-text"
+            prop:textContent=${() => read().text}
+          ></div>`;
+        return default2`<div class="lf-msg-text" prop:innerHTML=${() => read().html}></div>
+          ${Show({
+          get when() {
+            return Boolean(read().mediaHtml);
+          },
+          children: (_media) => default2`<div
+                class="lf-msg-media"
+                prop:innerHTML=${() => read().mediaHtml}
+              ></div>`
+        })}`;
+      }
+    });
   }
   commit() {
     if (!this.#model.reactions && this.#reaction) {
@@ -4204,6 +4321,10 @@ var MessageView = class {
     this.#stopKept?.();
     this.#stopKept = null;
     this.#stopRead?.();
+    this.#headerDrawing?.dispose();
+    this.#headerDrawing = null;
+    this.#drawing?.dispose();
+    this.#drawing = null;
   }
 };
 function messageHolding(id) {
@@ -5419,11 +5540,23 @@ function newsNotice(header = false) {
       run: show
     }
   ]);
+  let drawing;
   return {
     node,
     set(news) {
       if (words.textContent !== news.label) {
-        render(html`${news.parts.map((part) => html`<span>${part}</span>`)}`, words);
+        if (drawing) drawing.update({ parts: news.parts });
+        else
+          drawing = createView(
+            words,
+            (read) => For({
+              get each() {
+                return read().parts;
+              },
+              children: (part) => default2`<span>${part}</span>`
+            }),
+            { parts: news.parts }
+          );
         dropped.disconnect();
         for (const box of [words, ...words.children]) dropped.observe(box);
       }
@@ -6112,16 +6245,34 @@ function workingPlace(ranges, after) {
 }
 
 // runtime/thread/transcript.js
-function workingView(working, controls2 = nothing) {
-  return html`<div class="lf-thread-working-head">
-      ${working.who ? html`<b>${working.who}</b>` : nothing}
-      ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
-              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
-              ${working.condition}</span
-            >` : nothing}
-      ${controls2}
+function workingView(read) {
+  const working = () => read().working;
+  const optional = (when, template) => Show({
+    get when() {
+      return when();
+    },
+    children: (_value) => template()
+  });
+  return default2`<div class="lf-thread-working-head">
+      ${optional(
+    () => working().who,
+    () => default2`<b>${() => working().who}</b>`
+  )}
+      ${optional(
+    () => working().timestamp || working().condition,
+    () => default2`<span class="lf-msg-meta">
+            ${optional(
+      () => working().timestamp,
+      () => default2`<time datetime=${() => working().timestamp}
+                  >${() => working().age}</time
+                >`
+    )}
+            ${() => working().condition}</span
+          >`
+  )}
+      ${() => read().controls}
     </div>
-    <div class="lf-thread-working-words">${working.words}</div>`;
+    <div class="lf-thread-working-words">${() => working().words}</div>`;
 }
 var stepOf = (message) => Object.freeze({
   who: message.by,
@@ -6154,6 +6305,9 @@ var Transcript = class _Transcript {
   #checkpoints = /* @__PURE__ */ new Map();
   #expandedSummaries = /* @__PURE__ */ new Set();
   #id = ++nextTranscriptId;
+  #faceDrawings = /* @__PURE__ */ new WeakMap();
+  #toggles = /* @__PURE__ */ new Map();
+  #usedToggles = /* @__PURE__ */ new Set();
   // Counts the names this transcript gives: a covered message's id, a fold's anchors.
   #named = 0;
   /**
@@ -6242,6 +6396,7 @@ var Transcript = class _Transcript {
    */
   present(model, { arrived = false, appends = false, notice: notice2 = null } = {}) {
     const prior = this.#model;
+    this.#usedToggles.clear();
     const standing2 = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
@@ -6309,7 +6464,7 @@ var Transcript = class _Transcript {
         );
       view.present(message, {
         arrived,
-        headerControls: notice2 && message === lead ? notice2 : nothing
+        headerControls: notice2 && message === lead ? notice2 : null
       });
       keeps(
         view.node,
@@ -6332,7 +6487,13 @@ var Transcript = class _Transcript {
     const facing = /* @__PURE__ */ new Map();
     const face = (node, reading, controls2) => {
       keeps(node, "data-lf-live", reading.live ? "" : null);
-      render(workingView(reading, controls2), node);
+      const props = { working: reading, controls: controls2 ?? null };
+      let drawing = this.#faceDrawings.get(node);
+      if (drawing) drawing.update(props);
+      else {
+        drawing = createView(node, workingView, props);
+        this.#faceDrawings.set(node, drawing);
+      }
       transcript.push(node);
       return node;
     };
@@ -6359,7 +6520,7 @@ var Transcript = class _Transcript {
         face(
           node,
           hosts ? model.working : stepOf(range.messages.at(-1)),
-          kept ? this.#summaryToggle([range], true) : nothing
+          kept ? this.#summaryToggle([range], true) : null
         );
         facing.set(range.messages.at(-1).key, node);
         if (hosts) working = node;
@@ -6386,6 +6547,11 @@ var Transcript = class _Transcript {
     }
     keeps(this.node, "data-lf-reflow", appends ? "append" : null);
     setChildren(this.node, transcript);
+    for (const [key, toggle2] of this.#toggles)
+      if (!this.#usedToggles.has(key)) {
+        toggle2.drawing.dispose();
+        this.#toggles.delete(key);
+      }
     if (!standingToggle || standingToggle.isConnected) return null;
     const toggleFor = (id) => this.node.querySelector(
       `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`
@@ -6415,26 +6581,61 @@ var Transcript = class _Transcript {
     node.style.setProperty("--lf-fold-foot", foot);
     return { node, foot };
   }
-  #paintCheckpoint({ node }, range, covered2) {
+  #paintCheckpoint(checkpoint, range, covered2) {
+    const { node } = checkpoint;
     const progress = Boolean(range.summary.pending);
     keeps(node, "data-expanded", range.expanded);
     keepsHidden(node, progress && !range.expanded);
     keeps(node, "aria-owns", covered2.map(({ id }) => id).join(" "));
-    render(
-      html`${progress ? nothing : html`<div class="lf-summary-checkpoint">
-              <div class="lf-summary-header">
-                <div class="lf-summary-label">${range.summary.label}</div>
-                ${range.forced ? nothing : this.#summaryToggle([range])}
-              </div>
-              ${range.summary.text ? html`<div
+    const props = {
+      range,
+      progress,
+      toggle: !progress && !range.forced ? this.#summaryToggle([range]) : null
+    };
+    if (checkpoint.drawing) checkpoint.drawing.update(props);
+    else
+      checkpoint.drawing = createView(
+        node,
+        (read) => {
+          const optional = (when, template) => Show({
+            get when() {
+              return when();
+            },
+            children: (_value) => template()
+          });
+          return default2`${optional(
+            () => !read().progress,
+            () => default2`<div class="lf-summary-checkpoint">
+                <div class="lf-summary-header">
+                  <div class="lf-summary-label">
+                    ${() => read().range.summary.label}
+                  </div>
+                  ${() => read().toggle}
+                </div>
+                ${optional(
+              () => read().range.summary.text,
+              () => default2`<div
                       class="lf-summary-text"
-                      .innerHTML=${renderMarkdown(range.summary.text)}
-                    ></div>` : nothing}
-              ${range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}
-            </div>`}
-      ${progress && range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}`,
-      node
-    );
+                      prop:innerHTML=${() => renderMarkdown(read().range.summary.text)}
+                    ></div>`
+            )}
+                ${optional(
+              () => read().range.forced,
+              () => default2`<div class="lf-summary-required">
+                      ${() => read().range.requiredText}
+                    </div>`
+            )}
+              </div>`
+          )}
+          ${optional(
+            () => read().progress && read().range.forced,
+            () => default2`<div class="lf-summary-required">
+                ${() => read().range.requiredText}
+              </div>`
+          )}`;
+        },
+        props
+      );
   }
   #summaryToggle(ranges, progress = false) {
     const ids = ranges.map((range) => range.summary.id);
@@ -6442,17 +6643,39 @@ var Transcript = class _Transcript {
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
     const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
-    return html`<button
-      type="button"
-      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
-      data-summary-toggle=${ids[0]}
-      aria-expanded=${String(expanded)}
-      aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
-      @click=${() => this.#setSummaryExpanded(ids, !expanded)}
-    >
-      ${iconTemplate("down", "lf-disclosure-icon")}
-      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
-    </button>`;
+    const key = `${progress}/${ids[0]}`;
+    this.#usedToggles.add(key);
+    const props = { ids, expanded, label, subject, progress };
+    let toggle2 = this.#toggles.get(key);
+    if (toggle2) toggle2.drawing.update(props);
+    else {
+      const node = document.createElement("button");
+      node.type = "button";
+      node.className = `lf-thread-disclosure lf-summary-expand${progress ? " lf-progress-expand" : ""}`;
+      node.addEventListener(
+        "click",
+        () => this.#setSummaryExpanded(toggle2.props.ids, !toggle2.props.expanded)
+      );
+      const drawing = createView(
+        node,
+        (read) => default2`${iconElement("down", "lf-disclosure-icon")}
+            <span data-lf-room=${() => `Show ${read().subject}`}
+              ><span>${() => read().label}</span></span
+            >`,
+        props
+      );
+      toggle2 = { node, drawing, props };
+      this.#toggles.set(key, toggle2);
+    }
+    toggle2.props = props;
+    keeps(toggle2.node, "data-summary-toggle", ids[0]);
+    keeps(toggle2.node, "aria-expanded", String(expanded));
+    keeps(
+      toggle2.node,
+      "aria-controls",
+      ranges.flatMap((range) => range.messages.map(({ key: key2 }) => this.messageNode(key2)?.id)).filter(Boolean).join(" ")
+    );
+    return toggle2.node;
   }
   #setSummaryExpanded(ids, expanded) {
     for (const id of ids) {
@@ -6482,6 +6705,16 @@ var Transcript = class _Transcript {
     this.#stopWorkingExposure?.();
     this.#stopWorkingExposure = null;
     for (const view of this.#messages.values()) view.retire();
+    for (const node of [...this.#faces.values(), this.#working]) {
+      this.#faceDrawings.get(node)?.dispose();
+      this.#faceDrawings.delete(node);
+    }
+    for (const checkpoint of this.#checkpoints.values()) {
+      checkpoint.drawing?.dispose();
+      checkpoint.drawing = null;
+    }
+    for (const toggle2 of this.#toggles.values()) toggle2.drawing.dispose();
+    this.#toggles.clear();
   }
 };
 
@@ -6615,17 +6848,18 @@ function threadReading(thread, surface, commands2) {
   });
 }
 var ThreadView = class {
+  #drawing = null;
   #commands;
   #messageCommands;
   #rewrites;
-  // The model this card shows. Commands follow it explicitly; mechanical reads of
-  // this paint's output must not subscribe the presenter that writes it.
-  #shown = Z(null);
+  // The model this card shows. A signal, because its commands' liveness reads it, and
+  // key and button reflection follow what they read (keyboard/scopes.js).
+  #shown = createSignal(null, { ownedWrite: true });
   get #model() {
-    return this.#shown.peek();
+    return untrack(this.#shown[0]);
   }
   set #model(model) {
-    this.#shown.value = model;
+    flush(() => this.#shown[1](() => model));
   }
   #transcript;
   #reply = null;
@@ -6803,7 +7037,7 @@ var ThreadView = class {
     const settlementPlace = marginControls ? "margin" : "head";
     const notice2 = this.#news;
     if (model.news) notice2.set(model.news);
-    const news = model.news ? notice2.node : nothing;
+    const news = model.news ? notice2.node : null;
     keeps(this.node, "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);
     keeps(this.node, "data-attempt", model.attempt || null);
@@ -6823,27 +7057,53 @@ var ThreadView = class {
       appends: model.surface === "margin"
     });
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
-    const body = html`
-      ${this.#transcript.node}
-      ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
-                ${news}${threadActions}
-              </div>` : nothing}
-    `;
-    render(
-      html`
-        ${model.surface === "margin" ? body : html`<div class="lf-thread-content">${body}</div>`}
-        ${reply ? this.#continuity?.gap ?? nothing : nothing}
-        ${reply ? this.#reply.node : nothing}
-      `,
-      this.node
-    );
-    if (!marginControls && model.news)
-      measure(this.node, () => this.#retainHeaderSlot());
-    else this.#releaseHeaderSlot();
-    this.#continuity?.after(bodyPlace);
-    restoreFocus?.(
-      handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)
-    );
+    const props = {
+      surface: model.surface,
+      margin: Boolean(marginControls),
+      threadActions,
+      news,
+      gap: reply ? this.#continuity?.gap ?? null : null,
+      reply: reply ? this.#reply.node : null
+    };
+    if (this.#drawing) this.#drawing.update(props);
+    else
+      this.#drawing = createView(
+        this.node,
+        (read) => {
+          const body = () => default2`${this.#transcript.node}${Show({
+            get when() {
+              return Boolean(read().threadActions);
+            },
+            children: (_actions) => default2`<div
+                  class=${() => read().margin ? "lf-margin-thread-controls" : "lf-thread-controls"}
+                  data-lf-reflow=${() => read().margin ? void 0 : "text"}
+                >
+                  ${() => read().margin ? null : read().news}${() => read().threadActions}
+                </div>`
+          })}`;
+          return default2`${Show({
+            get when() {
+              return read().surface;
+            },
+            keyed: true,
+            children: (surface) => surface === "margin" ? body() : default2`<div class="lf-thread-content">${body()}</div>`
+          })}${() => read().gap}${() => read().reply}`;
+        },
+        props
+      );
+    const drawing = this.#drawing;
+    afterRender(() => {
+      if (this.#model !== model || this.#drawing !== drawing) return;
+      if (!marginControls && model.news)
+        measure(this.node, () => this.#retainHeaderSlot());
+      else this.#releaseHeaderSlot();
+      this.#continuity?.after(bodyPlace);
+      restoreFocus?.(
+        handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(
+          this.node.querySelector(SAY_BOX) ?? this.node
+        )
+      );
+    });
     return this.node;
   }
   #releaseHeaderSlot() {
@@ -6975,7 +7235,7 @@ var ThreadView = class {
           keys: PRESS,
           title: word.toLowerCase(),
           control: button,
-          when: () => !this.#shown.value.settlement?.pending,
+          when: () => !this.#shown[0]().settlement?.pending,
           run: this.#settle
         }
       ]);
@@ -6986,7 +7246,10 @@ var ThreadView = class {
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
     }
-    render(icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
+    if (icon) {
+      const glyph = button.querySelector(".lf-action-icon") ?? iconElement("check", "lf-action-icon");
+      setChildren(button, [glyph]);
+    } else if (button.textContent !== state.label) button.textContent = state.label;
     return button;
   }
   // What the thread holds, shown by a press on one of its controls. Where showing it
@@ -7073,6 +7336,8 @@ var ThreadView = class {
     this.retire();
     this.#reply?.dispose();
     this.#reply = null;
+    this.#drawing?.dispose();
+    this.#drawing = null;
   }
 };
 
@@ -7085,6 +7350,18 @@ var ResolvedThreads = class {
   node = document.createElement("details");
   summary = document.createElement("summary");
   #threads = [];
+  #drawing = createView(
+    this.summary,
+    (state) => default2`Resolved ·
+      ${() => state().count}${Show({
+      get when() {
+        return state().notice;
+      },
+      children: (notice2) => default2` ·
+            <span class="lf-thread-notice lf-thread-notice-news">${notice2}</span>`
+    })}`,
+    { count: 0, notice: null }
+  );
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = "";
@@ -7104,12 +7381,7 @@ var ResolvedThreads = class {
     this.#threads = threads;
     const held = threads.flatMap(({ news }) => news ? [news] : []);
     const notice2 = held.length > 1 ? `${held.length} ${held.every(({ reopened }) => reopened) ? "reopened" : "changed"}` : held[0]?.label ?? null;
-    render(
-      html`Resolved ·
-      ${threads.length}${notice2 ? html` ·
-              <span class="lf-thread-notice lf-thread-notice-news">${notice2}</span>` : ""}`,
-      this.summary
-    );
+    this.#drawing.update({ count: threads.length, notice: notice2 });
     setChildren(this.node, [this.summary, ...nodes]);
   }
 };
@@ -7438,18 +7710,18 @@ var threadSurface = (owner) => Object.freeze({
   },
   open: (node) => registrations.get(owner)?.handle.open(node) ?? false
 });
-function placePageThreads(owner, render3, options) {
+function placePageThreads(owner, render2, options) {
   if ([...registrations.values()].some((item) => item.kind === "page"))
     throw new Error("The document already has a page Thread presentation");
-  return register(owner, render3, options, "page");
+  return register(owner, render2, options, "page");
 }
-function register(owner, render3, { invalidate, composition, reveal }, kind) {
+function register(owner, render2, { invalidate, composition, reveal }, kind) {
   if (!(owner instanceof Element))
     throw new TypeError("A Thread presentation needs an Element owner");
   if (registrations.has(owner))
     throw new Error(`Thread surface ${owner.localName} registered twice`);
   const registration = {
-    render: render3,
+    render: render2,
     owner,
     kind,
     invalidate,
@@ -7561,7 +7833,7 @@ function renderSurfaces(collection, placements, commands2) {
       (a, b) => Number(a.kind === "page") - Number(b.kind === "page")
     );
     for (const registration of ordered) {
-      const { render: render3, owner } = registration;
+      const { render: render2, owner } = registration;
       if (registrations.get(owner) !== registration) continue;
       if (!owner.isConnected) {
         registrations.delete(owner);
@@ -7598,7 +7870,7 @@ function renderSurfaces(collection, placements, commands2) {
         const batch = [...targets].filter(([key]) => !held?.has(key)).map(([key, target]) => Object.freeze({ ...target, thread: byKey.get(key) }));
         if (exactTarget(registration, anchor, placement))
           batch.push(Object.freeze({ anchor, placement, thread: null }));
-        const rendering = render3(Object.freeze(batch), {
+        const rendering = render2(Object.freeze(batch), {
           signal: abort.signal,
           collection,
           onCommit: (run) => committed.push(run)
@@ -7885,7 +8157,8 @@ export {
   loadMessageMarkdown,
   messageText,
   threadName,
-  threadHeading,
+  threadHeadingModel,
+  threadHeadingView,
   threadSummary,
   prepareAuthoredMessage,
   releaseAuthoredUnder,

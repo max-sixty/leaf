@@ -12,29 +12,27 @@ import {
   excerptWords
 } from "./bundle-passage-facts.js";
 import {
+  afterScript,
   commandAvailable,
   commandBinding,
   commandRoutes,
   controlAvailabilityOutput,
-  elementDirective,
-  iconTemplate,
+  focusDestination,
+  focused,
+  iconElement,
   isCommandScope,
+  keeps,
+  keepsText,
   offer,
   pressIsKeyboardActivation,
   projectCommandScope,
   watchCommandAvailability
 } from "./bundle-page-paint.js";
 import {
-  afterScript,
-  focusDestination,
-  focused,
-  keeps,
-  keepsText
-} from "./bundle-frame-visibility.js";
-import {
-  html,
-  render
-} from "./bundle-queued-work.js";
+  Show,
+  createView,
+  default as default2
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/contribution-model.js
 var entryRecords = /* @__PURE__ */ new WeakSet();
@@ -597,21 +595,11 @@ function presentContributionHost(control, offered, {
   projectCommandScope(control, CONTRIBUTION_ENTRY, commandScopes.get(record));
   return record;
 }
-var contributionHost = elementDirective(
-  "contributionHost",
-  (control, source, surface, record, options) => {
-    presentContributionHost(control, record, options);
-    trackContributionControl(source, surface, record.key, control);
-  }
-);
 function presentContributionReceipts(control, receipt, awaitsUser) {
   syncContributionAgentWorkflow(control, receipt);
   syncContributionTurn(control, awaitsUser);
 }
-var contributionReceipts = elementDirective(
-  "contributionReceipts",
-  presentContributionReceipts
-);
+var contributionDrawings = /* @__PURE__ */ new WeakMap();
 function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
@@ -625,18 +613,48 @@ function presentContributionEntry(control, offered, options = {}) {
   for (const name of nextClasses) control.classList.toggle(name, true);
   contributorClasses.set(control, nextClasses);
   const visibleLabel = visibleContributionEntryLabel(record);
-  const glyph = record.icon ? iconTemplate(record.icon) : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
-        >${record.glyph}</span
-      >`;
-  render(
-    html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
-      ><span class="lf-margin-entry-label" aria-hidden="true"
-        ><span class="lf-margin-entry-label-word">${visibleLabel}</span>${record.context ? html`<span class="lf-margin-entry-context">${record.context}</span>` : null}<span class="lf-margin-entry-more"></span></span
-      >${record.count > 1 ? html`<span class="lf-margin-count" aria-hidden="true"
-              >${record.count}</span
-            >` : null}`,
-    control
-  );
+  const props = {
+    record,
+    visibleLabel,
+    icon: record.icon || null
+  };
+  let drawing = contributionDrawings.get(control);
+  if (!drawing) {
+    drawing = createView(
+      control,
+      (state) => default2` ${Show({
+        get when() {
+          return state().icon;
+        },
+        keyed: true,
+        children: (icon) => iconElement(icon),
+        fallback: default2`<span class="lf-margin-entry-glyph" aria-hidden="true"
+              >${() => state().record.glyph}</span
+            >`
+      })}
+          <span class="lf-margin-entry-space" aria-hidden="true"> </span>
+          <span class="lf-margin-entry-label" aria-hidden="true">
+            <span class="lf-margin-entry-label-word"
+              >${() => state().visibleLabel}</span
+            >
+            ${Show({
+        get when() {
+          return state().record.context;
+        },
+        children: (context) => default2`<span class="lf-margin-entry-context">${context}</span>`
+      })}
+            <span class="lf-margin-entry-more"></span>
+          </span>
+          ${Show({
+        get when() {
+          return state().record.count > 1 ? state().record.count : null;
+        },
+        children: (count) => default2`<span class="lf-margin-count" aria-hidden="true">${count}</span>`
+      })}`,
+      props
+    );
+    contributionDrawings.set(control, drawing);
+  } else drawing.update(props);
   paintAgentDescription(control);
   return control;
 }
@@ -1224,10 +1242,10 @@ export {
   contributionEntrySource,
   syncContributionSelection,
   syncContributionUnread,
-  contributionHost,
+  presentContributionHost,
   presentContributionReceipts,
-  contributionReceipts,
   presentContributionEntry,
+  trackContributionControl,
   clearContributionControls,
   activateContributionControl,
   materializeContributionControls,

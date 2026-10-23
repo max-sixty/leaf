@@ -54,14 +54,14 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
                  }))"""
     )
     assert stops, "the reference offers no tab stop at all, not even its search box"
-    controls = {"BUTTON", "INPUT", "WA-INPUT"}
+    controls = {"BUTTON", "INPUT"}
     dead = [s for s in stops if s["tag"] not in controls and not s["scrolls"]]
     assert dead == [], f"tab stops on boxes with nothing out of sight: {dead}"
     # The preference checkbox and the command search host each keep one stop.
     assert [s["tag"] for s in stops if s["tag"] in controls] == [
         "BUTTON",
         "INPUT",
-        "WA-INPUT",
+        "INPUT",
         "BUTTON",
     ]
 
@@ -134,7 +134,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
     search = page.get_by_role("combobox", name="Search commands")
     expect(search).to_be_focused()
-    # The editor's native focus is inside the shared control's shadow tree. Closing
+    # The search keeps native input focus. Closing
     # directly from it must return to the same Help door as closing from a result.
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
@@ -559,8 +559,8 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
         assert dialog["y"] + dialog["height"] <= viewport[1] - 16
 
 
-def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serve):
-    """Filtering and selection update one stable search surface through Lit.
+def test_the_reference_keeps_local_search_state_on_one_retained_surface(browser, serve):
+    """Filtering and selection update one stable search surface.
 
     The input owns its native value and caret while the projected result model owns the
     selected command. Filtering a selection out clears it rather than retaining a hidden

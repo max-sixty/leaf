@@ -14,7 +14,6 @@ import {
   ensureSyntaxLanguage,
   inBaseLayer,
   LeafElement,
-  nothing,
   whileConnected,
   keepsText,
   setRenderedChildren,
@@ -80,7 +79,7 @@ customElements.define(
 
     render() {
       this.snapshot = this.data("document");
-      return nothing;
+      return;
     }
 
     // Highlighting and the preview load after the draw, and the draw's claim waits

@@ -1083,7 +1083,23 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: right;
     white-space: nowrap;
   }
-  /* Count, then a matched pair of arrows using the shared icon-button geometry. */
+  /* The query keeps room for a word on the narrowest phone. The count's reserved room
+     is the most it will need, not a floor: past it, the count gives way down to the
+     words it says now, and only then does the query's room shrink. */
+  .lf-page-search-box > input {
+    flex: 1 1 4em;
+  }
+  .lf-page-search-status > span {
+    min-inline-size: max(100%, max-content);
+  }
+  .lf-page-search-status {
+    flex-shrink: 1;
+    min-inline-size: 0;
+  }
+  /* The arrows beside the count wear the field's quiet face, as its clear button does:
+     bare glyphs that take the chip's wash under the pointer, so the box reads as one
+     control rather than a field with buttons bolted on. They stand as a pair, close to
+     the count they move. */
   .lf-page-search-step {
     flex: none;
   }

@@ -1,6 +1,6 @@
 /* Decorate a native disclosure without moving its authored evidence. Revision
  * patching retains nested readers while changing the prose around them. */
-import { LeafElement, initialRender, noChange } from "/runtime/widget-api.js";
+import { LeafElement, initialRender } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-worktree",
@@ -10,7 +10,7 @@ customElements.define(
     }
 
     render() {
-      return noChange;
+      return;
     }
   },
 );

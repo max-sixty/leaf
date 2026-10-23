@@ -11,46 +11,44 @@ import {
 } from "./bundle-presence.js";
 import {
   EVERYTHING,
+  afterSettling,
   allBindings,
   answers,
   bindingEnabledFor,
   bindings,
+  canPlaceFocus,
   commandEntries,
   commandReady,
   commandRoutes,
+  composedParentNode,
   declaredBindings,
   descriptionOf,
   excludedByInert,
+  focusDestination,
+  focused,
   live,
   nativeActivationAt,
   nativeClaimAt,
   nativeLayers,
+  onStanding,
+  onUserInput,
   pagePresented,
   pageUpgraded,
   quickShortcuts,
+  recoveredLabelFocus,
   referencedCommandEntry,
+  renderedUnder,
   routedCommand,
   scopeAvailable,
   scopeIdentity,
   scopesAt,
   scopesFor,
+  sizeObserver,
   spell,
+  takesLetters,
   titleOf,
   word
 } from "./bundle-page-paint.js";
-import {
-  afterSettling,
-  canPlaceFocus,
-  composedParentNode,
-  focusDestination,
-  focused,
-  onStanding,
-  onUserInput,
-  recoveredLabelFocus,
-  renderedUnder,
-  sizeObserver,
-  takesLetters
-} from "./bundle-frame-visibility.js";
 
 // runtime/sample-child.js
 var child = document.documentElement.lfSample;

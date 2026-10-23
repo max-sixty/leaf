@@ -9,20 +9,20 @@
  * for removed rows (calldiff's diffNode/pickLoc contract). Source navigation keeps
  * that side even when the same number names a different line on the other side.
  * Comments stay bound to the capture's source revision: callee keys do not identify
- * persistent invocation instances. Rows are keyed by call and placed with setChildren rather than a Lit repeat per root:
+ * persistent invocation instances. Rows retain their call identity in a keyed Solid view:
  * a capture can move a call under another root, and a row leaving one repeat list
  * for another is recreated, which would drop the focus of a user standing on it. */
 import {
   announce,
   html,
-  iconTemplate,
-  render,
+  createView,
+  Show,
+  iconElement,
   el,
   keeps,
   keepsText,
   LeafElement,
   navigateToDatum,
-  nothing,
   offer,
   projectData,
   setChildLists,
@@ -105,7 +105,10 @@ function updateDisclosureControl(owner) {
   if (!button) return;
   const expand = groups.some((group) => !group.open);
   const icon = expand ? "unfold" : "fold";
-  render(iconTemplate(icon, "lf-action-icon"), button);
+  if (button.dataset.lfDisclosureIcon !== icon) {
+    button.replaceChildren(iconElement(icon, "lf-action-icon"));
+    button.dataset.lfDisclosureIcon = icon;
+  }
   const label = `${expand ? "Expand" : "Collapse"} all ${groups.length} call-tree ${groups.length === 1 ? "root" : "roots"}`;
   keeps(button, "aria-label", label);
   keeps(button, "title", label);
@@ -181,41 +184,67 @@ async function travelToLine(owner, record) {
   });
 }
 
-function locationLink(record, owner) {
-  return record.location
-    ? html`<a
-        class="lf-call-location"
-        href=${`#${owner.getAttribute("diff")}`}
-        @click=${async (event) => {
-          if (event.defaultPrevented || !plainPress(event)) return;
-          event.preventDefault();
-          event.stopPropagation();
-          await travelToLine(owner, record);
-        }}
-        >${record.location}</a
-      >`
-    : html`<a class="lf-call-location" hidden></a>`;
+function locationLink(read, owner) {
+  return html`<a
+    class="lf-call-location"
+    hidden=${() => !read().location}
+    href=${`#${owner.getAttribute("diff")}`}
+    onClick=${async (event) => {
+      if (event.defaultPrevented || !plainPress(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      await travelToLine(owner, read());
+    }}
+    >${() => read().location}</a
+  >`;
 }
 
+const lineDrawings = new WeakMap();
+const locationDrawings = new WeakMap();
 function renderLine(record, line, owner, count = null) {
   keeps(line, "data-status", record.status);
   line.toggleAttribute("data-root", record.root);
   line.toggleAttribute("data-meta", record.meta);
-  render(
-    html`<span class="lf-call-marker" aria-hidden="true"
-        >${
-          record.status === "added" ? "+" : record.status === "removed" ? "−" : " "
-        }</span
-      ><span class="lf-call-body">${record.body}</span>${
-        record.root ? "" : locationLink(record, owner)
-      }${
-        count === null
-          ? ""
-          : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`
-      }`,
-    line,
-  );
+  const props = { record, count };
+  let drawing = lineDrawings.get(line);
+  if (drawing) drawing.update(props);
+  else {
+    drawing = createView(
+      line,
+      (read) =>
+        html` <span class="lf-call-marker" aria-hidden="true"
+            >${() => (read().record.status === "added" ? "+" : read().record.status === "removed" ? "−" : " ")}</span
+          >
+          <span class="lf-call-body">${() => read().record.body}</span>
+          ${Show({
+            get when() {
+              return !read().record.root;
+            },
+            children: (_visible) => locationLink(() => read().record, owner),
+          })}
+          ${Show({
+            get when() {
+              return read().count !== null;
+            },
+            children: (_visible) =>
+              html`<span class="lf-call-group-count" data-lf-gen="1"
+                >${() => read().count}</span
+              >`,
+          })}`,
+      props,
+    );
+    lineDrawings.set(line, drawing);
+  }
   return line;
+}
+
+function renderLocation(record, node, owner) {
+  let drawing = locationDrawings.get(node);
+  if (drawing) drawing.update(record);
+  else {
+    drawing = createView(node, (read) => locationLink(read, owner), record);
+    locationDrawings.set(node, drawing);
+  }
 }
 
 function labelOf(record) {
@@ -229,7 +258,7 @@ customElements.define(
   class extends LeafElement {
     render() {
       this.show(this.data("document"));
-      return nothing;
+      return;
     }
 
     message(snapshot) {
@@ -295,7 +324,7 @@ customElements.define(
         renderLine(record, node, this, count);
         if (record.root) {
           keeps(group.location, "data-status", record.status);
-          render(locationLink(record, this), group.location);
+          renderLocation(record, group.location, this);
         }
         rows.set(record.key, node);
         return {

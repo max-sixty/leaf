@@ -49,7 +49,6 @@ import {
   markdownReady,
   markdownWords,
   LeafElement,
-  noChange,
   threadActions,
   readThreads,
   readHistory,
@@ -224,7 +223,7 @@ customElements.define(
           if (loaded) this.requestUpdate();
         });
       // The initial producer retains the template closure and its existing Lit root.
-      return noChange;
+      return;
     }
 
     #render(history) {

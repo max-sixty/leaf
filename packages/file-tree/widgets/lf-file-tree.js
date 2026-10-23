@@ -28,7 +28,6 @@ import {
   navigateToDatum,
   offer,
   LeafElement,
-  nothing,
   onStanding,
   paintKeys,
   plainPress,
@@ -237,7 +236,7 @@ customElements.define(
 
     render() {
       this.#snapshot = this.data("files");
-      return nothing;
+      return;
     }
 
     updated(changed) {

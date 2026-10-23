@@ -10,20 +10,19 @@
    the references/module-*.md files document each one; the exports below it serve Leaf's
    bundled packages and kernel widgets alone (tests/runtime/widget-api.test.mjs). */
 export {
+  createSignal,
+  createMemo,
+  createEffect,
+  createRoot,
+  onCleanup,
+  createView,
+  afterRender,
+  renderCommit,
   html,
-  noChange,
-  nothing,
-  render,
-  classMap,
-  createRef,
-  guard,
-  keyed,
-  live,
-  ref,
-  repeat,
-  styleMap,
-  unsafeHTML,
-  signal,
+  For,
+  Show,
+  flush,
+  untrack,
 } from "/vendor/browser-runtime.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";

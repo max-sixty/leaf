@@ -6,7 +6,7 @@ import {
   clockValue,
   tickClock,
 } from "../../browser/runtime/presence.js";
-import { LeafElement, noChange } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 const before = (ms) => new Date(Date.now() - ms).toISOString();
 const MINUTE = 60 * 1000;
@@ -22,7 +22,6 @@ test("an element removed by another clock render stays disconnected", async () =
         calls.first += 1;
         clockValue(() => clock);
         if (calls.first > 1) second.remove();
-        return noChange;
       }
     },
   );
@@ -32,7 +31,6 @@ test("an element removed by another clock render stays disconnected", async () =
       render() {
         calls.second += 1;
         clockValue(() => clock);
-        return noChange;
       }
     },
   );

@@ -613,11 +613,12 @@ def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
 def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
-import {projectData, html, render} from '/runtime/widget-api.js';
+import {projectData, html, createView} from '/runtime/widget-api.js';
 customElements.define('lf-draft-subject', class extends HTMLElement {
   connectedCallback() { this.show('Original datum words.'); }
   show(words, key='datum') {
-    render(html`<p>${words}</p><p>Other words in the same widget.</p>`, this);
+    if (this.drawing) this.drawing.update({words});
+    else this.drawing = createView(this, read => html`<p>${() => read().words}</p><p>Other words in the same widget.</p>`, {words});
     projectData(this, [{key, IDENTITY node: this.querySelector('p'), label: 'Datum',
       origin: {derived: [{widget: 'subject'}]}}]);
   }

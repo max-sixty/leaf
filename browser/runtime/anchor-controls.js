@@ -2,7 +2,7 @@
  *
  * This view owns visual comment proxies, controls for reactions in force, and message
  * fragment state. The dedicated anchor-note projection owns accessible comment notes.
- * Visual proxies are keyed Lit controls, one group per drawing's seat, standing on the
+ * Visual proxies are keyed Solid controls, one group per drawing's seat, standing on the
  * details shelf with the seat naming the group as its details (details-shelf.js). A
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
  * declared part through the target picker (`s`). A failed thread presentation withdraws
@@ -18,12 +18,7 @@ import { sameAnchor } from "./anchor-coordinate.js";
 import { sectionLabel } from "./addressable-names.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
 import { shelve, unshelve } from "./details-shelf.js";
-import {
-  html,
-  nothing,
-  render as renderTemplate,
-  repeat,
-} from "/vendor/browser-runtime.js";
+import { afterRender, html, createView, For } from "/vendor/browser-runtime.js";
 import {
   fragmentTarget,
   annotationAt,
@@ -74,6 +69,7 @@ export function createAnchorControls({
   paintKeys,
 }) {
   const visualActionHolders = new Map();
+  const visualActionDrawings = new WeakMap();
   const reactionSeats = new Map();
   const anchorNotes = createAnchorNoteProjection({ openThread, labelAnchor });
   let mounted = false;
@@ -171,20 +167,19 @@ export function createAnchorControls({
     commentOnTarget({ anchor: control.lfAnchor });
   }
 
-  /** @param {{anchor: object, label: string, key?: string}} target */
-  const visualActionTemplate = ({ anchor, label }) => html`
-    <button
+  /** @param {() => {anchor: object, label: string, key?: string}} read */
+  const visualActionTemplate = (read) =>
+    html`<button
       type="button"
       class="lf-visual-action lf-quiet lf-ui"
       data-lf-gen="1"
       data-lf-offer="button"
       tabindex="-1"
-      .lfAnchor=${anchor}
-      .textContent=${`Respond to ${label}`}
-      @focus=${focusVisualAction}
-      @click=${activateVisualAction}
-    ></button>
-  `;
+      prop:lfAnchor=${() => read().anchor}
+      prop:textContent=${() => `Respond to ${read().label}`}
+      onFocus=${focusVisualAction}
+      onClick=${activateVisualAction}
+    ></button>`;
 
   function reconcileVisualActions(groups) {
     const kept = new Set();
@@ -199,16 +194,30 @@ export function createAnchorControls({
       kept.add(seat);
       const restoreFocus = holdFocus(holder);
       keeps(holder, "aria-label", `Responses to ${targets[0].label}`);
-      renderTemplate(
-        html`${repeat(targets, ({ key }) => key, visualActionTemplate)}`,
-        holder,
-      );
+      let drawing = visualActionDrawings.get(holder);
+      if (drawing) drawing.update({ targets });
+      else {
+        drawing = createView(
+          holder,
+          (read) =>
+            For({
+              get each() {
+                return read().targets;
+              },
+              keyed: (target) => target.key,
+              children: visualActionTemplate,
+            }),
+          { targets },
+        );
+        visualActionDrawings.set(holder, drawing);
+      }
       shelve(seat, holder);
-      restoreFocus?.();
+      afterRender(() => restoreFocus?.());
     }
     for (const [seat, holder] of visualActionHolders)
       if (!kept.has(seat)) {
-        renderTemplate(nothing, holder);
+        visualActionDrawings.get(holder)?.dispose();
+        visualActionDrawings.delete(holder);
         unshelve(seat, holder);
         visualActionHolders.delete(seat);
       }

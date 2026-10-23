@@ -7,12 +7,12 @@
  * passes its own: `label` reads a heading's words and `chrome` whether it stands in
  * Leaf's chrome. The module reads them as the rest of the runtime does (`wrote`,
  * `inChrome`), and its first redraw rewrites any label the early reading said
- * differently. Lit retains the keyed rows, and the module restores focus through moves.
+ * differently. Solid retains the keyed rows, and the module restores focus through moves.
  * Only the module lends ids (`lends`): the page's markup as it parsed is
  * the source a revision compares against (version.js), so the early drawing writes
  * nothing outside its host, and a destination without an id has no link until upgrade.
  */
-import { html, nothing, render, repeat } from "/vendor/lit.js";
+import { html, render, createSignal, flush, For, runWithOwner } from "/vendor/solid.js";
 
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
@@ -23,45 +23,53 @@ export const outlineDocument = (host) => host.closest("[data-lf-views] > *, main
 
 // The initial drawing keeps the template call sites and root part for its lifetime.
 // Upgrading calls this same closure: importing another compiled copy of a template
-// would make Lit replace the early nodes instead of updating their parts.
+// would make Solid replace the early nodes instead of updating their parts.
 export function drawToc(host) {
   const open = host.hasAttribute("open");
-  const href = (destination) => (destination?.id ? `#${destination.id}` : nothing);
-  const paint = (start, items) =>
+  const [state, setState] = createSignal(
+    { start: { label: "Top" }, items: [] },
+    { ownedWrite: true },
+  );
+  const href = (destination) => (destination?.id ? `#${destination.id}` : null);
+  host.replaceChildren();
+  runWithOwner(null, () =>
     render(
-      html`
-        <nav class="lf-toc-nav lf-ui" data-lf-gen="1" aria-label="On this page">
+      () =>
+        html` <nav class="lf-toc-nav lf-ui" data-lf-gen="1" aria-label="On this page">
           <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>
             On this page
           </p>
-          <details class="lf-toc-disclosure" ?open=${open}>
+          <details class="lf-toc-disclosure" open=${open}>
             <summary class="lf-toc-toggle lf-label" data-lf-gen="1" data-lf-said>
               On this page
             </summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
               <div class="lf-toc-start" data-lf-depth="0">
-                <a href=${href(start.destination)}>${start.label}</a>
+                <a href=${() => href(state().start.destination)}
+                  >${() => state().start.label}</a
+                >
               </div>
               <ol>
-                ${repeat(
-                  items,
-                  ({ key }) => key,
-                  (item) => html`
-                    <li data-lf-depth=${item.depth}>
-                      <a href=${href(item.destination)}>${item.label}</a>
-                    </li>
-                  `,
-                )}
+                ${For({
+                  get each() {
+                    return state().items;
+                  },
+                  keyed: (item) => item.key,
+                  children: (item) =>
+                    html`<li data-lf-depth=${() => item().depth}>
+                      <a href=${() => href(item().destination)}
+                        >${() => item().label}</a
+                      >
+                    </li>`,
+                })}
               </ol>
             </div>
           </details>
-        </nav>
-      `,
+        </nav>`,
       host,
-    );
-  host.replaceChildren();
-  paint({ label: "Top" }, []);
+    ),
+  );
   const nav = host.querySelector("nav");
   const track = nav.querySelector(".lf-toc-rows");
   const startRow = track.querySelector(".lf-toc-start");
@@ -73,7 +81,7 @@ export function drawToc(host) {
     lens: track.querySelector(".lf-toc-window"),
     update(reading) {
       const { start, items } = readOutline(host, reading);
-      paint(start, items);
+      flush(() => setState({ start, items }));
       const rows = [...list.children];
       return items.length
         ? [

@@ -9,26 +9,35 @@ import {
 import { under } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
-import { createRef, html, ref, render } from "/vendor/browser-runtime.js";
+import { createView, html, onCleanup } from "/vendor/browser-runtime.js";
 
-test("failure replacement releases directives and supports native and template recovery", () => {
+test("failure replacement releases Solid ownership and supports retained-owner recovery", () => {
   const host = document.createElement("test-widget");
-  const reference = createRef();
-  const paint = (text) => render(html`<p ${ref(reference)}>${text}</p>`, host);
-  paint("Before failure");
-  assert.equal(reference.value.textContent, "Before failure");
+  let releases = 0;
+  const drawing = createView(
+    host,
+    (read) => {
+      onCleanup(() => releases++);
+      return html`<p>${() => read().text}</p>`;
+    },
+    { text: "Before failure" },
+  );
   failSoftUnreported(host, new Error("first failure"));
-  assert.equal(reference.value, undefined);
-  paint("Recovered template");
-  assert.equal(host.textContent, "Recovered template");
+  assert.equal(releases, 1);
+  assert.match(host.textContent, /first failure/);
+  drawing.update({ text: "Recovered view" });
+  assert.equal(host.textContent, "Recovered view");
   failSoftUnreported(host, new Error("second failure"));
+  assert.equal(releases, 2);
   const native = document.createElement("p");
   native.textContent = "Recovered native reading";
   setChildren(host, [native]);
   assert.equal(host.textContent, "Recovered native reading");
   failSoftUnreported(host, new Error("third failure"));
-  paint("Final template");
-  assert.equal(host.textContent, "Final template");
+  drawing.update({ text: "Final view" });
+  assert.equal(host.textContent, "Final view");
+  drawing.dispose();
+  assert.equal(releases, 3);
 });
 
 test("a staged widget shows each failure in its stage and its next stage replaces it", () => {

@@ -17,7 +17,7 @@
    are inert. Opening the disclosure, undo or refusal ends that fold immediately. HeldNews
    still decides when a passive settlement may move the reader. */
 import { setChildren } from "../dom-children.js";
-import { html, render } from "/vendor/browser-runtime.js";
+import { html, createView, Show } from "/vendor/browser-runtime.js";
 import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";
@@ -39,6 +39,20 @@ class ResolvedThreads {
   node = document.createElement("details");
   summary = document.createElement("summary");
   #threads = [];
+  #drawing = createView(
+    this.summary,
+    (state) =>
+      html`Resolved ·
+      ${() => state().count}${Show({
+        get when() {
+          return state().notice;
+        },
+        children: (notice) =>
+          html` ·
+            <span class="lf-thread-notice lf-thread-notice-news">${notice}</span>`,
+      })}`,
+    { count: 0, notice: null },
+  );
 
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
@@ -65,16 +79,7 @@ class ResolvedThreads {
       held.length > 1
         ? `${held.length} ${held.every(({ reopened }) => reopened) ? "reopened" : "changed"}`
         : (held[0]?.label ?? null);
-    render(
-      html`Resolved ·
-      ${threads.length}${
-        notice
-          ? html` ·
-              <span class="lf-thread-notice lf-thread-notice-news">${notice}</span>`
-          : ""
-      }`,
-      this.summary,
-    );
+    this.#drawing.update({ count: threads.length, notice });
     setChildren(this.node, [this.summary, ...nodes]);
   }
 }

@@ -1,17 +1,10 @@
 (() => {
-  // leaf-initial-lit:lit
-  var { AsyncDirective, AsyncReplaceDirective, CSSResult, Directive, LitElement, PartType, ReactiveElement, TemplateResultType, UnsafeHTMLDirective, UntilDirective, _$LE, _$LH, adoptStyles, asyncAppend, asyncReplace, cache, choose, classMap, clearPart, createRef, css, customElement, defaultConverter, directive, eventOptions, getCommittedValue, getCompatibleStyle, getDirectiveClass, guard, html, ifDefined, insertPart, isCompiledTemplateResult, isDirectiveResult, isPrimitive, isServer, isSingleExpression, isTemplateResult, join, keyed, literal, live, map, mathml, noChange, notEqual, nothing, property, query, queryAll, queryAssignedElements, queryAssignedNodes, queryAsync, range, ref, removePart, render, repeat, setChildPartValue, setCommittedValue, standardProperty, state, staticHtml, staticMathml, staticSvg, styleMap, supportsAdoptingStyleSheets, svg, templateContent, unsafeCSS, unsafeHTML, unsafeMathML, unsafeSVG, unsafeStatic, until, when, withStatic } = document.documentElement.lfInitial.lit;
+  // leaf-initial-solid:solid
+  var { createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createProjection, flush, untrack, onSettled, For, Show, Errored, onCleanup, render, insert, spread, html } = document.documentElement.lfInitial.solid;
 
   // packages/default/widgets/activity-view.js
   var ACTIVITY_VIEW = "activity-reading:";
   var lightTarget = (fragment, doc) => doc.readyState !== "loading" && doc.getElementById(decodeURIComponent(fragment.slice(1)));
-  function refreshTarget(link, row, write, names) {
-    const fragment = `#${encodeURIComponent(row.widget)}`;
-    const href = names(fragment, link.ownerDocument) ? fragment : null;
-    if (!href) write(link, "tabindex", "-1");
-    write(link, "href", href);
-    if (href) write(link, "tabindex", null);
-  }
   function initialActivity(host, { offerElement, tabStore, keeps }) {
     const storageKey = ACTIVITY_VIEW + host.id;
     const saved = tabStore.get(storageKey);
@@ -24,90 +17,111 @@
       list: null,
       empty: null
     };
-    let shown = reading;
-    let capabilities = {};
-    const notice = (node) => {
-      if (!node) return;
-      drawing.notice = node;
-      offerElement(node, "lf-activity-news lf-thread-notice");
-    };
+    const [state, setState] = createSignal(
+      { shown: reading, live: {}, rows: JSON.parse(reading.shown) },
+      { ownedWrite: true }
+    );
+    const hidden = () => !state().shown.open && !state().live.printing;
     const target = (row) => {
-      if (row.thread)
+      if (row().thread)
         return html`<button
-        ${ref((node) => node && offerElement(node, "lf-activity-target"))}
         type="button"
-        data-lf-carry=${`row-${row.id}`}
+        ref=${(node) => offerElement(node, "lf-activity-target")}
+        data-lf-carry=${() => `row-${row().id}`}
         data-lf-echo
-        @click=${capabilities.openThread ? () => capabilities.openThread(row.thread) : null}
+        onClick=${() => state().live.openThread?.(row().thread)}
       >
-        ${row.label}
+        ${() => row().label}
       </button>`;
-      if (!row.widget && !row.label) return nothing;
-      if (!row.widget) return html`<span class="lf-activity-target">${row.label}</span>`;
-      return html`<a
+      if (!row().widget && !row().label) return null;
+      if (!row().widget)
+        return html`<span class="lf-activity-target">${() => row().label}</span>`;
+      const link = html`<a
       class="lf-activity-target"
-      data-lf-carry=${`row-${row.id}`}
-      ${ref(
-        (node) => node && refreshTarget(node, row, keeps, capabilities.names ?? lightTarget)
-      )}
-      >${row.label}</a
+      data-lf-carry=${() => `row-${row().id}`}
+      >${() => row().label}</a
     >`;
+      createEffect(
+        () => ({ row: row(), names: state().live.names ?? lightTarget }),
+        ({ row: row2, names }) => {
+          const fragment = `#${encodeURIComponent(row2.widget)}`;
+          const href = names(fragment, host.ownerDocument) ? fragment : null;
+          if (!href) keeps(link, "tabindex", "-1");
+          keeps(link, "href", href);
+          if (href) keeps(link, "tabindex", null);
+        }
+      );
+      return link;
     };
-    const rowTemplate = (row) => html`<li class="lf-activity-row" ?data-lf-undone=${row.undone}>
+    const rowTemplate = (row) => html`<li class="lf-activity-row" data-lf-undone=${() => row().undone ? "" : null}>
       <p class="lf-activity-line">
-        <strong class="lf-activity-actor">${row.actor}</strong>
-        <span class="lf-activity-what">${row.what}</span> ${target(row)}
+        <strong class="lf-activity-actor">${() => row().actor}</strong>${" "}
+        <span class="lf-activity-what">${() => row().what}</span
+        >${" "}${target(row)}${" "}
         <time
           class="lf-activity-time"
-          datetime=${row.ts}
-          title=${new Date(row.ts).toLocaleString()}
-          >${capabilities.age?.(row.ts) ?? ""}</time
-        >${row.undone ? html` <span class="lf-activity-undone">undone</span>` : nothing}
+          datetime=${() => row().ts}
+          title=${() => new Date(row().ts).toLocaleString()}
+          >${() => state().live.age?.(row().ts) ?? ""}</time
+        >
+        ${Show({
+      get when() {
+        return row().undone;
+      },
+      children: (_visible) => html`${" "}<span class="lf-activity-undone">undone</span>`
+    })}
       </p>
-      ${row.excerpt ? html`<p class="lf-activity-excerpt">${row.excerpt}</p>` : nothing}
+      ${Show({
+      get when() {
+        return row().excerpt;
+      },
+      children: (_visible) => html`<p class="lf-activity-excerpt">${() => row().excerpt}</p>`
+    })}
     </li>`;
-    const paint = (next = shown, live2 = capabilities) => {
-      shown = next;
-      capabilities = live2;
-      const rows = JSON.parse(shown.shown);
-      const hidden = !shown.open && !capabilities.printing;
-      render(
-        html`
-        <button
-          ${ref(notice)}
-          type="button"
-          data-lf-carry="notice"
-          aria-expanded=${String(shown.open)}
-          ?data-lf-news=${shown.news}
-        >
-          ${shown.label}
-        </button>
-        <ol
-          class="lf-activity-list"
-          data-lf-gen="1"
-          ?hidden=${hidden}
-          ${ref((node) => {
-          if (node) drawing.list = node;
-        })}
-        >
-          ${repeat(rows, (row) => row.id, rowTemplate)}
-        </ol>
-        <p
-          class="lf-activity-empty"
-          data-lf-gen="1"
-          ?hidden=${hidden || rows.length > 0}
-          ${ref((node) => {
-          if (node) drawing.empty = node;
-        })}
-        >
-          Nothing shown yet.
-        </p>
-      `,
-        host
-      );
+    const paint = (next = state().shown, live = state().live) => {
+      flush(() => setState({ shown: next, live, rows: JSON.parse(next.shown) }));
     };
     host.replaceChildren();
-    paint();
+    runWithOwner(
+      null,
+      () => render(
+        () => html` <button
+            ref=${(node) => {
+          drawing.notice = node;
+          offerElement(node, "lf-activity-news lf-thread-notice");
+        }}
+            type="button"
+            data-lf-carry="notice"
+            aria-expanded=${() => String(state().shown.open)}
+            data-lf-news=${() => state().shown.news ? "" : null}
+          >
+            ${() => state().shown.label}
+          </button>
+          <ol
+            class="lf-activity-list"
+            data-lf-gen="1"
+            hidden=${hidden}
+            ref=${(node) => drawing.list = node}
+          >
+            ${For({
+          get each() {
+            return state().rows;
+          },
+          keyed: (row) => row.id,
+          children: rowTemplate
+        })}
+          </ol>
+          <p
+            class="lf-activity-empty"
+            data-lf-gen="1"
+            hidden=${() => hidden() || state().rows.length > 0}
+            ref=${(node) => drawing.empty = node}
+          >
+            Nothing shown yet.
+          </p>`,
+        host
+      )
+    );
     if (host.ownerDocument.readyState === "loading")
       host.ownerDocument.addEventListener("readystatechange", () => paint(), {
         once: true

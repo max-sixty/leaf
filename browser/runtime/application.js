@@ -11,7 +11,7 @@ import {
   whenWidgetsPresented,
   presentDocument,
   applicationPresenter,
-  PRESENTATION_ORDER,
+  PRESENTATION_PHASE,
   readPart,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
@@ -285,14 +285,14 @@ export function mountApplication(dependencies) {
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
-      order: PRESENTATION_ORDER.annotations,
+      phase: PRESENTATION_PHASE.annotations,
       reading: () => annotationInputs(),
       paint: async (_reading, current, resume) => {
         const ready = await whenApplicationRegionsPresented(
           ["projection:chrome"],
           current,
         );
-        if (ready === "presented" && current()) resume(renderAnnotations)();
+        if (ready === "presented" && current()) await resume(renderAnnotations)();
       },
     });
     void presentation.present();

@@ -99,7 +99,7 @@ export {
   readSampleVisibility,
 } from "./frame-visibility.js";
 export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
-export { createPresentationSchedule } from "/vendor/browser-runtime.js";
+export { createPresentationFlow } from "/vendor/browser-runtime.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
 export { flashDuration, agentArrivalDuration } from "./motion.js";

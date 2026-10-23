@@ -7,33 +7,31 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   closeControl,
-  closeNativeLayer,
-  keys,
-  nativeLayers,
-  offered,
-  paintKeys,
-  plainPress,
-  showNativeLayer
-} from "./bundle-page-paint.js";
-import {
   closeLayer,
+  closeNativeLayer,
   focusDestination,
   handBack,
   keeps,
   keepsHidden,
   keepsText,
+  keys,
+  nativeLayers,
+  offered,
   openLayer,
-  openerOf
-} from "./bundle-frame-visibility.js";
+  openerOf,
+  paintKeys,
+  plainPress,
+  showNativeLayer
+} from "./bundle-page-paint.js";
 import {
+  Show,
+  afterRender,
+  createView,
+  default as default2,
   offlineInteractive,
   pageUrl,
   runtimeResource
-} from "./bundle-semantic-state.js";
-import {
-  html,
-  render
-} from "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/media.js
 var CANONICAL_MEDIA_ROOT = "/media/";
@@ -88,26 +86,54 @@ function imageTools() {
   }
   return loading;
 }
+var viewerDrawing = null;
 function presentViewer(model) {
-  render(
-    html`
-      <div class="lf-media-viewer-head">
-        <strong id="lf-media-viewer-title">Image preview</strong>
-        <div class="lf-media-viewer-actions">
-          ${model ? html`<a
-                  ${offered("lf-media-viewer-original", true)}
-                  href=${model.url}
-                  target="_blank"
-                  rel="noopener"
-                  >Original</a
-                >` : null}
-          ${viewerZoom}${viewerClose}
-        </div>
-      </div>
-      ${stage}${caption}
-    `,
-    mediaViewer
-  );
+  const props = { model };
+  if (!viewerDrawing) {
+    viewerDrawing = createView(
+      mediaViewer,
+      (state) => default2` <div class="lf-media-viewer-head">
+            <strong id="lf-media-viewer-title">Image preview</strong>
+            <div class="lf-media-viewer-actions">
+              ${Show({
+        get when() {
+          return state().model;
+        },
+        children: (model2) => default2`<a
+                    ref=${offered("lf-media-viewer-original", true)}
+                    href=${() => model2().url}
+                    target="_blank"
+                    rel="noopener"
+                    >Original</a
+                  >`
+      })}
+              ${viewerZoom}${viewerClose}
+            </div>
+          </div>
+          ${stage}${caption}`,
+      props
+    );
+  } else viewerDrawing.update(props);
+}
+var stageDrawing = null;
+function presentStage(model) {
+  if (!stageDrawing) {
+    stageDrawing = createView(
+      stage,
+      (state) => default2`${() => {
+        const model2 = state();
+        if (model2?.kind === "loading") return default2`<p>Preparing image…</p>`;
+        if (model2?.kind === "error")
+          return default2`<p>Image preview unavailable: ${model2.message}.</p>`;
+        if (model2?.kind === "probe")
+          return default2`<span class="lf-media-viewer-probe"
+              ><img src=${model2.url} alt=""
+            /></span>`;
+        return null;
+      }}`,
+      model
+    );
+  } else stageDrawing.update(model);
 }
 var mediaViewer = document.createElement("dialog");
 mediaViewer.id = "lf-media-viewer";
@@ -181,7 +207,7 @@ var open = async (source, alt, from) => {
   const canvas = source instanceof window.HTMLCanvasElement;
   openLayer(mediaViewer, from);
   presentViewer(canvas ? null : { url: source, alt });
-  render(canvas ? html`<p>Preparing image…</p>` : null, stage);
+  presentStage(canvas ? { kind: "loading" } : null);
   const figureCaption = from.closest("figure")?.querySelector("figcaption");
   const description = from.dataset.lfMediaCaption || figureCaption && says(figureCaption) || cellHeads(from);
   keepsText(caption, description);
@@ -197,7 +223,7 @@ var open = async (source, alt, from) => {
       if (!blob) throw new Error("the drawing could not be encoded");
     } catch (error) {
       if (attempt !== opening || !mediaViewer.open) return;
-      render(html`<p>Image preview unavailable: ${error.message}.</p>`, stage);
+      presentStage({ kind: "error", message: error.message });
       return;
     }
     if (attempt !== opening || !mediaViewer.open) return;
@@ -205,77 +231,80 @@ var open = async (source, alt, from) => {
     url = canvasUrl;
     presentViewer({ url, alt });
   }
-  render(
-    html`<span class="lf-media-viewer-probe"><img src=${url} alt="" /></span>`,
-    stage
-  );
-  const probe = stage.querySelector(".lf-media-viewer-probe > img");
-  Promise.all([imageTools(), probe.decode()]).then(
-    ([PhotoSwipe]) => {
-      if (attempt !== opening || !mediaViewer.open) return;
-      const { naturalWidth: width, naturalHeight: height } = probe;
-      const cover = Math.max(window.screen.width, window.screen.height) / Math.min(width, height);
-      const size = probe.getBoundingClientRect().width > 1 ? { width, height } : { width: width * cover, height: height * cover };
-      render(null, stage);
-      const current = new PhotoSwipe({
-        dataSource: [{ src: url, alt, ...size }],
-        appendToEl: mediaViewer,
-        paddingFn: (viewport) => {
-          const box = stage.getBoundingClientRect();
-          const inset = getComputedStyle(stage);
-          return {
-            top: box.top + parseFloat(inset.paddingTop),
-            right: viewport.x - box.right + parseFloat(inset.paddingRight),
-            bottom: viewport.y - box.bottom + parseFloat(inset.paddingBottom),
-            left: box.left + parseFloat(inset.paddingLeft)
-          };
-        },
-        secondaryZoomLevel: 1,
-        close: false,
-        zoom: false,
-        counter: false,
-        arrowPrev: false,
-        arrowNext: false,
-        trapFocus: false,
-        returnFocus: false,
-        escKey: false,
-        // The native dialog owns its opening and closing. Zoom alone animates.
-        showHideAnimationType: "none",
-        zoomAnimationDuration: reducedMotion() ? 0 : foldDuration(),
-        clickToCloseNonZoomable: false,
-        bgClickAction: "close",
-        tapAction: "zoom"
-      });
-      inspector = current;
-      current.on("keydown", (event) => {
-        const key = event.originalEvent;
-        if (key.defaultPrevented || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key.key) || nativeLayers().at(-1)?.root !== mediaViewer || !mediaViewer.contains(key.target))
-          event.preventDefault();
-      });
-      current.on("close", () => {
-        if (mediaViewer.open) closeLayer(() => closeNativeLayer(mediaViewer));
-      });
-      current.on("zoomPanUpdate", () => {
-        const slide = current.currSlide;
-        const enlarged = slide.currZoomLevel > slide.zoomLevels.initial + 0.01;
-        keepsText(viewerZoom, enlarged ? "Fit" : "100%");
-        keeps(viewerZoom, "aria-label", enlarged ? "Fit image" : "Zoom to actual size");
+  presentStage({ kind: "probe", url });
+  afterRender(() => {
+    const probe = stage.querySelector(".lf-media-viewer-probe > img");
+    Promise.all([imageTools(), probe.decode()]).then(
+      ([PhotoSwipe]) => {
+        if (attempt !== opening || !mediaViewer.open) return;
+        const { naturalWidth: width, naturalHeight: height } = probe;
+        const cover = Math.max(window.screen.width, window.screen.height) / Math.min(width, height);
+        const size = probe.getBoundingClientRect().width > 1 ? { width, height } : { width: width * cover, height: height * cover };
+        presentStage(null);
+        const current = new PhotoSwipe({
+          dataSource: [{ src: url, alt, ...size }],
+          appendToEl: mediaViewer,
+          paddingFn: (viewport) => {
+            const box = stage.getBoundingClientRect();
+            const inset = getComputedStyle(stage);
+            return {
+              top: box.top + parseFloat(inset.paddingTop),
+              right: viewport.x - box.right + parseFloat(inset.paddingRight),
+              bottom: viewport.y - box.bottom + parseFloat(inset.paddingBottom),
+              left: box.left + parseFloat(inset.paddingLeft)
+            };
+          },
+          secondaryZoomLevel: 1,
+          close: false,
+          zoom: false,
+          counter: false,
+          arrowPrev: false,
+          arrowNext: false,
+          trapFocus: false,
+          returnFocus: false,
+          escKey: false,
+          // The native dialog owns its opening and closing. Zoom alone animates.
+          showHideAnimationType: "none",
+          zoomAnimationDuration: reducedMotion() ? 0 : foldDuration(),
+          clickToCloseNonZoomable: false,
+          bgClickAction: "close",
+          tapAction: "zoom"
+        });
+        inspector = current;
+        current.on("keydown", (event) => {
+          const key = event.originalEvent;
+          if (key.defaultPrevented || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key.key) || nativeLayers().at(-1)?.root !== mediaViewer || !mediaViewer.contains(key.target))
+            event.preventDefault();
+        });
+        current.on("close", () => {
+          if (mediaViewer.open) closeLayer(() => closeNativeLayer(mediaViewer));
+        });
+        current.on("zoomPanUpdate", () => {
+          const slide = current.currSlide;
+          const enlarged = slide.currZoomLevel > slide.zoomLevels.initial + 0.01;
+          keepsText(viewerZoom, enlarged ? "Fit" : "100%");
+          keeps(
+            viewerZoom,
+            "aria-label",
+            enlarged ? "Fit image" : "Zoom to actual size"
+          );
+          paintKeys();
+        });
+        current.init();
+        current.element.removeAttribute("role");
+        current.element.removeAttribute("aria-modal");
         paintKeys();
-      });
-      current.init();
-      current.element.removeAttribute("role");
-      current.element.removeAttribute("aria-modal");
-      paintKeys();
-    },
-    (error) => {
-      if (attempt !== opening || !mediaViewer.open) return;
-      keepsText(
-        caption,
-        `Image preview unavailable: ${error.message}. Open Original to see the file.`
-      );
-      keepsHidden(caption, false);
-    }
-  );
+      },
+      (error) => {
+        if (attempt !== opening || !mediaViewer.open) return;
+        keepsText(
+          caption,
+          `Image preview unavailable: ${error.message}. Open Original to see the file.`
+        );
+        keepsHidden(caption, false);
+      }
+    );
+  });
 };
 mediaViewer.addEventListener("close", () => {
   if (mediaViewer.open) return;
@@ -288,7 +317,7 @@ mediaViewer.addEventListener("close", () => {
   openLayer(mediaViewer, null);
   closeLayer(
     () => {
-      render(null, stage);
+      presentStage(null);
       presentViewer(null);
     },
     origin && (() => handBack(origin))

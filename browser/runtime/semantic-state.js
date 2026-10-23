@@ -3,13 +3,15 @@
    network promises stay out of the root, in the modules that own them. Importing this
    module mounts no view and starts no delivery. */
 import {
-  batch,
-  computed,
-  effect,
-  signal,
+  renderCommit,
+  createMemo,
+  createSignal,
+  flush,
+  watchReaction,
+  subscribe,
   untracked,
   createPresentationCoordinator,
-  createPresentationSchedule,
+  createPresentationFlow,
   createSemanticApplication,
 } from "/vendor/browser-runtime.js";
 
@@ -21,9 +23,20 @@ let reportPresentationFailure = (reason) =>
 const presentation = createPresentationCoordinator({
   reportFailure: (reason) => reportPresentationFailure(reason),
 });
-// A publication paints on the pass after it, so every subscriber has claimed its region
-// before any renderer touches the document.
-const schedule = createPresentationSchedule(bindQueuedWork);
+// Solid owns renderer scheduling. Groups state which committed DOM a consumer
+// requires; asynchronous completion remains the presentation ledger's responsibility.
+const schedule = createPresentationFlow(bindQueuedWork);
+const widgetDOM = schedule.group();
+const projectionDOM = schedule.group([widgetDOM]);
+const threadDOM = schedule.group([projectionDOM]);
+const obligationsDOM = schedule.group([threadDOM]);
+const annotationsDOM = schedule.group([obligationsDOM]);
+export const PRESENTATION_PHASE = Object.freeze({
+  projection: projectionDOM,
+  thread: threadDOM,
+  obligations: obligationsDOM,
+  annotations: annotationsDOM,
+});
 
 /** The compiled factory is generated from this checked source contract. */
 /** @type {ReturnType<typeof import("../framework/application.ts").createSemanticApplication>} */
@@ -70,38 +83,35 @@ const widgetRegions = (widget) =>
 export const attachWidgetPresentation = (widget, kind, renderer) =>
   presentation.attach(widgetRegion(widget, kind), renderer);
 
-// A parent renders moved members before their attribute-set owner reads the DOM.
-// Authored parentage and projected moves supply the current depth; module arrival
-// order supplies none. Widgets paint ahead of document projection at zero.
+// Native render dependencies name the DOM they consume. Widget tasks depend on
+// their current parent, and projection depends on every widget's committed DOM.
+// Async preparation is presentation proof, not a DOM dependency.
 const currentWidgetParents = readPart((root) => root.effective.widgetParents);
-const widgetOrder = (widget) => {
-  const parents = currentWidgetParents();
-  const seen = new Set();
-  let depth = 0;
-  for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
-    if (seen.has(parent)) break;
-    seen.add(parent);
-    depth++;
-  }
-  return -1 / (depth + 1);
-};
-export const queueWidgetUpdate = (widget, update) =>
-  schedule.enqueue(
-    untracked(() => widgetOrder(widget)),
-    update,
-  );
-
-// Where a document-wide renderer stands in one presentation pass. The projection
-// materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, and the obligation view resolves
-// the widget nodes those passages placed. Declaring the order here is what lets every
-// publisher simply publish.
-export const PRESENTATION_ORDER = Object.freeze({
-  projection: 0,
-  thread: 1,
-  obligations: 2,
-  annotations: 3,
-});
+const [elementTasks, setElementTasks] = createSignal(new Map(), { ownedWrite: true });
+export function elementRenderTask(widget) {
+  const task = schedule.task({
+    group: widgetDOM,
+    after: () => {
+      const parent = widget && currentWidgetParents().get(widget);
+      const task = parent && elementTasks().get(parent);
+      return task ? [task] : [];
+    },
+  });
+  if (widget) setElementTasks((previous) => new Map(previous).set(widget, task));
+  return {
+    enqueue: task.enqueue,
+    disconnect() {
+      task.disconnect();
+      if (widget)
+        setElementTasks((previous) => {
+          if (previous.get(widget) !== task) return previous;
+          const next = new Map(previous);
+          next.delete(widget);
+          return next;
+        });
+    },
+  };
+}
 
 // The document-wide presenters, in registration order. `presentDocument` is what a
 // caller reaches for when it has changed something every region may be showing and has
@@ -114,11 +124,11 @@ const documentPresenters = [];
 // `reading()` runs when its selected inputs move and returns the value to paint, or
 // null when the region has nothing to paint (before the page has read the log, or while
 // its renderer is not mounted). `paint(value, current, resume)` runs on the next
-// presentation pass, after every region with a lower `order` has painted, and reads the
-// state as it is then.
+// native render phase, after its `phase` predecessors have committed DOM, and reads
+// the state as it is then. Focus, measurement and third-party setup use afterRender.
 //
 // No one lists a region's dependencies. Both functions read through `readPart`
-// selectors; native Preact computed values and effects follow those reads. A publication
+// selectors; native Solid computed values and effects follow those reads. A publication
 // that changes a part `paint` read schedules a paint. One that changes only parts
 // `reading` read schedules a paint only if `reading` now returns a different value. One
 // that changes neither carries the region's last paint into the new epoch
@@ -126,8 +136,9 @@ const documentPresenters = [];
 // so renderers select the parts they draw.
 //
 // Recording sees only synchronous code. A paint that awaits wraps each continuation in
-// `resume`, as a `.then` callback or a function it calls after an `await`; reads in a
-// continuation it does not wrap are not followed. A paint's reads of values outside the
+// `resume`, as a `.then` callback or a function it calls after an `await`; it returns
+// that stretch's render completion. Reads in a continuation it does not wrap are not
+// followed. Post-render callbacks are tracked as synchronous stretches too. A paint's reads of values outside the
 // state, such as the time it shows (`clockValue`), are followed too,
 // and a change to one repaints the region. Anything else the paint takes from outside
 // the state, such as a draft or the page's own nodes, is not followed: whoever changes
@@ -136,30 +147,49 @@ const documentPresenters = [];
 /** @param {{
  *   region: string,
  *   renderer?: object,
- *   order?: number,
+ *   phase?: ReturnType<ReturnType<typeof createPresentationFlow>["group"]>,
  *   reading: () => unknown,
- *   paint: (value: any, current: () => boolean, resume: <A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => R) => unknown,
+ *   paint: (value: any, current: () => boolean, resume: <A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => Promise<Awaited<R> | undefined>) => unknown,
  *   failSoft?: (reason: unknown) => unknown,
  * }} presenter */
 export const applicationPresenter = ({
   region,
   renderer = document,
-  order,
+  phase,
   reading,
   paint,
   failSoft,
 }) => {
-  // Reading identity decides whether a region needs new content. Preact owns its
+  // Reading identity decides whether a region needs new content. Solid owns its
   // dependencies, including subscriptions to values outside the application state.
-  const revision = signal(0);
-  const selected = computed(() => {
-    revision.value;
-    const epoch = untracked(() => readApplication().semanticEpoch);
-    const value = reading();
-    if (epoch !== untracked(() => readApplication().semanticEpoch))
-      throw new Error(`the ${region} region's reading moved a part it read`);
-    return value;
-  });
+  const [revision, setRevision] = createSignal(0, { ownedWrite: true });
+  const selected = createMemo(
+    () => {
+      revision();
+      try {
+        const epoch = untracked(() => readApplication().semanticEpoch);
+        const value = reading();
+        if (epoch !== untracked(() => readApplication().semanticEpoch))
+          throw new Error(`the ${region} region's reading moved a part it read`);
+        return { value };
+      } catch (error) {
+        // A failed reading owes a presentation too. Leaving it to an effect's
+        // default error logger would carry the old view into the new epoch as proof.
+        return { error };
+      }
+    },
+    {
+      lazy: true,
+      equals: (next, prior) =>
+        "error" in next
+          ? "error" in prior && Object.is(next.error, prior.error)
+          : "value" in prior && Object.is(next.value, prior.value),
+    },
+  );
+  // Surface a bad initial reading at registration. Eager memo construction captures
+  // errors internally and can retry a self-invalidating read before a caller sees it.
+  const initial = untracked(selected);
+  if ("error" in initial) throw initial.error;
   let claimed;
   let owed = false;
   // A resumed asynchronous paint has one effect per synchronous stretch. A new paint
@@ -171,72 +201,78 @@ export const applicationPresenter = ({
   };
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
-    order,
-    paint: (value, current) => {
+    group: phase,
+    paint: (outcome, current) => {
       owed = false;
       forget();
+      if ("error" in outcome) throw outcome.error;
+      const { value } = outcome;
       const generation = following;
       const stretch = (run) => {
-        let first = true;
         let outcome;
-        const stop = effect(() => {
-          if (!first) {
-            // Claim in the publication's own task, before its presentation is sealed.
-            // The actual paint still belongs to the shared ordered schedule.
-            if (!owed && current()) {
-              untracked(() => {
-                const next = selected.value;
-                if (next !== null) void claim(next);
-              });
+        const stop = watchReaction(
+          () => {
+            try {
+              outcome = { value: run() };
+            } catch (error) {
+              outcome = { error };
             }
-            return;
-          }
-          first = false;
-          try {
-            outcome = { value: run() };
-          } catch (error) {
-            outcome = { error };
-          }
-        });
+          },
+          () => {
+            // Claim before the publication seals; painting belongs to its native render phase.
+            if (!owed && current())
+              untracked(() => {
+                const next = selected();
+                void claim(next);
+              });
+          },
+        );
         if (current() && following === generation) generation.push(stop);
         else stop();
         if ("error" in outcome) throw outcome.error;
         return outcome.value;
       };
-      /** @type {<A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => R} */
+      /** @type {<A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => Promise<Awaited<R> | undefined>} */
       const resume =
         (run) =>
         (...args) =>
-          stretch(() => run(...args));
-      return stretch(() => paint(value, current, resume));
+          renderCommit(() => run(...args), {
+            run: stretch,
+            bind: bindQueuedWork,
+            current: () => current() && following === generation,
+          }).ready;
+      return renderCommit(() => paint(value, current, resume), {
+        run: stretch,
+        bind: bindQueuedWork,
+        current: () => current() && following === generation,
+      }).ready;
     },
     failSoft,
   });
-  const claim = (value) => {
-    claimed = value;
-    if (value === null) return schedule.passed();
+  const claim = (outcome) => {
+    claimed = outcome;
+    if ("value" in outcome && outcome.value === null) return schedule.passed();
     owed = true;
-    return presenter.sync(value);
+    return presenter.sync(outcome);
   };
   // Mechanical inputs can change without publishing. Explicit presentation invalidates
   // the computed reading and claims it in one batch, so its observer cannot duplicate it.
   const present = () =>
     untracked(() =>
-      batch(() => {
-        revision.value += 1;
-        return claim(selected.value);
+      flush(() => {
+        setRevision((value) => value + 1);
+        return claim(selected());
       }),
     );
   documentPresenters.push(present);
   // Registration records the initial value without drawing it. Future changed values
   // synchronously claim their region; present() can request the first paint earlier.
   let first = true;
-  effect(() => {
-    const value = selected.value;
-    if (first || value === null) {
+  subscribe(selected, (outcome) => {
+    if (first || ("value" in outcome && outcome.value === null)) {
       first = false;
-      claimed = value;
-    } else if (value !== claimed) untracked(() => claim(value));
+      claimed = outcome;
+    } else if (outcome !== claimed) untracked(() => claim(outcome));
   });
   // A document-wide region lives as long as the page; disconnect releases its renderer,
   // and a region that may mount again reads null while it is not mounted.
@@ -252,13 +288,13 @@ export const applicationPresenter = ({
 // outside reading, so a Lit render that reads one follows it and repaints when the nodes it
 // drew from change, as the floating panel's quote does when a datum's label does. The
 // regions it calls hear it after they have claimed, which owes them nothing more.
-const documentChanges = signal(0);
-export const documentChanged = () => documentChanges.value;
+const [documentChanges, setDocumentChanges] = createSignal(0, { ownedWrite: true });
+export const documentChanged = documentChanges;
 
 /** Claim every document-wide region before native signal notifications run. */
 export const presentDocument = () =>
-  batch(() => {
-    documentChanges.value += 1;
+  flush(() => {
+    setDocumentChanges((value) => value + 1);
     for (const present of documentPresenters) void present();
     return schedule.passed();
   });

@@ -13,7 +13,14 @@
    the result into the authored seat; they do not fetch it, mutate the accepted copy, or
    keep a hidden current-value map of their own.*/
 
-import { computed, signal, untracked } from "/vendor/browser-runtime.js";
+import {
+  createMemo,
+  createSignal,
+  flush,
+  getObserver,
+  runWithOwner,
+  untracked,
+} from "/vendor/browser-runtime.js";
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -32,7 +39,7 @@ const joined = new Set();
 
 export async function notifyDataSubscribers() {
   const version = runtime.data.version;
-  deliveries.value += 1;
+  flush(() => setDeliveries((value) => value + 1));
   await whenApplicationRegionsPresented(
     [...joined],
     () => runtime.data.version === version,
@@ -147,33 +154,39 @@ export function dataReader(element, input, accepted) {
   // accepted for a revision still being activated never draws into the document it
   // replaces. The first read takes the accepted reading.
   let stopAccepted;
-  const delivered = computed(
-    () => {
-      deliveries.value;
-      return untracked(selected.read);
-    },
-    {
-      watched() {
-        let seen = untracked(selected.read);
-        stopAccepted = selected.subscribe((now) => {
-          if (now === seen) return;
-          seen = now;
-          accepted();
-        });
+  const delivered = runWithOwner(null, () =>
+    createMemo(
+      () => {
+        deliveries();
+        return untracked(selected.read);
       },
-      unwatched() {
-        stopAccepted?.();
-        stopAccepted = null;
+      {
+        lazy: true,
+        unobserved() {
+          stopAccepted?.();
+          stopAccepted = null;
+        },
       },
-    },
+    ),
   );
+  const readDelivered = () => {
+    if (getObserver() && !stopAccepted) {
+      let seen = untracked(selected.read);
+      stopAccepted = selected.subscribe((now) => {
+        if (now === seen) return;
+        seen = now;
+        accepted();
+      });
+    }
+    return delivered();
+  };
   let reported = null;
   let copied = { store: null, value: null };
   return () => {
     // The accepted reading claims the element's region inside the publication that
     // accepts it; the delivered one draws.
     const sourceStore = /** @type {{contract: string, revision?: string} | null} */ (
-      widget ? selected.read() : delivered.value
+      widget ? selected.read() : readDelivered()
     );
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
@@ -198,7 +211,7 @@ export function dataReader(element, input, accepted) {
 
 // A renderer that draws data as it reads it holds the data version until its region
 // presents; its readers hear the delivery itself.
-const deliveries = signal(0);
+const [deliveries, setDeliveries] = createSignal(0, { ownedWrite: true });
 export function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);

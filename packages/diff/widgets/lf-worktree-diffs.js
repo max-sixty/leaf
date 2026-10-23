@@ -5,7 +5,6 @@ import {
   LeafElement,
   initialRender,
   keepsText,
-  noChange,
   PAGE_INTERFACE,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -23,7 +22,7 @@ customElements.define(
     }
 
     render() {
-      return noChange;
+      return;
     }
   },
 );

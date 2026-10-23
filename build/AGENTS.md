@@ -25,8 +25,7 @@ below owns its own:
   browser.
 - `vendor.mjs`: builds every third-party bundle, one row of its `bundles` table each. A
   directory here named after a row holds that row's inputs, and a `.patch` file here is
-  an upstream backport, explained beside its row in `vendor.mjs`. `lit.mjs` owns how
-  `vendor/lit.js` exports Lit and how bundles import it.
+  an upstream backport, explained beside its row in `vendor.mjs`. `solid.mjs` owns the shared Solid bundle and its pinned upstream adaptations.
 - `esbuild.mjs`: esbuild's `build` as every script here calls it, blind to any
   `tsconfig.json` in the tree.
 - `runtime-bundle.mjs`: runs last and compiles the runtime into the kernel, readable
@@ -47,9 +46,18 @@ pnpm run build:browser      # pnpm run check:browser compares without writing
 ```
 
 `package.json` pins each package an entry imports, and the lock pins the rest.
-`lit-html` is pinned at 3.3.0 because from 3.3.1 `repeat` leaves a comment behind for
-each item it removes (lit/lit#5298), so a list the chrome redraws grows for as long as
-the page is open. Lift the pin to a release that carries lit/lit#5299; the
-closed-surface journey of `test_page_fixture_renders` fails while the leak remains.
-`litModule` in `browser/build.mjs` says what the build changes in Lit's published
-modules.
+Solid 2's exact release candidate is pinned with its signals, renderer and HTML
+packages. `solid.mjs` documents each adaptation and refuses a changed upstream seam.
+Its tests hold immediate events, upgrade-before-ref, independent template traversal,
+native form state, focus-safe keyed movement and collection of detached view roots.
+The signal integration also distinguishes a dependency read still in flight from one
+the draw completed, so a draw that publishes its own input receives a follow-up draw.
+
+WebAwesome supplies selected controls and keeps its own private Lit graph in split
+bundles (`webawesome/`). Leaf application views use Solid. Chrome loads copy feedback;
+screenshot comparison loads with its consuming widget. The WebAwesome build retains
+a pinned guard that prevents duplicate documentation comments when a control reconnects.
+
+Initial producers share Solid through `solid-initial.js` and the later module facade,
+`solid-shared.js`. The build records producer dependencies so delivery inlines that
+one graph before parser-time drawings and maps live imports to it.

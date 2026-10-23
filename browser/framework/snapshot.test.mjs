@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { effect, signal } from "@preact/signals-core";
+import { createSignal, flush } from "@solidjs/signals";
+import { watchReaction } from "./observe.ts";
 import { createApplicationPublisher } from "./snapshot.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
 
@@ -15,7 +16,7 @@ for (const kind of ["semantic", "presentation"]) {
     };
     const app = createApplicationPublisher(initial);
     const part = app.select((root) => root.authoritative);
-    const clock = signal(7);
+    const [clock] = createSignal(7);
     const coordinator = createPresentationCoordinator({
       reportFailure: (reason) => {
         throw reason;
@@ -24,7 +25,7 @@ for (const kind of ["semantic", "presentation"]) {
     coordinator.begin({}, 0);
     const selected = app.select((root) => {
       part.read();
-      clock.value;
+      clock();
       return root.effective.count;
     });
     const source = kind === "semantic" ? selected : coordinator;
@@ -33,19 +34,23 @@ for (const kind of ["semantic", "presentation"]) {
       // The observer can read the whole root outside its own paint collection.
       assert.equal(app.read().document, initial.document);
       part.read();
-      clock.value;
-      ownReads.push([part.read(), clock.value]);
+      clock();
+      ownReads.push([part.read(), clock()]);
     };
     let subscriptions = 0;
     let stopSource;
-    const stop = effect(() => {
-      subscriptions++;
-      stopSource = source.subscribe(observe);
-    });
+    const stop = watchReaction(
+      () => {
+        subscriptions++;
+        stopSource = source.subscribe(observe);
+      },
+      () => subscriptions++,
+    );
     if (kind === "semantic") {
       app.publish({ ...initial, effective: { count: 1 }, semanticEpoch: 1 });
     } else {
       coordinator.attach("unrelated", {});
+      flush();
     }
     assert.equal(
       subscriptions,

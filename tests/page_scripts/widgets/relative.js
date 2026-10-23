@@ -1,6 +1,6 @@
 /* An intentionally invalid renderer: complete state increments its current
  * count and appends its caption. Replaying it exposes both relative-state faults. */
-import { keeps, LeafElement, nothing } from "/runtime/widget-api.js";
+import { keeps, LeafElement } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-tally",
@@ -13,7 +13,7 @@ customElements.define(
         Number(this.getAttribute("count")) + Number(state.step.value),
       );
       this.querySelector("pre").append(state.caption.value);
-      return nothing;
+      return;
     }
   },
 );

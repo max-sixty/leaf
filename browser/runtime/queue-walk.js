@@ -80,7 +80,7 @@ import { obligationsIn, obligationPlace } from "./obligations/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
 import { carriesObligation, itemNoun } from "./queues.js";
 import { drawnThreadId } from "./thread/selectors.js";
-import { effect, untracked } from "/vendor/browser-runtime.js";
+import { subscribe } from "/vendor/browser-runtime.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { approvalTarget, presentedApproval } from "./page-status.js";
@@ -349,12 +349,15 @@ export function createQueueWalk({
   // The m/M row stands on On me, and Done on the to-dos it holds, so the surfaces
   // reading them are repainted where the list empties or fills or those to-dos change.
   function mount() {
-    watching ??= effect(() => {
-      if (offered() === wasOffered && doneable() === wasDoneable) return;
-      wasOffered = offered();
-      wasDoneable = doneable();
-      untracked(paintKeys);
-    });
+    watching ??= subscribe(
+      () => ({ offered: offered(), doneable: doneable() }),
+      (next) => {
+        if (next.offered === wasOffered && next.doneable === wasDoneable) return;
+        wasOffered = next.offered;
+        wasDoneable = next.doneable;
+        paintKeys();
+      },
+    );
   }
 
   pageCommand({

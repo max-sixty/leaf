@@ -100,6 +100,7 @@ html[data-lf-draw-mode] main {
 .lf-code-copy::part(button):hover {
   color: var(--ink);
 }
+
 /* A recording's bar lies over its foot, inset as Copy is from a code block's corner, in
    a control's face: paper, a hairline and the theme's radius (video-controls.js). It
    shows while the recording is paused, under the pointer or under the keyboard, and

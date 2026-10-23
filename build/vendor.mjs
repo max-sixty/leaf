@@ -29,8 +29,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyPatch, parsePatch } from "diff";
 import { build } from "./esbuild.mjs";
-import { bindToVendoredLit } from "./lit.mjs";
-import { patchTransitions } from "./webawesome/transition-patch.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./browser/shipped.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -639,11 +637,8 @@ const bundles = {
       js: `/*! @pierre/trees ${version("@pierre/trees")} — Apache-2.0 — licenses: pierre-trees.LICENSES.txt */`,
     },
   }),
-
-  // Split chrome controls from optional widgets, sharing their dependency graph. Both
-  // entry points register the same components once. Optional controls remain on
-  // demand; the shared chunks are core payload because chrome also reads them. Lit
-  // binds to the page's one copy (`build/lit.mjs`).
+  // WebAwesome owns its internal Lit runtime. Application views use Solid; the
+  // split control bundles share one private component graph and load on demand.
   webawesome: async () => ({
     out: `${packageVendor("default")}/webawesome.esm.js`,
     entryPoints: {
@@ -673,17 +668,12 @@ const bundles = {
             2,
           ),
       },
-      {
-        file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
-        edit: patchTransitions,
-      },
     ],
     platform: "browser",
     target: "chrome105",
     banner: {
       js: `/*! Web Awesome ${version("@awesome.me/webawesome")} — MIT — licenses: webawesome.LICENSES.txt */`,
     },
-    plugins: [await bindToVendoredLit()],
   }),
 };
 

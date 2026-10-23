@@ -107,7 +107,6 @@ import {
   keepsText,
   commands,
   LeafElement,
-  nothing,
   landInThread,
   markdownWords,
   offer,
@@ -171,25 +170,17 @@ customElements.define(
     #contextNumbers = new Map();
     #done = null;
     #settled = null;
-    #keyed = false;
 
     // An exhibited or purely structural group has no semantic identity: it renders the
     // authored alternatives, but owns no selection and therefore has no captured widget
     // descriptor, so it has no reading. Only a live or settled decision has one.
     setup() {
       this.#wire(quoted(this));
-    }
-
-    connectedCallback() {
-      super.connectedCallback();
       this.#addition?.connect();
       if (this.#choosable && this.hasAttribute("multiple") && !this.#done)
         this.#doneRow();
       this.#settled?.connect();
-      if (!this.#keyed && this.#choosable) {
-        this.#keyed = true;
-        this.#keys();
-      }
+      if (this.#choosable) this.#keys();
     }
 
     #wire(exhibited) {
@@ -558,7 +549,7 @@ customElements.define(
     render() {
       if (!this.reading) {
         this.#syncChoice(this.#authoredChoice());
-        return nothing;
+        return;
       }
       const { state } = this.reading;
       // A settled group may have no choose projection, so its authored attributes
@@ -574,7 +565,7 @@ customElements.define(
       this.#addition.render(added, this.#done);
       this.#syncChoice(detail);
       this.#refreshAvailability();
-      return nothing;
+      return;
     }
 
     lfWord() {

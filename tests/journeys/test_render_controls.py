@@ -322,7 +322,7 @@ RING_CASES = (
                     ".lf-rendered:has(> :is(lf-tab, lf-part)",
                 ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
-                (".lf-diff-search input", "wa-input::part"),
+                (".lf-diff-search input", ".lf-search-frame"),
                 ("lf-diff summary", ".lf-diff-file > details > summary"),
                 ("lf-diff code", "code[data-code]"),
             ),
@@ -366,7 +366,7 @@ RING_CASES = (
     (
         "passage search",
         ("/",),
-        {RING_CHROME: ((".lf-page-search-box input:visible", "wa-input::part"),)},
+        {RING_CHROME: (("input.lf-page-search-box:visible", "[data-lf-focus]"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -450,7 +450,7 @@ RING_CASES = (
         ("?",),
         {
             RING_CHROME: (
-                (".lf-command-reference-search input:visible", "wa-input::part"),
+                ("input.lf-command-reference-search:visible", "[data-lf-focus]"),
                 (".lf-command-reference-command", ".lf-command-reference-command"),
             )
         },
@@ -482,7 +482,7 @@ RING_CASES = (
         {
             RING_CHROME: (
                 (".lf-page-map-action:visible", ".lf-page-map-action"),
-                (".lf-page-map-search input:visible", "wa-input::part"),
+                ("input.lf-page-map-search:visible", "[data-lf-focus]"),
             )
         },
     ),

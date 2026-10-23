@@ -1,47 +1,55 @@
 (() => {
-  // leaf-initial-lit:lit
-  var { AsyncDirective, AsyncReplaceDirective, CSSResult, Directive, LitElement, PartType, ReactiveElement, TemplateResultType, UnsafeHTMLDirective, UntilDirective, _$LE, _$LH, adoptStyles, asyncAppend, asyncReplace, cache, choose, classMap, clearPart, createRef, css, customElement, defaultConverter, directive, eventOptions, getCommittedValue, getCompatibleStyle, getDirectiveClass, guard, html, ifDefined, insertPart, isCompiledTemplateResult, isDirectiveResult, isPrimitive, isServer, isSingleExpression, isTemplateResult, join, keyed, literal, live, map, mathml, noChange, notEqual, nothing, property, query, queryAll, queryAssignedElements, queryAssignedNodes, queryAsync, range, ref, removePart, render, repeat, setChildPartValue, setCommittedValue, standardProperty, state, staticHtml, staticMathml, staticSvg, styleMap, supportsAdoptingStyleSheets, svg, templateContent, unsafeCSS, unsafeHTML, unsafeMathML, unsafeSVG, unsafeStatic, until, when, withStatic } = document.documentElement.lfInitial.lit;
+  // leaf-initial-solid:solid
+  var { createSignal, createMemo, createRoot, createReaction, getObserver, runWithOwner, createEffect, createProjection, flush, untrack, onSettled, For, Show, Errored, onCleanup, render, insert, spread, html } = document.documentElement.lfInitial.solid;
 
   // packages/default/widgets/toc-view.js
   var HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
   var outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
   function drawToc(host) {
     const open = host.hasAttribute("open");
-    const href = (destination) => destination?.id ? `#${destination.id}` : nothing;
-    const paint = (start, items) => render(
-      html`
-        <nav class="lf-toc-nav lf-ui" data-lf-gen="1" aria-label="On this page">
+    const [state, setState] = createSignal(
+      { start: { label: "Top" }, items: [] },
+      { ownedWrite: true }
+    );
+    const href = (destination) => destination?.id ? `#${destination.id}` : null;
+    host.replaceChildren();
+    runWithOwner(
+      null,
+      () => render(
+        () => html` <nav class="lf-toc-nav lf-ui" data-lf-gen="1" aria-label="On this page">
           <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>
             On this page
           </p>
-          <details class="lf-toc-disclosure" ?open=${open}>
+          <details class="lf-toc-disclosure" open=${open}>
             <summary class="lf-toc-toggle lf-label" data-lf-gen="1" data-lf-said>
               On this page
             </summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
               <div class="lf-toc-start" data-lf-depth="0">
-                <a href=${href(start.destination)}>${start.label}</a>
+                <a href=${() => href(state().start.destination)}
+                  >${() => state().start.label}</a
+                >
               </div>
               <ol>
-                ${repeat(
-        items,
-        ({ key }) => key,
-        (item) => html`
-                    <li data-lf-depth=${item.depth}>
-                      <a href=${href(item.destination)}>${item.label}</a>
-                    </li>
-                  `
-      )}
+                ${For({
+          get each() {
+            return state().items;
+          },
+          keyed: (item) => item.key,
+          children: (item) => html`<li data-lf-depth=${() => item().depth}>
+                      <a href=${() => href(item().destination)}
+                        >${() => item().label}</a
+                      >
+                    </li>`
+        })}
               </ol>
             </div>
           </details>
-        </nav>
-      `,
-      host
+        </nav>`,
+        host
+      )
     );
-    host.replaceChildren();
-    paint({ label: "Top" }, []);
     const nav = host.querySelector("nav");
     const track = nav.querySelector(".lf-toc-rows");
     const startRow = track.querySelector(".lf-toc-start");
@@ -53,7 +61,7 @@
       lens: track.querySelector(".lf-toc-window"),
       update(reading2) {
         const { start, items } = readOutline(host, reading2);
-        paint(start, items);
+        flush(() => setState({ start, items }));
         const rows = [...list.children];
         return items.length ? [
           { ...start, row: startRow, link: startRow.firstElementChild },

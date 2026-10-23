@@ -245,7 +245,20 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     )
     context = browser.new_context(viewport={"width": 1200, "height": 900})
     held = []
-    context.route("**/media/slow-*.svg", lambda route: held.append(route))
+    context.route("**/media/111111111111111*.svg", lambda route: held.append(route))
+    # Observe requested images through their native load lifecycle, including pairs
+    # kept off-document while the outgoing evidence remains readable.
+    context.add_init_script("""(() => {
+      window.delayedEvidence = [];
+      const source = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+      Object.defineProperty(HTMLImageElement.prototype, 'src', {
+        ...source,
+        set(value) {
+          if (value.includes('/media/111111111111111')) window.delayedEvidence.push(this);
+          source.set.call(this, value);
+        },
+      });
+    })();""")
     page = None
     try:
         page = open_page(browser, url, context=context)
@@ -253,18 +266,17 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
             serve.page_dir,
             "docs-run",
             run(
-                "/media/slow-before.svg",
-                "/media/slow-after.svg",
+                "/media/1111111111111110.svg",
+                "/media/1111111111111111.svg",
                 viewport_width=900,
             ),
         )
         told(page)
+        page.wait_for_function("() => window.delayedEvidence.length >= 2")
         expect(page.locator("#visual-run lf-shot img")).to_have_count(2)
-        page.evaluate(
-            "window.oldVisualReviewImages = [...document.querySelectorAll('#visual-run lf-shot img')]"
-        )
+        # Replacement preparation keeps the complete outgoing pair on screen.
         expect(page.locator("#visual-run lf-shot img").first).to_have_js_property(
-            "naturalWidth", 0
+            "naturalWidth", 780
         )
         assert len(held) == 2
 
@@ -292,7 +304,7 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         while held:
             held.pop(0).fulfill(content_type="image/svg+xml", body=stale_svg)
         page.wait_for_function(
-            "() => window.oldVisualReviewImages.every(image => image.naturalWidth === 1800)"
+            "() => window.delayedEvidence.every(image => image.naturalWidth === 1800)"
         )
         rendered(page)
         assert host.locator("lf-shot").bounding_box() == shown

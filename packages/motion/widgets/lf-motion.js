@@ -11,7 +11,6 @@
  */
 import {
   LeafElement,
-  noChange,
   initialRender,
   commands,
   whileConnected,
@@ -123,7 +122,7 @@ customElements.define(
 
     // Initial markup and authored figures are retained, not template-owned.
     render() {
-      return noChange;
+      return;
     }
 
     #playLabel() {

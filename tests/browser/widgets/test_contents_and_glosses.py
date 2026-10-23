@@ -429,7 +429,7 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
     expect(renamed_body).to_have_attribute("href", "#body-title")
     expect(renamed_body).to_be_focused()
 
-    # An address edit on the standing heading changes its Lit key. The new link
+    # An address edit on the standing heading changes its view key. The new link
     # still stands for the same place the user was on.
     page.locator("#body-title").evaluate("node => node.id = 'renamed-body'")
     expect(renamed_body).to_have_attribute("href", "#renamed-body")

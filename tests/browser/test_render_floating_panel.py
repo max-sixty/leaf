@@ -987,6 +987,8 @@ def test_search_keeps_the_unfinished_comment_and_its_caret(browser, serve, desti
     else:
         panel_control(page, "command:page.search.open", at="navigate").click()
     search = page.get_by_role("searchbox", name="Search page text")
+    # Filling would focus it too, so prove the opening gesture handed it focus first.
+    expect(search).to_be_focused()
     search.fill("a phrase absent from the document")
     expect(page.locator(".lf-page-search-status")).to_have_attribute(
         "aria-label", "No matches"

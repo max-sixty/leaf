@@ -1,8 +1,8 @@
 /* The chrome a widget injects, the words it labels, and the room it measures.
 
    A behavior module builds injected controls with `offer`, and uses `relabel` when a
-   control's label is also one of the page's words. A Lit template reaches the same
-   writers through element directives built by `elementDirective`. A behavior module
+   control's label is also one of the page's words. A Solid template reaches the same
+   writers through Solid refs. A behavior module
    reads a box from inside `measure`: a widget upgrades wherever the runtime connects
    it, and a shut panel is `display: none`, where every word measures zero. A label
    whose words change holds one room for all of them with `data-lf-room`, which the
@@ -44,17 +44,16 @@ import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { iconElement, iconTemplate } from "./icons.js";
+import { iconElement } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { keeps, keepsText } from "./keeps.js";
 import {
-  Directive,
-  PartType,
-  directive,
-  nothing,
   html,
-  render,
-  signal,
+  createView,
+  Show,
+  createSignal,
+  flush,
+  untrack,
 } from "/vendor/browser-runtime.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
@@ -121,15 +120,15 @@ export function el(tag, cls, text) {
 // signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
 // `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
 // on an already-focused grip and no focus event fires, so its keys are painted here.
-const hands = signal(new Set());
+const [hands, setHands] = createSignal(new Set(), { ownedWrite: true });
 
-export const dragHeld = () => hands.value.size > 0;
+export const dragHeld = () => hands().size > 0;
 
 export const dragging = (el, on) => {
-  const held = new Set(hands.peek());
+  const held = new Set(untrack(hands));
   if (on) held.add(el);
   else held.delete(el);
-  hands.value = held;
+  flush(() => setHands(() => held));
   paintKeysWithin(el);
 };
 
@@ -284,53 +283,24 @@ export const offer = (...args) => document.documentElement.lfInitial.offer(...ar
 const offerElement = (...args) =>
   document.documentElement.lfInitial.offerElement(...args);
 
-// Runtime searches share the vendor's native editor, frame and focus band. Callers
-// own their query and results; an auxiliary reading, such as a match count, belongs
-// in the control's `end` slot so it stays inside that same frame.
+// Native searches keep editing, selection and clearing with the browser. A caller
+// with trailing controls seats them beside the input in one .lf-search-frame.
 export function searchField(cls, { name, label, placeholder = label }) {
-  const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
+  const field = offer("input", `lf-search-field ${cls}`);
   field.type = "search";
-  field.value = "";
-  field.size = "s";
-  field.withClear = true;
-  // delegatesFocus keeps one native stop; the host declaration also lets modal
-  // traversal discover that stop without reaching into the component's shadow DOM.
-  field.tabIndex = 0;
   field.name = name;
-  field.label = label;
+  field.setAttribute("aria-label", label);
   field.placeholder = placeholder;
   field.autocomplete = "off";
   field.spellcheck = false;
   return field;
 }
 
-// A template's element part handed to an imperative writer: `${name(...args)}` calls
-// `write(element, ...args)` on every render, so a template and retained DOM share one
-// writer for the attributes it owns while Lit keeps the element's content and bindings.
-export function elementDirective(name, write) {
-  return directive(
-    class extends Directive {
-      constructor(part) {
-        super(part);
-        if (part.type !== PartType.ELEMENT)
-          throw new TypeError(`${name} belongs in a template's element part`);
-      }
-      // The values the template passes, which `update` writes.
-      render(...args) {
-        return nothing;
-      }
-      update(part, args) {
-        write(part.element, ...args);
-        return nothing;
-      }
-    },
-  );
-}
-
-// The template form of `offer`: `<button ${offered("lf-btn")}>`. It owns the
-// element's class and generated-control markers; attributes, values and handlers
-// remain ordinary Lit bindings. Both forms use the same chrome anatomy.
-export const offered = elementDirective("offered", offerElement);
+/** A Solid ref that gives an existing element Leaf's generated-control anatomy. */
+export const offered =
+  (...args) =>
+  (element) =>
+    offerElement(element, ...args);
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium does not begin text selection inside a form control, so those
@@ -354,10 +324,9 @@ export function selectableOffer(role, cls, label) {
 }
 
 // The selectable offer's template form; Lit owns its label and tab stop.
-export const selectableOffered = elementDirective(
-  "selectableOffered",
-  selectableOfferElement,
-);
+export const selectableOffered = (role, cls) => (node) => {
+  if (node) selectableOfferElement(node, role, cls);
+};
 
 // What the value above names as a press: the tag for a button, the type for a native
 // choice, or the role for a selectable offer, against the empty string the rest of a
@@ -483,6 +452,8 @@ export function closeControl({ name, title = name, className = "" }) {
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
 // change vocabulary without each inventing a button shape. Restating the anatomy a
 // control already wears writes nothing (keeps.js).
+const responseDrawings = new WeakMap();
+
 export function responseAction(
   control,
   { glyph = null, icon = null, label, behavior = "action", collapse = false },
@@ -497,17 +468,29 @@ export function responseAction(
     control.setAttribute("aria-expanded", "false");
   if (behavior === "action") control.removeAttribute("aria-expanded");
   if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
-  render(
-    html`${
-        icon
-          ? iconTemplate(icon)
-          : html`<span class="lf-response-action-glyph" aria-hidden="true"
-              >${glyph}</span
-            >`
-      }<span class="lf-response-action-space" aria-hidden="true"> </span
-      ><span class="lf-response-action-label">${label}</span>`,
-    control,
-  );
+  const props = { icon, glyph, label };
+  let drawing = responseDrawings.get(control);
+  if (!drawing) {
+    drawing = createView(
+      control,
+      (state) => {
+        const glyph = html`<span class="lf-response-action-glyph" aria-hidden="true"
+          >${() => state().glyph}</span
+        >`;
+        return html`${Show({
+            get when() {
+              return state().icon;
+            },
+            keyed: true,
+            fallback: glyph,
+            children: (icon) => iconElement(icon),
+          })}<span class="lf-response-action-space" aria-hidden="true"> </span>
+          <span class="lf-response-action-label">${() => state().label}</span>`;
+      },
+      props,
+    );
+    responseDrawings.set(control, drawing);
+  } else drawing.update(props);
   return control;
 }
 

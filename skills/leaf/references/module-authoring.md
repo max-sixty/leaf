@@ -29,10 +29,42 @@ modules, query Leaf's own chrome, or copy a runtime helper. Each helper is descr
 the section for the task it serves, and the header of its module under `runtime/` has
 the full contract. A DOM helper takes the element it acts for as its first argument.
 
-From Lit, `widget-api.js` exports `render`, `html`, `nothing`, `repeat`, `keyed`,
-`live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard` and `unsafeHTML`. From
-Preact Signals it exports `signal`, for private state a command's `when` reads
-(`module-input.md`, "Command rows").
+From Solid 2, `widget-api.js` exports `html`, `createView`, `For`, `Show`,
+`onCleanup`, `createSignal`, `createMemo`, `createEffect`, `createRoot`,
+`flush` and `untrack`. Private state a command's `when` reads uses
+`const [value, setValue] = createSignal(initial)` (`module-input.md`, "Command rows").
+Read it with `value()`. Solid batches writes on a microtask; use
+`flush(() => setValue(next))` at an imperative boundary that reads the result in
+the same task. `createMemo` derives a reading, `createEffect` separates its tracked
+compute from its effect, `createRoot` owns an external subscription's lifetime,
+and `untrack` takes a deliberate one-time reading. `onCleanup(callback)` releases a
+component's external work when its owner retires.
+
+### Solid views
+
+`createView(container, component, initial)` mounts a Solid component once in a
+generated container, owning its children. Keep authored children outside it. The
+component receives a props accessor. Its returned
+`update(next)` publishes complete props. In a rendering phase Solid commits its
+changed bindings before post-render work; ordinary imperative calls flush before
+returning. `dispose()` releases the view and clears the container. Build-free
+components use `html`, wrapping changing expressions in functions:
+
+```js
+const view = createView(
+  container,
+  (props) => html`<span>${() => props().label}</span>`,
+  { label: "Ready" },
+);
+view.update({ label: "Working" });
+```
+
+`Show` conditionally mounts a branch while keeping its current reactive reading.
+`For` renders lists. Supply a `keyed` function for records whose identity survives
+replacement; its children receive an accessor for the current record. `offered`
+is a Solid ref factory for generated-control anatomy, and `commandsOn` attaches a
+command scope for the component's lifetime. Use `ref=${offered("lf-btn")}` or
+compose ref factories in an array when a control also needs a scope.
 
 ## What a behavior module owes
 
@@ -63,7 +95,7 @@ starts `connectedCallback` with `if (!once(this)) return;`: `once(this)` is true
 the element's first connection, so the element is never built twice. Use
 `disconnectedCallback` only for teardown that must happen at once, such as cancelling a
 grab or removing hoisted UI, and hold everything else in `whileConnected`. A
-`LeafElement` that overrides either callback calls the `super` method.
+`LeafElement` that overrides `connectedCallback` calls `super.connectedCallback()`.
 
 `quoted(element)` is true for a widget inside one the registry marks `x-exhibit`, such
 as `lf-sample`. A quoted widget never takes the user's edits, so
@@ -72,12 +104,8 @@ back. Its presentation and view state still work.
 
 When an upgrade fails, or one part of it, `failSoft(element, error, source)` replaces
 the widget or part with an error box naming it, shows `source` beneath when given, and
-reports a page error, which fails `page check`. The next `render` into the same
-container, or the next `shadowStage` call, replaces the box; a `LeafElement` shows the
-box beside what it drew, and its next draw takes it away. A native renderer that
-retains its nodes can register `placesFailure(element, place)` to place the box
-beside them: `place(box)` returns true when it handles the box, and the renderer
-removes it when the failed content recovers. Where the widget shows a
+reports a page error, which fails `page check`. The next update of its retained `createView`, or the next `shadowStage` call, replaces the box; a `LeafElement` shows the
+box beside what it drew, and its next draw takes it away. Where the widget shows a
 failed part its own way and the rest keeps working, as `lf-diff` does for a file whose
 patch it cannot draw, call `reportFailure(element, error)`, which only reports.
 
@@ -110,7 +138,7 @@ after reading the whole batch of DOM changes. When a revision replaces a widget,
 element's cleanup runs before the new one's `start`, so a registration only one element
 may hold, such as `registerReadingRegion`, passes to the replacement.
 
-A `LeafElement` draws nothing while it is away. On return, Lit updates it once to
+A `LeafElement` draws nothing while it is away. On return, it updates once to
 reconnect its dependencies and draw the current reading, keeping unchanged template
 nodes. Put asynchronous rendering in `updated()` and pass its promise to
 `this.drawing(work)` so presentation waits for it and reports a rejection. Drop
@@ -168,11 +196,11 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
   read nothing from the log; it may move authored nodes within the host, and returns the
   node references the module needs. The module calls `initialRender(host)` to get that
   result, drawn on demand for a host that arrived later, and adds behavior to those
-  nodes. Bundled initial sources import Lit from `/vendor/lit.js`; the build records
+  nodes. Bundled initial sources import Solid from `/vendor/solid.js`; the build records
   that dependency so delivery initializes the shared instance before those producers.
-  Pages whose initial producers do not use Lit load it as a normal module. Return an update
+  Pages whose initial producers do not use Solid load it as a normal module. Return an update
   function along with the node references, and call that same function after upgrade.
-  It retains the template identities and Lit parts of the early drawing; compiling
+  It retains the component roots and keyed nodes of the early drawing; compiling
   the template again in the live module would replace its nodes.
   A drawing that reads markup after its host, as `lf-toc` reads the headings
   below it, finishes inside the host when the document has parsed
@@ -194,35 +222,65 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
 
 ## Rendering
 
-### Template rendering
+### Native components
 
-`render(template, container)` draws synchronously, so a gesture's result shows in the
-same turn. Render only into containers the module generated, never into authored
-children, and once `render` draws into a container, change its children only through
-`render`. `repeat(items, identity, template)` keeps a row's nodes when rows reorder, but
-rebuilds a row that moves to another `repeat`; place nodes you keep yourself as
-"Retained nodes" describes. A widget keeps no reactive copy of its state; it reads it
-again in each `render()`.
+A retained `createView` publishes bindings into Solid's native rendering phase.
+Build a complete props object in the owner's `render()` or presentation, then call
+`update(next)`; component bindings read this snapshot. Domain state stays in the
+authored page and its log. Semantic readers belong in the owner whose presentation
+tracks them.
 
-Bind a property the user can also change with `live`, as in `.value=${live(value)}`, so
-a refused gesture restores the recorded value even when the template input is
-unchanged. Don't bind an initial default onto a property the browser owns.
+`renderCommit(write)` groups an owner's writes and post-render work. It returns
+`{committed, ready}`: `committed` resolves after the DOM and synchronous post-render
+callbacks have settled; `ready` additionally waits for asynchronous values returned
+by those callbacks or `write`. Use `afterRender(callback)` inside the commit for
+focus, DOM queries, measurement or third-party setup that needs the written DOM.
+Callbacks can write again; their descendants settle before the next outer callback.
+Errors reject the owning commit, including errors in retained template bindings.
+Bindings driven by a component's local signals can also fail between props
+publications. Their boundary shows an error and reports through the browser's error
+path; a cancelled publication cannot swallow that report. Publishing fresh props
+can remount a failed view. An error already delivered to a commit is not reported
+again as an independent fault.
+Outside a commit `afterRender` runs immediately, so wrap a gesture that draws and
+then focuses in one `renderCommit`, rather than scheduling focus after its call.
+`LeafElement` and projection owners already supply that commit to their hooks.
+A standalone owner can pass `{current: () => stillCurrent}` to suppress work after
+replacement or teardown; a commit cancelled before writing resolves with `undefined`.
+Work already started still reports its asynchronous failure. An independent native
+effect uses `{root: true}` so it cannot inherit an incidental caller's cancellation,
+tracking or asynchronous work; direct nested commits retain their owner's context.
+
+Bind changing text and native properties with accessors, as `value=${() => props().value}`.
+The renderer skips unchanged native form values, preserving editing and selection.
+Leave initial defaults to the browser unless the owner controls that property.
+If a gesture writes a native property while the controller defers semantic rendering,
+restore that property in the owning render's `afterRender` callback: unchanged props
+do not rerun a binding merely because a gesture changed its DOM.
+Use `onClick`, `onInput` and other native event props; a capture listener belongs in
+a ref's `addEventListener`. Use `prop:innerHTML` only with trusted generated markup,
+such as `renderMarkdown()` output. `For` owns keyed list identity; its record accessor
+keeps the same node while callbacks and words follow the current immutable record.
+Supply each view complete object props, with stable defaults for conditional lists.
 
 ### Drawing what a widget reads
 
-A widget extends `LeafElement`, a `LitElement` base class that draws everything in one
-`render()`, into itself or into a generated part `createRenderRoot()` returns, never over
-its authored children. One-time building goes in `setup()`, in place of `once(this)`;
+A widget extends `LeafElement`, a native custom element whose `render()` publishes
+props to its retained Solid views or paints retained DOM. It draws into itself or a
+generated part `createRenderRoot()` returns, never over its authored children. One-time building goes in `setup()`, in place of `once(this)`;
 a `setup()` that throws shows its failure and the widget draws nothing after it.
 `render()` reads through Leaf's readers: `this.reading` and `this.state`,
 `this.data(input)` for a bound source, and page readings such as `readObligations`,
 `reportSequence` or `ago`. The element redraws whenever anything it read changes, in one
-ordered pass after the publication that moved it, parents before children. Return a
-template, `nothing` when the render places retained nodes itself, or `noChange`. Work
+native render dependency graph, parents before children. The return
+value of `render()` is unused; mount generated views with `createView` and update their
+props from this one paint route. Work
 that reads what the render drew goes in `updated()`, and drawing that finishes later in
 `this.drawing(promise)` from there. `this.controller` is the widget controller. Call
 `requestUpdate()` after a change Leaf can't see, such as revealing held news, and
-`performUpdate()` to draw at once.
+`performUpdate()` to start the draw now. Its bindings and `updated()` finish in
+that render's commit; put dependent focus or measurement in `afterRender` within
+the same `renderCommit`, or await `updateComplete` outside a gesture.
 
 ### Retained nodes
 
@@ -232,7 +290,7 @@ parents, place every list at once with `setChildLists([[parent, nodes], …])`, 
 parents first. For a subtree the renderer owns entirely, `setRenderedChildren(parent,
 nodes)` edits only changed text and keeps a text selection the user made in it.
 
-These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
+These helpers and Solid's keyed `For` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`. A plain `append` or `insertBefore` of a node already in the page
 blurs it. Where the browser lacks native `moveBefore`, as Safari does, an iframe inside a
 moved node reloads. A moved editable loses its selection even under `moveBefore`, so a
@@ -243,7 +301,7 @@ custom element holding a `LeafEditorView` calls the view's `placeSelection()` fr
 
 Build an `x-shadow` widget's shadow root with `shadowStage(host, nodes)`, never
 `attachShadow`; it applies the theme's styles and returns the root. For a template,
-stage a container with `shadowStage(host, [container])` and render into that container.
+stage a container with `shadowStage(host, [container])` and mount its view there.
 
 Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
 the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own
@@ -285,9 +343,8 @@ layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
 `offer(tag, className, label, inputType, pressable)` makes a native control, or a box of
 controls, marked as Leaf-generated; the browser keeps its activation, focus and
 accessibility. `inputType` is for an `input`. Pass `pressable: true` for a custom element
-whose host implements `focus()` and `click()`. In a template, `<button
-${offered("lf-btn")}>` does the same, with an input's `type` binding placed before
-`offered`.
+whose host implements `focus()` and `click()`. In a native template, `<button ref=${offered("lf-btn")}>` does the same.
+Place an input's `type` binding before its ref.
 
 Shared control styles are listed in `page-layout.md`, "Page CSS and Leaf's controls";
 they apply to generated controls too.
@@ -323,10 +380,16 @@ measure what they hold, which pass their asynchronous work to `detail.present(pr
 A size change needs no call.
 
 `searchField(className, {name, label, placeholder})` builds a search or filter field
-with Leaf's frame, label, editor and Clear button; the widget owns the query and
-results, and can put a match count in its `end` slot.
+as a native `input[type=search]` with Leaf's frame and accessible label. The widget
+owns its query and results. For a match count or adjacent controls, seat them beside
+the input in one container with class `lf-search-frame`.
 
 To fold content it may show again, set its `hidden` to `"until-found"`. Find-in-page and
 fragment links still reach the content and fire `beforematch` on it, and the widget opens
 it there; paper prints it open (`controls.css`). The fold skips only what the element
 holds, so take a folded element that is itself a Tab stop out of the Tab order.
+
+`iconTemplate(name, className)` draws a Leaf icon in a Solid template; `iconElement`
+creates a native SVG for an imperative owner. `placesFailure(element, place)` lets
+a widget seat its error box while retaining its own controls; return false to use
+the default failure surface.

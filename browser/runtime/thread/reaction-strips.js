@@ -1,7 +1,7 @@
-/* Thread reaction projection and its synchronous Lit owner. The controller
+/* Thread reaction projection and its Solid view owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus. */
-import { html, render, repeat } from "/vendor/browser-runtime.js";
-import { iconTemplate } from "../icons.js";
+import { afterRender, html, createView, For } from "/vendor/browser-runtime.js";
+import { iconElement } from "../icons.js";
 import { HOLDS_WORD } from "../held-word.js";
 
 let ordinal = 0;
@@ -9,6 +9,7 @@ export class ReactionStripView {
   #commands;
   #registration = null;
   #model = null;
+  #view = null;
   #paletteId = `lf-reactions-${++ordinal}`;
 
   constructor(commands) {
@@ -22,55 +23,64 @@ export class ReactionStripView {
   present(model) {
     this.#model = model;
     this.node.classList.toggle("lf-open", model.latest);
-    render(
-      html` <button
-          type="button"
-          class="lf-msg-control lf-react-trigger lf-ui"
-          data-lf-gen="1"
-          data-lf-offer="button"
-          aria-expanded="false"
-          aria-controls=${this.#paletteId}
-          aria-label="Add reaction"
-          title="Add reaction"
-          @click=${() => this.#registration.toggle()}
-        >
-          ${iconTemplate("reaction", "lf-msg-control-icon")}
-        </button>
-        <span
-          class="lf-react-palette"
-          id=${this.#paletteId}
-          popover="auto"
-          role="group"
-          @toggle=${(event) => {
-            if (event.newState === "closed") this.#registration.close();
-          }}
-          aria-label="Reactions for this reply"
-        >
-          ${repeat(
-            model.choices,
-            (choice) => choice.name,
-            (choice) =>
-              html` <button
-                type="button"
-                class="lf-react ${HOLDS_WORD} lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
-                data-token=${choice.name}
-                title=${choice.label}
-                aria-label=${choice.label}
-                aria-pressed=${String(Boolean(choice.inForce))}
-                aria-busy=${String(Boolean(choice.inForce?.pending))}
-                @click=${() => this.#press(choice.name)}
-              >
-                <span class="lf-react-glyph">${choice.glyph}</span>
-              </button>`,
-          )}
-        </span>`,
-      this.node,
-    );
-    this.#registration ??= this.#commands.registerSurface(this.node, {
-      trigger: this.node.querySelector(".lf-react-trigger"),
-      palette: this.node.querySelector(".lf-react-palette"),
+    if (!this.#view) {
+      this.#view = createView(
+        this.node,
+        (reading) =>
+          html` <button
+              type="button"
+              class="lf-msg-control lf-react-trigger lf-ui"
+              data-lf-gen="1"
+              data-lf-offer="button"
+              aria-expanded="false"
+              aria-controls=${this.#paletteId}
+              aria-label="Add reaction"
+              title="Add reaction"
+              onClick=${() => this.#registration.toggle()}
+            >
+              ${iconElement("reaction", "lf-msg-control-icon")}
+            </button>
+            <span
+              class="lf-react-palette"
+              id=${this.#paletteId}
+              popover="auto"
+              role="group"
+              onToggle=${(event) => {
+                if (event.newState === "closed") this.#registration.close();
+              }}
+              aria-label="Reactions for this reply"
+              >${For({
+                get each() {
+                  return reading().choices;
+                },
+                keyed: (choice) => choice.name,
+                children: (choice) =>
+                  html`<button
+                    type="button"
+                    class=${`lf-react ${HOLDS_WORD} lf-ui`}
+                    data-lf-gen="1"
+                    data-lf-offer="button"
+                    data-token=${() => choice().name}
+                    title=${() => choice().label}
+                    aria-label=${() => choice().label}
+                    aria-pressed=${() => String(Boolean(choice().inForce))}
+                    aria-busy=${() => String(Boolean(choice().inForce?.pending))}
+                    onClick=${() => this.#press(choice().name)}
+                  >
+                    <span class="lf-react-glyph">${() => choice().glyph}</span>
+                  </button>`,
+              })}</span
+            >`,
+        model,
+      );
+    } else this.#view.update(model);
+    const view = this.#view;
+    afterRender(() => {
+      if (this.#model !== model || this.#view !== view) return;
+      this.#registration ??= this.#commands.registerSurface(this.node, {
+        trigger: this.node.querySelector(".lf-react-trigger"),
+        palette: this.node.querySelector(".lf-react-palette"),
+      });
     });
     return this.node;
   }
@@ -90,5 +100,8 @@ export class ReactionStripView {
 
   retire() {
     this.#registration?.close();
+    this.#view?.dispose();
+    this.#view = null;
+    this.#registration = null;
   }
 }

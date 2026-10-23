@@ -551,12 +551,8 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button):where(:not(:disabled, [aria-disabled="true"]):hover) {
   background: var(--chip);
 }
-/* Secondary actions wear one quiet face, independent of their toolbar's geometry.
- * The vendor part and native button share this rule; the host keeps no second face.
- * lf-ui identifies offered vendor controls, and gives this modifier precedence over
- * the ordinary copy-button face in integration.css. */
-:is(button, .lf-btn, .button).lf-quiet-action,
-.lf-quiet-action.lf-ui::part(button) {
+/* Secondary native actions share one quiet face across toolbars. */
+:is(button, .lf-btn, .button).lf-quiet-action {
   border: 1px solid transparent;
   border-radius: var(--r);
   background: transparent;
@@ -565,14 +561,11 @@ svg[data-lf-icon] {
 }
 :is(button, .lf-btn, .button).lf-quiet-action:where(
     :not(:disabled, [aria-disabled="true"]):is(:hover, [data-lf-focus])
-  ),
-.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled="true"])::part(button):hover,
-.lf-quiet-action.lf-ui::part(lf-focus) {
+  ) {
   background: var(--chip);
   color: var(--ink);
 }
-/* The same compact size maps to native minimum height and the vendor's supported
- * form-control property. Labels can still grow; icon-only tools set their width. */
+/* Compact native and vendored controls share one minimum height. */
 .lf-compact-control {
   --wa-form-control-height: var(--lf-control-compact);
   min-block-size: var(--lf-control-compact);
@@ -619,6 +612,65 @@ svg[data-lf-icon] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* Native search fields share one frame, including any trailing readings/controls. */
+input.lf-search-field,
+.lf-search-frame {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  inline-size: 100%;
+  min-block-size: max(38px, var(--aim-floor));
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--field);
+  color: var(--ink);
+  font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+}
+.lf-search-field {
+  padding: var(--sp-1) var(--sp-2);
+}
+.lf-search-field::placeholder {
+  color: var(--muted);
+}
+.lf-search-frame {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding-inline-end: var(--sp-1);
+}
+.lf-search-frame > .lf-search-field {
+  flex: 1 1 4em;
+  width: 0;
+  border: 0;
+  background: transparent;
+}
+.lf-search-frame:has(.lf-search-field[data-lf-focus-visible]) {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+.lf-search-frame > .lf-search-field[data-lf-focus-visible] {
+  outline: none;
+}
+
+/* Native radio groups share the browser's selection and arrow-key model. */
+.lf-radio-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lf-radio-group:not([hidden]) {
+  display: flex;
+  gap: var(--sp-2);
+}
+.lf-radio-group > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
 /* A corner mark: a small round press riding a corner of the thing it acts on, such as
    the floating panel's fold and an attachment's removal and Undo last stroke. Every
    one wears this face, which the user chose on 22 October from the panel's fold: a

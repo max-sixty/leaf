@@ -1,14 +1,14 @@
 /* A widget that draws what it reads: the one paint route of a `LeafElement`.
 
-   A module subclasses `LeafElement` and draws in `render()`, as any `LitElement` does,
+   A module subclasses `LeafElement` and draws in `render()`, with a retained Solid view or native DOM,
    into the element itself unless `createRenderRoot()` names a part it generated.
    `render()` reads whatever it shows through readers: the widget's own reading
    (`this.reading`, `this.state`), a bound data source (`this.data(input)`), obligations,
    reports, work, the time (`ago`, `clockValue`). Every reader it calls synchronously is
-   tracked by Lit's Preact SignalWatcher. Lit's reactive properties update it too,
-   for state the widget keeps itself. Presentation readiness (`reportsReady`) instead
-   waits once for prerequisites to finish, then requests an unclaimed update: claiming
-   a new presentation for readiness would invalidate the proof it just received.
+   tracked by a native Solid reaction, as a watcher's or a region's paint is followed.
+   Presentation readiness (`reportsReady`) instead waits once for prerequisites to
+   finish, then requests an unclaimed update: claiming another presentation for
+   readiness would invalidate the proof it just received.
 
    The element owns one presentation region: its widget's render region when the
    registry declares it a widget, so startup, thread readers, gesture release and report
@@ -23,13 +23,15 @@
    claim waits on, such as a mechanical redraw, reports and shows its failure the same
    way, and so does a failed preparation (`present()`) or a module's own
    `failSoft(this, …)`. A `setup()` that throws shows its failure, and the element draws
-   nothing after it. A move draws in the presentation pass the publication starts,
-   parents first and every widget before the document-wide renderers
-   (`queueWidgetUpdate`, semantic-state.js): a suggestion measures the slot it folds
-   before the layer marks it retired.
+   nothing after it. Native Solid effects follow the DOM dependencies the publication
+   moves, parents first and every widget before document projection
+   (`elementRenderTask`, semantic-state.js). `renderCommit` separates their writes
+   from `updated()` and other `afterRender` callbacks. A suggestion measures the slot
+   it folds before projection marks it retired. A disconnected or superseded draw
+   releases its reactions and runs no remaining owner callbacks.
 
    Its readers are followed while it stands (`watchOwner`, arrivals.js), and it draws
-   nothing while away. A return requests a Lit update to reconnect its dependencies
+   nothing while away. A return requests an update to reconnect its dependencies
    and draw the current reading; unchanged template parts keep their nodes. It claims
    its region on every return, so a returning widget never leaves its epoch waiting. A widget whose reading lacks a declared verb, as a revision's
    replacement does before its document is adopted, draws nothing until it has them all
@@ -41,15 +43,15 @@
    draw held it for (`drawing()`), such as highlighting or a loading frame, has landed.
    `setup()` runs once, on the first connection, before the first render. */
 import {
-  LitElement,
-  SignalWatcher,
-  render,
+  watchReaction,
   untracked,
+  renderCommit,
+  afterRender,
 } from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,
-  queueWidgetUpdate,
+  elementRenderTask,
   watchPresentation,
 } from "./semantic-state.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
@@ -65,57 +67,25 @@ import { watchOwner } from "./arrivals.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { dataReader, joinDataDelivery } from "./data.js";
 import { registry } from "./registry.js";
+import { bindQueuedWork } from "./queued-work.js";
 
 let regions = 0;
 
-// Keep failures inside SignalWatcher's effect so its dependency subscription survives.
-class UpdateBoundary extends LitElement {
-  signalUpdateFailed(error) {
-    throw error;
-  }
-  performUpdate() {
-    try {
-      super.performUpdate();
-    } catch (error) {
-      this.signalUpdateFailed(error);
-    }
-  }
-}
-
-export class LeafElement extends SignalWatcher(UpdateBoundary) {
-  #signalError = null;
+export class LeafElement extends HTMLElement {
+  #following = [];
   #stopReadiness = null;
-  signalUpdateFailed(error) {
-    this.#signalError = { error };
-  }
+  #rendering = false;
 
-  requestUpdate(...args) {
-    const wasPending = this.isUpdatePending;
-    const result = super.requestUpdate(...args);
-    // Lit owns change detection and coalescing. A request made during render can
-    // belong to the active update; one made after Lit clears its pending flag, as
-    // in updated(), schedules a new update and needs its own claim. The first
-    // constructor request precedes this class's private fields.
-    if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating))
-      untracked(() => {
-        if (this.#connected && this.#region && !this.#ticket)
-          this.#ticket = this.#claim();
-      });
-    return result;
-  }
-
-  /** Finish this render when its presentation prerequisites are ready. Readiness
-   * does not claim another presentation, which would invalidate its own proof. */
+  /** Complete a waiting render without claiming the proof it waits for again. */
   whenReady(read) {
     if (untracked(read)) return true;
-    if (!this.#stopReadiness) {
+    if (!this.#stopReadiness)
       this.#stopReadiness = watchPresentation(() => {
         if (!untracked(read)) return;
         this.#stopReadiness?.();
         this.#stopReadiness = null;
-        super.requestUpdate();
+        this.#requestUpdate();
       });
-    }
     return false;
   }
 
@@ -133,37 +103,48 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   // leaves the element broken, drawing nothing.
   #box = null;
   #broken = false;
-  // The claim the update under way draws, settled once `updated` has run too.
-  #drawing = null;
-  #updating = false;
-  // The drawing that follows the update under way, which its claim waits for.
-  #work = null;
+  // Each synchronous stretch restores its drawing context, including post-render
+  // work. Nested draws retain their own claim and asynchronous preparation.
+  #draw = null;
+  #task = null;
   #data = new Map();
   #leaveData = null;
-  #scheduled = null;
+  #pending = null;
+  hasUpdated = false;
+  updateComplete = Promise.resolve(true);
+  renderRoot;
+
+  get isUpdatePending() {
+    return this.#pending !== null;
+  }
+
+  requestUpdate() {
+    // Requests made by the active render are fulfilled by that render. A request
+    // from updated() belongs to a new draw and claims its own presentation.
+    if (this.#rendering) return;
+    if (this.hasUpdated) untracked(() => this.#stage());
+    this.#requestUpdate();
+  }
+
+  #requestUpdate() {
+    if (this.#pending) return;
+    const pending = (this.#pending = Promise.withResolvers());
+    this.updateComplete = pending.promise;
+    // The native task coalesces requests and follows this element's DOM dependencies.
+    // Starting a draw consumes its token; an obsolete request cannot consume a later one.
+    void this.#task?.enqueue(() => {
+      if (this.#pending === pending) return this.performUpdate();
+    });
+  }
 
   createRenderRoot() {
     return this;
   }
 
-  scheduleUpdate() {
-    return this.#scheduled ?? this.#queueUpdate();
-  }
-
-  #queueUpdate() {
-    if (!this.#descriptor) return super.scheduleUpdate();
-    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-      if (this.#scheduled !== scheduled) return;
-      this.#scheduled = null;
-      return super.scheduleUpdate();
-    });
-    this.#scheduled = scheduled;
-    return scheduled;
-  }
-
   connectedCallback() {
     if (once(this)) this.#setup();
-    super.connectedCallback();
+    this.renderRoot ??= this.createRenderRoot();
+    if (!this.hasUpdated) this.requestUpdate();
   }
 
   #setup() {
@@ -199,6 +180,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       this.#broken = true;
       failSoft(this, error);
     }
+    // Setup may have built the generated root. Establish it before registering a
+    // connection: native effects may render during that registration's flush.
+    this.renderRoot ??= this.createRenderRoot();
     // The element is an owner of its own: a paint that mounts it connects it inside that
     // paint, and what it reads to connect is its own to follow, never that paint's.
     watchOwner(this, {
@@ -209,6 +193,8 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   /** The module's one-time build, on the first connection, before the first render. */
   setup() {}
+
+  render() {}
 
   /** The widget's complete reading (`widgetController(this).read()`), collected; null
    *  for an element the registry does not declare a widget, such as a quoted one. */
@@ -260,51 +246,96 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     if (this.#held) return false;
     // The claim this update draws, from its gate on; one its own reads claim while it
     // runs is the next's. An update that draws nothing settles it all the same.
-    this.#drawing = this.#ticket;
+    this.#draw.ticket = this.#ticket;
     this.#ticket = null;
     if (this.#broken) return false;
-    if (!this.#complete()) return false;
-    return super.shouldUpdate(changed);
+    return this.#complete();
   }
 
   update(changed) {
-    super.update(changed);
+    this.render();
     this.#box?.remove();
     this.#box = null;
   }
 
   // An update settles its claim once all of it has run, `updated` included, and one
-  // that failed anywhere, its gate too, reports once and shows its failure; Lit has
+  // that failed anywhere, its gate too, reports once and shows its failure; The scheduler has
   // marked it done, so the next move draws again. A draw that `updated` asks for at
   // once, as a module's own paint may, settles its own claim inside this one; with no
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
-    const outer = this.#drawing;
-    const updating = this.#updating;
-    let outerWork = this.#work;
-    this.#drawing = null;
-    this.#work = null;
-    this.#updating = true;
-    try {
-      this.#signalError = null;
-      super.performUpdate();
-      if (this.#signalError) throw this.#signalError.error;
-      const work = this.#work;
-      // Drawing an update with no claim of its own holds goes to the claim enclosing
-      // it, or else claims the region, as a retry's or a follow-up draw's does.
-      if (work && !this.#drawing) {
-        if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
-        else if (this.#region) this.#drawing = this.#claim();
+    if (!this.#pending) return;
+    const pending = this.#pending;
+    this.#pending = null;
+    const outer = this.#draw;
+    const draw = { ticket: null, work: null };
+    for (const stop of this.#following) stop();
+    const following = (this.#following = []);
+    const run = (callback) => {
+      const previous = this.#draw;
+      this.#draw = draw;
+      let outcome;
+      try {
+        const stop = watchReaction(
+          () => {
+            try {
+              outcome = { value: callback() };
+            } catch (error) {
+              outcome = { error };
+            }
+          },
+          () => {
+            if (this.#connected) this.#present();
+          },
+        );
+        if (following === this.#following && this.#connected) following.push(stop);
+        else stop();
+        if ("error" in outcome) throw outcome.error;
+        return outcome.value;
+      } finally {
+        this.#draw = previous;
       }
-      this.#drawing?.resolve(work ?? undefined);
-    } catch (error) {
-      if (outer && !this.#drawing) throw error;
-      this.#failed(error, this.#drawing);
-    } finally {
-      this.#drawing = outer;
-      this.#work = outerWork;
-      this.#updating = updating;
-    }
+    };
+    const commit = renderCommit(
+      () => {
+        this.#rendering = true;
+        try {
+          if (this.shouldUpdate()) {
+            this.update();
+            this.hasUpdated = true;
+            afterRender(() => this.updated());
+          }
+        } finally {
+          this.#rendering = false;
+        }
+      },
+      {
+        run,
+        bind: bindQueuedWork,
+        current: () =>
+          this.#connected && this.isConnected && following === this.#following,
+      },
+    );
+    const finished = commit.ready.then(
+      () => {
+        if (draw.work && !draw.ticket) {
+          if (outer)
+            outer.work = outer.work ? Promise.all([outer.work, draw.work]) : draw.work;
+          else if (this.#region) draw.ticket = this.#claim();
+        }
+        draw.ticket?.resolve(draw.work ?? undefined);
+      },
+      (error) => {
+        if (outer && !draw.ticket) throw error;
+        this.#failed(error, draw.ticket);
+      },
+    );
+    void finished.catch(() => undefined);
+    void commit.committed.then(
+      () => pending.resolve(!this.#pending),
+      () => pending.resolve(!this.#pending),
+    );
+    return finished;
   }
 
   /** Hold the update under way's claim until `work`, drawing that follows the render
@@ -317,21 +348,20 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       reportFailure(this, error);
       throw error;
     });
-    this.#work = this.#work ? Promise.all([this.#work, named]) : named;
+    this.#draw.work = this.#draw.work ? Promise.all([this.#draw.work, named]) : named;
   }
 
-  /** The render drawn again at once, outside any claim and Lit's own schedule, with a
+  /** The render drawn again at once, outside any claim and the update schedule, with a
    *  failure thrown rather than shown: the render check's replay
    *  (render-checks/replay.js), which holds a draw of the same reading to change
    *  nothing. `updated()` does not run, since what follows a draw may start
    *  preparation that would claim the widget's presentation and land after the check
-   *  reads the page. An update Lit has queued stays queued, with its claim. */
+   *  reads the page. An update the scheduler has queued stays queued, with its claim. */
   redraw() {
-    render(this.render(), this.renderRoot, this.renderOptions);
+    this.render();
   }
 
   updated(changed) {
-    super.updated(changed);
     // The render may have changed what this widget's commands read from its nodes.
     untracked(() => paintKeysWithin(this));
   }
@@ -366,10 +396,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#ticket = this.#claim();
     if (this.#held) return;
     this.requestUpdate();
-    if (now) {
-      this.#scheduled = null;
-      this.performUpdate();
-    } else if (this.#descriptor) this.#queueUpdate();
+    if (now) this.performUpdate();
   }
 
   #refresh() {
@@ -378,6 +405,13 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   #connect() {
     this.#connected = true;
+    this.#task = elementRenderTask(this.#descriptor?.id);
+    if (this.#pending) {
+      const pending = this.#pending;
+      void this.#task.enqueue(() => {
+        if (this.#pending === pending) return this.performUpdate();
+      });
+    }
     this.#region = this.#descriptor
       ? attachWidgetPresentation(this.#descriptor.id, "render", this)
       : attachApplicationPresentation(this.#regionName, this);
@@ -393,6 +427,10 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   #disconnect() {
     this.#connected = false;
+    for (const stop of this.#following) stop();
+    this.#following = [];
+    this.#task?.disconnect();
+    this.#task = null;
     this.#stopReadiness?.();
     this.#stopReadiness = null;
     this.#leaveData?.();

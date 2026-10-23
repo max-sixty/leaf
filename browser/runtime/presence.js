@@ -1,11 +1,11 @@
 // Every timestamp the page renders was written by its server. Keep the browser's one
 // measured offset here, beside the two public readings that depend on it, so no seat can
 // accidentally render against a second clock.
-import { computed, signal } from "/vendor/browser-runtime.js";
+import { createMemo, createSignal, flush } from "/vendor/browser-runtime.js";
 
 let clockSkew = 0;
 // A native dependency for the shared clock's temporal readings.
-const pulse = signal(0);
+const [pulse, setPulse] = createSignal(0, { ownedWrite: true });
 const serverNow = () => Date.now() + clockSkew;
 // When a gesture was made, on the clock every other reading of a message uses. A
 // message this page paints before the log names it still has to say when it was said,
@@ -19,14 +19,14 @@ export const saidNow = () => new Date(serverNow()).toISOString();
 // paints whose answers changed. The callback receives the calibrated server-now
 // milliseconds used by the comparison.
 export const clockValue = (read) =>
-  computed(() => {
-    pulse.value;
+  createMemo(() => {
+    pulse();
     return read(serverNow());
-  }).value;
+  })();
 
 export async function tickClock(reportError) {
   try {
-    pulse.value += 1;
+    flush(() => setPulse((value) => value + 1));
   } catch (error) {
     reportError(error, "clock paint failed");
   }

@@ -36,12 +36,11 @@ import {
   elementById,
   keeps,
   LeafElement,
-  nothing,
   offer,
   obligationActions,
   readObligations,
   relabel,
-  render,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 // The count's words: how many of the region's obligations wait on the user and how many
@@ -112,11 +111,11 @@ customElements.define(
       const digits = "0".repeat(Math.max(2, String(held.length).length));
       const widest = { onUser: digits, onAgent: digits, open: digits, total: digits };
       const [generic, named] = this.#rooms;
-      render(words(widest, "the agent"), generic);
-      render(words(widest, agentName()), named);
-      render(ready ? words(count, agentName()) : "", this.#words);
+      keepsText(generic, words(widest, "the agent"));
+      keepsText(named, words(widest, agentName()));
+      keepsText(this.#words, ready ? words(count, agentName()) : "");
       if (this.#next) keeps(this.#next, "disabled", count.onUser ? null : "");
-      return nothing;
+      return;
     }
   },
 );

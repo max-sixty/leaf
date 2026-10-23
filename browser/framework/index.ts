@@ -1,21 +1,23 @@
 /** Internal framework facade. Content modules import runtime/widget-api.js. */
-export { LitElement, html, noChange, nothing, render } from "lit";
-export { Directive, PartType, directive } from "lit/directive.js";
-export { AsyncDirective } from "lit/async-directive.js";
-export { classMap } from "lit/directives/class-map.js";
-export { guard } from "lit/directives/guard.js";
-export { keyed } from "lit/directives/keyed.js";
-export { live } from "lit/directives/live.js";
-export { createRef, ref } from "lit/directives/ref.js";
-export { repeat } from "lit/directives/repeat.js";
-export { styleMap } from "lit/directives/style-map.js";
-export { unsafeHTML } from "lit/directives/unsafe-html.js";
-export { batch, computed, effect, signal } from "@preact/signals-core";
-export { SignalWatcher } from "@lit-labs/preact-signals";
+export {
+  getObserver,
+  runWithOwner,
+  createSignal,
+  createMemo,
+  createRoot,
+  createEffect,
+  flush,
+  untrack,
+} from "@solidjs/signals";
+export { subscribe, watchReaction } from "./observe.js";
+export { createView, resetViewsWithin } from "./views.js";
+export { renderCommit, afterRender } from "./rendering.js";
+export { For, Show, onCleanup } from "solid-js";
+export { default as html } from "@solidjs/html";
 export { createSemanticApplication } from "./application.js";
 export { share, untracked } from "./snapshot.js";
 export {
   createPresentationCoordinator,
-  createPresentationSchedule,
+  createPresentationFlow,
   describeFailure,
 } from "./presentation.js";

@@ -8,10 +8,11 @@ import {
   LeafElement,
   html,
   iconTemplate,
-  nothing,
-  repeat,
-  ref,
-  live,
+  createView,
+  afterRender,
+  renderCommit,
+  For,
+  Show,
   offered,
   commands,
   paintKeys,
@@ -36,12 +37,10 @@ import {
   preserveReadingRegions,
 } from "/runtime/widget-api.js";
 
-// A popover's way out wears the face of every surface's close control in Leaf: the
-// cross, named for what it closes (runtime/widget-elements.js, `closeControl`).
 const closeButton = (popover, name) =>
   html`<button
     type="button"
-    ${offered("lf-btn lf-icon-action lf-quiet-action")}
+    ref=${offered("lf-btn lf-icon-action lf-quiet-action")}
     popovertarget=${popover}
     popovertargetaction="hide"
     aria-label=${name}
@@ -49,6 +48,7 @@ const closeButton = (popover, name) =>
   >
     ${iconTemplate("cross", "lf-action-icon")}
   </button>`;
+
 const fact = (name, value) =>
   html`<div>
     <dt data-lf-gen="1" data-lf-said>${name}</dt>
@@ -234,18 +234,23 @@ customElements.define(
         if (isNativeLayer(popup)) closeNativeLayer(popup);
       }
       return preserveReadingRegions(this, () => {
-        this.#selected = id;
-        this.requestUpdate();
-        this.performUpdate();
-        const queueButton = this.#queue?.querySelector('[aria-current="true"]');
-        if (queueButton)
-          scrollIntoView(queueButton, { block: "nearest", behavior: "instant" });
-        if (land || leaveHiddenControl) {
-          const heading = this.#entries.get(id).article.querySelector(".lf-vr-title");
-          focusDestination(heading, "move");
-          scrollIntoView(heading, { block: "nearest", behavior: "instant" });
-        }
-        return this.updateComplete;
+        return renderCommit(() => {
+          this.#selected = id;
+          this.requestUpdate();
+          this.performUpdate();
+          afterRender(() => {
+            const queueButton = this.#queue?.querySelector('[aria-current="true"]');
+            if (queueButton)
+              scrollIntoView(queueButton, { block: "nearest", behavior: "instant" });
+            if (land || leaveHiddenControl) {
+              const heading = this.#entries
+                .get(id)
+                .article.querySelector(".lf-vr-title");
+              focusDestination(heading, "move");
+              scrollIntoView(heading, { block: "nearest", behavior: "instant" });
+            }
+          });
+        }).ready;
       });
     }
     #nextUnchecked() {
@@ -256,76 +261,106 @@ customElements.define(
       );
     }
 
+    #drawing;
     render() {
       const snapshot = this.data("run");
       if (snapshot !== this.#snapshot) this.#reconcile(snapshot);
       const run = snapshot?.value;
-      if (!run)
-        return html`<p class="lf-vr-empty" data-lf-gen="1" data-lf-said>
-          Waiting for visual evidence.
-        </p>`;
-      const approvedCount = run.cases.filter((record) =>
-        this.#approved(record.id),
-      ).length;
-
-      const available = this.reading.actions.review.available;
-      return html`<div class="lf-vr-dashboard">
-        <header class="lf-vr-heading">
-          <h2 data-lf-gen="1" data-lf-said>${run.title}</h2>
-          <div class="lf-vr-progress" role="status" aria-live="polite">
-            <span data-lf-gen="1" data-lf-said
-              ><strong>${approvedCount}</strong> of ${run.cases.length} look right</span
-            >
-          </div>
-        </header>
-        <div class="lf-vr-workspace">
-          <nav
-            class="lf-vr-queue"
-            aria-label="Review cases"
-            data-lf-reading-role="pane"
-            data-lf-generated
-          >
-            <div class="lf-vr-case-list" ${ref(this.#placeQueue)}>
-              ${repeat(
-                run.cases,
-                (record) => record.id,
-                (record) => {
-                  const approved = this.#approved(record.id);
-                  return html`<button
-                    type="button"
-                    ${offered("lf-vr-case-button")}
-                    aria-current=${record.id === this.#selected ? "true" : nothing}
-                    aria-controls=${`${this.id}-${record.id}`}
-                    @click=${() => this.#select(record.id)}
+      const entries = (run?.cases ?? []).map((record, index) => ({
+        entry: this.#entries.get(record.id),
+        record,
+        index,
+        run,
+        approved: this.#approved(record.id),
+        available: this.reading.actions.review.available,
+        selected: record.id === this.#selected,
+        threads: readThreads().threads.filter(
+          (thread) =>
+            thread.anchor?.section === this.id && thread.anchor.datum === record.id,
+        ),
+      }));
+      const model = {
+        run,
+        entries,
+        approvedCount: entries.filter((item) => item.approved).length,
+      };
+      if (this.#drawing) return this.#drawing.update(model);
+      this.#drawing = createView(
+        this,
+        (read) =>
+          Show({
+            get when() {
+              return read().run;
+            },
+            fallback: html`<p class="lf-vr-empty" data-lf-gen="1" data-lf-said>
+              Waiting for visual evidence.
+            </p>`,
+            children: (_visible) =>
+              html`<div class="lf-vr-dashboard">
+                <header class="lf-vr-heading">
+                  <h2 data-lf-gen="1" data-lf-said>${() => read().run.title}</h2>
+                  <div class="lf-vr-progress" role="status" aria-live="polite">
+                    <span data-lf-gen="1" data-lf-said
+                      ><strong>${() => read().approvedCount}</strong> of
+                      ${() => read().entries.length} look right</span
+                    >
+                  </div>
+                </header>
+                <div class="lf-vr-workspace">
+                  <nav
+                    class="lf-vr-queue"
+                    aria-label="Review cases"
+                    data-lf-reading-role="pane"
+                    data-lf-generated
                   >
-                    <span class="lf-vr-case-number" aria-hidden="true"
-                      >${String(run.cases.indexOf(record) + 1).padStart(2, "0")}</span
+                    <div
+                      class="lf-vr-case-list"
+                      ref=${(node) => this.#placeQueue(node)}
                     >
-                    <span class="lf-vr-case-label"
-                      ><span class="lf-vr-case-name">${record.title}</span>
-                      <span class="lf-vr-case-status" data-approved=${String(approved)}
-                        >${approved ? "Looks right" : "Unchecked"}</span
-                      ></span
-                    >
-                  </button>`;
-                },
-              )}
-            </div>
-          </nav>
-          <div class="lf-vr-detail">
-            ${repeat(
-              run.cases,
-              (record) => record.id,
-              (record) =>
-                this.#case(
-                  this.#entries.get(record.id),
-                  this.#approved(record.id),
-                  available,
-                ),
-            )}
-          </div>
-        </div>
-      </div>`;
+                      ${For({
+                        get each() {
+                          return read().entries;
+                        },
+                        keyed: (item) => item.record.id,
+                        children: (item) =>
+                          html` <button
+                            type="button"
+                            ref=${offered("lf-vr-case-button")}
+                            aria-current=${() => (item().selected ? "true" : null)}
+                            aria-controls=${() => `${this.id}-${item().record.id}`}
+                            onClick=${() => this.#select(item().record.id)}
+                          >
+                            <span class="lf-vr-case-number" aria-hidden="true"
+                              >${() => String(item().index + 1).padStart(2, "0")}</span
+                            >
+                            <span class="lf-vr-case-label"
+                              ><span class="lf-vr-case-name"
+                                >${() => item().record.title}</span
+                              >
+                              <span
+                                class="lf-vr-case-status"
+                                data-approved=${() => String(item().approved)}
+                                >${() => (item().approved ? "Looks right" : "Unchecked")}</span
+                              >
+                            </span>
+                          </button>`,
+                      })}
+                    </div>
+                  </nav>
+                  <div class="lf-vr-detail">
+                    ${For({
+                      get each() {
+                        return read().entries;
+                      },
+                      keyed: (item) => item.record.id,
+                      children: (item) => this.#case(item),
+                    })}
+                  </div>
+                </div>
+              </div>`,
+          }),
+        model,
+      );
     }
 
     updated(changed) {
@@ -391,102 +426,99 @@ customElements.define(
       });
     }
 
-    #case(entry, approved, available) {
-      const { record, before, after } = entry;
-      const run = this.#snapshot.value;
-      const threads = readThreads().threads.filter(
-        (thread) =>
-          thread.anchor?.section === this.id && thread.anchor.datum === record.id,
-      );
+    #case(read) {
+      const entry = () => read().entry;
+      const record = () => read().record;
+      const run = () => read().run;
+      const threadLink = (thread) =>
+        html`<button
+          type="button"
+          ref=${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
+          onClick=${(event) => {
+            closeNativeLayer(event.currentTarget.closest("[popover]"));
+            threadActions.open(thread().key, { part: "thread", travel: false });
+          }}
+        >
+          ${() => threadSummary(thread()).topic}${() => (thread().resolved ? " · Resolved" : "")}
+        </button>`;
       const link = (label, href) =>
-        href
-          ? html`<a
-              ${offered("lf-vr-source")}
+        Show({
+          get when() {
+            return href();
+          },
+          children: (_visible) =>
+            html`<a
+              ref=${offered("lf-vr-source")}
               href=${href}
               target="_blank"
               rel="noopener noreferrer"
               >${label}</a
-            >`
-          : nothing;
+            >`,
+        });
       return html`<article
         class="lf-vr-case"
-        id=${`${this.id}-${record.id}`}
-        aria-hidden=${record.id !== this.#selected ? "true" : "false"}
-        ?inert=${record.id !== this.#selected}
-        ${ref(entry.place)}
+        id=${() => `${this.id}-${record().id}`}
+        aria-hidden=${() => String(!read().selected)}
+        inert=${() => !read().selected}
+        ref=${(node) => entry().place(node)}
       >
         <div class="lf-vr-caption">
-          <h3 class="lf-vr-title" data-lf-gen="1" data-lf-said>${record.title}</h3>
+          <h3 class="lf-vr-title" data-lf-gen="1" data-lf-said>
+            ${() => record().title}
+          </h3>
         </div>
         <div class="lf-vr-decision">
           <div class="lf-vr-review-actions">
             <label class="lf-vr-approval"
               ><input
-                ${offered("lf-vr-approval-input")}
+                ref=${offered("lf-vr-approval-input")}
                 type="checkbox"
-                ?disabled=${!available}
-                .checked=${live(approved)}
-                @change=${(event) => this.#review(record, event.currentTarget.checked)}
+                disabled=${() => !read().available}
+                checked=${() => read().approved}
+                onChange=${(event) => this.#review(record(), event.currentTarget.checked)}
               />Looks right</label
             >
             <button
               type="button"
-              ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-feedback")}
+              ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-feedback")}
             >
               Add feedback
             </button>
-            ${
-              threads.length
-                ? html`<button
-                      type="button"
-                      ${offered(
-                        "lf-btn lf-quiet-action lf-compact-control lf-vr-open-threads",
-                      )}
-                      popovertarget=${`${this.id}-${record.id}-threads`}
-                    >
-                      ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
-                    </button>
-                    <div
-                      class="lf-vr-thread-list"
-                      id=${`${this.id}-${record.id}-threads`}
-                      popover
-                    >
-                      <header class="lf-vr-inspection-heading">
-                        <h4>Threads on this case</h4>
-                        ${closeButton(
-                          `${this.id}-${record.id}-threads`,
-                          "Close threads on this case",
-                        )}
-                      </header>
-                      ${repeat(
-                        threads,
-                        (thread) => thread.key,
-                        (thread) =>
-                          html`<button
-                            type="button"
-                            ${offered("lf-btn lf-quiet-action lf-vr-thread-link")}
-                            @click=${(event) => {
-                              closeNativeLayer(
-                                event.currentTarget.closest("[popover]"),
-                              );
-                              threadActions.open(thread.key, {
-                                part: "thread",
-                                travel: false,
-                              });
-                            }}
-                          >
-                            ${threadSummary(thread).topic}${
-                              thread.resolved ? " · Resolved" : ""
-                            }
-                          </button>`,
-                      )}
-                    </div>`
-                : nothing
-            }
+            ${Show({
+              get when() {
+                return read().threads.length;
+              },
+              children: (_visible) =>
+                html` <button
+                    type="button"
+                    ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-open-threads")}
+                    popovertarget=${() => `${this.id}-${record().id}-threads`}
+                  >
+                    ${() => read().threads.length}
+                    ${() => (read().threads.length === 1 ? "thread" : "threads")}
+                  </button>
+                  <div
+                    class="lf-vr-thread-list"
+                    id=${() => `${this.id}-${record().id}-threads`}
+                    popover
+                  >
+                    <header class="lf-vr-inspection-heading">
+                      <h4>Threads on this case</h4>
+                      ${closeButton(`${this.id}-${record().id}-threads`, "Close threads on this case")}
+                    </header>
+                    ${For({
+                      get each() {
+                        return read().threads;
+                      },
+                      keyed: (thread) => thread.key,
+                      children: threadLink,
+                    })}
+                  </div>`,
+            })}
           </div>
           <button
             type="button"
-            ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-next")}
+            ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-next")}
           >
             Next unchecked <span aria-hidden="true">→</span>
           </button>
@@ -494,84 +526,74 @@ customElements.define(
         <div class="lf-vr-evidence" data-lf-reading-role="pane" data-lf-generated>
           <header>
             <p class="lf-vr-evidence-note" data-lf-gen="1" data-lf-said>
-              Captured screenshots · ${record.capture.viewport.width} ×
-              ${record.capture.viewport.height} · ${record.capture.browser}. Links
-              inside these images are not interactive.
+              Captured screenshots · ${() => record().capture.viewport.width} ×
+              ${() => record().capture.viewport.height} ·
+              ${() => record().capture.browser}. Links inside these images are not
+              interactive.
             </p>
             <button
               type="button"
-              ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-inspect")}
-              aria-controls=${`${this.id}-${record.id}-inspection`}
+              ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-inspect")}
+              aria-controls=${() => `${this.id}-${record().id}-inspection`}
             >
               Capture details
             </button>
             <div
               class="lf-vr-details"
-              id=${`${this.id}-${record.id}-inspection`}
+              id=${() => `${this.id}-${record().id}-inspection`}
               popover
             >
               <header class="lf-vr-inspection-heading">
                 <h4>Capture details</h4>
-                ${closeButton(
-                  `${this.id}-${record.id}-inspection`,
-                  "Close capture details",
-                )}
+                ${closeButton(`${this.id}-${record().id}-inspection`, "Close capture details")}
               </header>
               <dl class="lf-vr-provenance">
-                ${fact(
-                  "Capture",
-                  `${record.capture.viewport.width} × ${record.capture.viewport.height} · ${record.capture.deviceScaleFactor}× · ${record.capture.colorScheme}`,
-                )}
-                ${fact(
-                  "Browser",
-                  `${record.capture.browser} ${record.capture.browserVersion}`,
-                )}
-                ${fact("Observed", record.capture.observedAt)}${fact(
-                  "Locale",
-                  `${record.capture.locale} · ${record.capture.timezone}`,
-                )}
-                ${fact("Path", record.path)}${fact(
-                  "Before revision",
-                  run.base.revision,
-                )}${fact("After revision", run.candidate.revision)}
-                ${
-                  record.focus
-                    ? fact(
-                        "Focus",
-                        `${record.focus.x}, ${record.focus.y} · ${record.focus.width} × ${record.focus.height} CSS px`,
-                      )
-                    : nothing
-                }
-                ${
-                  entry.difference
-                    ? fact(
-                        "Full-frame difference",
-                        describeDifference(entry.difference),
-                      )
-                    : nothing
-                }
+                ${fact("Capture", () => `${record().capture.viewport.width} × ${record().capture.viewport.height} · ${record().capture.deviceScaleFactor}× · ${record().capture.colorScheme}`)}
+                ${fact("Browser", () => `${record().capture.browser} ${record().capture.browserVersion}`)}
+                ${fact("Observed", () => record().capture.observedAt)}${fact("Locale", () => `${record().capture.locale} · ${record().capture.timezone}`)}
+                ${fact("Path", () => record().path)}${fact("Before revision", () => run().base.revision)}${fact("After revision", () => run().candidate.revision)}
+                ${Show({
+                  get when() {
+                    return record().focus;
+                  },
+                  children: (_visible) =>
+                    fact("Focus", () => {
+                      const focus = record().focus;
+                      return focus
+                        ? `${focus.x}, ${focus.y} · ${focus.width} × ${focus.height} CSS px`
+                        : "";
+                    }),
+                })}
+                ${Show({
+                  get when() {
+                    return entry().difference;
+                  },
+                  children: (_visible) =>
+                    fact("Full-frame difference", () =>
+                      entry().difference ? describeDifference(entry().difference) : "",
+                    ),
+                })}
               </dl>
               <div class="lf-vr-sources">
-                ${link("Open before page", destination(run.base, record.path))}${link(
-                  "Open after page",
-                  destination(run.candidate, record.path),
-                )}${link("Capture trace", record.traceUrl)}
+                ${link("Open before page", () => destination(run().base, record().path))}${link("Open after page", () => destination(run().candidate, record().path))}${link("Capture trace", () => record().traceUrl)}
               </div>
             </div>
           </header>
           <div class="lf-vr-capture">
             <lf-shot
-              id=${`${this.id}-${record.id}-capture`}
-              before=${before}
-              after=${after}
-              alt=${`${record.title}. ${record.result}`}
-              ._lfPresentGenerated=${this.#presentShot}
-              ${ref(entry.prepare)}
+              id=${() => `${this.id}-${record().id}-capture`}
+              before=${() => entry().before}
+              after=${() => entry().after}
+              alt=${() => `${record().title}. ${record().result}`}
+              prop:_lfPresentGenerated=${this.#presentShot}
+              ref=${(node) => entry().prepare(node)}
             ></lf-shot>
             <div class="lf-vr-claim">
-              <p class="lf-vr-result" data-lf-gen="1" data-lf-said>${record.result}</p>
+              <p class="lf-vr-result" data-lf-gen="1" data-lf-said>
+                ${() => record().result}
+              </p>
               <p class="lf-vr-action" data-lf-gen="1" data-lf-said>
-                <strong>Check:</strong> ${record.action}
+                <strong>Check:</strong>${" "}${() => record().action}
               </p>
             </div>
           </div>
@@ -585,7 +607,7 @@ customElements.define(
           <div
             class="lf-vr-threads lf-ui"
             data-lf-gen="1"
-            ${ref(entry.threadPlace)}
+            ref=${(node) => entry().threadPlace(node)}
           ></div>
         </section>
       </article>`;

@@ -70,7 +70,7 @@ import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads, readThreads } from "./thread/state.js";
-import { effect, untracked } from "/vendor/browser-runtime.js";
+import { subscribe } from "/vendor/browser-runtime.js";
 import { annotationSelection } from "./annotation-inventory.js";
 import { readPart } from "./semantic-state.js";
 import { raiseError } from "./errors.js";
@@ -569,17 +569,14 @@ export function createReactionController({
       threads: root.effective.thread.all,
       annotations: annotationSelection(root),
     }));
-    effect(() => {
-      margin();
-      untracked(() => {
-        if (
-          reactArmed &&
-          reactSurface === marginSurface &&
-          (!marginTarget?.isConnected || fabTargetAt() !== marginTarget)
-        )
-          setReact(false);
-        else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
-      });
+    subscribe(margin, () => {
+      if (
+        reactArmed &&
+        reactSurface === marginSurface &&
+        (!marginTarget?.isConnected || fabTargetAt() !== marginTarget)
+      )
+        setReact(false);
+      else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
     });
   }
   pageScope("reactions", REACT);

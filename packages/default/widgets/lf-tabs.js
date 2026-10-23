@@ -117,13 +117,13 @@ import {
   fitsWhole,
   motion,
   pressIsKeyboardActivation,
-  signal,
   LeafElement,
   html,
-  nothing,
-  render,
-  repeat,
-  ref,
+  createView,
+  For,
+  Show,
+  createSignal,
+  flush,
 } from "/runtime/widget-api.js";
 
 // The sets whose strip stands over the whole document as its sticky header
@@ -161,7 +161,7 @@ export class TabSet extends LeafElement {
   #runs = [];
   #down = false;
   // The open panel, a signal because the strip's Enter row reads which tab is open.
-  #active = signal(null);
+  #active = createSignal(null, { ownedWrite: true });
   #root = false;
   #contextObserver = null;
   #strip = null;
@@ -172,9 +172,7 @@ export class TabSet extends LeafElement {
   #stopList = null;
   #selectionMotion = null;
 
-  createRenderRoot() {
-    return this.#strip ?? this;
-  }
+  #drawing;
 
   setup() {
     // Own panels only (a nested lf-tabs wires its own).
@@ -221,7 +219,7 @@ export class TabSet extends LeafElement {
       // the runtime is about to scroll a comment anchor into view: open up.
       panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
       panel.addEventListener("lf-reveal", (event) => {
-        if (this.#active.value && this.#active.value !== panel)
+        if (this.#active[0]() && this.#active[0]() !== panel)
           event.detail.replacedView();
         const ready = this.#activate(panel, "reveal");
         event.detail?.present?.(ready);
@@ -230,7 +228,7 @@ export class TabSet extends LeafElement {
     // Build the strip before opening its panel: activation measures the selected
     // name and the underline in this same task. Later publication uses LeafElement's
     // tracked render; its unchanged Lit parts retain these exact nodes.
-    render(this.render(), strip);
+    this.render();
     // Roving focus per the ARIA tabs pattern: arrows move and activate, and wrap, which
     // is a fact about this walk and so belongs in the words that name it.
     const walk = (to) => {
@@ -257,7 +255,7 @@ export class TabSet extends LeafElement {
 
         // The tab already open has nothing for this press to do, so the line does not
         // name it there; the walk beside it is what moves.
-        when: () => focused() !== this.#buttons.get(this.#active.value),
+        when: () => focused() !== this.#buttons.get(this.#active[0]()),
         run: () => focused().click(),
       },
       {
@@ -303,7 +301,7 @@ export class TabSet extends LeafElement {
     // measures final geometry.
     this.#activate(openingView(this, panels), "arrival");
     if (this.#root) {
-      this.#replaceLocation(this.#active.value);
+      this.#replaceLocation(this.#active[0]());
     }
     whileConnected(this, (signal) => {
       this.#watchRootContext();
@@ -365,41 +363,61 @@ export class TabSet extends LeafElement {
   // version diff's marked passages, and in a side list its obligations' state, with the answer
   // once they are all answered.
   render() {
-    if (!this.#panels.length) return nothing;
-    return html`${this.#edge("start")}${
-      this.#side
-        ? repeat(
-            this.#runs,
-            (run) => run.panel,
-            (run) =>
-              html` <div class="lf-tab-run" role="none">
-                ${
-                  run.group
-                    ? html`<span
-                        class="lf-tab-group"
-                        aria-hidden="true"
-                        data-lf-gen="1"
-                        data-lf-said
-                        >${run.group}</span
-                      >`
-                    : nothing
-                }
-                ${repeat(
-                  run.panels,
-                  (panel) => panel,
-                  (panel) => this.#tab(panel),
-                )}
-              </div>`,
-          )
-        : repeat(
-            this.#panels,
-            (panel) => panel,
-            (panel) => this.#tab(panel),
-          )
-    }${this.#edge("end")}`;
+    if (!this.#panels.length) return;
+    const model = {
+      runs: this.#runs.map((run) => ({
+        ...run,
+        panels: run.panels.map((panel) => this.#tabReading(panel)),
+      })),
+      panels: this.#panels.map((panel) => this.#tabReading(panel)),
+    };
+    if (this.#drawing) return this.#drawing.update(model);
+    this.#drawing = createView(
+      this.#strip,
+      (read) =>
+        html`${this.#edge("start")}${
+          this.#side
+            ? For({
+                get each() {
+                  return read().runs;
+                },
+                keyed: (run) => run.panel,
+                children: (run) =>
+                  html`<div class="lf-tab-run" role="none">
+                    ${Show({
+                      get when() {
+                        return run().group;
+                      },
+                      children: (group) =>
+                        html`<span
+                          class="lf-tab-group"
+                          aria-hidden="true"
+                          data-lf-gen="1"
+                          data-lf-said
+                          >${group}</span
+                        >`,
+                    })}${For({
+                      get each() {
+                        return run().panels;
+                      },
+                      keyed: (item) => item.panel,
+                      children: (item) => this.#tab(item),
+                    })}
+                  </div>`,
+              })
+            : For({
+                get each() {
+                  return read().panels;
+                },
+                keyed: (item) => item.panel,
+                children: (item) => this.#tab(item),
+              })
+        }${this.#edge("end")}`,
+      model,
+    );
   }
 
-  #tab(panel) {
+  #tabReading(panel) {
     const changed = comparisonChanges(panel).length;
     const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
     const items = hasAnswer ? obligationsIn(panel) : [];
@@ -438,52 +456,55 @@ export class TabSet extends LeafElement {
     ]
       .filter(Boolean)
       .join(". ");
-    const mark = html`<span class="lf-tab-mark" aria-hidden="true"></span>`;
+    return { panel, changed, hasAnswer, items, answered, answer, description };
+  }
+
+  #tab(read) {
+    const panel = read().panel;
+    const mark = () => html`<span class="lf-tab-mark" aria-hidden="true"></span>`;
     return html`<span
-      ${selectableOffered("tab", "lf-tab-btn")}
-      ${ref((button) => {
-        if (button) this.#buttons.set(panel, button);
-      })}
+      ref=${(button) => {
+        selectableOffered("tab", "lf-tab-btn")(button);
+        this.#buttons.set(panel, button);
+      }}
       aria-controls=${panel.id}
       aria-label=${panel.getAttribute("label")}
-      aria-selected=${panel === this.#active.value}
-      aria-description=${description || nothing}
-      tabindex=${panel === this.#active.value ? 0 : -1}
-      @click=${(event) =>
-        this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
-      ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
-        >${panel.getAttribute("label")}${this.#down ? nothing : mark}</span
-      >${
-        this.#down && panel.hasAttribute("summary")
-          ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said
-              >${panel.getAttribute("summary")}</span
-            >`
-          : nothing
-      }${
-        hasAnswer
-          ? html`<span
-              class="lf-tab-answer"
-              aria-hidden="true"
-              data-lf-obligations=${
-                answered ? "answered" : items.length ? "open" : nothing
-              }
-              ><span class="lf-tab-answer-words">${answer}</span></span
-            >`
-          : nothing
-      }<span class="lf-tabdiff" aria-hidden="true">${changed ? `Δ${changed}` : ""}</span
-      >${this.#down ? mark : nothing}</span
-    >`;
+      aria-selected=${() => String(panel === this.#active[0]())}
+      aria-description=${() => read().description || undefined}
+      tabindex=${() => (panel === this.#active[0]() ? 0 : -1)}
+      onClick=${(event) => this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
+    >
+      <span class="lf-tab-name" data-lf-gen="1" data-lf-said
+        >${panel.getAttribute("label")}${this.#down ? null : mark()}</span
+      >
+      ${this.#down && panel.hasAttribute("summary") ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said>${panel.getAttribute("summary")}</span>` : null}
+      ${Show({
+        get when() {
+          return read().hasAnswer;
+        },
+        children: (_value) =>
+          html`<span
+            class="lf-tab-answer"
+            aria-hidden="true"
+            data-lf-obligations=${() => (read().answered ? "answered" : read().items.length ? "open" : undefined)}
+            ><span class="lf-tab-answer-words">${() => read().answer}</span></span
+          >`,
+      })}
+      <span class="lf-tabdiff" aria-hidden="true"
+        >${() => (read().changed ? `Δ${read().changed}` : "")}</span
+      >${this.#down ? mark() : null}
+    </span>`;
   }
 
   #activate(active, reason, pointer = false) {
     if (!this.#buttons.has(active)) return;
     // The open tab pressed again, or walked to, is the user's way back to it after
     // scrolling the row away.
-    if (active === this.#active.value) {
+    if (active === this.#active[0]()) {
       this.#showTab(this.#buttons.get(active));
       return Promise.resolve();
     }
-    const previous = this.#active.value;
+    const previous = this.#active[0]();
     const order = [...this.#buttons.keys()];
     const travels =
       pointer &&
@@ -529,11 +550,7 @@ export class TabSet extends LeafElement {
         // tabindex, so explicitly exclude closed panels from the tab order.
         keeps(panel, "tabindex", panel === active ? 0 : -1);
       }
-      this.#active.value = active;
-      // Selection and the underline's final box must exist before the measurement
-      // below. Use the same template synchronously; Lit's scheduled update then
-      // keeps its dependency subscription current without replacing any nodes.
-      render(this.render(), this.#strip);
+      flush(() => this.#active[1](() => active));
       const button = this.#buttons.get(active);
       this.#showTab(button);
       this.#revealMotion?.cancel();
@@ -606,8 +623,8 @@ export class TabSet extends LeafElement {
       : this.getAttribute("data-lf-views-flow") === "page";
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.
-    if (wasFlow !== this.#pageFlow && this.#active.value) {
-      const child = soleSubstantiveElement(this.#active.value);
+    if (wasFlow !== this.#pageFlow && this.#active[0]()) {
+      const child = soleSubstantiveElement(this.#active[0]());
       if (child) layoutChanged(child);
       layoutChanged(this);
     }
@@ -634,7 +651,7 @@ export class TabSet extends LeafElement {
   // none of it. Which the list is follows the window, so the strip's size observer asks
   // again.
   #declareHeader() {
-    const over = !this.#parts || Boolean(this.#active.value && this.#listOver());
+    const over = !this.#parts || Boolean(this.#active[0]() && this.#listOver());
     const header = this.#pageFlow && over && Boolean(this.#strip?.isConnected);
     if (header === this.#covering) return;
     this.#covering = header;
@@ -646,7 +663,7 @@ export class TabSet extends LeafElement {
   // Whether a page's list of parts stands over the open part rather than beside it.
   #listOver() {
     const list = this.#strip.getBoundingClientRect();
-    return list.right > this.#active.value.getBoundingClientRect().left + 1;
+    return list.right > this.#active[0]().getBoundingClientRect().left + 1;
   }
 
   // A press at one edge of the strip, which pages the names that run past it (the
@@ -655,7 +672,7 @@ export class TabSet extends LeafElement {
   #edge(to) {
     return html`<span class="lf-tabstrip-scroll" data-to=${to} aria-hidden="true"
       ><span
-        @click=${() => {
+        onClick=${() => {
           const strip = this.#strip;
           const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
           strip.scrollBy({
@@ -706,7 +723,7 @@ export class TabSet extends LeafElement {
     this.#stopSelectionMotion();
     this.#syncRegions();
     this.#declareHeader();
-    this.#showTab(this.#buttons.get(this.#active.value));
+    this.#showTab(this.#buttons.get(this.#active[0]()));
   });
 
   #stopSelectionMotion = () => {
@@ -721,7 +738,7 @@ export class TabSet extends LeafElement {
       (url) => {
         if (!this.#root) return null;
         const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
-        return view && view !== this.#active.value
+        return view && view !== this.#active[0]()
           ? () => this.#activate(view, "history")
           : null;
       },
@@ -751,7 +768,7 @@ export class TabSet extends LeafElement {
   #start() {
     if (this.#parts) {
       const top =
-        this.#active.value.getBoundingClientRect().top + pageScroller.scrollTop;
+        this.#active[0]().getBoundingClientRect().top + pageScroller.scrollTop;
       if (!this.#listOver()) return top;
       return (
         top - parseFloat(getComputedStyle(this.#strip).top) - this.#strip.offsetHeight

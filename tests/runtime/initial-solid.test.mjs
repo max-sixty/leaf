@@ -3,13 +3,12 @@ import test from "node:test";
 import process from "node:process";
 import { execFileSync } from "node:child_process";
 import { initialOutputs } from "../../build/initial.mjs";
-import * as live from "/vendor/lit.js";
+import * as live from "/vendor/solid.js";
 import { build } from "../../build/esbuild.mjs";
-import { bindToInitialLit } from "../../build/lit.mjs";
+import { bindToInitialSolid } from "../../build/solid.mjs";
 
-test("a later producer uses module Lit and preserves its drawing", async () => {
-  const early = document.documentElement.lfInitial.lit;
-  assert.equal(globalThis.litHtmlVersions.length, 1);
+test("a later producer uses module Solid and preserves its drawing", async () => {
+  const early = document.documentElement.lfInitial.solid;
   assert.deepEqual(Object.keys(live).sort(), Object.keys(early).sort());
   for (const name of Object.keys(live)) assert.equal(live[name], early[name], name);
 
@@ -18,22 +17,23 @@ test("a later producer uses module Lit and preserves its drawing", async () => {
   const built = await build({
     stdin: {
       contents: `
-        import { html } from "lit";
-        import { render } from "/vendor/lit.js";
-        document.documentElement.lfInitial.register("lf-lit-probe", (host) => {
-          const draw = (label) => render(html\`<button>\${label}</button>\`, host);
-          draw("Initial");
+        import { html, createSignal, flush } from "/vendor/solid.js";
+        import { render } from "/vendor/solid.js";
+        document.documentElement.lfInitial.register("lf-solid-probe", (host) => {
+          const [label, setLabel] = createSignal("Initial");
+          render(() => html\`<button>\${label}</button>\`, host);
+          const draw = next => flush(() => setLabel(next));
           return { draw };
         });
       `,
     },
-    plugins: [await bindToInitialLit()],
+    plugins: [await bindToInitialSolid()],
     bundle: true,
     format: "iife",
     write: false,
   });
   new Function(built.outputFiles[0].text)();
-  const host = document.createElement("lf-lit-probe");
+  const host = document.createElement("lf-solid-probe");
   document.body.append(host);
   try {
     const drawing = document.documentElement.lfInitial.paint(host);
@@ -46,7 +46,7 @@ test("a later producer uses module Lit and preserves its drawing", async () => {
   }
 });
 
-test("classic Lit and the mapped module facade are the same instance", () => {
+test("classic Solid and the mapped module facade are the same instance", () => {
   execFileSync(
     process.execPath,
     [
@@ -60,15 +60,14 @@ test("classic Lit and the mapped module facade are the same instance", () => {
       import { registerHooks } from "node:module";
       registerHooks({ resolve(specifier, context, next) {
         const resolved = next(specifier, context);
-        if (resolved.url.endsWith("/browser/vendor/lit.js")) return next("/vendor/lit-shared.js", context);
+        if (resolved.url.endsWith("/browser/vendor/solid.js")) return next("/vendor/solid-shared.js", context);
         return resolved;
       }});
-      assert.equal(document.documentElement.lfInitial.lit, undefined);
-      new Function(readFileSync("browser/vendor/lit-initial.js", "utf8"))();
-      const early = document.documentElement.lfInitial.lit;
-      const live = await import("/vendor/lit-shared.js");
-      assert.equal(globalThis.litHtmlVersions.length, 1);
-      assert.deepEqual(Object.keys(live).sort(), Object.keys(early).sort());
+      assert.equal(document.documentElement.lfInitial.solid, undefined);
+      new Function(readFileSync("browser/vendor/solid-initial.js", "utf8"))();
+      const early = document.documentElement.lfInitial.solid;
+      const live = await import("/vendor/solid-shared.js");
+          assert.deepEqual(Object.keys(live).sort(), Object.keys(early).sort());
       for (const name of Object.keys(live)) assert.equal(live[name], early[name], name);
     `,
     ],
@@ -82,7 +81,7 @@ test("the initial dependency graph follows producer imports", async () => {
     outputs.get("browser/vendor/initial-dependencies.json"),
   );
   assert.deepEqual(dependencies, {
-    "/vendor/lf-toc-initial.js": ["/vendor/lit-initial.js"],
-    "/vendor/lf-activity-initial.js": ["/vendor/lit-initial.js"],
+    "/vendor/lf-toc-initial.js": ["/vendor/solid-initial.js"],
+    "/vendor/lf-activity-initial.js": ["/vendor/solid-initial.js"],
   });
 });

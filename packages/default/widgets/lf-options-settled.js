@@ -7,8 +7,8 @@ import {
   keeps,
   html,
   iconTemplate,
-  nothing,
-  render,
+  createView,
+  Show,
   selectableOffer,
   tabStore,
 } from "/runtime/widget-api.js";
@@ -20,6 +20,7 @@ export class SettledOptions {
   #label;
   #row = null;
   #isOpen = false;
+  #drawing;
 
   constructor(host, { label }) {
     this.#host = host;
@@ -71,15 +72,27 @@ export class SettledOptions {
       .map(this.#label)
       .filter(Boolean);
     const changes = comparisonChanges(this.#host).length;
-    render(
-      html`${iconTemplate("down", "lf-disclosure-icon")}<span
-          data-lf-gen="1"
-          data-lf-said
-          >${names.length ? `Settled: ${names.join(", ")}` : "Settled"}</span
-        ><span class="lf-settled-count"
-          >${options.length} option${options.length === 1 ? "" : "s"}</span
-        >${changes ? html`<span class="lf-settled-diff">Δ${changes}</span>` : nothing}`,
-      this.#row,
-    );
+    const model = {
+      names: names.length ? `Settled: ${names.join(", ")}` : "Settled",
+      count: `${options.length} option${options.length === 1 ? "" : "s"}`,
+      changes,
+    };
+    if (this.#drawing) this.#drawing.update(model);
+    else
+      this.#drawing = createView(
+        this.#row,
+        (read) =>
+          html`${iconTemplate("down", "lf-disclosure-icon")}<span
+              data-lf-gen="1"
+              data-lf-said
+              >${() => read().names}</span
+            ><span class="lf-settled-count">${() => read().count}</span>${Show({
+              get when() {
+                return read().changes;
+              },
+              children: (count) => html`<span class="lf-settled-diff">Δ${count}</span>`,
+            })}`,
+        model,
+      );
   }
 }

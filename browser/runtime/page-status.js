@@ -22,7 +22,7 @@ import { WEBSITE_DELIVERY, runtime, runtimeResource } from "./context.js";
 import { chromeRoot } from "./chrome.js";
 import { pagePresented } from "./page-paint.js";
 import { announce } from "./notifications.js";
-import { effect, signal, untracked } from "/vendor/browser-runtime.js";
+import { createSignal, flush, subscribe } from "/vendor/browser-runtime.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
 import { readQueues } from "./queue-api.js";
@@ -49,13 +49,13 @@ const LOADING = Object.freeze({
 // that saved state is loading.
 const reach = readPart((root) => root.reach);
 const fault = readPart((root) => root.fault);
-const upgraded = signal(false);
+const [upgraded, setUpgraded] = createSignal(false, { ownedWrite: true });
 // The status with its words (`statusModel`), or null before there is one to say. It is
 // derived where it is read, so a presentation of it says the same words in the same tone
 // and follows the same inputs; only upgrade, which is mechanical, asks each to paint.
 function currentStatus() {
   const answer = reach();
-  if (answer === "waiting" && !upgraded.value) return null;
+  if (answer === "waiting" && !upgraded()) return null;
   const status =
     answer === "waiting"
       ? LOADING
@@ -267,14 +267,11 @@ export function mountPageStatus({ approveVersion: post }) {
   approveVersion = post;
   signoff = isSignoffDeclared();
   chromeRoot.append(toneProbe);
-  effect(() => {
-    const current = currentStatus();
-    untracked(() => paintStatus(current));
-  });
+  subscribe(currentStatus, (current) => paintStatus(current));
   document.addEventListener(
     UPGRADE,
     () => {
-      upgraded.value = true;
+      flush(() => setUpgraded(true));
     },
     { once: true },
   );

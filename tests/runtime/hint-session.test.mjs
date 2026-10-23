@@ -67,7 +67,9 @@ function hintMap(t, names) {
         };
       }),
     template: (model) =>
-      html`<span class=${model.className} data-code=${model.code}>${model.code}</span>`,
+      html`<span class=${() => model().className} data-code=${() => model().code}
+        >${() => model().code}</span
+      >`,
     take: (candidate) => taken.push(candidate.name),
     words: {
       describe: (candidate) => `Link, ${candidate.name}`,

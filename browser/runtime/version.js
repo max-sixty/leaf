@@ -151,7 +151,7 @@ import { pointerAt, restorePointer } from "./pointer.js";
 
 import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
-import { batch, effect, signal } from "/vendor/browser-runtime.js";
+import { createSignal, flush, subscribe } from "/vendor/browser-runtime.js";
 
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
@@ -367,20 +367,20 @@ function pickerModel(state) {
     picker: Object.freeze({
       offered,
       token: currentVersionToken(),
-      compared: diffOn.value || diffPendingBase.value !== null,
+      compared: diffOn() || diffPendingBase() !== null,
       news: behind,
       keyTitle: offered
-        ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading a comparison with v${diffPendingBase.value}${newer}`
-          : diffOn.value
-            ? `${currentLabel}: showing what changed since v${diffBase.value} — pick a version, or press Compare again to stop${newer}`
+        ? diffPendingBase() !== null
+          ? `${currentLabel}: loading a comparison with v${diffPendingBase()}${newer}`
+          : diffOn()
+            ? `${currentLabel}: showing what changed since v${diffBase()} — pick a version, or press Compare again to stop${newer}`
             : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
         : currentLabel,
       ariaLabel: offered
-        ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading comparison with v${diffPendingBase.value}; open versions${newer}`
-          : diffOn.value
-            ? `${currentLabel}: comparing with v${diffBase.value}; open versions${newer}`
+        ? diffPendingBase() !== null
+          ? `${currentLabel}: loading comparison with v${diffPendingBase()}; open versions${newer}`
+          : diffOn()
+            ? `${currentLabel}: comparing with v${diffBase()}; open versions${newer}`
             : `${currentLabel}: open versions${newer}`
         : currentLabel,
     }),
@@ -403,11 +403,11 @@ function pickerModel(state) {
         ? Object.freeze([])
         : menuRows(state, runtime.browser?.version_notes ?? {}),
     selection: Object.freeze({
-      base: diffPendingBase.value ?? (diffOn.value ? diffBase.value : null),
+      base: diffPendingBase() ?? (diffOn() ? diffBase() : null),
       currentRevision: runtime.currentRevision,
-      on: diffOn.value,
-      pendingBase: diffPendingBase.value,
-      baseRevision: stamped(diffBase.value)?.revision ?? null,
+      on: diffOn(),
+      pendingBase: diffPendingBase(),
+      baseRevision: stamped(diffBase())?.revision ?? null,
     }),
   });
 }
@@ -418,8 +418,7 @@ function pickerModel(state) {
 // they are (errors.js), held while the page shows the last one that passed; Versions
 // says what the check found.
 const holdFailedSave = holdingError();
-function paintPicker() {
-  const model = pickerModel(runtime.state);
+function paintPicker(model) {
   holdFailedSave(
     model.latest.failed
       ? "Latest edit not shown: it failed its check (see Versions)"
@@ -494,11 +493,13 @@ const diffOpaqueSel = () =>
 // the pair — the picker's word and paint, each row's press, the rail down the span —
 // comes from the immutable picker model and is read back by nothing. The comparison
 // owns the marked identities; the CSS marks are only their rendering.
-const diffOn = signal(false);
-const diffBase = signal(null);
+const [diffOn, setDiffOn] = createSignal(false, { ownedWrite: true });
+const [diffBase, setDiffBase] = createSignal(null, { ownedWrite: true });
 // Advanced after the marked DOM changes, so tracked readers see its new contents.
-const comparisonGeneration = signal(0);
-const diffPendingBase = signal(null);
+const [comparisonGeneration, setComparisonGeneration] = createSignal(0, {
+  ownedWrite: true,
+});
+const [diffPendingBase, setDiffPendingBase] = createSignal(null, { ownedWrite: true });
 const diffMarked = new Set();
 // What each marked block said in the base version, and which of those readings the
 // user has open. The marks say a block changed; these say what it changed from, at
@@ -781,16 +782,14 @@ function openInlineComparison(target) {
   const label = el(
     "span",
     "lf-ui lf-quiet lf-version-inline-label",
-    before === null
-      ? `New since v${diffBase.value}`
-      : `v${diffBase.value} → ${current}`,
+    before === null ? `New since v${diffBase()}` : `v${diffBase()} → ${current}`,
   );
   label.id = inlineId(target);
   label.setAttribute(
     "aria-label",
     before === null
-      ? `New since version ${diffBase.value}`
-      : `Inline comparison from version ${diffBase.value} to ${current}`,
+      ? `New since version ${diffBase()}`
+      : `Inline comparison from version ${diffBase()} to ${current}`,
   );
 
   const nodes = [label];
@@ -830,8 +829,8 @@ function openInlineComparison(target) {
   paintInlineInsertions();
   layoutChanged(target);
   return before === null
-    ? `v${diffBase.value} had nothing here`
-    : `showing an inline diff from v${diffBase.value}`;
+    ? `v${diffBase()} had nothing here`
+    : `showing an inline diff from v${diffBase()}`;
 }
 
 function closeInlineComparison(target) {
@@ -841,7 +840,7 @@ function closeInlineComparison(target) {
   for (const node of entry?.nodes ?? []) node.remove();
   paintInlineInsertions();
   layoutChanged(target);
-  return `inline diff from v${diffBase.value} hidden`;
+  return `inline diff from v${diffBase()} hidden`;
 }
 
 // What a text-changing marked block holds for the margin's disclosure reading. A pure
@@ -850,13 +849,13 @@ function closeInlineComparison(target) {
 // reading while the margin and Page Map carry that provenance visually, outside the
 // passage whose words are being compared.
 export const inlineComparison = (target) =>
-  diffOn.value &&
+  diffOn() &&
   diffBefore.has(target) &&
   (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target))
     ? {
         id: inlineId(target),
         open: inlineOpen.has(target),
-        offer: `v${diffBase.value} → ${currentVersionToken()}`,
+        offer: `v${diffBase()} → ${currentVersionToken()}`,
       }
     : null;
 
@@ -868,7 +867,7 @@ export function toggleInlineComparison(target) {
   const said = inlineOpen.has(target)
     ? closeInlineComparison(target)
     : openInlineComparison(target);
-  comparisonGeneration.value += 1;
+  flush(() => setComparisonGeneration((value) => value + 1));
   return said;
 }
 
@@ -886,10 +885,10 @@ const comparable = (version) => {
 // waiting on — the only thing that decides it, the marks and the paint being renderings
 // rather than a second copy.
 function setDiff(on, base, pendingBase = null) {
-  batch(() => {
-    diffOn.value = on;
-    diffPendingBase.value = pendingBase;
-    if (on) diffBase.value = base;
+  flush(() => {
+    setDiffOn(on);
+    setDiffPendingBase(pendingBase);
+    if (on) setDiffBase(base);
     if (!on) {
       diffRequest++; // a stop outranks a comparison still on its way
       // Inline diffs leave with the block marks. Historical words or insertion paint
@@ -900,7 +899,7 @@ function setDiff(on, base, pendingBase = null) {
       diffMarked.clear();
     }
     // Native effects run after both the selection and its marked DOM have settled.
-    comparisonGeneration.value += 1;
+    flush(() => setComparisonGeneration((value) => value + 1));
   });
 }
 // The one way a comparison starts, from a row's press, from the walk through the menu,
@@ -922,7 +921,7 @@ async function showComparison(base) {
   const baseVersion = stamped(base);
   const baseRevision = baseVersion?.revision;
   if (baseRevision == null) {
-    diffPendingBase.value = null;
+    flush(() => setDiffPendingBase(null));
     raiseError(`Couldn't load v${base}`);
     return;
   }
@@ -946,7 +945,7 @@ async function showComparison(base) {
     await prepareDeclaredMarkdown(doc);
   } catch {
     if (mine === diffRequest) {
-      diffPendingBase.value = null;
+      flush(() => setDiffPendingBase(null));
       raiseError(`Couldn't load v${base}`);
     }
     return;
@@ -965,18 +964,18 @@ async function showComparison(base) {
 // walk itself — up to the version being read, which is comparable with nothing and so
 // stops rather than re-bases.
 const pressComparison = (base) =>
-  (diffOn.value && base === diffBase.value) || diffPendingBase.value === base
+  (diffOn() && base === diffBase()) || diffPendingBase() === base
     ? setDiff(false)
     : showComparison(base);
 
-export const comparisonBase = () => (diffOn.value ? diffBase.value : null);
+export const comparisonBase = () => (diffOn() ? diffBase() : null);
 // Selection leads the documents it needs. Menu focus follows that immediate reading,
 // while the public projection above stays paired with the marks that have settled.
-const selectedBase = () => diffPendingBase.value ?? comparisonBase();
+const selectedBase = () => diffPendingBase() ?? comparisonBase();
 
 export function comparisonChanges(owner = null) {
-  comparisonGeneration.value;
-  const changes = diffOn.value ? [...diffMarked] : [];
+  comparisonGeneration();
+  const changes = diffOn() ? [...diffMarked] : [];
   return owner
     ? changes.filter((block) => block !== owner && under(block, owner))
     : changes;
@@ -2329,7 +2328,7 @@ export function createVersionController({
       compare: pressComparison,
       latest: goActive,
     });
-    effect(paintPicker);
+    subscribe(() => pickerModel(runtime.state), paintPicker);
   }
 
   return {

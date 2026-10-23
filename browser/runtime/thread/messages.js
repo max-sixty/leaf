@@ -1,4 +1,4 @@
-/* Synchronous Lit message presentation and frozen authored message islands.
+/* Synchronous Solid message presentation and frozen authored message islands.
 
    Every surface uses the same message, header and body vocabulary. Generated
    metadata, prose, workflow and reaction placement have one owner. Each message
@@ -13,7 +13,7 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import { html, keyed, render, nothing } from "/vendor/browser-runtime.js";
+import { afterRender, html, createView, Show } from "/vendor/browser-runtime.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -53,7 +53,7 @@ import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
-import { iconTemplate } from "../icons.js";
+import { iconElement } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { flashDuration, motion } from "../motion.js";
 import { pageClaimed } from "../semantic-state.js";
@@ -136,12 +136,21 @@ const titlePending = (thread) =>
 // its title.
 // The opening words stay in its accessible name, after the placeholder, so a screen
 // reader still tells two pending threads apart.
-/** @param {Parameters<typeof titlePending>[0]} thread */
-export const threadHeading = (thread) =>
-  titlePending(thread)
-    ? html`<span class="lf-thread-name-pending">Generating thread name…</span
-        ><span class="lf-quiet"> ${threadName(thread)}</span>`
-    : threadName(thread);
+/** Snapshot domain reads before mounting a retained heading. */
+export const threadHeadingModel = (thread) => ({
+  pending: titlePending(thread),
+  name: threadName(thread),
+});
+export const threadHeadingView = (read) =>
+  html`${Show({
+    get when() {
+      return read().pending;
+    },
+    fallback: html`${() => read().name}`,
+    children: (_visible) =>
+      html`<span class="lf-thread-name-pending">Generating thread name…</span
+        ><span class="lf-quiet"> ${() => read().name}</span>`,
+  })}`;
 
 /** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0]} thread */
 export const threadSummary = (thread) => ({
@@ -328,6 +337,8 @@ export class MessageView {
   #arrivalMotion = null;
   #stopRead = null;
   #header = document.createElement("div");
+  #headerDrawing = null;
+  #drawing = null;
   #editor = null;
   #kept = false;
   #stopKept = null;
@@ -337,7 +348,7 @@ export class MessageView {
     this.node = document.createElement("div");
   }
 
-  present(model, { arrived = false, headerControls = nothing } = {}) {
+  present(model, { arrived = false, headerControls = null } = {}) {
     const prior = this.#model;
     this.#model = model;
     // A view presents messages of one surface for its whole life, so what the surface
@@ -429,8 +440,7 @@ export class MessageView {
       settleAuthoredSoon(authoredKey);
     }
     const holds = authoredHolders.get(authoredKey) === this;
-    // Lit keeps nodes it already placed, so where another drawing took them since this
-    // one drew them, a new key puts them back here.
+    // Taking widgets from another surface remounts their native slot here.
     if (holds && this.#authored.some((node) => !this.node.contains(node)))
       this.#authoredTake++;
     if (!model.reactions) this.#reaction?.retire();
@@ -438,112 +448,60 @@ export class MessageView {
       ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(
           model.reactions,
         )
-      : nothing;
-    const receipt = model.workflowLabel
-      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
-          >${model.workflowLabel}</span
-        >`
-      : nothing;
-    render(
-      html`
-        <b>${model.by}</b
-        ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
-          ${
-            model.leaves
-              ? html`<span class="lf-msg-leaves">${model.leaves}</span>`
-              : nothing
-          }
-          ${
-            model.failure
-              ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
-              : nothing
-          }
-          ${
-            model.body.kind === "suggestion"
-              ? html`<span class="lf-suggest-label">Suggestion</span>`
-              : nothing
-          }
-          ${
-            model.edited
-              ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
-              : nothing
-          }
-          ${
-            this.#kept
-              ? html`<span
-                  class="lf-msg-kept"
-                  title="The rewrite is kept; open it to save or cancel"
-                  >unsaved edit</span
-                >`
-              : nothing
-          }
-        </span>
-        ${headerControls}
-      `,
-      this.#header,
-    );
-    // The user's own words offer their rewrite where an agent's reply offers its
-    // reactions: the message's one control, at its header's right edge (shadow.css).
-    const rewrite =
-      model.editable && !editing
-        ? html`<button
-            type="button"
-            class="lf-msg-control lf-msg-edit lf-ui"
-            tabindex="-1"
-            data-lf-gen="1"
-            data-lf-offer="button"
-            aria-label="Edit message"
-            title="Edit message"
-            @click=${() => this.openEdit()}
-          >
-            ${iconTemplate("edit", "lf-msg-control-icon")}
-          </button>`
-        : nothing;
-    render(
-      html`
-        ${this.#header}
-        <div
-          class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
-        >
-          ${editing ? this.#editor.node : this.#body(model.body)}
-          ${
-            model.body.drawing
-              ? html`<span class="lf-drawing-reference">Drawing comment</span>`
-              : nothing
-          }
-          ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
-        </div>
-        ${strip} ${rewrite}
-      `,
-      this.node,
-    );
-    if (this.#authored && !this.#dressed) {
-      markDeclared(this.node);
-      renderSaid(this.node);
-      renderQuiet(this.node);
-      this.#dressed = true;
-    }
-    // Markdown is an opaque property part: tokenization never rewrites Lit markers.
-    highlightBlocks(this.node);
-    this.#stopRead = this.#commands.read.observeMessage(
-      this.node.querySelector(":scope > .lf-msg-body"),
+      : null;
+    const props = {
       model,
-    );
-    // The drawing these widgets left draws the way here instead.
-    displaced?.present(displaced.model);
-    if (!prior && (model.pending || arrived)) {
-      // One phase drives the message's ground and its sticky header. CSS resolves
-      // the tint and resting colour at this message after insertion; Firefox's
-      // Web Animations interpolates a var() colour keyframe discretely.
-      // The shared motion gate answers for restoration and reduced motion; the
-      // delivery receipt and busy cursor remain independent of the arrival tint.
-      this.#arrivalMotion = motion(
-        this.node,
-        [{ "--lf-msg-arrival": 1, offset: 0 }],
-        flashDuration(),
+      headerControls,
+      kept: this.#kept,
+      editor: editing ? this.#editor.node : null,
+      strip,
+      authored: holds ? this.#authored : null,
+      authoredTake: this.#authoredTake,
+    };
+    if (this.#headerDrawing) this.#headerDrawing.update(props);
+    else
+      this.#headerDrawing = createView(
+        this.#header,
+        (read) => this.#headerTemplate(read),
+        props,
       );
-    }
+    if (this.#drawing) this.#drawing.update(props);
+    else
+      this.#drawing = createView(
+        this.node,
+        (read) => this.#messageTemplate(read),
+        props,
+      );
+    const drawing = this.#drawing;
+    afterRender(() => {
+      if (this.#model !== model || this.#drawing !== drawing) return;
+      if (this.#authored && !this.#dressed) {
+        markDeclared(this.node);
+        renderSaid(this.node);
+        renderQuiet(this.node);
+        this.#dressed = true;
+      }
+      // Markdown is an opaque property part: tokenization never rewrites Solid markers.
+      highlightBlocks(this.node);
+      this.#stopRead = this.#commands.read.observeMessage(
+        this.node.querySelector(":scope > .lf-msg-body"),
+        model,
+      );
+      // The drawing these widgets left draws the way here instead.
+      displaced?.present(displaced.model);
+      if (!prior && (model.pending || arrived)) {
+        // One phase drives the message's ground and its sticky header. CSS resolves
+        // the tint and resting colour at this message after insertion; Firefox's
+        // Web Animations interpolates a var() colour keyframe discretely.
+        // The shared motion gate answers for restoration and reduced motion; the
+        // delivery receipt and busy cursor remain independent of the arrival tint.
+        this.#arrivalMotion = motion(
+          this.node,
+          [{ "--lf-msg-arrival": 1, offset: 0 }],
+          flashDuration(),
+        );
+      }
+    });
     return this.node;
   }
 
@@ -556,7 +514,7 @@ export class MessageView {
       this.#commands.edit.opening(model.id, this);
       this.#commands.edit.paint(this.node);
     }
-    this.#editor?.enter();
+    afterRender(() => this.#editor?.enter());
     return true;
   }
 
@@ -581,19 +539,136 @@ export class MessageView {
     return this.#editor !== null;
   }
 
-  #body(body) {
-    if (body.kind === "reaction")
-      return html`<div class="lf-msg-text">
-        <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
-      </div>`;
-    if (body.kind === "suggestion")
-      return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
-      ${
-        body.mediaHtml
-          ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>`
-          : nothing
-      }`;
+  #headerTemplate(read) {
+    const model = () => read().model;
+    const optional = (when, template) =>
+      Show({
+        get when() {
+          return when();
+        },
+        children: (_value) => template(),
+      });
+    return html`<b>${() => model().by}</b
+      ><span class="lf-msg-meta">
+        <time datetime=${() => model().timestamp}>${() => model().age}</time>
+        ${optional(
+          () => model().workflowLabel,
+          () =>
+            html`<span class="lf-msg-sending" title=${() => model().workflowTitle}
+              >${() => model().workflowLabel}</span
+            >`,
+        )}
+        ${optional(
+          () => model().leaves,
+          () => html`<span class="lf-msg-leaves">${() => model().leaves}</span>`,
+        )}
+        ${optional(
+          () => model().failure,
+          () => html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`,
+        )}
+        ${optional(
+          () => model().body.kind === "suggestion",
+          () => html`<span class="lf-suggest-label">Suggestion</span>`,
+        )}
+        ${optional(
+          () => model().edited,
+          () =>
+            html`<span class="lf-edited" title=${() => model().edited}>edited</span>`,
+        )}
+        ${optional(
+          () => read().kept,
+          () =>
+            html`<span
+              class="lf-msg-kept"
+              title="The rewrite is kept; open it to save or cancel"
+              >unsaved edit</span
+            >`,
+        )} </span
+      >${() => read().headerControls}`;
+  }
+
+  #messageTemplate(read) {
+    const optional = (when, template) =>
+      Show({
+        get when() {
+          return when();
+        },
+        children: (_value) => template(),
+      });
+    return html`${this.#header}
+      <div
+        class=${() => `lf-msg-body${read().model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
+      >
+        ${Show({
+          get when() {
+            return read().editor;
+          },
+          keyed: true,
+          children: (editor) => editor,
+          fallback: this.#body(() => read().model.body),
+        })}
+        ${optional(
+          () => read().model.body.drawing,
+          () => html`<span class="lf-drawing-reference">Drawing comment</span>`,
+        )}
+        ${Show({
+          get when() {
+            return read().authored && read().authoredTake + 1;
+          },
+          keyed: true,
+          children: (_take) => read().authored,
+        })}
+      </div>
+      ${() => read().strip}
+      ${optional(
+        () => read().model.editable && !read().editor,
+        () =>
+          html`<button
+            type="button"
+            class="lf-msg-control lf-msg-edit lf-ui"
+            tabindex="-1"
+            data-lf-gen="1"
+            data-lf-offer="button"
+            aria-label="Edit message"
+            title="Edit message"
+            onClick=${() => this.openEdit()}
+          >
+            ${iconElement("edit", "lf-msg-control-icon")}
+          </button>`,
+      )}`;
+  }
+
+  #body(read) {
+    return Show({
+      get when() {
+        return read().kind;
+      },
+      keyed: true,
+      children: (kind) => {
+        if (kind === "reaction")
+          return html`<div class="lf-msg-text">
+            <span class="lf-react-said"
+              >${() => `${read().glyph} ${read().token}`.trim()}</span
+            >
+          </div>`;
+        if (kind === "suggestion")
+          return html`<div
+            class="lf-msg-text"
+            prop:textContent=${() => read().text}
+          ></div>`;
+        return html`<div class="lf-msg-text" prop:innerHTML=${() => read().html}></div>
+          ${Show({
+            get when() {
+              return Boolean(read().mediaHtml);
+            },
+            children: (_media) =>
+              html`<div
+                class="lf-msg-media"
+                prop:innerHTML=${() => read().mediaHtml}
+              ></div>`,
+          })}`;
+      },
+    });
   }
 
   commit() {
@@ -618,6 +693,10 @@ export class MessageView {
     this.#stopKept?.();
     this.#stopKept = null;
     this.#stopRead?.();
+    this.#headerDrawing?.dispose();
+    this.#headerDrawing = null;
+    this.#drawing?.dispose();
+    this.#drawing = null;
   }
 }
 

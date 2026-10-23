@@ -49,10 +49,10 @@
  * option instead of the accent. It keeps a class's specificity, so the page's own element
  * rules lose to it: a page dressing its `button` and `a` is dressing its prose, and at no
  * specificity those rules took the family and ink of 131 of corpus.html's 264 widget
- * controls. And it matches only under the document's root: a declared tree copies this
- * sheet, but no element in a shadow tree descends from `:root`, so what a widget draws
- * there keeps its host's face. lf-diff marks its line numbers and hunk separators `lf-ui`,
- * and a plain `.lf-ui` repainted them at the control's size and ink.
+ * controls. Explicit control faces also apply in declared shadow stages, so native
+ * replacements for library controls retain their UI typography inside a monospace
+ * reader. Apparatus that keeps its owner's face uses `lf-ui` alone: lf-diff's line
+ * numbers and hunk separators must not acquire a control's size or ink.
  *
  * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
  * them: the same declarations there beat every component's own rule, and .lf-ref drew
@@ -72,7 +72,7 @@
  * A native control the page writes without either class takes the type from that
  * weightless rule too, so a page that styles it anywhere still wins. Left to the
  * browser it drew 13.33px Arial beside the page's own type (#2559). */
-:where(:root) :is(.lf-ui-face, .button, .field) {
+:where(:root, :host) :is(.lf-ui-face, .button, .field) {
   font-family: var(--sans);
   font-size: var(--t-5);
   line-height: var(--lf-ui-lh);
@@ -80,6 +80,7 @@
 }
 :where(
   :root .lf-ui-face,
+  :host .lf-ui-face,
   :root .button,
   :root .field,
   :root main :is(button, input, select, textarea)

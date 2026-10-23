@@ -29,11 +29,8 @@
  * in, so its file count costs requests only where a page serves source modules.
  *
  * The framework's third-party packages are minified builds from the lock and the
- * adaptations below. Delivery inlines Lit only when an initial producer needs it,
- * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
- * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
- * loads one implementation. Signals are the
- * framework's own and sit inside its directory. `shipped.mjs` decides whether each
+ * adaptations below. `vendor/solid.js` is the page's one Solid instance
+ * (`build/solid.mjs`), including signals, the DOM renderer and build-free templates. `shipped.mjs` decides whether each
  * output's imports resolve on every page and writes the notices for the packages
  * that reached them, as it does for every vendored bundle.
  */
@@ -49,18 +46,11 @@ import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
 import { initialOutputs } from "../initial.mjs";
-import {
-  initialLitPath,
-  sharedLitPath,
-  litFacade,
-  litGlobal,
-  litNamespace,
-  litPath,
-} from "../lit.mjs";
+import { solidModule, solidMoves, solidPath, solidInitialOutputs } from "../solid.mjs";
 import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
-import { adapt, seam, vendorOutputs } from "../vendor.mjs";
+import { vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -108,9 +98,10 @@ export async function compilerPaths(directory = root) {
 }
 /** The layer path each package the framework imports is vendored at. */
 const packages = {
-  lit: litPath,
-  "@preact/signals-core": `${frameworkDirectory}/signals-core.js`,
-  "@lit-labs/preact-signals": `${frameworkDirectory}/signals-core.js`,
+  "@solidjs/signals": solidPath,
+  "@solidjs/web": solidPath,
+  "@solidjs/html": solidPath,
+  "solid-js": solidPath,
 };
 
 /** Each source module's layer path. */
@@ -122,10 +113,7 @@ const layerPathOf = (source) => {
 /** The layer path an import in a framework source module names, and its source. */
 function importTarget(specifier, source) {
   if (!/^\.{1,2}\//.test(specifier)) {
-    // Its tags go by their lit-all names, which a bare rebinding would not reach.
-    if (specifier === "lit/static-html.js")
-      throw new Error(`${source}: import staticHtml and its kin from lit`);
-    const name = specifier.startsWith("lit/") ? "lit" : specifier;
+    const name = specifier;
     if (!Object.hasOwn(packages, name))
       throw new Error(`${source}: ${specifier} is not a package the framework vendors`);
     return { target: packages[name] };
@@ -169,67 +157,6 @@ function compileModule(text, source) {
     code: code.endsWith("\n") ? code + trailer : `${code}\n${trailer}`,
     imports,
   };
-}
-
-/**
- * Build the classic Lit implementation, adapting the locked published modules in memory.
- *
- * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
- * keyed and child-part insertions through `runtime/dom-move.js`, which keeps the
- * user's place and native state across the move.
- */
-async function litModule() {
-  const contents = await litNamespace();
-  const move =
-    "const leafMove = (parent, node, before) => document.documentElement.lfInitial.move(parent, node, before);\n";
-  return [
-    {
-      name: "leaf-lit",
-      setup(build) {
-        build.onResolve({ filter: /^leaf:lit$/ }, () => ({
-          path: "lit",
-          namespace: "leaf-lit",
-        }));
-        build.onLoad({ filter: /.*/, namespace: "leaf-lit" }, () => ({
-          contents,
-          resolveDir: root,
-        }));
-      },
-    },
-    adapt([
-      {
-        file: /[/\\]lit-html[/\\]directives[/\\]ref\.js$/,
-        edit: (source) =>
-          seam(
-            seam(
-              source,
-              "e&&void 0!==this.G&&this.rt(void 0)",
-              "e&&this.rt(void 0)",
-              "Lit ref",
-            ),
-            "rt(t){if(this.isConnected",
-            "rt(t){if(void 0===this.G)return;if(this.isConnected",
-            "Lit ref",
-          ),
-      },
-      {
-        file: /[/\\]lit-html[/\\]lit-html\.js$/,
-        edit: (source) =>
-          move +
-          seam(
-            source,
-            "this._$AA.parentNode.insertBefore(t,this._$AB)",
-            "leafMove(this._$AA.parentNode,t,this._$AB)",
-            "Lit move",
-          ),
-      },
-      {
-        file: /[/\\]lit-html[/\\]directive-helpers\.js$/,
-        edit: (source) =>
-          move + seam(source, "e.insertBefore(o,l)", "leafMove(e,o,l)", "Lit move"),
-      },
-    ]),
-  ];
 }
 
 // Every schema a page vendored at the current protocol relies on, and every record's,
@@ -347,42 +274,13 @@ export async function buildOutputs() {
   const result = await build({
     absWorkingDir: root,
     entryPoints: Object.fromEntries(
-      Object.entries(packages)
-        .filter(([name]) => name !== "lit")
-        .map(([, layerPath]) => [
-          layerPath.slice("vendor/".length, -".js".length),
-          "leaf:signals",
-        ]),
+      Object.entries(packages).map(([name, layerPath]) => [
+        layerPath.slice("vendor/".length, -".js".length),
+        layerPath === solidPath ? "leaf:solid" : name,
+      ]),
     ),
     outdir: `${assets}/vendor`,
-    plugins: [
-      {
-        name: "shared-signals",
-        setup(build) {
-          build.onResolve({ filter: /^leaf:signals$/ }, () => ({
-            path: "signals",
-            namespace: "leaf-signals",
-          }));
-          build.onLoad({ filter: /.*/, namespace: "leaf-signals" }, () => ({
-            // The package barrel also initializes its optional template directives,
-            // pulling another Lit into this bundle. Build the published mixin alone.
-            contents:
-              'export * from "@preact/signals-core"; export { SignalWatcher } from ' +
-              JSON.stringify(
-                fileURLToPath(
-                  new URL(
-                    "./lib/signal-watcher.js",
-                    import.meta.resolve("@lit-labs/preact-signals"),
-                  ),
-                ),
-              ) +
-              ";",
-            resolveDir: root,
-            loader: "js",
-          }));
-        },
-      },
-    ],
+    plugins: [solidModule(root), solidMoves()],
     external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
@@ -405,61 +303,12 @@ export async function buildOutputs() {
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
   }
-  const initialLit = await build({
-    absWorkingDir: root,
-    stdin: {
-      contents: `import * as lit from "leaf:lit"; ${litGlobal} = lit;`,
-      resolveDir: root,
-      sourcefile: "leaf-initial-lit.js",
-    },
-    outfile: `${assets}/${initialLitPath}`,
-    plugins: await litModule(),
-    platform: "browser",
-    format: "iife",
-    target: "es2022",
-    bundle: true,
-    minify: true,
-    legalComments: "eof",
-    metafile: true,
-    write: false,
-    logLevel: "silent",
-  });
-  const [initialLitFile] = initialLit.outputFiles;
-  checkModule(initialLitFile.text, initialLitPath);
-  outputs.set(`${assets}/${initialLitPath}`, Buffer.from(initialLitFile.contents));
-  const moduleLit = await build({
-    absWorkingDir: root,
-    stdin: {
-      contents: `import "/runtime/dom-move.js"; import * as lit from "leaf:lit"; ${litGlobal} = lit; export * from "leaf:lit";`,
-      resolveDir: root,
-      sourcefile: "leaf-module-lit.js",
-    },
-    outfile: `${assets}/${litPath}`,
-    plugins: await litModule(),
-    external: ["/runtime/dom-move.js"],
-    platform: "browser",
-    format: "esm",
-    target: "es2022",
-    bundle: true,
-    minify: true,
-    legalComments: "eof",
-    write: false,
-    logLevel: "silent",
-  });
-  const [moduleLitFile] = moduleLit.outputFiles;
-  checkModule(moduleLitFile.text, litPath);
-  outputs.set(`${assets}/${litPath}`, Buffer.from(moduleLitFile.contents));
-  outputs.set(`${assets}/${sharedLitPath}`, Buffer.from(await litFacade()));
-  const packageRoots = [
-    ...new Set([
-      ...bundledPackages(result.metafile, root),
-      ...bundledPackages(initialLit.metafile, root),
-    ]),
-  ];
+  const packageRoots = bundledPackages(result.metafile, root);
   outputs.set(
     `${assets}/vendor/browser-runtime.LICENSES.txt`,
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
   );
+  for (const [name, bytes] of await solidInitialOutputs(root)) outputs.set(name, bytes);
   for (const producer of [initialOutputs, styleOutputs, registryOutputs, vendorOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   for (const [name, bytes] of await kernelOf(outputs))

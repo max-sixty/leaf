@@ -40,15 +40,15 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     assert "/runtime/context.js" not in files
     assert any(path.startswith("/runtime/bundle-") for path in files)
     assert "/vendor/browser-runtime.js" not in files
-    assert "/vendor/lit.js" in files
+    assert "/vendor/solid.js" in files
 
     # A package adds runtime modules beside the runtime's own and may replace a vendor
     # module, but not a runtime module, whatever an older layer captured.
     own = Resource(b"export const own = 1;\n", "application/javascript")
     files = runtime.resources(
-        {"/vendor/lit.js": own, "/runtime/helper.js": own, "/runtime/media.js": own}
+        {"/vendor/solid.js": own, "/runtime/helper.js": own, "/runtime/media.js": own}
     )
-    assert files["/vendor/lit.js"] is own
+    assert files["/vendor/solid.js"] is own
     assert files["/runtime/helper.js"] is own
     assert files["/runtime/media.js"] is not own
     assert files["/leaf.js"].data == (kernel / "leaf.js").read_bytes()

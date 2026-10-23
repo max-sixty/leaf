@@ -15,9 +15,8 @@ import {
   sessionIsActive,
   uploadMedia
 } from "./bundle-page-paint.js";
-import "./bundle-frame-visibility.js";
-import "./bundle-semantic-state.js";
-import "./bundle-queued-work.js";
+import "./bundle-dom-move.js";
+import "./bundle-vendor~browser-runtime.js";
 import "./bundle-__export.js";
 export {
   LayerRefused,

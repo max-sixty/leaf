@@ -15,22 +15,18 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   PAGE_PAINT_ATTRIBUTE,
-  decisionFor
+  decisionFor,
+  keeps
 } from "./bundle-page-paint.js";
 import {
-  keeps
-} from "./bundle-frame-visibility.js";
-import {
-  PRESENTATION_ORDER,
+  PRESENTATION_PHASE,
   applicationPresenter,
   applicationState,
+  projectionOrigins,
   projectionRegionsPresented,
   readPart,
   watchPresentation
-} from "./bundle-semantic-state.js";
-import {
-  projectionOrigins
-} from "./bundle-queued-work.js";
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/projection/presentation.js
 function paintStateOrigins(projection) {
@@ -81,7 +77,7 @@ var widgetStates = readPart((root) => root.effective.widgets);
 function createProjectionPresentation() {
   applicationPresenter({
     region: "projection:chrome",
-    order: PRESENTATION_ORDER.projection,
+    phase: PRESENTATION_PHASE.projection,
     reading: () => answered() ? true : null,
     paint: paintReading
   });

@@ -175,7 +175,7 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
         },
     }
     module = """
-import {LeafElement, nothing, projectData, setChildren} from '/runtime/widget-api.js';
+import {LeafElement, projectData, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
   render() {
     const snapshot = this.data('rows');
@@ -186,7 +186,7 @@ customElements.define('lf-feed', class extends LeafElement {
     });
     setChildren(this, datums.map(({node}) => node));
     projectData(this, datums, {snapshot});
-    return nothing;
+    return;
   }
 });
 """
@@ -844,7 +844,7 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
         }
 
     def module(tag):
-        return """import {LeafElement, nothing} from '/runtime/widget-api.js';
+        return """import {LeafElement} from '/runtime/widget-api.js';
 customElements.define(TAG, class extends LeafElement {
   render() {
     const snapshot = this.data('data');
@@ -852,7 +852,7 @@ customElements.define(TAG, class extends LeafElement {
     window.dataDeliveries.push({id: this.id, snapshot});
     const text = JSON.stringify(snapshot?.value ?? null);
     if (this.textContent !== text) this.textContent = text;
-    return nothing;
+    return;
   }
 });""".replace("TAG", json.dumps(tag))
 
@@ -1103,7 +1103,6 @@ def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
     """
     page = open_page(browser, data_projection_page(serve))
     page.evaluate("""async () => {
-      const {nothing} = await window.__lfWidgetApi();
       const widget = document.querySelector('lf-feed');
       window.beforeDataVersion = document.body.dataset.lfDataVersion;
       window.mountDeliveries = 0;
@@ -1111,7 +1110,7 @@ def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
         widget.data('rows');
         mountDeliveries += 1;
         widget.drawing(Promise.reject(new Error('mount projection failed')));
-        return nothing;
+        return;
       };
       widget.requestUpdate();
     }""")
@@ -1122,8 +1121,7 @@ def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
     def deliver(value, failure):
         page.evaluate(
             """async (failure) => {
-              const {nothing} = await window.__lfWidgetApi();
-              const widget = document.querySelector('lf-feed');
+                      const widget = document.querySelector('lf-feed');
               window.afterMountDataVersion ??= document.body.dataset.lfDataVersion;
               window.draws ??= {};
               widget.render = () => {
@@ -1132,7 +1130,7 @@ def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
                 const error = new Error(`${failure} projection failed`);
                 if (failure === 'update') widget.drawing(Promise.reject(error));
                 else throw error;
-                return nothing;
+                return;
               };
             }""",
             failure,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { effect } from "/vendor/browser-runtime.js";
+import { watchReaction, subscribe } from "/vendor/browser-runtime.js";
 import { ThreadView } from "/runtime/thread/thread-card.js";
 import { commandDeclarationsWithin } from "/runtime/keyboard/scopes.js";
 
@@ -19,16 +19,22 @@ test("a thread card's output updates its commands without invalidating its prese
     settlement: { kind: "resolve", pending: false, label: "Resolve", word: "Resolve" },
   };
   let paints = 0;
-  const stopPaint = effect(() => {
-    paints++;
-    view.present(model);
-  });
+  const stopPaint = watchReaction(
+    () => {
+      paints++;
+      view.present(model);
+    },
+    () => paints++,
+  );
   document.body.append(view.node);
   const command = commandDeclarationsWithin(view.node)
     .flatMap(({ scope }) => scope.rows)
     .find(({ id }) => id === "thread.resolve");
   const availability = [];
-  const stopCommand = effect(() => availability.push(command.when()));
+  const stopCommand = subscribe(
+    () => command.when(),
+    (value) => availability.push(value),
+  );
   try {
     assert.equal(paints, 1);
     view.present({ ...model, settlement: { ...model.settlement, pending: true } });

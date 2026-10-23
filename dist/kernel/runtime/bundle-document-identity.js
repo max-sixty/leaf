@@ -264,30 +264,49 @@ import {
   PAGE_PAINT_ATTRIBUTE,
   PRESS,
   PRESSABLE,
+  PRESSES,
+  TEXT_BOX,
   TEXT_ENTRY,
+  TEXT_FIELD,
   admitReading,
   admitResponse,
+  afterScript,
   announce,
   ariaShortcuts,
   bindings,
   buttonCommand,
+  byRenderedOrder,
+  canPlaceFocus,
   claimsEsc,
   clamp,
   clippedContents,
   clippedPlace,
   clipsPastSurfaces,
+  closeLayer,
   closeNativeLayer,
   commandAvailable,
   commandRoutes,
   completeData,
   countTraffic,
   dataHeaders,
+  deepFocus,
+  drawn,
   el,
+  focusDestination,
+  focused,
   frameFor,
+  frameVisibility,
   growthIsSeen,
+  handBack,
   hasArea,
+  holdFocus,
+  holdRendering,
   holdingError,
+  inputCount,
   intersect,
+  isNativeLayer,
+  keeps,
+  keepsHidden,
   keys,
   labelOf,
   landingBand,
@@ -297,8 +316,15 @@ import {
   layoutWindow,
   live,
   matchesWhen,
+  nextAnimation,
+  nextRender,
   notice,
   offer,
+  onFrameVisibility,
+  onStanding,
+  onUserInput,
+  openLayer,
+  openerOf,
   paintKeys,
   paintKeysWithin,
   placeBox,
@@ -309,8 +335,14 @@ import {
   pruneScopedElements,
   raiseError,
   randomId,
+  readCaret,
+  readSampleVisibility,
   recordInteraction,
   registry,
+  renderedOrder,
+  renderedParent,
+  renderedUnder,
+  renderingState,
   repaint,
   reportCarried,
   reportPageError,
@@ -326,118 +358,86 @@ import {
   seenRect,
   sessionIsActive,
   setRuntimeRootAttribute,
+  shadowHost,
   shadowRootsIn,
   showNativeLayer,
   shownBox,
   shownWindow,
+  sizeObserver,
   skipped,
   spell,
   tagsDeclaring,
+  takesLetters,
+  typesText,
+  under,
   union,
+  upFrom,
   watchOwner,
   watchPendingTraffic,
   watchRoom,
+  whenLeft,
   whenNone,
   whileConnected,
   word
 } from "./bundle-page-paint.js";
 import {
-  PRESSES,
-  TEXT_BOX,
-  TEXT_FIELD,
-  afterScript,
-  byRenderedOrder,
-  canPlaceFocus,
-  closeLayer,
-  deepFocus,
-  drawn,
-  focusDestination,
-  focused,
-  frameVisibility,
-  handBack,
-  holdFocus,
-  holdRendering,
-  inputCount,
-  isNativeLayer,
-  keeps,
-  keepsHidden,
-  move,
-  nextAnimation,
-  nextRender,
-  onFrameVisibility,
-  onStanding,
-  onUserInput,
-  openLayer,
-  openerOf,
-  readCaret,
-  readSampleVisibility,
-  renderedOrder,
-  renderedParent,
-  renderedUnder,
-  renderingState,
-  shadowHost,
-  sizeObserver,
-  takesLetters,
-  typesText,
-  under,
-  upFrom,
-  whenLeft
-} from "./bundle-frame-visibility.js";
+  move
+} from "./bundle-dom-move.js";
 import {
   LIVE_ROOT,
-  PRESENTATION_ORDER,
+  PENDING,
+  PRESENTATION_PHASE,
+  actionForWidget,
+  afterRender,
   agentLabel,
+  anchorKey,
   annotationMode,
   applicationPresenter,
   applicationState,
   attachApplicationPresentation,
   attachWidgetPresentation,
+  bindQueuedWork,
+  createMemo,
+  createSignal,
+  discussed,
   documentChanged,
+  editable,
+  elementRenderTask,
+  flush,
+  foldWidgetStates,
+  getObserver,
+  isMessageEvent,
+  isThreadEvent,
   layerRoot,
+  moved,
+  obligationValue,
   offlineData,
   offlineInteractive,
   offlineState,
   pageUrl,
   presentDocument,
   projectView,
-  queueWidgetUpdate,
+  projectionOrigins,
+  reactionsAt,
   readApplication,
   readPart,
+  renderCommit,
   revisionLabel,
+  runWithOwner,
   runtime,
   setPresentationFailureReporter,
-  watchPresentation,
-  whenApplicationRegionsPresented,
-  whenDocumentPresented,
-  whenWidgetsPresented
-} from "./bundle-semantic-state.js";
-import {
-  J,
-  LitElement,
-  PENDING,
-  W,
-  Z,
-  actionForWidget,
-  anchorKey,
-  bindQueuedWork,
-  d,
-  discussed,
-  editable,
-  foldWidgetStates,
-  isMessageEvent,
-  isThreadEvent,
-  moved,
-  obligationValue,
-  projectionOrigins,
-  q,
-  reactionsAt,
-  render,
   stateCoordinate,
+  subscribe,
   threadKey,
   tokenChoices,
   turns,
-  x
-} from "./bundle-queued-work.js";
+  untrack,
+  watchPresentation,
+  watchReaction,
+  whenApplicationRegionsPresented,
+  whenDocumentPresented,
+  whenWidgetsPresented
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/document-identity.js
 var servedRevision = (
@@ -724,10 +724,10 @@ function caretAt(view, at) {
     return { destination: caret, rectangle: caret.getBoundingClientRect() };
   const destination = position.node instanceof Element ? position.node : position.node.parentElement;
   const box = destination.getBoundingClientRect();
-  const x2 = view.textDirection === Direction.LTR ? box.left : box.right;
+  const x = view.textDirection === Direction.LTR ? box.left : box.right;
   return {
     destination,
-    rectangle: { left: x2, right: x2, top: box.top, bottom: box.bottom }
+    rectangle: { left: x, right: x, top: box.top, bottom: box.bottom }
   };
 }
 function placeWithinEditor(view, selection, options, head) {
@@ -752,7 +752,7 @@ function placeWithinEditor(view, selection, options, head) {
   const horizontal = view.textDirection === Direction.RTL ? options.x === "start" ? "end" : options.x === "end" ? "start" : options.x : options.x;
   const xMargin = clamp(options.xMargin, -port.offsetWidth, port.offsetWidth);
   const yMargin = clamp(options.yMargin, -port.offsetHeight, port.offsetHeight);
-  const x2 = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(
+  const x = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(
     rectangle.left - margins.left,
     rectangle.right + margins.right,
     left,
@@ -771,7 +771,7 @@ function placeWithinEditor(view, selection, options, head) {
     side
   );
   port.scrollBy({
-    left: port.scrollWidth > port.clientWidth ? x2 / scaleX : 0,
+    left: port.scrollWidth > port.clientWidth ? x / scaleX : 0,
     top: port.scrollHeight > port.clientHeight ? y / scaleY : 0,
     behavior: "instant"
   });
@@ -1453,12 +1453,12 @@ var LeafText = class extends HTMLElement {
       return;
     }
     const area = this.#view.scrollDOM.getBoundingClientRect();
-    const { clientX: x2, clientY: y } = event;
-    if (x2 >= area.left && x2 < area.right && y >= area.top && y < area.bottom) return;
+    const { clientX: x, clientY: y } = event;
+    if (x >= area.left && x < area.right && y >= area.top && y < area.bottom) return;
     event.preventDefault();
     const clamp2 = (value, low, high) => Math.min(Math.max(value, low), high - 1);
     const at = this.#view.posAtCoords(
-      { x: clamp2(x2, area.left, area.right), y: clamp2(y, area.top, area.bottom) },
+      { x: clamp2(x, area.left, area.right), y: clamp2(y, area.top, area.bottom) },
       false
     );
     this.#view.focus();
@@ -2802,10 +2802,10 @@ function pickerModel(state) {
     picker: Object.freeze({
       offered,
       token: currentVersionToken(),
-      compared: diffOn.value || diffPendingBase.value !== null,
+      compared: diffOn() || diffPendingBase() !== null,
       news: behind,
-      keyTitle: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading a comparison with v${diffPendingBase.value}${newer}` : diffOn.value ? `${currentLabel}: showing what changed since v${diffBase.value} \u2014 pick a version, or press Compare again to stop${newer}` : `${currentLabel}: versions; read one, or mark what changed since it${newer}` : currentLabel,
-      ariaLabel: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading comparison with v${diffPendingBase.value}; open versions${newer}` : diffOn.value ? `${currentLabel}: comparing with v${diffBase.value}; open versions${newer}` : `${currentLabel}: open versions${newer}` : currentLabel
+      keyTitle: offered ? diffPendingBase() !== null ? `${currentLabel}: loading a comparison with v${diffPendingBase()}${newer}` : diffOn() ? `${currentLabel}: showing what changed since v${diffBase()} \u2014 pick a version, or press Compare again to stop${newer}` : `${currentLabel}: versions; read one, or mark what changed since it${newer}` : currentLabel,
+      ariaLabel: offered ? diffPendingBase() !== null ? `${currentLabel}: loading comparison with v${diffPendingBase()}; open versions${newer}` : diffOn() ? `${currentLabel}: comparing with v${diffBase()}; open versions${newer}` : `${currentLabel}: open versions${newer}` : currentLabel
     }),
     latest: Object.freeze({
       // The agent's latest save failed its check, so the page shows the last one that
@@ -2823,17 +2823,16 @@ function pickerModel(state) {
     }),
     rows: state === null || runtime.active === null ? Object.freeze([]) : menuRows(state, runtime.browser?.version_notes ?? {}),
     selection: Object.freeze({
-      base: diffPendingBase.value ?? (diffOn.value ? diffBase.value : null),
+      base: diffPendingBase() ?? (diffOn() ? diffBase() : null),
       currentRevision: runtime.currentRevision,
-      on: diffOn.value,
-      pendingBase: diffPendingBase.value,
-      baseRevision: stamped(diffBase.value)?.revision ?? null
+      on: diffOn(),
+      pendingBase: diffPendingBase(),
+      baseRevision: stamped(diffBase())?.revision ?? null
     })
   });
 }
 var holdFailedSave = holdingError();
-function paintPicker() {
-  const model = pickerModel(runtime.state);
+function paintPicker(model) {
   holdFailedSave(
     model.latest.failed ? "Latest edit not shown: it failed its check (see Versions)" : null
   );
@@ -2878,10 +2877,12 @@ var diffOpaqueSel = () => [
   ...Object.entries(registry.$decisions).filter(([, { retires }]) => Object.keys(retires).length).map(([owner]) => owner),
   "svg"
 ].join(",");
-var diffOn = Z(false);
-var diffBase = Z(null);
-var comparisonGeneration = Z(0);
-var diffPendingBase = Z(null);
+var [diffOn, setDiffOn] = createSignal(false, { ownedWrite: true });
+var [diffBase, setDiffBase] = createSignal(null, { ownedWrite: true });
+var [comparisonGeneration, setComparisonGeneration] = createSignal(0, {
+  ownedWrite: true
+});
+var [diffPendingBase, setDiffPendingBase] = createSignal(null, { ownedWrite: true });
 var diffMarked = /* @__PURE__ */ new Set();
 var diffBefore = /* @__PURE__ */ new Map();
 var inlineOpen = /* @__PURE__ */ new Map();
@@ -3071,12 +3072,12 @@ function openInlineComparison(target) {
   const label = el(
     "span",
     "lf-ui lf-quiet lf-version-inline-label",
-    before === null ? `New since v${diffBase.value}` : `v${diffBase.value} \u2192 ${current}`
+    before === null ? `New since v${diffBase()}` : `v${diffBase()} \u2192 ${current}`
   );
   label.id = inlineId(target);
   label.setAttribute(
     "aria-label",
-    before === null ? `New since version ${diffBase.value}` : `Inline comparison from version ${diffBase.value} to ${current}`
+    before === null ? `New since version ${diffBase()}` : `Inline comparison from version ${diffBase()} to ${current}`
   );
   const nodes = [label];
   const additions = [];
@@ -3106,7 +3107,7 @@ function openInlineComparison(target) {
   inlineOpen.set(target, { nodes, ranges });
   paintInlineInsertions();
   layoutChanged(target);
-  return before === null ? `v${diffBase.value} had nothing here` : `showing an inline diff from v${diffBase.value}`;
+  return before === null ? `v${diffBase()} had nothing here` : `showing an inline diff from v${diffBase()}`;
 }
 function closeInlineComparison(target) {
   const entry = inlineOpen.get(target);
@@ -3115,17 +3116,17 @@ function closeInlineComparison(target) {
   for (const node of entry?.nodes ?? []) node.remove();
   paintInlineInsertions();
   layoutChanged(target);
-  return `inline diff from v${diffBase.value} hidden`;
+  return `inline diff from v${diffBase()} hidden`;
 }
-var inlineComparison = (target) => diffOn.value && diffBefore.has(target) && (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target)) ? {
+var inlineComparison = (target) => diffOn() && diffBefore.has(target) && (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target)) ? {
   id: inlineId(target),
   open: inlineOpen.has(target),
-  offer: `v${diffBase.value} \u2192 ${currentVersionToken()}`
+  offer: `v${diffBase()} \u2192 ${currentVersionToken()}`
 } : null;
 function toggleInlineComparison(target) {
   if (!inlineComparison(target)) return null;
   const said = inlineOpen.has(target) ? closeInlineComparison(target) : openInlineComparison(target);
-  comparisonGeneration.value += 1;
+  flush(() => setComparisonGeneration((value) => value + 1));
   return said;
 }
 var comparable = (version) => {
@@ -3133,10 +3134,10 @@ var comparable = (version) => {
   return runtime.currentRevision !== null && base !== void 0 && base.revision < runtime.currentRevision;
 };
 function setDiff(on, base, pendingBase = null) {
-  W(() => {
-    diffOn.value = on;
-    diffPendingBase.value = pendingBase;
-    if (on) diffBase.value = base;
+  flush(() => {
+    setDiffOn(on);
+    setDiffPendingBase(pendingBase);
+    if (on) setDiffBase(base);
     if (!on) {
       diffRequest++;
       for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
@@ -3144,7 +3145,7 @@ function setDiff(on, base, pendingBase = null) {
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
       diffMarked.clear();
     }
-    comparisonGeneration.value += 1;
+    flush(() => setComparisonGeneration((value) => value + 1));
   });
 }
 async function showComparison(base) {
@@ -3153,7 +3154,7 @@ async function showComparison(base) {
   const baseVersion = stamped(base);
   const baseRevision = baseVersion?.revision;
   if (baseRevision == null) {
-    diffPendingBase.value = null;
+    flush(() => setDiffPendingBase(null));
     raiseError(`Couldn't load v${base}`);
     return;
   }
@@ -3176,7 +3177,7 @@ async function showComparison(base) {
     await prepareDeclaredMarkdown(doc);
   } catch {
     if (mine === diffRequest) {
-      diffPendingBase.value = null;
+      flush(() => setDiffPendingBase(null));
       raiseError(`Couldn't load v${base}`);
     }
     return;
@@ -3188,12 +3189,12 @@ async function showComparison(base) {
     n ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}` : `No text changes since v${base}`
   );
 }
-var pressComparison = (base) => diffOn.value && base === diffBase.value || diffPendingBase.value === base ? setDiff(false) : showComparison(base);
-var comparisonBase = () => diffOn.value ? diffBase.value : null;
-var selectedBase = () => diffPendingBase.value ?? comparisonBase();
+var pressComparison = (base) => diffOn() && base === diffBase() || diffPendingBase() === base ? setDiff(false) : showComparison(base);
+var comparisonBase = () => diffOn() ? diffBase() : null;
+var selectedBase = () => diffPendingBase() ?? comparisonBase();
 function comparisonChanges(owner = null) {
-  comparisonGeneration.value;
-  const changes = diffOn.value ? [...diffMarked] : [];
+  comparisonGeneration();
+  const changes = diffOn() ? [...diffMarked] : [];
   return owner ? changes.filter((block) => block !== owner && under(block, owner)) : changes;
 }
 async function authoredDocument(url) {
@@ -4090,7 +4091,7 @@ function createVersionController({
       compare: pressComparison,
       latest: goActive
     });
-    x(paintPicker);
+    subscribe(() => pickerModel(runtime.state), paintPicker);
   }
   return {
     PICKER,
@@ -4935,13 +4936,10 @@ function createReactionController({
       threads: root.effective.thread.all,
       annotations: annotationSelection(root)
     }));
-    x(() => {
-      margin();
-      d(() => {
-        if (reactArmed && reactSurface === marginSurface && (!marginTarget?.isConnected || fabTargetAt() !== marginTarget))
-          setReact(false);
-        else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
-      });
+    subscribe(margin, () => {
+      if (reactArmed && reactSurface === marginSurface && (!marginTarget?.isConnected || fabTargetAt() !== marginTarget))
+        setReact(false);
+      else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
     });
   }
   pageScope("reactions", REACT);
@@ -5911,7 +5909,7 @@ function createThreadPresentation({
   let primary = null;
   const presenter = applicationPresenter({
     region: "thread",
-    order: PRESENTATION_ORDER.thread,
+    phase: PRESENTATION_PHASE.thread,
     reading: () => !available ? null : runtime.statePhase === "waiting" && !threadState().all.length ? "waiting" : true,
     // A pass reads the latest root. The time it shows is followed with the rest of what
     // it reads, so a clock change claims another pass through the same presenter, whose
@@ -5983,7 +5981,7 @@ function createThreadPresentation({
             surfaces.commit();
             commitThreadSeats(batch);
             surfaceView.composition.finishPlacement();
-            d(renderAnnotations);
+            untrack(renderAnnotations);
             pageGeometry.pageShifted();
             read2.present();
             void continueReplies(restorePlace2).catch(
@@ -5992,7 +5990,8 @@ function createThreadPresentation({
           })
         );
       };
-      await (primaryPreparation?.then ? primaryPreparation.then(resume(paintPrepared)) : paintPrepared(primaryPreparation));
+      const prepared = await primaryPreparation;
+      await resume(paintPrepared)(prepared);
     } catch (error) {
       surfaces?.cancel();
       if (!current()) throw error;
@@ -6022,12 +6021,12 @@ function createThreadPresentation({
 }
 
 // runtime/annotation-view.js
-function createAnnotationView(owner, render2, inventory, invalidate, retire) {
+function createAnnotationView(owner, render, inventory, invalidate, retire) {
   if (!(owner instanceof Element))
     throw new TypeError("consumeAnnotations needs an Element owner");
   if (!owner.isConnected)
     throw new TypeError("An annotation view needs a connected owner");
-  if (typeof render2 !== "function")
+  if (typeof render !== "function")
     throw new TypeError("consumeAnnotations needs a synchronous render callback");
   let active = true;
   let places2 = /* @__PURE__ */ new Map();
@@ -6049,7 +6048,7 @@ function createAnnotationView(owner, render2, inventory, invalidate, retire) {
         throw new TypeError("Annotation capabilities belong to their current reading");
     };
     try {
-      const result = render2(entries, {
+      const result = render(entries, {
         target: inventory.targetFor,
         activate: inventory.activate,
         items: annotationItems,
@@ -6563,7 +6562,7 @@ function createThreadActions({
 }
 
 // runtime/thread/primary-reader.js
-function createPrimaryReader(owner, render2, commands, update, { answersAtOnce = false, onFailure = () => {
+function createPrimaryReader(owner, render, commands, update, { answersAtOnce = false, onFailure = () => {
 } } = {}) {
   let active = true;
   let failing = false;
@@ -6720,7 +6719,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
       };
     };
     try {
-      const rendering = render2(
+      const rendering = render(
         shownCollection,
         Object.freeze({
           signal: abort.signal,
@@ -7059,9 +7058,10 @@ function createReadTracking({ markRead, openThread }) {
   const refusedThisVisit = /* @__PURE__ */ new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
-  const committedThreads = Z(
+  const [committedThreads, setCommittedThreads] = createSignal(
     /** @type {ReturnType<typeof readThreads>["threads"]} */
-    []
+    [],
+    { ownedWrite: true }
   );
   let threadsPresented = false;
   let presentationGeneration = 0;
@@ -7085,7 +7085,7 @@ function createReadTracking({ markRead, openThread }) {
     const live2 = new Set(
       unreadIn(readThreads().threads).map(({ item }) => keyOf(item))
     );
-    return unreadIn(committedThreads.value).filter(({ item }) => live2.has(keyOf(item)));
+    return unreadIn(committedThreads()).filter(({ item }) => live2.has(keyOf(item)));
   };
   function firstUnread(thread = null) {
     const target = actionableUnread().filter((each) => thread === null || each.thread.key === thread).sort((a, b) => moved(a.message).seq - moved(b.message).seq)[0];
@@ -7263,7 +7263,7 @@ function createReadTracking({ markRead, openThread }) {
     const threads = readThreads().threads;
     void whenDocumentPresented().then(() => {
       if (generation !== presentationGeneration) return;
-      committedThreads.value = threads;
+      flush(() => setCommittedThreads(() => threads));
       threadsPresented = true;
       const unread = unreadIn(threads);
       const current = new Set(unread.map(({ item }) => keyOf(item)));
@@ -7853,14 +7853,14 @@ function mountApplication(dependencies) {
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
-      order: PRESENTATION_ORDER.annotations,
+      phase: PRESENTATION_PHASE.annotations,
       reading: () => annotationInputs(),
       paint: async (_reading, current, resume) => {
         const ready = await whenApplicationRegionsPresented(
           ["projection:chrome"],
           current
         );
-        if (ready === "presented" && current()) resume(renderAnnotations)();
+        if (ready === "presented" && current()) await resume(renderAnnotations)();
       }
     });
     void presentation.present();
@@ -7989,7 +7989,7 @@ function mountApplication(dependencies) {
       throw new Error("Page annotation presentation requires data-annotations=page");
   };
   let annotationRegistration = null;
-  const consumeAnnotations2 = (owner, render2) => {
+  const consumeAnnotations2 = (owner, render) => {
     requirePageAnnotations();
     if (annotationRegistration)
       throw new Error("The document already has a page annotation view");
@@ -7999,21 +7999,21 @@ function mountApplication(dependencies) {
       if (annotationRegistration === registration) annotationRegistration = null;
     };
     try {
-      return createAnnotationView(owner, render2, annotations, invalidateDom2, retire);
+      return createAnnotationView(owner, render, annotations, invalidateDom2, retire);
     } catch (error) {
       retire();
       throw error;
     }
   };
   const watchThreadSurfaces2 = () => watchThreadSurfaces(threadSurfaceCommands);
-  const placePageThreads3 = (owner, render2) => {
+  const placePageThreads3 = (owner, render) => {
     requirePageAnnotations();
-    return placePageThreads(owner, render2, threadSurfaceCommands);
+    return placePageThreads(owner, render, threadSurfaceCommands);
   };
-  const attachPresentation = (owner, { render: render2, reveal: reveal3, answersAtOnce = false }, onFailure = void 0) => {
+  const attachPresentation = (owner, { render, reveal: reveal3, answersAtOnce = false }, onFailure = void 0) => {
     const reader = createPrimaryReader(
       owner,
-      render2,
+      render,
       inlineView,
       () => threadPresenter.present(),
       { answersAtOnce, onFailure }
@@ -8384,7 +8384,7 @@ function createWidgetController(owner) {
     Promise.resolve(promise).then(settled, settled);
   };
   const presentPreparation = (handle, { value, completion }) => handle.present(value, (reason) => failSoftUnreported(owner, reason)).resolve(completion);
-  const connect = () => d(() => {
+  const connect = () => untrack(() => {
     if (!owner.isConnected) return;
     for (const promise of pendingPreparations.keys()) holdPreparation(promise);
     if (preparation && !preparationHandle) {
@@ -8474,7 +8474,7 @@ function acceptData(candidate, taken) {
 var joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
   const version = runtime.data.version;
-  deliveries.value += 1;
+  flush(() => setDeliveries((value) => value + 1));
   await whenApplicationRegionsPresented(
     [...joined],
     () => runtime.data.version === version
@@ -8560,32 +8560,39 @@ function dataReader(element, input, accepted) {
   const declaration = declaredInput(element, input);
   const { source, widget, selected, snapshot } = inputBinding(element, declaration);
   let stopAccepted;
-  const delivered = J(
-    () => {
-      deliveries.value;
-      return d(selected.read);
-    },
-    {
-      watched() {
-        let seen2 = d(selected.read);
-        stopAccepted = selected.subscribe((now) => {
-          if (now === seen2) return;
-          seen2 = now;
-          accepted();
-        });
+  const delivered = runWithOwner(
+    null,
+    () => createMemo(
+      () => {
+        deliveries();
+        return untrack(selected.read);
       },
-      unwatched() {
-        stopAccepted?.();
-        stopAccepted = null;
+      {
+        lazy: true,
+        unobserved() {
+          stopAccepted?.();
+          stopAccepted = null;
+        }
       }
-    }
+    )
   );
+  const readDelivered = () => {
+    if (getObserver() && !stopAccepted) {
+      let seen2 = untrack(selected.read);
+      stopAccepted = selected.subscribe((now) => {
+        if (now === seen2) return;
+        seen2 = now;
+        accepted();
+      });
+    }
+    return delivered();
+  };
   let reported = null;
   let copied = { store: null, value: null };
   return () => {
     const sourceStore = (
       /** @type {{contract: string, revision?: string} | null} */
-      widget ? selected.read() : delivered.value
+      widget ? selected.read() : readDelivered()
     );
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
@@ -8604,7 +8611,7 @@ function dataReader(element, input, accepted) {
     return copied.value;
   };
 }
-var deliveries = Z(0);
+var [deliveries, setDeliveries] = createSignal(0, { ownedWrite: true });
 function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);
@@ -8650,46 +8657,20 @@ async function loadDeferred(manifest, key) {
 
 // runtime/leaf-element.js
 var regions = 0;
-var UpdateBoundary = class extends LitElement {
-  signalUpdateFailed(error) {
-    throw error;
-  }
-  performUpdate() {
-    try {
-      super.performUpdate();
-    } catch (error) {
-      this.signalUpdateFailed(error);
-    }
-  }
-};
-var LeafElement = class extends q(UpdateBoundary) {
-  #signalError = null;
+var LeafElement = class extends HTMLElement {
+  #following = [];
   #stopReadiness = null;
-  signalUpdateFailed(error) {
-    this.#signalError = { error };
-  }
-  requestUpdate(...args) {
-    const wasPending = this.isUpdatePending;
-    const result = super.requestUpdate(...args);
-    if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating))
-      d(() => {
-        if (this.#connected && this.#region && !this.#ticket)
-          this.#ticket = this.#claim();
-      });
-    return result;
-  }
-  /** Finish this render when its presentation prerequisites are ready. Readiness
-   * does not claim another presentation, which would invalidate its own proof. */
+  #rendering = false;
+  /** Complete a waiting render without claiming the proof it waits for again. */
   whenReady(read2) {
-    if (d(read2)) return true;
-    if (!this.#stopReadiness) {
+    if (untrack(read2)) return true;
+    if (!this.#stopReadiness)
       this.#stopReadiness = watchPresentation(() => {
-        if (!d(read2)) return;
+        if (!untrack(read2)) return;
         this.#stopReadiness?.();
         this.#stopReadiness = null;
-        super.requestUpdate();
+        this.#requestUpdate();
       });
-    }
     return false;
   }
   #descriptor = null;
@@ -8706,33 +8687,39 @@ var LeafElement = class extends q(UpdateBoundary) {
   // leaves the element broken, drawing nothing.
   #box = null;
   #broken = false;
-  // The claim the update under way draws, settled once `updated` has run too.
-  #drawing = null;
-  #updating = false;
-  // The drawing that follows the update under way, which its claim waits for.
-  #work = null;
+  // Each synchronous stretch restores its drawing context, including post-render
+  // work. Nested draws retain their own claim and asynchronous preparation.
+  #draw = null;
+  #task = null;
   #data = /* @__PURE__ */ new Map();
   #leaveData = null;
-  #scheduled = null;
+  #pending = null;
+  hasUpdated = false;
+  updateComplete = Promise.resolve(true);
+  renderRoot;
+  get isUpdatePending() {
+    return this.#pending !== null;
+  }
+  requestUpdate() {
+    if (this.#rendering) return;
+    if (this.hasUpdated) untrack(() => this.#stage());
+    this.#requestUpdate();
+  }
+  #requestUpdate() {
+    if (this.#pending) return;
+    const pending = this.#pending = Promise.withResolvers();
+    this.updateComplete = pending.promise;
+    void this.#task?.enqueue(() => {
+      if (this.#pending === pending) return this.performUpdate();
+    });
+  }
   createRenderRoot() {
     return this;
   }
-  scheduleUpdate() {
-    return this.#scheduled ?? this.#queueUpdate();
-  }
-  #queueUpdate() {
-    if (!this.#descriptor) return super.scheduleUpdate();
-    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-      if (this.#scheduled !== scheduled) return;
-      this.#scheduled = null;
-      return super.scheduleUpdate();
-    });
-    this.#scheduled = scheduled;
-    return scheduled;
-  }
   connectedCallback() {
     if (once(this)) this.#setup();
-    super.connectedCallback();
+    this.renderRoot ??= this.createRenderRoot();
+    if (!this.hasUpdated) this.requestUpdate();
   }
   #setup() {
     this.#descriptor = widgetDescriptor(this);
@@ -8761,13 +8748,16 @@ var LeafElement = class extends q(UpdateBoundary) {
       this.#broken = true;
       failSoft(this, error);
     }
+    this.renderRoot ??= this.createRenderRoot();
     watchOwner(this, {
-      connect: () => d(() => this.#connect()),
+      connect: () => untrack(() => this.#connect()),
       disconnect: () => this.#disconnect()
     });
   }
   /** The module's one-time build, on the first connection, before the first render. */
   setup() {
+  }
+  render() {
   }
   /** The widget's complete reading (`widgetController(this).read()`), collected; null
    *  for an element the registry does not declare a widget, such as a quoted one. */
@@ -8809,47 +8799,93 @@ var LeafElement = class extends q(UpdateBoundary) {
       return false;
     }
     if (this.#held) return false;
-    this.#drawing = this.#ticket;
+    this.#draw.ticket = this.#ticket;
     this.#ticket = null;
     if (this.#broken) return false;
-    if (!this.#complete()) return false;
-    return super.shouldUpdate(changed);
+    return this.#complete();
   }
   update(changed) {
-    super.update(changed);
+    this.render();
     this.#box?.remove();
     this.#box = null;
   }
   // An update settles its claim once all of it has run, `updated` included, and one
-  // that failed anywhere, its gate too, reports once and shows its failure; Lit has
+  // that failed anywhere, its gate too, reports once and shows its failure; The scheduler has
   // marked it done, so the next move draws again. A draw that `updated` asks for at
   // once, as a module's own paint may, settles its own claim inside this one; with no
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
-    const outer = this.#drawing;
-    const updating = this.#updating;
-    let outerWork = this.#work;
-    this.#drawing = null;
-    this.#work = null;
-    this.#updating = true;
-    try {
-      this.#signalError = null;
-      super.performUpdate();
-      if (this.#signalError) throw this.#signalError.error;
-      const work = this.#work;
-      if (work && !this.#drawing) {
-        if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
-        else if (this.#region) this.#drawing = this.#claim();
+    if (!this.#pending) return;
+    const pending = this.#pending;
+    this.#pending = null;
+    const outer = this.#draw;
+    const draw = { ticket: null, work: null };
+    for (const stop of this.#following) stop();
+    const following = this.#following = [];
+    const run = (callback) => {
+      const previous = this.#draw;
+      this.#draw = draw;
+      let outcome;
+      try {
+        const stop = watchReaction(
+          () => {
+            try {
+              outcome = { value: callback() };
+            } catch (error) {
+              outcome = { error };
+            }
+          },
+          () => {
+            if (this.#connected) this.#present();
+          }
+        );
+        if (following === this.#following && this.#connected) following.push(stop);
+        else stop();
+        if ("error" in outcome) throw outcome.error;
+        return outcome.value;
+      } finally {
+        this.#draw = previous;
       }
-      this.#drawing?.resolve(work ?? void 0);
-    } catch (error) {
-      if (outer && !this.#drawing) throw error;
-      this.#failed(error, this.#drawing);
-    } finally {
-      this.#drawing = outer;
-      this.#work = outerWork;
-      this.#updating = updating;
-    }
+    };
+    const commit = renderCommit(
+      () => {
+        this.#rendering = true;
+        try {
+          if (this.shouldUpdate()) {
+            this.update();
+            this.hasUpdated = true;
+            afterRender(() => this.updated());
+          }
+        } finally {
+          this.#rendering = false;
+        }
+      },
+      {
+        run,
+        bind: bindQueuedWork,
+        current: () => this.#connected && this.isConnected && following === this.#following
+      }
+    );
+    const finished = commit.ready.then(
+      () => {
+        if (draw.work && !draw.ticket) {
+          if (outer)
+            outer.work = outer.work ? Promise.all([outer.work, draw.work]) : draw.work;
+          else if (this.#region) draw.ticket = this.#claim();
+        }
+        draw.ticket?.resolve(draw.work ?? void 0);
+      },
+      (error) => {
+        if (outer && !draw.ticket) throw error;
+        this.#failed(error, draw.ticket);
+      }
+    );
+    void finished.catch(() => void 0);
+    void commit.committed.then(
+      () => pending.resolve(!this.#pending),
+      () => pending.resolve(!this.#pending)
+    );
+    return finished;
   }
   /** Hold the update under way's claim until `work`, drawing that follows the render
    *  asynchronously, lands: highlighting a document, say. An update no move claimed
@@ -8860,20 +8896,19 @@ var LeafElement = class extends q(UpdateBoundary) {
       reportFailure(this, error);
       throw error;
     });
-    this.#work = this.#work ? Promise.all([this.#work, named]) : named;
+    this.#draw.work = this.#draw.work ? Promise.all([this.#draw.work, named]) : named;
   }
-  /** The render drawn again at once, outside any claim and Lit's own schedule, with a
+  /** The render drawn again at once, outside any claim and the update schedule, with a
    *  failure thrown rather than shown: the render check's replay
    *  (render-checks/replay.js), which holds a draw of the same reading to change
    *  nothing. `updated()` does not run, since what follows a draw may start
    *  preparation that would claim the widget's presentation and land after the check
-   *  reads the page. An update Lit has queued stays queued, with its claim. */
+   *  reads the page. An update the scheduler has queued stays queued, with its claim. */
   redraw() {
-    render(this.render(), this.renderRoot, this.renderOptions);
+    this.render();
   }
   updated(changed) {
-    super.updated(changed);
-    d(() => paintKeysWithin(this));
+    untrack(() => paintKeysWithin(this));
   }
   // Every failure is reported here, naming the widget; a claim's rejection then shows
   // the box through the coordinator's fallback, which reports nothing again.
@@ -8886,7 +8921,7 @@ var LeafElement = class extends q(UpdateBoundary) {
   // the fail-soft box.
   #claim() {
     return this.#region.present(
-      d(() => this.#controller?.read() ?? {}),
+      untrack(() => this.#controller?.read() ?? {}),
       (reason) => failSoftUnreported(this, reason)
     );
   }
@@ -8902,16 +8937,20 @@ var LeafElement = class extends q(UpdateBoundary) {
     this.#ticket = this.#claim();
     if (this.#held) return;
     this.requestUpdate();
-    if (now) {
-      this.#scheduled = null;
-      this.performUpdate();
-    } else if (this.#descriptor) this.#queueUpdate();
+    if (now) this.performUpdate();
   }
   #refresh() {
     if (this.#connected) this.#present({ now: true });
   }
   #connect() {
     this.#connected = true;
+    this.#task = elementRenderTask(this.#descriptor?.id);
+    if (this.#pending) {
+      const pending = this.#pending;
+      void this.#task.enqueue(() => {
+        if (this.#pending === pending) return this.performUpdate();
+      });
+    }
     this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render", this) : attachApplicationPresentation(this.#regionName, this);
     const parentChanged = this.#connectedParent !== this.parentElement;
     this.#connectedParent = this.parentElement;
@@ -8924,6 +8963,10 @@ var LeafElement = class extends q(UpdateBoundary) {
   }
   #disconnect() {
     this.#connected = false;
+    for (const stop of this.#following) stop();
+    this.#following = [];
+    this.#task?.disconnect();
+    this.#task = null;
     this.#stopReadiness?.();
     this.#stopReadiness = null;
     this.#leaveData?.();

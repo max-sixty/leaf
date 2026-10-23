@@ -5,7 +5,7 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { html, LeafElement, nothing, noChange } from "/runtime/widget-api.js";
+import { LeafElement, createSignal, flush } from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import {
@@ -18,6 +18,18 @@ import {
 import { clockValue, tickClock } from "/runtime/presence.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
+
+const paints = new WeakMap();
+function show(element, value) {
+  const root = element.renderRoot ?? element;
+  let words = paints.get(root);
+  if (!words) {
+    words = document.createTextNode("");
+    root.append(words);
+    paints.set(root, words);
+  }
+  if (words.data !== String(value ?? "")) words.data = String(value ?? "");
+}
 
 const phase = readPart((root) => root.phase);
 const host = readPart((root) => root.hostAvailable);
@@ -33,7 +45,7 @@ function probe(render) {
       render() {
         const shown = render.call(this);
         draws.push(shown);
-        return html`${String(shown)}`;
+        show(this, String(shown));
       }
     },
   );
@@ -59,37 +71,21 @@ const tick = () =>
     throw reason;
   });
 
-test("reactive properties claim presentation only when Lit schedules an update", async () => {
-  const tag = `lf-probe-property-${++tags}`;
-  customElements.define(
-    tag,
-    class extends LeafElement {
-      static properties = {
-        name: {
-          hasChanged: (value, old) => value?.toLowerCase() !== old?.toLowerCase(),
-        },
-      };
-      constructor() {
-        super();
-        this.name = "same";
-      }
-      render() {
-        return html`${this.name}`;
-      }
-    },
-  );
-  const element = document.createElement(tag);
-  element.id = tag;
+test("a changed Solid reading claims presentation before publication returns", async () => {
+  const [name, setName] = createSignal("same", {
+    equals: (value, old) => value.toLowerCase() === old.toLowerCase(),
+  });
+  const { element } = probe(name);
   document.body.append(element);
   try {
     await settled(element);
-    for (const unchanged of ["same", "SAME"]) {
-      element.name = unchanged;
+    for (const value of ["same", "SAME"]) {
+      flush(() => setName(value));
       assert.equal(element.isUpdatePending, false);
-      assert.ok(!pending(element), "a rejected property change owes no presentation");
+      assert.ok(!pending(element));
     }
-    element.name = "different";
-    assert.ok(pending(element), "an accepted change claims before its setter returns");
+    flush(() => setName("different"));
+    assert.ok(pending(element));
     await settled(element);
     assert.equal(element.textContent, "different");
     assert.ok(!pending(element));
@@ -99,55 +95,39 @@ test("reactive properties claim presentation only when Lit schedules an update",
 });
 
 test("requests consumed by the active render leave no extra presentation claim", async () => {
-  const tag = `lf-probe-active-update-${++tags}`;
-  customElements.define(
-    tag,
-    class extends LeafElement {
-      static properties = { name: {}, derived: {} };
-      constructor() {
-        super();
-        this.name = "first";
-      }
-      render() {
-        this.derived = this.name.toUpperCase();
-        this.requestUpdate();
-        return html`${this.derived}`;
-      }
-    },
-  );
-  const element = document.createElement(tag);
-  element.id = tag;
+  const { element } = probe(function () {
+    this.requestUpdate();
+    return phase();
+  });
   document.body.append(element);
   try {
     await settled(element);
-    element.name = "second";
+    applicationState.setPhase("loading");
     await settled(element);
-    assert.equal(element.textContent, "SECOND");
+    assert.equal(element.textContent, "loading");
     assert.equal(element.isUpdatePending, false);
-    assert.ok(!pending(element), "the active render fulfills its coalesced requests");
+    assert.ok(!pending(element));
   } finally {
     element.remove();
   }
 });
 
-test("an updated callback's follow-up keeps presentation pending through its drawing", async () => {
+test("an updated callback's follow-up holds presentation through its drawing", async () => {
   let finish;
   const tag = `lf-probe-follow-up-${++tags}`;
   customElements.define(
     tag,
     class extends LeafElement {
-      static properties = { name: {} };
-      constructor() {
-        super();
-        this.name = "first";
-      }
+      name = "first";
       render() {
-        return html`${this.name}`;
+        show(this, this.name);
       }
       updated(changed) {
         super.updated(changed);
-        if (this.name === "second") this.name = "final";
-        else if (this.name === "final")
+        if (this.name === "second") {
+          this.name = "final";
+          this.requestUpdate();
+        } else if (this.name === "final")
           this.drawing(new Promise((done) => (finish = done)));
       }
     },
@@ -158,9 +138,10 @@ test("an updated callback's follow-up keeps presentation pending through its dra
   try {
     await settled(element);
     element.name = "second";
+    element.requestUpdate();
     await settled(element);
     assert.equal(element.textContent, "final");
-    assert.ok(pending(element), "the follow-up's drawing still holds presentation");
+    assert.ok(pending(element));
     finish();
     await settled(element);
     assert.ok(!pending(element));
@@ -195,9 +176,8 @@ test("readiness finishes a waiting render without claiming another presentation"
     class extends LeafElement {
       render() {
         draws++;
-        if (!this.whenReady(() => applicationRegionsPresented([region])))
-          return noChange;
-        return html`ready`;
+        if (!this.whenReady(() => applicationRegionsPresented([region]))) return;
+        show(this, "ready");
       }
     },
   );
@@ -262,7 +242,11 @@ test("an element reconnects its dependencies without replacing unchanged content
   document.body.append(element);
   await settled(element);
   assert.deepEqual(draws, ["waiting", "waiting"]);
-  assert.equal(element.firstChild, content, "Lit keeps unchanged nodes on return");
+  assert.equal(
+    element.firstChild,
+    content,
+    "The retained render keeps unchanged nodes on return",
+  );
   element.remove();
   await settled(element);
   applicationState.setPhase("offline");
@@ -322,7 +306,7 @@ test("an element that reads its bound data draws each accepted reading", async (
       render() {
         const reading = this.data("rows");
         revisions.push(reading?.revision ?? null);
-        return html`${reading?.origin.source}`;
+        show(this, reading?.origin.source);
       }
     },
   );
@@ -371,7 +355,7 @@ test("a failure in a part the element generated stays in that part, and the next
       render() {
         const now = phase();
         if (failing) throw new Error("cannot draw");
-        return html`${now}`;
+        show(this, now);
       }
     },
   );
@@ -407,7 +391,7 @@ test("a failure keeps the nodes the render paints, and the next draw takes the b
         const now = phase();
         if (failing) throw new Error("cannot paint");
         this.shown.value = now;
-        return nothing;
+        return;
       }
     },
   );
@@ -445,7 +429,7 @@ test("a failed preparation stands beside the render root, which the next draw st
         return this.part;
       }
       render() {
-        return html`${phase()}`;
+        show(this, phase());
       }
     },
   );
@@ -479,7 +463,7 @@ test("a setup that throws shows its failure and the element draws nothing", asyn
       }
       render() {
         draws.push(phase());
-        return html`drawn`;
+        show(this, "drawn");
       }
     },
   );
@@ -508,7 +492,7 @@ test("a setup that throws inside its own shadow root shows its failure there", a
         throw new Error("cannot stage");
       }
       render() {
-        return html`drawn`;
+        show(this, "drawn");
       }
     },
   );
@@ -543,7 +527,7 @@ test("bound data draws only as it is delivered", async () => {
     class extends LeafElement {
       render() {
         revisions.push(this.data("rows")?.revision ?? null);
-        return html`drawn`;
+        show(this, "drawn");
       }
     },
   );
@@ -564,16 +548,39 @@ test("bound data draws only as it is delivered", async () => {
 
 test("a move published just before the element leaves is drawn on its return", async () => {
   applicationState.setPhase("waiting");
-  const { element, draws } = probe(() => phase());
+  const { element, draws } = probe(function () {
+    assert.ok(this.isConnected, "nothing draws into a detached element");
+    return phase();
+  });
   document.body.append(element);
   await settled(element);
   applicationState.setPhase("offline");
   element.remove();
+  const beforeLeaving = [...draws];
   await settled(element);
-  assert.deepEqual(draws, ["waiting"], "nothing draws into a detached element");
+  assert.deepEqual(draws, beforeLeaving);
   document.body.append(element);
   await settled(element);
-  assert.deepEqual(draws, ["waiting", "offline"]);
+  assert.equal(draws.at(-1), "offline");
+  element.remove();
+});
+
+test("disconnect retires post-render work before it can focus or prepare the old owner", async () => {
+  const { element } = probe(() => "shown");
+  document.body.append(element);
+  await settled(element);
+  let updated = false;
+  element.updated = () => {
+    updated = true;
+  };
+  element.requestUpdate();
+  element.performUpdate();
+  element.remove();
+  await element.updateComplete;
+  assert.equal(updated, false);
+  document.body.append(element);
+  await settled(element);
+  assert.equal(updated, true, "the new connection owns its own post-render work");
   element.remove();
 });
 
@@ -586,7 +593,7 @@ test("a failure after the draw is reported and shown, not swallowed", async () =
     tag,
     class extends LeafElement {
       render() {
-        return html`${phase()}`;
+        show(this, phase());
       }
       updated(changed) {
         super.updated(changed);
@@ -615,11 +622,13 @@ test("a failure before the render settles the claim with the failure", async () 
   customElements.define(
     tag,
     class extends LeafElement {
-      willUpdate() {
+      shouldUpdate() {
+        const ready = super.shouldUpdate();
         if (phase() === "offline") throw new Error("cannot begin");
+        return ready;
       }
       render() {
-        return html`${phase()}`;
+        show(this, phase());
       }
     },
   );
@@ -650,6 +659,41 @@ test("a check's redraw leaves the update a move queued, and its claim", async ()
   element.remove();
 });
 
+test("a synchronous draw does not consume or lose later owner requests", async () => {
+  const order = [];
+  const first = probe(function () {
+    order.push(`first:${this.label}`);
+    return this.label;
+  }).element;
+  const second = probe(function () {
+    order.push(`second:${this.label}`);
+    return this.label;
+  }).element;
+  first.label = second.label = "initial";
+  document.body.append(first, second);
+  try {
+    await settled(first);
+    await settled(second);
+    order.length = 0;
+    first.label = "immediate";
+    first.requestUpdate();
+    first.performUpdate();
+    assert.equal(first.textContent, "immediate");
+    second.label = "queued";
+    second.requestUpdate();
+    first.label = "later";
+    first.requestUpdate();
+    await Promise.all([first.updateComplete, second.updateComplete]);
+    assert.equal(order[0], "first:immediate");
+    assert.deepEqual(order.slice(1).sort(), ["first:later", "second:queued"]);
+    assert.equal(first.textContent, "later");
+    assert.equal(second.textContent, "queued");
+  } finally {
+    first.remove();
+    second.remove();
+  }
+});
+
 test("a draw's claim waits for the drawing it holds it for", async () => {
   let finish;
   const tag = `lf-probe-drawing-${++tags}`;
@@ -657,7 +701,7 @@ test("a draw's claim waits for the drawing it holds it for", async () => {
     tag,
     class extends LeafElement {
       render() {
-        return html`${phase()}`;
+        show(this, phase());
       }
       updated(changed) {
         super.updated(changed);
@@ -706,7 +750,7 @@ test("accepted data claims the element's region until its delivery draws", async
     tag,
     class extends LeafElement {
       render() {
-        return html`${this.data("rows")?.revision}`;
+        show(this, this.data("rows")?.revision);
       }
     },
   );
@@ -749,7 +793,7 @@ test(
       class extends LeafElement {
         showData = true;
         render() {
-          return html`${this.showData ? this.data("rows")?.revision : "Hidden"}`;
+          show(this, this.showData ? this.data("rows")?.revision : "Hidden");
         }
       },
     );

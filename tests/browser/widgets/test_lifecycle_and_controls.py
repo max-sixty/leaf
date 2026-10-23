@@ -1,5 +1,5 @@
 """What every widget shares: its fallback face before it renders, detaching and
-reconnecting, the controls it offers, and the Web Awesome library they come from."""
+reconnecting, and its native and WebAwesome controls."""
 
 import re
 
@@ -165,212 +165,16 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
     )
 
 
-def library_select(browser, serve):
-    """Exercise the optional library's select without depending on a consumer's UI."""
-    page = _bound_diff(browser, serve)
-    page.evaluate("""async () => {
-      const {offer} = await window.__lfWidgetApi();
-      const select = offer('wa-select', 'library-select');
-      select.label = 'Choose file';
-      for (const value of ['first', 'second', 'third']) {
-        const option = offer('wa-option', '', value);
-        option.value = value; select.append(option);
-      }
-      select.value = 'first';
-      document.querySelector('main').prepend(select);
-      await select.updateComplete;
-    }""")
-    return page
-
-
-def open_library_select(page):
-    control = page.locator(".library-select")
-    control.evaluate("""node => {
-      node.menuShown = new Promise(resolve => node.addEventListener(
-        'wa-after-show', resolve, {once: true}));
-    }""")
-    control.get_by_role("combobox").click()
-    control.evaluate("node => node.menuShown")
-    page.mouse.move(0, 0)
-
-
 def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
-    plain = open_page(browser, serve(leaf_page("Plain", "<h1>Plain page</h1>")))
-    assert (
-        plain.evaluate(
-            "getComputedStyle(document.documentElement).getPropertyValue('--wa-space-scale').trim()"
-        )
-        == "1"
-    )
+    page = open_page(browser, serve(leaf_page("Plain", "<h1>Plain page</h1>")))
+    assert page.evaluate("() => customElements.get('wa-copy-button') !== undefined")
+    assert page.evaluate("() => customElements.get('wa-comparison') === undefined")
     assert not any(
         entry.endswith("/vendor/webawesome.esm.js")
-        for entry in plain.evaluate(
+        for entry in page.evaluate(
             "() => performance.getEntriesByType('resource').map(entry => entry.name)"
         )
     )
-
-    assert plain.evaluate("() => customElements.get('wa-input') !== undefined")
-    assert plain.evaluate("() => customElements.get('wa-slider') === undefined")
-
-    page = library_select(browser, serve)
-    control = page.locator(".library-select")
-    # A page rule granted control access and with no specificity at all can outrank
-    # the shared theme's `:is(wa-select, …)` mapping.
-    page.evaluate(
-        """() => {
-          const style = document.createElement('style');
-          style.setAttribute('data-controls', '');
-          style.textContent = ':where(wa-select){--wa-color-text-quiet: rgb(1, 2, 3);}';
-          document.head.append(style);
-        }"""
-    )
-    assert (
-        control.evaluate(
-            "el => getComputedStyle(el).getPropertyValue('--wa-color-text-quiet')"
-        ).strip()
-        == "rgb(1, 2, 3)"
-    ), "a page rule granted control access must outrank the lazy vendor defaults"
-
-
-def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
-    browser, serve
-):
-    """Component-owned menu states remain readable through the shared theme, in both
-    schemes, read in turn on one open menu.
-
-    The shared menu theme must keep contrasting text on a solid active row.
-    """
-    page = library_select(browser, serve)
-    open_library_select(page)
-    control = page.locator(".library-select")
-    options = control.locator("wa-option")
-
-    def contrast(option):
-        colors = option.evaluate("""async node => {
-          await Promise.all(node.getAnimations().map(animation => animation.finished));
-          const canvas = document.createElement('canvas');
-          canvas.width = canvas.height = 1;
-          const ctx = canvas.getContext('2d', {willReadFrequently: true});
-          const rgb = color => {
-            ctx.clearRect(0, 0, 1, 1);
-            ctx.fillStyle = color;
-            ctx.fillRect(0, 0, 1, 1);
-            return [...ctx.getImageData(0, 0, 1, 1).data];
-          };
-          const style = getComputedStyle(node);
-          return [rgb(style.color), rgb(style.backgroundColor)];
-        }""")
-        assert all(color[3] == 255 for color in colors), colors
-        luminances = [
-            sum(
-                (v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4) * weight
-                for v, weight in zip(
-                    (channel / 255 for channel in color[:3]),
-                    (0.2126, 0.7152, 0.0722),
-                    strict=True,
-                )
-            )
-            for color in colors
-        ]
-        assert (max(luminances) + 0.05) / (min(luminances) + 0.05) >= 4.5, colors
-
-    current = control.locator("wa-option:state(current)")
-    expect(current).to_be_visible()
-    contrast(current)
-    initial = current.get_attribute("value")
-    page.keyboard.press("ArrowDown")
-    expect(current).not_to_have_attribute("value", initial)
-    contrast(current)
-    options.first.hover()
-    contrast(options.first)
-    page.emulate_media(color_scheme="dark")
-    contrast(current)
-    contrast(options.first)
-    # Generated apparatus identity must not replace a component's state ink. This
-    # catches both a generic host face and upstream root color promoted to the host;
-    # merely choosing a pale menu background would let either defect survive.
-    for generated in (False, True):
-        current.evaluate(
-            """(node, generated) => {
-          node.classList.toggle('lf-ui', generated);
-          node.style.setProperty('--wa-color-brand-on-loud', 'rgb(11, 22, 33)');
-        }""",
-            generated,
-        )
-        assert (
-            current.evaluate("node => getComputedStyle(node).color")
-            == "rgb(11, 22, 33)"
-        )
-
-
-def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serve):
-    """Shared controls keep UI text in both document and declared shadow stages.
-
-    Reset inherited typography without taking over component sizing or state ink.
-    The same inheritance also reaches an input inside the monospace diff reader.
-    """
-    page = _bound_diff(browser, serve)
-    readings = page.evaluate("""async () => {
-      const {offer} = await window.__lfWidgetApi();
-      const properties = ['fontFamily', 'fontStyle', 'fontVariant', 'fontStretch',
-        'fontFeatureSettings', 'fontVariationSettings', 'letterSpacing',
-        'wordSpacing', 'textTransform'];
-      const read = node => Object.fromEntries(
-        properties.map(key => [key, getComputedStyle(node)[key]]));
-      const reference = document.createElement('span');
-      reference.style.fontFamily = 'var(--sans)';
-      document.body.append(reference);
-      const expected = read(reference);
-      reference.remove();
-      const readings = [];
-      for (const root of [document.querySelector('main'),
-        document.querySelector('lf-diff').shadowRoot]) {
-        const holder = document.createElement('div');
-        const input = offer('wa-input', ''); input.label = 'Find files';
-        const select = offer('wa-select', ''); select.label = 'Choose file';
-        const option = offer('wa-option', '', 'First file');
-        option.value = 'first'; select.append(option); select.value = 'first';
-        const radio = offer('wa-radio', '', 'First file'); radio.value = 'first';
-        const prose = document.createElement('span'); prose.textContent = 'Source text';
-        holder.append(input, select, radio, prose); root.append(holder);
-        await Promise.all([input.updateComplete, select.updateComplete, radio.updateComplete]);
-        holder.style.cssText = `font-family:monospace; font-style:italic;
-          font-variant:small-caps; font-stretch:condensed;
-          font-feature-settings:"liga" 0; font-variation-settings:"wght" 650;
-          letter-spacing:3px; word-spacing:5px; text-transform:uppercase`;
-        readings.push({expected, actual: [read(input.shadowRoot.querySelector('input')),
-          read(select.shadowRoot.querySelector('[part~="combobox"]')), read(radio)],
-          prose: read(prose)});
-      }
-      return readings;
-    }""")
-    for reading in readings:
-        for actual in reading["actual"]:
-            assert actual == reading["expected"]
-        assert reading["prose"]["fontFamily"] == "monospace"
-        assert reading["prose"]["fontStyle"] == "italic"
-        assert reading["prose"]["textTransform"] == "uppercase"
-
-
-@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
-def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, motion):
-    """Enter then Space reopens the menu while its close animation is running.
-
-    Upstream 3.14.0 otherwise lets that close hide the already reopened menu.
-    """
-    page = library_select(browser, serve)
-    page.emulate_media(reduced_motion=motion)
-    open_library_select(page)
-    select = page.locator(".library-select")
-    select.evaluate(
-        "n => { n.reopened = new Promise(r => n.addEventListener('wa-after-show', r, {once:true})); }"
-    )
-    page.keyboard.press("Enter")
-    page.keyboard.press("Space")
-    select.evaluate("n => n.reopened.then(() => true)")
-    expect(select.locator("wa-option:state(current)")).to_be_visible()
-    assert select.evaluate("n => n.open && n.popup.active && !n.listbox.hidden")
-    page.keyboard.press("Escape")
 
 
 def test_library_copy_feedback_finishes_after_its_tooltip_reopens(browser, serve):
@@ -525,3 +329,50 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     assert any(ring["here"] and ring["sample"] and ring["rule"] for ring in drawn), (
         f"no ring rule draws a focus ring where the keyboard is standing: {drawn}"
     )
+
+
+def test_native_control_typography_is_independent_of_surrounding_prose(browser, serve):
+    """Shared controls keep UI text in both document and declared shadow stages.
+
+    Reset inherited typography without taking over component sizing or state ink.
+    The same inheritance also reaches an input inside the monospace diff reader.
+    """
+    page = _bound_diff(browser, serve)
+    readings = page.evaluate("""async () => {
+      const {offer} = await window.__lfWidgetApi();
+      const properties = ['fontFamily', 'fontStyle', 'fontVariant', 'fontStretch',
+        'fontFeatureSettings', 'fontVariationSettings', 'letterSpacing',
+        'wordSpacing', 'textTransform'];
+      const read = node => Object.fromEntries(
+        properties.map(key => [key, getComputedStyle(node)[key]]));
+      const reference = document.createElement('span');
+      reference.style.fontFamily = 'var(--sans)';
+      document.body.append(reference);
+      const expected = read(reference);
+      reference.remove();
+      const readings = [];
+      for (const root of [document.querySelector('main'),
+        document.querySelector('lf-diff').shadowRoot]) {
+        const holder = document.createElement('div');
+        const input = offer('input', '', undefined, 'search'); input.ariaLabel = 'Find files';
+        const select = offer('select', ''); select.ariaLabel = 'Choose file';
+        const option = offer('option', '', 'First file');
+        option.value = 'first'; select.append(option); select.value = 'first';
+        const radio = offer('input', '', undefined, 'radio'); radio.value = 'first';
+        const prose = document.createElement('span'); prose.textContent = 'Source text';
+        holder.append(input, select, radio, prose); root.append(holder);
+        holder.style.cssText = `font-family:monospace; font-style:italic;
+          font-variant:small-caps; font-stretch:condensed;
+          font-feature-settings:"liga" 0; font-variation-settings:"wght" 650;
+          letter-spacing:3px; word-spacing:5px; text-transform:uppercase`;
+        readings.push({expected, actual: [read(input), read(select), read(radio)],
+          prose: read(prose)});
+      }
+      return readings;
+    }""")
+    for reading in readings:
+        for actual in reading["actual"]:
+            assert actual == reading["expected"]
+        assert reading["prose"]["fontFamily"] == "monospace"
+        assert reading["prose"]["fontStyle"] == "italic"
+        assert reading["prose"]["textTransform"] == "uppercase"

@@ -97,7 +97,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     overview = widget.get_by_role("radio", name="All pages", exact=True)
     page_source = widget.get_by_role("radio", name="Page 1", exact=True)
     second_page_source = widget.get_by_role("radio", name="Page 2", exact=True)
-    expect(overview).to_have_attribute("aria-checked", "true")
+    expect(overview).to_be_checked()
     expect(widget.get_by_role("radio")).to_have_count(3)
     timeline = widget.locator(".lf-trace-timeline")
     timeline.focus()
@@ -111,15 +111,15 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     overview.focus()
     overview.press("ArrowRight")
     expect(page_source).to_be_focused()
-    expect(page_source).to_have_attribute("aria-checked", "true")
+    expect(page_source).to_be_checked()
     page_source.press("ArrowRight")
     expect(second_page_source).to_be_focused()
-    expect(second_page_source).to_have_attribute("aria-checked", "true")
+    expect(second_page_source).to_be_checked()
     expect(
         widget.locator(".lf-trace-node").filter(has_text="Another recorded page")
     ).to_have_count(1)
     page_source.click()
-    expect(page_source).to_have_attribute("aria-checked", "true")
+    expect(page_source).to_be_checked()
     expect(raster).to_have_attribute("width", "390")
     # The index keeps native driver times, while the review shows the elapsed
     # stream clock used by Playwright's viewer for this same captured checkpoint.
@@ -172,7 +172,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         expect(widget.locator(".lf-trace-position")).to_have_text(selected_time)
     # Each source retains its own checkpoint in the composed viewer.
     second_page_source.click()
-    expect(second_page_source).to_have_attribute("aria-checked", "true")
+    expect(second_page_source).to_be_checked()
     page_source.click()
     expect(widget.locator(".lf-trace-position")).to_have_text(
         f"{((checkpoints[after_index][0]) - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
@@ -219,7 +219,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     user.keyboard.press("Escape")
     second_page_source.click()
     user.keyboard.press("t")
-    expect(page_source).to_have_attribute("aria-checked", "true")
+    expect(page_source).to_be_checked()
     expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
     expect(widget.locator(".lf-trace-phase")).to_have_text(
         f"After checkpoint · {(stop_time(record, phase) - origin) / 1000:.3f} s"
@@ -709,7 +709,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     expect(widget.get_by_role("radio")).to_have_count(2)
     first_scope = widget.get_by_role("radio", name="Stream 1", exact=True)
     second_scope = widget.get_by_role("radio", name="Stream 2", exact=True)
-    expect(first_scope).to_have_attribute("aria-checked", "true")
+    expect(first_scope).to_be_checked()
     widget.get_by_role("button", name="Next", exact=True).click()
     first_position = widget.locator(".lf-trace-position").inner_text()
     first_scope.focus()
@@ -1865,18 +1865,14 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     ).to_have_text([str(number) for number in range(1, 22)])
     # An exact target already included in the overview does not narrow it.
     widget.locator(".lf-trace-bookmarks").get_by_role("button", name=labels[-1]).click()
-    expect(widget.get_by_role("radio", name="All pages", exact=True)).to_have_attribute(
-        "aria-checked", "true"
-    )
+    expect(widget.get_by_role("radio", name="All pages", exact=True)).to_be_checked()
     expect(widget.locator(f'[data-lf-datum="{frame_target}"]')).to_be_visible()
 
     widget.locator(".lf-trace-bookmarks").get_by_role(
         "button", name="Recording setup complete"
     ).click()
     expect(widget.locator(f'[data-lf-datum="{api_target}"]')).to_be_visible()
-    expect(widget.get_by_role("radio", name="All pages", exact=True)).to_have_attribute(
-        "aria-checked", "true"
-    )
+    expect(widget.get_by_role("radio", name="All pages", exact=True)).to_be_checked()
     expect(
         widget.get_by_role("button", name="Zoom image in", exact=True)
     ).to_be_enabled()

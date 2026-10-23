@@ -9,7 +9,15 @@
  * outside a notifier's snapshot collection; their reads belong to their own owner.
  */
 
-import { signal } from "./signals-core.js";
+import {
+  createSignal,
+  createEffect,
+  createMemo,
+  createRoot,
+  runWithOwner,
+} from "../solid.js";
+import { renderCommit } from "./rendering.js";
+import { subscribe } from "./observe.js";
 import { untracked } from "./snapshot.js";
 
 
@@ -161,11 +169,11 @@ export function createPresentationCoordinator
  ({ reportFailure }                                              ) {
   // Mechanical observers use the same Signals primitive as semantic selections.
   // Changes wake a blocked reading; they never publish a semantic epoch.
-  const changes = signal(0);
+  const [changes, setChanges] = createSignal(0, { ownedWrite: true });
   const changed = () => {
-    // A renderer can attach or present a child while it paints. Publishing that proof
-    // must not make the containing paint a subscriber to its own completion.
-    changes.value = changes.peek() + 1;
+    // A renderer may attach a child while painting. The functional setter publishes
+    // proof without subscribing that paint to its own completion.
+    setChanges((value) => value + 1);
   };
   let document                       = null;
   let documentGeneration = 0;
@@ -607,7 +615,7 @@ export function createPresentationCoordinator
     whenCurrentRegionsPresented,
     currentRegionsPresented,
     subscribe: (callback            ) =>
-      changes.subscribe(() =>
+      subscribe(changes, () =>
         untracked(() => {
           try {
             callback();
@@ -620,32 +628,15 @@ export function createPresentationCoordinator
   });
 }
 
-/** Epoch presenters and the one pass that paints them.
+/** Native reactive render dependencies, joined with asynchronous presentation proof.
  *
- * Every renderer owes the same two moves — open a ticket inside the synchronous
- * publication that opened the epoch, and paint the newest value once that publication
- * has settled. A schedule starts the presenters it collected
- * in ascending `order` and repeats while painting has collected more.
- *
- * Starting is all the order buys, and the guarantee is worth stating exactly: when a
- * presenter begins, every lower-ranked presenter in that round has run as far as its
- * first `await`. So a renderer may rely on the markup a lower-ranked one writes
- * synchronously, and may not rely on anything that one finishes asynchronously — a
- * widget it upgrades, a box it measures after a frame. That dependency is stated once
- * here, beside the coordinator, rather than at every site that publishes, and `passed`
- * says the page has caught up with the root it is reading, which is what a caller waits
- * for instead of naming renderers.
- *
- * The host supplies a mandatory callback binder. Each claim binds its synchronous
- * paint turn before coalescing; the host can preserve the scheduling context without
- * changing the shared pass's ordering. A returned asynchronous tail is independent.
- *
- * The pass cannot await a presenter before starting the next, and a claim cannot wait
- * for the reading it supersedes, for the same reason: a renderer may be holding its
- * reading open — on a widget that has not prepared, on a gesture the user has not
- * finished — and anything queued behind that hold would never be drawn at all. The
- * handle releases a superseded hold; a superseded paint keeps its own ticket, so the
- * coordinator still reports its failure.
+ * A group states a DOM dependency, not a numeric priority. Each task is a Solid
+ * effect that becomes runnable when its predecessors have committed their DOM.
+ * Solid schedules that graph and its render continuations; there is no sorted job
+ * queue or browser microtask here. Completion of asynchronous preparation is
+ * deliberately separate: a held widget cannot block unrelated DOM consumers.
+ * The pass promise joins the work that was actually requested, including work
+ * requested while rendering, and retains the coordinator's failure verdict.
  */
 
 
@@ -655,61 +646,45 @@ export function createPresentationCoordinator
 
 
 
-export function createPresentationSchedule(
+
+
+
+
+
+
+
+
+export function createPresentationFlow(
   bindJob                                                  ,
 ) {
-  let queued                                                = [];
-  let running                  = [];
-  let scheduled = false;
-  let settling = false;
+  const running = new Set               ();
   let pass                                    = null;
+  let settling = false;
 
-  function open() {
-    if (pass) return;
-    pass = Promise.withResolvers      ();
-    // A caller that ignores this promise reads the failure from the coordinator's
-    // report instead, so it must not raise a browser-level unhandled rejection.
-    void pass.promise.catch(() => undefined);
-  }
-
-  function collect(order        , run                     ) {
-    open();
-    // Each claim belongs to its own scheduling context. The host binds it here,
-    // before several producers share the one microtask that starts this pass.
-    queued.push({ order, run: bindJob(run) });
-    if (scheduled) return;
-    scheduled = true;
-    queueMicrotask(() => {
-      scheduled = false;
-      const round = queued;
-      queued = [];
-      round.sort((left, right) => left.order - right.order);
-      // Start them in rank order, so a renderer that reads DOM another materializes runs
-      // after those writes are in the document. Nothing here waits for them: a renderer
-      // may hold its reading open on a widget that has not prepared, and a later turn's
-      // paint queued behind that hold would never reach the page at all.
-      for (const { run } of round) {
-        const started = run();
-        void started.catch(() => undefined);
-        running.push(started);
-      }
-      void drain();
-    });
+  function join(work               ) {
+    if (!pass) {
+      pass = Promise.withResolvers      ();
+      void pass.promise.catch(() => undefined);
+    }
+    running.add(work);
+    // A later owner can finish while drain awaits an earlier batch. Keep its
+    // outcome until that pass consumes it, including failures of background work.
+    void work.catch(() => undefined);
+    if (!settling) void drain();
   }
 
   async function drain() {
-    if (settling) return;
     settling = true;
-    let failure          = null;
+    let failure         ;
     let failed = false;
-    while (running.length || queued.length || scheduled) {
-      const started = running;
-      running = [];
-      for (const outcome of await Promise.allSettled(started))
+    while (running.size) {
+      const batch = [...running];
+      for (const outcome of await Promise.allSettled(batch))
         if (outcome.status === "rejected" && !failed) {
           failed = true;
           failure = outcome.reason;
         }
+      for (const work of batch) running.delete(work);
     }
     settling = false;
     const finished = pass ;
@@ -718,82 +693,180 @@ export function createPresentationSchedule(
     else finished.resolve();
   }
 
-  /** The page has caught up with the root it is reading. */
   const passed = () => pass?.promise ?? Promise.resolve();
 
-  /** Queue a renderer that already owns its claim; return only its own completion. */
-  function enqueue(order        , run                                )                {
-    const completion = Promise.withResolvers      ();
-    collect(order, async () => {
-      try {
-        await run();
-        completion.resolve();
-      } catch (error) {
-        completion.reject(error);
-        throw error;
-      }
+  function group(predecessors                              = [])              {
+    const [members, setMembers] = createSignal                               (
+      new Set(),
+      { ownedWrite: true },
+    );
+    const pending = runWithOwner(null, () =>
+      createMemo(() => [...members()].some((task) => task.pending())),
+    );
+    return Object.freeze({
+      predecessors,
+      pending,
+      add(task                  ) {
+        setMembers((previous) => new Set([...previous, task]));
+      },
+      remove(task                  ) {
+        setMembers(
+          (previous) => new Set([...previous].filter((member) => member !== task)),
+        );
+      },
     });
-    return completion.promise;
+  }
+
+  function task({
+    group: owner,
+    after = () => [],
+  }
+
+
+    = {})             {
+
+
+
+
+
+
+
+
+    const [requested, setRequested] = createSignal                (null, {
+      ownedWrite: true,
+    });
+    const [completed, setCompleted] = createSignal(0, { ownedWrite: true });
+    let generation = 0;
+    let latest                 = null;
+    let disconnected = false;
+    const pending = () => (requested()?.generation ?? 0) > completed();
+    const stop = runWithOwner(null, () =>
+      createRoot((dispose) => {
+        createEffect(
+          () => {
+            const request = requested();
+            if (!request || request.generation <= completed()) return null;
+            if (
+              [...(owner?.predecessors ?? []), ...after()].some((predecessor) =>
+                predecessor.pending(),
+              )
+            )
+              return null;
+            return request;
+          },
+          (request) => {
+            if (!request || disconnected || request.started) return;
+            request.started = true;
+            const commit = renderCommit(request.run, { root: true, bind: bindJob });
+            const advance = () =>
+              setCompleted((value) => Math.max(value, request.generation));
+            // A synchronous failure still releases the dependency edge. The presentation
+            // ledger decides whether a fallback counts as proof; unrelated owners run.
+            void commit.committed.then(advance, advance);
+            void Promise.resolve(
+              request.verdict ? request.verdict(commit.ready) : commit.ready,
+            ).then(() => request.completion.resolve(), request.completion.reject);
+          },
+        );
+        return dispose;
+      }),
+    );
+    const result             = Object.freeze({
+      pending,
+      enqueue(
+        run               ,
+        verdict                                                 ,
+      ) {
+        if (disconnected) throw new Error("Cannot render a disconnected task");
+        const previous = latest && !latest.started ? latest : null;
+        // Retiring an attributed invocation can itself publish another request.
+        // Install its successor first, and mark retirement before invoking observers,
+        // so reentry cannot run the old job twice or orphan a newer completion.
+        if (previous) {
+          previous.cancelled = true;
+          previous.started = true;
+        }
+        const request          = {
+          generation: ++generation,
+          run: bindJob(() => (request.cancelled ? undefined : run())),
+          completion: Promise.withResolvers      (),
+          started: false,
+          cancelled: false,
+          verdict,
+        };
+        latest = request;
+        join(request.completion.promise);
+        if (previous) {
+          previous.run();
+          previous.completion.resolve();
+        }
+        if (latest === request) setRequested(request);
+        return request.completion.promise;
+      },
+      disconnect() {
+        if (disconnected) return;
+        disconnected = true;
+        if (latest && !latest.started) {
+          latest.cancelled = true;
+          latest.started = true;
+          latest.run();
+          latest.completion.resolve();
+        }
+        setCompleted(generation);
+        owner?.remove(result);
+        stop();
+      },
+    });
+    owner?.add(result);
+    return result;
   }
 
   function presenter              ({
     attach,
     paint,
     failSoft,
-    order = 0,
+    group: owner,
+    after,
   }
 
 
 
 
-   )                        {
 
-
-
-
-
+   ) {
     let handle                                          = null;
     let generation = 0;
-
-    function claim(value       )        {
+    let draw = task({ group: owner, after });
+    function sync(value       )                {
       const claimed = ++generation;
       handle ??= attach();
-      return { claimed, value, presentation: handle.present(value, failSoft) };
-    }
-
-    async function run({ claimed, value, presentation }       ) {
-      // Superseded before it painted: the newer claim's ticket already released this one.
-      if (claimed !== generation) return;
-      let painted                            ;
-      try {
-        painted = paint(value, () => claimed === generation);
-      } catch (error) {
-        painted = Promise.reject(error);
-      }
-      presentation.resolve(painted);
-      // The coordinator's answer is the verdict on this reading. It resolves once the
-      // region has committed one, fail-soft proof included, and rejects when the failure
-      // stands with the region still pending.
-      await presentation.ready;
-    }
-
-    function sync(value       )                {
-      // The claim is synchronous, inside the publication that opened the epoch. Only
-      // the paint waits for the pass.
-      const ticket = claim(value);
-      collect(typeof order === "function" ? order() : order, () => run(ticket));
+      const ticket = handle.present(value, failSoft);
+      // The effect owns DOM completion; the presentation ticket owns async proof.
+      // Resolve with the render's ready arm so binding/postcommit errors use
+      // exactly the same failure path as a rejected preparation.
+      void draw.enqueue(
+        () => {
+          if (claimed !== generation) return;
+          return paint(value, () => claimed === generation);
+        },
+        (ready) => {
+          ticket.resolve(ready                  );
+          return ticket.ready;
+        },
+      );
       return passed();
     }
-
     function disconnect() {
-      generation += 1;
+      generation++;
       handle?.disconnect();
       handle = null;
+      draw.disconnect();
+      // A document presenter may mount again during this page's lifetime.
+      draw = task({ group: owner, after });
     }
-
     return Object.freeze({ sync, disconnect });
   }
 
-  return Object.freeze({ presenter, enqueue, passed });
+  return Object.freeze({ group, task, presenter, passed });
 }
 // Generated from browser/framework/presentation.ts by build/browser/build.mjs.

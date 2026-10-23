@@ -31,7 +31,7 @@
    that thread's first, share the same exact-message arrival. Ordinary `u` remains
    paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { createSignal, flush } from "/vendor/browser-runtime.js";
 import {
   layoutWindow,
   presented,
@@ -127,8 +127,9 @@ export function createReadTracking({ markRead, openThread }) {
   const frameWatches = [];
   // The threads the last presented pass drew. A signal, because the first-unread
   // command's liveness reads it once the pass has committed.
-  const committedThreads = signal(
+  const [committedThreads, setCommittedThreads] = createSignal(
     /** @type {ReturnType<typeof readThreads>["threads"]} */ ([]),
+    { ownedWrite: true },
   );
   let threadsPresented = false;
   let presentationGeneration = 0;
@@ -159,7 +160,7 @@ export function createReadTracking({ markRead, openThread }) {
     const live = new Set(
       unreadIn(readThreads().threads).map(({ item }) => keyOf(item)),
     );
-    return unreadIn(committedThreads.value).filter(({ item }) => live.has(keyOf(item)));
+    return unreadIn(committedThreads()).filter(({ item }) => live.has(keyOf(item)));
   };
 
   // The first unread message on the page, or in the thread keyed `thread`.
@@ -394,7 +395,7 @@ export function createReadTracking({ markRead, openThread }) {
     void whenDocumentPresented()
       .then(() => {
         if (generation !== presentationGeneration) return;
-        committedThreads.value = threads;
+        flush(() => setCommittedThreads(() => threads));
         threadsPresented = true;
         const unread = unreadIn(threads);
         const current = new Set(unread.map(({ item }) => keyOf(item)));

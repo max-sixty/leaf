@@ -4,10 +4,11 @@ import {
   ago,
   HeldReading,
   html,
+  createView,
+  Show,
   keeps,
   keepsText,
   LeafElement,
-  noChange,
   readWork,
   reportSequence,
   reportsReady,
@@ -17,6 +18,7 @@ customElements.define(
   "lf-atlas-worker",
   class extends LeafElement {
     pending = false;
+    #drawing = null;
     setup() {
       if (!this.querySelector("details")) {
         const details = document.createElement("details");
@@ -57,7 +59,7 @@ customElements.define(
         this.querySelector(".atlas-worker-state"),
         `${worker.state}${worker.quiet ? " · quiet" : ""}`,
       );
-      if (!reportsReady(this)) return noChange;
+      if (!reportsReady(this)) return;
       const report = reportSequence(this).findLast(
         (row) => row.source === "report" && row.disposition === "effective",
       );
@@ -71,15 +73,27 @@ customElements.define(
         this.pending = next !== shown;
         this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
       }
-      return html`${reading.text}${
-        reading.heard
-          ? html` Last heard
-              <time datetime=${reading.heard} title=${reading.heard}
-                >${ago(reading.heard)}</time
-              >`
-          : ""
-      }`;
+      const props = { ...reading, observed: reading.heard ? ago(reading.heard) : "" };
+      if (this.#drawing) this.#drawing.update(props);
+      else
+        this.#drawing = createView(
+          this.renderRoot,
+          (read) =>
+            html`${() => read().text}
+            ${Show({
+              get when() {
+                return read().heard;
+              },
+              children: (_visible) =>
+                html` Last heard
+                  <time datetime=${() => read().heard} title=${() => read().heard}
+                    >${() => read().observed}</time
+                  >`,
+            })}`,
+          props,
+        );
     }
+
     showLatest() {
       this.held.show();
     }

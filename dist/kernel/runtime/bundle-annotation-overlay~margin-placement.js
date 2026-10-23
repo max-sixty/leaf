@@ -36,39 +36,39 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   LAYOUT,
+  TAB_STOP,
+  afterScript,
+  atLayoutPrecision,
+  cancelRender,
   clamp,
   clippingAxes,
   coarsePointer,
   hoveringPointer,
+  keeps,
+  layoutPx,
+  nextRender,
   overlaps,
   overlapsAcross,
   renderedChildren,
+  renderedParent,
+  renderedUnder,
   scrollsContent,
+  shadowHost,
   shellRight,
   shownBand,
   shownExtent,
   shownParts,
   shownRect,
   shownWindow,
+  sizeObserver,
   skipped,
-  union
+  under,
+  union,
+  upFrom
 } from "./bundle-page-paint.js";
 import {
-  TAB_STOP,
-  afterScript,
-  atLayoutPrecision,
-  cancelRender,
-  keeps,
-  layoutPx,
-  move,
-  nextRender,
-  renderedParent,
-  renderedUnder,
-  shadowHost,
-  sizeObserver,
-  under,
-  upFrom
-} from "./bundle-frame-visibility.js";
+  move
+} from "./bundle-dom-move.js";
 
 // runtime/annotation-overlay/margin-placement.js
 function rowPosture({

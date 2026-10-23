@@ -247,9 +247,9 @@
    cannot reach into this tree, so a diff opening a column or closing a panel moved what
    followed it 8px at upgrade.
    The canonical search is the tools row itself. Its count stays inside that field's
-   end slot, so the same single frame holds at desktop and phone widths. */
+   frame, so the same single frame holds at desktop and phone widths. */
 .lf-diff-tools {
-  display: block;
+  display: flex;
   width: 100%;
   min-width: 0;
   margin: 0 0 8px;
@@ -380,9 +380,7 @@
 .lf-diff-filtered {
   display: none !important;
 }
-/* The filter field is not listed here. It is a vendored text field, whose Tab stop and
-   ringed box are both inside its own shadow root, so a rule on this host would reach
-   neither; the shared Web Awesome theme draws that band once for every package. */
+/* The shared native search frame owns the filter focus band. */
 .lf-diff-comment[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;

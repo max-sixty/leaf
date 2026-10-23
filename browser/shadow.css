@@ -9,13 +9,13 @@
     transition: none !important;
   }
 }
-:where(:root) :is(.lf-ui-face, .button, .field) {
+:where(:root, :host) :is(.lf-ui-face, .button, .field) {
   font-family: var(--sans);
   font-size: var(--t-5);
   line-height: var(--lf-ui-lh);
   color: var(--ink);
 }
-:where(:root .lf-ui-face, :root .button, :root .field, :root main :is(button, input, select, textarea)) {
+:where(:root .lf-ui-face, :host .lf-ui-face, :root .button, :root .field, :root main :is(button, input, select, textarea)) {
   font: var(--t-5) / var(--lf-ui-lh) var(--sans);
   font-feature-settings: normal;
   font-variation-settings: normal;
@@ -1250,17 +1250,14 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button):where(:not(:disabled, [aria-disabled=true]):hover) {
   background: var(--chip);
 }
-:is(button, .lf-btn, .button).lf-quiet-action,
-.lf-quiet-action.lf-ui::part(button) {
+:is(button, .lf-btn, .button).lf-quiet-action {
   border: 1px solid transparent;
   border-radius: var(--r);
   background: transparent;
   color: var(--muted);
   box-shadow: none;
 }
-:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus])),
-.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled=true])::part(button):hover,
-.lf-quiet-action.lf-ui::part(lf-focus) {
+:is(button, .lf-btn, .button).lf-quiet-action:where(:not(:disabled, [aria-disabled=true]):is(:hover, [data-lf-focus])) {
   background: var(--chip);
   color: var(--ink);
 }
@@ -1289,6 +1286,60 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button)[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
+}
+input.lf-search-field,
+.lf-search-frame {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  inline-size: 100%;
+  min-block-size: max(38px, var(--aim-floor));
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--field);
+  color: var(--ink);
+  font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+}
+.lf-search-field {
+  padding: var(--sp-1) var(--sp-2);
+}
+.lf-search-field::placeholder {
+  color: var(--muted);
+}
+.lf-search-frame {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding-inline-end: var(--sp-1);
+}
+.lf-search-frame > .lf-search-field {
+  flex: 1 1 4em;
+  width: 0;
+  border: 0;
+  background: transparent;
+}
+.lf-search-frame:has(.lf-search-field[data-lf-focus-visible]) {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+.lf-search-frame > .lf-search-field[data-lf-focus-visible] {
+  outline: none;
+}
+.lf-radio-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lf-radio-group:not([hidden]) {
+  display: flex;
+  gap: var(--sp-2);
+}
+.lf-radio-group > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 .lf-corner-mark {
   position: absolute;
@@ -2024,7 +2075,7 @@ html[data-lf-draw-mode] main {
 
 /* browser/styles/components/webawesome.css */
 :where(:root),
-:is(wa-copy-button, wa-comparison, wa-radio-group, wa-radio, wa-slider, wa-tooltip, wa-select, wa-option, wa-input) {
+:is(wa-copy-button, wa-comparison, wa-select, wa-option, wa-input) {
   --wa-font-family-body: var(--sans);
   &:not(:root) {
     font-family: var(--wa-font-family-body);
@@ -2059,10 +2110,6 @@ html[data-lf-draw-mode] main {
   --wa-form-control-border-color: var(--border-2);
   --wa-form-control-value-color: var(--ink);
 }
-wa-input {
-  --wa-form-control-background-color: var(--card);
-  --wa-form-control-value-font-size: max(var(--entry-floor), 1em);
-}
 .lf-label-hidden::part(form-control-label) {
   position: absolute;
   width: 1px;
@@ -2073,7 +2120,6 @@ wa-input {
   clip-path: inset(50%);
   white-space: nowrap;
 }
-wa-input::part(base),
 wa-select::part(combobox) {
   transition-property: background-color, border-color;
 }

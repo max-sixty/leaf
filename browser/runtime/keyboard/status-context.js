@@ -9,16 +9,16 @@
  * these readings follow focus, the sequence's state and the register. A walk's reading
  * also names the stop it stands on (`target`, its owner's key), so a list that shows
  * the walk's items, as On me does, can mark the one the walk is at. */
-import { signal } from "/vendor/browser-runtime.js";
+import { createSignal, flush, untracked } from "/vendor/browser-runtime.js";
 import { setNoticeContext } from "../notifications.js";
 import { walkPosition } from "../walk-position.js";
 import { word } from "./bindings.js";
 import { innermostStance } from "./dispatch.js";
 
 const EMPTY = Object.freeze({ goTo: null, walk: null, stance: null });
-const context = signal(EMPTY);
+const [context, setContext] = createSignal(EMPTY, { ownedWrite: true });
 let lastWalk = null;
-export const statusContextReading = () => context.value;
+export const statusContextReading = () => context();
 
 const shownWalk = ({ walk }) => (walk?.shown ? walk : null);
 const same = (a, b) =>
@@ -45,5 +45,5 @@ export function paintStatusContext(goToStatus) {
     stance: word(innermostStance()?.scope.title) ?? null,
   });
   setNoticeContext(Boolean(goTo));
-  if (!same(next, context.peek())) context.value = next;
+  if (!same(next, untracked(context))) flush(() => setContext(next));
 }

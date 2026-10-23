@@ -4,56 +4,53 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   LAYOUT,
+  LENT_REACH_STOP,
   PAGE_PAINT_ATTRIBUTE,
+  TEXT_BOX,
+  afterScript,
+  deepFocus,
+  keeps,
   landingBand,
+  nextFrame,
+  nextRender,
+  onStanding,
   pagePresented,
+  pressing,
+  renderedParent,
+  renderedUnder,
+  renderingState,
   reportPageError,
   scrollsBy,
   setRuntimeRootAttribute,
   shadowRootsIn,
   shownRect,
-  skipped,
-  userScrollport
-} from "./bundle-page-paint.js";
-import {
-  LENT_REACH_STOP,
-  TEXT_BOX,
-  afterScript,
-  deepFocus,
-  keeps,
-  nextFrame,
-  nextRender,
-  onStanding,
-  pressing,
-  renderedParent,
-  renderedUnder,
-  renderingState,
   sizeObserver,
+  skipped,
   tabStops,
   under,
   upFrom,
+  userScrollport,
   wearsLentStop
-} from "./bundle-frame-visibility.js";
+} from "./bundle-page-paint.js";
 import {
-  applicationPresented
-} from "./bundle-semantic-state.js";
-import {
-  J,
-  Z
-} from "./bundle-queued-work.js";
+  applicationPresented,
+  createMemo,
+  createSignal,
+  flush
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/presence.js
 var clockSkew = 0;
-var pulse = Z(0);
+var [pulse, setPulse] = createSignal(0, { ownedWrite: true });
 var serverNow = () => Date.now() + clockSkew;
 var saidNow = () => new Date(serverNow()).toISOString();
-var clockValue = (read) => J(() => {
-  pulse.value;
+var clockValue = (read) => createMemo(() => {
+  pulse();
   return read(serverNow());
-}).value;
+})();
 async function tickClock(reportError) {
   try {
-    pulse.value += 1;
+    flush(() => setPulse((value) => value + 1));
   } catch (error) {
     reportError(error, "clock paint failed");
   }

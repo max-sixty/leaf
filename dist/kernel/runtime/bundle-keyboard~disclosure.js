@@ -23,21 +23,19 @@ import {
   shadowRules,
   stateSpecs,
   watchArrivalsIn,
-  watchLayers
+  watchLayers,
+  watchStandingIn
 } from "./bundle-page-paint.js";
 import {
-  move,
-  watchStandingIn
-} from "./bundle-frame-visibility.js";
-import {
-  readPart,
-  runtime
-} from "./bundle-semantic-state.js";
+  move
+} from "./bundle-dom-move.js";
 import {
   authoredRank,
   isElementName,
-  render
-} from "./bundle-queued-work.js";
+  readPart,
+  resetViewsWithin,
+  runtime
+} from "./bundle-vendor~browser-runtime.js";
 
 // runtime/keyboard/disclosure.js
 var disclosureWatch = new MutationObserver((records) => {
@@ -396,18 +394,12 @@ function showFailure(el, text, source) {
   }
   if (placers.get(el)?.(box)) return;
   if (el.shadowRoot) {
+    resetViewsWithin(el.shadowRoot);
     shadowStage(el, [box]);
     return;
   }
-  releaseTemplate(el);
-  el.replaceChildren();
-  render(box, el);
-}
-function releaseTemplate(el) {
-  const part = el._$litPart$;
-  if (!part) return;
-  part.setConnected(false);
-  delete el._$litPart$;
+  resetViewsWithin(el);
+  el.replaceChildren(box);
 }
 
 // runtime/projection/authored.js

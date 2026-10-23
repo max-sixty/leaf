@@ -5,7 +5,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "./esbuild.mjs";
-import { bindToInitialLit, initialLitPath } from "./lit.mjs";
+import { bindToInitialSolid, initialSolidPath } from "./solid.mjs";
 import { checkModule } from "./browser/shipped.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 export async function initialOutputs() {
@@ -32,7 +32,7 @@ export async function initialOutputs() {
         entryPoints: [path.join(directory, "initial", `${tag}.js`)],
         bundle: true,
         metafile: true,
-        plugins: [await bindToInitialLit()],
+        plugins: [await bindToInitialSolid()],
         format: "iife",
         write: false,
         minify: false,
@@ -43,10 +43,10 @@ export async function initialOutputs() {
       outputs.set(output, Buffer.from(result.outputFiles[0].contents));
       if (
         Object.keys(result.metafile.inputs).some((input) =>
-          input.startsWith("leaf-initial-lit:"),
+          input.startsWith("leaf-initial-solid:"),
         )
       )
-        dependencies[entry["x-initial"]] = [`/${initialLitPath}`];
+        dependencies[entry["x-initial"]] = [`/${initialSolidPath}`];
     }
   }
   // Delivery reads the build's dependency facts; it never names widget families.

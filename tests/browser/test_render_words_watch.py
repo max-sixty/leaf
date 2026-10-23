@@ -1211,6 +1211,8 @@ def test_words_a_slow_send_retains_its_input(browser, delay):
         ("nextRender", "passive-first"),
         ("afterScript", "input-first"),
         ("presenter", "passive-first"),
+        ("element", "passive-first"),
+        ("element", "input-first"),
     ],
 )
 def test_coalesced_rendering_jobs_keep_their_own_input_source(
@@ -1233,11 +1235,24 @@ def test_coalesced_rendering_jobs_keep_their_own_input_source(
           let schedule=module[scheduler];
           if(scheduler==='presenter') {
             const {bindQueuedWork}=await window.__lfCheckApi();
-            const {createPresentationSchedule}=await window.__lfCheckApi();
-            const presentations=createPresentationSchedule(bindQueuedWork);
+            const {createPresentationFlow}=await window.__lfCheckApi();
+            const presentations=createPresentationFlow(bindQueuedWork);
             // This test observes scheduling, so a ticket that accepts the paint is enough.
             const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});
             schedule=callback=>presentations.presenter({attach,paint:callback}).sync(null);
+          }
+          if(scheduler==='element') {
+            customElements.define('lf-render-job', class extends module.LeafElement {
+              render() { this.job?.(); }
+            });
+            const elements=Array.from({length:2},()=>document.createElement('lf-render-job'));
+            document.body.append(...elements);
+            await Promise.all(elements.map(element=>element.updateComplete));
+            schedule=callback=>{
+              const element=elements.shift();
+              element.job=callback;
+              element.requestUpdate();
+            };
           }
           const passive=lfInputWork.capture(()=>schedule(()=>{
             document.getElementById('passive').remove();window.passiveDone=true;
@@ -1279,8 +1294,8 @@ def test_a_rendering_jobs_returned_async_tail_stays_passive(browser, serve, sche
       let schedule=nextRender;
       if(scheduler==='presenter') {
         const {bindQueuedWork}=await window.__lfCheckApi();
-        const {createPresentationSchedule}=await window.__lfCheckApi();
-        const presentations=createPresentationSchedule(bindQueuedWork);
+        const {createPresentationFlow}=await window.__lfCheckApi();
+        const presentations=createPresentationFlow(bindQueuedWork);
         // This test observes scheduling, so a ticket that accepts the paint is enough.
         const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});
         schedule=callback=>presentations.presenter({attach,paint:callback}).sync(null);
@@ -1574,10 +1589,10 @@ def test_words_a_native_passive_await_stays_passive_inside_a_press(browser, defe
     page.wait_for_function("window.done === true")
 
 
-# A reactive element in the shape Lit gives one: `requestUpdate` starts an update that a
+# A reactive element with an asynchronous lifecycle: `requestUpdate` starts an update that a
 # native `await` defers to `scheduleUpdate`, and the first update, requested while the
 # element is constructed, waits for it to be connected. Its value is drawn into a field
-# in its shadow tree, as a Web Awesome input draws the Threads search. Escape clears the
+# in its shadow tree, as an independent package can draw its editor. Escape clears the
 # host's value; `k` makes an element whose first update clears it, which a passive
 # timer later connects; and a passive timer, armed when the page loads, clears it on cue.
 REACTIVE = """<!doctype html><body>

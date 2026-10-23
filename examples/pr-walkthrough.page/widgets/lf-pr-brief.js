@@ -4,15 +4,14 @@ import {
   ago,
   highlightBlocks,
   html,
-  keyed,
+  createView,
+  Show,
+  For,
   LeafElement,
   loadMarkdown,
   markdownReady,
-  noChange,
   projectData,
   renderMarkdown,
-  repeat,
-  unsafeHTML,
 } from "/runtime/widget-api.js";
 
 const identityOf = (record) =>
@@ -25,6 +24,7 @@ customElements.define(
     // drew.
     #loading = null;
     #drawn;
+    #drawing = null;
 
     render() {
       const snapshot = this.data("request");
@@ -41,70 +41,101 @@ customElements.define(
             return this.updateComplete;
           }),
         );
-        return noChange;
+        return;
       }
       this.#drawn = snapshot;
       this.classList.toggle("lf-rendered", Boolean(record));
       const identity = identityOf(record);
-      return keyed(
+      const props = {
         identity,
-        record
-          ? html` <article
-              class="pr-brief"
-              aria-label=${`${record.repository} pull request ${record.number}: ${record.title}`}
-            >
-              <header>
-                <p>${record.repository} · PR #${record.number} · ${record.status}</p>
-                <h3>${record.title}</h3>
-                <p>Opened by ${record.author}</p>
-                <p>${record.base} → ${record.head} · revision ${record.revision}</p>
-              </header>
-              <dl class="facts">
-                <dt>Files</dt>
-                <dd>${record.diff.files}</dd>
-                <dt>Added</dt>
-                <dd>+${record.diff.additions}</dd>
-                <dt>Deleted</dt>
-                <dd>−${record.diff.deletions}</dd>
-                <dt>Commits</dt>
-                <dd>${record.diff.commits}</dd>
-              </dl>
-              <section class="pr-description">
-                <h4>Author's description</h4>
-                <div>
-                  ${unsafeHTML(renderMarkdown(record.description || "No description was provided by the author."))}
-                </div>
-              </section>
-              <table class="pr-checks">
-                <caption>
-                  Observed checks
-                </caption>
-                <tbody>
-                  ${
-                    Object.keys(record.checks).length
-                      ? repeat(
-                          Object.entries(record.checks).sort(([a], [b]) =>
-                            a.localeCompare(b),
-                          ),
-                          ([name]) => name,
-                          ([name, status]) =>
-                            html`<tr>
-                              <th scope="row">${name}</th>
-                              <td>${status}</td>
-                            </tr>`,
-                        )
-                      : html`<tr>
-                          <td>No checks reported</td>
-                        </tr>`
-                  }
-                </tbody>
-              </table>
-              <p class="pr-observed" title=${record.observedAt}>
-                Observed ${ago(record.observedAt)}
-              </p>
-            </article>`
-          : html`<p>Waiting for pull request data.</p>`,
-      );
+        record,
+        observed: record ? ago(record.observedAt) : "",
+        description: record
+          ? renderMarkdown(
+              record.description || "No description was provided by the author.",
+            )
+          : "",
+        checks: Object.entries(record?.checks ?? {}).sort(([a], [b]) =>
+          a.localeCompare(b),
+        ),
+      };
+      if (this.#drawing) this.#drawing.update(props);
+      else
+        this.#drawing = createView(
+          this.renderRoot,
+          (read) =>
+            html`${Show({
+              get when() {
+                return read().identity;
+              },
+              keyed: true,
+              children: (identity) =>
+                identity === "unavailable"
+                  ? html`<p>Waiting for pull request data.</p>`
+                  : html` <article
+                      class="pr-brief"
+                      aria-label=${() => `${read().record.repository} pull request ${read().record.number}: ${read().record.title}`}
+                    >
+                      <header>
+                        <p>
+                          ${() => read().record.repository} · PR
+                          #${() => read().record.number} · ${() => read().record.status}
+                        </p>
+                        <h3>${() => read().record.title}</h3>
+                        <p>Opened by ${() => read().record.author}</p>
+                        <p>
+                          ${() => read().record.base} → ${() => read().record.head} ·
+                          revision ${() => read().record.revision}
+                        </p>
+                      </header>
+                      <dl class="facts">
+                        <dt>Files</dt>
+                        <dd>${() => read().record.diff.files}</dd>
+                        <dt>Added</dt>
+                        <dd>+${() => read().record.diff.additions}</dd>
+                        <dt>Deleted</dt>
+                        <dd>−${() => read().record.diff.deletions}</dd>
+                        <dt>Commits</dt>
+                        <dd>${() => read().record.diff.commits}</dd>
+                      </dl>
+                      <section class="pr-description">
+                        <h4>Author's description</h4>
+                        <div prop:innerHTML=${() => read().description}></div>
+                      </section>
+                      <table class="pr-checks">
+                        <caption>
+                          Observed checks
+                        </caption>
+                        <tbody>
+                          ${For({
+                            get each() {
+                              return read().checks;
+                            },
+                            keyed: (check) => check[0],
+                            children: (check) =>
+                              html` <tr>
+                                <th scope="row">${() => check()[0]}</th>
+                                <td>${() => check()[1]}</td>
+                              </tr>`,
+                          })}
+                          ${Show({
+                            get when() {
+                              return !read().checks.length;
+                            },
+                            children: (_visible) =>
+                              html`<tr>
+                                <td>No checks reported</td>
+                              </tr>`,
+                          })}
+                        </tbody>
+                      </table>
+                      <p class="pr-observed" title=${() => read().record.observedAt}>
+                        Observed ${() => read().observed}
+                      </p>
+                    </article>`,
+            })}`,
+          props,
+        );
     }
 
     // The drawn brief's datum and code highlighting follow each draw; the draw's claim

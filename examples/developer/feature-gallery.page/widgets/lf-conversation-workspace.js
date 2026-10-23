@@ -8,7 +8,6 @@ import {
   keepsText,
   offer,
   LeafElement,
-  noChange,
   queueActions,
   queueItemKey,
   queueTitle,
@@ -60,7 +59,6 @@ customElements.define(
     }
     render() {
       this.paintObligations();
-      return noChange;
     }
     build() {
       this.mode = "Conversation";

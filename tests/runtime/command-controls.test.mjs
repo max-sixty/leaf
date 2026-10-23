@@ -1059,32 +1059,27 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
 });
 
 test("a scope's attachment and re-render run its latest callbacks and read only its own element", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
   const other = document.createElement("button");
   document.body.append(other);
   keys(other, "Elsewhere", [{ id: "probe.elsewhere", keys: ["x"], title: "x" }]);
   const root = document.createElement("section");
   document.body.append(root);
   const invoked = [];
+  const element = document.createElement("button");
+  root.append(element);
   const paint = (reading, available = true) =>
-    render(
-      html`<button
-        ${commandsOn("Template", [
-          {
-            id: "probe.template",
-            keys: ["y"],
-            title: "act",
-            when: () => available,
-            run: () => invoked.push(reading),
-          },
-        ])}
-      ></button>`,
-      root,
-    );
+    keys(element, "Template", [
+      {
+        id: "probe.template",
+        keys: ["y"],
+        title: "act",
+        when: () => available,
+        run: () => invoked.push(reading),
+      },
+    ]);
   paint("first");
   reflectFirstScopes();
   reflectKeys();
-  const element = root.querySelector("button");
   assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
 
   const read = other.getAttribute;
@@ -1114,30 +1109,25 @@ test("a scope's attachment and re-render run its latest callbacks and read only 
 });
 
 test("a template scope refused on re-render withdraws its shortcuts, and its aliases follow each reading", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
   const { scopesAt } = await import("../../browser/runtime/keyboard/scopes.js");
   const root = document.createElement("section");
   document.body.append(root);
+  const element = document.createElement("button");
+  root.append(element);
   const paint = (title, second) =>
-    render(
-      html`<button
-        ${commandsOn(title, [
-          {
-            id: "probe.first",
-            keys: ["y"],
-            contextKeys: ["1"],
-            title: "a",
-            run() {},
-          },
-          { id: "probe.second", keys: ["y"], title: "b", when: () => second, run() {} },
-        ])}
-      ></button>`,
-      root,
-    );
+    keys(element, title, [
+      {
+        id: "probe.first",
+        keys: ["y"],
+        contextKeys: ["1"],
+        title: "a",
+        run() {},
+      },
+      { id: "probe.second", keys: ["y"], title: "b", when: () => second, run() {} },
+    ]);
   paint("First", false);
   reflectFirstScopes();
   reflectKeys();
-  const element = root.querySelector("button");
   assert.equal(element.getAttribute("aria-keyshortcuts"), "y 1");
   paint("Second", false);
   reflectFirstScopes();
@@ -1155,19 +1145,21 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
 });
 
 test("a template scope's rows read the element the template renders", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { html, createView } = await import("/vendor/browser-runtime.js");
   const { DISCLOSE } = await import("../../browser/runtime/keyboard/disclosure.js");
   const root = document.createElement("section");
   document.body.append(root);
-  render(
-    html`<details>
-      <summary
-        ${commandsOn("Disclosure", (summary) => [
-          { id: "probe.disclose", keys: () => DISCLOSE(summary), title: "toggle" },
-        ])}
-      ></summary>
-    </details>`,
+  const drawing = createView(
     root,
+    () =>
+      html`<details>
+        <summary
+          ref=${commandsOn("Disclosure", (summary) => [
+            { id: "probe.disclose", keys: () => DISCLOSE(summary), title: "toggle" },
+          ])}
+        ></summary>
+      </details>`,
+    {},
   );
   reflectFirstScopes();
   reflectKeys();
@@ -1177,11 +1169,12 @@ test("a template scope's rows read the element the template renders", async () =
   paintKeys();
   reflectKeys();
   assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowLeft/);
+  drawing.dispose();
   root.remove();
 });
 
 test("template scopes follow current rows and retire without removing projected commands", async () => {
-  const { html, nothing, render } = await import("/vendor/browser-runtime.js");
+  const { html, createView } = await import("/vendor/browser-runtime.js");
   const root = document.createElement("section");
   document.body.append(root);
   const invoked = [];
@@ -1194,12 +1187,20 @@ test("template scopes follow current rows and retire without removing projected 
       run: () => invoked.push(id),
     },
   ];
+  const drawing = createView(
+    root,
+    (read) => html`<span ref=${commandsOn(() => read().declaration)}></span>`,
+    { declaration: null },
+  );
   const paint = (title, declaration, options, active = true) =>
-    render(
-      html`<span ${active ? commandsOn(title, declaration, options) : nothing}></span>`,
-      root,
-    );
-  const part = paint("First scope", rows("probe.first", "x"));
+    drawing.update({
+      declaration: active
+        ? declaration === undefined
+          ? title
+          : commandScope(title, declaration, options)
+        : null,
+    });
+  paint("First scope", rows("probe.first", "x"));
   const element = root.querySelector("span");
   reflectFirstScopes();
   assert.equal(element.getAttribute("aria-keyshortcuts"), "x");
@@ -1241,23 +1242,49 @@ test("template scopes follow current rows and retire without removing projected 
   assert.equal(element.getAttribute("aria-keyshortcuts"), "z");
 
   paint(commandScope("Returned", rows("probe.returned", "x")));
-  part.setConnected(false);
-  assert.deepEqual(
-    commandsWithin(root).map(({ row }) => row.id),
-    ["probe.projected"],
-  );
-  paint("While detached", rows("probe.detached", "y"));
-  assert.deepEqual(
-    commandsWithin(root).map(({ row }) => row.id),
-    ["probe.projected"],
-  );
-  part.setConnected(true);
-  assert.deepEqual(
-    commandsWithin(root).map(({ row }) => row.id),
-    ["probe.detached", "probe.projected"],
-  );
-  render(nothing, root);
+  drawing.dispose();
   assert.equal(commandsWithin(root).length, 0);
+  root.remove();
+});
+
+test("a Solid scope returns after a DOM departure and retires with its view", async () => {
+  const { createView, html } = await import("/vendor/browser-runtime.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  const drawing = createView(
+    root,
+    () =>
+      html`<button
+        ref=${commandsOn("Solid control", [
+          { id: "solid.apply", title: "Apply", keys: ["x"], run() {} },
+        ])}
+      >
+        Apply
+      </button>`,
+    {},
+  );
+  const names = () => commandsWithin(root).map(({ row }) => row.id);
+  const mutate = async (change) => {
+    const delivered = new Promise((resolve) => {
+      const observer = new MutationObserver(() => {
+        observer.disconnect();
+        resolve();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+    change();
+    await delivered;
+  };
+  reflectFirstScopes();
+  assert.deepEqual(names(), ["solid.apply"]);
+  await mutate(() => root.remove());
+  reflectKeys();
+  assert.deepEqual(names(), []);
+  await mutate(() => document.body.append(root));
+  reflectFirstScopes();
+  assert.deepEqual(names(), ["solid.apply"]);
+  drawing.dispose();
+  assert.deepEqual(names(), []);
   root.remove();
 });
 

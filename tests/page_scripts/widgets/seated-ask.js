@@ -5,7 +5,6 @@ import {
   threadBox,
   offer,
   LeafElement,
-  nothing,
 } from "/runtime/widget-api.js";
 
 export function defineSeatedObligation() {
@@ -38,7 +37,7 @@ export function defineSeatedObligation() {
           keepsText(this.press, "Accept");
           keeps(this.press, "aria-pressed", false);
         }
-        return nothing;
+        return;
       }
     },
   );

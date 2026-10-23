@@ -26,7 +26,6 @@ import {
   LeafElement,
   contributionEntry,
   failSoft,
-  nothing,
   paintKeys,
   quietWord,
   quoted,
@@ -161,7 +160,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      super.disconnectedCallback();
       this.#margin?.unregister();
       this.#margin = null;
       emphasized.delete(this);
@@ -631,15 +629,15 @@ customElements.define(
     render() {
       const { state } = this.reading;
       this.#draw(state);
-      if (quoted(this) || !this.#margin) return nothing;
+      if (quoted(this) || !this.#margin) return;
       // Signals publish before the projection adapter. Keep the currently focused entry
       // until that adapter applies the new state: the next complete reading can hand
       // focus directly to its semantic replacement instead of losing the user's place
       // when this draw removes it first.
       if (standingIn(this.#margin) && outcomeOf(state) !== this.#presentedOutcome)
-        return nothing;
+        return;
       this.#refreshMargin();
-      return nothing;
+      return;
     }
 
     #draw(state) {

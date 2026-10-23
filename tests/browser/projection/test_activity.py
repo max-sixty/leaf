@@ -43,16 +43,16 @@ def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, 
     round_trip(page)
     page.locator("#feed .lf-activity-news").click()
     row = page.locator("#feed .lf-activity-row", has_text="chose")
-    expect(row).to_contain_text("chose “Fast path” in")
+    expect(row).to_contain_text("Me chose “Fast path” in Which route?")
 
     reworded = page_with(item("Quick route", " restated"))
     stamp_page(serve.page_dir, reworded, "reword the option")
     wait_for_revision(page, 2)
-    expect(row).to_contain_text("chose “Fast path” in")
+    expect(row).to_contain_text("Me chose “Fast path” in Which route?")
 
     stamp_page(serve.page_dir, page_with(""), "drop the question")
     wait_for_revision(page, 3)
-    expect(row).to_contain_text("chose “Fast path” in")
+    expect(row).to_contain_text("Me chose “Fast path” in Which route?")
 
 
 def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve):

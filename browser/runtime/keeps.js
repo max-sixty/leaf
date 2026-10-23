@@ -13,7 +13,7 @@
    `hidden` setters rewrite the attribute on every set, and `classList.toggle(name,
    force)` keeps it for a class, where `add` and `remove` rewrite the attribute whether
    or not the class changes. An inline style property set to the value it holds is no
-   write, and Lit writes a binding only when its value moved. The suite's browser
+   write, and Solid writes a binding only when its value moved. The suite's browser
    fixture fails a write that changes nothing (tests/write_watch.js).
 
    The comparison is against what the node would read back, not what the caller held:

@@ -89,42 +89,11 @@ test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();
   assert.deepEqual(rebuilt, outputs);
   await checkOutputs(outputs);
-  assert.deepEqual(exportsOf(read("browser-runtime.js")), [
-    "AsyncDirective",
-    "Directive",
-    "LitElement",
-    "PartType",
-    "SignalWatcher",
-    "batch",
-    "classMap",
-    "computed",
-    "createPresentationCoordinator",
-    "createPresentationSchedule",
-    "createRef",
-    "createSemanticApplication",
-    "describeFailure",
-    "directive",
-    "effect",
-    "guard",
-    "html",
-    "keyed",
-    "live",
-    "noChange",
-    "nothing",
-    "ref",
-    "render",
-    "repeat",
-    "share",
-    "signal",
-    "styleMap",
-    "unsafeHTML",
-    "untracked",
-  ]);
-  const lit = exportsOf(read("lit.js"));
-  for (const name of ["LitElement", "html", "classMap", "property", "staticHtml"])
-    assert.ok(lit.includes(name), name);
+  const solid = exportsOf(read("solid.js"));
+  for (const name of ["createSignal", "render", "html", "For"])
+    assert.ok(solid.includes(name), name);
   const notices = read("browser-runtime.LICENSES.txt");
-  for (const name of ["lit-html", "@preact/signals-core"])
+  for (const name of ["@solidjs/signals", "@solidjs/web", "@solidjs/html"])
     assert.ok(notices.includes(`===== ${name} `), name);
 });
 
@@ -157,15 +126,12 @@ test("each source module compiles to one module that keeps its lines", async () 
     read("browser-runtime/application.js"),
     /^} from "\.\.\/\.\.\/runtime\/thread\/model\.js";$/m,
   );
-  // The page's one Lit: the framework imports it rather than carrying a copy.
-  assert.match(read("browser-runtime.js"), /^export \{[^}]*\} from "\.\/lit\.js";$/m);
+  // The page's one Solid: the framework imports it rather than carrying a copy.
+  assert.match(read("browser-runtime.js"), /^export \{[^}]*\} from "\.\/solid\.js";$/m);
   assert.match(
     read("browser-runtime/snapshot.js"),
-    /^import \{ computed, signal, untracked as signalUntracked \} from "\.\/signals-core\.js";$/m,
+    /^import \{[^}]*\} from "\.\.\/solid\.js";$/m,
   );
-  for (const name of modules.filter((name) => !name.endsWith("signals-core.js")))
-    assert.ok(!outputs.get(name).includes("litHtmlVersions"), name);
-  assert.ok(!read("browser-runtime/signals-core.js").includes("litHtmlVersions"));
 });
 
 test("checking stale output refuses it without changing any bytes", async (context) => {
@@ -248,11 +214,11 @@ test("an upstream adaptation fails the build once its seam or its module moves",
 
 test("the bundle gate reads the parsed module, not its text", () => {
   for (const [source, reason] of [
-    ['import { html } from "lit";', 'imports "lit", not a local path'],
-    ['export { html } from "https://cdn.example/lit.js";', "not a local path"],
-    ['export * from "//cdn.example/lit.js";', "not a local path"],
+    ['import { html } from "solid-js";', 'imports "solid-js", not a local path'],
+    ['export { html } from "https://cdn.example/solid.js";', "not a local path"],
+    ['export * from "//cdn.example/solid.js";', "not a local path"],
     ['import("./late.js");', "import() loads a module at run time"],
-    ['require("lit");', "require() loads a module at run time"],
+    ['require("solid-js");', "require() loads a module at run time"],
   ]) {
     assert.throws(
       () => checkModule(`const a = 1;\n${source}`, "x.js"),
@@ -263,9 +229,9 @@ test("the bundle gate reads the parsed module, not its text", () => {
       source,
     );
   }
-  checkModule('import { html } from "./lit.js";');
+  checkModule('import { html } from "./solid.js";');
   checkModule('new Function("return 1")();');
-  checkModule('import { html } from "/vendor/lit.js"; export * from "../a.js";');
+  checkModule('import { html } from "/vendor/solid.js"; export * from "../a.js";');
   // Pierre's TextMate grammars carry it as data.
   checkModule('export const grammar = { begin: "import\\\\(", end: "require(x)" };');
 });

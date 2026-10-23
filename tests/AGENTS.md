@@ -318,7 +318,7 @@ allowance list.
   does.
 - `input_work_watch.js` attributes each change to the input whose work caused it, so
   the shift and words watches can tell a reaction from an unprompted move. It follows
-  timers, frames, promises and Lit updates, but not a native `await`: code that commits
+  timers, frames, promises and element updates, but not a native `await`: code that commits
   a visible effect after an `await` loses its input. Leaf's draft sends put the words
   away before awaiting delivery for this reason; a test fixture that must commit after
   an `await` captures the commit callback with `lfInputWork.capture` first.

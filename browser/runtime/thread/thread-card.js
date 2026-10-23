@@ -1,4 +1,4 @@
-/* One synchronous Lit owner for complete page, outlet and margin threads.
+/* One synchronous Solid owner for complete page, outlet and margin threads.
 
    Every surface uses the same metadata, transcript, message and reply vocabulary.
    Containers own navigation and placement, including whether their transcript scrolls;
@@ -36,7 +36,16 @@ import {
   standsOn,
   standingIn,
 } from "../focus.js";
-import { html, render, nothing, share, signal } from "/vendor/browser-runtime.js";
+import {
+  afterRender,
+  html,
+  createView,
+  Show,
+  share,
+  createSignal,
+  flush,
+  untracked,
+} from "/vendor/browser-runtime.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
 import { offer, measure } from "../widget-elements.js";
@@ -54,7 +63,7 @@ import {
 import { TEXT_FIELD } from "../control-selectors.js";
 import { atScrollEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
-import { iconTemplate } from "../icons.js";
+import { iconElement } from "../icons.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
 import { threadAttention, workflowLabel } from "./workflow.js";
@@ -274,17 +283,18 @@ export function threadReading(thread, surface, commands) {
 }
 
 export class ThreadView {
+  #drawing = null;
   #commands;
   #messageCommands;
   #rewrites;
-  // The model this card shows. Commands follow it explicitly; mechanical reads of
-  // this paint's output must not subscribe the presenter that writes it.
-  #shown = signal(null);
+  // The model this card shows. A signal, because its commands' liveness reads it, and
+  // key and button reflection follow what they read (keyboard/scopes.js).
+  #shown = createSignal(null, { ownedWrite: true });
   get #model() {
-    return this.#shown.peek();
+    return untracked(this.#shown[0]);
   }
   set #model(model) {
-    this.#shown.value = model;
+    flush(() => this.#shown[1](() => model));
   }
   #transcript;
   #reply = null;
@@ -534,7 +544,7 @@ export class ThreadView {
     const settlementPlace = marginControls ? "margin" : "head";
     const notice = this.#news;
     if (model.news) notice.set(model.news);
-    const news = model.news ? notice.node : nothing;
+    const news = model.news ? notice.node : null;
     // Its id names the surface too (`drawnThreadId`).
     keeps(this.node, "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);
@@ -561,45 +571,66 @@ export class ThreadView {
       appends: model.surface === "margin",
     });
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
-    const body = html`
-      ${this.#transcript.node}
-      ${
-        threadActions
-          ? marginControls
-            ? html`<div class="lf-margin-thread-controls">${threadActions}</div>`
-            : html`<div class="lf-thread-controls" data-lf-reflow="text">
-                ${news}${threadActions}
-              </div>`
-          : nothing
-      }
-    `;
-    render(
-      html`
-        ${
-          model.surface === "margin"
-            ? body
-            : html`<div class="lf-thread-content">${body}</div>`
-        }
-        ${reply ? (this.#continuity?.gap ?? nothing) : nothing}
-        ${reply ? this.#reply.node : nothing}
-      `,
-      this.node,
-    );
-    if (!marginControls && model.news)
-      measure(this.node, () => this.#retainHeaderSlot());
-    else this.#releaseHeaderSlot();
-    this.#continuity?.after(bodyPlace);
-    // A page thread whose render took the user's place puts them in its reply, or on
-    // the thread itself.
-    // Handing it on is the card's own act, which the list holding the card defers to.
-    // A progress disclosure the user stood on that this render replaced hands them to
-    // its successor (transcript.js).
-    restoreFocus?.(
-      handedOn
-        ? () => (focusDestination(handedOn, "return"), true)
-        : () =>
-            this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
-    );
+    const props = {
+      surface: model.surface,
+      margin: Boolean(marginControls),
+      threadActions,
+      news,
+      gap: reply ? (this.#continuity?.gap ?? null) : null,
+      reply: reply ? this.#reply.node : null,
+    };
+    if (this.#drawing) this.#drawing.update(props);
+    else
+      this.#drawing = createView(
+        this.node,
+        (read) => {
+          const body = () =>
+            html`${this.#transcript.node}${Show({
+              get when() {
+                return Boolean(read().threadActions);
+              },
+              children: (_actions) =>
+                html`<div
+                  class=${() => (read().margin ? "lf-margin-thread-controls" : "lf-thread-controls")}
+                  data-lf-reflow=${() => (read().margin ? undefined : "text")}
+                >
+                  ${() => (read().margin ? null : read().news)}${() => read().threadActions}
+                </div>`,
+            })}`;
+          return html`${Show({
+            get when() {
+              return read().surface;
+            },
+            keyed: true,
+            children: (surface) =>
+              surface === "margin"
+                ? body()
+                : html`<div class="lf-thread-content">${body()}</div>`,
+          })}${() => read().gap}${() => read().reply}`;
+        },
+        props,
+      );
+    const drawing = this.#drawing;
+    afterRender(() => {
+      if (this.#model !== model || this.#drawing !== drawing) return;
+      if (!marginControls && model.news)
+        measure(this.node, () => this.#retainHeaderSlot());
+      else this.#releaseHeaderSlot();
+      this.#continuity?.after(bodyPlace);
+      // A summary gathering the message the user stands on moves it; a page thread whose
+      // render took their place puts them in its reply, or on the thread itself.
+      // Handing it on is the card's own act, which the list holding the card defers to.
+      // A progress disclosure the user stood on that this render replaced hands them to
+      // its successor (transcript.js).
+      restoreFocus?.(
+        handedOn
+          ? () => (focusDestination(handedOn, "return"), true)
+          : () =>
+              this.#commands.landInThread(
+                this.node.querySelector(SAY_BOX) ?? this.node,
+              ),
+      );
+    });
     return this.node;
   }
 
@@ -747,7 +778,7 @@ export class ThreadView {
           keys: PRESS,
           title: word.toLowerCase(),
           control: button,
-          when: () => !this.#shown.value.settlement?.pending,
+          when: () => !this.#shown[0]().settlement?.pending,
           run: this.#settle,
         },
       ]);
@@ -761,7 +792,12 @@ export class ThreadView {
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
     }
-    render(icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
+    if (icon) {
+      const glyph =
+        button.querySelector(".lf-action-icon") ??
+        iconElement("check", "lf-action-icon");
+      setChildren(button, [glyph]);
+    } else if (button.textContent !== state.label) button.textContent = state.label;
     return button;
   }
 
@@ -864,5 +900,7 @@ export class ThreadView {
     this.retire();
     this.#reply?.dispose();
     this.#reply = null;
+    this.#drawing?.dispose();
+    this.#drawing = null;
   }
 }

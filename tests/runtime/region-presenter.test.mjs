@@ -10,10 +10,68 @@ import {
   applicationState,
   readPart,
   whenApplicationPresented,
+  whenDocumentPresented,
+  readApplicationPresentation,
+  setPresentationFailureReporter,
 } from "/runtime/semantic-state.js";
 import { clockValue, tickClock } from "/runtime/presence.js";
 
 const phase = readPart((root) => root.phase);
+
+for (const fallback of [true, false]) {
+  test(`a failed region reading preserves presentation proof and recovers: fallback=${fallback}`, async () => {
+    applicationState.setPhase("waiting");
+    let active = true;
+    const paints = [];
+    const healthyPaints = [];
+    const failures = [];
+    setPresentationFailureReporter((error) => failures.push(error.message));
+    const regionName = `probe-reading-error-${fallback}`;
+    const region = applicationPresenter({
+      region: regionName,
+      reading: () => {
+        if (!active) return null;
+        const value = phase();
+        if (value === "offline") throw new Error("Cannot read the next model");
+        return value;
+      },
+      paint: (value) => paints.push(value),
+      ...(fallback ? { failSoft: () => paints.push("failed") } : {}),
+    });
+    const healthy = applicationPresenter({
+      region: `probe-healthy-${fallback}`,
+      reading: () => (active ? phase() : null),
+      paint: (value) => healthyPaints.push(value),
+    });
+    try {
+      await Promise.all([region.present(), healthy.present()]);
+      applicationState.setPhase("offline");
+      assert.ok(readApplicationPresentation().pending.includes(regionName));
+      if (fallback) {
+        await whenApplicationPresented();
+        assert.deepEqual(paints, ["waiting", "failed"]);
+      } else {
+        await assert.rejects(whenDocumentPresented(), /Cannot read the next model/);
+        assert.ok(readApplicationPresentation().pending.includes(regionName));
+        assert.deepEqual(paints, ["waiting"]);
+      }
+      assert.deepEqual(failures, ["Cannot read the next model"]);
+      assert.deepEqual(healthyPaints, ["waiting", "offline"]);
+      applicationState.setPhase("waiting");
+      await whenApplicationPresented();
+      assert.deepEqual(
+        paints,
+        fallback ? ["waiting", "failed", "waiting"] : ["waiting", "waiting"],
+      );
+      assert.deepEqual(readApplicationPresentation().pending, []);
+    } finally {
+      active = false;
+      region.disconnect();
+      healthy.disconnect();
+      setPresentationFailureReporter(console.error);
+    }
+  });
+}
 
 test("a region repaints when a part its paint read moves, and not for another", async () => {
   const paints = [];

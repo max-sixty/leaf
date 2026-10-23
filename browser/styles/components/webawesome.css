@@ -3,17 +3,7 @@
    tokens resolve against them, and on controls so local Leaf palettes still apply.
    Public parts carry Leaf's logical focus, rather than a second native focus ring. */
 :where(:root),
-:is(
-  wa-copy-button,
-  wa-comparison,
-  wa-radio-group,
-  wa-radio,
-  wa-slider,
-  wa-tooltip,
-  wa-select,
-  wa-option,
-  wa-input
-) {
+:is(wa-copy-button, wa-comparison, wa-select, wa-option, wa-input) {
   --wa-font-family-body: var(--sans);
   /* Controls inherit typography through their hosts. Reset the surrounding prose's
      face without overriding the component's size, weight, line height or state ink. */
@@ -58,15 +48,6 @@
   --wa-form-control-value-color: var(--ink);
 }
 
-/* The vendor's native input sits in a shadow
-   root the layer's own field floor (shadow.css) does not reach, so the same floor
-   is passed in as the size the vendor sets its value in: never under --entry-floor,
-   and never smaller than the type around it. */
-wa-input {
-  --wa-form-control-background-color: var(--card);
-  --wa-form-control-value-font-size: max(var(--entry-floor), 1em);
-}
-
 /* Compact controls opt into an accessible label without a second visible caption. */
 .lf-label-hidden::part(form-control-label) {
   position: absolute;
@@ -84,7 +65,6 @@ wa-input {
    it is drawn — theme.css states the same for the layer's own rules, and these two are
    the vendored controls that animate their outline. Naming the properties that stay
    leaves the vendor's own durations and easing to it. */
-wa-input::part(base),
 wa-select::part(combobox) {
   transition-property: background-color, border-color;
 }

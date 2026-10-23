@@ -239,8 +239,8 @@ def _module_urls(
         ),
     ]
     # Only the actual document runs parser-time producers. Frozen message widgets
-    # arrive later, after the ordinary module Lit has initialized its shared global.
-    early_lit = "/vendor/lit-initial.js" in initial_script_paths(
+    # arrive later, after the ordinary module Solid has initialized its shared global.
+    early_solid = "/vendor/solid-initial.js" in initial_script_paths(
         artifact.html.decode("utf-8"), registry, artifact.resources
     )
     urls = {}
@@ -249,7 +249,9 @@ def _module_urls(
         if path in urls:
             continue
         implementation = (
-            "/vendor/lit-shared.js" if early_lit and path == "/vendor/lit.js" else path
+            "/vendor/solid-shared.js"
+            if early_solid and path == "/vendor/solid.js"
+            else path
         )
         resource = artifact.resources[implementation]
         imports = list(

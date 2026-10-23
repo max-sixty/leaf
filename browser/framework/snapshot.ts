@@ -13,11 +13,18 @@
  * object the last reading held. So a selection is a `computed` compared by identity,
  * and a reader subscribed to one part of the reading hears only that part change. A
  * selection shares its own derived value against its previous one by the same rule.
- * Native Preact computed values and effects own dependency tracking. Derivations read
+ * Native Solid memos and effects own dependency tracking. Derivations read
  * their supplied immutable root, and subscriber callbacks run untracked so notifying
  * a consumer cannot make its reads dependencies of the publisher.
  */
-import { computed, signal, untracked as signalUntracked } from "@preact/signals-core";
+import {
+  createMemo,
+  createSignal,
+  flush,
+  runWithOwner,
+  untrack,
+} from "@solidjs/signals";
+import { subscribe } from "./observe.ts";
 
 export type Immutable<T> =
   T extends ReadonlyMap<infer K, infer V>
@@ -41,7 +48,7 @@ interface SnapshotReading<T> {
   subscribe(listener: (value: T, round?: object) => unknown): () => void;
 }
 
-export { signalUntracked as untracked };
+export { untrack as untracked };
 
 // Publications take ownership of mutable producer values; previously secured
 // subtrees retain identity and need no further traversal.
@@ -173,26 +180,28 @@ export function share<T>(prior: unknown, next: T): T {
 }
 
 export function createApplicationPublisher<S extends ApplicationSnapshot>(initial: S) {
-  const root = signal(immutable(initial));
+  const [root, setRoot] = createSignal(() => immutable(initial), { ownedWrite: true });
   return Object.freeze({
-    read: (): Immutable<S> => root.value,
+    read: (): Immutable<S> => root(),
     // The root without subscribing or collecting, for the owner computing what it
     // publishes next.
-    peek: (): Immutable<S> => root.peek(),
+    peek: (): Immutable<S> => untrack(root),
     publish(candidate: S): Immutable<S> {
-      root.value = immutable(share(root.peek(), candidate));
-      return root.peek();
+      flush(() => setRoot(() => immutable(share(untrack(root), candidate))));
+      return untrack(root);
     },
     select<T>(derive: (snapshot: Immutable<S>) => T): SnapshotReading<Immutable<T>> {
       let prior: unknown;
-      const selected = computed(() => {
-        const value = root.value;
-        return signalUntracked(() => (prior = immutable(share(prior, derive(value)))));
-      });
+      const selected = runWithOwner(null, () =>
+        createMemo(() => {
+          const snapshot = root();
+          return untrack(() => (prior = immutable(share(prior, derive(snapshot)))));
+        }),
+      );
       const reading: SnapshotReading<Immutable<T>> = Object.freeze({
-        read: (): Immutable<T> => selected.value,
+        read: (): Immutable<T> => selected(),
         subscribe: (listener: (value: Immutable<T>) => void) =>
-          selected.subscribe((value) => signalUntracked(() => listener(value))),
+          subscribe(selected, (value) => untrack(() => listener(value))),
       });
       return reading;
     },

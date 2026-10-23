@@ -10,7 +10,7 @@
    nothing floats in a corner to become a stale pointer target. A failure is no news:
    it goes through errors.js, which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { createSignal, flush, untracked } from "/vendor/browser-runtime.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -27,15 +27,18 @@ let userContext = false;
 let userHoldTimer = 0;
 // What the seat says and whether it shows. Errors are no notices: they go through
 // errors.js, which keeps them until they are dealt with.
-const noticePresentation = signal(Object.freeze({ message: "", visible: false }));
+const [noticePresentation, setNoticePresentation] = createSignal(
+  Object.freeze({ message: "", visible: false }),
+  { ownedWrite: true },
+);
 
-export const noticeReading = () => noticePresentation.value;
-const noticeVisible = () => noticePresentation.peek().visible;
+export const noticeReading = () => noticePresentation();
+const noticeVisible = () => untracked(noticePresentation).visible;
 
 // The reading changes in the gesture's task. Its seat paints visible news immediately
 // and coalesces a withdrawal until the script ends, so replacing a notice paints once.
 const presentNotice = (message, visible) => {
-  noticePresentation.value = Object.freeze({ message, visible });
+  flush(() => setNoticePresentation(Object.freeze({ message, visible })));
 };
 
 export function announce(msg) {
@@ -59,7 +62,7 @@ function showNotice(msg, background = null) {
   noticeTimer = setTimeout(() => {
     if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift()))
       return;
-    presentNotice(noticePresentation.peek().message, false);
+    presentNotice(untracked(noticePresentation).message, false);
     showingBackground = null;
   }, NOTICE_MS);
 }
@@ -128,7 +131,7 @@ export function notice(
 function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);
   clearTimeout(noticeTimer);
-  presentNotice(noticePresentation.peek().message, false);
+  presentNotice(untracked(noticePresentation).message, false);
   showingBackground = null;
 }
 

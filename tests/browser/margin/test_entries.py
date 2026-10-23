@@ -526,10 +526,10 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
     expect(marker).to_have_attribute("data-test-clicks", "1")
 
 
-def test_lit_margin_projection_reorders_retained_controls_without_moving_the_user(
+def test_keyed_margin_projection_reorders_retained_controls_without_moving_the_user(
     browser, serve
 ):
-    """One keyed Lit owner moves native controls across direct, option, and inline seats."""
+    """One keyed Solid owner moves native controls across direct, option, and inline seats."""
     fixture = leaf_page("Retained margin controls", '<p id="target">Review this.</p>')
     page = open_page(browser, serve(fixture))
     resized(page, 1440, 900)
@@ -622,10 +622,10 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     expect(host).to_have_attribute("data-lf-options-open", "")
 
 
-def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
+def test_keyed_inline_margin_projection_keys_controls_inside_thread_chrome(
     browser, serve
 ):
-    """The inline Lit seat reorders one retained control tree and completes its press."""
+    """The inline Solid seat reorders one retained control tree and completes its press."""
     page = open_page(browser, serve(PANEL_PAGE))
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")

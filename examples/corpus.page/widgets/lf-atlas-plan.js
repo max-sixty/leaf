@@ -7,14 +7,14 @@ import {
   html,
   keepsText,
   LeafElement,
-  noChange,
   readWork,
-  render,
-  repeat,
+  createView,
+  For,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-plan",
   class extends LeafElement {
+    #drawing = null;
     setup() {
       keeps(this, "role", "group");
       keeps(this, "aria-label", this.getAttribute("label") ?? "Plan");
@@ -37,7 +37,7 @@ customElements.define(
       this.addEventListener("atlas-reading", () => this.requestUpdate());
     }
     render() {
-      if (!this.overview) return noChange;
+      if (!this.overview) return;
       const reading = readWork(this);
       const counts = {
         progress: `${reading.done} / ${reading.leaves.length} complete`,
@@ -61,15 +61,22 @@ customElements.define(
           (child) => child.pending,
         );
       this.button.toggleAttribute("disabled", !pending);
-      render(
-        repeat(
-          JSON.parse(shown),
-          ([id]) => id,
-          ([id, title]) => html`<li><a href=${`#${id}`}>${title}</a></li>`,
-        ),
-        this.overview.querySelector(".atlas-stopped > ul"),
-      );
-      return noChange;
+      const props = { rows: JSON.parse(shown) };
+      if (this.#drawing) this.#drawing.update(props);
+      else
+        this.#drawing = createView(
+          this.overview.querySelector(".atlas-stopped > ul"),
+          (read) =>
+            For({
+              get each() {
+                return read().rows;
+              },
+              keyed: (row) => row[0],
+              children: (row) =>
+                html`<li><a href=${() => `#${row()[0]}`}>${() => row()[1]}</a></li>`,
+            }),
+          props,
+        );
     }
   },
 );

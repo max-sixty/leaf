@@ -772,19 +772,19 @@ def compose_document(
         else []
     )
     import_map = delivery.import_map
-    if "/vendor/lit-initial.js" in initial and import_map is not None:
+    if "/vendor/solid-initial.js" in initial and import_map is not None:
         imports = import_map["imports"]
         # Hosted documents map directories. Export's exact leaf: graph already
-        # embeds the selected facade under Lit's canonical module identity. Both
+        # embeds the selected facade under Solid's canonical module identity. Both
         # rooted layer imports and rebased page imports must select that instance.
         if "/vendor/" in imports:
             import_map = {
                 **import_map,
                 "imports": {
                     **imports,
-                    "/vendor/lit.js": delivery.address("/vendor/lit-shared.js"),
-                    delivery.address("/vendor/lit.js"): delivery.address(
-                        "/vendor/lit-shared.js"
+                    "/vendor/solid.js": delivery.address("/vendor/solid-shared.js"),
+                    delivery.address("/vendor/solid.js"): delivery.address(
+                        "/vendor/solid-shared.js"
                     ),
                 },
             }

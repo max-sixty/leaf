@@ -1,15 +1,13 @@
 /* The option the author did not list: its draft, the `add` and `choose` bound to that
  * draft generation, and the option nodes each `add` in force puts in the group. */
 import {
-  guard,
+  createView,
   html,
   loadDraft,
   inlineMarkdownFragment,
   markdownReady,
   move,
   offer,
-  render,
-  repeat,
   saveDraft,
   sendDraft,
   TEXT_FIELD,
@@ -31,7 +29,7 @@ export class OptionAddition {
   #add = null;
   #syncInput = null;
   #inForce = new Set();
-  #end = null;
+  #drawings = new Map();
 
   constructor(host, { offered, available, commit }) {
     this.#host = host;
@@ -149,32 +147,38 @@ export class OptionAddition {
     return { value: [...picked].map((option) => option.id) };
   }
 
-  /* Lit owns only the generated option range. Its keyed rows stay direct children
-   * of the group, before the persistent draft editor; authored options and their
-   * evidence are outside that range. Guarding Markdown keeps its text nodes and the
-   * reader's selection when another option changes. */
+  // Options remain direct children among authored evidence. Each generated option
+  // owns its words; unchanged Markdown retains the reader's native selection.
   render(added = {}, fallbackBefore = null) {
-    const options = Object.entries(added);
-    this.#inForce = new Set(options.map(([id]) => id));
-    if (!this.#end) {
-      this.#end = document.createComment("added options");
-      move(this.#host, this.#end, this.#form ?? fallbackBefore);
+    this.#inForce = new Set(Object.keys(added));
+    for (const [id, entry] of this.#drawings)
+      if (!this.#inForce.has(id)) {
+        entry.drawing.dispose();
+        entry.node.remove();
+        this.#drawings.delete(id);
+      }
+    for (const [id, text] of Object.entries(added)) {
+      let entry = this.#drawings.get(id);
+      if (!entry) {
+        const node = document.createElement("lf-option");
+        node.id = id;
+        node.dataset.lfAdded = "";
+        const drawing = createView(
+          node,
+          (read) =>
+            html`<span class="lf-option-words" data-lf-markdown-words
+              >${() => read().content}</span
+            >`,
+          { content: inlineMarkdownFragment(text) },
+        );
+        entry = { node, drawing, text, ready: markdownReady() };
+        this.#drawings.set(id, entry);
+      } else if (entry.text !== text || entry.ready !== markdownReady()) {
+        entry.text = text;
+        entry.ready = markdownReady();
+        entry.drawing.update({ content: inlineMarkdownFragment(text) });
+      }
+      move(this.#host, entry.node, this.#form ?? fallbackBefore);
     }
-    render(
-      repeat(
-        options,
-        ([id]) => id,
-        ([id, text]) =>
-          html`<lf-option id=${id} data-lf-added>
-            <span class="lf-option-words" data-lf-markdown-words
-              >${guard([text, markdownReady()], () =>
-                inlineMarkdownFragment(text),
-              )}</span
-            >
-          </lf-option>`,
-      ),
-      this.#host,
-      { renderBefore: this.#end },
-    );
   }
 }

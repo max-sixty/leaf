@@ -154,7 +154,8 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     for index, box in enumerate(boxes):
         assert box["width"] >= floor - 0.5, box
         if touch:
-            assert controls[index].evaluate("""(control, floor) => {
+            assert controls[index].evaluate(
+                """(control, floor) => {
               const box = control.getBoundingClientRect();
               const x = box.left + box.width / 2;
               const y = box.top + box.height / 2;
@@ -163,7 +164,9 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
                 const hit = document.elementFromPoint(x, y + offset);
                 return hit === control || control.contains(hit);
               });
-            }""", floor), box
+            }""",
+                floor,
+            ), box
         else:
             assert box["height"] >= floor - 0.5, box
         for other in boxes[index + 1 :]:

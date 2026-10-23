@@ -46,6 +46,12 @@ interface LeafInitial {
   /** Initial insertion, replaced by dom-move.js before live module rendering. */
   move(parent: Node, node: Node, before: Node | null): Node;
   fragmentId(fragment: string): string;
+  externalLinks: {
+    attributes: string[];
+    matches(link: Element): boolean;
+    arrive(link: Element): void;
+    leave(link: Element): void;
+  };
   keepsAttribute(node: Element, name: string, value: unknown): void;
   setRuntimeRootAttribute(node: Element, name: string, value: unknown): void;
   runtimeRootAttributes(node: Element): Set<string>;

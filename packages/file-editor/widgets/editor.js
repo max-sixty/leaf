@@ -109,7 +109,8 @@ const highlighting = HighlightStyle.define([
 const isMarkdown = (filename) => langForPath(filename) === "markdown";
 
 /** Create a file editor. External text changes use CodeMirror transactions,
- * mapping selection and local undo history through the dependency's diff.
+ * mapping selection through the dependency's diff. Adopting changed external text
+ * starts a new undo history: earlier local edits belong to the replaced version.
  * @param {HTMLElement} parent
  * @param {{text?: string, filename?: string, original?: string | null, readOnly?: boolean,
  *   label?: string, description?: string, onChange?: (text: string) => void,
@@ -130,7 +131,8 @@ export function createEditor(
 ) {
   const editable = new Compartment(),
     language = new Compartment(),
-    hint = new Compartment();
+    hint = new Compartment(),
+    undoHistory = new Compartment();
   let shownHint = "";
   let readonly = readOnly,
     markdown = isMarkdown(filename),
@@ -148,7 +150,7 @@ export function createEditor(
     EditorState.create({
       doc: value,
       extensions: [
-        history(),
+        undoHistory.of(history()),
         drawSelection(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         language.of(markdown ? new LanguageSupport(markdownLanguage) : []),
@@ -252,8 +254,10 @@ export function createEditor(
             to: change.toA,
             insert: value.slice(change.fromB, change.toB),
           })),
+          effects: undoHistory.reconfigure([]),
           annotations: Transaction.addToHistory.of(false),
         });
+        dispatch({ effects: undoHistory.reconfigure(history()) });
       } finally {
         replacing = false;
       }

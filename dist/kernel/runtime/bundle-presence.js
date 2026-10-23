@@ -13,7 +13,8 @@ import {
   shadowRootsIn,
   shownRect,
   skipped,
-  userScrollport
+  userScrollport,
+  watchArrivals
 } from "./bundle-page-paint.js";
 import {
   LENT_REACH_STOP,
@@ -245,6 +246,9 @@ var aimedTop = (box) => {
 var reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));
 
 // runtime/reach.js
+var SCROLL_SURFACE = ".scroll";
+var seenClasses = /* @__PURE__ */ new WeakMap();
+var watchingSurfaces = false;
 var overflows = (el) => !el.hasAttribute("hidden") && (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
 var holdsOwnStop = (el) => tabStops(el).length > 0;
 var mayScroll = /* @__PURE__ */ new Map();
@@ -280,7 +284,10 @@ var downwards = /* @__PURE__ */ new Map();
 var readingScrolled = (event) => paintReadingReach(event.currentTarget);
 var sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
 function reachReadingScroller(el, paintContinuation) {
+  el.classList.toggle("scroll", true);
   downwards.set(el, paintContinuation);
+  sweep(el);
+  paintReach();
   watchReach(el);
   el.addEventListener("scroll", readingScrolled, { passive: true });
   paintReadingReach(el);
@@ -324,48 +331,95 @@ var waiting = /* @__PURE__ */ new Set();
 function reachScrollers(root) {
   sweep(root);
   paintReach();
+  if (watchingSurfaces) return;
+  watchingSurfaces = true;
+  watchArrivals(SCROLL_SURFACE, ["class"], {
+    arriveBatch(surfaces) {
+      for (const el of surfaces) {
+        const classes = el.getAttribute("class");
+        if (seenClasses.get(el) === classes) continue;
+        seenClasses.set(el, classes);
+        reread(el);
+      }
+    },
+    leave: forgetSurface
+  });
 }
 var wait = (el) => {
   waiting.add(el);
   reachSizes.observe(el);
 };
 function sweep(root) {
-  if (root.nodeType === Node.ELEMENT_NODE && skipped(root)) return wait(root);
-  const trees = new Set(shadowRootsIn(root));
+  const scopes = [root];
+  for (const scope of scopes) scopes.push(...shadowRootsIn(scope));
+  const surfaces = scopes.flatMap((scope) => [
+    ...scope.nodeType === Node.ELEMENT_NODE && scope.matches(SCROLL_SURFACE) ? [scope] : [],
+    ...scope.querySelectorAll(SCROLL_SURFACE)
+  ]);
   const read = [];
-  const walk = (scope) => {
-    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT, (el2) => {
-      if (!skipped(el2)) return NodeFilter.FILTER_ACCEPT;
-      wait(el2);
-      return NodeFilter.FILTER_REJECT;
-    });
-    let el = scope.nodeType === Node.ELEMENT_NODE ? scope : walker.nextNode();
-    for (; el; el = walker.nextNode()) {
-      const style = getComputedStyle(el);
-      const { overflowX, overflowY, position, containerType } = style;
-      const top = position === "sticky" ? style.top : "auto";
-      read.push([el, { overflowX, overflowY, position, top, containerType }]);
-      if (trees.has(el.shadowRoot)) walk(el.shadowRoot);
+  const containers = /* @__PURE__ */ new Set();
+  for (const el of surfaces) {
+    seenClasses.set(el, el.getAttribute("class"));
+    if (skipped(el)) {
+      wait(el);
+      continue;
     }
-  };
-  walk(root);
+    const style = getComputedStyle(el);
+    read.push([
+      el,
+      {
+        overflowX: style.overflowX,
+        overflowY: style.overflowY,
+        position: style.position
+      }
+    ]);
+    for (let node = el; node?.nodeType === Node.ELEMENT_NODE; node = upFrom(node)) {
+      if (containers.has(node)) break;
+      containers.add(node);
+    }
+  }
+  const queriesRead = [...containers].map((el) => [
+    el,
+    { containerType: getComputedStyle(el).containerType }
+  ]);
+  for (const [el, style] of queriesRead) noteQueries(el, style);
   for (const [el, style] of read) {
     const waited = waiting.delete(el);
     classify(el, style);
     if (waited) release(el);
   }
+  asked.add(root);
+}
+function forgetSurface(el) {
+  seenClasses.delete(el);
+  if (mayScroll.has(el)) {
+    const authored = mayScroll.get(el);
+    mayScroll.delete(el);
+    if (!claimedStops.has(el)) returnStop(el, authored);
+  }
+  if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+  waiting.delete(el);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, null);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.moreBefore, null);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.moreAfter, null);
+  if (!watched(el)) unwatchReach(el);
 }
 function paintSlot(el, style) {
   const sticks = style.position === "sticky";
   const scrolls2 = scrollsBy(style) && !sticks && !el.matches(TEXT_BOX);
   const across = userScrollport(style.overflowX) && !userScrollport(style.overflowY);
   keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, scrolls2 ? across ? "across" : "" : null);
-  el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.sticks, sticks && style.top !== "auto");
 }
 function classify(el, style) {
   asked.add(el);
-  noteQueries(el, style);
   paintSlot(el, style);
+  if (!userScrollport(style.overflowX) && sideways.delete(el)) {
+    el.removeEventListener("scroll", sidewaysScrolled);
+    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
+    keeps(el, PAGE_PAINT_ATTRIBUTE.moreBefore, null);
+    keeps(el, PAGE_PAINT_ATTRIBUTE.moreAfter, null);
+  }
   if (el.hasAttribute("hidden") || !userScrollport(style.overflowX) && !userScrollport(style.overflowY)) {
     if (!mayScroll.has(el)) return;
     const authored = mayScroll.get(el);
@@ -374,8 +428,6 @@ function classify(el, style) {
     if (!watched(el)) unwatchReach(el);
     return;
   }
-  if (style.position === "static" && !el.matches(TEXT_BOX) && !el.hasAttribute(PAGE_PAINT_ATTRIBUTE.holds))
-    el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
   if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX) && !sideways.has(el)) {
     sideways.add(el);
     watchReach(el);
@@ -474,64 +526,30 @@ function paintReachNow() {
   for (const el of sideways) paintSidewaysReach(el);
   for (const el of downwards.keys()) paintReadingReach(el);
 }
-var STILL_MS = 100;
-var PLAYING_MS = 1e3;
-var rereads = /* @__PURE__ */ new Map();
-var lastTick = -Infinity;
-var tickFrame = 0;
-var tickTimer = 0;
-function reread(root, byContainer) {
-  const now = performance.now();
-  const asked2 = rereads.get(root) ?? { at: null, moved: null, movingSince: null };
-  if (!byContainer) asked2.at = now;
-  else {
-    if (asked2.moved === null || now - asked2.moved >= STILL_MS) asked2.movingSince = now;
-    asked2.moved = now;
-  }
-  rereads.set(root, asked2);
-  waitToReread();
-}
-var playing = (asked2) => asked2.moved - asked2.movingSince > PLAYING_MS;
-var counts = (asked2) => asked2.at !== null || asked2.moved !== null && !playing(asked2);
-function waitToReread() {
-  const pending = [...rereads.values()];
-  if (pending.some(counts)) tickFrame ||= nextFrame(rereadFrame);
-  else if (pending.length) tickTimer ||= setTimeout(rereadTimer, STILL_MS);
-}
-function rereadFrame() {
-  tickFrame = 0;
-  const since = lastTick;
-  lastTick = performance.now();
-  rereadDue(lastTick, since);
-}
-function rereadTimer() {
-  tickTimer = 0;
-  rereadDue(performance.now(), -Infinity);
-}
-function rereadDue(now, since) {
-  const roots = [];
-  for (const [root, asked2] of rereads) {
-    let due = false;
-    if (asked2.at !== null && asked2.at < since) {
-      asked2.at = null;
-      due = true;
+var rereads = /* @__PURE__ */ new Set();
+var rereadQueued = false;
+function reread(root) {
+  rereads.add(root);
+  if (rereadQueued) return;
+  rereadQueued = true;
+  nextRender(() => {
+    rereadQueued = false;
+    const roots = [...rereads];
+    rereads.clear();
+    const due = new Set(roots);
+    for (const root2 of roots) {
+      if (!root2.isConnected) continue;
+      let covered = false;
+      for (let ancestor = upFrom(root2); ancestor; ancestor = upFrom(ancestor))
+        if (due.has(ancestor)) {
+          covered = true;
+          break;
+        }
+      if (covered) continue;
+      sweep(root2);
     }
-    const still = playing(asked2) ? now - asked2.moved >= STILL_MS : asked2.moved < since;
-    if (asked2.moved !== null && still) {
-      asked2.moved = null;
-      due = true;
-    }
-    if (due) roots.push(root);
-    if (asked2.at === null && asked2.moved === null) rereads.delete(root);
-  }
-  const outermost = roots.filter((el) => {
-    for (let node = upFrom(el); node; node = upFrom(node))
-      if (roots.includes(node)) return false;
-    return !unpainted(el);
+    paintReach();
   });
-  for (const root of outermost) sweep(root);
-  if (outermost.length) paintReach();
-  waitToReread();
 }
 var queried = /* @__PURE__ */ new Map();
 var unobserved = /* @__PURE__ */ new Set();
@@ -558,7 +576,7 @@ var queries = sizeObserver(
       if (!query || gone(target)) continue;
       const [{ inlineSize, blockSize }] = contentBoxSize;
       const size = query.both ? `${inlineSize} ${blockSize}` : `${inlineSize}`;
-      if (query.size !== null && query.size !== size) reread(target, true);
+      if (query.size !== null && query.size !== size) reread(target);
       query.size = size;
     }
   },

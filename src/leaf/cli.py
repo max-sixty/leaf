@@ -1161,6 +1161,14 @@ def wait(dir: str | None, ack: str | None) -> int:
     return cmd_wait(resolve_dir(dir, renew=False) if dir else None, ack=ack)
 
 
+def _obligation_option(command):
+    return click.option(
+        "--obligation",
+        is_flag=True,
+        help="put this message on On me until the user replies or settles it",
+    )(command)
+
+
 def _title_option(command):
     return click.option(
         "--title",
@@ -1181,6 +1189,7 @@ def _title_option(command):
 @body_options("the comment's text")
 @click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
+@_obligation_option
 def thread_open(
     dir: str,
     quote: str,
@@ -1190,13 +1199,14 @@ def thread_open(
     body_file,
     markup: str,
     title: str | None,
+    obligation: bool,
 ) -> dict:
     """Open a thread as the agent: anchored where --quote or
     --section points at a passage, general where neither does — a question about
     the work as a whole.
 
-    The user answers it in the browser; a question in an `<lf-ask>` in --markup
-    waits on them until they do. Refuses a quote the active revision does not
+    Use --obligation when the next move is the user's: the message waits on
+    On me until their reply or settling reaction. Refuses a quote the active revision does not
     hold, or holds more than once. The comment's id is the thread's.
     """
     from leaf.thread import cmd_comment
@@ -1209,6 +1219,7 @@ def thread_open(
         read_body(text, body_file),
         markup,
         title=title,
+        obligation=obligation,
     )
 
 
@@ -1237,6 +1248,7 @@ def _reply_options(command):
             "--ephemeral", is_flag=True, help="one-line progress, without answering"
         ),
         _title_option,
+        _obligation_option,
     ):
         command = option(command)
     return command
@@ -1271,8 +1283,8 @@ def response_reply(
 
     Mark every answer with --done (it delivers what the message asked for) or
     --todo TITLE (it promises work it doesn't deliver, which stays on you as a
-    to-do), or ask the user something back with an `<lf-ask>` in its --markup,
-    which waits on them until their next message in the thread. A progress line
+    to-do), or --obligation when the next move is the user's. A widget in
+    --markup can also register its own obligation. A progress line
     (--ephemeral) or a failure (--failure) takes none of them.
 
     The reply can also set frozen HTML, the thread's title and a new anchor. It
@@ -1292,6 +1304,7 @@ def response_reply(
         for flag, given in (
             ("--done", done),
             ("--todo", options["todo"] is not None),
+            ("--obligation", options["obligation"]),
         )
         if given
     ]
@@ -1306,8 +1319,8 @@ def response_reply(
     if not declared and answers and not options["markup"]:
         raise click.UsageError(
             "say what the answer leaves: --done when it delivers what was asked, "
-            "--todo TITLE when it promises work it doesn't deliver, or a question "
-            "for the user as an <lf-ask> in --markup"
+            "--todo TITLE when it promises work it doesn't deliver, or --obligation "
+            "when it needs the user's next move (a widget in --markup may also ask)"
         )
     options["asks_back"] = not declared and answers
     if attempt is not None:
@@ -1408,12 +1421,12 @@ def task() -> None:
 def task_open(dir: str, subject: str, title: str, owner: str) -> dict:
     """Open a to-do titled TITLE on SUBJECT and print it; its `id` names it later.
 
-    SUBJECT is an element's id, such as a section's, or `page` for the whole page.
+    SUBJECT is a thread id, an element's id, or `page` for the whole page.
     Your own to-do on a widget needs a widget that declares x-work or holds an
     unsettled update. With `--on user` the to-do is the user's: their Done ends it,
-    and you can end it too. In a thread, open a to-do with `leaf response reply
-    --todo`, and ask the user something with an `<lf-ask>` in the reply's
-    `--markup`."""
+    and you can end it too. A thread attachment provides discussion context;
+    replying does not complete the task. For a conversational request instead,
+    send the message with --obligation."""
     from leaf.todos import cmd_open
 
     return cmd_open(resolve_dir(dir), subject, title, owner)

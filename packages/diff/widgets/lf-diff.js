@@ -550,7 +550,9 @@ function operationWord(record) {
 function evidenceWords(record) {
   const words = [];
   if (record.binary) words.push("binary content");
-  if (record.oldMode !== record.newMode) {
+  // Added/deleted ordinary files need no mode label; retain every actual mode
+  // change and the type or executable bit of a file with only one side.
+  if ((record.oldMode ?? "100644") !== (record.newMode ?? "100644")) {
     words.push(
       record.oldMode && record.newMode
         ? `mode ${record.oldMode} → ${record.newMode}`
@@ -676,7 +678,7 @@ async function renderFile(file, overflow) {
   pre.dataset.overflow = overflow;
   const viewport = document.createElement("code");
   viewport.dataset.code = "";
-  viewport.className = "lf-text-scroller";
+  viewport.className = "lf-text-scroller scroll";
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
   const rows = document.createElement("div");
@@ -1532,7 +1534,7 @@ customElements.define(
       const all = `${total} file${total === 1 ? "" : "s"}`;
       const matching = `${shown.length} of ${total}`;
       // Filtering changes the count inside its room, never its containing field.
-      keeps(this.diffTools.progress, "data-lf-room", `${all}\n${total} of ${total}`);
+      keeps(this.diffTools.progress, "data-room", `${all}\n${total} of ${total}`);
       keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
       paintKeys();

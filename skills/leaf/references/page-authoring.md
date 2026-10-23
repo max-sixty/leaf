@@ -237,6 +237,12 @@ the language's usual indentation and line breaks rather than packing several sta
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.
 
+For a custom horizontal scroll area, set `overflow-x: auto` and add
+`class="scroll"` to that same box. Leaf contains its positioned descendants and
+adds keyboard access and continuation cues when content exceeds the box. Its CSS may
+change overflow at a breakpoint; Leaf measures the declared surface, never all of its
+descendants. Use a bounded reading region for independently scrolling vertical content.
+
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
 to it, so none needs a width. It scrolls them sideways only: one given just a
 `max-height` clips what runs past it, so add `overflow-y: auto` to let it scroll down

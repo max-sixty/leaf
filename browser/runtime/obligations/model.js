@@ -13,7 +13,7 @@ export const readObligations = readPart((root) => root.effective.obligations);
 
 export const obligationEntry = (obligation) =>
   registry[obligation?.source.tag]?.["x-awaits"];
-// Whether the user's words answer this obligation (`x-awaits.reply`), as they do an `lf-ask`
-// holding no widget: in its thread, it reads and is answered as a message.
+// Explicit message obligations and widgets declaring `x-awaits.reply` are answered
+// in words: in their thread, they read and are answered as messages.
 export const answeredInWords = (obligation) =>
-  Boolean(obligationEntry(obligation)?.reply);
+  obligation?.source.kind === "message" || Boolean(obligationEntry(obligation)?.reply);

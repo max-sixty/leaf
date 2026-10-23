@@ -24,9 +24,10 @@
 // than the comment field it replaced. Three readings keep a firing to an occupant
 // sizing its place:
 //
-// - the row's height changes the way its tallest occupant's does: a row that grows as a
-//   shorter occupant arrives grew for another reason, such as a field beside it taking
-//   a line;
+// - the row's height changes the way its tallest occupant's does, and that occupant
+//   is the row's tallest child on its side of the swap: a row that grows as a shorter
+//   occupant arrives, or as a field beside the arrival takes a line, grew for another
+//   reason;
 // - the change reaches the box that holds the row: a row inside a line that keeps its
 //   height, as a crumb inside a taller controls row, shows the reader nothing;
 // - the taller occupant is no taller for its content, which the rule lets grow a
@@ -80,6 +81,12 @@
       at = up(at);
     return at instanceof Element ? at : null;
   };
+  // The children a place lays out, through any `display: contents` child.
+  function* seatedIn(place) {
+    for (const child of place.children)
+      if (getComputedStyle(child).display === "contents") yield* seatedIn(child);
+      else yield child;
+  }
   function* elementsOf(node) {
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     yield node;
@@ -187,11 +194,17 @@
     if (Math.abs(grew) < 1) return false;
     const [arriving, leaving] = [tallest(came), tallest(left)];
     if ((arriving.size.height - leaving.size.height) * grew <= 0) return false;
+    // The children that stood through the swap, at their size on the taller side.
+    const swapped = new Set([...left, ...came].map(({ child }) => child));
+    const stood = [...seatedIn(place)]
+      .filter((child) => !swapped.has(child))
+      .map((child) => (grew > 0 ? read(child) : sizes.get(child))?.height ?? 0);
+    const taller = grew > 0 ? arriving : leaving;
+    if (stood.some((height) => height >= taller.size.height - 0.5)) return false;
     const container = holder(up(place));
     const was = container && sizes.get(container);
     const is = container && read(container);
     if (!was || !is || Math.abs(is.height - was.height) < 1) return false;
-    const taller = grew > 0 ? arriving : leaving;
     return (
       !holdsWords(taller.child) &&
       Math.abs(taller.size.height - appeared.get(taller.child)) < 1

@@ -121,6 +121,27 @@ def test_a_swap_its_own_press_undoes_before_a_frame_passes(browser):
     judge_watches()
 
 
+def test_a_row_a_neighbour_grows_as_its_seat_changes_hands_passes(browser):
+    """A field beside the swap that takes more lines in the same press sizes the row,
+    not the occupant that arrived."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><div id="row" style="display:flex;width:300px">'
+            '<textarea id="field" style="height:24px"></textarea>'
+            '<button id="short" style="height:24px">Short</button>'
+            '<button id="tall" style="height:40px" hidden>Tall</button></div>'
+            "<button id=swap>Swap</button><script>"
+            "swap.addEventListener('click', () => {"
+            " field.style.height = '60px'; short.hidden = true; tall.hidden = false; });"
+            "</script>"
+        )
+    )
+    page.locator("#swap").click()
+    judge_watches()
+
+
 def test_a_row_reordered_as_it_loses_its_tallest_passes(browser):
     """A row that loses an item while a keyed renderer moves another within it changed
     its content; the moved item took no one's seat."""

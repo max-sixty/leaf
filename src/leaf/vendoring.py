@@ -116,7 +116,7 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     `leaf page init` the refusal names. That re-vendor keeps the page's log, and so
     its threads and decisions, and its source, so it asks nothing of the agent's
     judgment, and the first Leaf to act for the page's session makes it instead: a
-    write command naming the page (`cli.resolve_dir`) or a prompt or Stop hook
+    write command naming the page (`cli.page_argument`) or a prompt or Stop hook
     (`hook_transport.read_plans`). Only the session holding the page renews it, or
     any caller while no live session does: another session may still run the Leaf
     that vendored the page, which a re-vendor would lock out of it, and its own

@@ -29,6 +29,7 @@ from render_harness import (
     panel_field,
     panel_menu,
     panel_settled,
+    panel_view,
     refuse,
     reported_browser_errors,
     selection_field,
@@ -364,7 +365,7 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the Markdown renderer"
 
-    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
     expect(rows).to_have_count(0)

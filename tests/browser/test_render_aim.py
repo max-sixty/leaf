@@ -70,6 +70,7 @@ from render_harness import (
     open_page,
     pane_scroll_behavior,
     panel_settled,
+    panel_view,
     regions_side_by_side,
     resized,
     round_trip,
@@ -2384,7 +2385,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(page.locator(".lf-inspect")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel = page.locator('.lf-fp-view[data-view="threads"]')
+    panel = page.locator(panel_view("threads"))
     panel_settled(page, view="threads")
     expect(panel).to_be_visible()
     panel.hover()

@@ -104,6 +104,29 @@ def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, ser
         "forced-wrap": False,
         "forced-scroll": True,
     }, modes
+    for medium in ("screen", "print"):
+        page.emulate_media(media=medium)
+        alignment = page.locator("#prose .lf-diff-line-comment").evaluate_all(
+            """buttons => buttons.map(button => {
+              const source = button.nextElementSibling;
+              const range = document.createRange();
+              range.selectNodeContents(button);
+              const number = range.getBoundingClientRect();
+              range.selectNodeContents(source);
+              const text = range.getBoundingClientRect();
+              const row = button.parentElement.getBoundingClientRect();
+              const marker = getComputedStyle(source, '::before');
+              return {top: Math.abs(number.top - text.top),
+                gap: row.left + parseFloat(marker.left) - number.right,
+                hit: button.getBoundingClientRect().height, height: row.height};
+            })"""
+        )
+        assert max(row["height"] for row in alignment) > 38, alignment
+        assert all(
+            row["top"] < 1 and row["gap"] >= 2 and row["hit"] == row["height"]
+            for row in alignment
+        ), (medium, alignment)
+    page.emulate_media(media="screen")
     prose_line = page.locator('lf-diff#prose [data-lf-datum=\'["README.md","new",1]\']')
     prose_line.hover()
     page.locator("lf-diff#prose .lf-diff-line-comment").last.click()
@@ -419,7 +442,7 @@ def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(browser, serve):
     """A change in another hunk does not take the passage the reader selected, in a
     raw patch and in a manifest: a change in place, one that inserts a line, and a hunk
     added before the kept lines, which moves them down the listing while each keeps its
-    own gutter row."""
+    own numbered control."""
     url = two_diff_page(serve)
     for _, source, value in DIFF_FORMS:
         data_model.cmd_data_set(serve.page_dir, source, value(MULTI_HUNK_PATCH))
@@ -474,25 +497,23 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
       const widget = document.querySelector(diff);
       const entry = widget.fileEntries[0];
       return entry.lines.map(line => {
-        const gutterRow = line.node.closest('pre').querySelector(
-          `[data-gutter] > [data-line-index="${line.node.dataset.lineIndex}"]`);
+        const row = line.node.parentElement;
+        const comment = row.querySelector('.lf-diff-line-comment');
         const number = String(line.side === 'old' ? line.oldLine : line.newLine);
         return {
           datum: line.node.dataset.lfDatum,
-          commentInPairedGutter: line.comment.isConnected && line.comment.parentElement === gutterRow,
-          column: gutterRow.dataset.columnNumber,
-          label: gutterRow.querySelector('[data-line-number-content]').textContent,
+          commentInRow: comment.isConnected && comment.nextElementSibling === line.node,
+          label: comment.textContent,
           expected: number,
-          lineTypeMatches: gutterRow.dataset.lineType === line.node.dataset.lineType,
-          commentCount: gutterRow.querySelectorAll('.lf-diff-line-comment').length,
+          lineTypeMatches: row.dataset.lineType === line.node.dataset.lineType,
+          commentCount: row.querySelectorAll('.lf-diff-line-comment').length,
         };
       });
     }""",
         diff,
     )
     assert all(
-        gutter["commentInPairedGutter"]
-        and gutter["column"] == gutter["expected"]
+        gutter["commentInRow"]
         and gutter["label"] == gutter["expected"]
         and gutter["lineTypeMatches"]
         and gutter["commentCount"] == 1
@@ -897,6 +918,18 @@ def test_print_wraps_diff_lines_and_keeps_file_headers_in_place(browser, serve):
     page.emulate_media(media="print")
     printed = page.evaluate(DIFF_CLIPPING)
     on_paper = page.evaluate(DIFF_ROW_PLACEMENT)
+    numbers = page.locator("lf-diff .lf-diff-line-comment").evaluate_all(
+        """buttons => buttons.map(button => ({
+          number: button.textContent,
+          visible: button.checkVisibility(),
+          plus: getComputedStyle(button, '::before').display,
+        }))"""
+    )
+    assert len(numbers) == printed["rows"]
+    assert all(
+        number["visible"] and number["number"].isdigit() and number["plus"] == "none"
+        for number in numbers
+    ), numbers
     page.emulate_media(media="screen")
     assert printed["rows"] == cut["rows"], (printed, cut)
     assert printed["cut"] == 0, f"paper clipped a diff line: {printed}"

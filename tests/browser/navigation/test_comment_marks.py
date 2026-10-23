@@ -1,15 +1,18 @@
 """Comment marks painted on the page, the cues that tie them to their thread cards, and
 the notes that tell a screen reader of them."""
 
+import io
 import re
 
 import pytest
 from interact_support import append_carried_log_record
+from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
 from render_cases_layout import page_at_rest
 from render_cases_navigation import (
     COMMENTED_LIST_PAGE,
+    DIFF_PAGE,
     NOTED_PAGE,
     composer_quote,
     current_location_mark,
@@ -83,6 +86,57 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine):
         }"""
     )
     assert fills["end"] == fills["rest"], fills
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
+    request, serve, engine
+):
+    """Native ranges paint nested syntax with the widget's local palette.
+
+    Root-only highlight selectors lose this paint in Firefox, which accepts
+    the rules but does not inherit highlight styles into descendants.
+    """
+    page = open_page(request.getfixturevalue(engine), serve(DIFF_PAGE))
+    widget = page.locator("#patch")
+    row = widget.locator("[data-line]").first
+    expect(row.locator("span").first).to_be_visible()
+    row.scroll_into_view_if_needed()
+    widget.evaluate("""host => {
+      host.style.setProperty('--mark', 'light-dark(rgb(250, 160, 180), rgb(90, 50, 120))');
+      host.style.setProperty('--mark-ink', 'light-dark(rgb(120, 0, 40), rgb(250, 200, 230))');
+    }""")
+    backgrounds = []
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        paint = row.evaluate("""row => {
+          const names = ['lf-mark', 'lf-mark-hover', 'lf-mark-here',
+            'lf-pending', 'lf-react', 'lf-version-insert'];
+          const token = row.querySelector('span');
+          const read = (node, name) => {
+            const style = getComputedStyle(node, `::highlight(${name})`);
+            return {background: style.backgroundColor, decoration: style.textDecoration};
+          };
+          return Object.fromEntries(names.map(name => [name, read(token, name)]));
+        }""")
+        for name, style in paint.items():
+            assert style["background"] != "rgba(0, 0, 0, 0)", (scheme, name, style)
+            if name != "lf-version-insert":
+                assert "underline" in style["decoration"], (scheme, name, style)
+        backgrounds.append(paint["lf-mark"]["background"])
+        page.evaluate("CSS.highlights.delete('lf-mark')")
+        quiet = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
+        row.evaluate("""row => {
+          const range = new Range();
+          range.selectNodeContents(row);
+          CSS.highlights.set('lf-mark', new Highlight(range));
+        }""")
+        marked = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
+        assert ImageChops.difference(quiet, marked).getbbox(), (
+            f"{engine} painted no highlight over nested syntax in {scheme}"
+        )
+        page.evaluate("CSS.highlights.delete('lf-mark')")
+    assert backgrounds == ["rgb(250, 160, 180)", "rgb(90, 50, 120)"]
 
 
 def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
@@ -470,18 +524,9 @@ def test_the_mark_ramp_ranks_posted_pointed_and_current_location(browser, serve)
     # from its neighbour. The floor is 4, against a just noticeable difference near 2.3
     # and the palette's own 6.4 and 6.5 in light, 7.4 and 7.2 in dark.
     ramp = page.evaluate("""() => {
-        // The marks' rules are adopted, not linked (runtime/marks.css).
-        const rules = [...document.styleSheets, ...document.adoptedStyleSheets].flatMap(s => {
-            try { return [...s.cssRules] } catch { return [] }
-        });
-        const probe = document.createElement('div');
-        document.body.append(probe);
-        const declared = (name) => {
-            const r = rules.find(r => (r.selectorText ?? '') === `::highlight(${name})`);
-            if (!r?.style?.backgroundColor) return null;
-            probe.style.backgroundColor = r.style.backgroundColor;
-            return getComputedStyle(probe).backgroundColor;
-        };
+        const declared = (name) =>
+            getComputedStyle(document.getElementById('p'), `::highlight(${name})`)
+                .backgroundColor;
         const paper = getComputedStyle(document.body).backgroundColor;
         const canvas = document.createElement('canvas');
         canvas.width = canvas.height = 1;
@@ -507,11 +552,8 @@ def test_the_mark_ramp_ranks_posted_pointed_and_current_location(browser, serve)
         const steps = {};
         for (const [step, name] of [['posted', 'lf-mark'], ['pointed', 'lf-mark-hover'],
                                     ['currentLocation', 'lf-mark-here']]) {
-            const css = declared(name);
-            steps[step] = css === null ? null : over(css);
+            steps[step] = over(declared(name));
         }
-        probe.remove();
-        if (Object.values(steps).some(v => v === null)) return {missing: steps};
         return {
             fromGround: Object.fromEntries(
                 Object.entries(steps).map(([k, v]) => [k, +de(v, ground).toFixed(2)])),
@@ -521,9 +563,6 @@ def test_the_mark_ramp_ranks_posted_pointed_and_current_location(browser, serve)
             },
         };
     }""")
-    assert "missing" not in ramp, (
-        f"a step of the mark ramp has no wash rule at all: {ramp['missing']}"
-    )
     order = ramp["fromGround"]
     assert order["posted"] < order["pointed"] < order["currentLocation"], (
         "the three things a mark can be are not three steps away from the page's own"

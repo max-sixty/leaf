@@ -399,7 +399,7 @@ def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, ser
           const fold = [...document.getElementById('patch').shadowRoot
             .querySelectorAll('.lf-diff-fold')].find(node => node.checkVisibility());
           const summary = fold?.querySelector('summary');
-          const firstLine = fold?.querySelector('[data-content] > [data-line]');
+          const firstLine = fold?.querySelector('.lf-diff-line > [data-line]');
           if (!summary || !firstLine?.textContent.includes('old line 0')) return false;
           const top = summary.getBoundingClientRect().top;
           const edge = body.getBoundingClientRect().top + body.clientTop;

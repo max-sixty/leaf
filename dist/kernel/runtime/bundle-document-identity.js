@@ -906,6 +906,12 @@ sheet.replaceSync(`
      word under the action. */
   .cm-line.lf-field-last::after { content: ""; display: inline-block;
     inline-size: var(--lf-field-end-room); }
+  /* In a narrow field, the spacer can wrap by itself after the last word and leave
+     that word under Send. Keep both together where the field asks for it. */
+  :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after {
+    content: "\\00a0"; display: inline; inline-size: auto;
+    padding-inline-end: var(--lf-field-end-room); white-space: nowrap;
+  }
   /* The placeholder is a single line, so it stands where a last line would. */
   .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
   /* The action stands beside more than the last line under a finger, whose hit box is

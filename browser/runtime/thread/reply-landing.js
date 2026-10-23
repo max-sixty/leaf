@@ -121,10 +121,7 @@ export function showReturnTurn(transcript, unread = null) {
   // Keep its trailing reference and metadata there; align to the head only when
   // scrolling to the end would hide that head altogether.
   const headHeight = turn.firstElementChild?.getBoundingClientRect().height ?? 0;
-  // PROTOTYPE (unread divider): honour the turn's scroll margin, the room its "New"
-  // line stands in above it.
-  const margin = parseFloat(getComputedStyle(turn).scrollMarginBlockStart) || 0;
-  if (over > headHeight) moveScrollerBy(transcript, -(over + margin));
+  if (over > headHeight) moveScrollerBy(transcript, -over);
 }
 
 function landThread(held, control, behavior, block) {

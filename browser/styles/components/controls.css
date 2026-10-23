@@ -513,8 +513,9 @@ svg[data-lf-icon] {
 }
 
 /* A label whose words change holds one room for all of them, so a count or a result
- * changing moves nothing beside it. `data-lf-room` lists the words the label shows,
- * one per line, on an element whose one child holds the words. Its ::before lays the
+ * changing moves nothing beside it. `data-room` lists representative strings
+ * that set its width, one per line, on an element whose one child holds the words. Authored markup and
+ * generated controls use the same declaration, including before startup. Its ::before lays the
  * room out as an invisible block of no height, so the element is as wide as the
  * widest line in its own face, with no script. The words take no part in that width:
  * they fill the room and are cut past it with an ellipsis, so the control never widens
@@ -524,19 +525,19 @@ svg[data-lf-icon] {
  * text and accessible name; generated content is in neither. The room wraps at its
  * spaces, so it never holds the element wider than its container. The words' line is
  * the element's baseline. The element's own rules outrank this one. */
-:where([data-lf-room]) {
+:where([data-room]) {
   display: inline-block;
   max-inline-size: 100%;
 }
-[data-lf-room]::before {
-  content: attr(data-lf-room);
+[data-room]::before {
+  content: attr(data-room);
   display: block;
   block-size: 0;
   overflow: hidden;
   visibility: hidden;
   white-space: pre-line;
 }
-[data-lf-room] > * {
+[data-room] > * {
   display: block;
   inline-size: 0;
   min-inline-size: 100%;

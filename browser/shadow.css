@@ -580,7 +580,7 @@ button.lf-thread-notice[data-lf-focus-visible] {
   overflow: clip;
   text-overflow: ellipsis;
 }
-.lf-thread-news[data-lf-room] > span > :first-child {
+.lf-thread-news[data-room] > span > :first-child {
   margin-inline-end: -1px;
 }
 .lf-thread-controls > .lf-thread-news,
@@ -649,17 +649,13 @@ button.lf-primary-news {
   color: var(--code-ink);
   font-variant-ligatures: none;
   contain: inline-size;
-  container-type: scroll-state;
 }
 :where(:root, .lf-thread-transcript) pre > code {
   background: none;
   padding: 0;
   font-size: 100%;
 }
-.lf-text-scroller {
-  container-type: scroll-state;
-}
-@container scroll-state(scrollable: inline) {
+@media screen {
   .lf-text-scroller::after,
   :where(:root, .lf-thread-transcript) :is(pre, table)::after {
     content: "";
@@ -691,7 +687,6 @@ button.lf-primary-news {
   overflow: auto hidden;
   --lf-table-edge: max(var(--focus-ring-room), var(--raise-1-blur));
   container-type: inline-size;
-  container-type: inline-size scroll-state;
   border-collapse: collapse;
   font: var(--t-5)/1.5 var(--sans);
   margin: 18px 0;
@@ -1226,19 +1221,19 @@ svg[data-lf-icon] {
   outline-offset: calc(-1 * var(--focus-ring-w));
   --lf-wears-ring: 1;
 }
-:where([data-lf-room]) {
+:where([data-room]) {
   display: inline-block;
   max-inline-size: 100%;
 }
-[data-lf-room]::before {
-  content: attr(data-lf-room);
+[data-room]::before {
+  content: attr(data-room);
   display: block;
   block-size: 0;
   overflow: hidden;
   visibility: hidden;
   white-space: pre-line;
 }
-[data-lf-room] > * {
+[data-room] > * {
   display: block;
   inline-size: 0;
   min-inline-size: 100%;

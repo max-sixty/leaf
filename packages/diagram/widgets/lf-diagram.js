@@ -14,6 +14,10 @@ import {
   widgetController,
 } from "/runtime/widget-api.js";
 
+// Room for a 15px overlay track plus the drawing's stroke. CSS lets a native
+// classic track consume this same padding, retaining 1px around the marks.
+const drawingPadding = 16;
+
 let rendererReady;
 const loadRenderer = () => (rendererReady ??= import("/vendor/pele.esm.js"));
 
@@ -60,16 +64,19 @@ customElements.define(
         ]);
         const style = getComputedStyle(this);
         const model = parse(source);
-        const { svg } = render(model, {
+        const { svg, height } = render(model, {
           idPrefix: renderId,
           fontFamily: style.getPropertyValue("--sans").trim(),
           fontFamilyMono: style.getPropertyValue("--mono").trim(),
           fontSize: 14,
+          padding: drawingPadding,
           responsive: false,
           links: false,
           images: false,
         });
         this.innerHTML = svg;
+        this.style.setProperty("--lf-diagram-height", `${height}px`);
+        this.style.setProperty("--lf-diagram-padding", `${drawingPadding}px`);
         const drawn = this.querySelector("svg");
         const parts = [...namedParts(model, drawn)];
         const visualParts = new Map();

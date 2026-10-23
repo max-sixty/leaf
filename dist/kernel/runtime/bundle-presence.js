@@ -247,7 +247,7 @@ var reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box)
 
 // runtime/reach.js
 var SCROLL_SURFACE = ".scroll";
-var seenClasses = /* @__PURE__ */ new WeakMap();
+var seenDeclarations = /* @__PURE__ */ new WeakMap();
 var watchingSurfaces = false;
 var overflows = (el) => !el.hasAttribute("hidden") && (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
 var holdsOwnStop = (el) => tabStops(el).length > 0;
@@ -333,12 +333,14 @@ function reachScrollers(root) {
   paintReach();
   if (watchingSurfaces) return;
   watchingSurfaces = true;
-  watchArrivals(SCROLL_SURFACE, ["class"], {
+  watchArrivals(SCROLL_SURFACE, ["class", "style"], {
     arriveBatch(surfaces) {
       for (const el of surfaces) {
         const classes = el.getAttribute("class");
-        if (seenClasses.get(el) === classes) continue;
-        seenClasses.set(el, classes);
+        const style = el.getAttribute("style");
+        const previous = seenDeclarations.get(el);
+        if (previous?.classes === classes && previous?.style === style) continue;
+        seenDeclarations.set(el, { classes, style });
         reread(el);
       }
     },
@@ -359,7 +361,10 @@ function sweep(root) {
   const read = [];
   const containers = /* @__PURE__ */ new Set();
   for (const el of surfaces) {
-    seenClasses.set(el, el.getAttribute("class"));
+    seenDeclarations.set(el, {
+      classes: el.getAttribute("class"),
+      style: el.getAttribute("style")
+    });
     if (skipped(el)) {
       wait(el);
       continue;
@@ -392,7 +397,7 @@ function sweep(root) {
   asked.add(root);
 }
 function forgetSurface(el) {
-  seenClasses.delete(el);
+  seenDeclarations.delete(el);
   if (mayScroll.has(el)) {
     const authored = mayScroll.get(el);
     mayScroll.delete(el);

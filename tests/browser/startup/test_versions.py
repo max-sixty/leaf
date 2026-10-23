@@ -26,6 +26,7 @@ from render_harness import (
     open_page,
     panel_menu,
     panel_settled,
+    panel_view,
     round_trip,
     told,
     undo,
@@ -51,9 +52,7 @@ def expect_resolved(page, thread_id, resolved=True):
         panel_settled(page, view="threads")
     page.locator(".lf-fp-filters button").filter(has_text="Resolved").click()
     expect(
-        page.locator(
-            f".lf-fp-view[data-view='threads'] .lf-fp-thread[data-key='{thread_id}']"
-        )
+        page.locator(f"{panel_view('threads')} .lf-fp-thread[data-key='{thread_id}']")
     ).to_have_count(1 if resolved else 0)
 
 

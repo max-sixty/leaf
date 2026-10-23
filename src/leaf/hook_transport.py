@@ -362,12 +362,16 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
             continue
 
 
+# The time every harness gives the prompt and Stop hooks: each registration's
+# `timeout` (`hooks/hooks.json`, `hooks/codex.json`) and Pi extension's bound
+# (`hooks/pi.ts`), which `test_hook_registration` holds to this.
+HOOK_TIMEOUT_S = 20
+
 # How long after it starts a hook may still hand a delivery over inline and wait
-# for the locks that record it. Every registration of the prompt and Stop hooks
-# allows 20 s (`hooks/hooks.json`, `hooks/pi.ts`), and the hook takes about 0.4 s.
-# The other half covers what this clock does not see: uv's start and the
+# for the locks that record it; the hook itself takes about 0.4 s. The other half
+# of its timeout covers what this clock does not see: uv's start and the
 # interpreter's imports before it, and the receipt's writes and exit after it.
-CONFIRM_WITHIN = 10.0
+CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
 
 
 # The words that open a delivery's context inline.

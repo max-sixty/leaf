@@ -701,10 +701,10 @@ class PiHarness(EnvironmentHarness):
     def process_runs(self) -> bool:
         return pid_alive(int(os.environ["LEAF_PI_PID"]))
 
-    def title_generator(self) -> Callable[[str, Path], dict]:
-        from leaf.thread_titles import pi_title
+    def inference_generator(self) -> Callable[..., dict]:
+        from leaf.inference import pi_generate
 
-        return pi_title
+        return pi_generate
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's Pi extension puts them in your context at your next turn."

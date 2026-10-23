@@ -251,7 +251,7 @@
 }
 .lf-vr-capture {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(12rem, 1fr) auto;
   min-inline-size: 0;
   min-block-size: 0;
   --lf-full-height: inherit;

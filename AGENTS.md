@@ -273,8 +273,9 @@ only when whoever changes that input calls its `present()`. Code that changes
 what the page shows should publish, then await `whenDocumentPresented()`, which resolves once
 every renderer the change moved has painted. It shouldn't call renderers or
 decide their order. Where one renderer depends on DOM another writes (the thread
-renderer needs the words the projection inserts into the page), the order is set
-once, in `PRESENTATION_ORDER`.
+renderer needs the words the projection inserts into the page), it declares that
+committed-DOM dependency through `PRESENTATION_DOM`. DOM completion is separate
+from asynchronous preparation, gesture holds and semantic presentation proof.
 
 A gesture's own result shows in the task that sends it, before the server
 answers ("Responsiveness"); a disabled control, spinner or delivery status is

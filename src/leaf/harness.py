@@ -272,14 +272,16 @@ class Harness:
         telling, or gone along with the session it served."""
         return False
 
-    def title_generator(self) -> Callable[[str, Path], dict] | None:
-        """How the page server names a thread a user opens on this session's page,
-        as the comment is admitted (`thread_titles`), or None where it cannot.
-
-        Only a harness whose model any process on the machine can ask has one. The
-        website's host names the thread instead, as the update opening it is
-        dispatched to it, since only it can reach the App Server it owns."""
+    def inference_generator(self) -> Callable[..., dict] | None:
+        """Tool-free structured inference using this harness's login, if supported."""
         return None
+
+    def title_generator(self) -> Callable[[str, Path], dict] | None:
+        """Name threads through this harness's structured inference, if supported."""
+        from leaf.thread_titles import title_generator
+
+        infer = self.inference_generator()
+        return title_generator(infer) if infer is not None else None
 
     def live_turn(self) -> dict | None:
         """What the harness itself says about this session right now, or None where it
@@ -440,10 +442,10 @@ class ClaudeCodeHarness(EnvironmentHarness):
             .isoformat(),
         }
 
-    def title_generator(self) -> Callable[[str, Path], dict]:
-        from leaf.thread_titles import claude_code_title
+    def inference_generator(self) -> Callable[..., dict]:
+        from leaf.inference import claude_code_generate
 
-        return claude_code_title
+        return claude_code_generate
 
     def nudge(self, page_dir: Path) -> bool:
         """The session's socket, or, for a background job no worker hosts, the job
@@ -481,12 +483,10 @@ class CodexHarness(EnvironmentHarness):
         """The nearest ancestor running the `codex` program (`lifetime`)."""
         return next((pid for pid, program in ancestry() if program == "codex"), None)
 
-    def title_generator(self) -> Callable[[str, Path], dict]:
-        """An App Server of the page server's own, whichever transport carries the
-        task's turns, so Codex is asked in one way: `codex queue` reaches no model."""
-        from leaf.thread_titles import codex_title
+    def inference_generator(self) -> Callable[..., dict]:
+        from leaf.inference import codex_generate
 
-        return codex_title
+        return codex_generate
 
     def ensure_delivery(self) -> None:
         with self.preparing_delivery():

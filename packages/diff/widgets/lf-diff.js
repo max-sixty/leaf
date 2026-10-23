@@ -334,7 +334,7 @@ function paintSummary(details, record, verified = true) {
   const previous = pathParts(details);
   render(
     html`${keyed(
-      JSON.stringify([path, verified && previousPath]),
+      JSON.stringify([path, verified && previousPath ? previousPath : null]),
       filePathTemplate(verified ? record : { path }),
     )}${
       verified

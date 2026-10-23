@@ -22,12 +22,14 @@
  * Images and their source-coordinate marks share one clipped plane. Cropping moves
  * that plane, including pixel masks, rather than having each renderer reinterpret
  * the focus rectangle. Pixel comparison runs after presentation, one pair per
- * frame. The expensive pixel masks and Web Awesome slider load only on selection.
- * The native image planes remain visible while either prepares. The divider's exact
- * position survives switching views. Replacing either capture refreshes evidence
- * inside the retained controls and viewports, preserving the reader's inspection.
+ * frame. Slider is the first view; its two native planes reserve and draw the same
+ * half-reveal while Web Awesome loads after presentation. Pixel masks load only on
+ * selection. The divider's exact position survives switching views. Replacing either
+ * capture refreshes evidence inside the retained controls and viewports, preserving
+ * the reader's inspection.
  * `difference` reads the requested pair; a superseded or refused load resolves null.
- * Original-image links use the shared viewer.
+ * Pair's images are original-image links using the shared viewer; dragging or
+ * scrolling them never opens the viewer. Image options holds scale and the pixel key.
  * Print shows both complete original images. */
 // A containing widget can create a pair absent from the authored document.
 import "/vendor/lf-shot-initial.js";
@@ -45,7 +47,6 @@ import {
   showNativeLayer,
   closeNativeLayer,
   isNativeLayer,
-  iconElement,
   initialRender,
   nextFrame,
   isCanonicalMediaUrl,
@@ -55,7 +56,6 @@ import {
   keepsText,
   paintKeys,
   plainPress,
-  relabel,
   scopedMediaUrl,
   widgetController,
   move,
@@ -88,7 +88,6 @@ customElements.define(
     #stage;
     #canvas;
     #toolbar;
-    #scaleReading;
     #scaleTrigger;
     #options;
     #outlinesButton;
@@ -104,7 +103,7 @@ customElements.define(
     #openers = new Map();
     #comparison;
     #position = 50;
-    #view = "compare";
+    #view = "flip";
     #outlines = false;
     #actual = false;
     #full = false;
@@ -153,7 +152,6 @@ customElements.define(
       this.#options = drawing.options;
       this.#fullInput = drawing.full.input;
       this.#fullLabel = drawing.full.label;
-      this.#scaleReading = drawing.scaleReading;
       this.#stage = drawing.stage;
       this.#canvas = drawing.canvas;
       this.#frames = drawing.frames;
@@ -172,7 +170,6 @@ customElements.define(
           closeNativeLayer(this.#options);
           focusDestination(this.#scaleTrigger, "move");
         });
-      drawing.scaleIcon.append(iconElement("down", "lf-action-icon"));
       this.#scaleTrigger.addEventListener("click", (event) => {
         event.preventDefault();
         if (isNativeLayer(this.#options)) closeNativeLayer(this.#options);
@@ -198,8 +195,7 @@ customElements.define(
         this.#fit();
         this.#paint();
       });
-      for (const [index, state] of ["before", "after"].entries()) {
-        const viewport = this.#viewports[index];
+      for (const [index, viewport] of this.#viewports.entries()) {
         viewport.addEventListener(
           "scroll",
           () => {
@@ -217,8 +213,6 @@ customElements.define(
           },
           { passive: true },
         );
-        const open = this.#openers.get(state);
-        open.prepend(iconElement("expand", "lf-action-icon"));
       }
       this.#paintAlt();
       this.#fit();
@@ -246,6 +240,7 @@ customElements.define(
         };
       });
       this.#loadImages();
+      this.#requestComparison();
     }
 
     #loadImages() {
@@ -310,14 +305,10 @@ customElements.define(
 
     #commitImages(capture, pixels = null) {
       const changed = this.#shots !== capture.images;
-      for (const [index, state] of ["before", "after"].entries()) {
-        const image = capture.images[index];
+      for (const [index, image] of capture.images.entries()) {
         if (this.#shots[index].src === image.src)
           capture.images[index] = this.#shots[index];
         else this.#shots[index].replaceWith(image);
-        const open = this.#openers.get(state);
-        keeps(open, "href", image.src);
-        keeps(open, "data-lf-media-url", image.src);
       }
       this.#shots = capture.images;
       this.#metadata = capture.metadata;
@@ -329,6 +320,7 @@ customElements.define(
       }
       this.#fit();
       this.#paintAlt();
+      this.#paint();
     }
 
     attributeChangedCallback(name, before, after) {
@@ -350,10 +342,8 @@ customElements.define(
         keeps(this.#shots[index], "alt", `${state}: ${alt}`);
         keeps(this.#viewports[index], "aria-label", `${labels[state]} — ${alt}`);
         const open = this.#openers.get(state);
-        keeps(open, "data-lf-media-alt", `${state}: ${alt}`);
         keeps(open, "data-lf-media-caption", `${state}: ${alt}`);
         keeps(open, "aria-label", `Open ${state} image — ${alt}`);
-        keeps(open, "title", `Open ${state} image`);
       }
       if (this.#pixelsView)
         keeps(this.#pixelsView, "aria-label", `changed pixels: ${alt}`);
@@ -366,7 +356,7 @@ customElements.define(
       // The mode sets the stage's overflow and classic-scrollbar gutter. Apply it
       // before measuring; fitting the previous mode would resize this observed
       // stage again during ResizeObserver delivery.
-      keeps(this, "data-lf-shot-mode", this.#shownView);
+      keeps(this, "data-lf-shot-mode", this.#view);
       const allocation = shotAllocation(this, this.#stage);
       if (allocation.available <= 0) return; // Hidden cases retain their last inspection until shown.
       const ratio = this.#metadata.pixelRatio ?? 1;
@@ -392,7 +382,7 @@ customElements.define(
         focus,
         full: this.#full,
         actual: this.#actual,
-        view: this.#shownView,
+        view: this.#view,
         gap: parseFloat(getComputedStyle(this).getPropertyValue("--lf-shot-gap")),
       });
       if (!geometry) return;
@@ -401,7 +391,6 @@ customElements.define(
       this.#fullInput.checked = this.#full;
       const fitDescription = `Fit · ${Math.round(geometry.fitScale * 100)}%`;
       keeps(this.#scaleButtons.get("fit"), "title", fitDescription);
-      keeps(this.#scaleTrigger, "title", this.#actual ? "100%" : fitDescription);
       keeps(
         this.#scaleButtons.get("actual"),
         "title",
@@ -515,12 +504,6 @@ customElements.define(
       );
     }
 
-    get #shownView() {
-      // Until the optional divider is mounted, keep the usable pair and its
-      // matching geometry. Requested view buttons still reflect the user's choice.
-      return this.#view === "flip" && !this.#comparison ? "compare" : this.#view;
-    }
-
     #paint() {
       if (!this.#toolbar) return;
       keeps(this, "data-lf-shot-outlines", this.#outlines);
@@ -529,7 +512,6 @@ customElements.define(
         keeps(button, "aria-pressed", view === this.#view);
       for (const [scale, button] of this.#scaleButtons)
         keeps(button, "aria-pressed", (scale === "actual") === this.#actual);
-      relabel(this.#scaleReading, this.#actual ? "100%" : "Fit", { says: false });
       keeps(this.#outlinesButton, "aria-pressed", this.#outlines);
       this.#outlinesButton.toggleAttribute(
         "disabled",
@@ -539,9 +521,16 @@ customElements.define(
       for (const [state, caption] of this.#captions)
         caption.toggleAttribute(
           "data-lf-shot-hidden",
-          this.#shownView === "flip" &&
+          this.#view === "flip" &&
             (state === "before" ? this.#position === 0 : this.#position === 100),
         );
+      for (const [index, state] of ["before", "after"].entries()) {
+        const open = this.#openers.get(state);
+        const pair = this.#view === "compare";
+        keeps(open, "href", pair ? this.#shots[index].src || null : null);
+        keeps(open, "tabindex", pair ? null : -1);
+        keeps(open, "title", pair ? `Open ${state} image` : null);
+      }
       this.#paintHandle();
       paintKeys();
     }

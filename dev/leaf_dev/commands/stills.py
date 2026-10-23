@@ -568,6 +568,14 @@ def screenshot_pixels(page: Page) -> None:
     screenshot_comparison(page)
     shot = page.locator("#bg-shot")
     shot.get_by_role("button", name="Pixels", exact=True).click()
+
+
+def screenshot_options(page: Page) -> None:
+    """Image options keep the pixel color key beside the scale choices."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.scroll_into_view_if_needed()
+    shot.locator(".lf-shot-scale").click()
     shot.scroll_into_view_if_needed()
 
 
@@ -1484,6 +1492,12 @@ STATES = (
         "screenshot-pixels",
         "developer/feature-gallery",
         screenshot_pixels,
+        region="#bg-shot",
+    ),
+    State(
+        "screenshot-options",
+        "developer/feature-gallery",
+        screenshot_options,
         region="#bg-shot",
     ),
     State(

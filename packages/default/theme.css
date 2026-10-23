@@ -48,19 +48,9 @@
   justify-self: end;
 }
 .lf-shot-scale {
-  inline-size: calc(4ch + 2 * var(--sp-2) + 16px);
   flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-1);
+  min-inline-size: var(--aim-floor);
   anchor-name: --lf-shot-options;
-}
-.lf-shot-scale-icon {
-  display: inline-flex;
-  inline-size: 16px;
-  block-size: 16px;
-  flex: none;
 }
 .lf-shotoptions {
   box-sizing: border-box;
@@ -92,9 +82,6 @@
 .lf-shot-scale-options {
   display: flex;
   gap: var(--sp-1);
-  padding-block-end: var(--sp-1);
-  margin-block-end: var(--sp-1);
-  border-block-end: 1px solid var(--rule);
 }
 .lf-shot-scale-options > button {
   flex: 1;
@@ -107,17 +94,40 @@
   display: none;
 }
 .lf-shot-open {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.lf-shot-open[href] {
+  cursor: zoom-in;
+}
+.lf-shot-open[data-lf-focus-visible] {
+  outline: none;
+}
+.lf-shotframe:has(.lf-shot-open[data-lf-focus-visible]) {
+  --lf-wears-ring: 1;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+}
+.lf-shot-pixel-key {
+  border-block-start: 1px solid var(--rule);
+  margin-block-start: var(--sp-2);
+  padding-block-start: var(--sp-2);
+}
+.lf-shot-key-label {
+  color: var(--muted);
+  margin-block-end: var(--sp-1);
+}
+.lf-shot-key-item {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  min-block-size: var(--aim-floor);
-  padding: var(--sp-1) var(--sp-2);
-  color: var(--ink-2);
-  font: inherit;
 }
-.lf-shot-open:hover {
-  background: var(--chip);
-  color: var(--ink);
+.lf-shot-key-swatch {
+  inline-size: 0.75em;
+  block-size: 0.75em;
+  flex: none;
+  border-radius: 2px;
 }
 @container lf-shot (max-width: 540px) {
   .lf-shot-toolbar {
@@ -262,8 +272,9 @@
 :scope:is(lf-shot):not([data-lf-shot-mode=compare]) .lf-shotcanvas > .lf-shotframe {
   grid-area: 1 / 1;
 }
-:scope:is(lf-shot)[data-lf-shot-mode=flip] .lf-shotcanvas > .lf-shotframe[data-lf-state=after] {
-  visibility: hidden;
+:scope:is(lf-shot)[data-lf-shot-mode=flip] .lf-shotcanvas > .lf-shotframe[data-lf-state=before] {
+  clip-path: inset(0 50% 0 0);
+  z-index: 1;
 }
 :scope:is(lf-shot)[data-lf-shot-mode=pixels] .lf-shotframe {
   display: none;
@@ -346,13 +357,13 @@
   inset: 0;
   mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100% no-repeat;
 }
-.lf-shotpixels [data-lf-shot-side=both] {
+:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=both] {
   background: var(--warn);
 }
-.lf-shotpixels [data-lf-shot-side=before] {
+:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=before] {
   background: var(--danger);
 }
-.lf-shotpixels [data-lf-shot-side=after] {
+:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=after] {
   background: var(--accent);
 }
 @container style(--lf-full-height:1) {
@@ -421,6 +432,7 @@
   }
   .lf-shotframe {
     margin-block-end: var(--sp-3);
+    clip-path: none !important;
   }
 }
 

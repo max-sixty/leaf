@@ -522,7 +522,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "120, 80 · 640 × 220 CSS px"
     )
     page.keyboard.press("Escape")
-    first.get_by_role("button", name="Image scale and originals").click()
+    first.get_by_role("button", name="Image options").click()
     first.get_by_role("checkbox", name="Full frame").check()
     first.get_by_role("button", name="100%", exact=True).click()
     rendered(page)

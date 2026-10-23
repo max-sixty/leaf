@@ -1,8 +1,8 @@
 (() => {
   // packages/default/widgets/shot-view.js
   var SHOT_VIEWS = {
-    compare: "Pair",
     flip: "Slider",
+    compare: "Pair",
     pixels: "Pixels"
   };
   var CONTROL = "lf-btn lf-quiet-action lf-compact-control";
@@ -23,7 +23,7 @@
     focus = void 0,
     full = false,
     actual = false,
-    view = "compare",
+    view = "flip",
     gap
   }) {
     const crop = Boolean(focus && !full);
@@ -117,20 +117,16 @@
     };
     const toolbar = offer("div", "lf-shot-toolbar lf-ui");
     const actions = offer("div", "lf-shot-actions");
-    const views = buttons("Comparison view", SHOT_VIEWS, "compare");
+    const views = buttons("Comparison view", SHOT_VIEWS, "flip");
     views.choices.get("pixels").disabled = true;
-    views.choices.get("pixels").title = "Before-only pixels: red. After-only pixels: blue. Recolored pixels: amber.";
     const tools = offer("div", "lf-shot-tools");
-    const scaleTrigger = offer("button", `${CONTROL} lf-shot-scale`);
+    const scaleTrigger = offer("button", `${CONTROL} lf-shot-scale`, "\u2026");
     scaleTrigger.type = "button";
-    scaleTrigger.ariaLabel = "Image scale and originals";
-    const scaleReading = offer("span", "", "Fit");
-    const scaleIcon = offer("span", "lf-shot-scale-icon");
-    scaleTrigger.append(scaleReading, scaleIcon);
+    scaleTrigger.ariaLabel = "Image options";
     const options = offer("div", "lf-shotoptions");
     options.setAttribute("popover", "auto");
     options.role = "group";
-    options.ariaLabel = "Image scale and originals";
+    options.ariaLabel = "Image options";
     do
       options.id = `lf-shot-options-${++nextOptionsId}`;
     while (document.getElementById(options.id));
@@ -147,7 +143,21 @@
     outlines.setAttribute("aria-pressed", "false");
     const full = checkbox("Full frame");
     full.label.hidden = true;
-    options.append(scale.group, full.label);
+    const key = offer("div", "lf-shot-pixel-key");
+    key.append(offer("div", "lf-shot-key-label", "Pixel colors"));
+    for (const [side, text] of [
+      ["before", "Before only"],
+      ["after", "After only"],
+      ["both", "Recolored"]
+    ]) {
+      const item = offer("div", "lf-shot-key-item");
+      const swatch = offer("span", "lf-shot-key-swatch");
+      swatch.dataset.lfShotSide = side;
+      swatch.ariaHidden = "true";
+      item.append(swatch, offer("span", "", text));
+      key.append(item);
+    }
+    options.append(scale.group, full.label, key);
     tools.append(scaleTrigger, outlines, options);
     actions.append(views.group, tools);
     toolbar.append(actions);
@@ -179,17 +189,16 @@
       const viewport = offer("div", "lf-shotviewport");
       viewport.role = "region";
       viewport.ariaLabel = `${state}: ${host.getAttribute("alt")}`;
-      const imageBox = offer("div", "lf-shotimage");
+      const imageBox = offer("a", "lf-shotimage lf-shot-open");
+      imageBox.dataset.lfShotOpen = state;
+      imageBox.tabIndex = -1;
       const plane = offer("div", "lf-shotplane");
       const image = document.createElement("img");
       image.crossOrigin = "anonymous";
       image.alt = `${state}: ${host.getAttribute("alt")}`;
       shots.push(image);
-      const open = offer("a", "lf-media-open lf-shot-open", `Open ${state} image`);
-      open.dataset.lfShotOpen = state;
       captions.set(state, caption);
-      openers.set(state, open);
-      options.append(open);
+      openers.set(state, imageBox);
       plane.append(image);
       imageBox.append(plane);
       viewport.append(imageBox);
@@ -198,7 +207,7 @@
       viewports.push(viewport);
       canvas.append(frame);
     }
-    keeps(host, "data-lf-shot-mode", "compare");
+    keeps(host, "data-lf-shot-mode", "flip");
     keeps(host, "data-lf-shot-outlines", false);
     host.append(toolbar, stage);
     const geometry = fitShotGeometry({
@@ -210,18 +219,16 @@
     });
     if (geometry) {
       applyShotGeometry(host, geometry, keeps);
-      scaleTrigger.title = `Fit \xB7 ${Math.round(geometry.scale * 100)}%`;
+      scale.choices.get("fit").title = `Fit \xB7 ${Math.round(geometry.scale * 100)}%`;
     }
     return {
       toolbar,
       scaleTrigger,
-      scaleIcon,
       options,
       views,
       outlines,
       scale,
       full,
-      scaleReading,
       stage,
       canvas,
       frames,

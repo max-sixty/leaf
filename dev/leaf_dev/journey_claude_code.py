@@ -88,7 +88,11 @@ import psutil
 
 from leaf.delivery import DELIVERY, pickup_receipts
 from leaf.event_log import read_events
-from leaf.harness import ClaudeCodeHarness
+from leaf.harness import (
+    ClaudeCodeHarness,
+    claude_code_live_turn,
+    claude_code_registry,
+)
 from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING, POINTED_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
@@ -210,8 +214,18 @@ class ClaudeCode(Terminal):
         raise click.ClickException(f"the turn went on after Escape\n{self.screen()}")
 
     def state(self) -> str | None:
-        """The turn's state in Claude Code's own record (`live_turn`)."""
-        turn = ClaudeCodeHarness(session=self.session, agent="Claude").live_turn()
+        """The turn's state in Claude Code's own record (`claude_code_live_turn`),
+        read now. Leaf's hooks and server reuse a registry listing for up to
+        `REGISTRY_READ_S` (`claude_code_session_records`), longer than some states
+        the journey checks last: Claude Code reads idle for about 50 ms between an
+        Escape and the wake it submits again (measured at 2.1.309)."""
+        turn = claude_code_live_turn(
+            [
+                record
+                for record in claude_code_registry()
+                if record.get("sessionId") == self.session
+            ]
+        )
         return None if turn is None else turn["state"]
 
     def idle(self) -> bool:
@@ -696,13 +710,10 @@ def delivery_ended(records: list[dict], update: str) -> bool:
     carrying `update`.
 
     An update that owes no answer leaves no reply to wait for, so the journey waits
-    for the transcript's turn end. Claude Code's record reading idle doesn't show
-    that turn ended. Claude Code rewrites the record in place, so Leaf's registry
-    listing can return a status up to `REGISTRY_READ_S` old
-    (`claude_code_session_records`). An Escape during the wake's prompt hooks
-    writes idle, and about 50 ms later Claude Code submits the wake again and
-    writes busy (measured at 2.1.309). A reading taken in those 50 ms can still
-    be returned after the new delivery has started its turn."""
+    for the transcript's turn end, which the transcript orders after the delivery
+    itself. An idle reading of Claude Code's record carries no such order: the
+    Escape that dropped the first delivery wrote one just before the wake was
+    submitted again."""
     found = deliveries(records, update)
     return bool(found) and any(ends_turn(record) for record in records[found[-1] :])
 

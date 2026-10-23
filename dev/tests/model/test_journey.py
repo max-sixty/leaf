@@ -25,6 +25,7 @@ from leaf_dev.reply_phases import (
 )
 from leaf_dev.review_scenario import SLEEP
 
+from leaf import harness
 from leaf.hook_transport import INLINE_OPENING
 from leaf.interaction_log import read_interactions
 
@@ -366,6 +367,46 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
             "received_at": at(4),
         },
     ]
+
+
+def test_the_journey_reads_claude_codes_status_as_it_is_now(tmp_path, monkeypatch):
+    """Claude Code rewrites its registry record in place, which Leaf's reused
+    listing doesn't notice within its time bucket; the journey's reading sees the
+    rewrite at once, as a step that presses Escape and waits for the next turn
+    needs."""
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    (tmp_path / "sessions").mkdir()
+    record = tmp_path / "sessions" / f"{os.getpid()}.json"
+    # Leaf's listing reads within one time bucket throughout.
+    monkeypatch.setattr(harness.time, "monotonic", lambda: 0.0)
+
+    def write(status: str, at: int) -> None:
+        with record.open("w") as written:
+            written.write(
+                json.dumps(
+                    {
+                        "pid": os.getpid(),
+                        "sessionId": "s",
+                        "status": status,
+                        "statusUpdatedAt": at,
+                    }
+                )
+            )
+
+    cc = journey_claude_code.ClaudeCode.__new__(journey_claude_code.ClaudeCode)
+    cc.session = "s"
+    write("idle", 1)
+    assert (
+        harness.ClaudeCodeHarness(session="s", agent="Claude").live_turn()["state"]
+        == "idle"
+    )
+    assert cc.idle()
+    write("busy", 2)
+    assert (
+        harness.ClaudeCodeHarness(session="s", agent="Claude").live_turn()["state"]
+        == "idle"
+    )
+    assert cc.state() == "busy"
 
 
 def test_a_delivered_update_waits_for_the_turn_it_opened_to_end():

@@ -81,9 +81,15 @@
       at = up(at);
     return at instanceof Element ? at : null;
   };
-  // The children a place lays out, through any `display: contents` child.
+  // The children a place lays out: its shadow tree's where it hosts one, through any
+  // `display: contents` child, and a slot's assigned elements in the slot's place.
+  const laidOut = (box) => {
+    if (box.localName !== "slot") return (roots.get(box) ?? box).children;
+    const assigned = box.assignedElements({ flatten: true });
+    return assigned.length ? assigned : box.children;
+  };
   function* seatedIn(place) {
-    for (const child of place.children)
+    for (const child of laidOut(place))
       if (getComputedStyle(child).display === "contents") yield* seatedIn(child);
       else yield child;
   }

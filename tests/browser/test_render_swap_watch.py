@@ -121,20 +121,29 @@ def test_a_swap_its_own_press_undoes_before_a_frame_passes(browser):
     judge_watches()
 
 
-def test_a_row_a_neighbour_grows_as_its_seat_changes_hands_passes(browser):
+@pytest.mark.parametrize("tree", ["light", "shadow"])
+def test_a_row_a_neighbour_grows_as_its_seat_changes_hands_passes(browser, tree):
     """A field beside the swap that takes more lines in the same press sizes the row,
-    not the occupant that arrived."""
+    not the occupant that arrived, whether the row lays out its own children or a
+    shadow tree's."""
+    seats = (
+        '<textarea id="field" style="height:24px"></textarea>'
+        '<button id="short" style="height:24px">Short</button>'
+        '<button id="tall" style="height:40px" hidden>Tall</button>'
+    )
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(
-            '<!doctype html><div id="row" style="display:flex;width:300px">'
-            '<textarea id="field" style="height:24px"></textarea>'
-            '<button id="short" style="height:24px">Short</button>'
-            '<button id="tall" style="height:40px" hidden>Tall</button></div>'
+            '<!doctype html><div id="row" style="display:flex;width:300px"></div>'
             "<button id=swap>Swap</button><script>"
-            "swap.addEventListener('click', () => {"
-            " field.style.height = '60px'; short.hidden = true; tall.hidden = false; });"
+            f"const seats = {seats!r};"
+            "const tree = "
+            + ("row.attachShadow({mode: 'open'});" if tree == "shadow" else "row;")
+            + "tree.innerHTML = seats;"
+            "const seat = id => tree.querySelector('#' + id);"
+            "swap.addEventListener('click', () => { seat('field').style.height = '60px';"
+            " seat('short').hidden = true; seat('tall').hidden = false; });"
             "</script>"
         )
     )

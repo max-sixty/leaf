@@ -1832,13 +1832,13 @@ function createResponseSurface({
     if (drawModeActive() || captureActive() || nativeLayers().some((layer) => layer.kind === "modal"))
       return false;
     const [target] = path;
-    const visual = visualAt(target);
+    const visual = target?.nodeType === Node.ELEMENT_NODE ? visualAt(target) : null;
     const sameVisual = visual && !fabAnchor.value?.quote && fabAnchor.value?.section === visual.id && fabAnchor.value?.visual === visual.part?.id;
     return !sameVisual && !target.closest?.(".lf-fab-bar, .lf-react-surface, .lf-composer") && !reactionContextContains(target);
   }
   function standDown() {
     if (composerOpen) composer.hideComposer();
-    letGoOfFab();
+    if (fabAnchor.value) letGoOfFab();
     setReact(false);
   }
   const fabAnchorAt = () => fabAnchor.value;
@@ -2979,13 +2979,15 @@ function createAim({
       claimedPress = designTarget ? { designMode: designMode2.target(pressed) } : armed ? { aim: aimedTarget(), choosing: targetPicker.active() } : null;
     }
     if (!claimedPress && ev.type === "mousedown" && ev.detail > 1 && previousPress)
-      claimedPress = { continuing: true };
+      claimedPress = { continuing: previousPress.continuing ?? previousPress };
     if (!claimedPress) return;
     if (pressIsKeyboardActivation(ev)) return;
     if (["mousedown", "click", "auxclick"].includes(ev.type)) ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
-    if (claimedPress.aim && claimedPress.choosing)
+    if (claimedPress.continuing?.aim && claimedPress.continuing.choosing)
+      commentOnTarget(claimedPress.continuing.aim);
+    else if (claimedPress.aim && claimedPress.choosing)
       targetPicker.choose(claimedPress.aim);
     else if (claimedPress.aim) commentOnTarget(claimedPress.aim);
     else if (claimedPress.designMode) designMode2.open(claimedPress.designMode);

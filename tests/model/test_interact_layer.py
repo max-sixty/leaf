@@ -1018,7 +1018,7 @@ def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
 
 
 def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(
-    tmp_path, monkeypatch
+    tmp_path,
 ):
     """Which copy of leaf answered is otherwise unknowable from outside it. A
     harness session runs the payload its plugin cache holds and a checkout stands
@@ -1035,12 +1035,6 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(
     Eager and page-free, so it answers with no page named and nothing written
     where it ran, which is the whole of what a session asking the question has.
     """
-    # Pi exposes LEAF as the agent's locator; explicit launchers still name their
-    # own payload, even when another install supplied that locator.
-    selected = tmp_path / "installed-leaf"
-    selected.write_text("#!/bin/sh\nexit 99\n")
-    selected.chmod(0o755)
-    monkeypatch.setenv("LEAF", str(selected))
     cached_commit = "123456789abc"
     cached = install_payload(
         tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit

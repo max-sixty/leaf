@@ -32,7 +32,8 @@
    draws them (`sentMedia`), each with the removal mark a rewrite adds, and the field's
    frame and padding in the room around them (response.css, `.lf-msg-editor`). Discard
    and Save stand at the message's head, where its own control stood
-   (`.lf-msg-edit-actions`), beside its author and time, so opening it moves nothing.
+   (`.lf-msg-edit-actions`), beside its author and time, so opening it moves nothing,
+   except that a message of pictures alone gains the line the caret needs for words.
    Rejected, by the user on 2026-10-22: the thread's reply box at its own width and
    padding, which they chose on 2026-10-13, with the pictures in a draft's cropped shelf
    over it, which pushed the words down by the pictures' height and rewrapped them in
@@ -311,18 +312,20 @@ export class MessageEditor {
     // opened, carries them and its revision with it: Save then writes over what the
     // message says, rather than sending the old words over the new revision, which
     // the log refuses.
-    let opened = this.input.value;
+    // The rewrite whole, its words and its pictures, as the box holds it: `.value` is
+    // the words alone (input.js, `sync.value`), so a picture taken off changes only this.
+    const whole = () => sync.value();
+    let opened = null;
     this.#follow = () => {
-      if (base === currentBase() || draftHasContent(ctx) || this.input.value !== opened)
-        return;
+      if (base === currentBase() || draftHasContent(ctx) || whole() !== opened) return;
       base = currentBase();
-      this.input.value = opened = said();
+      sync.load((opened = said()));
     };
-    // Words the message already says, exactly, and no words, are no change. Leading and
-    // trailing space is part of what a rewrite sends, as a suggestion's newline is.
+    // What the message already says, exactly, and nothing at all, are no change. Leading
+    // and trailing space is part of what a rewrite sends, as a suggestion's newline is.
     const unchanged = () => {
-      const words = this.input.value;
-      return !words.trim() || words === said();
+      const now = whole();
+      return !now.trim() || now === said();
     };
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land();
@@ -413,6 +416,7 @@ export class MessageEditor {
     // Escape answers on the editor's controls as in its words, so it is the editor's
     // own scope, around both, rather than a row of the text box alone; closing is a step
     // ahead of the ladder's way out of a text box.
+    opened = whole();
     // The foot follows the words, ahead of the message's pictures under them.
     this.input.after(this.foot);
     keys(

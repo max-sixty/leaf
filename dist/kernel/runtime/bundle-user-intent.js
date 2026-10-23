@@ -3391,16 +3391,16 @@ var MessageEditor = class {
     this.foot.className = "lf-msg-edit-foot";
     this.node.append(this.input, actions);
     this.input.value = loadDraft(ctx) || said2();
-    let opened = this.input.value;
+    const whole = () => sync.value();
+    let opened = null;
     this.#follow = () => {
-      if (base === currentBase() || draftHasContent(ctx) || this.input.value !== opened)
-        return;
+      if (base === currentBase() || draftHasContent(ctx) || whole() !== opened) return;
       base = currentBase();
-      this.input.value = opened = said2();
+      sync.load(opened = said2());
     };
     const unchanged = () => {
-      const words = this.input.value;
-      return !words.trim() || words === said2();
+      const now = whole();
+      return !now.trim() || now === said2();
     };
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land2();
@@ -3469,6 +3469,7 @@ var MessageEditor = class {
         }
       ]
     });
+    opened = whole();
     this.input.after(this.foot);
     keys(
       this.node,

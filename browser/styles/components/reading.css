@@ -334,11 +334,11 @@ leaf-text.lf-fab-input,
   --lf-measure: var(--col);
 }
 /* The user's own words and pictures keep the column of the box they write and rewrite
-   them in, its end the room the field keeps for its press (`--lf-compose-h`), so a line
-   breaks where it broke as they wrote it and where it will as they rewrite it; a surface
-   whose box ends its words elsewhere says where (`--lf-msg-text-end`). */
+   them in, which ends its lines the thread's text inset short of its edge, so a line
+   breaks where it broke as they wrote it and where it will as they rewrite it; a
+   surface whose box ends its words elsewhere says where (`--lf-msg-text-end`). */
 .lf-msg:where(.user) {
-  --lf-msg-text-end: var(--lf-compose-h);
+  --lf-msg-text-end: var(--lf-thread-text-inset, 0px);
 }
 .lf-msg-text {
   display: block;

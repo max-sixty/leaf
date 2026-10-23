@@ -737,6 +737,42 @@ def test_a_rewrite_saves_its_exact_words(browser, serve):
     assert [e["text"] for e in edits] == ["Fit the north bracket. "]
 
 
+PICTURE = "![Attached image](/media/051bee487bfb5d13.png)"
+
+
+def test_a_rewrite_saves_the_pictures_it_keeps(browser, serve):
+    """A rewrite read its words alone: saving a message with a picture unchanged sent it
+    again, and taking a picture off a message of pictures closed the box as no change,
+    the picture coming back. The rewrite now reads its words and pictures together. A
+    picture's removal mark stands out past its top right corner, as on a draft's."""
+    page, _, message = _rewrite_surface(browser, serve, "panel", text=PICTURED)
+    editor = message.locator(".lf-msg-editor leaf-text")
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+
+    page, _, message = _rewrite_surface(
+        browser, serve, "panel", text=f"{PICTURE}\n\n{PICTURE}"
+    )
+    message.locator(".lf-msg-edit").click()
+    editor = message.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    remove = message.get_by_role("button", name="Remove attached image 2", exact=True)
+    picture = message.locator(".lf-msg-editor img").nth(1).bounding_box()
+    mark = remove.bounding_box()
+    assert mark["x"] + mark["width"] > picture["x"] + picture["width"], (mark, picture)
+    assert mark["y"] < picture["y"], (mark, picture)
+    remove.click()
+    expect(editor).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    round_trip(page)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [e["text"] for e in edits] == [PICTURE]
+    expect(message.locator("img")).to_have_count(1)
+
+
 def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
     """Under a finger a message's head holds the row its control stands in. An open
     rewrite's Discard and Save took that row's height from the room they need across, so

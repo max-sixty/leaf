@@ -234,8 +234,12 @@
    stands 120px tall (`--lf-media-h`), enough to tell a pasted screenshot by its
    content, which 56px was not. A surface whose ground is not the paper sets the
    ground and ring its pictures meet it with. */
-.lf-composer-media {
+/* How far a picture's corner marks stand out past it, in a draft's shelf and on a
+   rewrite's pictures alike. */
+:is(.lf-composer-media, .lf-msg-media) {
   --lf-media-mark-overhang: 6px;
+}
+.lf-composer-media {
   --lf-media-room: max(
     calc(var(--raise-1-drop) + var(--raise-1-blur)),
     calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2)

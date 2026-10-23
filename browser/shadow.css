@@ -776,7 +776,7 @@ leaf-text.lf-fab-input,
   --lf-measure: var(--col);
 }
 .lf-msg:where(.user) {
-  --lf-msg-text-end: var(--lf-compose-h);
+  --lf-msg-text-end: var(--lf-thread-text-inset, 0px);
 }
 .lf-msg-text {
   display: block;
@@ -1508,8 +1508,10 @@ svg[data-lf-icon] {
 .lf-fab-bar[data-lf-presentation=inline]:has(> .lf-composer > .lf-composer-media:not([hidden])) {
   flex-wrap: wrap;
 }
-.lf-composer-media {
+:is(.lf-composer-media, .lf-msg-media) {
   --lf-media-mark-overhang: 6px;
+}
+.lf-composer-media {
   --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2) );
   --lf-media-h: 120px;
   display: flex;

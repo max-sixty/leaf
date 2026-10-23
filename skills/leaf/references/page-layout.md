@@ -26,7 +26,7 @@ One arranges a block's children:
 
 On a column page, a board, diagram or diff declares its own width, and any other block,
 such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and
-widths"). The block breaks out of the column and the prose stays centred.
+widths"). The block breaks out of the column and the prose stays where it is.
 
 On a sidebar page, every block, the title included, starts at the same left edge and
 fills its region. Text, an `lf-ask`, a callout, and widgets read as text such as an
@@ -193,10 +193,12 @@ it didn't make.
 itself, such as a `table` or `lf-code`, and write no CSS that copies its widths. It
 works on column and sidebar pages:
 
-- `data-width="wide"` makes the block as wide as `--wide`, the shared width for
-  evidence, growing past the column where the column is narrower than that.
-- `data-width="available"` takes all the width Leaf's chrome and the margin leave free,
-  stopping short of a margin sidebar or the contents map.
+- `data-width="wide"` is for a block slightly wider than the column, such as code up
+  to 100 columns, a diff or a table of a few more columns. The block starts at the
+  prose's left edge and extends right to `--wide`, as far as the window allows.
+- `data-width="available"` is for a surface that uses every pixel, such as a large
+  drawing or a playground. It takes all the width Leaf's chrome and the margin leave
+  free, into both margins, stopping short of a margin sidebar or the contents map.
 
 A `table` with either value is only as wide as its columns need, up to that width. A
 block inside an `lf-ask` or callout breaks out only with its own `data-width`; the

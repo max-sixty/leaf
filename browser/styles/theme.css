@@ -78,7 +78,7 @@
 
    A spatial element reads the room past the measure declared by `x-space`:
 
-   - `wide` takes the shared capped evidence width;
+   - `wide` takes the shared capped width (`--wide`) from the prose's start edge;
    - `available` takes all room the page can give it.
 
    Delivery paints it as `data-lf-space`, and CSS computes room after chrome strips and
@@ -346,15 +346,16 @@
      keep the zero specificity a package restyling a pane relies on. */
   --pane-bar-pad: 10px 14px;
   --pane-inset: 14px;
-  /* How wide evidence with `x-space: wide` may stand — one number for the whole
-     vocabulary, because a set of widths is
-     what makes mixed measures read as a design rather than as an accident, and a width
-     per widget is how a page becomes a ransom note. Unmistakably wider than the column
-     on purpose: a near miss reads as a column that failed to line up, where half as much
-     again reads as a figure. --lf-room, the other half of the pair, is resolved by CSS
+  /* How wide a block with `x-space: wide` may stand, from the prose's start edge
+     (layouts.css, "Breakouts"): one number for the whole vocabulary, because a width per
+     widget is how a page becomes a ransom note. It is the width at which 100 columns of
+     code, the common limit of formatters such as rustfmt, read unwrapped in the widest
+     code gutter Leaf draws: a diff's, with four-digit line numbers and its sign column
+     (about 830px). Sharing the prose's start edge is what lets a block this close to the
+     column read as part of it. --lf-room, the other half of the pair, is resolved by CSS
      from the shell and its occupied margins, so a widget stands clear of both. An
      `available` surface is not held to this number. */
-  --wide: 1080px;
+  --wide: 840px;
   /* The widest a sidebar page (layouts.css) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
      distance between them. */

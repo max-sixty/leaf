@@ -1,11 +1,10 @@
 /* What the page says between notices about where the keyboard has the user: the Go-to
  * filter's word while a `g` sequence holds one, a walk's position ("1 of 3 threads")
  * after a list walk, and the title of the stance the user is in ("In Draw mode",
- * dispatch.js, `innermostStance`). The floating panel says the first two in its seat for
- * passing words (floating-panel.js, `passing`) and the stance in its empty page field,
- * in the agent's status's place. Its reads subscribe to their signal. A retired walk
- * keeps its last wording, so the seat's words do not vanish
- * under a notice that stands over them. Painted in the repaint frame (repaint.js), since
+ * dispatch.js, `innermostStance`). The floating panel reads this signal for its empty
+ * field, where a stance heads the current walk or Go-to words in the page status's
+ * place (floating-panel.js, `fieldReading`). A retired walk's retained reading has
+ * `shown: false` and is not displayed. Painted in the repaint frame (repaint.js), since
  * these readings follow focus, the sequence's state and the register. A walk's reading
  * also names the stop it stands on (`target`, its owner's key), so a list that shows
  * the walk's items, as On me does, can mark the one the walk is at. */

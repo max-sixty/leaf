@@ -486,6 +486,13 @@ def page_search(page: Page) -> None:
     page.get_by_role("searchbox", name="Search page text").fill("review")
 
 
+def accepted_page_search(page: Page) -> None:
+    """The current match remains named after Return accepts the query."""
+    page_search(page)
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("searchbox", name="Search page text")).not_to_be_visible()
+
+
 def selected_passage_responses(page: Page) -> None:
     """Other responses beside a comment on a selected search match."""
     page_search(page)
@@ -1681,6 +1688,20 @@ STATES = (
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
     State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
+    State(
+        "accepted-page-search",
+        "review-a-plan",
+        accepted_page_search,
+        region=".lf-floating-panel",
+    ),
+    State(
+        "accepted-page-search-touch",
+        "review-a-plan",
+        accepted_page_search,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-floating-panel",
+    ),
     State(
         "page-search-phone",
         "review-a-plan",

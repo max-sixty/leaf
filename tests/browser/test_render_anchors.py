@@ -2588,6 +2588,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     )
     page = open_page(browser, url)
 
+    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     handle.scroll_into_view_if_needed()

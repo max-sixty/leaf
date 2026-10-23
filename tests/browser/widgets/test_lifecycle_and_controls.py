@@ -441,7 +441,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     draws it on the row its picks give up, and getComputedStyle(activeElement) reports
     'no ring' for a control whose ring is perfectly fine. Where nothing else claims one,
     the shared rule is what draws it, and that case is asserted on a request press in
-    projection/test_standing.py, which is where the layer has a control no widget rings."""
+    projection/test_current_location.py, which is where the layer has a control no widget rings."""
     page = open_page(browser, serve(CHIP_PAGE))
     state = """() => lfUnwatched(() => {
       // Whatever a control spends on saying it is live: the layer's wash, its own ink
@@ -523,5 +523,5 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     page.keyboard.press("Tab")
     drawn = rings_drawn(page)
     assert any(ring["here"] and ring["sample"] and ring["rule"] for ring in drawn), (
-        f"no ring rule draws a focus ring where the keyboard is standing: {drawn}"
+        f"no ring rule draws a focus ring at the current keyboard location: {drawn}"
     )

@@ -1,4 +1,4 @@
-/* Place `node` under `parent` before `before` (`null` appends), keeping the user standing
+/* Place `node` under `parent` before `before` (`null` appends), keeping the user
  * in it. Every placement of a node that may already stand somewhere goes through here,
  * Lit's keyed and child-part insertions included; `architecture/moves` (eslint.config.mjs)
  * refuses the platform's own insertions where the source shows such a node.
@@ -13,14 +13,14 @@
  * already placed node is left alone. Text, comments and fragments, which Lit inserts
  * for every new row, hold no one. An iframe still reloads there. The return value
  * matches insertBefore, including when inserting a fragment. */
-import { holdFocus, watchStandingIn } from "./focus.js";
+import { holdFocus, watchCurrentLocationIn } from "./focus.js";
 
 export function move(parent, node, before) {
   if (node.parentNode === parent && (before === node || node.nextSibling === before))
     return node;
   // A retained move can enter another shadow root without a focus event. Subscribe
   // before placement, so connectedMoveCallback and the caller's next move are heard.
-  if (parent.isConnected) watchStandingIn(parent.getRootNode());
+  if (parent.isConnected) watchCurrentLocationIn(parent.getRootNode());
   if (
     parent.moveBefore &&
     node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true })

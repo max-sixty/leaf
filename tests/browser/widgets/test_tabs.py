@@ -12,7 +12,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     panel_settled,
     post_event,
     resized,
@@ -136,7 +136,7 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     assert page.url.endswith("#plan-rollback")
 
     # A reveal (a comment anchor, find-in-page) opens another view, and the entry the
-    # user stands on names it, so pressing away and coming Back returns there.
+    # user is located on names it, so pressing away and coming Back returns there.
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();
@@ -1256,7 +1256,7 @@ def test_root_tab_targets_remain_global(browser, serve):
     )
     expect(page.locator("#plan-return")).to_be_in_viewport()
     tabs.get_by_role("tab", name="Workbench", exact=True).click()
-    pane_posture(page, page.locator("#queue-pane"), "flow")
+    pane_scroll_behavior(page, page.locator("#queue-pane"), "flow")
 
 
 def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve):
@@ -1372,7 +1372,7 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     assert page.url.endswith("#part-plan-rollback")
 
     # A reveal (a comment anchor, find-in-page) opens another part, and the entry the
-    # user stands on names it, so pressing away and coming Back returns there.
+    # user is located on names it, so pressing away and coming Back returns there.
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();

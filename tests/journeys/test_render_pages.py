@@ -798,7 +798,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     room the page states is measured against what is actually in the margin, and a widget
     drawn over any of it is named at handover with both boxes in the message.
 
-    It reads a resident by the same test the pass above excuses one by — placed
+    It reads margin content by the same test the pass above excuses one by — placed
     absolutely or fixed, or floated clear of the column — so this needs no vocabulary
     of its own and nothing has to be declared to it. That is what keeps the two theme
     rules honest: the next claimant that forgets one is a refusal with a name on it
@@ -824,7 +824,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
         for f in failures
         if f.code == "over-margin"
         and f.at == "<lf-board id=sprint>"
-        and f.values["resident"] == "<div id=own-rail>"
+        and f.values["marginContent"] == "<div id=own-rail>"
     ], (
         f"the gate said nothing about a board drawn over the page's own margin: {failures}"
     )
@@ -843,7 +843,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
 
 
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
-    """The sidebar is a page-level margin resident rather than a narrower prose column.
+    """The sidebar is a page-level margin content rather than a narrower prose column.
 
     On a roomy page a sidebar with prose claims the full left margin while its contents
     map rests as a spine, fixed at the window's top. The column keeps the page's axis,
@@ -1118,7 +1118,7 @@ def test_two_listener_keys_keep_both_tabs_authorized(browser, serve):
         assert second.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
 
 
-def test_margin_residency_ignores_concealed_ancestors(browser, serve):
+def test_margin_content_layout_ignores_concealed_ancestors(browser, serve):
     """An own hidden note can reserve a margin, but skipped ancestors cannot."""
     cases = [
         (
@@ -1145,7 +1145,7 @@ def test_margin_residency_ignores_concealed_ancestors(browser, serve):
     ]
     for contents, admitted in cases:
         source = leaf_page(
-            "Concealed residents",
+            "Concealed margin content",
             "<h1>Migration</h1>" + contents + "<p>Advance one cohort at a time.</p>",
         )
         page = open_page(browser, serve(source))

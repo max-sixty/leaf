@@ -342,9 +342,9 @@ export function createAnchorControls({
               return;
             }
             record.surface = context.surface ?? null;
-            const standing = focused();
+            const currentLocation = focused();
             setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
-              focus: context.input === "keyboard" && context.origin === standing,
+              focus: context.input === "keyboard" && context.origin === currentLocation,
               surface: record.surface,
             });
           },

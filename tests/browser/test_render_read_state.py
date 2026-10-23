@@ -213,7 +213,7 @@ def test_a_reopening_in_a_page_seat_waits_in_its_resolved_summary(
     expect(thread).to_be_hidden()
     _to_upper_third(resolved)
     if pointer == "fine":
-        # The user stands on the summary as the reply comes. The key before the focus
+        # The user is located on the summary as the reply comes. The key before the focus
         # makes the chrome's redraw an answer to input.
         page.keyboard.press("Shift")
         summary.focus()
@@ -244,7 +244,7 @@ def test_a_reopening_in_a_page_seat_waits_in_its_resolved_summary(
     ("beside", "end"),
     [
         ("box", "opened"),
-        ("box", "standing"),
+        ("box", "focused"),
         ("thread", "opened"),
         ("thread", "started"),
     ],
@@ -258,7 +258,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     a row standing in place of the first-message row at that row's height, since the row
     has no room beside its box. It shows when the user opens the notice from the
     keyboard and when they start a thread of their own, which shows after it. A user
-    standing in the first-message box keeps it: the thread shows above the box, which
+    focused in the first-message box keeps it: the thread shows above the box, which
     stays where it stood. Nothing before the ending is input, so the shift watch checks
     that the hold moved nothing."""
     # The notice's previous Tab stop stays beside the seat. Returning to the page's
@@ -278,12 +278,12 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     threads = seat.locator(":scope > .lf-page-thread")
     _to_upper_third(seat)
     height = _box_height(seat)
-    if end == "standing":
+    if end == "focused":
         box.focus()
         top = box.evaluate("box => box.getBoundingClientRect().top")
     started = _seat_comment(serve.page_dir, "agent", "Should the gutters wait too?")
     told(page)
-    if end == "standing":
+    if end == "focused":
         expect(threads).to_have_count(1)
         expect(box).to_be_focused()
         assert box.evaluate("box => box.getBoundingClientRect().top") == pytest.approx(

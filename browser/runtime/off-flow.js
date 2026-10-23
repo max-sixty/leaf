@@ -1,6 +1,6 @@
 /* Surfaces fixed over the page and placed beside what they are about: the thread card by
    its margin cluster, the comment box by its target. A scroll carries each away with what
-   it stands by while the user may still stand in it, and none of the browser's own
+   it stands by while the user may still be in it, and none of the browser's own
    reveals can bring it back: a focus, a caret, or `scrollIntoView` scrolls the control's
    ancestors, and the surface is fixed over all of them. So each surface declares while
    it floats and how it is brought back, and the runtime brings it back where the browser
@@ -12,7 +12,7 @@
      typed, deleted, or pasted into a box it holds;
    - focus moving from one of its controls to another, as sequential navigation reveals
      the control it reaches. Only a move within it: focus arriving from outside is a
-     landing, and a return (focus.js, `onStanding`), such as a node the runtime
+     landing, and a return (focus.js, `onCurrentLocation`), such as a node the runtime
      replaced handing focus to its successor, is no move of the user's.
 
    Each asks what the browser asks of an ordinary control: whether the window shows all of
@@ -25,13 +25,13 @@
    is the browser's to reveal, so the control is measured within the surface's own box.
 
    A surface hears no keys of its own. A key reaches it only as what the keyboard makes
-   of it, so a page key such as `g` or `j` acts around a surface the user still stands
+   of it, so a page key such as `g` or `j` acts around a surface the user is still
    in, and one that lands in it or edits in it brings it back by doing so. What does not
    act there, a scroll or a turn arriving, leaves the surface where the page put it. */
 import { shownWindow } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { under } from "./shadow.js";
-import { onStanding } from "./focus.js";
+import { onCurrentLocation } from "./focus.js";
 
 const surfaces = new Map();
 
@@ -70,7 +70,7 @@ export function declareOffFlowSurface(
   );
 }
 // A move within a surface, a widget's shadow tree inside it included.
-onStanding((node, cause, left) => {
+onCurrentLocation((node, cause, left) => {
   if (!node || !left || cause === "return") return;
   for (const surface of surfaces.keys())
     if (under(node, surface) && under(left, surface))

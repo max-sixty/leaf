@@ -1,7 +1,7 @@
 /* Scopes: where a group of rows applies, registered against an element and gathered by
    title for the surfaces that project them.
 
-   Standing in a surface is where focus is, not merely that the surface is open. A view's
+   Current location inside a surface is determined by focus, not merely that the surface is open. A view's
    own button lives in the floating panel, so opening by pointer leaves the user
    outside it, and a key, a Tab or a click on its contents is what puts them in. Inside a
    text box the letter is a character, Shift+Enter writes a newline in a composer, and arrows move the caret.
@@ -19,7 +19,7 @@
    sequence's `control` is a travel destination and arrival seat, not an activation
    declaration; native editing scopes may likewise name only the input's key route.
    An executable command owns its button's availability through its predicates;
-   disabled attributes are outputs. ARIA refusal retains keyboard standing while
+   disabled attributes are outputs. ARIA refusal retains current keyboard location while
    activation checks the current command. Withdrawal returns both original attributes.
    Preserve the order of that list because the dispatcher and hints walk inward to
    outward while the full reference groups the same scopes for reading. */
@@ -504,7 +504,7 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * machine have neighbours to walk, does this page have a second version — and it gates the
  * reference. The row's is whether this press would move now — is a card held, has this
  * thread a box to reply into — and it gates the press, and the reference's rows where the
- * user is standing in the scope and can see the answer. So the reference names Enter
+ * user is in the scope and can see the answer. So the reference names Enter
  * wherever the page has threads, and Enter answers only on a focused thread with a reply
  * or reopen action.
  * One `when` answering both left Enter live over the whole page, where the press no-opped.
@@ -577,7 +577,7 @@ function declaredScope(title, rows, options) {
       `A command scope's Escape ownership must be \"inner\", got ${String(escape)}`,
     );
   // `claims` takes the bindings it answers true for from every scope further out
-  // while the user stands in this one, as a menu standing over the page does.
+  // while the user is in this one, as a menu standing over the page does.
   return {
     title,
     rows: checked(rows, title ?? "a scope", ready),
@@ -592,7 +592,7 @@ export function keys(where, title, rows, options) {
   if (rows === undefined && isCommandScope(title))
     return attachScope(where, title.scope).rows;
   // A declaration this one replaces before its first paint is owed nothing: read at
-  // the frame, a stale scope that refused would retract the element's standing
+  // the frame, a stale scope that refused would retract the element's currentLocation
   // declaration along with itself.
   return attachScope(where, declaredScope(title, rows, options)).rows;
 }
@@ -602,7 +602,7 @@ export function keys(where, title, rows, options) {
 // one reading of this element alone, so an unchanged render costs that one element.
 // Removing the directive withdraws only its own attachment, including when Lit keeps
 // the element. Temporary disconnection restores that declaration on reconnection. Rows
-// that read the element they stand on, as a disclosure's toggle does, come as a function
+// that read the element at their current location, as a disclosure's toggle does, come as a function
 // of it, called on each render, since the template declaring them renders that element.
 export const commandsOn = directive(
   class extends AsyncDirective {
@@ -779,7 +779,7 @@ export function reflectFirstScopes() {
 }
 // Reflect after the page's content has projected all of its scopes in the current
 // repaint frame. A focus move and a replacement can each ask for a paint, but the
-// shortcut attribute should represent only the final standing of that frame.
+// shortcut attribute should represent only the final current location in that frame.
 // A scope refused here is reported, and the elements after it still paint.
 //
 // An element's reflection reads its rows' liveness, and that reads two kinds of input.
@@ -799,7 +799,7 @@ const tracked = new WeakMap();
 // command names is gathered across every scope on each pass, since a command may name a
 // control outside the element declaring it; each button's availability is its own
 // tracked effect (`reflectButton`), read again when a signal it read moves or a key
-// paint reaches it; where the user stands is such a signal (focus.js, `focusRevision`). Every
+// paint reaches it; where the user is is such a signal (focus.js, `focusRevision`). Every
 // button is read again when a declaration is attached or withdrawn, a command reader
 // registers, and on `paintKeys()`. Contribution projections read the same predicates,
 // as one tracked reader beside them.
@@ -976,7 +976,7 @@ export function scopesFor(node) {
 }
 // Whether the focused control has claimed Escape for itself. Asked of the control's own
 // scopes and not of the stack, because both callers mean "this press already has an owner
-// where the user is standing": the sequence refuses to arm there, and focus entering one
+// where the user is ": the sequence refuses to arm there, and focus entering one
 // disarms it. Every panel and mode in the runtime carries a rung of some kind, so a
 // question asked of the whole stack would answer yes almost everywhere and the sequence would
 // never arm at all.

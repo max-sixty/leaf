@@ -40,7 +40,7 @@ test("a landing's own body may hand the user back", () => {
   for (const code of [
     "closeLayer(() => a.remove(), () => handBack(a));",
     "closeLayer(hide, open && (() => handBack(a)));",
-    "closeLayer(hide, standing ? () => handBack(a) : letGo);",
+    "closeLayer(hide, currentLocation ? () => handBack(a) : letGo);",
     "const land = layerLanding((a) => handBack(a));",
     "closeLayer(() => (box.hidden = true), () => focusDestination(a, 'return'));",
     "focusDestination(a, 'return');",

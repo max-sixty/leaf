@@ -1,4 +1,4 @@
-"""Where the user stands (the ring, Escape, travel, the obligation walk) and the presses,
+"""The current location (the ring, Escape, navigation, the obligation walk) and the presses,
 obligations, controls and drafts they keep across a revision."""
 
 import json
@@ -59,7 +59,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     names the visible targets, and the chips are read off whichever document is current,
     so the window holds through the revision and the hints land on the new page — minus
     the hint for a link the revision took away, which is the honest reading. The user's
-    standing is the document's: the obligation's actions remain live over a focused pick mark,
+    current location is the document's: the obligation's actions remain live over a focused pick mark,
     and a revision that leaves that widget's markup alone leaves the mark itself alone,
     so the digit still picks and the panel's field acknowledges it. One revision arrives
     as a draft and the next as a stamped version, since both bring the page to the user
@@ -106,7 +106,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     round_trip(page)
 
 
-def test_a_revision_that_restates_an_obligation_leaves_the_user_standing_in_it(
+def test_a_revision_that_restates_an_obligation_preserves_the_users_location_in_it(
     browser, serve
 ):
     """The obligation a user is working survives the revision that rewrites it.
@@ -116,7 +116,7 @@ def test_a_revision_that_restates_an_obligation_leaves_the_user_standing_in_it(
     one thing a revision is most likely to rewrite, and rewriting it replaced every node
     inside — which used to drop the user onto `body` in the same breath as "Updated
     to …". An obligation is named by a declared id rather than by a control's shape, so the
-    standing is a lookup: the user is put back on the obligation, or on the control that
+    current location is a lookup: the user is put back on the obligation, or on the control that
     answers it, according to which of the two they held. A revision that withdraws the
     obligation has nowhere to put them back, which the tests below cover along with the user
     who was holding one of its controls.
@@ -134,7 +134,7 @@ def test_a_revision_that_restates_an_obligation_leaves_the_user_standing_in_it(
         "placeholder", re.compile("^Updated to Draft after v1")
     )
     expect(decision).to_be_focused()
-    # Standing, not a bare tab stop: the obligation's own action routes are live over the user
+    # The current location, not a bare tab stop: the obligation's own action routes are live over the user
     # again, and the third option the revision brought is among them.
     assert active_digit_bindings(page) == "1–4"
     page.keyboard.press("3")
@@ -207,7 +207,7 @@ def test_a_revision_gives_back_the_apparatus_the_user_was_working_with(browser, 
     assert page.locator("#lk-note").evaluate("el => el.selectionStart") == 4
     assert page.locator("#lk-why").evaluate("el => el.open") is True
     assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
-    # Standing in the obligation is where the user already is, so the obligation restore has nothing
+    # Located in the obligation is where the user already is, so the obligation restore has nothing
     # to do and does not pull them out of the field onto the question.
     assert page.locator("#lk-note").evaluate("el => el === document.activeElement")
 
@@ -230,7 +230,7 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
     A disclosure has no `defaultOpen` to answer with, so the state the carry reads off
     the live box is the author's own until the user moves it: reading the box alone
     would carry the outgoing revision's shut over an arriving revision that opens it.
-    The baseline is the authored markup of the revision the user stands in, so an
+    The baseline is the authored markup of the revision the user is reading, so an
     untouched box is left to the arriving revision.
     """
     moved = (
@@ -471,7 +471,7 @@ def test_a_withdrawn_obligation_leaves_the_user_on_the_page(browser, serve):
 def test_a_user_working_an_obligation_keeps_it_across_a_replacing_document(
     browser, serve
 ):
-    """The fresh-document install hands back the same standing the patch does.
+    """The fresh-document install hands back the same current location the patch does.
 
     A revision whose executable identity differs cannot be patched in, so the user
     arrives in a new document where nothing they held exists. They were told the same
@@ -507,7 +507,7 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     """A stamped version follows by navigation, and the user's place rides across.
     The passage they were reading did; where the walk had got to was a variable in a
     module the navigation threw away, so it did not, and the user was demoted without
-    a word from the most exact reading of where they stand to the coarsest. Standing on
+    a word from the most exact reading of where they stand to the coarsest. Located on
     the third of four obligations when v2 landed, they pressed `m` and were handed the third
     again — after looking slightly back above that obligation, the block at the top of the
     window is somewhere they had already walked past.
@@ -515,7 +515,7 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     So the walk's place travels in the same record as the passage, and the press after
     the version lands is the press they would have made before it. The ring is not owed a
     record of its own: it is painted from the focus, and the activation hands the user
-    back the control they were standing on, so the obligation they were in wears it still."""
+    back the control they were located on, so the obligation they were in wears it still."""
     url = serve(OBLIGATIONS_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
@@ -545,7 +545,7 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     )
     expect(page.locator("[data-lf-obligation]")).to_have_count(1)
     # The condition the restore is for, stated rather than assumed: an earlier obligation's
-    # own prose is on screen above the one the user was standing on, so a walk reading
+    # own prose is on screen above the one the user was located on, so a walk reading
     # the page alone starts behind them and steps forward onto the obligation they just left.
     position = page.evaluate("""() => {
             const decision = document.getElementById('t-baffles-decision').getBoundingClientRect();
@@ -560,18 +560,18 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     )
 
 
-def test_the_ring_says_where_the_user_is_standing(browser, serve):
-    """One ring, meaning one thing: this is where the user is standing. It is painted
+def test_the_ring_says_where_the_user_is_located(browser, serve):
+    """One ring, meaning one thing: this is where the user is located. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.
 
     The walk used to write it, and nothing ever took it off. So it said where the walk
     had left them rather than where they were: press `d`, click away, work in the panel
-    for ten minutes, and a decision nobody was standing in went on wearing "you are here" —
+    for ten minutes, and a decision nobody was located in went on wearing "you are here" —
     while a user who had reached the same decision by Tab or by clicking one of its
     controls got no ring at all. The same place, marked or not by how they arrived.
 
     The chrome wears the same band, because a user who has backed out of the panel is
-    standing on a button and that is the same fact about them. It wore the browser's own
+    located on a button and that is the same fact about them. It wore the browser's own
     ring there, in the browser's blue, a few inches from a decision ringed in the page's
     accent, with nothing saying the two rectangles meant one thing.
 
@@ -579,7 +579,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     already a framed box, so a ring around the decision *and* one inside it would read as
     a second border that comes and goes, and while the user is in the control the exact
     row the keyboard is on carries the band alone. Which row, in the same band — one ring
-    still meaning one thing. An arrival is the other side of that: it stands the user on
+    still meaning one thing. An arrival is the other side of that: it places the user on
     the decision rather than in the control, so there the decision's own ring is the one."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     question = page.locator("#live-question-decision")
@@ -653,11 +653,11 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
         f"{accept.evaluate(RING)} against {decision_ring}"
     )
 
-    # Standing somewhere that asks nothing takes it off, rather than leaving it behind.
+    # Located somewhere that asks nothing takes it off, rather than leaving it behind.
     page.locator("#h").click()
     expect(page.locator("[data-lf-obligation]")).to_have_count(0)
 
-    # A pointer landing inside an open decision is standing in it, though no walk brought
+    # A pointer landing inside an open decision makes it the current location, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
     page.locator("#live-question .lf-another leaf-text").click()
     expect(question).to_have_attribute("data-lf-obligation", "1")
@@ -680,7 +680,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     page.keyboard.press("Shift+Tab")
     expect(toggle).to_be_focused()
     assert toggle.evaluate(RING) == decision_ring, (
-        "the user standing in the chrome is drawn in some other band than the "
+        "the user located in the chrome is drawn in some other band than the "
         f"one a decision uses: {toggle.evaluate(RING)} against {decision_ring}"
     )
 
@@ -733,7 +733,7 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     """A thread's view in the panel stands at what the thread is about, open or
     resolved, as the side panel's cards did: the ask it is about wears the ring, and
     its digits answer it from the view. Opening a resolved thread left focus nowhere,
-    and nothing about the view said where the user stood, so the ask stayed plain and
+    and nothing about the view said the previous location, so the ask stayed plain and
     2 chose nothing. A digit typed in the reply is still a word in the reply."""
     url = serve(STORE_ASK_PAGE)
     seed_thread_about_the_ask(serve.page_dir, "t-done", resolved=True)
@@ -805,8 +805,8 @@ def test_a_finger_opening_a_thread_about_an_ask_stands_in_its_view(browser, serv
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
 
 
-def test_an_on_me_card_stands_at_its_ask(browser, serve):
-    """On me's card for an ask stands at the ask, as an On row did: standing on the
+def test_an_on_me_card_represents_its_ask(browser, serve):
+    """On me's card for an ask represents the ask, as an On row did: focusing the
     card rings the ask, and its digits answer it there."""
     page = open_page(browser, serve(STORE_ASK_PAGE))
     page.locator(".lf-fp-on-user").click()
@@ -818,7 +818,9 @@ def test_an_on_me_card_stands_at_its_ask(browser, serve):
     expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
 
 
-def test_escape_lets_go_of_the_obligation_the_user_is_standing_on(browser, serve):
+def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
+    browser, serve
+):
     """Escape closes the command reference, then lets go of the obligation and focuses body.
     The next obligation walk reads the visible page place, returning to the first obligation before
     advancing. Letting go also works on a page with no scroll range and after a Page
@@ -835,7 +837,7 @@ def test_escape_lets_go_of_the_obligation_the_user_is_standing_on(browser, serve
     expect(page.locator("#live-question-decision[data-lf-obligation]")).to_have_count(1)
     # The reference says the press in its own words. It said "Back out one layer" for
     # every rung, which was true while every rung took a layer of chrome off the page:
-    # standing on a decision is the user holding something, with no layer over the
+    # making a decision current is the user holding something, with no layer over the
     # page at all.
     page.keyboard.press("?")
     expect(

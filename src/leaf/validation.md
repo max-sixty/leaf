@@ -143,9 +143,9 @@ those samples reads it, with the widths the run spans and its reading at the
 narrowest: a version holds at every width from the narrowest phone to a wide
 desktop, not only at the two the gate renders (`version._render_version_attempt`
 says why the phone height and the other renders count). The sweep also finds each
-width where the page's own margin residents change (`data-lf-margin` on `main`, less
+width where the page's own margin content changes (`data-lf-margin` on `main`, less
 the rail), and the gate renders the page there in the light scheme, where each
-resident has the least room it will ever have. It reads, too, how each flex or grid
+element has the least room it will ever have. It reads, too, how each flex or grid
 box the page wrote splits its children into rows, and the swept widths where that
 changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws

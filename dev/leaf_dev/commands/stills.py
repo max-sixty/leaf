@@ -574,7 +574,6 @@ def screenshot_options(page: Page) -> None:
     """Image options keep the pixel color key beside the scale choices."""
     screenshot_comparison(page)
     shot = page.locator("#bg-shot")
-    shot.scroll_into_view_if_needed()
     shot.locator(".lf-shot-scale").click()
     shot.scroll_into_view_if_needed()
 

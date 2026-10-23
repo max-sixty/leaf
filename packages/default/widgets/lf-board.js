@@ -6,7 +6,8 @@
  * a horizontal board cannot expose a distant drop target while the pointer is held.
  * The grip is a press (`offer`), so the keyboard path needs no pointer: Enter grabs,
  * arrows restate the card's placement (announced through the live region), Enter drops,
- * and Escape or focus loss restores the origin. For the whole gesture the board holds
+ * and Escape or focus loss restores the origin. Escape also cancels a pointer drag.
+ * For the whole gesture the board holds
  * the page's drag (`dragging`), so no new revision or undo replaces the cards under it,
  * and defers its own drawing (`defer`), so no foreign move replays mid-gesture; a
  * completed move
@@ -85,10 +86,12 @@ customElements.define(
           this.#sortable(col);
         this.#observeNames();
         const stopMotion = this.#observeMotion();
+        document.addEventListener("keydown", this.#escapeDrag, true);
         return () => {
           this.#namesObserver?.disconnect();
           this.#namesObserver = null;
           stopMotion?.();
+          document.removeEventListener("keydown", this.#escapeDrag, true);
           for (const sortable of this.#sortables) sortable.destroy();
           this.#sortables.clear();
         };
@@ -433,13 +436,12 @@ customElements.define(
       this.#grabbed = null;
     }
 
-    // Arrow steps and a cancelled grab place through one writer. A FLIP already in
-    // flight and any smooth reveal are cancelled before measuring, or their motion
-    // would become the origin or carry on after a later arrow or Escape superseded it.
+    // Arrow steps and a cancelled grab place through one writer. Start from the
+    // current paint before cancelling a superseded FLIP, so a reversal continues
+    // where the user sees the card. Cancel smooth reveal before measuring, too.
     // Keyboard placement refocuses and reveals the final box before FLIP puts its paint
     // back at the old box; native scrolling and the card's motion then run together.
     #place(card, col, index, grip = null) {
-      for (const a of card.getAnimations()) a.cancel();
       for (const box of [this, scrollerFor(this)])
         box.scrollTo({
           left: box.scrollLeft,
@@ -447,6 +449,7 @@ customElements.define(
           behavior: "instant",
         });
       const first = card.getBoundingClientRect();
+      for (const a of card.getAnimations()) a.cancel();
       const rest = this.#cards(col).filter((c) => c !== card);
       move(col, card, rest[index] ?? null);
       if (grip) {
@@ -489,6 +492,18 @@ customElements.define(
       // native node from current semantic state immediately.
       this.#finishGesture();
     }
+
+    // Sortable owns drag teardown. Send Escape to its drag-end handler even when
+    // pointer movement has left focus elsewhere; onEnd restores rather than records.
+    #escapeDrag = (event) => {
+      const active = /** @type {typeof Sortable & {active: typeof Sortable.prototype | null}} */ (
+        Sortable
+      ).active;
+      if (event.key !== "Escape" || !this.#sortables.has(active)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      active.handleEvent(new CustomEvent("dragend", { detail: "cancel" }));
+    };
 
     #sortable(col) {
       const sortable = new Sortable(col, {
@@ -543,6 +558,15 @@ customElements.define(
           const { item: card, to, newDraggableIndex: newIndex } = evt;
           const from = sup ? sup.from : evt.from;
           const oldIndex = sup ? sup.index : evt.oldDraggableIndex;
+          if (
+            evt.originalEvent.type === "pointercancel" ||
+            evt.originalEvent.detail === "cancel"
+          ) {
+            this.#place(card, from, oldIndex, card.querySelector(":scope > .lf-grip"));
+            this.#finishGesture();
+            announce(`${this.#title(card)} — move cancelled`);
+            return;
+          }
           if (from === to && oldIndex === newIndex) {
             this.#finishGesture();
             return;
@@ -578,8 +602,9 @@ customElements.define(
         return;
       const first = new Map(
         cards.map((card) => {
+          const painted = card.getBoundingClientRect();
           for (const animation of card.getAnimations()) animation.cancel();
-          return [card, card.getBoundingClientRect()];
+          return [card, painted];
         }),
       );
       for (const [id, order] of Object.entries(columns)) {

@@ -179,12 +179,12 @@ customElements.define(
           run: putChoicesAway,
         })),
       ];
-      const retry = (event) => {
+      const retry = (returnFrom = null) => {
         if (busy) return;
         const operation = failure;
         if (operation?.kind === "save")
-          void flush(operation.replace, event.currentTarget);
-        else void refresh(event.currentTarget);
+          void flush(operation.replace, returnFrom);
+        else void refresh(returnFrom);
       };
       let base = null,
         latest = null,
@@ -210,7 +210,8 @@ customElements.define(
         },
         onSave() {
           clearTimeout(timer);
-          void flush();
+          if (failure) retry(editor.contentDOM);
+          else void flush();
         },
       });
       // Landing the reader back in the editor shows them where they type.
@@ -307,7 +308,7 @@ customElements.define(
                 ?hidden=${!retryable}
                 aria-description=${failure?.message ?? nothing}
                 aria-disabled=${busy ? "true" : nothing}
-                @click=${retry}
+                @click=${(event) => retry(event.currentTarget)}
               >
                 Retry</button
               ><button

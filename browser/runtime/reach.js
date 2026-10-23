@@ -198,11 +198,14 @@ function sweep(root) {
       continue;
     }
     const style = getComputedStyle(el);
-    read.push([el, {
-      overflowX: style.overflowX,
-      overflowY: style.overflowY,
-      position: style.position,
-    }]);
+    read.push([
+      el,
+      {
+        overflowX: style.overflowX,
+        overflowY: style.overflowY,
+        position: style.position,
+      },
+    ]);
     for (let node = el; node?.nodeType === Node.ELEMENT_NODE; node = upFrom(node)) {
       if (containers.has(node)) break;
       containers.add(node);
@@ -210,7 +213,8 @@ function sweep(root) {
   }
   // Finish all style readings before slot marks invalidate descendants' styles.
   const queriesRead = [...containers].map((el) => [
-    el, { containerType: getComputedStyle(el).containerType },
+    el,
+    { containerType: getComputedStyle(el).containerType },
   ]);
   for (const [el, style] of queriesRead) noteQueries(el, style);
   for (const [el, style] of read) {

@@ -3855,7 +3855,9 @@ def test_a_hidden_scroller_is_reached_once_it_is_shown(browser, serve, shape):
     page = open_page(browser, serve(html))
     box = page.locator("#unfolded")
     assert box.evaluate("(box) => box.tabIndex") == -1
-    assert box.evaluate("(box) => box.hasAttribute('data-lf-scroll-direction')") is False
+    assert (
+        box.evaluate("(box) => box.hasAttribute('data-lf-scroll-direction')") is False
+    )
     show(page)
     expect(box).to_have_attribute("tabindex", "0")
     expect(box).to_have_attribute("data-lf-scroll-direction", "ltr")

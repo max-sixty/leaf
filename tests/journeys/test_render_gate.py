@@ -1311,9 +1311,9 @@ def test_the_runtime_holds_a_declared_scroll_surface(browser, serve):
                              position: getComputedStyle(pre).position }))"""
     )
     assert diffed, "no diff drew its lines here, so nothing stands in a shadow tree"
-    assert all(
-        d == {"scrolls": "auto", "position": "relative"} for d in diffed
-    ), f"the scroll surface did not contain the diff's lines: {diffed}"
+    assert all(d == {"scrolls": "auto", "position": "relative"} for d in diffed), (
+        f"the scroll surface did not contain the diff's lines: {diffed}"
+    )
 
 
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):

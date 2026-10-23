@@ -365,11 +365,14 @@ function sweep(root) {
       continue;
     }
     const style = getComputedStyle(el);
-    read.push([el, {
-      overflowX: style.overflowX,
-      overflowY: style.overflowY,
-      position: style.position
-    }]);
+    read.push([
+      el,
+      {
+        overflowX: style.overflowX,
+        overflowY: style.overflowY,
+        position: style.position
+      }
+    ]);
     for (let node = el; node?.nodeType === Node.ELEMENT_NODE; node = upFrom(node)) {
       if (containers.has(node)) break;
       containers.add(node);

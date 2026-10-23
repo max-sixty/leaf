@@ -53,11 +53,7 @@
                     "type": "string"
                   },
                   "kind": {
-                    "enum": [
-                      "pull_request",
-                      "release",
-                      "project"
-                    ]
+                    "enum": ["pull_request", "release", "project"]
                   },
                   "additions": {
                     "type": "integer",
@@ -72,18 +68,10 @@
                     "minimum": 0
                   },
                   "distance": {
-                    "enum": [
-                      "home",
-                      "nearby",
-                      "discovery"
-                    ]
+                    "enum": ["home", "nearby", "discovery"]
                   },
                   "topic": {
-                    "enum": [
-                      "agents",
-                      "tools",
-                      "data"
-                    ]
+                    "enum": ["agents", "tools", "data"]
                   },
                   "commentary": {
                     "type": "string",
@@ -98,12 +86,7 @@
                     "minLength": 1
                   },
                   "angle": {
-                    "enum": [
-                      "unlock",
-                      "fix",
-                      "idea",
-                      "release"
-                    ]
+                    "enum": ["unlock", "fix", "idea", "release"]
                   },
                   "retrieval_score": {
                     "type": "integer",
@@ -146,12 +129,7 @@
               }
             }
           },
-          "required": [
-            "fetched_at",
-            "method",
-            "coverage",
-            "items"
-          ],
+          "required": ["fetched_at", "method", "coverage", "items"],
           "additionalProperties": false
         }
       }
@@ -168,10 +146,7 @@
         "pattern": "^[a-z][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id",
-      "source"
-    ],
+    "required": ["id", "source"],
     "additionalProperties": false,
     "description": "An obligation-free stream of repository changes with distance, topic and contextual discussion.",
     "x-content": "empty",

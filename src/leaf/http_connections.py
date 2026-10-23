@@ -186,7 +186,7 @@ def unbind(page_dir: Path, name: str) -> dict:
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
+    def redirect_request(self, _req, _fp, _code, _msg, _headers, _newurl):
         return None
 
 

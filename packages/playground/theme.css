@@ -181,7 +181,7 @@
 :is(.lf-playground-controls-region, .lf-playground-instruction-region) {
   --lf-ground: var(--card);
   border-color: var(--rule);
-  background: var(--card);
+  background: var(--lf-ground);
 }
 
 :is(.lf-playground-controls-region, .lf-playground-instruction-region) > header {
@@ -290,7 +290,7 @@
   min-inline-size: 0;
   border: 1px solid var(--rule);
   border-radius: var(--r);
-  background: var(--card);
+  background: var(--lf-ground);
 }
 :is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
   > lf-playground-choice:has(> .choice > :checked) {
@@ -353,7 +353,7 @@
   padding: var(--sp-4);
   border: 1px solid var(--rule);
   border-radius: var(--r);
-  background: var(--field);
+  background: var(--lf-ground);
 }
 
 /* The instruction is the task the agent receives, read at the size of the controls

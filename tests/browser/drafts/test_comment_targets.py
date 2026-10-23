@@ -40,7 +40,7 @@ def test_completed_page_selection_opens_its_own_comment(browser, serve):
                 "Selection gestures",
                 '<p id="earlier">Earlier subject.</p>'
                 '<p id="later">A later passage keeps native selection.</p>'
-                '<p id="later-box" style="height:72px;overflow:auto">'
+                '<p id="later-box" class="scroll" style="height:72px;overflow:auto">'
                 "A later boxed passage keeps native selection.<br>"
                 + "Another line of evidence.<br>" * 40
                 + "</p>",

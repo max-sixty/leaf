@@ -37,6 +37,18 @@ import {
   preserveReadingRegions,
 } from "/runtime/widget-api.js";
 
+const closeButton = (popover, name) =>
+  html`<button
+    type="button"
+    ref=${offered("lf-btn lf-icon-action lf-quiet-action")}
+    popovertarget=${popover}
+    popovertargetaction="hide"
+    aria-label=${name}
+    title=${`${name} (Esc)`}
+  >
+    ${iconTemplate("cross", "lf-action-icon")}
+  </button>`;
+
 const fact = (name, value) =>
   html`<div>
     <dt data-lf-gen="1" data-lf-said>${name}</dt>
@@ -492,14 +504,7 @@ customElements.define(
                   >
                     <header class="lf-vr-inspection-heading">
                       <h4>Threads on this case</h4>
-                      <button
-                        type="button"
-                        ref=${offered("lf-btn lf-quiet-action lf-compact-control")}
-                        popovertarget=${() => `${this.id}-${record().id}-threads`}
-                        popovertargetaction="hide"
-                      >
-                        ${iconTemplate("cross", "lf-action-icon")}
-                      </button>
+                      ${closeButton(`${this.id}-${record().id}-threads`, "Close threads on this case")}
                     </header>
                     ${For({
                       get each() {
@@ -540,15 +545,7 @@ customElements.define(
             >
               <header class="lf-vr-inspection-heading">
                 <h4>Capture details</h4>
-                <button
-                  type="button"
-                  ref=${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-inspection-close")}
-                  popovertarget=${() => `${this.id}-${record().id}-inspection`}
-                  popovertargetaction="hide"
-                  aria-label="Close capture details"
-                >
-                  ${iconTemplate("cross", "lf-action-icon")}
-                </button>
+                ${closeButton(`${this.id}-${record().id}-inspection`, "Close capture details")}
               </header>
               <dl class="lf-vr-provenance">
                 ${fact("Capture", () => `${record().capture.viewport.width} × ${record().capture.viewport.height} · ${record().capture.deviceScaleFactor}× · ${record().capture.colorScheme}`)}
@@ -596,7 +593,7 @@ customElements.define(
                 ${() => record().result}
               </p>
               <p class="lf-vr-action" data-lf-gen="1" data-lf-said>
-                <strong>Check:</strong> ${() => record().action}
+                <strong>Check:</strong>${" "}${() => record().action}
               </p>
             </div>
           </div>

@@ -106,6 +106,10 @@ Useful work to carry onto Lit main:
   the behavior, not Solid's error adapter, which addresses Solid-specific timing.
 - Publish mechanical DOM changes and signal changes atomically. Preact `batch`
   already gives main the appropriate primitive.
+- Declare visual-review capture resources in its data contract:
+  `resources: ["cases[].before", "cases[].after"]`. This fixes missing images in
+  offline exports on Lit as well. The merged offline browser regression proves
+  decoded images, case changes and keyboard slider use without network requests.
 - Keep dependency decisions independent: WebAwesome's maintained copy and
   comparison behavior remains valuable. Native ordinary controls and any future
   component-library trial should be justified by their own behavior and quality.
@@ -114,6 +118,19 @@ Main's hidden-in-place summary folds, retained search editors, lf-shot ownership
 off-document/indexed diff preparation are concrete examples of framework-independent
 improvement. They are already present on main; they should not be credited as new
 benefits of this branch.
+
+The merged candidate passes 146 framework/build, 534 runtime and 85 Worker tests.
+Focused browser checks and independent desktop/light and phone/dark review cover
+search focus and retained drafts, flat summary folds, option state and tab history,
+late screenshot loads, source refresh/reordering, offline capture inspection, diff
+selection, focus visibility and registered-property shift attribution.
+
+A fresh corpus comparison at `0c1a1de` against Lit `d76ea44` uses each renderer's
+matching page modules. The committed corpus HTML is unchanged. Both arms report no
+console errors, failed widgets or startup layout shifts. External code (JavaScript,
+CSS and registry) is 6,401,506 bytes on Lit and 6,331,105 on Solid: about 70 KB or
+1.1% less. JavaScript requests fall from 118 to 116. Single sequential loads under
+a shared host do not establish a startup timing improvement.
 
 ## Native rendering phases
 

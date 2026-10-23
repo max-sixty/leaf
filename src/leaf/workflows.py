@@ -244,9 +244,9 @@ def handed_over(
     threads: dict,
     thread_reading,
     *,
-    page: PageReading | None = None,
-    events: list | None = None,
-    todo_reading: TodoReading | None = None,
+    page: PageReading | None,
+    events: list,
+    todo_reading: TodoReading,
     items: dict,
 ) -> Handover:
     """The unsettled user inputs and strongest evidence held for each, and the record
@@ -269,11 +269,6 @@ def handed_over(
     distinct workflows even though the thread's single response obligation is
     addressed to the newest one, whose record each of them names.
     """
-    if page is not None:
-        events = page.events
-    elif events is None:
-        raise TypeError("events are required without a page reading")
-
     deliveries: dict[str, dict[str, dict]] = {}
     responses = {
         event["responds"]: event
@@ -298,7 +293,7 @@ def handed_over(
         for event_id, ref in event.get("refs", {}).items():
             refs.setdefault(event_id, {})[ref["claim"]] = ref["ref"]
 
-    log = todo_reading or TodoReading(events)
+    log = todo_reading
     starts = log.starts
     widget_starts: dict[str, list[dict]] = {}
     for todo in log.owed:

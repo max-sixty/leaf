@@ -413,7 +413,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> dict:
         raise Refused(
             f"{page_dir} has no stamped version to export; run `leaf page stamp` first"
         )
-    version = version if version else published[-1]
+    version = published[-1] if version is None else version
     if version not in published:
         raise Refused(
             f"v{version} is not stamped — stamped: "

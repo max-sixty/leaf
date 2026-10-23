@@ -65,11 +65,14 @@ independently of the rendering framework; neither is evidence for Solid itself.
 
 ## Review after merging current main
 
-The merge incorporates main through `d76ea44` (71 commits since the original
+The merge incorporates main through `0dec543` (83 commits since the original
 comparison), including its repository reorganization, serving-runtime delivery,
 unified panel search, focus visibility, flat summary folds, shared screenshot
 inspection, and indexed diff preparation. These product and performance improvements
-remain in the candidate independently of the renderer choice.
+remain in the candidate independently of the renderer choice. The final integration
+also preserves main’s shared composer draft payload and Resume writing selection,
+wrapped trace labels, publication admission simplification, bounded upload reader,
+explicit unstamped-export refusal, and startup tests for serving-runtime URLs.
 
 **Recommendation: retain Lit on production main.** The Solid branch improves on its
 own earlier architecture, but current main makes migration less compelling. Main
@@ -119,7 +122,7 @@ off-document/indexed diff preparation are concrete examples of framework-indepen
 improvement. They are already present on main; they should not be credited as new
 benefits of this branch.
 
-The merged candidate passes 146 framework/build, 534 runtime and 85 Worker tests.
+The candidate through `d76ea44` passed 146 framework/build, 534 runtime and 85 Worker tests.
 Focused browser checks and independent desktop/light and phone/dark review cover
 search focus and retained drafts, flat summary folds, option state and tab history,
 late screenshot loads, source refresh/reordering, offline capture inspection, diff
@@ -128,7 +131,7 @@ WebKit check also verifies that summary folds retain iframe documents and select
 text. Search retention checks assert the initial focus handoff before filling the
 field, including opening search while replying in a thread.
 
-A fresh corpus comparison at `0c1a1de` against Lit `d76ea44` uses each renderer's
+The corpus comparison before the final 12 main commits, at `0c1a1de` against Lit `d76ea44`, uses each renderer's
 matching page modules. The committed corpus HTML is unchanged. Both arms report no
 console errors, failed widgets or startup layout shifts. External code (JavaScript,
 CSS and registry) is 6,401,506 bytes on Lit and 6,331,105 on Solid: about 70 KB or

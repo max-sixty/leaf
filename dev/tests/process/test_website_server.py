@@ -1733,6 +1733,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     host_home = tmp_path / "host-codex"
     host_home.mkdir()
     (host_home / "auth.json").write_text('{"test": "login"}')
+    (host_home / "auth.json").chmod(0o600)
     (root / "worker" / "codex-config.toml").write_text('model = "test"')
     # Each invocation builds directly into its private site destination.
     build_site = tmp_path / "build_site.py"
@@ -1771,6 +1772,10 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "    assert args == ['plugin', 'add', 'leaf@leaf', '--json']\n"
         "    assert len(record.read_text().splitlines()) == 1\n"
         "    response = {'installedPath': str(home / 'plugins/cache/leaf/leaf/local')}\n"
+        "    launcher = Path(response['installedPath']) / 'bin/leaf'\n"
+        "    launcher.parent.mkdir(parents=True)\n"
+        "    launcher.write_text('#!/bin/sh\\nexit 0\\n')\n"
+        "    launcher.chmod(0o755)\n"
         "with record.open('a') as output:\n"
         "    output.write(json.dumps(args) + '\\n')\n"
         "print(json.dumps(response, indent=2))\n"
@@ -1823,6 +1828,12 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
             host_home / "auth.json"
         ).read_bytes()
         assert (private_home / "auth.json").stat().st_mode & 0o777 == 0o600
+        # A refresh in one isolated child must reach the host and other children.
+        (private_home / "auth.json").write_text('{"test": "refreshed"}')
+        assert (host_home / "auth.json").read_text() == '{"test": "refreshed"}'
+        assert (Path(other["home"]) / "auth.json").read_text() == (
+            '{"test": "refreshed"}'
+        )
         assert (private_home / "config.toml").read_text() == 'model = "test"'
         installed = [
             json.loads(line)
@@ -1849,7 +1860,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         len(list((root / ".tmp" / "verify-site").glob("run-*/website-adapter.log")))
         == 2
     )
-    assert (host_home / "auth.json").read_text() == '{"test": "login"}'
+    assert (host_home / "auth.json").read_text() == '{"test": "refreshed"}'
     with pytest.raises(ProcessLookupError):
         os.kill(running["pid"], 0)
 

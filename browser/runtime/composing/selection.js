@@ -28,6 +28,7 @@ import {
   clearDraft,
   draftContexts,
   loadDraft,
+  loadDraftPayload,
   saveDraft,
   sendMessage,
   transferDraft,
@@ -196,41 +197,24 @@ export function createSelectionComposer({
   let pendingRevision = null;
   // The draft owns its mode; the response action and editor hint present it.
   let suggestionMode = false;
-  const composerDraftValue = (text = syncComposer.value()) =>
-    JSON.stringify({
-      format: DRAFT_FORMAT,
-      text,
-      anchor: pendingAnchor,
-      revision: pendingRevision,
-      suggest: suggestionMode,
-      about: pendingAbout,
-      drawing: pendingDrawing,
-      touched: Date.now(),
-    });
+  const composerDraftPayload = () => ({
+    format: DRAFT_FORMAT,
+    anchor: pendingAnchor,
+    revision: pendingRevision,
+    suggest: suggestionMode,
+    about: pendingAbout,
+    drawing: pendingDrawing,
+    touched: Date.now(),
+  });
   const saveComposerDraft = (text = syncComposer.value()) =>
-    saveDraft(composerCtx(pendingAnchor), composerDraftValue(text));
-  // One passage's draft record, or null when it holds none. Parsed under its own guard: a
-  // record that no longer parses costs the user that one draft, where throwing would
-  // cost them the page, at module top level. The page's ink reads every draft on each
-  // paint, scroll frames included, so a record is parsed again only when its stored
-  // words change; readers take it as read-only.
-  const parsedRecords = new Map();
+    saveDraft(composerCtx(pendingAnchor), text, composerDraftPayload());
+  // Words and their submission metadata belong to the shared draft generation.
+  // The draft store parses and caches it once for every reader, including parked ink.
   const composerRecord = (ctx) => {
-    const stored = loadDraft(ctx);
-    const known = parsedRecords.get(ctx);
-    if (known?.stored === stored) return known.record;
-    let record = null;
-    try {
-      record = JSON.parse(stored);
-      if (!Number.isInteger(record?.revision)) record = null;
-      // A draft at another format keeps its words, which are only text, and loses its
-      // drawing, whose shape this runtime may not draw.
-      else if (record.format !== DRAFT_FORMAT) record = { ...record, drawing: null };
-    } catch {
-      record = null;
-    }
-    parsedRecords.set(ctx, { stored, record });
-    return record;
+    const payload = loadDraftPayload(ctx);
+    return payload?.format === DRAFT_FORMAT
+      ? { ...payload, text: loadDraft(ctx) }
+      : null;
   };
   // The drawing a passage's draft holds, whether or not its box is up: putting the box
   // away keeps the draft, strokes included.
@@ -266,8 +250,9 @@ export function createSelectionComposer({
     }
     const record = composerRecord(ctx);
     if (!record) return;
-    if (!record.text && !drawing) clearDraft(ctx);
-    else saveDraft(ctx, JSON.stringify({ ...record, format: DRAFT_FORMAT, drawing }));
+    const { text, ...payload } = record;
+    if (!text && !drawing) clearDraft(ctx);
+    else saveDraft(ctx, text, { ...payload, drawing });
   }
   // News of any passage's draft, whose ink the page shows whether or not its box is up.
   const watchHeldDrawings = (callback) => watchDrafts(COMPOSER_KEY, callback);
@@ -546,7 +531,8 @@ export function createSelectionComposer({
     watchComposer();
     // Programmatic carrying fires no input event, so persist that one move explicitly.
     // An automatically opened empty field has no draft to save; its first edit does.
-    if (carriedDraft) transferDraft(previousCtx, ctx, composerDraftValue());
+    if (carriedDraft)
+      transferDraft(previousCtx, ctx, syncComposer.value(), composerDraftPayload());
     else if (
       drawingSupplied &&
       JSON.stringify(composerRecord(ctx)?.drawing ?? null) !==
@@ -665,6 +651,7 @@ export function createSelectionComposer({
     const record = composerRecord(ctx);
     if (!record) return null;
     return {
+      hasContent: Boolean(record.text || record.drawing),
       // A detached draft's destination is its native editor, not a guessed passage.
       // Arrival clears covering surfaces before this same field is materialized.
       where: anchorTravelAt(record.anchor) ?? composerInput,

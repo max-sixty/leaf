@@ -1,6 +1,7 @@
 /* Keyboard reachability, containment, the sticky-header slot, and continuation paint for
    scrollable page and shadow content. */
 
+import { watchArrivals } from "./arrivals.js";
 import { tabStops, wearsLentStop } from "./focus.js";
 import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
 import { scrollsBy, skipped, userScrollport } from "./geometry.js";
@@ -16,6 +17,8 @@ import { keeps } from "./keeps.js";
 // Style discovery measures only these surfaces. Stop eligibility still checks the
 // rendered controls inside them. Reading-region registration opts its body in.
 const SCROLL_SURFACE = ".scroll";
+const seenClasses = new WeakMap();
+let watchingSurfaces = false;
 // until-found retains its own box, unlike its skipped descendants. That hidden
 // box cannot be inspected, so its apparent overflow earns no keyboard stop.
 const overflows = (el) =>
@@ -158,6 +161,19 @@ const waiting = new Set();
 export function reachScrollers(root) {
   sweep(root);
   paintReach();
+  if (watchingSurfaces) return;
+  watchingSurfaces = true;
+  watchArrivals(SCROLL_SURFACE, ["class"], {
+    arriveBatch(surfaces) {
+      for (const el of surfaces) {
+        const classes = el.getAttribute("class");
+        if (seenClasses.get(el) === classes) continue;
+        seenClasses.set(el, classes);
+        reread(el);
+      }
+    },
+    leave: forgetSurface,
+  });
 }
 
 const wait = (el) => {
@@ -176,6 +192,7 @@ function sweep(root) {
   const read = [];
   const containers = new Set();
   for (const el of surfaces) {
+    seenClasses.set(el, el.getAttribute("class"));
     if (skipped(el)) {
       wait(el);
       continue;
@@ -202,6 +219,22 @@ function sweep(root) {
     if (waited) release(el);
   }
   asked.add(root);
+}
+
+function forgetSurface(el) {
+  seenClasses.delete(el);
+  if (mayScroll.has(el)) {
+    const authored = mayScroll.get(el);
+    mayScroll.delete(el);
+    if (!claimedStops.has(el)) returnStop(el, authored);
+  }
+  if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+  waiting.delete(el);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, null);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.moreBefore, null);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.moreAfter, null);
+  if (!watched(el)) unwatchReach(el);
 }
 
 // Responsive overflow determines whether the surface restarts the sticky slot.

@@ -13,7 +13,8 @@ import {
   shadowRootsIn,
   shownRect,
   skipped,
-  userScrollport
+  userScrollport,
+  watchArrivals
 } from "./bundle-page-paint.js";
 import {
   LENT_REACH_STOP,
@@ -246,6 +247,8 @@ var reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box)
 
 // runtime/reach.js
 var SCROLL_SURFACE = ".scroll";
+var seenClasses = /* @__PURE__ */ new WeakMap();
+var watchingSurfaces = false;
 var overflows = (el) => !el.hasAttribute("hidden") && (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
 var holdsOwnStop = (el) => tabStops(el).length > 0;
 var mayScroll = /* @__PURE__ */ new Map();
@@ -328,6 +331,19 @@ var waiting = /* @__PURE__ */ new Set();
 function reachScrollers(root) {
   sweep(root);
   paintReach();
+  if (watchingSurfaces) return;
+  watchingSurfaces = true;
+  watchArrivals(SCROLL_SURFACE, ["class"], {
+    arriveBatch(surfaces) {
+      for (const el of surfaces) {
+        const classes = el.getAttribute("class");
+        if (seenClasses.get(el) === classes) continue;
+        seenClasses.set(el, classes);
+        reread(el);
+      }
+    },
+    leave: forgetSurface
+  });
 }
 var wait = (el) => {
   waiting.add(el);
@@ -343,6 +359,7 @@ function sweep(root) {
   const read = [];
   const containers = /* @__PURE__ */ new Set();
   for (const el of surfaces) {
+    seenClasses.set(el, el.getAttribute("class"));
     if (skipped(el)) {
       wait(el);
       continue;
@@ -369,6 +386,21 @@ function sweep(root) {
     if (waited) release(el);
   }
   asked.add(root);
+}
+function forgetSurface(el) {
+  seenClasses.delete(el);
+  if (mayScroll.has(el)) {
+    const authored = mayScroll.get(el);
+    mayScroll.delete(el);
+    if (!claimedStops.has(el)) returnStop(el, authored);
+  }
+  if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+  waiting.delete(el);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, null);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.moreBefore, null);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.moreAfter, null);
+  if (!watched(el)) unwatchReach(el);
 }
 function paintSlot(el, style) {
   const sticks = style.position === "sticky";

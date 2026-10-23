@@ -198,10 +198,10 @@ import {
   writeAttachedMedia
 } from "./runtime/bundle-media.js";
 import {
-  motion,
   motionEasing,
   motionPlays,
   motionTime,
+  playMotion,
   reducedMotion,
   scrollBehavior
 } from "./runtime/bundle-motion.js";
@@ -6459,7 +6459,7 @@ function boxMotion({
     const boxFrom = was.get(box);
     shapeUntil = compact ? 0.55 : 1;
     rtl = getComputedStyle(box).direction === "rtl";
-    const start = (element, keyframes) => running.push(motion(element, keyframes, duration, { easing }));
+    const start = (element, keyframes) => running.push(playMotion(element, keyframes, { duration, easing }));
     const contour = (from, to, grow2, radius, compact2 = false) => {
       const frames = [clipFrame(...outline(from, grow2, radius))];
       if (compact2)
@@ -7195,14 +7195,13 @@ function createFloatingPanel({
     const page = menu.firstElementChild;
     if (before !== void 0 && page) {
       const side = (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
-      motion(
+      playMotion(
         page,
         [
           { translate: `${side * 16}px 0`, opacity: 0 },
           { translate: "0 0", opacity: 1 }
         ],
-        viewResizeMs(),
-        { easing: ease() }
+        { duration: viewResizeMs(), easing: ease() }
       );
     }
     if (pointedInPanel) return;
@@ -7504,12 +7503,16 @@ function createFloatingPanel({
     }
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
     if (arriving)
-      motion(arriving, [{ opacity: 0 }, { opacity: 1 }], fadeMs(), {
+      playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
+        duration: fadeMs(),
         delay: leaving ? outMs() : 0,
         easing: "linear"
       });
     const gone = stage.querySelector(".lf-fp-view[data-leaving]");
-    const fade = gone && motion(gone, [{ opacity: 1 }, { opacity: 0 }], outMs(), { easing: "linear" });
+    const fade = gone && playMotion(gone, [{ opacity: 1 }, { opacity: 0 }], {
+      duration: outMs(),
+      easing: "linear"
+    });
     const release2 = fade ? holdRendering() : null;
     const settle = () => {
       leaving = null;

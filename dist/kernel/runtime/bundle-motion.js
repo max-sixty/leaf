@@ -16,10 +16,11 @@ preference.addEventListener("change", (event) => {
   if (event.matches) for (const played of [...active]) played.finish();
 });
 var motionPlays = () => !reducedMotion() && pagePresented();
-function motion(el, keyframes, ms, { easing = "ease", delay = 0, pseudoElement = null } = {}) {
+var motion = (el, keyframes, ms, pseudoElement = null) => playMotion(el, keyframes, { duration: ms, pseudoElement });
+function playMotion(el, keyframes, { duration, easing = "ease", delay = 0, pseudoElement = null }) {
   if (!motionPlays()) return null;
   const played = el.animate(keyframes, {
-    duration: ms,
+    duration,
     delay,
     pseudoElement,
     easing,
@@ -84,6 +85,7 @@ export {
   onMotionPreferenceChange,
   motionPlays,
   motion,
+  playMotion,
   motionTime,
   motionEasing,
   flashDuration,

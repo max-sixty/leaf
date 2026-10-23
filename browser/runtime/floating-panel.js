@@ -203,7 +203,7 @@ import {
 } from "./errors.js";
 import { move } from "./dom-move.js";
 import { statusContextReading } from "./keyboard/status-context.js";
-import { motion, motionEasing, motionPlays, motionTime } from "./motion.js";
+import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
 import {
@@ -1083,14 +1083,13 @@ export function createFloatingPanel({
     if (before !== undefined && page) {
       const side =
         (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
-      motion(
+      playMotion(
         page,
         [
           { translate: `${side * 16}px 0`, opacity: 0 },
           { translate: "0 0", opacity: 1 },
         ],
-        viewResizeMs(),
-        { easing: ease() },
+        { duration: viewResizeMs(), easing: ease() },
       );
     }
     // A press on a menu row leaves focus on that row. A command-reference press
@@ -1600,14 +1599,18 @@ export function createFloatingPanel({
     }
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
     if (arriving)
-      motion(arriving, [{ opacity: 0 }, { opacity: 1 }], fadeMs(), {
+      playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
+        duration: fadeMs(),
         delay: leaving ? outMs() : 0,
         easing: "linear",
       });
     const gone = stage.querySelector(".lf-fp-view[data-leaving]");
     const fade =
       gone &&
-      motion(gone, [{ opacity: 1 }, { opacity: 0 }], outMs(), { easing: "linear" });
+      playMotion(gone, [{ opacity: 1 }, { opacity: 0 }], {
+        duration: outMs(),
+        easing: "linear",
+      });
     // The view leaving goes once its fade ends, which is still the gesture's rendering,
     // so the box moving then moves as the user's change (`followBox`).
     const release = fade ? holdRendering() : null;

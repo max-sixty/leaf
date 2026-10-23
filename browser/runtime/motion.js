@@ -34,7 +34,7 @@ preference.addEventListener("change", (event) => {
   if (event.matches) for (const played of [...active]) played.finish();
 });
 
-// Whether motion plays now, which `motion` asks before every animation. First replay
+// Whether motion plays now, which `playMotion` asks before every animation. First replay
 // happens behind the presentation boundary. Its state should be the first frame the
 // user sees, not a motion from authored state they never saw; it collapses exactly as
 // reduced motion does. This one shared check reaches folds and FLIP alike without a
@@ -46,21 +46,26 @@ export const motionPlays = () => !reducedMotion() && pagePresented();
 // Web-Animations motion goes through here, so a user who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
 // reduce, and a caller treats "no animation" and "animation finished" as the same
-// state. Every motion this module plays shares one held-end-frame contract, and the
-// one ease unless the caller names the theme's own curve for its surface (`easing`,
-// read with `motionEasing`). A duration a caller passes in is still a number this
-// module has no reason for; see AGENTS.md's "Motion". A `delay` holds the first frame
-// until the motion starts, so a part fading in after another fades out stays unseen
-// meanwhile; that is the backward half of the fill, which no undelayed motion reaches.
-export function motion(
+// state. Every motion this module plays shares one held-end-frame contract. A duration
+// a caller passes in is still a number this module has no reason for; see AGENTS.md's
+// "Motion". `motion` is the packages' door, and its signature is part of what a
+// vendored package calls, so it stays as pages know it.
+export const motion = (el, keyframes, ms, pseudoElement = null) =>
+  playMotion(el, keyframes, { duration: ms, pseudoElement });
+
+// The same door with the runtime's own surfaces' further timing: the one ease unless
+// the caller names its surface's curve (`easing`, read with `motionEasing`), and a
+// `delay` that holds the first frame until the motion starts, so a part fading in after
+// another fades out stays unseen meanwhile. That is the backward half of the fill,
+// which no undelayed motion reaches.
+export function playMotion(
   el,
   keyframes,
-  ms,
-  { easing = "ease", delay = 0, pseudoElement = null } = {},
+  { duration, easing = "ease", delay = 0, pseudoElement = null },
 ) {
   if (!motionPlays()) return null;
   const played = el.animate(keyframes, {
-    duration: ms,
+    duration,
     delay,
     pseudoElement,
     easing,

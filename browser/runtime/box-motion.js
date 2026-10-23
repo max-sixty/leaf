@@ -57,7 +57,7 @@
  * ancestor's transform, so a part holding one is never carried whole: its parts are
  * placed one by one. The motion is presentation only: each part's layout is where it
  * stands from the change on, and a part's motion ends with the tween, so nothing it
- * leaves behind needs undoing. Each part's motion plays through motion.js's `motion`,
+ * leaves behind needs undoing. Each part's motion plays through motion.js's `playMotion`,
  * so reduced motion and the presentation boundary are answered there: while motion
  * does not play, each reading takes the box as it stands, and a user asking for
  * stillness mid-tween finishes what is moving.
@@ -67,7 +67,7 @@
  * running one when the next change starts, as each keystroke would; here every part
  * stays live and pressable, which takes reading where each was drawn. */
 import { keeps } from "./keeps.js";
-import { motion, motionPlays } from "./motion.js";
+import { motionPlays, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { nextRender } from "./rendering.js";
 
@@ -339,7 +339,7 @@ export function boxMotion({
     // Every part moves on one clock, through the one door for motion; it plays here,
     // since this reading found that it does.
     const start = (element, keyframes) =>
-      running.push(motion(element, keyframes, duration, { easing }));
+      running.push(playMotion(element, keyframes, { duration, easing }));
     const contour = (from, to, grow, radius, compact = false) => {
       const frames = [clipFrame(...outline(from, grow, radius))];
       if (compact)

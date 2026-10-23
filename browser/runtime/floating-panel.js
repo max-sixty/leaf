@@ -2410,6 +2410,9 @@ export function createFloatingPanel({
     if (node) quoteWatch.observe(node);
   };
   function quoteHead(thread) {
+    // Placement reads the projected document, so a data refresh can change this
+    // status without changing the thread's semantic state.
+    documentChanged();
     const quote = quoteReading(thread, { placedAt });
     if (!quote) return nothing;
     const expanded = quote.localReading && quoteExpanded;

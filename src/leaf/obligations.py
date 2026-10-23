@@ -55,7 +55,6 @@ from leaf.projection import (
     StateProjection,
     enclosing_widgets,
     folded_value,
-    frozen_thread_reading,
     markup_value,
     obligation_value,
     page_reading,
@@ -1071,7 +1070,7 @@ def thread_obligation_readings(
     threads: dict,
     log: "TodoReading",
     *,
-    reading: FrozenThreadReading | None = None,
+    reading: FrozenThreadReading,
     data: dict | None = None,
 ) -> dict:
     """Frozen widget obligations retain inventory when their containing thread closes,
@@ -1082,7 +1081,6 @@ def thread_obligation_readings(
     reply-answered obligation, as does a reaction on the message whose token settles
     it; `log` is the page's `todos.TodoReading`, whose `ends` hold the agent's
     `todo_end` on each id."""
-    reading = reading or frozen_thread_reading(events, registry)
     reducer = _ObligationReducer(
         obligation_sources(reading.structure, registry),
         reading.projection,

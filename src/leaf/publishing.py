@@ -164,8 +164,8 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
     notes = [event for event in events if event["kind"] == "note"]
     version = max((event["version"] for event in notes), default=0) + 1
     event = _stamp_event(body, version, revision, parser, settled_reports, completed)
-    # Stamp-specific refusals precede publication. The publisher preflights this
-    # note's effects, then journals it and every anchor move before the marker.
+    # Stamp-specific refusals precede publication. The publisher admits this
+    # note and every anchor move it requires before the revision marker.
     return publish_checked_event(page, checked, event)
 
 

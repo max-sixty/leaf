@@ -94,6 +94,7 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
     cases = {
         "root": ["--help"],
         "codex": ["codex", "--help"],
+        "connection": ["connection", "--help"],
         "data": ["data", "--help"],
         "package": ["package", "--help"],
         "package-init": ["package", "init", "--help"],

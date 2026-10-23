@@ -197,7 +197,8 @@ never have to follow a chain of references to find one.
 - `references/module-authoring.md`: before writing or changing browser behavior in
   a page script, page-owned widget or package widget. Then, as the behavior needs
   them: `references/module-reading.md` for reading the page, content helpers, obligations
-  and history; `references/module-state.md` for recorded state and data;
+  and history; `references/module-state.md` for recorded state, data, authenticated
+  HTTP connections and LLM generation;
   `references/module-input.md` for commands, focus and text entry;
   `references/module-scroll-and-motion.md` for scrolling, travel and motion; and
   `references/module-annotations.md` for margin entries, visual parts and Threads.

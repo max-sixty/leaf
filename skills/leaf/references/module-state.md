@@ -182,6 +182,49 @@ and exports. Editing the file records nothing in the page's log and takes no par
 Undo. The `file-editor` package's `lf-file-editor` provides this; use `lf-code` for a
 snapshot that should travel with the page.
 
+## Authenticated HTTP connections
+
+An agent can write an integration as page-owned JavaScript, using a named host
+connection for credentials. The trusted CLI grants a single HTTPS origin:
+
+```sh
+leaf connection bind PAGE source https://api.example.com --credential-env EXAMPLE_TOKEN
+```
+
+The variable must be in the binding command's environment. Leaf captures its value
+in private host storage, outside page files and exports, so restarting a page
+server keeps the grant usable. The default credential header is
+`Authorization: Bearer <value>`; `--header` and `--prefix` configure other
+header-based APIs. Binding grants the entire origin, so choose a credential with
+only the access this page should have. A connection is available to all scripts
+on that page, not isolated to one widget.
+
+```js
+import { connection } from "/runtime/widget-api.js";
+
+const response = await connection("source").fetch("/items?page=2");
+if (response.status !== 200) throw new Error(`Source returned ${response.status}`);
+const items = JSON.parse(response.body);
+```
+
+`fetch(path)` returns `{status, headers, body}` with a text body. Only relative
+paths beginning with one `/` are accepted. Leaf sends GET with the configured
+header, refuses redirects, limits responses to 1 MiB and uses a 15-second socket
+inactivity timeout.
+Transport and grant refusals reject the promise; upstream HTTP errors return their
+status and body. No request is retried automatically. The response exposes content
+type, pagination/cache and rate-limit headers, not credentials or cookies.
+
+Each grant allows 200 requests by default (`--max-requests` sets its budget).
+Leaf reserves a request before sending it, including failed requests; rebinding
+explicitly resets the budget. `leaf connection unbind PAGE source` revokes access.
+Connections work only on live pages, not captures, exports or live samples.
+
+Keep endpoint paths, pagination, parsing and application policy in the page or a
+package. Fetching changes neither page state nor stored data. Publish browser
+derivations through widget outputs; use the typed data source workflow when the
+result needs to be stored for the page's other readers.
+
 ## LLM generation
 
 `generate({input, schema, instructions?})` asks the host's model for a structured

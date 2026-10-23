@@ -192,6 +192,8 @@ ignore_names = [
   "log_message",
   "daemon_threads",
   "handlers",
+  # urllib.request calls this HTTPRedirectHandler override by name.
+  "redirect_request",
   # a reference held only so its page stays in the recent pages (samples.py)
   "parent_memory",
   # click, uvicorn, markdown-it

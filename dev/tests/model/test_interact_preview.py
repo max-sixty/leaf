@@ -12,6 +12,7 @@ in a `main` module runs nowhere near the change that breaks it.
 """
 
 import json
+import os
 import shlex
 import shutil
 import socket
@@ -34,7 +35,7 @@ from interact_support import (
     wait_for,
 )
 from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview
+from leaf_dev.commands import preview, record_demo, site
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 from leaf import cli as cli_model
@@ -42,6 +43,80 @@ from leaf import codex_adapter, leases, server, service, session
 from leaf.interaction_log import read_interactions
 from leaf.media import media_name
 from leaf.structure import SourceDocument
+
+
+def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_path):
+    from leaf.packages import cmd_package_install
+    from leaf.registry.storage import layer_metadata
+
+    personal = tmp_path / "personal"
+    personal.mkdir()
+    (personal / "theme.css").write_text(":root { --accent: #814b07; }")
+    cmd_package_install(personal)
+    config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text('themes = ["personal"]\ndefault = "personal"\n')
+    ordinary = tmp_path / "ordinary"
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(ordinary)])
+    assert result.exit_code == 0, result.output
+    assert layer_metadata(ordinary)["theme"]["name"] == "personal"
+
+    runners = {
+        "arm": partial(
+            arms.run_leaf, ROOT, Path(os.environ["XDG_STATE_HOME"]), check=True
+        ),
+        "preview": partial(preview.leaf, ROOT / "bin/leaf", ROOT),
+        "site": site.checkout_leaf(),
+    }
+    for name, run in runners.items():
+        page = tmp_path / name
+        run(
+            "page",
+            "init",
+            *page_fixtures.package_selection_args(("diagram",)),
+            str(page),
+        )
+        assert layer_metadata(page)["packages"] == ["diagram"]
+        assert layer_metadata(page)["theme"] is None
+
+    page = tmp_path / "demo"
+    with record_demo.demo_session(tmp_path / "demo-run"):
+        record_demo.cmd_init(page)
+        assert layer_metadata(page)["theme"] is None
+
+
+def test_seeded_fixture_history_does_not_require_the_builders_page_protocol(tmp_path):
+    """Paired probes can prepare historical input for either arm's own runtime."""
+    from leaf.event_log import read_events
+    from leaf.service import acknowledged
+
+    fixture = read_fixture(ROOT / "examples/review-a-plan.html")
+    page = tmp_path / "page"
+    selected_protocol = None
+
+    def run_leaf(*args, input_text=None):
+        nonlocal selected_protocol
+        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+        assert result.exit_code == 0, result.output
+        if args[:2] == ("page", "stamp") and args[-1] == "Draft as authored":
+            # The command runner owns the arm's protocol. Once it has produced its
+            # page, fixture history must not ask this checkout to admit a write.
+            registry_path = page / "registry.json"
+            registry = json.loads(registry_path.read_text())
+            selected_protocol = registry["$events"]["protocol"] + 1
+            registry["$events"]["protocol"] = selected_protocol
+            registry_path.write_text(json.dumps(registry))
+
+    prepare_page(page, fixture, run_leaf, final_status=None)
+    events = read_events(page)
+    assert [event["version"] for event in events if "version" in event] == [1, 2, 3]
+    assert fixture.seed.read_text() in (page / "events.jsonl").read_text()
+    assert events[-1]["kind"] == "receipt"
+    assert acknowledged(events) == events[-1]["seq"] - 1
+    assert (
+        json.loads((page / "registry.json").read_text())["$events"]["protocol"]
+        == selected_protocol
+    )
 
 
 def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, request):

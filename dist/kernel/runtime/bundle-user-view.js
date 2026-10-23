@@ -14,21 +14,23 @@ import "./bundle-passage-facts.js";
 import {
   coarsePointer,
   layerHeaders,
-  layoutWindow,
   randomId,
+  sessionIsActive
+} from "./bundle-page-paint.js";
+import {
+  layoutWindow,
   seenRect,
-  sessionIsActive,
   shownWindow,
   tagsDeclaring,
   watchRoom
-} from "./bundle-page-paint.js";
-import "./bundle-frame-visibility.js";
+} from "./bundle-arrivals.js";
 import {
   offlineInteractive,
   pageUrl,
   runtime,
   watchSemantic
 } from "./bundle-semantic-state.js";
+import "./bundle-frame-visibility.js";
 import "./bundle-queued-work.js";
 import "./bundle-__export.js";
 

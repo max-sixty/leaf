@@ -9,6 +9,12 @@ the package writes no storage or server code. It declares each kind of change as
 under the element's `x-state`. Leaf validates each event, works out the current state,
 hands it to the module, and shows it to the agent under `state` in `leaf page state`.
 
+A verb declaring `decides: true` selects which of its widget's members retire. It
+folds by widget and requires a string-enum `outcome` field. `x-retired-when` and
+`x-withdrawn-as` refer to those outcomes. An `outcome` field on any other verb is
+ordinary domain data; whether an action answers an obligation is separately
+declared by `x-awaits`.
+
 The default board declares `move` as a position record in
 `packages/default/registry.json`:
 
@@ -127,6 +133,26 @@ words answers with `static answerWords` ([module-state.md, "Declared widget
 state"](module-state.md#declared-widget-state)), and reads obligations with `readObligations()`
 ([module-reading.md, "Reading obligations and the
 On lists"](module-reading.md#reading-obligations-and-the-on-lists)).
+
+## Instance input contracts
+
+A custom-detail verb can declare `contract: {"field": "values", "attribute": "contract"}`.
+The widget's `contract` attribute is a string matching the data contract name pattern
+from `schema.DATA_CONTRACT_NAME`. Its authored value selects a `$data.contracts` entry
+whose `schema` validates the complete `detail.values`, alongside the package's base
+schema. The field and attribute names belong to the package; core reads the declaration.
+
+For example, two Playgrounds can use `contract="release-query"` and
+`contract="notification"`. Their page declares those contracts in
+`page/registry.json`, with each complete values schema covering scalar controls,
+structured editor values, required names and bounds. The widget declaration stays
+with its package. Without the attribute, the base payload schema applies.
+
+Page checks refuse unknown contract names. Admission reads the attribute from the
+authored revision, or from the frozen message holding a thread widget, and resolves
+it using the command’s revision registry. Changing only the selected contract keeps
+any earlier action whose value fits the new schema. The log keeps the original action
+and its schema.
 
 ## References between widgets
 
@@ -263,7 +289,16 @@ in its attribute schema. `page check` verifies the referenced widget declares th
 named output with the input's contract. Consumers never identify a producer by tag.
 
 The producer calls `publishOutput(this, "files", value)` after deriving its complete
-value, and publishes `null` when that output is unavailable. Output values belong to
+value, and publishes `null` when that output is unavailable. `page check --render`
+and `package check --render` validate every output exercised during their render,
+including values later withdrawn or replaced and values from contained samples whose
+frames are later disposed. A mismatch is an error naming the
+producer, output, contract and value path. Captured provenance names the implementation
+owner and, when different, the output declaration and data contract owners: a page
+can change each independently. These checks cover the paths the examples exercise,
+not every possible later value. The running browser does not load a schema validator.
+
+Output values belong to
 the widget instance: leaving the document clears them; returning restores them until
 the producer publishes again. Outputs are ephemeral browser derivations, not stored
 sources, and have no fabricated source revision or run receipt. Data reading,

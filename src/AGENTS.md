@@ -116,7 +116,8 @@ probe readings and the findings they become, `version` retries, `page_code` the 
 plain `page check` makes, `preview` temporary servers, `browser` the browser's launch and
 exit, `screens` the screenshots a passing check saves, `picture` the image
 `page picture` draws of a drawing comment, `command` the CLI, and `widget_quality` the
-report `package check --render` gives a widget's author, which never fails a check.
+report `package check --render` gives a widget's author: presentation findings are
+advice, while exercised output contract violations fail the check.
 
 Within `validation/`, `markup` owns shared document structure, `instances` the
 registry-declared instance rules, `admission` what an agent's write hands in,

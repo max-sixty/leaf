@@ -1,6 +1,7 @@
-import { says, textNodesUnder } from "/runtime/widget-api.js";
+import { says } from "/runtime/widget-api.js";
 import {
   quoteFrom,
+  textNodesUnder,
   upFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,

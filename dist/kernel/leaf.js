@@ -20,12 +20,12 @@ import {
   MAX_DRAWING_POINTS,
   MAX_DRAWING_SAYS_LENGTH,
   MAX_DRAWING_STROKES,
-  acceptData,
   beginRead,
   commandSteps,
   composerOpen,
   composerQuote,
   createAnchorTravel,
+  createPageLayout,
   createReactionController,
   createSelectionComposer,
   createThreadLanding,
@@ -40,7 +40,6 @@ import {
   leavesBox,
   mountApplication,
   mountHistory,
-  notifyDataSubscribers,
   obligationEnding,
   obligationWord,
   ownedObligationControl,
@@ -94,7 +93,10 @@ import {
 import {
   restoreUserView
 } from "./runtime/bundle-restore-state.js";
-import "./runtime/bundle-projection~presentation.js";
+import {
+  acceptData,
+  notifyDataSubscribers
+} from "./runtime/bundle-projection~presentation.js";
 import {
   DESIGN_MODE_KEY,
   ELEMENTS,
@@ -210,7 +212,6 @@ import {
   pointInto,
   railStands,
   registerPageControl,
-  scheduleResidency,
   visibleTargetParts
 } from "./runtime/bundle-page-controls.js";
 import {
@@ -274,7 +275,6 @@ import {
   scrollersOf,
   settlePageInterface,
   shortAgo,
-  syncLayoutRegion,
   userReadingRegion,
   whenArrived
 } from "./runtime/bundle-presence.js";
@@ -318,18 +318,13 @@ import {
   PRESSABLE,
   advertisesKeys,
   allBindings,
-  annotationSheets,
   announce,
   bindingEnabled,
   bindings,
   buttonCommand,
-  chromeSheet,
   claimsEsc,
-  clamp,
   clampedRow,
-  clippedContents,
   closeControl,
-  closeNativeLayer,
   coarsePointer,
   commandDeclarationsWithin,
   commandPresentations,
@@ -340,39 +335,25 @@ import {
   contextScopes,
   cycledRow,
   decisionControls,
-  decisionFor,
-  declareOccluder,
-  declareWindowChrome,
   declaredBindings,
   descriptionOf,
   dismissError,
   dismissErrors,
-  dismissPopoversOutside,
   dragHeld,
   el,
   errorsReading,
   holdingError,
-  hostIn,
   iconElement,
   iconTemplate,
-  inUi,
-  intersect,
   keys,
   labelOf,
-  landingBand,
-  layoutWindow,
   live,
   liveEl,
-  marksSheet,
   merge,
   mountRepaint,
-  nativeLayers,
-  nativeModalAdmits,
   notice,
   noticeReading,
   offer,
-  overlaps,
-  overlapsAcross,
   pagePresented,
   pageUpgraded,
   paintKeys,
@@ -388,7 +369,6 @@ import {
   raiseError,
   reflectFirstScopes,
   reflectKeys,
-  registry,
   repaint,
   repaintPage,
   reportPageError,
@@ -400,36 +380,75 @@ import {
   scopeRefs,
   scopesAt,
   scopesFor,
-  scrollGlides,
-  scrolling,
   searchField,
   seeErrors,
-  seenRect,
   setNoticeContext,
   setQuickShortcuts,
   setRuntimeRootStyle,
+  spell,
+  spokenBinding,
+  submitBindings,
+  submitLabel,
+  titleOf,
+  uploadMedia,
+  watchCommandAvailability,
+  word
+} from "./runtime/bundle-page-paint.js";
+import {
+  annotationSheets,
+  chromeSheet,
+  clamp,
+  clippedContents,
+  closeNativeLayer,
+  decisionFor,
+  declareOccluder,
+  declareWindowChrome,
+  dismissPopoversOutside,
+  hostIn,
+  inUi,
+  intersect,
+  landingBand,
+  layoutWindow,
+  marksSheet,
+  nativeLayers,
+  nativeModalAdmits,
+  overlaps,
+  overlapsAcross,
+  registry,
+  scrollGlides,
+  scrolling,
+  seenRect,
   showNativeLayer,
   shownBox,
   shownParts,
   shownRect,
-  spell,
-  spokenBinding,
   stackLevel,
   startsAt,
-  submitBindings,
-  submitLabel,
   tagsDeclaring,
-  titleOf,
   underOccluder,
   union,
-  uploadMedia,
-  watchCommandAvailability,
   watchScrollEnds,
   watchScrolls,
   whileConnected,
-  windowChromeBoxes,
-  word
-} from "./runtime/bundle-page-paint.js";
+  windowChromeBoxes
+} from "./runtime/bundle-arrivals.js";
+import {
+  DELIVERY,
+  PRESENTATION_ORDER,
+  SHARE_ROOT,
+  WEBSITE_DELIVERY,
+  agentName,
+  annotationMode,
+  applicationPresenter,
+  applicationState,
+  documentChanged,
+  offlineInteractive,
+  readPart,
+  runtime,
+  runtimeResource,
+  shareUrl,
+  whenApplicationPresented
+} from "./runtime/bundle-semantic-state.js";
 import {
   CARET_KEYS,
   MODIFIER_KEYS,
@@ -479,23 +498,6 @@ import {
   under,
   upFrom
 } from "./runtime/bundle-frame-visibility.js";
-import {
-  DELIVERY,
-  PRESENTATION_ORDER,
-  SHARE_ROOT,
-  WEBSITE_DELIVERY,
-  agentName,
-  annotationMode,
-  applicationPresenter,
-  applicationState,
-  documentChanged,
-  offlineInteractive,
-  readPart,
-  runtime,
-  runtimeResource,
-  shareUrl,
-  whenApplicationPresented
-} from "./runtime/bundle-semantic-state.js";
 import {
   LitElement,
   Z,
@@ -10470,38 +10472,6 @@ function createDesignMode({
     name: designName,
     inspectElement: inspectEl
   };
-}
-
-// runtime/page-layout.js
-function createPageLayout({
-  scheduleThreadPreviewPosition,
-  syncReactLayout,
-  refreshFab,
-  pageShifted,
-  repaintPage: repaintPage2
-}) {
-  function syncLayout() {
-    syncLayoutRegion();
-    scheduleResidency();
-    scheduleThreadPreviewPosition?.();
-    if (syncReactLayout()) return;
-    refreshFab();
-  }
-  let bodyContentWidth = 0;
-  let bodyContentHeight = 0;
-  const layoutSizes = sizeObserver(([{ contentRect }]) => {
-    const widthChanged = contentRect.width !== bodyContentWidth;
-    const moved = widthChanged || contentRect.height !== bodyContentHeight;
-    bodyContentWidth = contentRect.width;
-    bodyContentHeight = contentRect.height;
-    if (widthChanged) repaintPage2();
-    else if (moved) pageShifted();
-  });
-  function mountLayoutObservers() {
-    addEventListener("resize", syncLayout);
-    layoutSizes.observe(document.body);
-  }
-  return { syncLayout, mountLayoutObservers };
 }
 
 // runtime/page-about.js

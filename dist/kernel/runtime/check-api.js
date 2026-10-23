@@ -8,6 +8,7 @@ import {
   USER_VIEW_RESTORE_CASES
 } from "./bundle-restore-state.js";
 import {
+  observeOutputs,
   shallowSigs
 } from "./bundle-projection~presentation.js";
 import {
@@ -83,32 +84,36 @@ import {
   sentenceUnits,
   settledAway,
   spanIn,
+  textNodesUnder,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity
 } from "./bundle-passage-facts.js";
 import {
   allBindings,
-  annotationMarkSheets,
-  annotationSheets,
-  chromeSharedClasses,
-  chromeSheet,
   commandDeclarationsWithin,
   commandEntries,
   commandPresentations,
   commandRoutes,
   dragHeld,
   exceptionText,
-  growthAfterIsSeen,
-  landingBand,
   live,
-  marksSheet,
-  nativeLayers,
   recordInteraction,
   reveal,
-  runtimeRootState,
+  runtimeRootState
+} from "./bundle-page-paint.js";
+import {
+  annotationMarkSheets,
+  annotationSheets,
+  chromeSharedClasses,
+  chromeSheet,
+  growthAfterIsSeen,
+  landingBand,
+  marksSheet,
+  nativeLayers,
   seenRect,
   shownBand,
   shownBox,
+  shownParts,
   shownRect,
   skipped,
   stackLevel,
@@ -116,7 +121,17 @@ import {
   uiInside,
   userScrollport,
   visibleBand
-} from "./bundle-page-paint.js";
+} from "./bundle-arrivals.js";
+import {
+  applicationPresented,
+  readApplication,
+  readApplicationPresentation,
+  selectWidgets,
+  watchSemantic,
+  whenApplicationPresented,
+  whenApplicationRegionsPresented,
+  whenDocumentPresented
+} from "./bundle-semantic-state.js";
 import {
   WORKS,
   frameVisibility,
@@ -130,16 +145,6 @@ import {
   takesLetters,
   upFrom
 } from "./bundle-frame-visibility.js";
-import {
-  applicationPresented,
-  readApplication,
-  readApplicationPresentation,
-  selectWidgets,
-  watchSemantic,
-  whenApplicationPresented,
-  whenApplicationRegionsPresented,
-  whenDocumentPresented
-} from "./bundle-semantic-state.js";
 import {
   bindQueuedWork,
   createPresentationSchedule,
@@ -209,6 +214,7 @@ export {
   live,
   marksSheet,
   nativeLayers,
+  observeOutputs,
   observeQueuedWork,
   onFrameVisibility,
   onStanding,
@@ -247,6 +253,7 @@ export {
   shallowSigs,
   shownBand,
   shownBox,
+  shownParts,
   shownRect,
   shownRegionBounds,
   skipped,
@@ -258,6 +265,7 @@ export {
   tabStops,
   tabStore,
   takesLetters,
+  textNodesUnder,
   uiInside,
   unconcealedReadingRegions,
   upFrom,

@@ -10,11 +10,13 @@ import {
   pageText
 } from "./bundle-passage-facts.js";
 import {
-  clamp,
   layoutChanged,
-  repaintPage,
-  shownParts
+  repaintPage
 } from "./bundle-page-paint.js";
+import {
+  clamp,
+  shownParts
+} from "./bundle-arrivals.js";
 import {
   afterScript,
   drawn,

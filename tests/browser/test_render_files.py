@@ -100,7 +100,7 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     """Provider defaults yield to package CSS and root inputs in a real bound editor,
     which reads a `.markdown` file as Markdown, as `$languages.paths` says."""
     file = tmp_path / "style.markdown"
-    file.write_text("# A real file\n\nEditable words.\n")
+    file.write_text("# A real file\n\nEditable words and `literal` evidence.\n")
     url = serve(
         leaf_page(
             "Editor theme",
@@ -123,10 +123,13 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
 
     page.evaluate("""() => document.querySelector('#change-theme').addEventListener('click', () => {
       const style = document.createElement('style');
-      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; } lf-file-editor { --lf-file-editor-size: 30px; }';
+      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; --syn-string: rgb(0, 85, 102); } lf-file-editor { --lf-file-editor-size: 30px; }';
       document.head.append(style);
     })""")
     page.get_by_role("button", name="Change theme", exact=True).click()
+    expect(editor.get_by_text("literal", exact=True)).to_have_css(
+        "color", "rgb(0, 85, 102)"
+    )
     page.keyboard.press("Tab")
     editor.focus()
     assert editor.evaluate("node => node.matches(':focus-visible')")

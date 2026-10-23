@@ -7,21 +7,18 @@ import {
   consumeAnnotations,
   currentProjection,
   landInThread,
-  loadDeferred,
   navigateToDatum,
   obligationActions,
   placePageThreads,
   projectData,
-  publishOutput,
   pushEntry,
   queueActions,
   queueItemKey,
   queueTitle,
   readQueues,
-  referencedProjection,
+  registerRootHeader,
   registerThreadPresentation,
   replaceEntry,
-  requireReference,
   threadActions,
   threadBox,
   threadInput,
@@ -29,7 +26,6 @@ import {
   wireInput
 } from "./bundle-document-identity.js";
 import {
-  dressSamples,
   wear
 } from "./bundle-dress.js";
 import {
@@ -40,7 +36,12 @@ import {
   presentContributionReceipts,
   registerContribution
 } from "./bundle-contribution-model.js";
-import "./bundle-projection~presentation.js";
+import {
+  loadDeferred,
+  publishOutput,
+  referencedProjection,
+  requireReference
+} from "./bundle-projection~presentation.js";
 import {
   HOLDS_WORD,
   HeldReading,
@@ -157,9 +158,7 @@ import {
   elementById,
   excerptWords,
   inChrome,
-  renderRetired,
   says,
-  textNodesUnder,
   wrote
 } from "./bundle-passage-facts.js";
 import {
@@ -169,24 +168,15 @@ import {
   PRESS,
   PRESSABLE,
   announce,
-  closeNativeLayer,
   commandScope,
   commandsOn,
-  declarationFor,
   dragging,
   el,
-  elementsDeclaring,
-  frameFor,
-  growthIsSeen,
   iconElement,
   iconTemplate,
-  inBaseLayer,
   keys,
   labelOf,
-  landingInsets,
-  layerFact,
   layoutChanged,
-  matchesWhen,
   measure,
   motionPreview,
   notice,
@@ -197,22 +187,40 @@ import {
   pressIsKeyboardActivation,
   raiseError,
   reachedForWords,
-  registry,
   relabel,
-  removeRuntimeRootStyle,
   requestJson,
   rowArrows,
   saying,
   searchField,
   selectableOffer,
   selectableOffered,
-  setRuntimeRootStyle,
-  showNativeLayer,
-  shownParts,
-  shownWindow,
-  whileConnected,
   worksInside
 } from "./bundle-page-paint.js";
+import {
+  closeNativeLayer,
+  declarationFor,
+  elementsDeclaring,
+  frameFor,
+  growthIsSeen,
+  inBaseLayer,
+  landingInsets,
+  layerFact,
+  matchesWhen,
+  registry,
+  showNativeLayer,
+  shownWindow,
+  whileConnected
+} from "./bundle-arrivals.js";
+import {
+  agentName,
+  applicationRegionsPresented,
+  applicationState,
+  offlineInteractive,
+  pageUrl,
+  projectionRegionsPresented,
+  readPart,
+  revisionLabel
+} from "./bundle-semantic-state.js";
 import {
   TEXT_BOX,
   TEXT_FIELD,
@@ -244,16 +252,6 @@ import {
   under,
   whenLeft
 } from "./bundle-frame-visibility.js";
-import {
-  agentName,
-  applicationRegionsPresented,
-  applicationState,
-  offlineInteractive,
-  pageUrl,
-  projectionRegionsPresented,
-  readPart,
-  revisionLabel
-} from "./bundle-semantic-state.js";
 import {
   Z,
   classMap,
@@ -1231,7 +1229,6 @@ export {
   differenceKind,
   directWorkElements,
   dragging,
-  dressSamples,
   el,
   elementById,
   elementsDeclaring,
@@ -1340,14 +1337,13 @@ export {
   ref,
   registerContribution,
   registerReadingRegion,
+  registerRootHeader,
   registerThreadPresentation,
   registerVisualParts,
   relabel,
   releaseOutlets,
-  removeRuntimeRootStyle,
   render,
   renderMarkdown,
-  renderRetired,
   repeat,
   replaceEntry,
   reportFailure,
@@ -1378,12 +1374,10 @@ export {
   setChildLists,
   setChildren,
   setRenderedChildren,
-  setRuntimeRootStyle,
   shadowStage,
   shortAgo,
   showNativeLayer,
   showReadingSubject,
-  shownParts,
   shownWindow,
   Z as signal,
   sizeObserver,
@@ -1392,7 +1386,6 @@ export {
   synNodes,
   syntax,
   tabStore,
-  textNodesUnder,
   threadActions,
   threadBox,
   threadInput,

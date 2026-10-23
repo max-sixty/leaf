@@ -146,27 +146,32 @@ import {
 import {
   LAYOUT,
   PRESS,
-  clamp,
   closeControl,
   coarsePointer,
   el,
-  hostIn,
   iconElement,
   keys,
   notice,
   offer,
   paintKeys,
   repaint,
-  rightCover,
   rowArrows,
+  setRuntimeRootAttribute
+} from "./bundle-page-paint.js";
+import {
+  clamp,
+  hostIn,
+  rightCover,
   seenRect,
-  setRuntimeRootAttribute,
   shownBox,
   shownWindow,
   skipped,
   union,
   watchRoom
-} from "./bundle-page-paint.js";
+} from "./bundle-arrivals.js";
+import {
+  whenDocumentPresented
+} from "./bundle-semantic-state.js";
 import {
   TEXT_FIELD,
   afterScript,
@@ -202,9 +207,6 @@ import {
   tabStops,
   under
 } from "./bundle-frame-visibility.js";
-import {
-  whenDocumentPresented
-} from "./bundle-semantic-state.js";
 import {
   bareReaction,
   html,

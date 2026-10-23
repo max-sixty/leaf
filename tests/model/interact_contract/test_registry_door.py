@@ -542,7 +542,7 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
     if fault == "per-part":
         assert found(findings, "deciding-verb", "<lf-suggestion>", verb="decide")
     else:
-        assert found(findings, "retired-when", owner="lf-suggestion")
+        assert found(findings, "invalid-extensions", "<lf-suggestion>")
 
 
 @pytest.mark.parametrize(

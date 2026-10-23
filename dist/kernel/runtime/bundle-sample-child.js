@@ -20,11 +20,9 @@ import {
   commandRoutes,
   declaredBindings,
   descriptionOf,
-  excludedByInert,
   live,
   nativeActivationAt,
   nativeClaimAt,
-  nativeLayers,
   pagePresented,
   pageUpgraded,
   quickShortcuts,
@@ -38,6 +36,10 @@ import {
   titleOf,
   word
 } from "./bundle-page-paint.js";
+import {
+  excludedByInert,
+  nativeLayers
+} from "./bundle-arrivals.js";
 import {
   afterSettling,
   canPlaceFocus,

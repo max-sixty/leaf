@@ -7,14 +7,21 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   closeControl,
-  closeNativeLayer,
   keys,
-  nativeLayers,
   offered,
   paintKeys,
-  plainPress,
-  showNativeLayer
+  plainPress
 } from "./bundle-page-paint.js";
+import {
+  closeNativeLayer,
+  nativeLayers,
+  showNativeLayer
+} from "./bundle-arrivals.js";
+import {
+  offlineInteractive,
+  pageUrl,
+  runtimeResource
+} from "./bundle-semantic-state.js";
 import {
   closeLayer,
   focusDestination,
@@ -25,11 +32,6 @@ import {
   openLayer,
   openerOf
 } from "./bundle-frame-visibility.js";
-import {
-  offlineInteractive,
-  pageUrl,
-  runtimeResource
-} from "./bundle-semantic-state.js";
 import {
   html,
   render

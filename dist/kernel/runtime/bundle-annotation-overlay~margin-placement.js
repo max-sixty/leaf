@@ -36,10 +36,12 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   LAYOUT,
+  coarsePointer,
+  hoveringPointer
+} from "./bundle-page-paint.js";
+import {
   clamp,
   clippingAxes,
-  coarsePointer,
-  hoveringPointer,
   overlaps,
   overlapsAcross,
   renderedChildren,
@@ -52,7 +54,7 @@ import {
   shownWindow,
   skipped,
   union
-} from "./bundle-page-paint.js";
+} from "./bundle-arrivals.js";
 import {
   TAB_STOP,
   afterScript,

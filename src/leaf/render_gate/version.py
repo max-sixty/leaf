@@ -69,7 +69,12 @@ def _findings_with_viewports(findings: list[tuple[Finding, str]]) -> list[Findin
 
 
 def _render_version_attempt(
-    browser, url: str, served_timeout_ms: int | None = None
+    browser,
+    url: str,
+    served_timeout_ms: int | None = None,
+    *,
+    implementations=None,
+    declaration_sources=None,
 ) -> tuple[RenderReading, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
     console warning or error (a widget failing soft is one, since the page reports it),
@@ -167,7 +172,15 @@ def _render_version_attempt(
     def render(viewport, scheme, then):
         viewport_label = _viewport_label(viewport)
         found, found_notices, complete = _render_scheme(
-            browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=then
+            browser,
+            url,
+            scheme,
+            viewport,
+            served_timeout_ms,
+            opened_pages,
+            then=then,
+            implementations=implementations,
+            declaration_sources=declaration_sources,
         )
         failures.extend((finding, viewport_label) for finding in found)
         notices.extend((notice, viewport_label) for notice in found_notices)
@@ -194,7 +207,12 @@ def _render_version_attempt(
 
 
 def render_version(
-    browser, url: str, served_timeout_ms: int | None = None
+    browser,
+    url: str,
+    served_timeout_ms: int | None = None,
+    *,
+    implementations=None,
+    declaration_sources=None,
 ) -> RenderReading:
     """Read a version, confirming a complete attempt that reports a ResizeObserver
     loop notice. Advice is the first attempt's: it refuses nothing, so a
@@ -219,7 +237,11 @@ def render_version(
     def attempt():
         try:
             return _render_version_attempt(
-                browser, url, served_timeout_ms=served_timeout_ms
+                browser,
+                url,
+                served_timeout_ms=served_timeout_ms,
+                implementations=implementations,
+                declaration_sources=declaration_sources,
             )
         except PlaywrightError as error:
             failure = Finding("gate-failed", values={"error": str(error).strip()})

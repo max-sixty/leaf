@@ -7,13 +7,19 @@ import {
   widgetDescriptor
 } from "./bundle-keyboard~disclosure.js";
 import {
+  recordInteraction,
+  requestJson
+} from "./bundle-page-paint.js";
+import {
   frameView,
   layoutWindow,
   presented,
-  recordInteraction,
-  requestJson,
   watchRoom
-} from "./bundle-page-paint.js";
+} from "./bundle-arrivals.js";
+import {
+  pageUrl,
+  runtime
+} from "./bundle-semantic-state.js";
 import {
   frameVisibility,
   keeps,
@@ -24,10 +30,6 @@ import {
   sizeObserver,
   watchFrame
 } from "./bundle-frame-visibility.js";
-import {
-  pageUrl,
-  runtime
-} from "./bundle-semantic-state.js";
 
 // runtime/sample.js
 var MAX_LOADING_SAMPLES = 3;
@@ -62,7 +64,7 @@ async function loadWithinLimit(work, signal) {
 var departure = (message) => new DOMException(message, "SampleDepartedError");
 var mounted = /* @__PURE__ */ new Map();
 var isSampleFrame = (node) => mounted.has(node);
-var sampleFrameImage = (frame, crop) => mounted.get(frame).call("image", crop);
+var sampleFrameImage = (frame, crop) => mounted.get(frame)("image", crop);
 var request = (url, body, headers = {}) => requestJson(
   url,
   {
@@ -408,36 +410,38 @@ function mountSample(frame, { template, window: asWindow = false }) {
     if (!operation) begin(replace());
     return operation;
   }
+  function call(method, detail = {}) {
+    const ready = host.ready;
+    return ready.then(() => {
+      if (ready !== host.ready || !channel) throw lost;
+      const id = ++nextId;
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        channel.postMessage({ id, method, detail });
+      });
+    });
+  }
   const host = {
     ready: null,
     reset,
     // Full view keeps the realm, log and native editor; only its allocation changes.
     setWindow(value) {
       asWindow = value;
-      return host.call("window", { window: value });
-    },
-    call(method, detail = {}) {
-      const ready = host.ready;
-      return ready.then(() => {
-        if (ready !== host.ready || !channel) throw lost;
-        const id = ++nextId;
-        return new Promise((resolve, reject) => {
-          pending.set(id, { resolve, reject });
-          channel.postMessage({ id, method, detail });
-        });
-      });
+      return call("window", { window: value });
     },
     on(type, callback) {
       if (!listeners.has(type)) listeners.set(type, /* @__PURE__ */ new Set());
       listeners.get(type).add(callback);
       return () => listeners.get(type).delete(callback);
     },
-    dress: (dress) => channel?.postMessage({ type: "dress", detail: dress }),
+    restoreStanding: () => call("restore-standing"),
     showThread(id, { signal, ...options }) {
       if (signal.aborted) return Promise.resolve(false);
       const cancel = () => channel?.postMessage({ type: "cancel-view" });
       signal.addEventListener("abort", cancel, { once: true });
-      return host.call("thread", { id, ...options }).finally(() => signal.removeEventListener("abort", cancel));
+      return call("thread", { id, ...options }).finally(
+        () => signal.removeEventListener("abort", cancel)
+      );
     },
     destroy() {
       if (closing) return closing;
@@ -466,7 +470,7 @@ function mountSample(frame, { template, window: asWindow = false }) {
     if (!event.persisted) void host.destroy();
   };
   window.addEventListener("pagehide", departing);
-  mounted.set(frame, host);
+  mounted.set(frame, call);
   reset();
   return host;
 }

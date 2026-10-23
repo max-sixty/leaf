@@ -19,7 +19,11 @@ import {
   watchContributions
 } from "./bundle-contribution-model.js";
 import {
-  createProjectionPresentation
+  createProjectionPresentation,
+  dataReader,
+  joinDataDelivery,
+  referencedProjection,
+  requireReference
 } from "./bundle-projection~presentation.js";
 import {
   HOLDS_WORD,
@@ -178,6 +182,7 @@ import {
   commitPoint,
   livePoint,
   registerPageControl,
+  scheduleResidency,
   settleResidency,
   visibleTargetParts
 } from "./bundle-page-controls.js";
@@ -231,6 +236,7 @@ import {
   settlePageInterface,
   shownRegionBounds,
   stopScroll,
+  syncLayoutRegion,
   tickClock,
   unconcealedReadingRegions,
   watchReadingRegionTransitions
@@ -240,7 +246,6 @@ import {
   TEXT_BLOCK,
   alignInlineText,
   authored,
-  authoredScope,
   closestAcross,
   elementById,
   excerptWords,
@@ -261,7 +266,6 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   LayerRefused,
-  PAGE_PAINT_ATTRIBUTE,
   PRESS,
   PRESSABLE,
   TEXT_ENTRY,
@@ -272,49 +276,32 @@ import {
   bindings,
   buttonCommand,
   claimsEsc,
-  clamp,
-  clippedContents,
-  clippedPlace,
-  clipsPastSurfaces,
-  closeNativeLayer,
   commandAvailable,
   commandRoutes,
   completeData,
   countTraffic,
   dataHeaders,
   el,
-  frameFor,
-  growthIsSeen,
-  hasArea,
   holdingError,
-  intersect,
   keys,
   labelOf,
-  landingBand,
-  landingInsets,
   layerHeaders,
   layoutChanged,
-  layoutWindow,
   live,
-  matchesWhen,
   notice,
   offer,
   paintKeys,
   paintKeysWithin,
-  placeBox,
-  placeHolder,
   pointerAt,
   postEvent,
-  presented,
   pruneScopedElements,
   raiseError,
   randomId,
   recordInteraction,
-  registry,
+  removeRuntimeRootStyle,
   repaint,
   reportCarried,
   reportPageError,
-  requestJson,
   responseAction,
   restorePointer,
   reveal,
@@ -323,24 +310,70 @@ import {
   sameLayer,
   savedReadingSettled,
   saying,
-  seenRect,
   sessionIsActive,
-  setRuntimeRootAttribute,
+  setRuntimeRootStyle,
+  spell,
+  watchPendingTraffic,
+  word
+} from "./bundle-page-paint.js";
+import {
+  clamp,
+  clippedContents,
+  clippedPlace,
+  clipsPastSurfaces,
+  closeNativeLayer,
+  frameFor,
+  growthIsSeen,
+  hasArea,
+  intersect,
+  landingBand,
+  landingInsets,
+  layoutWindow,
+  matchesWhen,
+  placeBox,
+  placeHolder,
+  presented,
+  registry,
+  seenRect,
   shadowRootsIn,
   showNativeLayer,
   shownBox,
   shownWindow,
   skipped,
-  spell,
   tagsDeclaring,
   union,
   watchOwner,
-  watchPendingTraffic,
   watchRoom,
   whenNone,
-  whileConnected,
-  word
-} from "./bundle-page-paint.js";
+  whileConnected
+} from "./bundle-arrivals.js";
+import {
+  LIVE_ROOT,
+  PRESENTATION_ORDER,
+  agentLabel,
+  annotationMode,
+  applicationPresenter,
+  applicationState,
+  attachApplicationPresentation,
+  attachWidgetPresentation,
+  documentChanged,
+  layerRoot,
+  offlineInteractive,
+  offlineState,
+  pageUrl,
+  presentDocument,
+  projectView,
+  queueWidgetUpdate,
+  readApplication,
+  readPart,
+  revisionLabel,
+  runtime,
+  setPresentationFailureReporter,
+  watchPresentation,
+  whenApplicationRegionsPresented,
+  whenDocumentPresented,
+  whenWidgetsPresented
+} from "./bundle-semantic-state.js";
 import {
   PRESSES,
   TEXT_BOX,
@@ -384,35 +417,6 @@ import {
   whenLeft
 } from "./bundle-frame-visibility.js";
 import {
-  LIVE_ROOT,
-  PRESENTATION_ORDER,
-  agentLabel,
-  annotationMode,
-  applicationPresenter,
-  applicationState,
-  attachApplicationPresentation,
-  attachWidgetPresentation,
-  documentChanged,
-  layerRoot,
-  offlineData,
-  offlineInteractive,
-  offlineState,
-  pageUrl,
-  presentDocument,
-  projectView,
-  queueWidgetUpdate,
-  readApplication,
-  readPart,
-  revisionLabel,
-  runtime,
-  setPresentationFailureReporter,
-  watchPresentation,
-  whenApplicationRegionsPresented,
-  whenDocumentPresented,
-  whenWidgetsPresented
-} from "./bundle-semantic-state.js";
-import {
-  J,
   LitElement,
   PENDING,
   W,
@@ -2222,29 +2226,6 @@ function paintCoreControls() {
   }
 }
 
-// runtime/references.js
-function requireReference(verb, owner, attribute) {
-  if (typeof attribute !== "string" || !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute))
-    throw new TypeError(
-      `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`
-    );
-}
-function referencedProjection(owner, attribute, id = owner.getAttribute(attribute)) {
-  if (!id) return null;
-  const { tag, key } = registry[owner.localName]["x-refers"][attribute];
-  if (tag) {
-    const within = registry[tag]["x-unique"][key];
-    const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
-    const scope2 = scopeOf(owner);
-    return [...scope2?.querySelectorAll(tag) ?? []].find(
-      (member) => scopeOf(member) === scope2 && member.getAttribute(key) === id
-    ) ?? null;
-  }
-  const scope = authoredScope(owner);
-  const page = pageDocument();
-  return (scope ? elementById(id, scope) : null) ?? (scope === page || !page ? null : elementById(id, page));
-}
-
 // runtime/anchor-travel.js
 var scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 function scrollToFragment(element) {
@@ -3858,10 +3839,10 @@ function createVersionController({
       }
       if (!holds.size) stopReapplying();
     });
-    let deliveries2 = 0;
+    let deliveries = 0;
     const observer = sizeObserver(() => {
       if (reapply !== observer) return;
-      if (++deliveries2 > SETTLING) return stopReapplying();
+      if (++deliveries > SETTLING) return stopReapplying();
       again();
     });
     reapply = observer;
@@ -6849,7 +6830,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
               dispose: () => message.retire()
             };
           } else {
-            let joined2 = false;
+            let joined = false;
             const { hint, accessibleName, busy, sent } = item.options;
             const redraw = () => {
               for (const row of node.querySelectorAll(":scope > .lf-thread-reply"))
@@ -6858,7 +6839,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
             };
             const reply = createReplyView(item.key, commands.reply, redraw, {
               onChange: () => {
-                if (joined2) void update().catch(() => {
+                if (joined) void update().catch(() => {
                 });
               },
               editLast: rewritesOf(item.key).editLast,
@@ -6867,7 +6848,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
               busy,
               sent
             });
-            joined2 = true;
+            joined = true;
             node.append(reply.node);
             view = { node, reply, dispose: reply.dispose };
           }
@@ -7546,8 +7527,8 @@ function semanticNewsNotice(news) {
 // runtime/state-application.js
 function createStateApplication({
   prepareActivation,
-  acceptData: acceptData2,
-  notifyDataSubscribers: notifyDataSubscribers2,
+  acceptData,
+  notifyDataSubscribers,
   isSignoffDeclared,
   stateSignoff,
   accountPending
@@ -7570,8 +7551,8 @@ function createStateApplication({
   }
   async function receiveState(state) {
     if (!sameLayer(state.layer.generation)) return;
-    const dataChanged = acceptData2(state.data, state.taken);
-    const notifyChangedData = () => dataChanged ? notifyDataSubscribers2() : void 0;
+    const dataChanged = acceptData(state.data, state.taken);
+    const notifyChangedData = () => dataChanged ? notifyDataSubscribers() : void 0;
     if (applicationState.overtaken(state)) {
       await notifyChangedData();
       return;
@@ -7649,7 +7630,7 @@ function createStateApplication({
         if (installed) await settlePageInterface();
         await whenDocumentPresented();
         if (installed) await installed.land();
-        await notifyDataSubscribers2();
+        await notifyDataSubscribers();
         markStateApplied(state);
         accountPending(state.browser.receipts);
         presentedNewsReading = semanticNewsReading(readApplication());
@@ -8467,187 +8448,6 @@ function widgetController(owner) {
   return controller;
 }
 
-// runtime/data.js
-function acceptData(candidate, taken) {
-  return applicationState.acceptData(candidate, taken);
-}
-var joined = /* @__PURE__ */ new Set();
-async function notifyDataSubscribers() {
-  const version = runtime.data.version;
-  deliveries.value += 1;
-  await whenApplicationRegionsPresented(
-    [...joined],
-    () => runtime.data.version === version
-  );
-  if (version !== null && runtime.data.version === version)
-    setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
-}
-var declaredInput = (element, input) => {
-  const declaration = registry[element.localName]?.["x-data"]?.[input];
-  if (!declaration)
-    throw new Error(
-      `<${element.localName}> input ${input} is not declared by this widget`
-    );
-  return declaration;
-};
-var outputOwners = /* @__PURE__ */ new WeakMap();
-var outputKeys = /* @__PURE__ */ new WeakMap();
-var outputSequence = 0;
-function outputKey(element) {
-  if (!outputKeys.has(element)) outputKeys.set(element, `output:${++outputSequence}`);
-  return outputKeys.get(element);
-}
-function publishOutput(element, output, value) {
-  const declaration = registry[element.localName]?.["x-output"]?.[output];
-  if (!declaration)
-    throw new Error(
-      `publishOutput(${element.localName}, ${output}) output is not declared by this widget`
-    );
-  if (!element.id) throw new Error("publishOutput requires a widget id");
-  let owner = outputOwners.get(element);
-  if (!owner) {
-    owner = { values: /* @__PURE__ */ new Map(), connected: false };
-    outputOwners.set(element, owner);
-    watchOwner(element, {
-      connect() {
-        owner.connected = true;
-        for (const [name, reading2] of owner.values)
-          applicationState.publishOutput(outputKey(element), name, reading2);
-      },
-      disconnect() {
-        owner.connected = false;
-        for (const name of owner.values.keys())
-          applicationState.publishOutput(outputKey(element), name, null);
-      }
-    });
-  }
-  const reading = value === null ? null : { contract: declaration.contract, value: structuredClone(value) };
-  owner.values.set(output, reading);
-  if (owner.connected)
-    applicationState.publishOutput(outputKey(element), output, reading);
-}
-function inputBinding(element, declaration) {
-  const source = declaration.source ? element.getAttribute(declaration.source) : null;
-  const widget = declaration.reference && element.getAttribute(declaration.reference);
-  if (source && widget)
-    throw new Error(
-      `<${element.localName}> input binds both an external source and widget output`
-    );
-  if (declaration.reference) requireReference("data", element, declaration.reference);
-  const selected = applicationState.select((root) => {
-    if (source)
-      return Object.hasOwn(root.data.sources, source) ? root.data.sources[source] : null;
-    if (!widget) return null;
-    const producer = referencedProjection(element, declaration.reference, widget);
-    if (!producer) return null;
-    const key = outputKey(producer);
-    const outputs = Object.hasOwn(root.outputs, key) ? root.outputs[key] : null;
-    return outputs && Object.hasOwn(outputs, declaration.output) ? outputs[declaration.output] : null;
-  });
-  const snapshot = (reading, input) => source ? {
-    source,
-    ...reading,
-    origin: {
-      input,
-      source,
-      contract: declaration.contract,
-      revision: reading.revision
-    }
-  } : { ...reading, origin: { derived: [{ widget }] } };
-  return { source, widget, selected, snapshot };
-}
-function dataReader(element, input, accepted) {
-  const declaration = declaredInput(element, input);
-  const { source, widget, selected, snapshot } = inputBinding(element, declaration);
-  let stopAccepted;
-  const delivered = J(
-    () => {
-      deliveries.value;
-      return d(selected.read);
-    },
-    {
-      watched() {
-        let seen2 = d(selected.read);
-        stopAccepted = selected.subscribe((now) => {
-          if (now === seen2) return;
-          seen2 = now;
-          accepted();
-        });
-      },
-      unwatched() {
-        stopAccepted?.();
-        stopAccepted = null;
-      }
-    }
-  );
-  let reported = null;
-  let copied = { store: null, value: null };
-  return () => {
-    const sourceStore = (
-      /** @type {{contract: string, revision?: string} | null} */
-      widget ? selected.read() : delivered.value
-    );
-    const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
-    if (incompatible && reported !== sourceStore) {
-      reported = sourceStore;
-      reportPageError(
-        `${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; <${element.localName}> input ${input} requires ${declaration.contract}`
-      );
-    }
-    if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value"))
-      return null;
-    if (sourceStore !== copied.store)
-      copied = {
-        store: sourceStore,
-        value: structuredClone(snapshot(sourceStore, input))
-      };
-    return copied.value;
-  };
-}
-var deliveries = Z(0);
-function joinDataDelivery(region) {
-  joined.add(region);
-  return () => joined.delete(region);
-}
-async function loadDeferred(manifest, key) {
-  const { source, revision } = manifest;
-  const current = () => {
-    const reading = (
-      /** @type {{revision?: string, contract?: unknown} | undefined} */
-      runtime.data.sources[source]
-    );
-    return reading?.revision === revision && reading.contract === manifest.contract && Object.hasOwn(reading, "value");
-  };
-  if (!current())
-    throw new Error(
-      `source ${source} revision ${revision} changed before loading deferred ${key}`
-    );
-  if (offlineInteractive) {
-    const records = registry.$data.contracts[manifest.contract].records;
-    const item = offlineData().sources[source].value[records.items].find(
-      (item2) => item2[records.key] === key
-    );
-    if (!item)
-      throw new Error(`unknown record key '${key}' in data source '${source}'`);
-    if (!Object.hasOwn(item, records.deferred))
-      throw new Error(
-        `record '${key}' in data source '${source}' has no deferred field '${records.deferred}'`
-      );
-    return structuredClone(item[records.deferred]);
-  }
-  const params = new URLSearchParams({ source, source_revision: revision, key });
-  const answer = await requestJson(
-    pageUrl(`api/deferred?${params}`),
-    {},
-    "deferred value"
-  );
-  if (!current())
-    throw new Error(
-      `source ${source} revision ${revision} changed while loading deferred ${key}`
-    );
-  return structuredClone(answer.value);
-}
-
 // runtime/leaf-element.js
 var regions = 0;
 var UpdateBoundary = class extends LitElement {
@@ -8980,6 +8780,59 @@ function obligationEnding(item) {
   return words ? `Answered: ${words}` : "Answered";
 }
 
+// runtime/page-layout.js
+var rootHeaders = /* @__PURE__ */ new Set();
+var paintRootHeaders = () => {
+  const height = [...rootHeaders].filter((header) => header.isConnected).reduce((total, header) => total + header.getBoundingClientRect().height, 0);
+  const root = document.documentElement;
+  if (height) setRuntimeRootStyle(root, "--lf-root-headers", `${height}px`);
+  else removeRuntimeRootStyle(root, "--lf-root-headers");
+};
+var syncRootHeaders = () => afterScript(paintRootHeaders);
+function registerRootHeader(header) {
+  return whileConnected(header, () => {
+    rootHeaders.add(header);
+    const size = sizeObserver(syncRootHeaders);
+    size.observe(header, { box: "border-box" });
+    syncRootHeaders();
+    return () => {
+      size.disconnect();
+      rootHeaders.delete(header);
+      syncRootHeaders();
+    };
+  });
+}
+function createPageLayout({
+  scheduleThreadPreviewPosition,
+  syncReactLayout,
+  refreshFab,
+  pageShifted,
+  repaintPage
+}) {
+  function syncLayout() {
+    syncLayoutRegion();
+    scheduleResidency();
+    scheduleThreadPreviewPosition?.();
+    if (syncReactLayout()) return;
+    refreshFab();
+  }
+  let bodyContentWidth = 0;
+  let bodyContentHeight = 0;
+  const layoutSizes = sizeObserver(([{ contentRect }]) => {
+    const widthChanged = contentRect.width !== bodyContentWidth;
+    const moved2 = widthChanged || contentRect.height !== bodyContentHeight;
+    bodyContentWidth = contentRect.width;
+    bodyContentHeight = contentRect.height;
+    if (widthChanged) repaintPage();
+    else if (moved2) pageShifted();
+  });
+  function mountLayoutObservers() {
+    addEventListener("resize", syncLayout);
+    layoutSizes.observe(document.body);
+  }
+  return { syncLayout, mountLayoutObservers };
+}
+
 export {
   initializeServedDocument,
   readPlace,
@@ -9009,8 +8862,6 @@ export {
   inPageOrder,
   commandSteps,
   paintCoreControls,
-  requireReference,
-  referencedProjection,
   createAnchorTravel,
   versionPicker,
   versionsReading,
@@ -9043,14 +8894,12 @@ export {
   createThreadLanding,
   declareThreadKeys,
   widgetController,
-  acceptData,
-  notifyDataSubscribers,
-  publishOutput,
-  loadDeferred,
   LeafElement,
   queueTitle,
   ownedObligationControl,
   obligationWord,
   answerWords,
-  obligationEnding
+  obligationEnding,
+  registerRootHeader,
+  createPageLayout
 };

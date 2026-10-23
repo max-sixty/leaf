@@ -12,7 +12,9 @@ import {
   inChrome
 } from "./bundle-passage-facts.js";
 import {
-  el,
+  el
+} from "./bundle-page-paint.js";
+import {
   hasArea,
   headerCuts,
   intersect,
@@ -21,7 +23,7 @@ import {
   paintClips,
   scrollsContent,
   shownBox
-} from "./bundle-page-paint.js";
+} from "./bundle-arrivals.js";
 import {
   atLayoutPrecision,
   cancelRender,

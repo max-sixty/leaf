@@ -34,6 +34,7 @@ export {
   growthAfterIsSeen,
   stuckBox,
   stackLevel,
+  shownParts,
 } from "./geometry.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export {
@@ -60,6 +61,7 @@ export {
   segmentsIn,
   spanIn,
   settledAway,
+  textNodesUnder,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
 export { commandDeclarationsWithin } from "./keyboard/scopes.js";
@@ -111,3 +113,5 @@ export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";
 export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
+
+export { observeOutputs } from "./data.js";

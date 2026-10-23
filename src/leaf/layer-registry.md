@@ -31,6 +31,13 @@ selection, serving code or runtime requires a transition. `page init --dry-run`
 reports that decision as `changed` without writing or stopping the service. Each layer
 records its identities under `$layer`:
 
+- `packages` records content-package selections. `theme` is the separately selected
+  personal theme, `{name, source}` with `source` explicit or default, or null.
+  The theme composes after the content packages. Re-vendoring preserves the captured
+  choice until `--theme` replaces it or `--no-theme` / `--no-packages` clears it. User catalogue
+  changes affect new pages; `themes.py` owns selection and `package-themes.md`
+  documents its authoring interface.
+
 - `generation` is a fresh epoch for each transition, recorded in the registry. A
   served document names the generation of the revision it shows, state reports it,
   and event requests carry it; the server repeats it on contract responses, so an old

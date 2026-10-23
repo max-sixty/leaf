@@ -12,27 +12,29 @@ import {
 import {
   PAGE_PAINT_ATTRIBUTE,
   PRESS,
+  paintKeysWithin,
+  reportPageError,
+  rowArrows
+} from "./bundle-page-paint.js";
+import {
   SHADOW_LEADING_CSS,
   annotationMarkSheets,
   elementDeclarations,
   marksSheet,
-  paintKeysWithin,
   recordedWidgetSelector,
-  reportPageError,
-  rowArrows,
   shadowRules,
   stateSpecs,
   watchArrivalsIn,
   watchLayers
-} from "./bundle-page-paint.js";
-import {
-  move,
-  watchStandingIn
-} from "./bundle-frame-visibility.js";
+} from "./bundle-arrivals.js";
 import {
   readPart,
   runtime
 } from "./bundle-semantic-state.js";
+import {
+  move,
+  watchStandingIn
+} from "./bundle-frame-visibility.js";
 import {
   authoredRank,
   isElementName,

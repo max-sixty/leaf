@@ -5,16 +5,21 @@ import {
 import {
   LAYOUT,
   PAGE_PAINT_ATTRIBUTE,
-  landingBand,
   pagePresented,
   reportPageError,
+  setRuntimeRootAttribute
+} from "./bundle-page-paint.js";
+import {
+  landingBand,
   scrollsBy,
-  setRuntimeRootAttribute,
   shadowRootsIn,
   shownRect,
   skipped,
   userScrollport
-} from "./bundle-page-paint.js";
+} from "./bundle-arrivals.js";
+import {
+  applicationPresented
+} from "./bundle-semantic-state.js";
 import {
   LENT_REACH_STOP,
   TEXT_BOX,
@@ -34,9 +39,6 @@ import {
   upFrom,
   wearsLentStop
 } from "./bundle-frame-visibility.js";
-import {
-  applicationPresented
-} from "./bundle-semantic-state.js";
 import {
   J,
   Z

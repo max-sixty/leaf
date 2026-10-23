@@ -2,6 +2,7 @@
 test suite."""
 
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 
 from .schema import RENDER_CHECKS_DIR
 
@@ -70,6 +71,59 @@ def install_driver(page) -> None:
         return
     page.add_init_script(path=DRIVER_SOURCE)
     page._leaf_render_driver_installed = True
+
+
+def observe_output_documents(page) -> None:
+    """Capture producer publications before the checked document or a sample upgrades.
+
+    The binding retains values outside their realm, including a disposed sample.
+    Only render tools install it; the ordinary runtime retains no publication history.
+    """
+    if hasattr(page, "_leaf_output_values"):
+        return
+    install_driver(page)
+    page._leaf_output_values = []
+    page._leaf_output_frames = [page.main_frame]
+
+    def heard(source, value):
+        if source["frame"] != page.main_frame:
+            value["document"] = source["frame"].url
+        page._leaf_output_values.append(value)
+
+    page.expose_binding("__leafOutputValue", heard)
+
+    def before_entry(route):
+        frame = route.request.frame
+        if urlsplit(route.request.url).netloc != urlsplit(page.url).netloc:
+            route.fallback()
+            return
+        # Let the browser order the subscription before this entry's upgrade. A route
+        # callback must not wait for a document: sibling sample routes can nest while
+        # its parser is awaiting another response, stranding both. This imports the
+        # same check API graph as the runtime; no publication can precede the call.
+        response = route.fetch(timeout=_timeout(page, None))
+        probe = urljoin(route.request.url, f"{RENDER_CHECKS_DIR}/outputs.js")
+        route.fulfill(
+            response=response,
+            body=(
+                f'import {{ observeOutputValues }} from "{probe}";\n'
+                "observeOutputValues();\n" + response.text()
+            ),
+        )
+        if frame not in page._leaf_output_frames:
+            page._leaf_output_frames.append(frame)
+
+    # The main document's pre-upgrade proof holds its own entry; subsequent child
+    # entries reach this route, including samples opened later by the check's sweep.
+    page.route("**/leaf.js", before_entry)
+
+
+def output_values(page) -> list[dict]:
+    """Wait for live realms' reports, then read all publications retained by the check."""
+    for frame in page._leaf_output_frames:
+        if not frame.is_detached():
+            wait_for_probe(frame, "outputsReported")
+    return page._leaf_output_values
 
 
 def _ensure_driver(page) -> None:

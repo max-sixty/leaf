@@ -1613,6 +1613,11 @@ export default [
     },
   },
   {
+    // Kernel widgets use their private owners; package widgets use the public API.
+    files: ["browser/widgets/**/*.js"],
+    rules: entryBoundary,
+  },
+  {
     files: ["browser/runtime/**/*.js"],
     plugins: { architecture: architecturePlugin },
     rules: {

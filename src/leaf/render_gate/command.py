@@ -138,7 +138,12 @@ def browser_check(
         errors = run_page_code(browser, url) if page_code else None
         if errors or not render:
             return errors, None, None
-        reading = render_version(browser, url)
+        reading = render_version(
+            browser,
+            url,
+            implementations=artifact.implementations,
+            declaration_sources=artifact.declaration_sources,
+        )
         if reading.failures:
             return errors, reading, None
         return errors, reading, save_screens(browser, url, reading, page_dir)
@@ -159,8 +164,8 @@ def browser_check(
 class WidgetQuality:
     """What `package check --render` read of the package's `widgets`: its findings
     and the browser that drew the worked examples, or why no browser could. A finding
-    is advice for the widgets' author, apart from examples that could not be drawn
-    (`unreadable-examples`), which leave nothing to read and fail the check."""
+    is advice for the widgets' author, apart from invalid output contracts and examples
+    that could not be drawn (`unreadable-examples`), which fail the check."""
 
     widgets: int
     browser: str | None = None

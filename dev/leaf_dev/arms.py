@@ -52,7 +52,12 @@ from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.render_gate import browser as browser_model
 from leaf_dev import ROOT
 from leaf_dev.browser import shell_executable
-from leaf_dev.page_fixtures import prepare_page, read_fixture, record_run_context
+from leaf_dev.page_fixtures import (
+    fixture_environment,
+    prepare_page,
+    read_fixture,
+    record_run_context,
+)
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
 # needs that file to read the lock. The package itself stays out: the launcher never
@@ -157,7 +162,7 @@ def run_leaf(
     timeout: float | None = None,
     input_text: str | None = None,
 ) -> subprocess.CompletedProcess:
-    """Run an arm's launcher under a state home of its own."""
+    """Run an arm's launcher under its state home, without personal configuration."""
     proc = subprocess.run(
         [str(arm / "bin/leaf"), *args],
         input=input_text,
@@ -165,7 +170,7 @@ def run_leaf(
         text=True,
         check=False,
         timeout=timeout,
-        env=environment(XDG_STATE_HOME=str(state)),
+        env=fixture_environment(environment(XDG_STATE_HOME=str(state))),
     )
     if check and proc.returncode:
         raise click.ClickException(

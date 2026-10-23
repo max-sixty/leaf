@@ -4,7 +4,7 @@
 
 /* The diff package's presentation. Everything here was in the default package's theme
  * until Pierre's 1.7MB left every page carrying a diff renderer most of them never
- * draw with. The rules for the diff's own shadow tree are in shadow.css. */
+ * draw with. The rules for the diff's own shadow tree are in widget-shadow.css. */
 
 /* The shared source primitive owns pre-upgrade appearance. The rendered diff
  * keeps code typography while its own shadow tree scrolls the evidence. */

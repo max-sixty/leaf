@@ -54,6 +54,9 @@ words in `error` or `text`.
    sending it; its choices can contain the previews themselves. Simple decisions
    use `lf-options` (`references/authoring-decisions.md`). Running `page init`
    again with a package adds it to a page already written.
+   Personal themes and their author instructions are discoverable with
+   `leaf theme list`; `references/package-themes.md`, "Personal themes", covers
+   choosing one for the task and how the page captures it.
 2. Read all of `references/page-authoring.md`, then each reference the page
    needs, listed under "Author a version" below. Choose elements and class idioms
    from the registry as it says, and read their examples and instructions first.

@@ -64,6 +64,12 @@ any shift in a region's scroller or width; `runtime/reading-regions.js` describe
 
 ### Holding the reader's place
 
+`heldGrowth(element, change)` postpones one size-changing update while it would move
+content the user is reading. It calls `change` immediately when no hold is needed;
+otherwise it waits until the growth is out of view or the reading is interrupted.
+The returned function cancels the pending change. When a user's own gesture requests
+that change, cancel the hold and apply the change in that gesture.
+
 When a widget redraws or resizes content where the user is reading, keep their place
 with `placeKeeper(scroller, {items, identity})` rather than restoring `scrollTop`.
 `items` selects the nodes that can mark a place, and `identity(node)` returns the key
@@ -145,6 +151,15 @@ sticks below its scroller's top padding; to have it sit on the scroller's edge, 
 with its own `scroll-padding` states it as `--lf-landing-room-start`. A box that only
 clips, such as a card with rounded corners, uses `overflow: clip`, since a header inside
 an `overflow: hidden` box scrolls away with the page.
+
+### Headers over the document
+
+`registerRootHeader(header)` contributes the actual border-box height of a header the
+package places over the document. Independent contributions add, and resizing,
+disconnecting and reconnecting the element update the total. Call its returned stop
+when the header becomes local navigation. Only a header over the document belongs
+here: a nested scroller uses the local sticky and landing inputs above. Packages own
+where their headers are positioned; Leaf owns the aggregate root landing inset.
 
 ### Sideways scrollers and container queries
 

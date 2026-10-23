@@ -8,8 +8,9 @@ import {
 import "./bundle-motion.js";
 import "./bundle-passage-facts.js";
 import "./bundle-page-paint.js";
-import "./bundle-frame-visibility.js";
+import "./bundle-arrivals.js";
 import "./bundle-semantic-state.js";
+import "./bundle-frame-visibility.js";
 import "./bundle-queued-work.js";
 import "./bundle-__export.js";
 export {

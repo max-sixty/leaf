@@ -232,9 +232,8 @@ $ leaf package check packages/callout</code></pre>
         <pre id="callout-files">
 packages/callout/
   registry.json
-  theme.css
-</pre
-        >
+  widgets.css
+</pre>
 
         <p>
           Every package beyond the bundled default joins a page with
@@ -280,10 +279,10 @@ packages/callout/
       <section id="theme">
         <h2>Style the element</h2>
         <p>
-          A package's <code>theme.css</code> joins Leaf's existing cascade. Leaf scopes
-          a package's rules to the elements it declares, so <code>:scope</code> names
-          the <code>lf-callout</code> element itself and any other selector names
-          something inside it:
+          A package's <code>widgets.css</code> joins Leaf's existing cascade. Leaf
+          scopes a package's rules to the elements it declares, so
+          <code>:scope</code> names the <code>lf-callout</code> element itself and any
+          other selector names something inside it:
         </p>
         <pre id="callout-theme"><code class="language-css">:scope {
   display: block;
@@ -303,8 +302,9 @@ packages/callout/
           distinguishes theme inputs such as <code>--accent</code> from layout
           declarations, runtime outputs, and vendor bridges. This widget package
           consumes shared inputs and styles its own elements. Page-wide styles belong in
-          a theme package, which declares no widgets; presentation used by only one page
-          stays in that version's own <code>&lt;style&gt;</code>.
+          <code>theme.css</code>, which a package can provide alongside widgets;
+          presentation used by only one page stays in that version's own
+          <code>&lt;style&gt;</code>.
         </p>
       </section>
 

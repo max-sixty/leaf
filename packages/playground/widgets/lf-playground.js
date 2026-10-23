@@ -33,7 +33,6 @@ import {
   announce,
   commands,
   compoundReadingRegionId,
-  dressSamples,
   focusDestination,
   layoutChanged,
   initialRender,
@@ -220,7 +219,6 @@ customElements.define(
       const reflection = this.#reflection();
       wear(this, reflection);
       this.#syncCopy();
-      dressSamples(this, reflection);
       if (this.#interactive) {
         this.addEventListener("click", (event) => {
           const target = /** @type {Element} */ (event.target);
@@ -404,7 +402,6 @@ customElements.define(
         this.#setInput(control, this.#values[name]);
       const reflection = this.#reflection();
       wear(this, reflection);
-      dressSamples(this, reflection);
       this.#renderOutput();
       this.#syncCopy();
       this.#paintPresets();

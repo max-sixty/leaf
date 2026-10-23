@@ -2,10 +2,11 @@
 sweep, the advice read from the sweep and from the desktop page, and the finding each
 becomes.
 
-A reading refuses a version only for a fault its author can fix by editing the page.
-A reading about Leaf's own chrome or theme, including one that would have to
-recognize a Leaf control by its markup to judge it, belongs in the suite, which holds
-Leaf's half."""
+Presentation readings here refuse faults the page author can fix by editing the page.
+A broken output contract also refuses the version, with its producing implementation
+identified by data_contracts.output_findings. Qualitative package presentation advice
+belongs in widget_quality; readings of Leaf's own chrome or theme belong in the suite,
+which holds Leaf's half."""
 
 from dataclasses import dataclass
 from itertools import pairwise

@@ -10,19 +10,19 @@ content inputs in their callers.
 
 import functools
 import json
+import os
 import shutil
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from leaf.delivery import record_receipt
-from leaf.event_log import read_events
+from leaf.event_log import append_event, read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
-from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
@@ -182,8 +182,28 @@ def read_fixture(
     )
 
 
+@functools.cache
+def _configuration_home() -> tempfile.TemporaryDirectory:
+    """Keep one empty configuration directory alive for this builder process."""
+    return tempfile.TemporaryDirectory(prefix="leaf-fixture-config-")
+
+
+def fixture_environment(base: dict[str, str] | None = None) -> dict[str, str]:
+    """Build authored fixtures without the developer's personal configuration.
+
+    Each CLI runner applies this at its subprocess boundary, including site templates
+    and preview refreshes outside prepare_page. Keep identities and state selected by
+    the runner; only configuration is empty. This also works with older comparison
+    arms, whose CLI need not know any current theme-selection options.
+    """
+    return {
+        **(os.environ if base is None else base),
+        "XDG_CONFIG_HOME": _configuration_home().name,
+    }
+
+
 def package_selection_args(packages) -> list[str]:
-    """Render one package selection, including the explicit empty layer."""
+    """The source's explicit content packages, including an empty selection."""
     return [arg for package in packages for arg in ("--package", package)] or [
         "--no-packages"
     ]
@@ -297,11 +317,24 @@ def _seed_log(fixture: PageFixture, page: Path) -> None:
 
 
 def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
+    """Finish synthetic history through the same fixture seam that supplies it.
+
+    The selected arm owns live commands. Using this checkout's admission here would
+    make a cross-protocol comparison refuse the other arm's page before it opens.
+    This receipt is part of the authored history, not input received by an agent.
+    """
     if fixture.seed is None:
         return
-    with PageTransaction(page) as transaction:
-        if transaction.events:
-            record_receipt(transaction, transaction.events[-1]["seq"])
+    if events := read_events(page):
+        append_event(
+            page,
+            {
+                "kind": "receipt",
+                "author": "page",
+                "attention": False,
+                "through": events[-1]["seq"],
+            },
+        )
 
 
 def prepare_page(

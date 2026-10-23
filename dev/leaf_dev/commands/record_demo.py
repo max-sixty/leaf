@@ -46,6 +46,7 @@ from leaf.vendoring import cmd_init
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import headless_shell, settle, tab
 from leaf_dev.leaf_assets import publish, stage
+from leaf_dev.page_fixtures import fixture_environment
 from leaf_dev.recording import write_gif
 
 GIF_SIZE = (1120, 700)
@@ -439,7 +440,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
 def demo_session(scratch: Path):
     """Own the recorder's state and delivery loop, independently of its invoking agent."""
     previous = os.environ.copy()
-    recording_environment = detached_environment(None) | {
+    recording_environment = fixture_environment(detached_environment(None)) | {
         "XDG_STATE_HOME": str(scratch / "state"),
         "CLAUDE_CODE_SESSION_ID": f"leaf-demo-{uuid4()}",
         "CLAUDE_PID": str(os.getpid()),

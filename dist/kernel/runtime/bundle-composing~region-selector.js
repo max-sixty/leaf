@@ -7,13 +7,18 @@ import "./bundle-keyboard~disclosure.js";
 import "./bundle-initial-render.js";
 import "./bundle-passage-facts.js";
 import {
-  clamp,
   el,
-  layoutWindow,
   notice,
   paintKeys,
   raiseError
 } from "./bundle-page-paint.js";
+import {
+  clamp,
+  layoutWindow
+} from "./bundle-arrivals.js";
+import {
+  runtime
+} from "./bundle-semantic-state.js";
 import {
   closeLayer,
   focusDestination,
@@ -23,9 +28,6 @@ import {
   keepsText,
   nextRender
 } from "./bundle-frame-visibility.js";
-import {
-  runtime
-} from "./bundle-semantic-state.js";
 import "./bundle-queued-work.js";
 import "./bundle-__export.js";
 

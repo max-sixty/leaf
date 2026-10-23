@@ -1,12 +1,16 @@
 {
   "lf-playground": {
     "description": "A preview with controls, where the user compares candidates, tunes a configuration, and sends it.",
-    "x-instructions": "Frame the question with `lf-ask` when its context lives outside the playground. Structured editors use `registerContributor(name, defaults)` and its immutable get/set handle; views use `subscribe(paint)` through the playground’s LeafElement lifecycle. The playground package’s “Stateful previews” section owns initialization and connection lifetimes. One optional `registerInstructionProvider(values => text)` writes the instruction. For contributor state, redeclare the complete `lf-playground` entry in `page/registry.json` with an exact schema for `detail.values`.",
+    "x-instructions": "Frame the question with `lf-ask` when its context lives outside the playground. Structured editors use `registerContributor(name, defaults)` and its immutable get/set handle; views use `subscribe(paint)` through the playground’s LeafElement lifecycle. The playground package’s “Stateful previews” section owns initialization and connection lifetimes. One optional `registerInstructionProvider(values => text)` writes the instruction. For structured configurations, set the instance’s `contract` attribute to a named $data.contracts entry in page/registry.json. Its schema covers the complete values object, including scalar controls and contributor slices; the “Stateful previews” section owns the recipe.",
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "contract": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*$"
       },
       "submit-label": {
         "type": "string",
@@ -28,6 +32,7 @@
     },
     "x-state": {
       "choose": {
+        "contract": { "field": "values", "attribute": "contract" },
         "detail": {
           "type": "object",
           "properties": {

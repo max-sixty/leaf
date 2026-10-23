@@ -94,7 +94,7 @@ customElements.define(
     }
 
     restoreStanding() {
-      return this.#host?.call("restore-standing");
+      return this.#host?.restoreStanding();
     }
 
     connectedCallback() {

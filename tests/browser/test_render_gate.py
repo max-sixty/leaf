@@ -1039,7 +1039,9 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(
     """The shared shadow stage suppresses a package transition during arrival."""
     theme = tmp_path / "transition-theme"
     theme.mkdir()
-    (theme / "shadow.css").write_text("details { transition: color 60s linear; }\n")
+    (theme / "theme-shadow.css").write_text(
+        "details { transition: color 60s linear; }\n"
+    )
     page = browser.new_page()
     held = []
     page.route("**/api/state*", lambda route: held.append(route))

@@ -13,6 +13,7 @@ from interact_support import (
     ModelPage,
     append_carried_log_record,
     comment,
+    element_declaration,
     fetch,
     lock_contention,
     model_layer,
@@ -31,7 +32,11 @@ from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.findings import Finding
+from leaf.projection import page_reading, retirement_outcomes
 from leaf.registry import contract as registry_contract
+from leaf.registry.layer import stamp_composition
+from leaf.registry.validation import validate_registry
+from leaf.validation.instances import widget_errors
 
 # One question quoted back and the same question live. The pair is what makes the
 # exhibit refusal below the exhibit's doing: the two groups are the same markup
@@ -76,6 +81,277 @@ STATED_LOG = [
 
 
 STATED_PICK = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
+
+
+@pytest.mark.parametrize("unit", ["row", "widget"])
+def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
+    registry = deepcopy(model_layer())
+    entry = element_declaration("lf-review", upgrade=True)
+    entry["properties"]["restated"] = {"type": "boolean"}
+    entry["x-state"] = {
+        "review": {
+            "unit": unit,
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "row": {"type": "string"},
+                    "outcome": {"enum": ["pass", "fail"]},
+                },
+                "required": ["row", "outcome"],
+                "additionalProperties": False,
+            },
+        }
+    }
+    registry["lf-review"] = entry
+    validate_registry(registry, "review package")
+    stamp_composition(registry)
+    assert "lf-review" not in registry["$decisions"]
+    page = ModelPage('<lf-review id="review"></lf-review>', registry=registry)
+    action = event_contracts_model.admitted_event(
+        page,
+        [],
+        {
+            **STATED_PICK,
+            "id": "e1",
+            "seq": 1,
+            "widget": "review",
+            "action": "review",
+            "detail": {"row": "test-row", "outcome": "pass"},
+        },
+    )
+    reading = page_reading(page.reading(1, registry), [action], 1)
+    assert list(reading.projection.actions) == [
+        ("review", "test-row" if unit == "row" else "review", "review")
+    ]
+    assert retirement_outcomes(reading.projection.actions) == {}
+    assert action["meaning"]["state"]["decides"] is False
+
+    # Reusing the verb as a whole-widget decision does not reinterpret that answer.
+    entry["x-state"]["review"] |= {"unit": "widget", "decides": True}
+    validate_registry(registry, "revised review package")
+    assert page_reading(page.reading(1, registry), [action], 1).projection.actions == {}
+
+
+def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposal():
+    registry = deepcopy(model_layer())
+    entry = registry["lf-suggestion"]
+    entry["x-state"]["review"] = {
+        key: value
+        for key, value in entry["x-state"]["decide"].items()
+        if key != "decides"
+    }
+    entry["x-awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
+    validate_registry(registry, "review package")
+    stamp_composition(registry)
+    source = (
+        '<lf-suggestion id="proposal" resolves="e1">'
+        '<lf-new><p id="new">Proposed work.</p></lf-new></lf-suggestion>'
+    )
+    commands = [{"kind": "comment", "text": "Review it."}]
+    for outcome, answers in (("accept", False), ("reject", True)):
+        commands.append(
+            {
+                **STATED_PICK,
+                "widget": "proposal",
+                "action": "review",
+                "detail": {"outcome": outcome},
+            }
+        )
+        state = model.served_reading(source, commands, registry=registry)
+        meaning = state["events"][-1]["meaning"]
+        assert ("answer" in meaning) is answers
+        if answers:
+            assert meaning["answer"] == "e1"
+
+
+@pytest.fixture
+def instance_input_registry():
+    """A generic custom payload with instance-selected, self-contained schemas."""
+    registry = deepcopy(model_layer())
+    entry = element_declaration("lf-input-box", upgrade=True)
+    entry["properties"]["restated"] = {"type": "boolean"}
+    entry["properties"]["shape"] = {
+        "type": "string",
+        "pattern": f"^{schema_model.DATA_CONTRACT_NAME}$",
+    }
+    entry["x-state"] = {
+        "submit": {
+            "unit": "widget",
+            "contract": {"field": "payload", "attribute": "shape"},
+            "detail": {
+                "type": "object",
+                "properties": {"payload": {"type": "object"}},
+                "required": ["payload"],
+                "additionalProperties": False,
+            },
+        }
+    }
+    registry["lf-input-box"] = entry
+    for name, maximum in (("small", 2), ("large", 9)):
+        registry["$data"]["contracts"][name] = {
+            "description": f"A count no larger than {maximum}.",
+            "schema": {
+                "$defs": {"count": {"type": "integer", "maximum": maximum}},
+                "type": "object",
+                "properties": {"count": {"$ref": "#/$defs/count"}},
+                "required": ["count"],
+                "additionalProperties": False,
+            },
+        }
+    validate_registry(registry, "input package")
+    stamp_composition(registry)
+    return registry
+
+
+def test_instance_contracts_validate_complete_values_at_admission(
+    instance_input_registry,
+):
+    registry = instance_input_registry
+    page = ModelPage(
+        '<lf-input-box id="small" shape="small"></lf-input-box>'
+        '<lf-input-box id="large" shape="large"></lf-input-box>'
+        '<lf-input-box id="open"></lf-input-box>',
+        registry=registry,
+    )
+
+    def submit(widget, payload):
+        return event_contracts_model.admitted_event(
+            page,
+            [],
+            {
+                **STATED_PICK,
+                "widget": widget,
+                "action": "submit",
+                "detail": {"payload": payload},
+            },
+        )
+
+    assert submit("small", {"count": 2})["detail"] == {"payload": {"count": 2}}
+    assert submit("large", {"count": 7})["detail"] == {"payload": {"count": 7}}
+    assert submit("open", {"unconstrained": True})["detail"]["payload"]["unconstrained"]
+    for payload, field in (
+        ({"count": 7}, "/payload/count"),
+        ({"count": "two"}, "/payload/count"),
+        ({}, "/payload"),
+        ({"count": 2, "extra": True}, "/payload"),
+    ):
+        with pytest.raises(events_model.EventRefused) as refused:
+            submit("small", payload)
+        finding = refused_on(refused.value)
+        assert (finding.code, finding.values["field"]) == ("invalid-detail", field)
+
+    unknown = structure_model.SourceDocument(
+        '<lf-input-box id="unknown" shape="missing"></lf-input-box>'
+    )
+    [finding] = widget_errors(unknown.lf_elements, registry)
+    assert finding.code == "instance-contract"
+    assert finding.values["contract"] == "missing"
+
+
+def test_instance_contracts_read_the_sending_revision_and_recheck_changed_domains(
+    instance_input_registry,
+):
+    registry = instance_input_registry
+    large = '<lf-input-box id="input" shape="large"></lf-input-box>'
+    small = large.replace('shape="large"', 'shape="small"')
+    page = ModelPage(large, small, large, registry=registry)
+    action = event_contracts_model.admitted_event(
+        page,
+        [],
+        {
+            **STATED_PICK,
+            "id": "e1",
+            "seq": 1,
+            "widget": "input",
+            "action": "submit",
+            "detail": {"payload": {"count": 7}},
+        },
+    )
+    for revision, remains in ((1, True), (2, False), (3, True)):
+        reading = page_reading(page.reading(revision, registry), [action], revision)
+        assert bool(reading.projection.actions) is remains
+    command = {
+        key: value
+        for key, value in action.items()
+        if key not in {"meaning", "attention"}
+    }
+    with pytest.raises(events_model.EventRefused) as refused:
+        event_contracts_model.admitted_event(page, [], {**command, "revision": 2})
+    assert refused_on(refused.value).code == "invalid-detail"
+
+
+def test_two_playgrounds_on_one_page_validate_their_own_values(instance_input_registry):
+    registry = deepcopy(model_layer("playground"))
+    registry["$data"]["contracts"].update(instance_input_registry["$data"]["contracts"])
+    page = ModelPage(
+        '<lf-playground id="small" contract="small"></lf-playground>'
+        '<lf-playground id="large" contract="large"></lf-playground>',
+        registry=registry,
+    )
+    log = []
+    for seq, (widget, count) in enumerate((("small", 2), ("large", 7)), 1):
+        log.append(
+            event_contracts_model.admitted_event(
+                page,
+                log,
+                {
+                    **STATED_PICK,
+                    "id": f"e{seq}",
+                    "seq": seq,
+                    "widget": widget,
+                    "detail": {
+                        "values": {"count": count},
+                        "instruction": "Use this count.",
+                    },
+                },
+            )
+        )
+    with pytest.raises(events_model.EventRefused) as refused:
+        event_contracts_model.admitted_event(
+            page,
+            log,
+            {
+                **STATED_PICK,
+                "widget": "small",
+                "detail": log[-1]["detail"],
+            },
+        )
+    assert refused_on(refused.value).code == "invalid-detail"
+    assert [(e["widget"], e["detail"]["values"]) for e in log] == [
+        ("small", {"count": 2}),
+        ("large", {"count": 7}),
+    ]
+
+
+def test_instance_contracts_follow_the_widget_in_frozen_thread_markup(
+    instance_input_registry,
+):
+    commands = [
+        {"kind": "comment", "text": "Choose a count."},
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "e1",
+            "text": "Choose here:",
+            "markup": '<lf-input-box id="thread-input" shape="large"></lf-input-box>',
+        },
+        {
+            "kind": "action",
+            "widget": "thread-input",
+            "action": "submit",
+            "detail": {"payload": {"count": 7}},
+        },
+    ]
+    state = model.served_reading(
+        "<p>Page</p>", commands, registry=instance_input_registry
+    )
+    action = state["events"][-1]
+    assert action["meaning"]["scope"] == "thread"
+    assert action["detail"] == {"payload": {"count": 7}}
+    commands[-1]["detail"]["payload"]["count"] = 10
+    with pytest.raises(events_model.EventRefused) as refused:
+        model.served_reading("<p>Page</p>", commands, registry=instance_input_registry)
+    assert refused_on(refused.value).code == "invalid-detail"
 
 
 # A queue with two cards: only the final move answers its obligation.

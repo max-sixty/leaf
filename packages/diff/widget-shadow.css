@@ -1,4 +1,4 @@
-/* @noformat Generated from packages/diff/styles/shadow.css by build/styles.mjs. */
+/* @noformat Generated from packages/diff/styles/widget-shadow.css by build/styles.mjs. */
 /* packages/diff/styles/palette.css */
 :where(:scope, :scope:host) {
   --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
@@ -29,7 +29,7 @@
   }
 }
 
-/* packages/diff/styles/shadow.css */
+/* packages/diff/styles/widget-shadow.css */
 :where(:scope:host(.lf-rendered)) :where(.lf-diff-file) > details,
 :where(:scope:host(.lf-rendered)) .lf-diff-metadata {
   margin: 0;
@@ -390,6 +390,7 @@
   overflow: auto hidden;
   overscroll-behavior-x: auto;
   container-type: inline-size;
+  container-type: inline-size scroll-state;
   font: var(--code-size)/var(--code-line) var(--mono);
   white-space: pre;
   padding: 0;

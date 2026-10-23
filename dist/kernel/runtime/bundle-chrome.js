@@ -38,11 +38,13 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   PRESSABLE,
+  layoutChanged
+} from "./bundle-page-paint.js";
+import {
   clippedContents,
   headerCuts,
   hostIn,
   inUi,
-  layoutChanged,
   nearObserver,
   nearWindow,
   overlaps,
@@ -55,7 +57,10 @@ import {
   tagsDeclaring,
   uiInside,
   watchArrivals
-} from "./bundle-page-paint.js";
+} from "./bundle-arrivals.js";
+import {
+  documentChanged
+} from "./bundle-semantic-state.js";
 import {
   PRESSES,
   WORKS,
@@ -69,9 +74,6 @@ import {
   under,
   upFrom
 } from "./bundle-frame-visibility.js";
-import {
-  documentChanged
-} from "./bundle-semantic-state.js";
 import {
   anchorKey,
   isElementName

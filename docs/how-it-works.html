@@ -1791,9 +1791,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <p id="responsibilities-lede">
               The user directs the work. The authoring agent composes the page, packages
               supply reusable behavior and presentation, and Leaf's kernel keeps the
-              shared record and interaction model coherent. A theme is a package
-              contribution selected for a page; it is not a separate user preference
-              layer in the browser.
+              shared record and interaction model coherent. The user can name personal
+              themes and a default; the author selects one for the task. The page
+              captures that theme alongside its other packages.
             </p>
             <table id="responsibilities-table">
               <thead>
@@ -1808,8 +1808,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>User</td>
                   <td>Goals, preferences, decisions, and edits.</td>
                   <td>
-                    Instructions to the agent and actions on the page. The default theme
-                    follows the browser's color-scheme preference.
+                    Instructions to the agent, actions on the page, and named personal
+                    themes with a default. Theme colors can follow the browser's
+                    color-scheme preference.
                   </td>
                 </tr>
                 <tr>
@@ -1835,8 +1836,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <td>Theme package</td>
                   <td>Reusable visual choices and presentation idioms.</td>
                   <td>
-                    Theme inputs and styles. Today, a package with no widget
-                    declarations has unscoped sheets above Layouts and may include
+                    Theme inputs and explicit page-wide styles, independently of whether
+                    the package declares widgets. It may include
                     <code>controls.css</code> for generated controls.
                   </td>
                 </tr>
@@ -1926,12 +1927,13 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           <section id="layer">
             <h2>Runtime and packages</h2>
             <p>
-              Each page directory contains its own copy of Leaf's runtime and selected
-              packages. This validated composition is called its
-              <em>layer</em>. <code>page init</code> builds it. Each revision captures
-              the layer it uses. Updating the installed plugin does not rewrite those
-              captured bytes; serving a captured revision still requires a compatible
-              page protocol. The
+              Each page directory contains a validated composition of its selected
+              packages: its <em>layer</em>. <code>page init</code> builds the registry,
+              theme and package modules, and each revision captures the layer it uses.
+              The Leaf serving, checking or exporting the page supplies the browser
+              runtime. Updating that runtime leaves captured content and decisions
+              intact; the public package interface must still speak a compatible page
+              protocol. The
               <a
                 href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#package-contract"
                 >package contract</a
@@ -1947,6 +1949,21 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               replace or extend the page's selected layer. The
               <a href="/extending/">extension guide</a> lists the bundled packages and
               demonstrates a small custom package.
+            </p>
+            <p id="package-contract-boundaries">
+              A package declares capabilities independently: what an action records,
+              whether it decides a proposed change, which typed data it consumes or
+              publishes, and where its styles apply. Ordinary data fields do not acquire
+              decision meaning from their names. Two occurrences of the same widget can
+              select different input contracts without replacing the widget's
+              declaration. Leaf validates lasting input where it enters the event log;
+              the render check validates the outputs a widget actually publishes during
+              the check. The
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md"
+                >state and data contract</a
+              >
+              defines those interfaces.
             </p>
           </section>
           <section id="widgets">
@@ -2079,20 +2096,24 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <h2>Styles and overrides</h2>
             <p id="styles-lede">
               A page’s <code>&lt;style&gt;</code> changes that page; a theme package
-              shares styles across pages. Theme packages declare no widgets. Their
-              ordinary rules override Leaf’s defaults and Layouts, and the page’s rules
-              override the theme. Generated controls require the explicit access below;
-              shadow trees have their own tiers.
+              shares styles across pages. A package's stylesheet role declares its reach
+              independently of its widgets. Page-wide theme rules override Leaf’s
+              defaults and Layouts, and the page’s rules override the theme. Generated
+              controls require the explicit access below; shadow trees have their own
+              tiers.
             </p>
             <p id="styles-user-preference">
               This ordering describes CSS precedence, not the user's authority over the
-              work. A user-selected theme still enters through the page's package
-              selection. Leaf has no separate reader-theme override that outranks page
-              CSS. The default theme supports light and dark schemes, but a page can
-              declare a single <code>color-scheme</code>. The author is responsible for
-              using the user's requested theme and preserving supported platform
-              preferences when composing the page; an explicit visual comparison may
-              need its own appearance.
+              work. <code>leaf theme list</code> exposes the user's named themes and
+              their author instructions. <code>page init --theme NAME</code> selects one
+              explicitly; a new page otherwise uses the user's default. The chosen theme
+              is captured, so changing the default leaves existing pages and exports
+              intact. Re-initializing preserves the choice unless explicitly changed.
+              The default theme supports light and dark schemes, but a page can declare
+              a single <code>color-scheme</code>. The author is responsible for using
+              the user's requested theme and preserving supported platform preferences
+              when composing the page; an explicit visual comparison may need its own
+              appearance.
             </p>
             <table id="styles-recipes">
               <thead>
@@ -2133,9 +2154,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <p id="styles-controls-leaf">
               A bare <code>button</code> or <code>input</code> rule styles the page’s
               own controls. To reach controls Leaf or a widget builds, a page marks its
-              stylesheet <code>data-controls</code>; a theme package puts those rules in
+              stylesheet <code>data-controls</code>; a package puts those rules in
               <code>controls.css</code>. Widget packages already style their own
-              controls through <code>theme.css</code>. Leaf’s panel and thread cards
+              controls through <code>widgets.css</code>. Leaf’s panel and thread cards
               also inherit theme inputs such as <code>--accent</code> and
               <code>--sans</code> from <code>:root</code>.
             </p>
@@ -2230,8 +2251,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                       <span class="tier"><code>lf-theme</code></span>
                       <span class="by">Theme packages</span>
                       <span class="what"
-                        >Each theme package’s <code>theme.css</code> and
-                        <code>shadow.css</code>, in the page’s package order.</span
+                        >Each package’s <code>theme.css</code> and
+                        <code>theme-shadow.css</code>, in the page’s package
+                        order.</span
                       >
                     </li>
                     <li class="leaf">
@@ -2246,8 +2268,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                       <span class="by">Leaf and widget packages</span>
                       <span class="what"
                         >Leaf's theme, then each widget package's
-                        <code>theme.css</code> and <code>shadow.css</code>. A widget
-                        package's rules reach only its own widgets.</span
+                        <code>widgets.css</code> and <code>widget-shadow.css</code>.
+                        Rules stop before a foreign widget's interior.</span
                       >
                     </li>
                     <li class="leaf internal">
@@ -2271,14 +2293,15 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                       <span class="tier"><code>lf-theme</code></span>
                       <span class="by">Theme packages</span>
                       <span class="what"
-                        >Each theme package's <code>shadow.css</code>.</span
+                        >Each package's <code>theme-shadow.css</code>.</span
                       >
                     </li>
                     <li class="pkg">
                       <span class="tier"><code>lf-shadow</code></span>
                       <span class="by">Leaf and widget packages</span>
                       <span class="what"
-                        >Leaf's and each widget package's <code>shadow.css</code>.</span
+                        >Leaf's and each widget package's
+                        <code>widget-shadow.css</code>.</span
                       >
                     </li>
                     <li class="pkg">
@@ -2308,12 +2331,15 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
 
             <h3 id="styles-packages">Writing a package's styles</h3>
             <p id="styles-widget-package">
-              A widget package styles its own widgets in its <code>theme.css</code>,
-              where <code>:scope</code> names the widget itself and ordinary selectors
-              name what it contains, and reaches nothing outside them. Its
-              <code>shadow.css</code> reaches the private parts inside each widget's
-              shadow tree. A theme package's <code>shadow.css</code> reaches the same
-              parts from the tier above. The
+              A package styles its own widgets in <code>widgets.css</code>, where
+              <code>:scope</code> names the widget itself and ordinary selectors name
+              what it contains. A foreign widget's host can be placed by that outer
+              layout, but its interior starts a new styling boundary. Inherited tokens
+              still cross it. <code>widget-shadow.css</code> also reaches shadow trees
+              owned by the package's widgets. <code>theme.css</code> supplies page-wide
+              styles and <code>theme-shadow.css</code> also reaches every declared
+              shadow tree, from the tier above. A package can contribute any of these
+              independently. The
               <a
                 href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
                 >package reference</a
@@ -3816,7 +3842,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <section id="data-home">
               <h2>Page files and history</h2>
               <p id="data-directory">
-                A page directory holds its HTML, captured runtime and dependencies,
+                A page directory holds its HTML, captured package dependencies,
                 revisions, event log, media, and external data. Copying it preserves the
                 page and recorded decisions. Session ownership and browser drafts live
                 elsewhere. The diagram shows the durable inputs to current state.

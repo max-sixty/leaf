@@ -17,7 +17,6 @@ from leaf.passages import (
 )
 from leaf.registry.contract import (
     decides,
-    detail_schema,
     event_spec,
     retirement_slots,
     same_state_definition,
@@ -288,14 +287,20 @@ def state_projection(
         if spec is None:
             continue
         recorded = event["meaning"].get("state")
-        current = state_definition(rec["tag"], registry[rec["tag"]], spec)
+        current = state_definition(
+            rec["tag"],
+            registry[rec["tag"]],
+            spec,
+            attrs=rec["attrs"],
+            registry=registry,
+        )
         if not same_state_operation(recorded, current):
             continue
         # Admission already checked this payload. Only a changed domain needs
         # the validator again; it may broaden without losing the old operation.
         if not same_state_definition(
             recorded.get("detail"), current["detail"]
-        ) and schema_error(detail_schema(registry[rec["tag"]], spec), event["detail"]):
+        ) and schema_error(current["detail"], event["detail"]):
             continue
         coordinate = event_coordinate(event)
         entry = (event, spec)
@@ -743,8 +748,8 @@ def record_members(
 def retirement_outcomes(actions: dict) -> dict:
     """widget id → the outcome its deciding action in force names.
 
-    Which verb decides is the registry's word: the one whose detail declares the
-    reserved `outcome` (`decides`), whose value `x-retired-when` and
+    The registry explicitly marks the deciding verb (`decides`), whose `outcome`
+    value `x-retired-when` and
     `x-withdrawn-as` name, so nothing here knows a widget or verb by name."""
     return {
         widget: e["detail"]["outcome"]

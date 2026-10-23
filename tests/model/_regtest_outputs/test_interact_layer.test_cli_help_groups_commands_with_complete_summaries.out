@@ -20,6 +20,7 @@ Commands:
   server    Start, run, or stop the local server.
   status    Say the page waits on its user, or is done.
   task      Open or end to-dos, start work on your list, and plan.
+  theme     Discover personal themes for page authoring.
   thread    Open, answer, edit, summarize, or resolve a thread.
   wait      Confirm a delivery, if given, then wait for the next batch.
 

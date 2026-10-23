@@ -750,7 +750,7 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     )
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     page.evaluate(
-        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await window.__lfWidgetApi();[...textNodesUnder(document.body)];}"""
+        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await window.__lfCheckApi();[...textNodesUnder(document.body)];}"""
     )
     assert page.evaluate("document.documentElement.hasAttribute('data-lf-interactive')")
     expect(

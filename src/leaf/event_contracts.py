@@ -127,10 +127,11 @@ def command_error(event: dict, contracts: dict) -> Finding | None:
     )
 
 
-def declared_event_error(event: dict, tag: str, registry: dict):
+def declared_event_error(event: dict, rec: dict, registry: dict):
     """Why a known widget's verb or detail violates its x-state declaration, or
     names a verb the event's own writer does not write."""
     kind = event["kind"]
+    tag = rec["tag"]
     entry = registry.get(tag)
     if entry is None:
         return Finding(
@@ -154,7 +155,10 @@ def declared_event_error(event: dict, tag: str, registry: dict):
             verb for verb, _spec in state_specs(entry, writer=verb_writers()[kind])
         )
         return Finding("undeclared-verb", values={**named, "declared": declared})
-    if complaint := schema_complaint(detail_schema(entry, spec), event["detail"]):
+    if complaint := schema_complaint(
+        detail_schema(entry, spec, attrs=rec["attrs"], registry=registry),
+        event["detail"],
+    ):
         return Finding("invalid-detail", values={**named, **complaint})
     return None
 
@@ -180,7 +184,7 @@ def declared_action_error(
             },
         )
     tag = rec["tag"]
-    if error := declared_event_error(event, tag, registry):
+    if error := declared_event_error(event, rec, registry):
         return error
     # The exhibit rule at the door, not only in the shipped runtime's
     # browser controller: an exhibited widget is a mention, and the log outranks the
@@ -467,7 +471,7 @@ def declared_report_error(event: dict, page, registry: dict):
                 "revision": event["revision"],
             },
         )
-    return declared_event_error(event, tag, registry)
+    return declared_event_error(event, rec, registry)
 
 
 def admitting_registry(view, event: dict, events: list) -> dict:

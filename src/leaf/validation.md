@@ -129,7 +129,10 @@ Words a stylesheet paints with `content` have no text node and are outside these
 `render_gate/readings.py` is the list. A message's widgets render only where its thread
 is drawn, so each thread whose messages carry markup is then opened in turn, where a
 reader would find it, and the widget readings run again (`thread_findings`). Those readings run
-at a desktop and a phone viewport.
+at a desktop and a phone viewport. Every widget output published during the check,
+including one subsequently withdrawn or published by a disposed sample, is validated
+against its data contract. A failure identifies the producer and the captured owners
+of its module, output declaration and contract (`data_contracts.output_findings`).
 
 Geometry that moves with the window is one reading, taken by width: sideways
 overflow, misplaced boxes, room below words and controls for a horizontal overlay

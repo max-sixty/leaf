@@ -1,4 +1,4 @@
-/* @noformat Generated from packages/diff/styles/theme.css by build/styles.mjs. */
+/* @noformat Generated from packages/diff/styles/widgets.css by build/styles.mjs. */
 /* packages/diff/styles/palette.css */
 :where(:scope, :scope:host) {
   --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
@@ -254,7 +254,7 @@
   }
 }
 
-/* packages/diff/styles/theme.css */
+/* packages/diff/styles/widgets.css */
 :scope:is(lf-diff) {
   contain: inline-size;
 }

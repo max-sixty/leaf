@@ -90,5 +90,17 @@
     return found;
   }
 
-  return { flooredAims, offeredAims };
+  // The aim as a box in the page: the control's box grown by its reach, which stands
+  // out the same distance on either side of its face.
+  function aimRect(el) {
+    const { box, w, h } = aim(el);
+    return {
+      x: box.x - (w - box.width) / 2,
+      y: box.y - (h - box.height) / 2,
+      width: w,
+      height: h,
+    };
+  }
+
+  return { aimRect, flooredAims, offeredAims };
 })();

@@ -6,8 +6,8 @@
    settlement (`paintSettlements`). It also stamps `document.body` with how many log
    events the projection covers, once every widget they touch has painted; a waiter
    outside the page reads that stamp to know the page has caught up. The region paints
-   first in each pass (`PRESENTATION_ORDER.projection`), because the thread then
-   resolves its passages over the words it writes into authored elements. */
+   after native widget DOM commits (`PRESENTATION_DOM.widgets`); threads then
+   resolve their passages over the words it writes into authored elements. */
 import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
 import {
@@ -15,7 +15,7 @@ import {
   applicationState,
   projectionRegionsPresented,
   watchPresentation,
-  PRESENTATION_ORDER,
+  PRESENTATION_DOM,
   readPart,
 } from "../semantic-state.js";
 import { decisionFor } from "../registry.js";
@@ -97,7 +97,7 @@ export function createProjectionPresentation() {
   // (`watchPresentation`) rather than this region.
   applicationPresenter({
     region: "projection:chrome",
-    order: PRESENTATION_ORDER.projection,
+    after: PRESENTATION_DOM.widgets,
     reading: () => (answered() ? true : null),
     paint: paintReading,
   });

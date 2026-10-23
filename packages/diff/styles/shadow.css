@@ -307,7 +307,8 @@
 }
 .lf-diff-file-actions {
   position: relative;
-  z-index: 3;
+  /* Stay above the pinned name while its path box covers numbered line controls. */
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -453,9 +454,11 @@
   }
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary {
     position: sticky;
+    --lf-head-inset: 0px;
     --lf-top: var(--lf-top-outer);
     top: var(--lf-top, 0px);
-    z-index: 2;
+    /* Keep a focused path's full-name box above numbered line controls. */
+    z-index: 3;
   }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap
      less the 1px border the summary's box starts inside. */

@@ -679,6 +679,7 @@ class LeafText extends HTMLElement {
   }
 
   connectedCallback() {
+    this.classList.toggle("scroll", true);
     // A move by `insertBefore` reconnects within the task, keeping the view
     // (`disconnectedCallback`); the hold that returns the user restores the caret.
     if (this.#view) return;

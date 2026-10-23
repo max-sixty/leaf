@@ -797,6 +797,7 @@
   }
   .lf-fp-foot {
     position: sticky;
+    --lf-head-inset: 0px;
     bottom: -6px;
     margin: 0 -6px -6px;
     padding: 10px 0 6px;

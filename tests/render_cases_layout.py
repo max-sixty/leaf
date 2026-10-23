@@ -518,10 +518,10 @@ customElements.define('lf-test-drawing-control', class extends HTMLElement {
 # the near end lands inside the window and escapes nothing anyone can measure.
 LOOSE_SCROLLER_PAGE = LONG_PAGE.replace(
     "</main>",
-    "<div id='loose' style='width: 300px; overflow-x: auto'>"
+    "<div id='loose' class='scroll' style='width: 300px; overflow-x: auto'>"
     "<div id='far' style='width: 700px; text-align: right'>A row wider than the box "
     "that scrolls it.</div></div>"
-    "<div id='held' style='width: 300px; overflow-x: auto; position: relative'>"
+    "<div id='held' class='scroll' style='width: 300px; overflow-x: auto; position: relative'>"
     "<div style='width: 700px'>The same row, in a box that holds its own.</div></div>"
     "\n</main>",
 )
@@ -533,7 +533,7 @@ HIDDEN_SCROLLER_STYLE = """<style>
 .row { width: 700px; }
 </style>"""
 HIDDEN_SCROLLER_ROW = (
-    '<div id="unfolded"><div class="row">A row wider than the box that scrolls it.'
+    '<div id="unfolded" class="scroll"><div class="row">A row wider than the box that scrolls it.'
     "</div></div>"
 )
 HIDDEN_SCROLLERS = {

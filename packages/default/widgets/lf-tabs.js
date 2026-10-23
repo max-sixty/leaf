@@ -204,7 +204,7 @@ export class TabSet extends LeafElement {
     //
     // A press is a span wearing the role rather than a <button> (see `offer`), which
     // is what makes a drag across the name possible at all.
-    const strip = offer("div", "lf-tabstrip");
+    const strip = offer("div", "lf-tabstrip scroll");
     this.#strip = strip;
     strip.setAttribute("role", "tablist");
     if (down) strip.setAttribute("aria-orientation", "vertical");

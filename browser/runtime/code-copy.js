@@ -116,6 +116,15 @@ export function copyBlock(block, source, noun) {
 }
 
 export function watchCodeBlocks() {
+  // Native prose blocks scroll sideways, including in rendered thread messages.
+  watchArrivals(
+    "pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])",
+    [],
+    {
+      arrive: (block) => block.classList.toggle("scroll", true),
+      leave: () => {},
+    },
+  );
   // A widget's shadow stage is its renderer's notation, not an ordinary document
   // block. Its module supplies the source explicitly through copyBlock.
   watchArrivals("pre:has(> code)", ["style"], {

@@ -24,6 +24,12 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
     (authored / "style.css").write_text(sheet)
     (authored / "shared.css").write_text(shared)
     (authored / "unused.css").write_text("p { padding: 999px; }")
+    media = page_dir / "media"
+    media.mkdir(exist_ok=True)
+    media_css = '@import "./shared.css"; p { border: 0; }'
+    media_shared = "p { opacity: 1; }"
+    (media / "page.css").write_text(media_css)
+    (media / "shared.css").write_text(media_shared)
     (authored / "widgets" / "lf-options.js").write_text(
         "export const styling = `p { color: blue }`;"
     )
@@ -35,7 +41,8 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
         '<link rel="stylesheet" href="page/shared.css">\n'
         '<p id="child-p">Child</p></template>',
         head="<style>p { display: block; }</style>\n"
-        '<link rel="stylesheet" href="page/style.css">',
+        '<link rel="stylesheet" href="page/style.css">\n'
+        '<link rel="stylesheet" href="media/page.css">',
     )
     (page_dir / "index.html").write_text(source)
     before = list_revisions(page_dir)
@@ -44,7 +51,13 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
     reading = json.loads(result.output)
     assert list_revisions(page_dir) == before
     page = [item for item in reading["css"]["sources"] if item["owner"] == "page"]
-    assert len(page) == 5
+    assert len(page) == 7
+    assert next(item for item in page if item["path"] == "media/page.css")[
+        "documents"
+    ] == ["index.html"]
+    assert next(item for item in page if item["path"] == "media/shared.css")[
+        "documents"
+    ] == ["index.html"]
     imported = next(item for item in page if item["path"] == "page/shared.css")
     assert imported["documents"] == ["index.html", "index.html#child"]
     assert imported["rules"] == 2
@@ -56,13 +69,15 @@ def test_inspection_attributes_nested_css_imports_widgets_and_sample_documents(
             for css in (
                 shared,
                 sheet,
+                media_css,
+                media_shared,
                 "p { display: block; }",
                 "p { padding: 1px; }",
                 '--label: "é"; color: green',
             )
         ),
-        "rules": 7,
-        "declarations": 7,
+        "rules": 10,
+        "declarations": 9,
         "inline_styles": 1,
         "important": 1,
     }

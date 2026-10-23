@@ -577,7 +577,7 @@ def resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]:
     if mime == "application/javascript" and path.startswith("/page/"):
         for _, _, specifier in javascript_imports(data, path):
             edges.append(resolve_dependency(specifier, path, module=True))
-    elif mime == "text/css" and path.startswith("/page/"):
+    elif mime == "text/css" and path.startswith(("/page/", "/media/")):
         try:
             css = data.decode("utf-8")
         except UnicodeDecodeError as error:

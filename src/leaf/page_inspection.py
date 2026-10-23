@@ -139,7 +139,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
             path.lstrip("/"),
             1,
             "stylesheet",
-            "page" if path.startswith("/page/") else "layer",
+            "page" if path.startswith(("/page/", "/media/")) else "layer",
             sorted(references.get(path, ())),
         )
 

@@ -78,6 +78,7 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
 - `presence`: page, claim and neighboring-leaf presence;
 - `server_rows`: the summary row each serving page publishes for its neighbors;
 - `user_views`: disposable per-document browser observations;
+- `page_inspection`: attributed source metrics and browser observations for optional page diagnostics;
 - `samples`, `sample_content`: live samples' child pages and their starting histories;
 - `http`: HTTP transport;
 - `http_connections`: host grants and credential storage for page-authored HTTPS reads;

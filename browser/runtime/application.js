@@ -613,7 +613,7 @@ export function mountApplication(dependencies) {
     openObligation(id) {
       const item = readObligations().all.find((item) => item.id === id);
       if (!item) return Promise.resolve(false);
-      if (item.source.kind === "update")
+      if (item.source.kind === "update" || item.source.kind === "todo")
         return queueActions.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);

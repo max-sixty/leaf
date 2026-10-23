@@ -95,7 +95,7 @@ test("accepted messages and user obligations arrive together after a quiet basel
     threads: [
       thread("t", [message("old", { unread: false }), message("new", { seq: 2 })], {
         kind: "needs_user",
-        reason: "widget",
+        reason: "obligation",
       }),
     ],
     pageObligations: [item("existing"), item("new")],
@@ -120,7 +120,7 @@ test("structural questions own their thread obligation and reopening starts a ne
   const baseline = observeSemanticNews(null, reading());
   const owed = reading({
     threads: [
-      thread("t", [message("question")], { kind: "needs_user", reason: "widget" }),
+      thread("t", [message("question")], { kind: "needs_user", reason: "obligation" }),
     ],
     pageObligations: [item("other")],
     threadObligations: [item("choice", "t")],
@@ -169,7 +169,7 @@ test("a second question in the same waiting thread has its own source version", 
   const firstQuestion = reading({
     threadObligations: [replyObligation("first")],
     threads: [
-      thread("t", [message("first")], { kind: "needs_user", reason: "widget" }),
+      thread("t", [message("first")], { kind: "needs_user", reason: "obligation" }),
     ],
   });
   const baseline = observeSemanticNews(null, firstQuestion);
@@ -180,7 +180,7 @@ test("a second question in the same waiting thread has its own source version", 
       threads: [
         thread("t", [message("first"), message("second", { seq: 2 })], {
           kind: "needs_user",
-          reason: "widget",
+          reason: "obligation",
         }),
       ],
     }),
@@ -412,7 +412,7 @@ test("one producer notice states a reply and new obligation as separate facts", 
     threads: [
       thread("t", [message("answer", { agent: "Sam" })], {
         kind: "needs_user",
-        reason: "widget",
+        reason: "obligation",
       }),
     ],
   });

@@ -424,7 +424,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .button,
 .lf-thread-notice:is(button),
 .lf-react,
-.lf-msg-control,
 .lf-margin-entry,
 .lf-thread-action,
 .lf-command-reference-command,
@@ -442,12 +441,50 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 ),
 .lf-thread-notice:is(button),
 .lf-react,
-.lf-msg-control,
 .lf-margin-entry,
 .lf-thread-action,
 .lf-command-reference-command,
 .lf-quote {
   min-height: var(--aim-floor);
+}
+/* A control a line tall, or shorter, meets the floor with a reach rather than a taller
+   face: a box of its own that paints nothing, standing out from its face to the floor on
+   each axis the face is shorter. The face keeps the line its place sets (`--lf-line`),
+   so a finger's floor grows no row, toolbar or field it stands in; before, every one of
+   these grew its box to the floor, and a place that seated one beside a control that
+   didn't stood at the taller of the two. Sideways most of them are floor-wide boxes
+   (above), which leaves their reach nothing to add there, since a reach sideways would
+   lie over the neighbour's face. A message's control has words beside it rather than a
+   press, so it keeps its square face and reaches sideways too.
+
+   The reach lies in room the place keeps around its controls: a line's padding, a
+   toolbar's gap above and below. A box that clips at the control's edge cuts it short,
+   and the hit sweep in the suite presses the floor's extent to find one. A replaced
+   element, a native field, picker or range, can draw no box of its own, so those stand
+   at the line and reach no further. */
+:where(
+  .lf-btn,
+  .button,
+  .lf-icon-action,
+  .lf-msg-control,
+  .lf-code-copy,
+  .lf-draft-action,
+  .lf-corner-mark
+) {
+  position: relative;
+}
+:is(
+    .lf-btn,
+    .button,
+    .lf-icon-action,
+    .lf-msg-control,
+    .lf-code-copy,
+    .lf-draft-action,
+    .lf-corner-mark
+  )::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 /* A native summary retains its list marker and centers its content within the
    target floor. Extra hit area surrounds the label rather than trailing it. */
@@ -571,12 +608,12 @@ summary {
 .lf-fab-bar {
   --lf-thread-text-inset: 13px;
   --lf-group-ring-end: 6px;
-  --lf-msg-head-height: max(28px, var(--aim-floor));
+  --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
   /* A message's control, and the Discard and Save an open rewrite stands in its place:
      the head keeps their room (controls.css), and so does the thread's own controls'
      row beside a first message (below). */
-  --lf-msg-control-size: max(26px, var(--aim-floor));
+  --lf-msg-control-size: 26px;
   --lf-msg-edit-cancel: max(52px, var(--aim-floor));
   --lf-msg-edit-save: max(40px, var(--aim-floor));
   --lf-msg-edit-gap: 4px;
@@ -666,7 +703,7 @@ summary {
   border-radius: var(--r);
 }
 .lf-primary-part[data-lf-part="reply"] {
-  padding-block-start: max(28px, var(--aim-floor));
+  padding-block-start: 28px;
 }
 .lf-primary-news {
   position: absolute;

@@ -160,13 +160,12 @@
      above it, so the end of the page can scroll clear of it. A page that is not live
      draws no chrome and keeps no room (below).
 
-     The row is its one line and the padding around it. The leaf, each mark and press
-     beside the field, and the field's first line of words are each a line tall, and the
-     row stands them all on its foot, so every one of them is centred on the line the
-     words are written on (floating-panel.css, `.lf-fp-row`). */
-  --lf-fp-line: 32px;
+     The row is its one line (`--lf-line`) and the padding around it. The leaf, each
+     mark and press beside the field, and the field's first line of words are each a line
+     tall, and the row stands them all on its foot, so every one of them is centred on
+     the line the words are written on (floating-panel.css, `.lf-fp-row`). */
   --lf-fp-row-pad: 6px;
-  --lf-floating-row: calc(var(--lf-fp-line) + 2 * var(--lf-fp-row-pad));
+  --lf-floating-row: calc(var(--lf-line) + 2 * var(--lf-fp-row-pad));
   --lf-floating-gap: 14px;
   --lf-head-room: var(--lf-safe-top);
   --lf-foot-room: calc(
@@ -261,6 +260,15 @@
      to be a fixed size under a finger — a margin entry, a panel's mark — still
      says so where it is written; this is the floor, not the size. */
   --aim-floor: 24px;
+  /* The line: the face of a one-line control, as tall as a button, a field, a picker or
+     a toolbar's transport stands. Controls that take turns in a place, or stand side by
+     side in one, are each a line tall, so none of them sizes the place. A control reads
+     it in its own rule rather than through a token resolved higher up, so a place that
+     sets it on itself sets it for everything it seats. It is a face and not a target: a
+     control shorter than the aim floor meets the floor with a reach (surfaces.css), so a
+     finger's floor raises no line. A finger's line is taller only because the words
+     typed in a field are (`--entry-floor`). */
+  --lf-line: 32px;
   /* The smallest face a user types in. Only a finger's platform asks for one: iOS
      Safari zooms the page onto a text field set smaller as the field takes focus. The
      field rule that holds it is in shadow.css, and a surface that shows words before
@@ -360,9 +368,6 @@
      come apart: a third copy of 1.45 is exactly the drift the reserve comment in
      chrome.css is about, and this one would show as the picker sinking again. */
   --lf-ui-lh: 1.45;
-  /* Compact toolbar controls share a height across native and vendor elements.
-     Larger transport controls keep their own size; a finger raises this floor. */
-  --lf-control-compact: max(30px, var(--aim-floor));
   --details-margin-block: 18px;
   /* The flow's larger gaps, as tokens so a density restates each once and every rule
      that keeps one (an eyebrow standing in for its heading's gap) follows it. */
@@ -612,7 +617,7 @@ html:not([data-lf-live]) {
   :root {
     --aim-floor: 44px;
     --entry-floor: 16px;
-    --lf-fp-line: 34px;
+    --lf-line: 34px;
     --lf-fp-row-pad: 7px;
     --rail-hang: 10px;
   }
@@ -1000,7 +1005,7 @@ html[data-lf-interactive] [data-lf-arriving] {
 ):is(.lf-ui, .field) {
   --lf-field-pad-inline: 8px;
   box-sizing: border-box;
-  min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
+  min-height: var(--lf-line);
   padding: 4px var(--lf-field-pad-inline);
   border: 1px solid var(--border-2);
   border-radius: var(--r);

@@ -33,7 +33,7 @@ html[data-lf-draw-mode] main {
    (code-copy.js). Hidden, it takes no presses, so a finger selecting the words beneath
    it reaches them. */
 :root {
-  --lf-code-copy-size: max(32px, var(--aim-floor));
+  --lf-code-copy-size: var(--lf-line);
   --lf-code-copy-inset: 4px;
 }
 .lf-code-copy {
@@ -106,7 +106,7 @@ html[data-lf-draw-mode] main {
    otherwise leaves the picture whole, taking no presses so a press reaches the
    picture. */
 :root {
-  --lf-video-bar-h: max(32px, var(--aim-floor));
+  --lf-video-bar-h: var(--lf-line);
   --lf-video-bar-inset: 4px;
 }
 .lf-video-controls {
@@ -151,7 +151,8 @@ html[data-lf-draw-mode] main {
   flex: none;
   display: grid;
   place-items: center;
-  inline-size: calc(var(--lf-video-bar-h) - 2px);
+  position: relative;
+  inline-size: max(var(--lf-video-bar-h) - 2px, var(--aim-floor));
   block-size: 100%;
   padding: 0;
   border: 0;

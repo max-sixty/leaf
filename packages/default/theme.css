@@ -8,7 +8,7 @@
   margin: var(--sp-3) 0;
   container: lf-shot / inline-size;
   --lf-shot-gap: var(--sp-2);
-  --lf-shot-label-height: max(30px, var(--aim-floor));
+  --lf-shot-label-height: var(--lf-line);
 }
 .lf-shot-toolbar {
   display: grid;
@@ -3192,22 +3192,12 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     min-block-size: 0;
     padding: 0;
   }
-  .lf-draft-action::before {
-    content: "";
-    position: absolute;
-    inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
-  }
-  .lf-draft-tools > .lf-code-copy::part(button)::before {
-    content: "";
-    position: absolute;
-    inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
-  }
   .lf-draft-action[data-lf-focus-visible],
   .lf-draft-tools > .lf-code-copy::part(lf-focus-visible) {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-draft-tools > .lf-code-copy {
-    position: static;
+    position: relative;
     inline-size: auto;
     block-size: auto;
     opacity: 1;

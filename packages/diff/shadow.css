@@ -206,7 +206,7 @@
   margin: -1px 0 0;
   --lf-diff-r-start: 0px;
   --lf-diff-r-end: 0px;
-  --lf-diff-action-h: max(26px, var(--aim-floor));
+  --lf-diff-action-h: 26px;
   --lf-diff-action-top: 6px;
   --lf-diff-actions: var(--lf-diff-action-h);
   --lf-diff-head-h: 35px;
@@ -240,10 +240,10 @@
   display: none;
 }
 .lf-diff-file-comment {
-  --lf-icon-action-hit: var(--lf-diff-action-h);
+  --lf-icon-action-face: var(--lf-diff-action-h);
 }
 .lf-diff-fold-all {
-  --lf-icon-action-hit: max(24px, var(--aim-floor));
+  --lf-icon-action-face: 24px;
   margin-inline-end: -3px;
 }
 .lf-diff-fold-all[data-lf-focus-visible] {
@@ -315,6 +315,9 @@
 }
 .lf-diff-filtered {
   display: none !important;
+}
+.lf-diff-line-comment::after {
+  content: none;
 }
 .lf-diff-comment[data-lf-focus-visible] {
   outline: var(--focus-ring);

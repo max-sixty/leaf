@@ -334,9 +334,9 @@ svg[data-lf-icon] {
     opacity: 1;
   }
 }
-/* Under a finger a message's control takes the aim floor, and with no hover to reveal
-   it, it stands on every message for good. The common header row already holds its
-   height; reserve its inline room here too. */
+/* Under a finger a message's control reaches the aim floor around its face
+   (surfaces.css), and with no hover to reveal it, it stands on every message for good.
+   The common header row already holds its height; reserve its inline room here too. */
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
     --lf-msg-control: var(--lf-msg-control-size);
@@ -470,10 +470,11 @@ svg[data-lf-icon] {
  * Authored .button controls use the same face as runtime-owned .lf-btn controls.
  * Packages may adjust placement and density; margin entries and reaction chips
  * retain their separate forms. Labels wrap within their available width; controls
- * that require one line declare it locally. The block padding carries the aim floor (above), less
- * the 1px border, so a rule restating it restates the floor with it. */
+ * that require one line declare it locally. The block padding stands one line of words
+ * a line tall (`--lf-line`), less the 1px border, and a finger's floor is the button's
+ * reach (surfaces.css), so a rule restating the padding restates the line with it. */
 :is(.lf-btn, .button) {
-  padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
+  padding: max(4px, (var(--lf-line) - 1lh) / 2 - 1px) 10px;
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
@@ -568,12 +569,6 @@ svg[data-lf-icon] {
   background: var(--chip);
   color: var(--ink);
 }
-/* The same compact size maps to native minimum height and the vendor's supported
- * form-control property. Labels can still grow; icon-only tools set their width. */
-.lf-compact-control {
-  --wa-form-control-height: var(--lf-control-compact);
-  min-block-size: var(--lf-control-compact);
-}
 /* The committing action carries the accent as ink on the ordinary card, under a
    softened accent hairline, with the tint rising on hover. The selected face below is its
    neighbour — a full accent border on the chip ground — so a toggle and a commitment
@@ -645,11 +640,6 @@ svg[data-lf-icon] {
     0 0 0 1px var(--lf-ring, var(--border-2)),
     var(--raise-1);
   cursor: pointer;
-}
-.lf-corner-mark::before {
-  content: "";
-  position: absolute;
-  inset: calc((var(--corner-mark) - var(--aim-floor)) / 2);
 }
 .lf-corner-mark:hover {
   color: var(--ink);

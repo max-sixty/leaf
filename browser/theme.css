@@ -1259,9 +1259,8 @@
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
-  --lf-fp-line: 32px;
   --lf-fp-row-pad: 6px;
-  --lf-floating-row: calc(var(--lf-fp-line) + 2 * var(--lf-fp-row-pad));
+  --lf-floating-row: calc(var(--lf-line) + 2 * var(--lf-fp-row-pad));
   --lf-floating-gap: 14px;
   --lf-head-room: var(--lf-safe-top);
   --lf-foot-room: calc( var(--lf-floating-row) + 2 * var(--lf-floating-gap) + var(--lf-safe-bottom) );
@@ -1299,6 +1298,7 @@
   --sp-3: 16px;
   --sp-4: 24px;
   --aim-floor: 24px;
+  --lf-line: 32px;
   --entry-floor: 0px;
   --margin-entry: max(32px, var(--aim-floor));
   --corner-mark: 20px;
@@ -1321,7 +1321,6 @@
   --wide: 1080px;
   --wide-page-max: 1600px;
   --lf-ui-lh: 1.45;
-  --lf-control-compact: max(30px, var(--aim-floor));
   --details-margin-block: 18px;
   --h2-start: 48px;
   --h3-start: 32px;
@@ -1443,7 +1442,7 @@ html:not([data-lf-live]) {
   :root {
     --aim-floor: 44px;
     --entry-floor: 16px;
-    --lf-fp-line: 34px;
+    --lf-line: 34px;
     --lf-fp-row-pad: 7px;
     --rail-hang: 10px;
   }
@@ -1595,7 +1594,7 @@ html[data-lf-interactive] [data-lf-arriving] {
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field) {
   --lf-field-pad-inline: 8px;
   box-sizing: border-box;
-  min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
+  min-height: var(--lf-line);
   padding: 4px var(--lf-field-pad-inline);
   border: 1px solid var(--border-2);
   border-radius: var(--r);

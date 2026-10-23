@@ -190,14 +190,12 @@
 
   /* ---------- the row ---------- */
   /* One alignment for the whole row: everything in it, the field's presses
-     included, stands on the row's foot and is a line tall (`--lf-fp-line`), so a field
+     included, stands on the row's foot and is a line tall (`--lf-line`), so a field
      grown to several lines keeps them beside its last. The line and the row's padding
      are the theme's, which reserves the row at the window's foot (`--lf-floating-row`).
-     A vendor control seated in the row takes the line through its own sizing token:
-     page search's box once kept the vendor's 38px, set by its type, and stood the row
-     taller than the comment field it took turns with. */
+     Whatever takes the field's place, the editor, page search or the seated comment
+     box, is a line tall by the theme's own rules, so none of them sizes the row. */
   .lf-fp-row {
-    --wa-form-control-height: var(--lf-fp-line);
     display: flex;
     align-items: flex-end;
     gap: 2px;
@@ -214,11 +212,11 @@
     position: absolute;
     inset-block-start: var(--lf-fp-row-pad);
     inset-inline-start: var(--lf-fp-row-pad);
-    width: var(--lf-fp-line);
-    height: var(--lf-fp-line);
+    width: var(--lf-line);
+    height: var(--lf-line);
   }
   .lf-floating-panel[data-expanded] .lf-fp-row:has(> .lf-fp-expand) {
-    min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
+    min-height: calc(2 * var(--lf-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {
     position: relative;
@@ -226,7 +224,7 @@
     display: grid;
     place-items: center;
     width: var(--lf-fp-aim);
-    min-height: var(--lf-fp-line);
+    min-height: var(--lf-line);
     padding: 0;
   }
   .lf-fp-leaf .lf-dot {
@@ -264,7 +262,7 @@
     flex: 1;
     align-items: center;
     min-width: 0;
-    min-height: var(--lf-fp-line);
+    min-height: var(--lf-line);
   }
   .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])) {
     border-radius: var(--r);
@@ -333,17 +331,12 @@
     display: flex;
     flex: none;
     align-items: center;
-    min-height: var(--lf-fp-line);
+    min-height: var(--lf-line);
     gap: 0;
   }
-  /* Search's steps are a line tall, as Send is in the editor's place, and as wide as
-     the pointer's floor, reaching it above and below as the row's presses do (above).
-     The icon action's own hit box, the floor both ways, stood the row 10px taller
-     under a finger. */
+  /* Search's steps are a line tall, as the row's other presses are. */
   .lf-fp-actions .lf-icon-action {
-    --lf-icon-action-hit: var(--lf-fp-line);
-    width: max(var(--lf-fp-line), var(--aim-floor));
-    min-width: max(var(--lf-fp-line), var(--aim-floor));
+    --lf-icon-action-face: var(--lf-line);
   }
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open
@@ -434,12 +427,6 @@
     min-width: 0;
     align-self: center;
   }
-  /* The box is a line tall at rest, as the field it stands in for. Its own resting
-     height is the pointer's floor, which stood the row 10px taller under a finger;
-     Send keeps its floor-sized box, standing past the field into the row's padding. */
-  .lf-fp-response > .lf-fab-bar {
-    --lf-response-height: var(--lf-fp-line);
-  }
   .lf-floating-panel:not([data-open], [data-offers], [data-search])
     .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
     > .lf-fp-field {
@@ -458,7 +445,7 @@
     white-space: nowrap;
     text-overflow: ellipsis;
     margin: 0;
-    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    padding: calc((var(--lf-line) - 22px) / 2) 6px;
     color: var(--lf-fp-quiet);
     font: 14px / 22px var(--sans);
   }
@@ -468,8 +455,8 @@
     border: 0;
     background: none;
     box-shadow: none;
-    padding: calc((var(--lf-fp-line) - 1lh) / 2) 6px;
-    min-height: var(--lf-fp-line);
+    padding: calc((var(--lf-line) - 1lh) / 2) 6px;
+    min-height: var(--lf-line);
     /* Half the window: a long comment reads whole before the field scrolls. */
     max-height: 50dvh;
     box-sizing: border-box;
@@ -532,7 +519,7 @@
     font-weight: 500;
   }
   .lf-fp-field .lf-compose-error {
-    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    padding: calc((var(--lf-line) - 22px) / 2) 6px;
     background: var(--lf-fp-surface);
     font: 500 14px / 22px var(--sans);
     white-space: nowrap;
@@ -595,9 +582,9 @@
     inset-inline-end: 0;
     inset-block-end: 0;
     place-items: center;
-    width: var(--lf-fp-line);
+    width: var(--lf-line);
     min-width: 0;
-    height: var(--lf-fp-line);
+    height: var(--lf-line);
     min-height: 0;
     padding: 0;
   }
@@ -605,7 +592,7 @@
     .lf-fp-field
     .lf-compose-field
     > leaf-text {
-    --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
+    --lf-field-end-room: calc(var(--lf-line) - 6px);
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
      not a press of its own, in Dictate's seat. While the field holds a draft, the
@@ -650,7 +637,7 @@
     justify-content: center;
     gap: 4px;
     min-width: var(--lf-fp-aim);
-    min-height: var(--lf-fp-line);
+    min-height: var(--lf-line);
     padding: 0 7px;
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
@@ -690,7 +677,7 @@
     flex: none;
     display: flex;
     align-items: center;
-    min-height: var(--lf-fp-line);
+    min-height: var(--lf-line);
   }
   /* The field gives the notice its room only while it holds no words: words a notice
      arriving would narrow rewrap, and the field grows up over its line under the
@@ -751,7 +738,7 @@
   /* ---------- folded to the leaf, in the window's corner ---------- */
   .lf-floating-panel[data-rest="mark"] {
     --lf-fp-fold-pad-inline: calc((var(--lf-fp-folded) - var(--lf-fp-aim)) / 2);
-    --lf-fp-fold-pad-block: calc((var(--lf-fp-folded) - var(--lf-fp-line)) / 2);
+    --lf-fp-fold-pad-block: calc((var(--lf-fp-folded) - var(--lf-line)) / 2);
     width: var(--lf-fp-folded);
     left: auto;
     right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
@@ -1481,8 +1468,8 @@
     margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   }
   .lf-fp-messages .lf-msg-editor .lf-compose-field > leaf-text {
-    min-height: calc(var(--lf-fp-line) - 2px);
-    padding-block: calc((var(--lf-fp-line) - 2px - 1lh) / 2);
+    min-height: calc(var(--lf-line) - 2px);
+    padding-block: calc((var(--lf-line) - 2px - 1lh) / 2);
   }
 
   /* ---------- the plan ---------- */
@@ -1756,7 +1743,7 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
       --lf-fp-aim: var(--aim-floor);
-      --lf-fp-press: var(--lf-fp-line);
+      --lf-fp-press: var(--lf-line);
     }
     .lf-fp-item,
     .lf-fp-thread,

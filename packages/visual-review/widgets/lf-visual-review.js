@@ -431,7 +431,7 @@ customElements.define(
             >
             <button
               type="button"
-              ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-feedback")}
+              ${offered("lf-btn lf-quiet-action lf-vr-feedback")}
             >
               Add feedback
             </button>
@@ -440,7 +440,7 @@ customElements.define(
                 ? html`<button
                       type="button"
                       ${offered(
-                        "lf-btn lf-quiet-action lf-compact-control lf-vr-open-threads",
+                        "lf-btn lf-quiet-action lf-vr-open-threads",
                       )}
                       popovertarget=${`${this.id}-${record.id}-threads`}
                     >
@@ -486,7 +486,7 @@ customElements.define(
           </div>
           <button
             type="button"
-            ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-next")}
+            ${offered("lf-btn lf-quiet-action lf-vr-next")}
           >
             Next unchecked <span aria-hidden="true">→</span>
           </button>
@@ -500,7 +500,7 @@ customElements.define(
             </p>
             <button
               type="button"
-              ${offered("lf-btn lf-quiet-action lf-compact-control lf-vr-inspect")}
+              ${offered("lf-btn lf-quiet-action lf-vr-inspect")}
               aria-controls=${`${this.id}-${record.id}-inspection`}
             >
               Capture details

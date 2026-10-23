@@ -10,7 +10,7 @@
   margin: var(--sp-3) 0;
   container: lf-shot / inline-size;
   --lf-shot-gap: var(--sp-2);
-  --lf-shot-label-height: max(30px, var(--aim-floor));
+  --lf-shot-label-height: var(--lf-line);
 }
 .lf-shot-toolbar {
   display: grid;

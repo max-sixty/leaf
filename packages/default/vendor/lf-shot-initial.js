@@ -5,7 +5,7 @@
     compare: "Pair",
     pixels: "Pixels"
   };
-  var CONTROL = "lf-btn lf-quiet-action lf-compact-control";
+  var CONTROL = "lf-btn lf-quiet-action";
   var nextOptionsId = 0;
   function shotAllocation(host, stage) {
     const style = getComputedStyle(stage);

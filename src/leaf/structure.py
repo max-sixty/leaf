@@ -13,7 +13,6 @@ from .registry.kernel import kernel_authored
 from .resource_urls import ReferenceError, resource_reference
 from .schema import EVENT_ID, MEDIA_DIR
 
-DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
 UTF8_BOM = "\ufeff"
 
 # ---------- check: deterministic pre-handover lint ----------

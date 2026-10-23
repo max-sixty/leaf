@@ -8210,15 +8210,17 @@ function createFloatingPanel({
           Show
         </button>` : nothing;
     let answers;
+    let discussHere = true;
     if (list === "done" && !record)
       answers = html`<span class="lf-fp-said"
-          >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
-        >${thread ? discuss : nothing}`;
+        >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
+      >`;
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
-        >${thread ? discuss : nothing}`;
-    else if (answered)
+        >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
+      >`;
+    else if (answered) {
+      discussHere = false;
       answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture2 ? html`<button
                 type="button"
                 class="lf-fp-quiet"
@@ -8226,7 +8228,7 @@ function createFloatingPanel({
               >
                 Undo
               </button>` : nothing}`;
-    else if (choices?.length)
+    } else if (choices?.length)
       answers = html`${choices.map(
         (choice) => html`<button
             type="button"
@@ -8239,16 +8241,17 @@ function createFloatingPanel({
           >
             ${capital(choice.label)}
           </button>`
-      )}${discuss}`;
+      )}`;
     else if (item.offers?.done)
       answers = html`<button
-          type="button"
-          class="lf-fp-answer"
-          @click=${() => queueActions.done(queueItemKey(item))}
-        >
-          Done</button
-        >${discuss}`;
-    else if (inWords && thread)
+        type="button"
+        class="lf-fp-answer"
+        @click=${() => queueActions.done(queueItemKey(item))}
+      >
+        Done
+      </button>`;
+    else if (inWords && thread) {
+      discussHere = false;
       answers = html`<button
         type="button"
         class="lf-fp-answer"
@@ -8256,7 +8259,7 @@ function createFloatingPanel({
       >
         Reply
       </button>`;
-    else answers = discuss;
+    } else answers = nothing;
     const key = queueItemKey(item);
     const stop = queueStop(item);
     const about = queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
@@ -8275,7 +8278,9 @@ function createFloatingPanel({
                 data-message=${message.key}
               ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
                 <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
-      <div class="lf-fp-answers">${answers}${show}</div>
+      <div class="lf-fp-answers">
+        ${answers}${discussHere ? discuss : nothing}${show}
+      </div>
     </section>`;
   }
   declareSide(

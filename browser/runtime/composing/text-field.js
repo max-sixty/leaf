@@ -139,8 +139,12 @@ sheet.replaceSync(`
      --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
      its layout. The field's content box cuts off what the field doesn't hold yet,
      such as a new line and its caret, and keeps the travel from widening the host's
-     scrolling. A cut naming none is invalid, which leaves the words uncut. */
-  .lf-field { overflow: clip; }
+     scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
+     reaches 2px past that box, the caret's width at a line's end: Firefox paints the
+     caret from its offset onward and pulls it inside only a scroll container, so a
+     caret after a line that fills the box, as a trailing space beside Send can, was
+     cut away whole. */
+  .lf-field { overflow: clip; overflow-clip-margin: 2px; }
   .lf-field > * {
     translate: var(--lf-field-carry);
     clip-path: inset(var(--lf-field-cut));

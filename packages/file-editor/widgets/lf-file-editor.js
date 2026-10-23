@@ -292,17 +292,21 @@ customElements.define(
             <span
               ${offered("lf-file-editor-status")}
               title=${failure?.message ?? nothing}
-              >${latest
-                ? ""
-                : failure
-                  ? base
-                    ? "Not saved"
-                    : "Unavailable"
-                  : slow
-                    ? "Saving changes…"
-                    : ""}${retryable
-                ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>`
-                : nothing}<button
+              >${
+                latest
+                  ? ""
+                  : failure
+                    ? base
+                      ? "Not saved"
+                      : "Unavailable"
+                    : slow
+                      ? "Saving changes…"
+                      : ""
+              }${
+                retryable
+                  ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>`
+                  : nothing
+              }<button
                 ${offered("lf-file-editor-retry")}
                 ?hidden=${!retryable}
                 aria-description=${failure?.message ?? nothing}

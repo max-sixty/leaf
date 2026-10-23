@@ -159,9 +159,9 @@ the relevant change readable there, without requiring the reader to zoom first.
 
 Every pair starts in **Slider**, followed by **Pair** and **Pixels** in the shared
 header. Before and After label the header, or each frame when stacked. Pair keeps
-the captures at the same scale; clicking either image opens its original. Fit keeps both frames visible in a bounded
-comparison, placing them beside one another or stacking them to make best use of the
-available space. At 100%, both panes stay visible and scrolling either image moves
+the captures at the same scale; clicking either image opens its original. Fit keeps both frames on screen, or within a
+bounded comparison's room, placing them beside one another or stacking them, whichever
+draws them larger, so short wide captures stack and tall narrow ones sit side by side. At 100%, both panes stay visible and scrolling either image moves
 the other to the same location. This scale uses CSS pixels when capture metadata
 supplies the pixel ratio, or bitmap pixels otherwise. The **…** menu offers Fit,
 100%, the Pixels color key and, for a pair with focus metadata, Full frame to inspect

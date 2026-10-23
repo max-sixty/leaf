@@ -9,14 +9,17 @@
   var nextOptionsId = 0;
   function shotAllocation(host, stage) {
     const style = getComputedStyle(stage);
+    const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
     return {
       available: stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
-      availableHeight: getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1" ? stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) : void 0
+      availableHeight: getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1" ? stage.clientHeight - padding : void 0,
+      screenHeight: document.documentElement.clientHeight - stage.previousElementSibling.offsetHeight - padding
     };
   }
   function fitShotGeometry({
     available,
     availableHeight,
+    screenHeight,
     labelHeight,
     sourceWidth,
     sourceHeight,
@@ -30,17 +33,18 @@
     if (!available || !(crop || sourceWidth && sourceHeight)) return null;
     const width = crop ? focus.width : sourceWidth;
     const height = crop ? focus.height : sourceHeight;
-    const fit = (columns2, rows2, captions = 0) => Math.max(
+    const fit = (columns2, rows2, captions = 0, bound = availableHeight) => Math.max(
       0,
       Math.min(
         1,
         (available - columns2 * 2 - (columns2 - 1) * gap) / (columns2 * width),
-        availableHeight === void 0 ? Infinity : (availableHeight - rows2 * (captions + 2) - (rows2 - 1) * gap) / (rows2 * height)
+        bound === void 0 ? Infinity : (bound - rows2 * (captions + 2) - (rows2 - 1) * gap) / (rows2 * height)
       )
     );
-    const side = fit(2, 1);
-    const stack = fit(1, 2, labelHeight);
-    const layout = availableHeight === void 0 ? width + gap + 4 <= available ? "side" : "stack" : side >= stack ? "side" : "stack";
+    const pairBound = availableHeight ?? screenHeight;
+    const side = fit(2, 1, 0, pairBound);
+    const stack = fit(1, 2, labelHeight, pairBound);
+    const layout = side >= stack ? "side" : "stack";
     const pairScale = layout === "side" ? side : stack;
     const fitScale = view === "compare" ? pairScale : fit(1, 1);
     const scale = actual ? 1 : fitScale;

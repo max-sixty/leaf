@@ -11,8 +11,11 @@ const CONTROL = "lf-btn lf-quiet-action";
 let nextOptionsId = 0;
 
 // Fit uses the content box: the scrollport's padding keeps the image shadow visible.
+// In flow nothing bounds the stage's height, so Pair takes the screen's room below
+// the toolbar as its bound: the reader compares both frames in one view.
 export function shotAllocation(host, stage) {
   const style = getComputedStyle(stage);
+  const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
   return {
     available:
       stage.clientWidth -
@@ -20,16 +23,19 @@ export function shotAllocation(host, stage) {
       parseFloat(style.paddingRight),
     availableHeight:
       getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1"
-        ? stage.clientHeight -
-          parseFloat(style.paddingTop) -
-          parseFloat(style.paddingBottom)
+        ? stage.clientHeight - padding
         : undefined,
+    screenHeight:
+      document.documentElement.clientHeight -
+      stage.previousElementSibling.offsetHeight -
+      padding,
   };
 }
 
 export function fitShotGeometry({
   available,
   availableHeight,
+  screenHeight,
   labelHeight,
   sourceWidth,
   sourceHeight,
@@ -43,28 +49,23 @@ export function fitShotGeometry({
   if (!available || !(crop || (sourceWidth && sourceHeight))) return null;
   const width = crop ? focus.width : sourceWidth;
   const height = crop ? focus.height : sourceHeight;
-  const fit = (columns, rows, captions = 0) =>
+  const fit = (columns, rows, captions = 0, bound = availableHeight) =>
     Math.max(
       0,
       Math.min(
         1,
         (available - columns * 2 - (columns - 1) * gap) / (columns * width),
-        availableHeight === undefined
+        bound === undefined
           ? Infinity
-          : (availableHeight - rows * (captions + 2) - (rows - 1) * gap) /
-              (rows * height),
+          : (bound - rows * (captions + 2) - (rows - 1) * gap) / (rows * height),
       ),
     );
-  const side = fit(2, 1);
-  const stack = fit(1, 2, labelHeight);
-  const layout =
-    availableHeight === undefined
-      ? width + gap + 4 <= available
-        ? "side"
-        : "stack"
-      : side >= stack
-        ? "side"
-        : "stack";
+  // Pair takes whichever arrangement draws the captures larger, so short wide
+  // captures stack and tall narrow ones sit side by side.
+  const pairBound = availableHeight ?? screenHeight;
+  const side = fit(2, 1, 0, pairBound);
+  const stack = fit(1, 2, labelHeight, pairBound);
+  const layout = side >= stack ? "side" : "stack";
   const pairScale = layout === "side" ? side : stack;
   const fitScale = view === "compare" ? pairScale : fit(1, 1);
   const scale = actual ? 1 : fitScale;

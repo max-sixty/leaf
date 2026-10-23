@@ -34,6 +34,8 @@ export function paintStatusContext(goToStatus) {
     lastWalk = Object.freeze({
       kind: position.kind,
       target: position.target,
+      position: position.position,
+      total: position.total,
       text: position.text,
     });
   const next = Object.freeze({

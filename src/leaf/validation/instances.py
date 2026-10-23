@@ -511,47 +511,6 @@ def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Findi
     return errors
 
 
-# A word a widget declares that its layer has to know, as two things: the x- key
-# naming the attribute that carries it, and the layer-wide fact listing the words the
-# layer has. What the layer does with one that is on the list is the finding's words
-# (`findings._HONORED`).
-#
-# One reader for both, because they are one failure — a misspelt language colors nothing
-# and a misspelt tone paints nothing, and each renders as a page that otherwise looks
-# perfectly well, so nobody downstream can see it: not the user, who never knew the chip
-# was meant to be red. The one party who can still fix it is whoever wrote the word, and
-# this is where they are told. A class would have been the same words with nobody
-# checking them.
-#
-# The list is the layer's ($languages, $tones) rather than any widget's, and which
-# attribute carries the word is the entry's to say — so nothing here knows which widget
-# takes a language or a tone, and the thirteenth that colors something is covered the day
-# it declares one. A third such word is a row in this table.
-DECLARED_WORDS = (("x-language", "$languages"), ("x-tone", "$tones"))
-
-
-def declared_word_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Every word the page declares that its layer has no entry for (DECLARED_WORDS)."""
-    errors = []
-    for key, fact in DECLARED_WORDS:
-        known = registry[fact]["names"]
-        for rec in lf_elements:
-            attr = (registry.get(rec["tag"]) or {}).get(key)
-            word = rec["attrs"].get(attr) if attr else None
-            if word is not None and word not in known:
-                errors.append(
-                    found_at(
-                        "unknown-word",
-                        rec,
-                        attr=attr,
-                        value=word,
-                        declares=key,
-                        known=known,
-                    )
-                )
-    return errors
-
-
 def suggestion_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """What the registry's schema can't say about a suggestion: it holds at most
     one of each slot and at least one of them, and it doesn't nest. A family lint, named
@@ -592,16 +551,11 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + parts_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
         + enclosing_errors(document, registry)
-        + declared_word_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
     )
 
 
 def fragment_errors(parser: SourceDocument, registry: dict) -> list[Finding]:
     """Structural + registry validation of an HTML fragment:
-    the discussion-side analog of `page check`. The declared-word
-    checks come along because the schema stopped carrying the lists: a reply's
-    <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
-    are tinted by the same theme, and nothing else would now refuse either a word its
-    layer doesn't know."""
+    the discussion-side analog of `page check`."""
     return structure_errors(parser) + instance_errors(parser, registry)

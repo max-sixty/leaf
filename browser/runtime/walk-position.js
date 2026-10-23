@@ -48,6 +48,8 @@ export function walkPosition() {
   return {
     kind: walking.key,
     target: position.target,
+    position: position.position,
+    total: position.total,
     text: walkPositionLabel(
       walking.noun,
       position.position,

@@ -63,19 +63,17 @@ def instruction_selection(
     return sorted(selected_entries), sorted(selected_contracts)
 
 
-def words(registry: dict, name: str) -> list[str]:
-    """What each attribute of entry `name` that names a layer-wide word, such as a
-    tone, may say: the layer's list (`DECLARED_WORDS`), which validation refuses
-    any other word against. The entry's schema says only that the attribute is a
-    string, so an author reading it would otherwise guess."""
-    from .validation.instances import DECLARED_WORDS
-
+def words(entry: dict) -> list[str]:
+    """What each attribute of a vocabulary `entry` whose schema lists the words it
+    takes (`enum`) may say, as its schema says it, such as the tones the layer
+    paints (`registry.contract.stamp_words`): an author choosing one need not look
+    it up."""
     return [
-        f"`{attr}` takes one of the layer's {fact.removeprefix('$')}: "
-        + ", ".join(f"`{word}`" for word in registry[fact]["names"])
+        f"`{attr}` takes one of: "
+        + ", ".join(f"`{word}`" for word in spec["enum"])
         + "."
-        for key, fact in DECLARED_WORDS
-        if (attr := registry[name].get(key))
+        for attr, spec in entry.get("properties", {}).items()
+        if "enum" in spec
     ]
 
 
@@ -109,7 +107,7 @@ def page_instructions(
     for name in selected_entries:
         said = [
             text.strip()
-            for text in (registry[name].get("x-instructions"), *words(registry, name))
+            for text in (registry[name].get("x-instructions"), *words(registry[name]))
             if text
         ]
         if said:

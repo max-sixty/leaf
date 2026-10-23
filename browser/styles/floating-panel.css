@@ -608,7 +608,9 @@
     leaf-text[data-says="status"]::part(placeholder) {
     color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
-  .lf-fp-field .lf-compose-placeholder kbd {
+  /* The panel shows no key hints but the one that enters an open thread's reply, which
+     the empty field says as a margin card's reply box does (`fieldReading`). */
+  .lf-fp-field leaf-text:not([data-says="turn"]) .lf-compose-placeholder kbd {
     display: none;
   }
   /* The field's presses float in its foot's end corner, as an anchored comment box's

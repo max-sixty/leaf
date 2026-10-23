@@ -78,7 +78,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf.registry.contract import RANK, detail_schema
+from leaf.registry.contract import DECLARED_WORDS, RANK, detail_schema
 from leaf.registry.schema import schema_error
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
@@ -1410,7 +1410,9 @@ def test_check_rejects_widget_violations(page_dir):
     # any non-void tag, not only on the vocabulary's.
     assert [f.at for f in found(findings, "self-closing")] == ["<lf-gloss>", "<figure>"]
     assert found(findings, "unknown-widget", "<lf-bogus>")
-    assert found(findings, "unknown-word", "<lf-column>", attr="tone", value="medium")
+    assert found(
+        findings, "attribute-schema", "<lf-column>", keyword="enum", path=["tone"]
+    )
     assert found(findings, "not-member", "<lf-option>", owners=["lf-options"])
     assert found(findings, "attribute-schema", "<lf-option>", keyword="required")
     assert found(
@@ -1439,9 +1441,10 @@ def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
     )
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert [(f.at, f.values["value"]) for f in found(findings, "unknown-word")] == [
-        ("<lf-code>", "pythn")
-    ]
+    assert [
+        (f.at, f.values["path"])
+        for f in found(findings, "attribute-schema", keyword="enum")
+    ] == [("<lf-code>", ["language"])]
 
 
 def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
@@ -1462,12 +1465,7 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     status, findings = check_findings(page_dir)
     assert status == 1
     assert found(
-        findings,
-        "unknown-word",
-        "<lf-gloss>",
-        attr="dialect",
-        value="lisp",
-        declares="x-language",
+        findings, "attribute-schema", "<lf-gloss>", keyword="enum", path=["dialect"]
     )
 
 
@@ -1509,9 +1507,12 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
             if attr in {"restated", "overruled", "resolves"}:
                 continue
             seen = used.get(tag, {}).get(attr)
+            # A declared word's enum is the layer's list, stamped in
+            # (`registry.contract.stamp_words`), not values the widget draws apart.
+            declared = {entry.get(key) for key, _ in DECLARED_WORDS}
             if seen is None:
                 missing.append(f"{tag}[{attr}]")
-            else:
+            elif attr not in declared:
                 missing.extend(
                     f'{tag}[{attr}="{value}"]'
                     for value in spec.get("enum", [])
@@ -1624,7 +1625,9 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_di
     )
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert found(findings, "unknown-word", "<lf-code>", value="python", known=[])
+    assert found(
+        findings, "attribute-schema", "<lf-code>", keyword="enum", path=["language"]
+    )
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):

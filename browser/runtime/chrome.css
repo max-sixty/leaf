@@ -430,6 +430,9 @@
   .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-field .lf-compose-field > leaf-text {
     --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
   }
+  .lf-fp-field .lf-compose-field > leaf-text:has(.lf-compose-placeholder-aside:not(:empty)) {
+    --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
+  }
   .lf-fp-field .lf-compose-submit {
     display: none;
   }

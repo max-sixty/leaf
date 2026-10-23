@@ -182,7 +182,13 @@ answer = {{
     "content": [{{"type": "text", "text": os.environ["PI_ANSWER"]}}],
     "provider": "openai-codex",
     "model": "gpt-6.1-sol",
-    "usage": {{"input": 90, "output": 8, "cost": {{"total": 0.0002}}}},
+    "usage": {{
+        "input": 90,
+        "output": 8,
+        "cacheRead": 10,
+        "cacheWrite": 0,
+        "cost": {{"total": 0.0002}},
+    }},
     "stopReason": "stop",
 }}
 print(json.dumps({{"type": "agent_end", "messages": [answer], "willRetry": False}}))
@@ -210,7 +216,7 @@ def test_llm_on_a_pi_page_validates_the_answer_against_the_schema(
     assert status == 200, answer
     assert answer["value"] == {"headline": "From Pi"}
     assert answer["model"] == "openai-codex/gpt-6.1-sol"
-    assert answer["usage"] == {"inputTokens": 90, "outputTokens": 8}
+    assert answer["usage"] == {"inputTokens": 100, "outputTokens": 8}
     [call] = [json.loads(line) for line in record.read_text().splitlines()]
     assert call["stdin"] == REQUEST["input"]
     assert call["system_prompt"].startswith("Be concise\n\n")

@@ -533,7 +533,13 @@ answer = {{
     "content": [{{"type": "text", "text": '{{"title": " Export speed "}}'}}],
     "provider": "openai-codex",
     "model": "gpt-6.1-sol",
-    "usage": {{"input": 200, "output": 7, "cost": {{"total": 0.00048}}}},
+    "usage": {{
+        "input": 200,
+        "output": 7,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "cost": {{"total": 0.00048}},
+    }},
     "stopReason": "stop",
 }}
 for record in (

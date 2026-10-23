@@ -359,7 +359,10 @@ def pi_generate(
     of 56 requests with JSON matching it, across eight widget-style requests (a thread
     title, a classification, nullable fields in a list, no instructions, and a request
     for Markdown paragraphs among them). Answers took 1.8–3.6 s, and the Markdown one
-    up to 15 s, at a load average near 30 (Pi 1.0.4).
+    up to 15 s, at a load average near 30 (Pi 1.0.4). Asked for thread titles, whose
+    instructions say to reply with the title alone, it answered 24 of 24 in the
+    schema, to messages asking for a fix, a shell command, a poem, a sum, a bare
+    "YES" or a plain-text answer.
 
     Pi exits some 3 s after it answers (Pi 1.0.4 on its `openai-codex` provider,
     where the model took 1–2 s), so the answer is read as Pi prints it, and the
@@ -374,7 +377,7 @@ def pi_generate(
         if name not in IDENTITY_VARIABLES
     }
     with (
-        tempfile.NamedTemporaryFile("w", suffix=".md") as system_prompt,
+        tempfile.NamedTemporaryFile("w", encoding="utf-8") as system_prompt,
         tempfile.TemporaryFile("w+") as errors,
     ):
         system_prompt.write(
@@ -422,16 +425,23 @@ def pi_generate(
             f"the inference run ended {answer.get('stopReason')}: "
             f"{answer.get('errorMessage')}"
         )
-    value = json.loads(
-        "".join(part["text"] for part in answer["content"] if part["type"] == "text")
-    )
+    text = "".join(part["text"] for part in answer["content"] if part["type"] == "text")
+    try:
+        value = json.loads(text)
+    # The prose can echo the user's words, so it stays out of the error.
+    except json.JSONDecodeError as error:
+        raise ValueError(f"Pi's answer is not JSON ({error.msg})") from None
     json_validator(schema).validate(value)
     usage = answer["usage"]
     return {
         "value": value,
         "model": f"{answer['provider']}/{answer['model']}",
         "durationMs": round((time.monotonic() - started) * 1000),
-        "usage": {"inputTokens": usage["input"], "outputTokens": usage["output"]},
+        "usage": {
+            # Pi counts cached input apart; the other harnesses count it in.
+            "inputTokens": usage["input"] + usage["cacheRead"] + usage["cacheWrite"],
+            "outputTokens": usage["output"],
+        },
         # Pi prices each answer from its model catalog.
         "costUsd": usage["cost"]["total"],
     }

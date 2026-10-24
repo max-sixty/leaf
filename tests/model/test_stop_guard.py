@@ -955,11 +955,10 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     )
     prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert (
-        f"your start on {asked['id']} came before this turn"
-        in prompt["additionalContext"]
+        f"your start on {asked['id']} predates this turn" in prompt["additionalContext"]
     )
     reason = _stop(capsys)
-    assert f"your start on {asked['id']} came before this turn" in reason
+    assert f"your start on {asked['id']} predates this turn" in reason
     assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
@@ -985,7 +984,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     consume_pending_input("s1")
     reason = _stop(capsys)
     assert f"`leaf thread reply {delivered_ref(claimed, follow['id'])}`" in reason
-    assert f"your start on {asked['id']} came before this turn" in reason
+    assert f"your start on {asked['id']} predates this turn" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
 
@@ -1262,7 +1261,9 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
         "answer"
     ]
     told = [batch["handling"][ref] for ref in event["handling"]]
-    assert any("write the answer in, and stamp a version" in text for text in told)
+    assert any(
+        "write the answer into the markup, and stamp a version" in text for text in told
+    )
     receive_through(claimed, last_deliverable_seq(claimed))
 
     assert f"records action {picked['id']}" in _stop(capsys)

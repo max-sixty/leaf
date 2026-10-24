@@ -2,7 +2,7 @@
 # into the task commands: work on a delivered move is shown against that move's own id,
 # work no move asked for gets an item the agent opens, and the handoff shows what the
 # agent wants back rather than leaving that work marked in progress. Scores
-# conversation-loop.md, "When to write" and "Status and handoff". The criterion is the
+# conversation-loop.md, "When to write" and "Page availability and handoff". The criterion is the
 # behavior, not either version's command, so the case guards both arms.
 # Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
 # Claude Code.

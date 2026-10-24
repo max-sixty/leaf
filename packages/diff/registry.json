@@ -4,7 +4,7 @@
       "unified-diff": {
         "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
         "instructions": {
-          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script preserves native Git evidence keyed by destination path. It leaves judgment to `lf-diff`: each file\u2019s patch is delivered and checked before its row appears, and textual hunks render when their file opens. A file the widget cannot present shows its refusal and reports it to you as the page's error."
+          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script keys each file by its destination path. A file `lf-diff` can't present shows its refusal on the page and reports it to you as the page's error."
         },
         "records": {
           "items": "files",
@@ -142,6 +142,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
+    "x-space": "wide",
     "x-data": {
       "document": {
         "contract": "unified-diff",
@@ -207,7 +208,7 @@
   },
   "lf-worktree-diffs": {
     "description": "A supplied set of expandable worktree snapshots, with aggregate change totals and independent diff readers.",
-    "x-instructions": "Supply lf-worktree members in review order, with open on the native details of the one to inspect first. The collection totals their supplied file and line counts and lists unavailable snapshots separately. Each member holds ordinary metadata, optional agent commentary, and its own lf-diff. There is no worktree count limit. Read the diff package author instructions for the snapshot contract.",
+    "x-instructions": "Supply `lf-worktree` members in review order; the collection lists unavailable snapshots apart from its totals.",
     "type": "object",
     "properties": {
       "id": {
@@ -218,6 +219,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
+    "x-space": "wide",
     "x-upgrade": true,
     "x-initial": "/vendor/lf-worktree-diffs-initial.js",
     "x-patch": "members",
@@ -225,7 +227,6 @@
   },
   "lf-worktree": {
     "description": "One worktree snapshot and its authored evidence inside lf-worktree-diffs.",
-    "x-instructions": "Use label for the worktree name, path for its full filesystem path, branch when attached, and head for the full current commit hash when known. Wrap the evidence in one native details element with a stable id; put open on that details to show it initially. Leaf supplies its summary. Status is changed, clean, or unavailable; known snapshots supply files/additions/deletions from the exact comparison shown by their lf-diff, with optional binary-files included in files but excluded from line totals. Put the commit subject, provenance, and optional agent commentary in ordinary authored markup. Snapshot provenance should identify repository, full HEAD and comparison-base hashes, scope, and capture time. An unavailable row explains the missing evidence in its body and supplies no invented zero totals.",
     "type": "object",
     "properties": {
       "id": {

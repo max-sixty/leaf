@@ -621,7 +621,11 @@ leaf-text.lf-fab-input {
   min-height: var(--lf-response-height);
 }
 /* The native top layer keeps this picker out of each composer's layout and clipping.
-   CSS anchors follow its trigger across floating, panel and widget seats. */
+   CSS anchors follow its trigger across floating, panel and widget seats. The row has
+   no backing box: each choice's own button face stands on the page, as the field and
+   trigger beside it do. Max removed the box, a bordered, shadowed card behind the row,
+   on 23 October 2026 as unneeded. The padding stays, clear, as room for each choice's
+   focus ring inside the popover's scrollport. */
 .lf-response-options {
   position: fixed;
   position-anchor: --lf-response-trigger;
@@ -634,11 +638,9 @@ leaf-text.lf-fab-input {
   max-width: calc(100vw - 16px);
   margin: 4px 8px;
   padding: 4px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
+  border: 0;
+  background: transparent;
   color: var(--ink);
-  box-shadow: var(--raise-2);
 }
 .lf-response-options:popover-open {
   display: flex;

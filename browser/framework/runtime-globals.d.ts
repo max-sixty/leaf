@@ -121,6 +121,11 @@ interface HTMLElement {
     userStore: LeafStore;
   };
   lfKeyboard?: { readonly quick: boolean; setQuick(on: boolean): void };
+  /** Whether a link's target leaves the page, and the mark that says so (prepaint.js). */
+  lfExternalLink?: {
+    opensElsewhere(href: string | null): boolean;
+    mark(): SVGSVGElement;
+  };
   /** The floating panel's resting size. */
   lfChrome?: {
     /** `row` or `mark`. */

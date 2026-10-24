@@ -371,7 +371,7 @@ def presence_reading(page_dir: Path, files: str) -> str:
 
 def nudge_unwatched(page: PageTransaction) -> None:
     """Message the claimant of a page holding input nothing will carry, once per
-    ending of its turn (`session-lifetime.md`, Watchers).
+    ending of its turn.
 
     Nothing carries it when no wait lease is held and the claimant takes no input
     by the activity fold's own reading (`activity.takes_input`), because its turn

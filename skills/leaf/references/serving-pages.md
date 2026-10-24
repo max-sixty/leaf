@@ -140,7 +140,8 @@ and retains gap diagnostics under type filters. The raw `<page>/observations.jso
 which `tail -F` follows live while you reproduce a problem, is in arrival order and
 still holds retries. Browser wall time stays in `observed_at`; order alone does not
 prove cause. The user's decisions are in `leaf page events <page>`, and
-[page-storage.md](../../../src/leaf/page-storage.md) defines the file. The public site
+[`interaction-batch.schema.json`](../../../src/leaf/interaction-batch.schema.json) defines the fields every browser row carries
+([page-storage.md](../../../src/leaf/page-storage.md) names the file's other owners). The public site
 stores its browser batches in Workers Observability; `worker/README.md` describes
 lookup by session reference.
 

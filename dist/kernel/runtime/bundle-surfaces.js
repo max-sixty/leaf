@@ -1274,6 +1274,15 @@ function releaseControl(control) {
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
 const COPY_SCOPE = Symbol("code copy");
+function copySize(block) {
+	const style = getComputedStyle(block);
+	const chosen = style.getPropertyValue("--lf-code-copy-size").trim() || (block.localName === "pre" ? style.lineHeight : "");
+	return CSS.supports("width", chosen) ? chosen : "";
+}
+function setCopySize(copy, size) {
+	if (size) copy.style.setProperty("--lf-code-copy-size", size);
+	else copy.style.removeProperty("--lf-code-copy-size");
+}
 let pressedPath = /* @__PURE__ */ new WeakSet();
 addEventListener("pointerdown", (event) => pressedPath = new WeakSet(event.composedPath()), { capture: true });
 onCurrentLocation((node) => {
@@ -1313,7 +1322,9 @@ function declareCopy(pre, copy, noun) {
 	}]));
 }
 function copyBlock(block, source, noun) {
+	const size = copySize(block);
 	const copy = aimControl(prepareCodeBlock(block, source, noun));
+	setCopySize(copy, size);
 	declareCopy(block, copy, noun);
 	return copy;
 }
@@ -1327,10 +1338,12 @@ function watchCodeBlocks() {
 			const prepared = blocks.filter((pre) => pre.getRootNode() === document).map((pre) => [
 				pre,
 				prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent, "code"),
-				headerLevels(pre)
+				headerLevels(pre),
+				copySize(pre)
 			]);
-			for (const [pre, pending, levels] of prepared) {
+			for (const [pre, pending, levels, size] of prepared) {
 				const copy = aimControl(pending);
+				setCopySize(copy, size);
 				standInChrome(copy, pre, levels);
 				copy.tabIndex = -1;
 				claimReachStop(pre);

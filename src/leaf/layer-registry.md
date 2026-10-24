@@ -100,7 +100,8 @@ each build against it (its header says in which direction for each schema). It r
 a change to what a page sends, to an event record, or a verb's tightening, until the
 change takes what it took or the number moves. The public package API has no schema
 there, so whoever removes or renames a `widget-api.js` export, or changes what one
-returns incompatibly, bumps the number; a passing comparison doesn't judge that.
+returns incompatibly, bumps the number. A passing comparison doesn't judge that, nor
+whether a bump chosen by hand was needed.
 `served_state/state.schema.json` declares the served state and the `/api/view` answer
 for the generated types and the producer's tests, outside the comparison.
 

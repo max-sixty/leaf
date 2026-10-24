@@ -436,23 +436,30 @@ def pointed(session_id: str, lifecycle: dict) -> dict[str, int]:
     return dict(record["pages"])
 
 
-def note_pointer(session_id: str, lifecycle: dict, delivery: dict) -> None:
+def note_pointer(
+    session_id: str, lifecycle: dict, delivery: dict, *, deadline: float
+) -> None:
     """Note each page `delivery` carries input from as pointed at in the turn
-    `lifecycle` names, unless a newer lifecycle has replaced it."""
-    with flocked(session_lock_path(session_id)):
-        if session_record(session_id) != lifecycle:
-            return
-        pages = pointed(session_id, lifecycle)
-        for batch in delivery["batches"]:
-            pages[batch["page"]] = batch["through_seq"]
-        POINTED.write(
-            session_file(session_id, POINTED.kind),
-            {
-                "turn": lifecycle["turn"],
-                "opened": lifecycle["turn_opened"],
-                "pages": pages,
-            },
-        )
+    `lifecycle` names, unless a newer lifecycle has replaced it. A session lock
+    still held at `deadline` leaves the note unwritten, since a hook that waited
+    on it could outlive its timeout and lose the pointer itself."""
+    try:
+        with flocked(session_lock_path(session_id), deadline=deadline):
+            if session_record(session_id) != lifecycle:
+                return
+            pages = pointed(session_id, lifecycle)
+            for batch in delivery["batches"]:
+                pages[batch["page"]] = batch["through_seq"]
+            POINTED.write(
+                session_file(session_id, POINTED.kind),
+                {
+                    "turn": lifecycle["turn"],
+                    "opened": lifecycle["turn_opened"],
+                    "pages": pages,
+                },
+            )
+    except TimeoutError:
+        return
 
 
 def render(
@@ -599,7 +606,11 @@ def carry_turn(
             if time.monotonic() < deadline
             else []
         ),
-        point=lambda: note_pointer(sid, expected, delivery) if expected else None,
+        point=lambda: (
+            note_pointer(sid, expected, delivery, deadline=deadline)
+            if expected
+            else None
+        ),
     )
     if output:
         print(json.dumps(output), flush=True)

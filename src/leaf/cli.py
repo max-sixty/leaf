@@ -1370,12 +1370,8 @@ def thread_reply(
             f"{declared[0]} declares what an answer leaves; progress and failure "
             "receipts answer nothing"
         )
-    if not declared and answers and not options["markup"]:
-        raise click.UsageError(
-            "say what the answer leaves: --done when it delivers what was asked, "
-            "--todo TITLE when it promises work it doesn't deliver, or --obligation "
-            "when it needs the user's next move (a widget in --markup may also ask)"
-        )
+    # An answer that declares nothing must carry a widget that asks; `post_reply`
+    # refuses it otherwise (`undeclared-answer`).
     options["asks_back"] = not declared and answers
     return post_response(destination, text, failure=failure, **options)
 

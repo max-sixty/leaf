@@ -493,6 +493,16 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `AGENTS.md` rather than treating it as a web domain. Establish how that context
   reaches Markdown before inferring a destination from the filename alone.
 
+- **Revisit the Claude desktop app opening a page's file over the live page.** In
+  the app's Code tab, every Write or Edit of a page's `index.html` opens that file in
+  the Browser pane, the authored markup without Leaf's runtime, in front of any tab
+  showing the served page. The app's own PostToolUse hook does this (app 3.6556.1).
+  It holds back only when the app's `launchAutoOpenFiles` preference is off, when the
+  user isn't watching the session, or when a preview server the app started from
+  `.claude/launch.json` serves the folder. A tab opened with `preview_start` and a
+  URL doesn't count, and nothing lets a plugin or a file opt out. Trigger: an app
+  release that lets a plugin or file opt out, or that leaves a served tab in front.
+
 - **Decide the site's structure before release.** Choose how much of the status
   derivation the site explains, and whether to reorganize its pages by reader
   ([proposal](notes/site-structure.md)). Trigger: preparing a release.
@@ -511,6 +521,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
   and needs no second copy — the same SVG with its fill set — but only an icon whose
   outline is a closed shape fills cleanly. Trigger: a user misreads what a pin holds.
+- **Revisit the reaction tokens' meanings or glyphs if they confuse.** A reaction
+  shows only its glyph (👍, ❌, ✂️ …), in the margin and the picker, with its name in
+  the accessible label. Max rejected visible text labels on 23 October 2026 as too
+  heavy, so a fix changes which tokens `$reactions` declares or how each looks.
+  Trigger: a user misreads what a reaction says or picks the wrong one.
 - **#30 — Try a feed of ready-to-approve actions.** An agent pass prepares
   actions, such as a drafted email, and the user approves, edits, dismisses or
   discusses each. Every verb exists as an item; Leaf lacks an agent that runs

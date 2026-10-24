@@ -2217,8 +2217,9 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
             document.getElementById('shadow-card'))"""
     )
     expect(work_button).to_have_css("display", "flex")
-    expect(work_button).to_have_css("border-radius", "50%")
-    expect(work_button).to_have_css("height", "32px")
+    # The page opens with pins (`pin=True`), so the marker wears the pin's face.
+    expect(work_button).to_have_css("border-radius", "6px 6px 6px 0px")
+    expect(work_button).to_have_css("height", "26px")
 
 
 def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):

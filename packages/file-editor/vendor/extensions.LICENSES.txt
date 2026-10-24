@@ -1,6 +1,6 @@
 Third-party licenses for extensions
 
-===== @codemirror/autocomplete 6.20.3 (MIT) =====
+===== @codemirror/autocomplete 6.20.4 (MIT) =====
 MIT License
 
 Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
@@ -23,7 +23,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-===== @codemirror/merge 6.12.2 (MIT) =====
+===== @codemirror/merge 6.12.3 (MIT) =====
 MIT License
 
 Copyright (C) 2018-2022 by Marijn Haverbeke <marijn@haverbeke.berlin> and others

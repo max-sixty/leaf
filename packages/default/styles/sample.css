@@ -240,6 +240,12 @@
   border-radius: var(--r);
   background: var(--paper);
 }
+/* A sandboxed frame can be the current location without matching :focus or
+   :focus-visible. The runtime paints that location on its host. */
+.lf-sample-frame[data-lf-focus] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
 /* A window sample keeps its outer height rather than its page's, and scrolls inside.
  * Three quarters of the viewport leaves its label, Reset, and the containing page's
  * floating panel in view with the whole frame. */

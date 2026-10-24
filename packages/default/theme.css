@@ -2730,6 +2730,10 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   border-radius: var(--r);
   background: var(--paper);
 }
+.lf-sample-frame[data-lf-focus] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
 :scope:is(lf-sample)[window] .lf-sample-frame {
   box-sizing: border-box;
   height: min(75vh, 48rem);

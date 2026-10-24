@@ -28,7 +28,10 @@
  * stays stable when a local gesture receives its durable event id. And it is later in
  * the log than any choice this tab has drawn, which tells it from an earlier choice an
  * undo makes current again: a pending choice is this tab's newest gesture, and a
- * durable one compares by its seq. */
+ * durable one compares by its seq. The submit control withdraws the current choice
+ * while its values and instruction match the working configuration; editing either
+ * makes it submit a replacement. Its face derives from that comparison, never from
+ * delivery timing or a separate saved flag. */
 import {
   announce,
   commands,
@@ -38,6 +41,7 @@ import {
   layoutChanged,
   initialRender,
   keeps,
+  keepsText,
   LeafElement,
   nothing,
   paintKeys,
@@ -64,6 +68,18 @@ const ONE_PRESS = [
 
 const sameKeys = (left, right) =>
   left.length === right.length && left.every((key, index) => key === right[index]);
+
+// Configuration objects have no meaningful key order, including contributor slices.
+const configurationJSON = (value) =>
+  JSON.stringify(value, (_key, item) =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.keys(item)
+            .sort()
+            .map((key) => [key, item[key]]),
+        )
+      : item,
+  );
 
 function jsonSnapshot(value, path = "configuration") {
   if (value === null || typeof value === "string" || typeof value === "boolean")
@@ -351,7 +367,9 @@ customElements.define(
           control: this.#submit,
           decision: true,
           title: () => this.#submit.textContent,
-          when: () => !this.#choosing && this.#available(),
+          when: () =>
+            !this.#choosing &&
+            (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
           run: () => this.#choose(),
         },
         {
@@ -476,17 +494,24 @@ customElements.define(
     }
 
     async #choose() {
-      if (this.#choosing || !this.#available()) return;
+      if (this.#choosing) return;
+      const chosen = this.#chosen();
+      const undo = chosen ? this.#undo() : null;
+      if (chosen ? !undo : !this.#available()) return;
       this.#choosing = true;
       this.#paintAvailability();
       this.#submit.setAttribute("aria-busy", "true");
       try {
-        await this.controller.dispatch({
-          kind: "action",
-          verb: "choose",
-          detail: { values: this.values, instruction: this.#instruction() },
-          says: "Playground settings",
-        })?.delivery;
+        await this.controller.dispatch(
+          chosen
+            ? { kind: "undo", target: undo.attempt ?? undo.id }
+            : {
+                kind: "action",
+                verb: "choose",
+                detail: { values: this.values, instruction: this.#instruction() },
+                says: "Playground settings",
+              },
+        )?.delivery;
       } finally {
         this.#choosing = false;
         this.#submit.removeAttribute("aria-busy");
@@ -496,7 +521,29 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
+      keepsText(
+        this.#submit.firstElementChild,
+        this.#chosen()
+          ? "Undo choice"
+          : (this.getAttribute("submit-label") ?? "Use these settings"),
+      );
       paintKeys();
+    }
+
+    #chosen() {
+      const choice = this.state?.choose;
+      return Boolean(
+        choice?.action &&
+        choice.detail.instruction === this.#instruction() &&
+        configurationJSON(choice.detail.values) ===
+          configurationJSON({ ...this.#pendingValues, ...this.values }),
+      );
+    }
+
+    #undo() {
+      const action = this.reading.actions.choose;
+      const latest = action.inForce[0]?.event;
+      return action.undo.find((event) => event.id === latest?.id) ?? null;
     }
 
     #available() {

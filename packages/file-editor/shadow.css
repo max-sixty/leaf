@@ -46,7 +46,7 @@
   margin-inline: -0.3rem;
   padding: 0 0.3rem;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r);
   background: none;
   font: inherit;
   cursor: pointer;

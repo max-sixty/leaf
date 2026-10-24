@@ -2692,8 +2692,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 edge as the text.
               </li>
               <li id="width-wide">
-                <code>wide</code> extends up to 1080px. Wide blocks share this width so
-                they align with one another.
+                <code>wide</code> starts at the edge the text starts from (the left, in
+                a left-to-right page) and extends toward its end, up to 840px, enough
+                for 100 columns of code. Wide blocks share this width so they align with
+                one another.
               </li>
               <li id="width-available">
                 <code>available</code> uses the window's width after subtracting the
@@ -2704,13 +2706,13 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               The <a href="/registry/">registry</a>, which declares each element's
               behavior, also gives it a default width. For example,
               <code>lf-options</code> uses <code>column</code>,
-              <code>lf-board</code> uses <code>wide</code>, and
-              <code>lf-diagram</code> uses <code>available</code>. A
+              <code>lf-diff</code> uses <code>wide</code>, and
+              <code>lf-board</code> uses <code>available</code>. A
               <code>data-width</code> attribute asks for <code>wide</code> or
               <code>available</code> on any block, overriding the default. If the
-              margins have unequal space, the block extends farther into the wider
-              margin. A table given a width takes its columns' natural width up to that
-              room rather than spreading across it.
+              margins have unequal space, an <code>available</code> block extends
+              farther into the wider margin. A table given a width takes its columns'
+              natural width up to that room rather than spreading across it.
             </p>
 
             <figure class="fig small" id="vocabulary-attribute">
@@ -5260,11 +5262,11 @@ EOF</code></pre>
               </p>
               <p id="phone-panel-menu">
                 The leaf’s menu includes Search page and Page Map under Navigate, Undo,
-                and Select element, Draw mode, Design mode and Hide annotations under
-                Annotations. Approval requests appear in On me and in their widgets. An
-                active mode or search names itself in the panel and provides a ✕ exit.
-                Search arrows stand beside the match count; tapping the marked match
-                selects it.
+                and Comment on an element, Draw mode, Design mode and Hide annotations
+                under Annotations. Approval requests appear in On me and in their
+                widgets. An active mode or search names itself in the panel and provides
+                a ✕ exit. Search arrows stand beside the match count; tapping the marked
+                match selects it.
               </p>
             </section>
             <section id="phone-comments">
@@ -5272,7 +5274,7 @@ EOF</code></pre>
               <p id="phone-comments-select">
                 Select words to quote them in the panel’s field; tap the field to open a
                 comment below the block. For a whole table, figure or other element, use
-                <a href="#phone-gap-element">Select element</a>.
+                <a href="#phone-gap-element">Comment on an element</a>.
               </p>
               <p id="phone-comments-pins">
                 Where the margin cannot hold a rail, markers appear as pins on their
@@ -5290,8 +5292,8 @@ EOF</code></pre>
               <ul id="phone-gaps-list">
                 <li id="phone-gap-element">
                   <strong>Whole elements.</strong> Open the leaf’s menu → Annotations →
-                  Select element, then tap the target. This opens its comment composer
-                  without activating the target’s controls.
+                  Comment on an element, then tap the target. This opens its comment
+                  composer without activating the target’s controls.
                 </li>
                 <li id="phone-gap-keys">
                   <strong>Commands.</strong> Menu commands and direct controls provide

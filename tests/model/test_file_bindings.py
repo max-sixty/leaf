@@ -75,6 +75,35 @@ def test_file_saves_preserve_special_permission_bits(page_dir, tmp_path):
         assert stat.S_IMODE(target.stat().st_mode) == mode
 
 
+def test_cli_unbinding_revokes_open_editor_access_only_for_its_grant(
+    server, page_dir, tmp_path
+):
+    target = tmp_path / "notes.txt"
+    target.write_text("saved work\n")
+    original = bind_file(page_dir, "notes", target)
+    bind_file(page_dir, "other", target)
+    state_url = f"{server}/api/state"
+    assert set(json.loads(fetch(state_url)[1])["files"]) == {"notes", "other"}
+    before = page_reading(page_dir)
+
+    for _ in range(2):
+        result = CliRunner().invoke(cli, ["file", "unbind", str(page_dir), "notes"])
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == {"binding": "notes", "bound": False}
+    assert page_reading(page_dir) != before
+    assert set(json.loads(fetch(state_url)[1])["files"]) == {"other"}
+    url = f"{server}/api/files/notes"
+    assert fetch(url) == (200, b"null")
+    posted = json.dumps(
+        {"revision": original["revision"], "text": "old draft\n"}
+    ).encode()
+    status, raw = fetch(url, data=posted, headers={"Origin": server})
+    assert status == 400
+    assert json.loads(raw)["error"] == "No file is bound as 'notes'."
+    assert target.read_text() == "saved work\n"
+    assert read_file(page_dir, "other") == original
+
+
 def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
     target = tmp_path / "file.txt"
     for content in (

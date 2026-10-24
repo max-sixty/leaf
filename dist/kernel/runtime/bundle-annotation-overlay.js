@@ -1,5 +1,5 @@
 import { SVG_NS, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-target-paint.js";
-import { bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
+import { Z, bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextFrame, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, tabStops, under } from "./bundle-dom-move.js";
 import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, setRuntimeRootAttribute, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-layer-client.js";
 import { whenDocumentPresented } from "./bundle-context.js";
@@ -7,7 +7,7 @@ import { atScrollEnd, effectiveScroller, moveScrollerBy, pageScroller, placeKept
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { exactTarget, passageGeometry, rangeGeometry, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-css-anchors.js";
-import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, retainUserIntent, revealHeld, rowWalk, selectionAnchor, showLatestTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-surfaces.js";
+import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, retainUserIntent, revealHeld, rowWalk, selectionAnchor, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-surfaces.js";
 import { setChildLists, setChildren } from "./bundle-abort.js";
 import { reducedMotion } from "./bundle-motion.js";
 import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-margin-model.js";
@@ -400,7 +400,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		return preview.getBoundingClientRect().height;
 	}
 	function showArrival(session) {
-		if (!session.sent) return showLatestTurn(session.transcript);
+		if (!session.sent) return showReturnTurn(session.transcript, threadCardThread(session));
 		scrollToEnd(session.transcript);
 		moveScrollerBy(session.transcript, -session.sent.fromEnd);
 	}
@@ -824,9 +824,9 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 
 //#endregion
 //#region runtime/annotation-overlay/annotation-layer.js
-let hidden = false;
+const hidden = Z(false);
 const watchers = /* @__PURE__ */ new Set();
-const annotationsHidden = () => hidden;
+const annotationsHidden = () => hidden.value;
 function watchAnnotations(watcher) {
 	watchers.add(watcher);
 }
@@ -834,19 +834,19 @@ function mountAnnotationControls() {
 	pageCommand({
 		id: "annotations.toggle",
 		keys: ["o"],
-		title: () => hidden ? "show annotations" : "hide annotations",
-		touch: () => hidden ? "Show annotations" : "Hide annotations",
+		title: () => hidden.value ? "show annotations" : "hide annotations",
+		touch: () => hidden.value ? "Show annotations" : "Hide annotations",
 		menu: "annotate",
 		when: () => watchers.size > 0,
 		run: () => {
-			setAnnotationsHidden(!hidden);
-			notice(!hidden ? "Annotations shown" : coarsePointer.matches ? "Annotations hidden" : "Annotations hidden. o shows them");
+			setAnnotationsHidden(!hidden.value);
+			notice(!hidden.value ? "Annotations shown" : coarsePointer.matches ? "Annotations hidden" : "Annotations hidden. o shows them");
 		}
 	});
 }
 function setAnnotationsHidden(on) {
-	if (on === hidden) return;
-	hidden = on;
+	if (on === hidden.value) return;
+	hidden.value = on;
 	setRuntimeRootAttribute(document.documentElement, "data-lf-annotations", on ? "hidden" : null);
 	tabStore.set(ANNOTATIONS_KEY, on ? "hidden" : null);
 	for (const watcher of watchers) watcher(on);
@@ -2777,4 +2777,4 @@ function postedDrawings(threads, anchors) {
 }
 
 //#endregion
-export { createAnchorPaint, createFloatingResponsePlacement, createMarginProjection, createVisualMarkPaint, floatingSelections, mountAnnotationControls, postedDrawings, restoreAnnotations, syncMarginContentLayout };
+export { annotationsHidden, createAnchorPaint, createFloatingResponsePlacement, createMarginProjection, createVisualMarkPaint, floatingSelections, mountAnnotationControls, postedDrawings, restoreAnnotations, syncMarginContentLayout };

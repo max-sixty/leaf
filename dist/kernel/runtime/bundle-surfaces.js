@@ -432,48 +432,42 @@ const drawsLandmark = (parent) => {
 	while (box && getComputedStyle(box).display === "contents") box = renderedParent(box);
 	return Boolean(box?.checkVisibility({ opacityProperty: true }));
 };
-const blockWords = /* @__PURE__ */ new WeakMap();
-const drawnInside = (block, segments, known) => {
-	if (!known.has(block)) {
-		const asked = /* @__PURE__ */ new Set();
-		let inside = true;
-		for (const { node } of segments) {
-			for (let at = renderedParent(node); inside && at && at !== block;) {
-				if (asked.has(at)) break;
-				asked.add(at);
-				const style = getComputedStyle(at);
-				inside = (style.position === "static" || style.position === "sticky") && style.transform === "none" && style.translate === "none";
-				at = renderedParent(at);
-			}
-			if (!inside) break;
-		}
-		known.set(block, inside);
-	}
-	return known.get(block);
+const blockRuns = /* @__PURE__ */ new WeakMap();
+const textEnvelope = (block, segments, range) => {
+	if (!segments.every(({ node }) => block.contains(node)) || [...block.querySelectorAll("*")].some(skipped)) return null;
+	range.selectNodeContents(block);
+	return range.getBoundingClientRect();
 };
 function* renderedBlocks(blocks, within = null) {
 	const reading = pageText();
-	if (!blockWords.has(reading)) {
-		const words = /* @__PURE__ */ new Map();
+	if (!blockRuns.has(reading)) {
+		const groups = [];
 		for (const segment of reading.segments) {
-			if (!words.has(segment.block)) words.set(segment.block, []);
-			words.get(segment.block).push(segment);
+			let group = groups.at(-1);
+			if (!group || group.block !== segment.block) groups.push(group = {
+				block: segment.block,
+				segments: []
+			});
+			group.segments.push(segment);
 		}
-		blockWords.set(reading, words);
+		blockRuns.set(reading, groups);
 	}
-	const words = blockWords.get(reading);
-	const inside = /* @__PURE__ */ new Map();
+	const allowed = new Set(blocks);
 	const drawn = /* @__PURE__ */ new Map();
 	const range = document.createRange();
-	for (const block of blocks) {
+	for (const { block, segments } of blockRuns.get(reading)) {
+		if (!allowed.has(block)) continue;
 		if (inChrome(block) || skipped(block)) continue;
 		if (within) {
 			const own = block.getBoundingClientRect();
-			if (own.height && (own.bottom <= within.top || own.top >= within.bottom) && drawnInside(block, words.get(block), inside)) continue;
+			if (own.height && (own.bottom <= within.top || own.top >= within.bottom)) {
+				const envelope = textEnvelope(block, segments, range);
+				if (envelope && (envelope.bottom <= within.top || envelope.top >= within.bottom)) continue;
+			}
 		}
 		const boxes = [], runs = [];
 		let run = null;
-		for (const segment of words.get(block)) {
+		for (const segment of segments) {
 			const { node, start, end } = segment;
 			const parent = renderedParent(node);
 			if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
@@ -725,13 +719,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
 	if (line) {
 		const { block, rect, landmark } = line;
 		named = block;
-		const { section: id, quote, prefix, suffix } = landmark.anchor;
-		Object.assign(view, {
-			section: id,
-			quote,
-			prefix,
-			suffix
-		});
+		Object.assign(view, landmark.anchor);
 		const section = sectionOf(view);
 		view.sectionTop = section && landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop);
 		view.quoteTop = landmarkTop(landmark.range.getBoundingClientRect().top - boxTop, block);
@@ -2723,13 +2711,21 @@ const landingTarget = (held, control) => {
 	return { node: control };
 };
 const onScreen = (node) => seenRect(node, /* @__PURE__ */ new Map()) !== null;
-const latestTurn = (transcript) => [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")].findLast((node) => node.checkVisibility()) ?? null;
-function showLatestTurn(transcript) {
-	scrollToEnd(transcript);
-	const latest = latestTurn(transcript);
-	if (!latest) return;
-	const over = transcript.getBoundingClientRect().top + transcript.clientTop - latest.getBoundingClientRect().top;
-	if (over > (latest.firstElementChild?.getBoundingClientRect().height ?? 0)) moveScrollerBy(transcript, -over);
+const returnTurn = (transcript, unread) => {
+	const turns = [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")];
+	let start = unread && turns.find((node) => node.dataset.message === unread);
+	while (start && !start.checkVisibility()) start = start.previousElementSibling;
+	return start ?? turns.findLast((node) => node.checkVisibility()) ?? null;
+};
+function showReturnTurn(transcript, thread) {
+	const scroller = scrollerFor(transcript);
+	scrollToEnd(scroller);
+	const unread = thread?.unread[0]?.message;
+	const start = thread?.msgs.find((message) => message.id === unread)?.key;
+	const turn = returnTurn(transcript, start ?? null);
+	if (!turn) return;
+	const over = scroller.getBoundingClientRect().top + scroller.clientTop + parseFloat(getComputedStyle(scroller).paddingTop) - turn.getBoundingClientRect().top;
+	if (over > (turn.firstElementChild?.getBoundingClientRect().height ?? 0)) moveScrollerBy(scroller, -over);
 }
 function landThread(held, control, behavior, block) {
 	bringBackSurfaceOf(held, behavior);
@@ -3560,7 +3556,8 @@ var MessageView = class {
 		render$1(html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
+          ><time datetime=${model.timestamp}>${model.age}</time>${model.unread ? html`<span class="lf-msg-new">New</span>` : nothing}
+          ${receipt}
           ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
           ${model.failure ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>` : nothing}
           ${model.body.kind === "suggestion" ? html`<span class="lf-suggest-label">Suggestion</span>` : nothing}
@@ -6758,4 +6755,4 @@ function surfaceFocusTarget(name, { part = "reply" } = {}) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, arrivalOf, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimed, clearDraft, commitThreadSeats, completeReadingReturn, copyBlock, createPassageSelection, createReplyView, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, fitsWhole, focusThread, focusedInView, focusedThreadTarget, followBoxGrowth, formatDeclaredMarkdown, hasLandmark, heldGrowth, heldObligation, heldOut, heldThread, heldThreadId, highlightBlocks, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, inlineMarkdownFragment, isExternalPageLink, isPagePaint, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, keepThreadLanding, keepView, landingPlace, landingRoom, langForPath, leftThePage, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, openMessageEditIn, openingPassage, openingView, pageCommand, pageDoor, pageReadingBlock, pageRung, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeKeeper, placeNode, placeOf, placeOffset, placePageThreads, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, progressFace, quietWord, quoteReading, rawOffsetFits, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, reindexPassageOwners, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberPassageParts, rememberWriting, renderMarginThread, renderMarkdown, renderQuiet, renderSeats, renderSurfaces, replyAvailable, replyCompositionHasDraft, replyContext, replyDestination, replyDraftContext, replyDraftsHold, replyIsEditing, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, settleAcceptedDrafts, settleThread, showHeld, showHeldThread, showLatestTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textBlocks, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, todoLabel, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userStore, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowLabel, workflowStep };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, arrivalOf, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimed, clearDraft, commitThreadSeats, completeReadingReturn, copyBlock, createPassageSelection, createReplyView, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, fitsWhole, focusThread, focusedInView, focusedThreadTarget, followBoxGrowth, formatDeclaredMarkdown, hasLandmark, heldGrowth, heldObligation, heldOut, heldThread, heldThreadId, highlightBlocks, holdReplyCompositions, holdThreadPlace, holdToRead, importWidgets, inlineMarkdownFragment, isExternalPageLink, isPagePaint, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, keepThreadLanding, keepView, landingPlace, landingRoom, langForPath, leftThePage, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, openMessageEditIn, openingPassage, openingView, pageCommand, pageDoor, pageReadingBlock, pageRung, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeKeeper, placeNode, placeOf, placeOffset, placePageThreads, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, progressFace, quietWord, quoteReading, rawOffsetFits, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, reindexPassageOwners, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberPassageParts, rememberWriting, renderMarginThread, renderMarkdown, renderQuiet, renderSeats, renderSurfaces, replyAvailable, replyCompositionHasDraft, replyContext, replyDestination, replyDraftContext, replyDraftsHold, replyIsEditing, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, settleAcceptedDrafts, settleThread, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textBlocks, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, todoLabel, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userStore, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowLabel, workflowStep };

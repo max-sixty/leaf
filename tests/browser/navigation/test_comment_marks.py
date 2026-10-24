@@ -32,6 +32,7 @@ from render_harness import (
     post_event,
     select,
     selection_field,
+    sending,
     stamp_page,
     told,
     write,
@@ -692,7 +693,8 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
         "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     write(page.locator(".lf-composer leaf-text"), "Too short.")
-    page.keyboard.press("ControlOrMeta+Enter")
+    with sending(page, "the comment on the second passage"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect_comment_notes(page, "#p2", 1)
     c4 = [e for e in events_model.read_events(d) if e.get("kind") == "comment"][-1][
         "id"

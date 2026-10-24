@@ -201,15 +201,13 @@ def serving(arm: Path, state: Path, page: Path):
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
-    launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
-    its working tree. Developer pages use the same compiled kernel as the website.
+    launcher under the state home `state`. Callers select a prepared installation
+    before building, then use that same installation to serve or check the page.
     """
-    from leaf_dev.commands.distribution import cached_installation
-
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
-        partial(run_leaf, cached_installation(arm), state, check=True),
+        partial(run_leaf, arm, state, check=True),
     )
     record_run_context(page, purpose="automated", run=state, authored_source=source)
 
@@ -231,7 +229,10 @@ served_page: ContextVar[ServedPage] = ContextVar("served_page")
 @contextmanager
 def serving_source(arm: Path, source: Path, scratch: Path):
     """Build `source` into a page under `scratch` (`build_source`), serve it
-    (`serving`), and yield the address."""
+    (`serving`), and yield the address, all using one prepared installation."""
+    from leaf_dev.commands.distribution import cached_installation
+
+    arm = cached_installation(arm)
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
     with serving(arm, state, page) as address:

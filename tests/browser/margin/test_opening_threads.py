@@ -40,6 +40,9 @@ from browser.margin import (
     ACTION_PAGE,
     COMMENT_ON_OBLIGATION,
     COMMENT_ON_SUGGESTION,
+    LONG_THREAD,
+    LONG_THREAD_PAGE,
+    LONG_THREAD_ROOT,
     ON_THE_PAGE,
     PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
@@ -763,6 +766,72 @@ def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, se
     ).to_be_visible()
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
+
+
+def test_a_card_opens_on_its_first_unread_reply(browser, serve):
+    """A card opens where the replies the user hasn't read begin, so a long one is read
+    from its head down and reads like the short one after it. Opened at its latest
+    reply instead, the card showed that reply whole, which read it, beneath the end of a
+    long one whose start stayed above the card and so stayed unread."""
+    long_reply, short_reply = (
+        LONG_THREAD[1],
+        {
+            **LONG_THREAD[1],
+            "text": "Landed: the first two now close to the page.",
+            "id": "d" * 32,
+            "ts": "2026-09-18T19:34:26-07:00",
+        },
+    )
+    page = open_page(
+        browser,
+        serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, long_reply, short_reply]),
+    )
+    resized(page, 1440, 700)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    transcript = page.locator(".lf-margin-preview .lf-thread-transcript")
+    first = transcript.locator(".lf-msg").nth(1)
+    expect(first).to_be_visible()
+    room = transcript.evaluate("list => list.scrollHeight - list.clientHeight")
+    assert room > 300, f"the transcript scrolls {room}px, too little to need a landing"
+    assert (
+        abs(
+            first.bounding_box()["y"]
+            - transcript.evaluate(
+                "list => list.getBoundingClientRect().top + list.clientTop"
+                " + parseFloat(getComputedStyle(list).paddingTop)"
+            )
+        )
+        <= 1
+    )
+    # Each unread reply says New in its head, which a screen reader reads with it.
+    expect(transcript.locator(".lf-msg-new")).to_have_count(2)
+    expect(first.locator(".lf-msg-head")).to_contain_text("New")
+
+    # Partway down the long reply, its head has stuck with New in it.
+    transcript.hover()
+    page.mouse.wheel(0, 240)
+    page.wait_for_function(
+        "list => list.scrollTop > 200", arg=transcript.element_handle()
+    )
+    tag = first.locator(".lf-msg-new").bounding_box()
+    top = transcript.evaluate("list => list.getBoundingClientRect().top")
+    assert top - 1 <= tag["y"] <= top + 30, (tag, top)
+
+    for _ in range(40):
+        if transcript.evaluate(
+            "list => list.scrollTop + list.clientHeight >= list.scrollHeight - 1"
+        ):
+            break
+        page.mouse.wheel(0, 120)
+        page.wait_for_timeout(20)
+    expect(transcript.locator(".lf-msg-new")).to_have_count(0)
+    marked = {
+        item["message"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "read"
+        for item in event["messages"]
+    }
+    assert marked == {long_reply["id"], short_reply["id"]}
 
 
 @pytest.mark.parametrize(

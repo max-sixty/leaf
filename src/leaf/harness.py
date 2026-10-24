@@ -342,7 +342,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
     name = "claude-code"
     default_agent = "Claude"
     session_variables = ("CLAUDE_CODE_SESSION_ID",)
-    identity_variables = (*session_variables, "CLAUDE_PID", "CLAUDE_JOB_DIR")
+    identity_variables = (
+        *session_variables,
+        "CLAUDE_PID",
+        "CLAUDE_JOB_DIR",
+        "CLAUDE_CODE_HOST_SESSION_ID",
+    )
     # Claude Code runs the prompt hook on every turn a background task's end
     # opens, idle or mid-turn, and adds what it returns to that turn's context.
     hook_delivers = True
@@ -376,7 +381,18 @@ class ClaudeCodeHarness(EnvironmentHarness):
         assigned or a job an older daemon cleaned. The record's `sessionId` has
         to be this session's, because the variable is inherited: a session
         started under the job's own shell tool carries the job's directory and
-        is a process of its own."""
+        is a process of its own.
+
+        A session in the Claude desktop app is a process the app treats as
+        disposable: it stops every session to install an update once its
+        window has been unfocused for ten minutes, and resumes one, as a new
+        process, only when the user next opens it (measured at app 3.6556.1
+        from its `main.log`). The session the user sees is the app's record of
+        it, which CLAUDE_CODE_HOST_SESSION_ID names (`desktop_session_record`),
+        so its lifetime is `app`, that record's path, for as long as the record
+        names this session (`service.lifetime_is_live`). The variable is
+        inherited too, so the record's `cliSessionId` has to be this session's.
+        Where the app keeps no such record, the session lives as its process."""
         if job := os.environ.get("CLAUDE_JOB_DIR"):
             record = read_json(Path(job) / "state.json")
             if record is None:
@@ -386,6 +402,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
                 )
             if record["sessionId"] == self.session:
                 return {"job": str(Path(job).resolve())}
+        if (
+            (host := os.environ.get("CLAUDE_CODE_HOST_SESSION_ID"))
+            and (path := desktop_session_record(host))
+            and read_json(path)["cliSessionId"] == self.session
+        ):
+            return {"app": str(path)}
         return {"pid": int(os.environ["CLAUDE_PID"])}
 
     @classmethod
@@ -969,6 +991,16 @@ def claude_code_registry() -> list[dict]:
         if isinstance(record, dict):
             records.append(record)
     return records
+
+
+def desktop_session_record(host_session: str) -> Path | None:
+    """The Claude desktop app's record of the session it calls `host_session`
+    (`local_<uuid>`), filed under the signed-in account and organization, or
+    None where the app keeps none. It holds the session's `cliSessionId` and
+    `isArchived`, which removing the session from the app's sidebar sets while
+    the record stays (measured at app 3.6556.1)."""
+    sessions = Path.home() / "Library/Application Support/Claude/claude-code-sessions"
+    return next(sessions.glob(f"*/*/{host_session}.json"), None)
 
 
 def resume_claude_code_job(session_id: str, text: str) -> bool:

@@ -116,10 +116,10 @@ def thread_quote(page, thread_id):
     return page.locator(".lf-fp-quote")
 
 
-def on_the_page(page, *, key=False):
-    """Take the open thread's way back to its words, On the page, by pointer or key."""
+def show_on_page(page, *, key=False):
+    """Take the open thread's way back to its words, Show on page, by pointer or key."""
     door = page.locator(".lf-fp-aux").get_by_role(
-        "button", name="On the page", exact=True
+        "button", name="Show on page", exact=True
     )
     if key:
         door.focus()
@@ -514,7 +514,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
         if e["kind"] == "comment" and (e.get("anchor") or {}).get("quote") == quote
     ]
     expect(thread_quote(page, thread_id)).to_contain_text(quote)
-    on_the_page(page)
+    show_on_page(page)
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
     # The panel stood over the region the comment is about, so the trip cleared it.
     panel_settled(page, open=False)
@@ -3416,7 +3416,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     expect(quote).to_have_attribute("title", re.compile("no longer"))
     # With nowhere on the page to go, the view offers no way there.
     expect(
-        page.locator(".lf-fp-aux button:enabled", has_text="On the page")
+        page.locator(".lf-fp-aux button:enabled", has_text="Show on page")
     ).to_have_count(0)
 
 
@@ -4615,7 +4615,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     quote = thread_quote(page, comment_ids(serve.page_dir)[0])
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
 
-    on_the_page(page)
+    show_on_page(page)
 
     expect(patch_tab).not_to_have_attribute("hidden", re.compile(".*"))
     added = page.locator(
@@ -4688,7 +4688,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     All file evidence is checked first; opening one file renders only that file. An existing line thread on a
     different unopened file remains attached at its disclosure; pressing its quote
     renders that file before ordinary exact-line navigation resumes. The press is the
-    thread's On the page, in the panel.
+    thread's Show on page, in the panel.
     """
     authored = leaf_page(
         "deferred diff",
@@ -4737,7 +4737,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     [thread] = comment_ids(serve.page_dir)
     quote = thread_quote(page, thread)
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
-    on_the_page(page, key=activation == "keyboard")
+    show_on_page(page, key=activation == "keyboard")
     page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
     search = page.locator("lf-diff .lf-diff-search input")
     if superseded:
@@ -4764,7 +4764,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     if superseded:
         expect(search).to_be_focused()
         thread_quote(page, thread)
-        on_the_page(page)
+        show_on_page(page)
     landed()
     expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
@@ -4775,7 +4775,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     details.evaluate("element => { element.open = false; }")
     expect(reply).to_have_count(0)
     thread_quote(page, thread)
-    on_the_page(page, key=True)
+    show_on_page(page, key=True)
     landed()
     assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
@@ -4988,7 +4988,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     context.route("**/api/deferred*", refuse)
     page = open_page(browser, url, context=context)
     thread_quote(page, comment_ids(serve.page_dir)[0])
-    on_the_page(page)
+    show_on_page(page)
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )

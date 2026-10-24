@@ -396,7 +396,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     # move is one control against the other.
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
     before = accept.evaluate(box)
-    # The verb is discovery chrome; at rest the margin entry is the canonical circle.
+    # The verb is discovery chrome; at rest the margin entry is its icon alone.
     expect(accept.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "check"
     )

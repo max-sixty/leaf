@@ -21,8 +21,6 @@ const ownControls = (host, preview) => [
     belongsTo(host, control),
   ),
 ];
-// What the submit control says once the working values are the choice in force.
-const SUBMITTED = "Submitted";
 
 function render(host, { tabStore, offer, generatedElement, keeps }) {
   const presets = own(host, "lf-playground-preset");
@@ -203,9 +201,7 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
       return [preset, Object.freeze(next)];
     }),
   );
-  const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
   let submit = null,
-    submitWords = null,
     reset = null;
   if (interactive) {
     const railed = controls.filter((control) => control.parentElement === host);
@@ -289,10 +285,9 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     const actions = node("footer", "lf-playground-actions");
     reset = offer("button", "lf-btn lf-playground-reset", "Reset");
     submit = offer("button", "lf-btn primary lf-playground-submit");
-    // One room holds both labels, so the control keeps its width as it changes.
-    submit.dataset.room = `${submitLabel}\n${SUBMITTED}`;
-    submitWords = node("span", "", submitLabel);
-    submit.append(submitWords);
+    const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
+    submit.dataset.room = `${submitLabel}\nUndo choice`;
+    submit.append(node("span", "", submitLabel));
     actions.append(reset, submit);
     if (document.querySelector("script[data-lf-offline]"))
       actions.append(
@@ -388,8 +383,6 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
       text(slot, formatted(controlByName.get(name), next[name]));
     }
   };
-  const paintSubmitted = (submitted) =>
-    text(submitWords, submitted ? SUBMITTED : submitLabel);
   const paintPresets = (next) => {
     for (const [preset, button] of presetButtons) {
       const active = Object.entries(presetSettings.get(preset)).every(([name, value]) =>
@@ -430,7 +423,6 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     renderValues,
     reflection,
     paintPresets,
-    paintSubmitted,
   };
 }
 document.documentElement.lfInitial.register("lf-playground", render);

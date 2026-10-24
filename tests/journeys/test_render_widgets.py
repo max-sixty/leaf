@@ -1464,10 +1464,8 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     ).to_have_accessible_name("Checkout needs attention")
     with sending(page, "the notification configuration"):
         playground.get_by_role("button", name="Create notification").click()
-    # The control says the configuration is sent.
-    submit = playground.locator(".lf-playground-submit")
-    expect(submit).to_have_accessible_name("Submitted")
-    expect(submit).to_be_disabled()
+    # The control says the configuration is sent, and offers to withdraw it.
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_enabled()
     action = next(
         event
         for event in reversed(events_model.read_events(serve.page_dir))

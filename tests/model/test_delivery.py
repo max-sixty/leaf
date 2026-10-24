@@ -380,10 +380,11 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert undone in selected and changed in selected
 
 
-def test_approval_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
+def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
         "</section>",
-        '<lf-approval id="permit">Publish this report?</lf-approval></section>',
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options></section>',
     )
     source = source.replace(
         "</section>",
@@ -398,8 +399,8 @@ def test_approval_actions_withdrawals_reports_and_errors_remain_deliverable(page
             "author": "user",
             "revision": 1,
             "widget": "permit",
-            "action": "approve",
-            "detail": {},
+            "action": "choose",
+            "detail": {"value": ["publish"]},
         },
     )
     undo = append_command(

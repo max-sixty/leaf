@@ -6,9 +6,7 @@
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
  * The instruction's copy control is the one a code block floats at its corner
- * (`copyBlock`), standing at the instruction pane's. The submit control says
- * Submitted, and takes no press, while the working values are the choice in force, so
- * it shows whether what the controls say has been sent.
+ * (`copyBlock`), standing at the instruction pane's.
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and get an immutable slice handle; set replaces that slice. Required
@@ -32,7 +30,10 @@
  * stays stable when a local gesture receives its durable event id. And it is later in
  * the log than any choice this tab has drawn, which tells it from an earlier choice an
  * undo makes current again: a pending choice is this tab's newest gesture, and a
- * durable one compares by its seq. */
+ * durable one compares by its seq. The submit control withdraws the current choice
+ * while its values and instruction match the working configuration; editing either
+ * makes it submit a replacement. Its face derives from that comparison, never from
+ * delivery timing or a separate saved flag. */
 import {
   commands,
   compoundReadingRegionId,
@@ -41,6 +42,7 @@ import {
   focusDestination,
   layoutChanged,
   initialRender,
+  keepsText,
   LeafElement,
   nothing,
   paintKeys,
@@ -65,18 +67,20 @@ const ONE_PRESS = [
   ...["choice", "toggle", "range"].map((kind) => `.lf-playground-${kind}`),
 ].join(", ");
 
-// One spelling per configuration, whatever order its fields were declared in.
-const canonical = (value) =>
-  JSON.stringify(value, (_, item) =>
+const sameKeys = (left, right) =>
+  left.length === right.length && left.every((key, index) => key === right[index]);
+
+// Configuration objects have no meaningful key order, including contributor slices.
+const configurationJSON = (value) =>
+  JSON.stringify(value, (_key, item) =>
     item && typeof item === "object" && !Array.isArray(item)
       ? Object.fromEntries(
-          Object.entries(item).sort(([left], [right]) => (left < right ? -1 : 1)),
+          Object.keys(item)
+            .sort()
+            .map((key) => [key, item[key]]),
         )
       : item,
   );
-
-const sameKeys = (left, right) =>
-  left.length === right.length && left.every((key, index) => key === right[index]);
 
 function jsonSnapshot(value, path = "configuration") {
   if (value === null || typeof value === "string" || typeof value === "boolean")
@@ -127,6 +131,7 @@ customElements.define(
     #preview = null;
     #submit = null;
     #reset = null;
+    #choosing = false;
     #projected = undefined;
     #drawnThrough = -Infinity;
     #ready = false;
@@ -152,6 +157,7 @@ customElements.define(
           );
         });
         if (controls) observer.observe(controls.host);
+        this.#paintAvailability();
         return () => {
           observer.disconnect();
           for (const stop of stops) stop();
@@ -362,7 +368,9 @@ customElements.define(
           control: this.#submit,
           decision: true,
           title: () => this.#submit.textContent,
-          when: () => this.#available() && !this.#submitted(),
+          when: () =>
+            !this.#choosing &&
+            (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
           run: () => this.#choose(),
         },
         {
@@ -418,7 +426,6 @@ customElements.define(
       dressSamples(this, reflection);
       this.#renderOutput();
       this.#paintPresets();
-      if (this.#submit) this.#initial.paintSubmitted(this.#submitted());
       // Keep not-yet-declared tab values without another copy of known working slices.
       tabStore.set(
         this.#storeKey(),
@@ -451,24 +458,57 @@ customElements.define(
         .trim();
     }
 
-    #choose() {
-      this.controller.dispatch({
-        kind: "action",
-        verb: "choose",
-        detail: { values: this.values, instruction: this.#instruction() },
-        says: "Playground settings",
-      });
+    async #choose() {
+      if (this.#choosing) return;
+      const chosen = this.#chosen();
+      const undo = chosen ? this.#undo() : null;
+      if (chosen ? !undo : !this.#available()) return;
+      this.#choosing = true;
+      this.#paintAvailability();
+      this.#submit.setAttribute("aria-busy", "true");
+      try {
+        await this.controller.dispatch(
+          chosen
+            ? { kind: "undo", target: undo.attempt ?? undo.id }
+            : {
+                kind: "action",
+                verb: "choose",
+                detail: { values: this.values, instruction: this.#instruction() },
+                says: "Playground settings",
+              },
+        )?.delivery;
+      } finally {
+        this.#choosing = false;
+        this.#submit.removeAttribute("aria-busy");
+        this.#paintAvailability();
+      }
     }
 
-    // Whether the values a press would send are the choice in force, the user's gesture
-    // included before the server admits it, so the control says Submitted as it is
-    // pressed.
-    #submitted() {
-      const choice = this.reading?.state.choose;
-      return (
-        Boolean(choice?.action) &&
-        canonical(choice.detail.values) === canonical(this.#values)
+    #paintAvailability() {
+      if (!this.#submit) return;
+      keepsText(
+        this.#submit.firstElementChild,
+        this.#chosen()
+          ? "Undo choice"
+          : (this.getAttribute("submit-label") ?? "Use these settings"),
       );
+      paintKeys();
+    }
+
+    #chosen() {
+      const choice = this.state?.choose;
+      return Boolean(
+        choice?.action &&
+        choice.detail.instruction === this.#instruction() &&
+        configurationJSON(choice.detail.values) ===
+          configurationJSON({ ...this.#pendingValues, ...this.values }),
+      );
+    }
+
+    #undo() {
+      const action = this.reading.actions.choose;
+      const latest = action.inForce[0]?.event;
+      return action.undo.find((event) => event.id === latest?.id) ?? null;
     }
 
     #available() {
@@ -491,6 +531,7 @@ customElements.define(
       if (Number.isInteger(choice?.seq))
         this.#drawnThrough = Math.max(this.#drawnThrough, choice.seq);
       this.#paint();
+      this.#paintAvailability();
       return nothing;
     }
   },

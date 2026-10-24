@@ -180,10 +180,34 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
         ),
     }
 
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_visible()
+
     page.reload()
     wait_until_ready(page)
     expect(page.locator("#card-instruction")).to_contain_text("17px radius")
     assert playground.evaluate("root => root.values")["title"] == "Ridge note; alert"
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_visible()
+    title = playground.get_by_label("Title", exact=True)
+    title.fill("Another title")
+    expect(playground.get_by_role("button", name="Use these settings")).to_be_visible()
+    title.fill("Ridge note; alert")
+    page.route(
+        "**/api/event",
+        lambda route: route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        ),
+    )
+    with sending(page, "the refused withdrawal"):
+        playground.get_by_role("button", name="Undo choice").click()
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_visible()
+    consume_browser_errors(page, http_error_console(400))
+    page.unroute("**/api/event")
+    with sending(page, "withdraw the playground choice"):
+        playground.get_by_role("button", name="Undo choice").click()
+    assert events_model.read_events(serve.page_dir)[-1]["undoes"] == action["id"]
+    expect(playground.get_by_role("button", name="Use these settings")).to_be_visible()
+    expect(title).to_have_value("Ridge note; alert")
 
 
 def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve):
@@ -240,7 +264,8 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     """An input edit updates the shared configuration immediately, and reading or
     acknowledging it never replaces the draft. A new choice does; undoing or refusing
     one withdraws only the decision."""
-    page = open_page(browser, serve(CONTRIBUTOR_PAGE))
+    url = serve(CONTRIBUTOR_PAGE)
+    page = open_page(browser, url)
     playground = page.locator("#query-config")
     field = page.get_by_role("textbox", name="Region filter")
     field.fill("us-east-1")
@@ -283,7 +308,9 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
             "button => button.click()"
         )
     holding(page, held, 1, "the query configuration")
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_disabled()
     field.fill("unsent-region")
+    expect(playground.get_by_role("button", name="Use these settings")).to_be_disabled()
     field.press("ArrowLeft")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -299,6 +326,7 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
         "grouped": False,
     }
     expect(field).to_have_value("unsent-region")
+    expect(playground.get_by_role("button", name="Use these settings")).to_be_enabled()
     expect(field).to_be_focused()
     assert field.evaluate("input => input.selectionStart") == len("unsent-region") - 1
     nudge(serve.page_dir)
@@ -324,25 +352,32 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     })""")
     rendered(page)
     expect(field).to_have_value("unsent-region")
-    # The values in force are already sent, so the control offers no second press
-    # for them. Undoing a later choice makes the first current again and leaves the
-    # later working edit in place; a reload draws the decided configuration.
-    field.fill("chosen-region")
-    expect(playground.locator(".lf-playground-submit")).to_have_accessible_name(
-        "Submitted"
+    # An equal-valued choice from another tab is still a new gesture and replaces
+    # the working draft. Undoing it makes the first choice current again while
+    # leaving the later working edit in place; a reload draws the decided values.
+    response = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": choice["revision"],
+            "widget": "query-config",
+            "action": "choose",
+            "detail": choice["detail"],
+        },
     )
-    field.fill("second-region")
-    with sending(page, "the query configuration"):
-        playground.get_by_role("button", name="Use these settings").evaluate(
-            "button => button.click()"
-        )
+    assert response.ok
+    expect(field).to_have_value("chosen-region")
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_enabled()
     field.fill("later-draft")
     page.keyboard.press("Escape")
     undo(page)
     expect(field).to_have_value("later-draft")
+    expect(playground.get_by_role("button", name="Use these settings")).to_be_enabled()
     page.reload()
     wait_until_ready(page)
     expect(field).to_have_value("chosen-region")
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_enabled()
 
     # A refused choice leaves the configuration the user sent in the controls, to
     # send again, while the earlier choice stays decided.
@@ -360,6 +395,7 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     with sending(page, "the refused query configuration"):
         playground.get_by_role("button", name="Use these settings").click()
     expect(field).to_have_value("refused-region")
+    expect(playground.get_by_role("button", name="Use these settings")).to_be_enabled()
     consume_browser_errors(page, http_error_console(400))
     page.unroute("**/api/event")
 
@@ -850,25 +886,21 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(quote).not_to_have_class(re.compile(r"detached"))
 
 
-def test_a_playground_says_submitted_while_its_values_are_the_choice_in_force(
+def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
     browser, serve
 ):
-    """The press itself turns the submit control to Submitted, before the server
-    answers, and a second press sends nothing. It stays Submitted once the choice is
-    admitted, and an edit makes the values unsent again, so the control offers to send
-    them."""
     page = open_page(browser, serve(PLAYGROUND_PAGE))
     playground = page.locator("#card-playground")
     choose = playground.locator(".lf-playground-submit")
-    expect(choose).to_have_accessible_name("Use these settings")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
 
     with page.expect_request("**/api/event"):
         choose.press("Enter")
     holding(page, held, 1, "the playground choice")
-    expect(choose).to_have_accessible_name("Submitted")
     expect(choose).to_be_disabled()
+    expect(choose).to_have_text("Undo choice")
+    expect(choose).to_have_attribute("aria-busy", "true")
     expect(choose).to_be_focused()
     choose.press("Space")
     choose.dispatch_event("click")
@@ -877,13 +909,10 @@ def test_a_playground_says_submitted_while_its_values_are_the_choice_in_force(
 
     held[0].continue_()
     round_trip(page)
-    expect(choose).to_have_accessible_name("Submitted")
-    expect(choose).to_be_disabled()
-    assert len(actions(serve.page_dir)) == 1
-
-    playground.get_by_role("switch", name="Compact spacing").click()
-    expect(choose).to_have_accessible_name("Use these settings")
     expect(choose).to_be_enabled()
+    expect(choose).not_to_have_attribute("aria-busy", "true")
+    expect(choose).to_be_focused()
+    assert len(actions(serve.page_dir)) == 1
 
 
 def test_a_playground_switch_is_reachable_through_go_to(browser, serve):

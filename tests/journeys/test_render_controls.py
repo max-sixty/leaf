@@ -248,7 +248,7 @@ CONTROL_ARCHETYPES = (
     {
         # The playground's action row: Reset and the send beside each other under the
         # controls. The send is the press with something to prove — it posts the
-        # configuration and turns to Submitted, and a control that changes its own
+        # configuration and turns to Undo choice, and a control that changes its own
         # words on the press is where a neighbour moves.
         "name": "playground-actions",
         "target": "#stable-playground .lf-playground-submit",

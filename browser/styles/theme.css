@@ -959,7 +959,7 @@ html[data-lf-interactive] [data-lf-arriving] {
   border-radius: var(--r);
   background: var(--card);
 }
-/* The room a text field keeps after its last words for the action standing in its
+/* The room a text field keeps at the end of its lines for the action standing in its
    trailing corner (composing/text-field.js). Typed, so a reading resolves to a length. */
 @property --lf-field-end-room {
   syntax: "<length>";
@@ -1528,10 +1528,11 @@ th:not([scope="row"]),
 }
 
 /* The block an option row is about (§): its `for`, which lf-options writes.
- * It points; it never supplies the row's words, so it
- * reads as what it is — an id, written the way a thread writes an element
- * anchor — and rides at the line's end with the mark, out of the way of what the row
- * says.
+ * It points; it never supplies the row's words. It names the block by the name the
+ * chrome gives it, without the kind word a thread's § coordinate adds, with a "Jump to"
+ * title, and rides at the words' end, out of the way of what the row says (the package
+ * theme drops it under the words where both don't fit on a line). The user chose the block's name over its raw
+ * id on 23 October 2026, reversing the earlier choice to show the id as "what it is".
  *
  * The secondary interface ink and not the document's muted, because a row's ground is
  * one of the surfaces the layer itself paints: a chosen row wears --ok-tint, and

@@ -10,7 +10,7 @@
   margin: var(--sp-3) 0;
   container: lf-shot / inline-size;
   --lf-shot-gap: var(--sp-2);
-  --lf-shot-label-height: max(30px, var(--aim-floor));
+  --lf-shot-label-height: var(--lf-line);
 }
 .lf-shot-toolbar {
   display: grid;
@@ -18,7 +18,7 @@
   grid-template-areas: "before actions after";
   align-items: center;
   gap: var(--sp-1);
-  padding-block: var(--sp-1);
+  padding-block: max(var(--sp-1), var(--lf-reach-room));
   flex: none;
   min-inline-size: 0;
   anchor-scope: --lf-shot-options;
@@ -157,7 +157,6 @@
   /* Keep the shared image frame's shadow inside the scrollport. */
   --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));
   padding: var(--lf-shot-frame-room);
-  block-size: calc(var(--lf-shot-stage-height) + 2 * var(--lf-shot-frame-room));
   /* Bounded hosts fill their allocation; flow pairs take their fitted height. */
   flex: 1 1 auto;
   min-inline-size: 0;

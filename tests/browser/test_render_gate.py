@@ -1521,9 +1521,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
     to the reader."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
-    declared = CliRunner().invoke(
-        cli_model.cli, ["status", str(serve.page_dir), "waiting", "Pick a shard."]
-    )
+    declared = CliRunner().invoke(cli_model.cli, ["page", "open", str(serve.page_dir)])
     assert declared.exit_code == 0, declared.output
     claim = service_model.page_claim(serve.page_dir)
     lease = leases_model.take_lease(
@@ -1533,9 +1531,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
         # The leaf names the agent's status.
-        assert "Pick a shard." in page.locator(".lf-fp-leaf").get_attribute(
-            "aria-label"
-        )
+        assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
 
@@ -4230,8 +4226,8 @@ def test_misplaced_boxes_checks_page_overflow_but_not_an_authored_scroller(
 
 def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serve):
     """A breakout's margins move it out past its holder and its width is the room's,
-    so an iframe granted `wide` covers the prose evenly where it had collapsed to its
-    borders at the room's left edge. A page rule sizing it keeps the margins and
+    so an iframe granted `wide` covers the prose and the room past its end where it had
+    collapsed to its borders at the room's left edge. A page rule sizing it keeps the margins and
     replaces the width: the frame stood out in the left margin and stopped short of
     the prose's right edge, and the gate read it as clean. A width past the prose's
     edge but short of the room is off the axis too, and a room inside a scroller is
@@ -4247,7 +4243,7 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
 <p id="prose">Prose sets the column the frames break out of.</p>
 <iframe id="granted" title="Granted" data-width="wide" style="display: block"></iframe>
 <iframe id="sized" class="sized" title="Sized" data-width="wide" style="display: block"></iframe>
-<iframe id="wider" title="Wider" data-width="wide" style="display: block; width: 130%"></iframe>
+<iframe id="wider" title="Wider" data-width="wide" style="display: block; width: 110%"></iframe>
 <a href="#prose"><iframe id="linked" title="Linked" data-width="wide" style="display: block"></iframe></a>
 <style>#gutter::-webkit-scrollbar { width: 15px; height: 15px; }</style>
 <div id="gutter" style="overflow: scroll; scrollbar-gutter: stable">
@@ -4270,9 +4266,9 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()
 
-    grown = at["prose"]["left"] - at["granted"]["left"]
+    grown = at["granted"]["right"] - at["prose"]["right"]
     assert grown > 100, at
-    assert at["granted"]["right"] - at["prose"]["right"] == pytest.approx(grown, abs=1)
+    assert at["granted"]["left"] == pytest.approx(at["prose"]["left"], abs=1), at
     off = [m["at"] for m in misplaced if m["code"] == "off-axis"]
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
 
@@ -4309,7 +4305,7 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     grown = page.evaluate("""() => {
       const ask = document.getElementById('ask').getBoundingClientRect();
       const prose = document.querySelector('main > p').getBoundingClientRect();
-      return prose.left - ask.left;
+      return ask.right - prose.right;
     }""")
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()

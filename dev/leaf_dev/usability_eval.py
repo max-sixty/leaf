@@ -181,9 +181,6 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
         FIXTURE_INPUTS["reading"]["stamp"],
         check=True,
     )
-    run.leaf(
-        "status", str(page), "waiting", FIXTURE_INPUTS["reading"]["status"], check=True
-    )
     if 'id="cutover-mode"' in html:
         for move in READING_FIXTURE["moves"]:
             if move.get("undoes") == "previous":
@@ -235,10 +232,6 @@ def build_resume(run: Run, page: Path) -> None:
         rerun,
         inputs["rerun_answer"],
     )
-    run.leaf(
-        "status", str(page), "waiting", inputs["status"],
-        check=True,
-    )  # fmt: skip
     admit(run, page, {"kind": "resolve", "parent": rerun})
     admit(run, page, {
         "kind": "action", "revision": 2, "widget": "rollout", "action": "choose",
@@ -281,13 +274,6 @@ def build_constructs(run: Run, page: Path) -> None:
         FIXTURE_INPUTS["constructs"]["stamp"],
         check=True,
     )
-    run.leaf(
-        "status",
-        str(page),
-        "waiting",
-        FIXTURE_INPUTS["constructs"]["status"],
-        check=True,
-    )
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "release-note", "action": "edit",
         "detail": {'value': FIXTURE_INPUTS["constructs"]["draft"]},
@@ -306,9 +292,6 @@ def build_board(run: Run, page: Path) -> None:
         "--text",
         FIXTURE_INPUTS["board"]["stamp"],
         check=True,
-    )
-    run.leaf(
-        "status", str(page), "waiting", FIXTURE_INPUTS["board"]["status"], check=True
     )
     for detail in FIXTURE_INPUTS["board"]["moves"]:
         admit(run, page, {
@@ -379,9 +362,6 @@ def build_mixed(run: Run, page: Path) -> None:
         FIXTURE_INPUTS["mixed"]["stamp"],
         check=True,
     )
-    run.leaf(
-        "status", str(page), "waiting", FIXTURE_INPUTS["mixed"]["status"], check=True
-    )
 
 
 def build_elided(run: Run, page: Path) -> None:
@@ -400,7 +380,6 @@ def build_elided(run: Run, page: Path) -> None:
         FIXTURE_INPUTS["elided"]["stamp"],
         check=True,
     )
-    run.leaf("status", str(page), "waiting", "", check=True)
 
 
 def build_plan(run: Run, page: Path) -> None:
@@ -428,7 +407,6 @@ def build_plan_resume(run: Run, page: Path) -> None:
     run.leaf(
         "task", "plan", str(page), input_text=json.dumps(inputs["plan"]), check=True
     )
-    run.leaf("status", str(page), "waiting", inputs["status"], check=True)
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "first-region", "action": "choose",
         "detail": {"value": [inputs["choice"]]},

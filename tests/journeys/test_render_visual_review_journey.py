@@ -12,6 +12,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     resized,
     scroll_settled,
     sending,
@@ -278,7 +279,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     # The composer returns to the reviewed case; Threads opens over it in the panel and
     # Escape puts it away, leaving the page to the reader.
     expect(second).to_be_focused()
-    threads = user.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = user.locator(panel_view("threads"))
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
     expect(threads).to_be_visible()

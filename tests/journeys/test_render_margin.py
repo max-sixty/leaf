@@ -354,7 +354,7 @@ def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser,
 @pytest.mark.parametrize("width", [1440, 390])
 def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, width):
     """A draft's local Save and Cancel stay reachable while it is edited, and the save outlasts
-    a reload; the Remove control of a reaction in force is reachable from the Page Map by keyboard
+    a reload; the Undo control of a reaction in force is reachable from the Page Map by keyboard
     and withdraws the reaction."""
     page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
     resized(page, width, 900)
@@ -392,7 +392,7 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     )
     reaction_actions.click()
     expect(dialog).to_be_visible()
-    remove = dialog.get_by_role("button", name="Remove prioritize reaction", exact=True)
+    remove = dialog.get_by_role("button", name="Undo prioritize reaction", exact=True)
     expect(remove).to_be_focused()
     page.keyboard.press("Escape")
     expect(remove).to_be_hidden()
@@ -873,7 +873,7 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     def statuses():
         for name, command in (
             ("working", ["task", "start", str(serve.page_dir), "c" * 32, "Reading"]),
-            ("waiting", ["status", str(serve.page_dir), "waiting"]),
+            ("waiting", ["page", "open", str(serve.page_dir)]),
         ):
             result = CliRunner().invoke(cli_model.cli, command)
             assert result.exit_code == 0, result.output

@@ -11,7 +11,7 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
 
 1. Check that `send_message_to_thread` is available. If it isn't, finish with that
    reason and don't run `leaf wait`.
-2. Run `leaf page claim <page>`, then `leaf wait <page>` in unified exec. Keep the
+2. Run `leaf page claim <page> --manual-delivery`, then `leaf wait <page>` in unified exec. Keep the
    command's session id and poll it with empty `write_stdin` calls and long yields,
    keeping the watcher's turn running while the page is live.
 3. When the complete output arrives, send one background follow-up to the page task,
@@ -35,8 +35,7 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
 
 Before ending the page task's turn, wait until the watcher has claimed the page, title
 the watcher task `Leaf watcher — <page name>`, and check that `leaf page state <page>`
-reports `listening: true`. The claim moves the page to the watcher, so the page task's Stop hook
-no longer keeps its turn open. The page task's status declarations, replies and new
+reports `listening: true`. The page task's status declarations, replies and new
 versions don't take the page back; its own `leaf server start` or `leaf page claim`
 does.
 Setting the page idle ends the watcher's next wait.

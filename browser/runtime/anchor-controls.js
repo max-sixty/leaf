@@ -7,12 +7,16 @@
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
  * declared part through the target picker (`s`). A failed thread presentation withdraws
  * visual proxies until a valid reading replaces them. A reaction in force first reveals
- * its dedicated removal action; only that action withdraws the reaction. Commands enter
- * only through the constructor.
+ * its dedicated removal action; only that action withdraws the reaction. The removal
+ * wears the neutral undo icon and says "Undo", the word of every other control that takes
+ * a gesture back, because removing a reaction is an undo of it. A red ✕ read as "close
+ * this", nearly matched the ❌ reaction, and caught phone taps meant to dismiss the
+ * cluster; Max chose undo over it on 23 October 2026. Commands enter only through the
+ * constructor.
  */
 import { scrollIntoView } from "./landing-scroll.js";
 import { nextRender } from "./rendering.js";
-import { holdFocus } from "./focus.js";
+import { holdFocus, onPressAway } from "./focus.js";
 import { fragmentId } from "./initial-render.js";
 import { sameAnchor } from "./anchor-coordinate.js";
 import { sectionLabel } from "./addressable-names.js";
@@ -50,7 +54,7 @@ import { documentChanged, readPart } from "./semantic-state.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
-import { offer, reveal } from "./widget-elements.js";
+import { offer, offered, reveal } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
@@ -174,10 +178,7 @@ export function createAnchorControls({
   /** @param {{anchor: object, label: string, key?: string}} target */
   const visualActionTemplate = ({ anchor, label }) => html`
     <button
-      type="button"
-      class="lf-visual-action lf-quiet lf-ui"
-      data-lf-gen="1"
-      data-lf-offer="button"
+      ${offered("lf-visual-action lf-quiet")}
       tabindex="-1"
       .lfAnchor=${anchor}
       .textContent=${`Respond to ${label}`}
@@ -315,9 +316,8 @@ export function createAnchorControls({
               },
               {
                 key: `reaction:${root.id}:remove`,
-                icon: "cross",
-                label: `Remove ${root.token} reaction`,
-                tone: "negative",
+                icon: "undo",
+                label: `Undo ${root.token} reaction`,
                 rank: "secondary",
                 className: "lf-react-remove",
                 scope: record.scope,
@@ -452,27 +452,31 @@ export function createAnchorControls({
     raiseError(missingReference(fragmentId(href)));
   };
 
-  const onOutsideReaction = (event) => {
-    for (const record of reactionSeats.values())
-      if (
-        record.expanded &&
-        !event.composedPath().some((node) => record.margin.contains(node))
-      )
-        setReactionRemoval(record, null);
-  };
+  // A press away from a reaction whose removal stands offered takes the offer back
+  // (focus.js, `onPressAway`).
+  const offeredAway = (path) =>
+    [...reactionSeats.values()].filter(
+      (record) => record.expanded && !path.some((node) => record.margin.contains(node)),
+    );
+  let stopPressAway = null;
 
   function mount() {
     if (mounted) return;
     mounted = true;
     document.addEventListener("lf-layout", onLayoutInvalidated);
-    document.addEventListener("pointerdown", onOutsideReaction, { capture: true });
+    stopPressAway = onPressAway(
+      (path) => offeredAway(path).length > 0,
+      (path) => {
+        for (const record of offeredAway(path)) setReactionRemoval(record, null);
+      },
+    );
     messageReferenceRoot.addEventListener("click", onMessageReference);
   }
 
   function destroy() {
     if (mounted) {
       document.removeEventListener("lf-layout", onLayoutInvalidated);
-      document.removeEventListener("pointerdown", onOutsideReaction, { capture: true });
+      stopPressAway();
       messageReferenceRoot.removeEventListener("click", onMessageReference);
     }
     mounted = false;

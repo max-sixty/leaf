@@ -22,6 +22,7 @@ from render_harness import (
     page_comment,
     panel_field,
     panel_settled,
+    panel_view,
     scroll_settled,
     write,
 )
@@ -61,9 +62,7 @@ def thread_row(page, key):
         key,
     )
     open_threads(page)
-    return page.locator(
-        f'.lf-fp-view[data-view="threads"] .lf-fp-thread[data-key="{key}"]'
-    )
+    return page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{key}"]')
 
 
 def open_panel_thread(page, thread_id):

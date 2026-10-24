@@ -74,6 +74,7 @@ from pathlib import Path
 import click
 import psutil
 
+from leaf.agent_state import cmd_page_state
 from leaf.codex import private_app_server
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
@@ -360,8 +361,11 @@ def steps(
             )
         else:
             require(
-                "<lf-ask" in reply.get("markup", ""),
-                "the question does not await the user's answer",
+                any(
+                    item["thread"] == posted
+                    for item in cmd_page_state(page)["queues"]["on_user"]
+                ),
+                "the question has no On me obligation in its thread",
             )
         require(
             title(read_events(page), posted) is not None,

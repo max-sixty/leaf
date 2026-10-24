@@ -1,14 +1,13 @@
 (() => {
   // packages/diff/initial/lf-worktree-diffs.js
-  document.documentElement.lfInitial.register("lf-worktree-diffs", (host, { keeps }) => {
+  document.documentElement.lfInitial.register("lf-worktree-diffs", (host, tools) => {
     const node = (tag, className) => {
       const result = document.createElement(tag);
       result.className = className;
       return result;
     };
     const header = node("div", "lf-worktree-overview");
-    header.dataset.lfGen = "1";
-    header.dataset.lfSaid = "";
+    tools.generatedElement(header, { says: true });
     const label = node("strong", "lf-worktree-total");
     const counts = node("span", "lf-worktree-stats");
     const files = node("span", "");
@@ -38,10 +37,10 @@
       writeText(additions, `+${sum("additions")}`);
       writeText(deletions, `\u2212${sum("deletions")}`);
       writeText(binary, `${sum("binary-files")} binary`);
-      keeps(binary, "hidden", sum("binary-files") === 0 ? "" : null);
-      keeps(counts, "hidden", known.length === 0 ? "" : null);
+      tools.keeps(binary, "hidden", sum("binary-files") === 0 ? "" : null);
+      tools.keeps(counts, "hidden", known.length === 0 ? "" : null);
       writeText(unavailable, `${members.length - known.length} unavailable`);
-      keeps(unavailable, "hidden", known.length === members.length ? "" : null);
+      tools.keeps(unavailable, "hidden", known.length === members.length ? "" : null);
     };
     update();
     return { update };

@@ -869,7 +869,7 @@
   margin-block: var(--sp-2) 0;
 }
 .lf-trace-image-tools > button:not(.lf-trace-image-scale) {
-  inline-size: var(--lf-control-compact);
+  inline-size: var(--lf-line);
 }
 /* Status changes share one slot; loading a frame cannot wrap the tools into a new row. */
 .lf-trace-image-status {

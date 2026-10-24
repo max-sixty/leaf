@@ -1,6 +1,6 @@
 (() => {
   // packages/diff/initial/lf-worktree.js
-  document.documentElement.lfInitial.register("lf-worktree", (host) => {
+  document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
     const node = (tag, className, text) => {
       const result = document.createElement(tag);
       result.className = className;
@@ -9,9 +9,8 @@
     };
     const details = host.querySelector(":scope > details");
     details.classList.add("lf-worktree-disclosure");
-    const summary = node("summary", "lf-worktree-summary");
-    summary.dataset.lfGen = "1";
-    summary.dataset.lfSaid = "";
+    const summary = node("summary", "lf-worktree-summary lf-disclosure-marker");
+    tools.generatedElement(summary, { says: true });
     const identity = node("span", "lf-worktree-identity");
     const label = node("strong", "lf-worktree-label", host.getAttribute("label"));
     const branch = host.getAttribute("branch");
@@ -43,8 +42,7 @@
     }
     summary.append(identity, state, stats);
     const path = node("div", "lf-worktree-path");
-    path.dataset.lfGen = "1";
-    path.dataset.lfSaid = "";
+    tools.generatedElement(path, { says: true });
     path.append(
       node("span", "", "Worktree"),
       node("code", "", host.getAttribute("path"))

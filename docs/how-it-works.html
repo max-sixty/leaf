@@ -1054,7 +1054,7 @@
 # Write ./review/index.html with the harness's file tools.
 leaf page check ./review --render
 leaf page stamp ./review --text "Queue policy ready for review"
-leaf status ./review waiting "Which queue policy fits the importer?"
+leaf thread open ./review --obligation --text "Which queue policy fits the importer?"
 leaf server start ./review</code></pre>
               <p id="handoff-checkpoint">
                 This example is a record meant to be revisited, so the agent reviews and
@@ -1124,7 +1124,7 @@ leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
 leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
-leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
+leaf thread open ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A decision widget creates an
                 <em>obligation</em> on the user’s On me list, with a prompt, typed
@@ -1324,12 +1324,14 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
             <section id="page-ending-flow">
               <h3>Wait for updates or finish</h3>
               <p id="waiting-flow">
-                <code>leaf status ./review waiting</code> says the agent needs more from
-                the user. The harness integration keeps watching after the turn ends and
-                sends later updates back to the same session.
+                <code>leaf page open ./review</code> leaves the page available for
+                feedback. Questions that need an answer go in thread messages with
+                <code>--obligation</code>, which puts them in On me. The harness
+                integration keeps watching after the turn ends and sends later updates
+                back to the same session.
               </p>
               <p id="page-ending">
-                <code>leaf status ./review idle</code> marks the page finished and stops
+                <code>leaf page close ./review</code> marks the page finished and stops
                 watching it. Leaf refuses it while an update awaits receipt or an
                 answer, or an agent to-do is open. If the agent ends a turn with a
                 delivered update unanswered, the Stop hook tells it so (<a
@@ -1514,11 +1516,13 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 </tr>
                 <tr>
                   <td>
-                    <strong>Declare work and report progress</strong><br />Set page
-                    status to waiting or idle, or report a widget's declared state
-                    transition.
+                    <strong>Declare work and report progress</strong><br />Open or close
+                    a page for feedback, or report a widget's declared state transition.
                   </td>
-                  <td><code>leaf status</code><br /><code>leaf page report</code></td>
+                  <td>
+                    <code>leaf page open</code><br /><code>leaf page close</code
+                    ><br /><code>leaf page report</code>
+                  </td>
                 </tr>
                 <tr>
                   <td>
@@ -1574,12 +1578,11 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 </tr>
                 <tr>
                   <td>
-                    <strong>Connect a Codex task</strong><br />Connect delivery
-                    explicitly, or launch the experimental terminal client with its own
-                    App Server.
+                    <strong>Launch a Codex terminal</strong><br />Run the experimental
+                    terminal client with its own App Server.
                   </td>
                   <td>
-                    <code>leaf codex start</code><br /><code>leaf codex launch</code>
+                    <code>leaf codex launch</code>
                   </td>
                 </tr>
                 <tr>
@@ -1714,7 +1717,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               <summary>Codex entry points and the public website</summary>
               <p id="host-codex-start">
                 <code>leaf server start</code> connects the page to the current Codex
-                task. <code>leaf codex start ./review</code> connects delivery when
+                task. <code>leaf page claim ./review</code> connects delivery when
                 claiming a page without serving it. The desktop app uses the queue
                 route, even though it runs an App Server internally.
               </p>
@@ -2689,8 +2692,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 edge as the text.
               </li>
               <li id="width-wide">
-                <code>wide</code> extends up to 1080px. Wide blocks share this width so
-                they align with one another.
+                <code>wide</code> starts at the edge the text starts from (the left, in
+                a left-to-right page) and extends toward its end, up to 840px, enough
+                for 100 columns of code. Wide blocks share this width so they align with
+                one another.
               </li>
               <li id="width-available">
                 <code>available</code> uses the window's width after subtracting the
@@ -2701,13 +2706,13 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               The <a href="/registry/">registry</a>, which declares each element's
               behavior, also gives it a default width. For example,
               <code>lf-options</code> uses <code>column</code>,
-              <code>lf-board</code> uses <code>wide</code>, and
-              <code>lf-diagram</code> uses <code>available</code>. A
+              <code>lf-diff</code> uses <code>wide</code>, and
+              <code>lf-board</code> uses <code>available</code>. A
               <code>data-width</code> attribute asks for <code>wide</code> or
               <code>available</code> on any block, overriding the default. If the
-              margins have unequal space, the block extends farther into the wider
-              margin. A table given a width takes its columns' natural width up to that
-              room rather than spreading across it.
+              margins have unequal space, an <code>available</code> block extends
+              farther into the wider margin. A table given a width takes its columns'
+              natural width up to that room rather than spreading across it.
             </p>
 
             <figure class="fig small" id="vocabulary-attribute">
@@ -4479,7 +4484,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 </tr>
                 <tr id="updates-reading-closed">
                   <td>Page closed</td>
-                  <td>The agent wrote <code>leaf status … idle</code>.</td>
+                  <td>The agent wrote <code>leaf page close …</code>.</td>
                 </tr>
               </tbody>
             </table>
@@ -4511,14 +4516,13 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 and tab icon take the status’s colour; All pages repeats its line.
               </li>
               <li id="updates-written-waiting">
-                <strong><code>leaf status … waiting "…"</code></strong> Names the input
-                wanted, such as <em>Claude awaits — pick a layout</em>, while a watcher
-                or turn runs. It clears starts but keeps to-dos; it creates no
-                item-level Working label. Without text it reads
-                <em>Claude awaits — select text to comment</em>.
+                <strong><code>leaf page open …</code></strong> Leaves feedback open and
+                clears starts while keeping to-dos. It creates no obligation. Questions
+                that need an answer belong in a thread message with
+                <code>--obligation</code>, so On me opens the conversation.
               </li>
               <li id="updates-written-idle">
-                <strong><code>leaf status … idle</code></strong> The agent has finished
+                <strong><code>leaf page close …</code></strong> The agent has finished
                 with the page, and the status reads <em>Page closed</em> (<a
                   href="#page-ending-flow"
                   >Wait for updates or finish</a
@@ -5029,10 +5033,7 @@ EOF</code></pre>
                   </tr>
                   <tr>
                     <td>At the first or last thread</td>
-                    <td>
-                      The next step comes round to the other end, and the walk's count
-                      flashes to mark it.
-                    </td>
+                    <td>The next step comes round to the other end.</td>
                   </tr>
                   <tr>
                     <td>Arrive at a long thread</td>

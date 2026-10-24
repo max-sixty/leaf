@@ -86,7 +86,7 @@ test("the kernel preserves native packages and shared state", async () => {
       "kernel.json",
       "leaf.js",
       "runtime/annotation-overlay/check-api.js",
-      "runtime/bundle-annotation-overlay~index.js",
+      "runtime/bundle-annotation-overlay.js",
       "runtime/bundle-state.js",
       "runtime/check-api.js",
       "runtime/layer-client.js",

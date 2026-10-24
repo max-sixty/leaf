@@ -10,7 +10,7 @@ Codex's startup hook captures its validated native source even when the first
 input is a dispatched tool message rather than a user prompt. Its synchronous
 prompt hook records the provider turn even before the session claims a page. Its native transcript also records turns resumed without input,
 which run no prompt hook. Hooks reconcile that provider evidence before checking
-their turn identity (`Harness.reconcile_turn`), then offer a pointer between steps
+their turn identity (`Harness.reconcile_turn`), then offer input between steps
 or before Stop (`Harness.offer_at_step`) and leave receipt to the agent's explicit
 confirmation of complete input.
 An accepted TurnStart opens the same lifecycle as UserPromptSubmit without

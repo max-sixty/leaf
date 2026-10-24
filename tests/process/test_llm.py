@@ -8,7 +8,15 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from interact_support import PAGE, TOKEN, fetch, publish, read_page_data, record_claim
+from interact_support import (
+    PAGE,
+    STATED_TIMEOUT,
+    TOKEN,
+    fetch,
+    publish,
+    read_page_data,
+    record_claim,
+)
 from websockets.exceptions import WebSocketException
 
 from leaf import event_log, inference
@@ -140,8 +148,6 @@ def test_llm_requires_a_supported_active_claim(
 ):
     status, answer = infer(server)
     assert status == 503, answer
-    record_claim(page_dir, harness="pi", agent="Pi")
-    assert infer(server)[0] == 503
     record_claim(page_dir, harness="codex", agent="Codex")
     calls = []
 
@@ -166,6 +172,69 @@ def test_llm_requires_a_supported_active_claim(
         )
     ]
     assert not fake_claude.exists()
+
+
+# Pi's records in `--mode json` for one answer whose text is $PI_ANSWER; the call,
+# with the system prompt file's contents, goes to $LLM_TEST_RECORD.
+ANSWERING_PI = """\
+#!{python}
+import json, os, sys
+argv = sys.argv[1:]
+with open(argv[argv.index("--system-prompt") + 1]) as prompt:
+    system_prompt = prompt.read()
+with open(os.environ["LLM_TEST_RECORD"], "a") as record:
+    call = {{"argv": argv, "stdin": sys.stdin.read(), "system_prompt": system_prompt}}
+    record.write(json.dumps(call) + "\\n")
+answer = {{
+    "role": "assistant",
+    "content": [{{"type": "text", "text": os.environ["PI_ANSWER"]}}],
+    "provider": "openai-codex",
+    "model": "gpt-6.1-sol",
+    "usage": {{
+        "input": 90,
+        "output": 8,
+        "cacheRead": 10,
+        "cacheWrite": 0,
+        "cost": {{"total": 0.0002}},
+    }},
+    "stopReason": "stop",
+}}
+print(json.dumps({{"type": "agent_end", "messages": [answer], "willRetry": False}}))
+"""
+
+
+def test_llm_on_a_pi_page_validates_the_answer_against_the_schema(
+    server, page_dir, tmp_path, monkeypatch
+):
+    """Pi has no answer schema, so it is given the schema with the widget's
+    instructions in a system prompt file, and an answer that is not JSON matching the
+    schema fails the request as a harness failure."""
+    record_claim(page_dir, harness="pi", agent="Pi")
+    programs = tmp_path / "programs"
+    programs.mkdir()
+    pi = programs / "pi"
+    pi.write_text(ANSWERING_PI.format(python=sys.executable))
+    pi.chmod(0o755)
+    record = tmp_path / "pi-calls.jsonl"
+    monkeypatch.setenv("LLM_TEST_RECORD", str(record))
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+
+    monkeypatch.setenv("PI_ANSWER", '{"headline": "From Pi"}')
+    status, answer = infer(server, REQUEST | {"instructions": "Be concise"})
+    assert status == 200, answer
+    assert answer["value"] == {"headline": "From Pi"}
+    assert answer["model"] == "openai-codex/gpt-6.1-sol"
+    assert answer["usage"] == {"inputTokens": 100, "outputTokens": 8}
+    [call] = [json.loads(line) for line in record.read_text().splitlines()]
+    assert call["stdin"] == REQUEST["input"]
+    assert call["system_prompt"].startswith("Be concise\n\n")
+    assert json.dumps(SCHEMA) in call["system_prompt"]
+    assert "--no-tools" in call["argv"]
+
+    for prose in ("Sure! Here is a headline: From Pi", '{"title": "From Pi"}'):
+        monkeypatch.setenv("PI_ANSWER", prose)
+        status, answer = infer(server)
+        assert status == 502, answer
 
 
 def test_llm_is_unavailable_in_samples_and_read_only_previews(
@@ -201,14 +270,14 @@ def test_llm_busy_calls_leave_the_server_responsive(server, claimed, monkeypatch
 
     def generate(*args, **kwargs):
         started.set()
-        assert release.wait(10)
+        assert release.wait(STATED_TIMEOUT)
         return {"value": {"headline": "Done"}}
 
     monkeypatch.setattr(inference, "claude_code_generate", generate)
     with ThreadPoolExecutor(max_workers=1) as pool:
         pending = pool.submit(infer, server)
         try:
-            assert started.wait(10)
+            assert started.wait(STATED_TIMEOUT)
             assert infer(server)[0] == 429
             assert fetch(server + "/api/state")[0] == 200
         finally:

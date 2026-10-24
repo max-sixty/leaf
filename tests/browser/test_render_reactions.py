@@ -301,7 +301,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     mark = receipt_item.get_by_role(
         "button", name="shorten reaction actions", exact=True
     )
-    remove = page.locator('[aria-label="Remove shorten reaction"]:visible')
+    remove = page.locator('[aria-label="Undo shorten reaction"]:visible')
     face = """button => {
       const style = getComputedStyle(button);
       return [style.color, style.backgroundColor, style.borderTopColor, style.boxShadow];
@@ -2023,7 +2023,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
 ):
     """Reaction belongs to its own header, including an agent-authored root, and
     stands clear of the view's Resolve. Both actions stay reachable, and a touch
-    trigger takes its floor without covering the message's first line."""
+    trigger reaches its floor without its face covering the message's first line."""
     url = serve(PANEL_PAGE)
     text = (
         "Step three now requires the supervisor to reap every process "
@@ -2073,7 +2073,10 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
             return control.contains(document.elementFromPoint(
               rect.left + rect.width / 2, rect.top + rect.height / 2));
           };
-          return {width: box.width, height: box.height, covered: covered.length,
+          // The face is the head's control; a finger's floor is its reach (surfaces.css).
+          const reach = getComputedStyle(trigger, '::after');
+          return {width: box.width, aim: Math.max(box.height, parseFloat(reach.height) || 0),
+            covered: covered.length,
             opacity: getComputedStyle(trigger).opacity,
             metadataClear: metadata.every(words => words.right <= box.left ||
               words.left >= box.right || words.bottom <= box.top || words.top >= box.bottom),
@@ -2085,7 +2088,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
         floor = 44 if touch else 26
         assert reading == {
             "width": floor,
-            "height": floor,
+            "aim": floor,
             "covered": 0,
             "opacity": "1",
             "metadataClear": True,

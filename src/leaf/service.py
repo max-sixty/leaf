@@ -22,7 +22,7 @@ import importlib
 import os
 import secrets
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -414,7 +414,7 @@ class PageTransaction:
         ended.
 
         `presence.nudge_unwatched` sends at most one such message per ending of a
-        turn (`session-lifetime.md`, Watchers), from browser-event admission, from
+        turn, from browser-event admission, from
         a watch giving up its lease, or from the page's server reading a turn
         interrupted, and a watch that wakes the session marks the ending too
         (`session.woke_after`). `ending` names the claim's turn id
@@ -450,14 +450,12 @@ class PageTransaction:
         stream the harness observes carries across a `waiting`, and `idle` clears it
         with the leaf."""
         from leaf.event_contracts import append_admitted
-        from leaf.harness import message_identity
 
         record, _ = append_admitted(
             self,
             {
                 "kind": "status",
                 "author": "agent",
-                **message_identity(),
                 "state": state,
                 "detail": detail,
             },
@@ -774,6 +772,24 @@ def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
 
 def claim_page(page_dir: Path) -> bool:
     return take_page_claim(page_dir) is not None
+
+
+def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
+    """Connect delivery before publishing ownership, without starting a server.
+
+    An explicit watcher claims with manual_delivery before its first wait. Hooks do
+    not prepare adapters, so this interval leaves delivery to that watcher; once its
+    wait is live, ordinary serving and reclaiming preserve the selected watch.
+    """
+    from leaf.harness import session_harness
+
+    harness = session_harness()
+    if harness is None:
+        raise Refused("only an agent harness session can claim a page")
+    preparation = nullcontext() if manual_delivery else harness.preparing_delivery()
+    with preparation, PageTransaction(page_dir) as page:
+        page.take_claim(harness)
+    return {"session": harness.session}
 
 
 def restore_page_claim(

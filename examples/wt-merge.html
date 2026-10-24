@@ -17,8 +17,12 @@
           grid-template-columns: minmax(0, 1fr);
         }
       }
+      /* Each row keeps its content's height and the pane scrolls: an auto row in a
+         full-height pane would shrink the clipping stage until the phone film lost
+         its foot. */
       lf-merge-film {
         display: grid;
+        grid-auto-rows: max-content;
         gap: 10px;
         align-content: start;
       }

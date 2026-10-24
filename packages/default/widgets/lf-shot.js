@@ -13,8 +13,8 @@
  * A stacked pair labels each frame instead of the header, since left/right
  * bookends cannot identify vertically arranged images. Other views label the header.
  *
- * Pair chooses the orientation that gives both images the larger scale within
- * the single image's fitted height, or the containing host's bounded height.
+ * Pair chooses the orientation that gives both images the larger scale. A bounded
+ * host supplies the height; stacked frames in flow fit the screen below the toolbar.
  * In ordinary flow it takes only the height its windows need; the toolbar stays
  * in place while content below follows the images. Fit recalculates for that
  * layout; 100% retains the captured CSS
@@ -222,6 +222,9 @@ customElements.define(
       whileConnected(this, () => {
         const observer = sizeObserver(() => this.#fit());
         observer.observe(this.#stage);
+        // Pair's bound in flow is the screen's height, which the stage doesn't track.
+        const refit = () => this.#fit();
+        window.addEventListener("resize", refit, { passive: true });
         const unregister = [
           registerReadingRegion({
             id: compoundReadingRegionId(this, "capture"),
@@ -238,6 +241,7 @@ customElements.define(
         ];
         return () => {
           observer.disconnect();
+          window.removeEventListener("resize", refit);
           for (const release of unregister) release();
         };
       });

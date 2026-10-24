@@ -1,5 +1,5 @@
 """The guard on a turn's end: the Stop hook holding a turn over a page nothing
-watches or a move the agent still owes, `leaf status idle` refusing over input
+watches or a move the agent still owes, `leaf page close` refusing over input
 nobody answered, and the reminders both write."""
 
 import fcntl
@@ -154,7 +154,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
     )
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "leaf codex start" in reason and str(page) in reason
+    assert "leaf page claim" in reason and str(page) in reason
 
     # Pending output still has to cross context: the remedy is to poll the wait
     # already running, and nothing tells this task to start one in the background.
@@ -629,14 +629,14 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(
 
 
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
-    """`leaf status PAGE idle` is the way out of the guard's other case, so it
+    """`leaf page close PAGE` is the way out of the guard's other case, so it
     reads as the way out of this one too. The events are the user's: a page
     idled over them ends the leaf on someone still waiting for an answer, and
     from the browser that looks exactly like one that ran its course."""
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
+    refused = CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)])
     assert refused.exit_code == 1
     assert "1 event nobody has picked up" in refused.output
     # The claimant's harness names the remedy: Claude Code's hook carries them.
@@ -648,7 +648,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(claimed)])
     assert waited.exit_code == 0, waited.output
     woken(waited.output, "s1")
-    refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
+    refused = CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)])
     assert refused.exit_code == 1
     assert "1 acknowledged user update with no answer" in refused.output
     assert declared(claimed)["state"] != "idle"
@@ -671,7 +671,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         == 0
     )
     assert (
-        CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"]).exit_code
+        CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)]).exit_code
         == 0
     )
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
@@ -695,7 +695,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
             "revision": 1,
         },
     )
-    refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
+    refused = CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)])
     assert refused.exit_code == 1
     assert "1 event nobody has picked up" in refused.output
     cleanup_model.prompt_turn("s1")
@@ -711,7 +711,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     # A report is the agent's own news, so acknowledging it is the whole of what
     # it asks for; only a user's comment owes an answer as well.
     assert (
-        CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"]).exit_code
+        CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)]).exit_code
         == 0
     )
 
@@ -721,7 +721,7 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(
 ):
     """A move the adapter queued for a later turn is that turn's debt: the turn that
     queued it may end over it, and may idle the page over it. Once the later turn
-    opens it, both the Stop hook and `leaf status idle` hold the agent to it."""
+    opens it, both the Stop hook and `leaf page close` hold the agent to it."""
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "one more thing"}
     )
@@ -742,7 +742,7 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(
             )
 
     def idle() -> str | None:
-        result = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
+        result = CliRunner().invoke(cli_model.cli, ["page", "close", str(claimed)])
         return None if result.exit_code == 0 else result.output
 
     pickup("queued")
@@ -786,7 +786,7 @@ def observed_flocked(path, **kwargs):
         yield stream
 
 service_model.flocked = observed_flocked
-sys.argv = ["leaf", "status", os.environ["PAGE"], "idle"]
+sys.argv = ["leaf", "page", "close", os.environ["PAGE"]]
 cli_model.cli()
 """
     process = spawn_probe(
@@ -922,7 +922,7 @@ def _stop(capsys):
 
 
 def _idle(page_dir):
-    return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), "idle"])
+    return CliRunner().invoke(cli_model.cli, ["page", "close", str(page_dir)])
 
 
 def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
@@ -955,11 +955,10 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     )
     prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert (
-        f"your start on {asked['id']} came before this turn"
-        in prompt["additionalContext"]
+        f"your start on {asked['id']} predates this turn" in prompt["additionalContext"]
     )
     reason = _stop(capsys)
-    assert f"your start on {asked['id']} came before this turn" in reason
+    assert f"your start on {asked['id']} predates this turn" in reason
     assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
@@ -985,7 +984,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     consume_pending_input("s1")
     reason = _stop(capsys)
     assert f"`leaf thread reply {delivered_ref(claimed, follow['id'])}`" in reason
-    assert f"your start on {asked['id']} came before this turn" in reason
+    assert f"your start on {asked['id']} predates this turn" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
 
@@ -1262,7 +1261,9 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
         "answer"
     ]
     told = [batch["handling"][ref] for ref in event["handling"]]
-    assert any("write the answer in, and stamp a version" in text for text in told)
+    assert any(
+        "write the answer into the markup, and stamp a version" in text for text in told
+    )
     receive_through(claimed, last_deliverable_seq(claimed))
 
     assert f"records action {picked['id']}" in _stop(capsys)

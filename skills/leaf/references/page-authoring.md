@@ -138,6 +138,13 @@ or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for
 polish adds visual weight without meaning.
 
+When page CSS reveals controls while a container is hovered or focused, include
+`:has([data-lf-control-active])` in the condition if it contains a code block.
+Leaf marks that block while its floating Copy control is hovered or focused, since
+Copy lives outside the block's tree. For example,
+`.card:is(:hover, :focus-within, :has([data-lf-control-active])) .actions`
+keeps a card's actions visible when the pointer or focus moves onto Copy.
+
 `page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
 for inspecting how much CSS a page adds and where it comes from.
 

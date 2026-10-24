@@ -1168,6 +1168,25 @@ const makeCut = () => {
 	return frame;
 };
 const placed = /* @__PURE__ */ new Map();
+const wired$1 = /* @__PURE__ */ new WeakSet();
+let hoveredControl = null;
+let focusedControl = null;
+const activeBlock = (control) => control && placed.get(control);
+const syncActive = (block) => {
+	if (block) block.toggleAttribute("data-lf-control-active", activeBlock(hoveredControl) === block || activeBlock(focusedControl) === block);
+};
+const setActiveControl = (kind, control) => {
+	const previous = kind === "hover" ? hoveredControl : focusedControl;
+	if (previous === control) return;
+	if (kind === "hover") hoveredControl = control;
+	else focusedControl = control;
+	syncActive(activeBlock(previous));
+	syncActive(activeBlock(control));
+};
+onCurrentLocation((node) => {
+	for (let at = node; at; at = upFrom(at)) if (placed.has(at)) return setActiveControl("focus", at);
+	setActiveControl("focus", null);
+});
 let resized = 0;
 addEventListener("resize", () => {
 	resized ||= nextRender(() => {
@@ -1181,9 +1200,21 @@ addEventListener("resize", () => {
 	});
 });
 function standInChrome(control, block, levels) {
+	const previousBlock = placed.get(control);
 	const frames = cutFrames(levels, cuts.get(control) ?? [], makeCut);
 	cuts.set(control, frames);
 	placed.set(control, block);
+	if (!wired$1.has(control)) {
+		wired$1.add(control);
+		control.addEventListener("pointerenter", () => setActiveControl("hover", control));
+		control.addEventListener("pointerleave", () => {
+			if (hoveredControl === control) setActiveControl("hover", null);
+		});
+	}
+	if (previousBlock !== block) {
+		syncActive(previousBlock);
+		syncActive(block);
+	}
 	if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
 	if (frames[0] && frames[0].parentNode !== home) move(home, frames[0], null);
 	const frame = frames.at(-1) ?? home;
@@ -1228,10 +1259,14 @@ function tabFromBlock(control, block, signal) {
 	}, { signal });
 }
 function releaseControl(control) {
+	const block = placed.get(control);
+	if (hoveredControl === control) hoveredControl = null;
+	if (focusedControl === control) focusedControl = null;
 	control.remove();
 	cuts.get(control)?.[0]?.remove();
 	cuts.delete(control);
 	placed.delete(control);
+	syncActive(block);
 }
 
 //#endregion

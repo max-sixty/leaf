@@ -324,8 +324,8 @@ graph LR
 """,
 )
 # A drawing wider than the column on purpose — six nodes across lay out near 1150px
-# against 720 — and a board beside it, so what the assertions turn on is which kind each
-# widget declares rather than that both are widgets.
+# against 720 — and a board beside it held to `wide` by its own `data-width`, so what the
+# assertions turn on is the width each declares rather than that both are widgets.
 WIDE_DIAGRAM_PAGE = leaf_page(
     "wide diagram",
     """
@@ -340,7 +340,7 @@ graph LR
   C -->|no| L[login]
   H --> O[write response]
 </pre></lf-diagram>
-<lf-board id="plan">
+<lf-board id="plan" data-width="wide">
   <lf-column id="d1" label="Todo"><lf-card id="dk1"><strong>One</strong></lf-card></lf-column>
   <lf-column id="d2" label="Doing"></lf-column>
   <lf-column id="d3" label="Done"></lf-column>

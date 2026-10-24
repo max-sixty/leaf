@@ -962,8 +962,9 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     about it: held to that number, this 1147px flowchart was cut off at 1080 on a window
     with 470px to spare. The board on the
     same page is the half that says the declaration is doing this rather than the tag —
-    it lays its columns out into whatever it is given, so it takes that shared number and
-    stops there on the same window that hands the diagram half as much again.
+    it declares `wide` with its `data-width` and lays its columns out into whatever it is
+    given, so it takes that shared number and stops there on the same window that hands
+    the diagram all of the room.
 
     Past the room there is nothing left to give, and the answer is the theme's for any
     wide content: the widget's own box scrolls sideways and the document does not."""
@@ -1550,9 +1551,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     assert at["ask"] == at["prose"], at
     assert at["listed"] == at["listed-t"], at
     assert at["listed"]["width"] < at["prose"]["width"], at
-    assert at["both"] == at["both-t"] == {"width": 840, "left": at["holds"]["left"]}, (
-        at
-    )
+    assert at["both"] == at["both-t"] == {"width": 840, "left": at["holds"]["left"]}, at
     assert at["tracked"]["width"] == 350, at
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.

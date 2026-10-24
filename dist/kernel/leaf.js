@@ -7495,7 +7495,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				if (thread.anchor && !(part === "message" && shown)) {
 					if (!last) {
 						unplaced.delete(thread.key);
-						if (shown) close();
+						if (top?.thread) close();
 						return false;
 					}
 					unplaced.add(thread.key);

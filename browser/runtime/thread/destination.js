@@ -12,6 +12,11 @@
    second refusal leaves the thread unopened. A thread about an element an agent sent
    in a message has no drawing beside its subject: `openThreadSubject` opens that
    message and lands on the element there.
+   A route shows one thread at a time: the primary taking a thread closes the page's
+   card, and the page drawing one has the floating panel put away its view of any
+   thread as it declines (floating-panel.js, `reveal`), so the reply the field holds
+   and a walk's position name the thread the user arrived at. The user chose this on
+   23 October 2026, after a `t` walk left the panel's thread open under a card.
    A compact preview keeps held widget arrivals held until its own release gesture.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
@@ -191,6 +196,9 @@ export function createThreadDestinations({
       // of the thread opens in the task of the gesture that asked for it (`onPage`), as
       // a walk's card does, rather than after a wait that no longer belongs to it.
       if (result === false && !drawn) return mayPresent() ? DECLINED : null;
+      // The reader shows the thread, so the card standing beside another thread's
+      // passage goes, in the same task, and one thread stands open.
+      if (result !== false && preview) intent.handoff(preview.close);
       return taken(result);
       // The reader takes the thread: its layout, then its drawing of it.
       async function taken(result) {

@@ -68,7 +68,10 @@
  *   the foot: a tall view opening on what it holds with nothing naming it. It lasts
  *   while it is
  *   used: Escape or a press on the page puts it away, Escape once the caret has
- *   left the field, since the caret is the innermost thing open. The view stands right
+ *   left the field, since the caret is the innermost thing open. A thread's view
+ *   also goes when a route, such as the `t` walk, opens a thread's card on the page,
+ *   so one thread stands open (`reveal`; the user chose this on 23 October, after a
+ *   walk left the panel's thread under the card it opened). The view stands right
  *   on the row, with no line between them that typing would show or hide.
  *   The user chose that (2026-10-14), reversing a blank line's room kept under every
  *   open view, which read in Threads as a missing row. Rejected there: the line pushing
@@ -3965,9 +3968,12 @@ export function createFloatingPanel({
         if (thread.anchor && !(part === "message" && shown)) {
           if (!last) {
             unplaced.delete(thread.key);
-            // The page draws it, so a view of it here goes, as On the page puts it
-            // away, and the thread shows once.
-            if (shown) close();
+            // The page draws it, so a thread's view here goes, its own or another's, as
+            // On the page puts it away: the thread shows once, and the one the user
+            // arrived at is the one thread open, which the field's reply and a walk's
+            // position then name. The panel closes rather than going back to a list
+            // the view stood over, since the user has gone on to the page.
+            if (top?.thread) close();
             return false;
           }
           unplaced.add(thread.key);

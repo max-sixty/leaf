@@ -152,6 +152,15 @@
     gap: 0;
   }
 }
+/* The drawing is the widget's own and not chrome (`shotBox`, shot-view.js), so it
+   states the border-box sizing every frame width here is reckoned in, which `.lf-ui`
+   gives the chrome. */
+.lf-shotstage,
+.lf-shotstage *,
+.lf-shotstage *::before,
+.lf-shotstage *::after {
+  box-sizing: border-box;
+}
 .lf-shotstage {
   /* Keep the shared image frame's shadow inside the scrollport. */
   --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));
@@ -421,9 +430,10 @@
     block-size: auto;
     overflow: visible;
   }
-  .lf-shot-toolbar,
-  .lf-shotpixels,
-  .lf-shotdiff {
+  /* Paper drops the toolbar and the outlines, which are offers (state.css), and prints
+     the drawing (`shotBox`, shot-view.js): both complete sources, one above the
+     other at the sheet's width, whichever view the screen shows. */
+  .lf-shotpixels {
     display: none !important;
   }
   .lf-shotstage {
@@ -433,12 +443,12 @@
   .lf-shotcanvas,
   .lf-shotcomparison,
   .lf-shotframe,
+  :scope:is(lf-shot)[data-lf-shot-mode="pixels"] .lf-shotframe,
   .lf-shot-frame-label,
-  .lf-shotcap,
   .lf-shotviewport,
   .lf-shotimage,
   .lf-shotplane {
-    display: block !important;
+    display: block;
     inline-size: 100% !important;
     block-size: auto !important;
     visibility: visible !important;

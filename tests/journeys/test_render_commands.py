@@ -35,11 +35,14 @@ from render_harness import (
 )
 
 from leaf import render_checks as render_checks_model
+from leaf import user_views
+from leaf.render_gate.command import PIN_VARIABLE
 from leaf.render_gate.page_code import run_page_code
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.test_render_commands import FILM_DECLARATION, FILM_PAGE, unnamed_browser
+from model.test_user_views import report as user_view_report
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
@@ -295,13 +298,13 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     shows = {screen["file"]: screen["shows"] for screen in screens["files"]}
     names = sorted(path.name for path in into.iterdir())
     assert set(shows) <= set(names)
-    assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
+    assert {"1280px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {
-        "1200px-obligation-1.png",
-        "1200px-obligation-2.png",
-        "1200px-obligation-3.png",
+        "1280px-obligation-1.png",
+        "1280px-obligation-2.png",
+        "1280px-obligation-3.png",
     } <= set(names)
-    assert "1200px-obligation-4.png" not in names
+    assert "1280px-obligation-4.png" not in names
     assert any("each press of `m`" in label for label in shows.values())
     assert '"Pre-handover review"' in screens["next"]
     assert any("<main> 1+2 → 1+1+1" in label for label in shows.values())
@@ -309,6 +312,39 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     # A page longer than its first screens says so rather than passing for read whole.
     assert "390px-9.png" not in names
     assert any("phone, the first 8 of the page's" in label for label in shows.values())
+
+
+def test_a_render_check_reads_the_desktop_in_the_users_window(
+    serve, headless_shell, monkeypatch
+):
+    """With a browser's report of its window on the page, `page check --render`
+    reads the desktop, its screens included, at that window and says so; pinned, as
+    the suite and evals pin it, it reads the fixed laptop window."""
+    serve(LONG_PAGE)
+    d = serve.page_dir
+    window = user_view_report()
+    window["viewport"] = {"width": 1000, "height": 640}
+    user_views.observe_user_view(d, window)
+
+    def desktop(**pin):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, "page", "check", str(d), "--render"],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell} | pin,
+        )
+        browser = json.loads(ran.stdout)["browser"]
+        names = {screen["file"] for screen in browser["screens"]["files"]}
+        return browser["desktop"], names
+
+    monkeypatch.delenv(PIN_VARIABLE)
+    read, names = desktop()
+    assert read == {"width": 1000, "height": 640, "from": "the user's window"}
+    assert "1000px-1.png" in names, names
+    read, names = desktop(**{PIN_VARIABLE: "fixed"})
+    assert (read["width"], read["height"]) == (1280, 720), read
+    assert "1280px-1.png" in names, names
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):

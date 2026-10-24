@@ -152,7 +152,9 @@ import {
   clamp,
   closeControl,
   coarsePointer,
+  cycledRow,
   el,
+  generatedElement,
   hostIn,
   iconElement,
   keys,
@@ -195,7 +197,7 @@ import {
   nextAnimation,
   nextRender,
   onCurrentLocation,
-  onPress,
+  onPressAway,
   onUserInput,
   pressLed,
   renderedOrder,
@@ -434,7 +436,7 @@ function createThreadPreview({
           let edge = 0;
           let height = above ? 12 : 0;
           if (above) {
-            const top = transcript.getBoundingClientRect().top + transcript.clientTop;
+            const top = transcript.getBoundingClientRect().top + transcript.clientTop + parseFloat(getComputedStyle(transcript).paddingTop);
             for (const head of transcript.querySelectorAll(".lf-msg-head")) {
               const box = head.getBoundingClientRect();
               if (!box.height || box.bottom <= top) continue;
@@ -1233,7 +1235,7 @@ function createMarginClusterViews({
   const create = (className, options = {}) => {
     const view = document.createElement(TAG);
     view.className = className;
-    view.dataset.lfGen = "1";
+    generatedElement(view, { says: false });
     view.setAttribute("role", "group");
     view.configure({ owner, ...options });
     return view;
@@ -1271,7 +1273,7 @@ function createMarginProjection({
     threadItem: marginThreadItem
   } = inventory;
   const nav = el("nav", "lf-ui lf-margin-projection");
-  nav.dataset.lfGen = "1";
+  generatedElement(nav, { says: false });
   nav.setAttribute("aria-label", "Page Map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");
@@ -1472,10 +1474,7 @@ function createMarginProjection({
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
     const direction = binding === rowArrows(active)[1] ? 1 : -1;
-    focusDestination(
-      buttons[(at + direction + buttons.length) % buttons.length],
-      "move"
-    );
+    focusDestination(cycledRow(buttons, active, direction), "move");
     beginWalk("margin-entry", "Action", () => {
       const currentLocation = focused();
       const currentLocationHost2 = closestAcross(
@@ -2329,9 +2328,6 @@ function createMarginProjection({
     if (currentTargets.some((node) => node && path.includes(node))) return false;
     return !path.some(inRetainedContext);
   };
-  const pressAway = (start, path) => pressedAway(path) ? (end, completed) => {
-    if (completed && pressedAway(end.composedPath())) closePreview();
-  } : null;
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
   const accompaniedThreadHere = () => card.accompanied();
   declareSide((node) => {
@@ -2429,17 +2425,14 @@ function createMarginProjection({
       scheduleMarginEntryLabels();
       queueMicrotask(followCurrentLocation);
     });
-    onPress(pressAway);
-    document.addEventListener(
-      "pointerdown",
-      (event) => {
-        if (!expandedOptionsKey) return;
-        const host = hosts.get(expandedOptionsKey);
-        if (!host || event.composedPath().includes(host) || event.composedPath().some(inRetainedContext))
-          return;
-        setOptionsOpen(host.lfEntry, false);
+    onPressAway(pressedAway, () => closePreview());
+    const unfolded = () => hosts.get(expandedOptionsKey) ?? null;
+    onPressAway(
+      (path) => {
+        const host = unfolded();
+        return Boolean(host) && !path.includes(host) && !path.some(inRetainedContext);
       },
-      { capture: true }
+      () => setOptionsOpen(unfolded().lfEntry, false)
     );
     watchRoom(() => scheduleRoving());
     window.addEventListener("resize", () => scheduleWidthRender());

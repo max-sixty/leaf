@@ -19,6 +19,7 @@ from render_harness import (
     open_page,
     panel_field,
     panel_settled,
+    panel_view,
     resized,
     round_trip,
     scroll_settled,
@@ -101,7 +102,7 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     region = page.get_by_role("region", name="Leaf", exact=True)
-    expect(region.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(region.locator(panel_view("threads"))).to_be_focused()
     expect(region.locator(".lf-fp-title")).to_have_text("Threads")
     page.keyboard.press("Escape")
 
@@ -640,7 +641,7 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
         serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
     )
     resized(page, width, 844)
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     for from_thread in (False, True):
         if from_thread:
             page.keyboard.press("t")

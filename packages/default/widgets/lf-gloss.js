@@ -16,6 +16,7 @@ import {
   closeNativeLayer,
   isNativeLayer,
   offer,
+  generatedElement,
   once,
   paintKeys,
   reachedForWords,
@@ -61,8 +62,8 @@ customElements.define(
       do this.#bubble.id = `lf-gloss-tip-${++nextId}`;
       while (document.getElementById(this.#bubble.id));
       this.#bubble.className = "lf-gloss-popover";
-      this.#bubble.dataset.lfGen = "1";
       this.#bubble.dataset.lfSaid = "tip";
+      generatedElement(this.#bubble, { says: true });
       this.#bubble.setAttribute("popover", "auto");
       this.#bubble.setAttribute("role", "note");
       this.#bubble.textContent = this.getAttribute("tip");

@@ -409,6 +409,29 @@
     );
     return node;
   };
+  // Words an upgrade wrote, which the page's authored source lacks: the version diff
+  // looks past them, and they are a passage cell of their own. `says` is whether they
+  // are the page speaking (data-lf-said, quotable even inside chrome), a copy of words
+  // the page says elsewhere ("echo", data-lf-echo), or neither; widget-elements.js,
+  // over `relabel`, says why each answer matters and why none is assumed.
+  /**
+   * @template {Element} T
+   * @param {T} node
+   * @param {{says?: boolean | "echo"}} [options]
+   * @returns {T}
+   */
+  const generatedElement = (node, { says } = {}) => {
+    if (typeof says !== "boolean" && says !== "echo")
+      throw new TypeError(
+        `Say whether these words are the page speaking: ` +
+          `true, false, or "echo" for a copy of words it says elsewhere`,
+      );
+    keepsAttribute(node, "data-lf-gen", "1");
+    // Toggling keeps an x-says span's attribute name (declared-words.js) where it stands.
+    node.toggleAttribute("data-lf-said", says === true);
+    node.toggleAttribute("data-lf-echo", says === "echo");
+    return node;
+  };
   const offer = (tag, cls, label, inputType, pressable = false) => {
     const node = document.createElement(tag);
     if (inputType !== undefined) {
@@ -435,10 +458,8 @@
   const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
   const externalLinkState = new WeakMap();
   let externalMarkSequence = 0;
-  function isExternalPageLink(link) {
-    if (!(link instanceof HTMLAnchorElement)) return false;
+  const opensElsewhere = (href) => {
     try {
-      const href = link.getAttribute("href");
       const url = href === null ? null : new URL(href, document.baseURI);
       return (
         ["http:", "https:"].includes(url?.protocol) && url.origin !== location.origin
@@ -446,6 +467,22 @@
     } catch {
       return false;
     }
+  };
+  const isExternalPageLink = (link) =>
+    link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
+  function externalMark() {
+    const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    mark.setAttribute("class", "lf-ui lf-external-mark");
+    mark.setAttribute("viewBox", "0 0 16 16");
+    mark.setAttribute("aria-hidden", "true");
+    mark.setAttribute("aria-label", "opens in a new tab");
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    line.setAttribute(
+      "d",
+      "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
+    );
+    mark.append(line);
+    return mark;
   }
   const linkAttributes = (link) =>
     Object.fromEntries(
@@ -515,18 +552,7 @@
     /** @type {SVGElement | null} */
     let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
     if (!mark) {
-      mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      mark.setAttribute("class", "lf-ui lf-external-mark");
-      mark.setAttribute("viewBox", "0 0 16 16");
-      mark.dataset.lfGen = "1";
-      mark.setAttribute("aria-hidden", "true");
-      mark.setAttribute("aria-label", "opens in a new tab");
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      line.setAttribute(
-        "d",
-        "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
-      );
-      mark.append(line);
+      mark = generatedElement(externalMark(), { says: false });
     }
     // Parsing may yield while this anchor is still open. Keep the mark after any
     // words the parser (or a later render) has appended since the previous pass.
@@ -1189,6 +1215,7 @@
         tabStore,
         offer,
         offerElement,
+        generatedElement,
         keeps: keepsAttribute,
       });
       if (drawing?.then)
@@ -1223,6 +1250,7 @@
     },
     offer,
     offerElement,
+    generatedElement,
     origin(node) {
       return origins.get(node);
     },

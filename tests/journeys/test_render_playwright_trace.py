@@ -1568,6 +1568,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
         resized(user, 500 if touch else 1000, 900)
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
+        widget.get_by_role("button", name="Image scale", exact=True).click()
         widget.get_by_role("button", name="Fit image", exact=True).click()
         rendered(user)
         fitted = user.evaluate("inspectionView()")

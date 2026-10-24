@@ -10,10 +10,10 @@ activation runs:
 leaf page check <page> --render
 ```
 
-Fix every failure; a screenshot is no substitute. The command prints one JSON object
-with the exit `status`, the browser that ran, the screens it saved, and each finding
-with its `code`, the element it names as `at`, its `severity` (`error` or `advice`) and
-its `text`.
+Fix every failure; a screenshot is no substitute. The check reads the desktop at the
+size of the window the user last viewed the page in, over the last day, or in a
+1280x720 laptop window before they have; `browser.desktop` names the size it read and
+which of the two it was.
 
 A clean check saves screens at desktop, widest-window and phone widths, up to eight down
 the page at each width, plus one just before each layout change, such as a sidebar
@@ -77,14 +77,14 @@ version.
 To finish, handle every event in the delivered batch and write the answer each
 acknowledged update's `answer` names (`event-batches.md`). A finished record ends on a
 stamped final version that honours open obligations and the reports still in force; an
-unstamped quick page can go idle directly. Then run:
+unstamped quick page can close directly. Then run:
 
 ```bash
-leaf status <page> idle
+leaf page close <page>
 ```
 
-`idle` ends the agent's side of the page, and refuses while events are pending or an
-update still owes its answer. It takes the page off the watch, and idling the last
+`page close` ends the agent's side of the page, and refuses while events are pending or an
+update still owes its answer. It takes the page off the watch, and closing the last
 watched page ends the watcher. It doesn't stop the server or delete the page
-(`serving-pages.md`, "Page lifetime"). Don't idle a persistent page because one
+(`serving-pages.md`, "Page lifetime"). Don't close a persistent page because one
 session's work on it is done.

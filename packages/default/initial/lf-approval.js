@@ -2,10 +2,10 @@
  * The live widget keeps this closure and its control, preserving focus on Undo. */
 import { html, ref, render } from "/vendor/lit.js";
 
-document.documentElement.lfInitial.register("lf-approval", (host, { offerElement }) => {
+document.documentElement.lfInitial.register("lf-approval", (host, tools) => {
   const root = host.ownerDocument.createElement("div");
   root.className = "lf-approval-actions";
-  root.dataset.lfGen = "1";
+  tools.generatedElement(root, { says: false });
   host.append(root);
   const drawing = { button: null, paint };
   function paint(approved = false) {
@@ -13,7 +13,7 @@ document.documentElement.lfInitial.register("lf-approval", (host, { offerElement
       html` <span
           class="lf-approval-status"
           role="status"
-          data-lf-said
+          ${ref((node) => node && tools.generatedElement(node, { says: true }))}
           data-room=${"Awaiting approval\nApproved"}
         >
           <span>${approved ? "Approved" : "Awaiting approval"}</span>
@@ -25,7 +25,7 @@ document.documentElement.lfInitial.register("lf-approval", (host, { offerElement
           ${ref((button) => {
             if (!button) return;
             drawing.button = button;
-            offerElement(button, "lf-btn");
+            tools.offerElement(button, "lf-btn");
           })}
         >
           <span>${approved ? "Undo approval" : "Approve"}</span>

@@ -366,7 +366,7 @@ def prepare_page(
     if seed_log:
         _acknowledge_seed(fixture, page)
     if final_status is not None:
-        run_leaf("status", str(page), final_status)
+        run_leaf("page", "close" if final_status == "idle" else "open", str(page))
     return PreparedPage(
         data_sources=len({operation["source"] for operation in fixture.data}),
         versions=len(fixture.versions),

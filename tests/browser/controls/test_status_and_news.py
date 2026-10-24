@@ -32,6 +32,7 @@ from render_harness import (
     open_page,
     panel_field,
     panel_settled,
+    panel_view,
     refuse,
     stamp_page,
     told,
@@ -44,7 +45,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 # The panel's All pages view, which `g L` opens while other pages are live.
-LEAVES = '.lf-fp-view[data-view="leaves"]'
+LEAVES = panel_view("leaves")
 
 
 def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, serve):

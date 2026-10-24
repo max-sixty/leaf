@@ -5,19 +5,15 @@
   // packages/default/widgets/toc-view.js
   var HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
   var outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
-  function drawToc(host) {
+  function drawToc(host, generatedElement) {
     const open = host.hasAttribute("open");
     const href = (destination) => destination?.id ? `#${destination.id}` : nothing;
     const paint = (start, items) => render(
       html`
-        <nav class="lf-toc-nav lf-ui scroll" data-lf-gen="1" aria-label="On this page">
-          <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>
-            On this page
-          </p>
+        <nav class="lf-toc-nav lf-ui scroll" aria-label="On this page">
+          <p class="lf-toc-heading lf-label">On this page</p>
           <details class="lf-toc-disclosure" ?open=${open}>
-            <summary class="lf-toc-toggle lf-label" data-lf-gen="1" data-lf-said>
-              On this page
-            </summary>
+            <summary class="lf-toc-toggle lf-label">On this page</summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
               <div class="lf-toc-start" data-lf-depth="0">
@@ -43,6 +39,9 @@
     host.replaceChildren();
     paint({ label: "Top" }, []);
     const nav = host.querySelector("nav");
+    generatedElement(nav, { says: false });
+    for (const label of nav.querySelectorAll(".lf-toc-heading, .lf-toc-toggle"))
+      generatedElement(label, { says: true });
     const track = nav.querySelector(".lf-toc-rows");
     const startRow = track.querySelector(".lf-toc-start");
     const list = track.querySelector("ol");
@@ -113,18 +112,18 @@
     chrome: (heading) => heading.closest(".lf-chrome") !== null,
     lends: false
   };
-  document.documentElement.lfInitial.register("lf-toc", (host, { keeps }) => {
-    const drawing = drawToc(host);
-    const outline = () => keeps(host, "data-lf-toc-empty", drawing.update(reading).length ? null : "");
+  document.documentElement.lfInitial.register("lf-toc", (host, tools) => {
+    const drawing = drawToc(host, tools.generatedElement);
+    const outline = () => tools.keeps(host, "data-lf-toc-empty", drawing.update(reading).length ? null : "");
     const doc = host.ownerDocument;
     if (doc.readyState === "loading") {
       const pending = host.hasAttribute("open") && outlineDocument(host);
-      if (pending) keeps(pending, "data-lf-initial-pending", "");
+      if (pending) tools.keeps(pending, "data-lf-initial-pending", "");
       doc.addEventListener(
         "readystatechange",
         () => {
           outline();
-          if (pending) keeps(pending, "data-lf-initial-pending", null);
+          if (pending) tools.keeps(pending, "data-lf-initial-pending", null);
         },
         { once: true }
       );

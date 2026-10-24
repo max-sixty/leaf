@@ -13,19 +13,19 @@ const reading = {
   lends: false,
 };
 
-document.documentElement.lfInitial.register("lf-toc", (host, { keeps }) => {
-  const drawing = drawToc(host);
+document.documentElement.lfInitial.register("lf-toc", (host, tools) => {
+  const drawing = drawToc(host, tools.generatedElement);
   const outline = () =>
-    keeps(host, "data-lf-toc-empty", drawing.update(reading).length ? null : "");
+    tools.keeps(host, "data-lf-toc-empty", drawing.update(reading).length ? null : "");
   const doc = host.ownerDocument;
   if (doc.readyState === "loading") {
     const pending = host.hasAttribute("open") && outlineDocument(host);
-    if (pending) keeps(pending, "data-lf-initial-pending", "");
+    if (pending) tools.keeps(pending, "data-lf-initial-pending", "");
     doc.addEventListener(
       "readystatechange",
       () => {
         outline();
-        if (pending) keeps(pending, "data-lf-initial-pending", null);
+        if (pending) tools.keeps(pending, "data-lf-initial-pending", null);
       },
       { once: true },
     );

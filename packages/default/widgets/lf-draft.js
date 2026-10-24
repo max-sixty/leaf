@@ -27,6 +27,11 @@
  * document, so Draw and Design modes leave them operable while the saved reading
  * remains the page's to draw on or comment on.
  *
+ * The editor opens where the prose stood, showing the draft's Markdown source as typed
+ * (composing/text-field.js), so the prose's blocks give way to their source lines.
+ * Rejected: drawing the source in the prose's faces, or a sent message's, which hid
+ * syntax and laid blocks out around the caret, and kept needing repair.
+ *
  * The editor reads as an ordinary text box: its words stand in the field until Save
  * or Discard, and the field's own undo walks them back. Save submits one absolute edit
  * through the shared send generation; Discard and Escape close the editor, throwing away

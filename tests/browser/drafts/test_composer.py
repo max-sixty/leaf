@@ -15,6 +15,7 @@ from render_harness import (
     draft_control,
     example_media,
     expect_error_waits_in_menu,
+    expect_panel_says,
     holding,
     leaf_page,
     open_page,
@@ -32,7 +33,6 @@ from render_harness import (
     write,
 )
 
-from browser.drafts import expect_panel_says
 from browser.threads import clear_of_the_panel
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame

@@ -23,6 +23,7 @@ from render_harness import (
     open_page,
     page_comment,
     panel_settled,
+    panel_view,
     resized,
     select,
     selection_field,
@@ -772,7 +773,7 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
       };
     }"""
     before = page.evaluate(shape)
-    region = page.locator(f'.lf-fp-view[data-view="{surface}"]')
+    region = page.locator(panel_view(surface))
 
     toggle_surface(page, surface)
     expect(region).to_be_visible()
@@ -925,7 +926,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_visible()
+    expect(page.locator(panel_view("threads"))).to_be_visible()
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

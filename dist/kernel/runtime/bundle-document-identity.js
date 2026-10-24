@@ -281,9 +281,11 @@ import {
   commandRoutes,
   completeData,
   countTraffic,
+  cycledRow,
   dataHeaders,
   el,
   frameFor,
+  generatedElement,
   growthIsSeen,
   hasArea,
   holdingError,
@@ -1664,10 +1666,8 @@ function createSelectionComposer({
   function stepResponseOptions(binding) {
     const choices = responseOptionButtons();
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp"].includes(binding);
-    const next = at < 0 ? backward ? choices.length - 1 : 0 : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk(
       "response-option",
       "Response",
@@ -4724,12 +4724,10 @@ function createReactionController({
   function stepResponse(binding) {
     const choices = responseChoices(reactSurface);
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding
     );
-    const next = at < 0 ? backward ? choices.length - 1 : 0 : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk(
       "reaction",
       "Reaction",
@@ -6032,7 +6030,7 @@ function createInlineContributions({ targetPath }) {
       let seat = hosts.get(target);
       if (!seat) {
         const host2 = el("div", "lf-ui lf-margin-inline");
-        host2.dataset.lfGen = "1";
+        generatedElement(host2, { says: false });
         host2.setAttribute("role", "group");
         seat = { host: host2, offers: [] };
         hosts.set(target, seat);
@@ -6660,7 +6658,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
           node.dataset.lfPart = item.kind;
           node.tabIndex = -1;
           node.dataset.lfRuntime = "";
-          node.dataset.lfGen = "1";
+          generatedElement(node, { says: false });
           node.dataset.lfOffer = "";
           if (item.kind === "transcript") {
             const transcript = new Transcript({
@@ -6726,7 +6724,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
             };
           } else {
             let joined2 = false;
-            const { hint, accessibleName, busy, sent } = item.options;
+            const { hint, hintAside, accessibleName, busy, sent } = item.options;
             const redraw = () => {
               for (const row of node.querySelectorAll(":scope > .lf-thread-reply"))
                 if (row !== reply.node) row.remove();
@@ -6739,6 +6737,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
               },
               editLast: rewritesOf(item.key).editLast,
               hint,
+              hintAside,
               accessibleName,
               busy,
               sent

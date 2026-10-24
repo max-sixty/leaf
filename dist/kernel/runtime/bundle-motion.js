@@ -15,13 +15,16 @@ function onMotionPreferenceChange(listener) {
 preference.addEventListener("change", (event) => {
   if (event.matches) for (const played of [...active]) played.finish();
 });
-function motion(el, keyframes, ms, pseudoElement = null) {
-  if (reducedMotion() || !pagePresented()) return null;
+var motionPlays = () => !reducedMotion() && pagePresented();
+var motion = (el, keyframes, ms, pseudoElement = null) => playMotion(el, keyframes, { duration: ms, pseudoElement });
+function playMotion(el, keyframes, { duration, easing = "ease", delay = 0, pseudoElement = null }) {
+  if (!motionPlays()) return null;
   const played = el.animate(keyframes, {
-    duration: ms,
+    duration,
+    delay,
     pseudoElement,
-    easing: "ease",
-    fill: "forwards"
+    easing,
+    fill: "both"
   });
   active.add(played);
   played.finished.then(
@@ -33,17 +36,19 @@ function motion(el, keyframes, ms, pseudoElement = null) {
   );
   return played;
 }
-var time = (property) => {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(property).trim();
+var token = (property, on) => getComputedStyle(on).getPropertyValue(property).trim();
+var motionTime = (property, on = document.documentElement) => {
+  const value = token(property, on);
   return parseFloat(value) * (value.endsWith("ms") ? 1 : 1e3);
 };
-var flashDuration = () => time("--lf-motion-flash");
-var agentArrivalDuration = () => time("--lf-motion-agent-arrival");
+var motionEasing = (property, on = document.documentElement) => token(property, on);
+var flashDuration = () => motionTime("--lf-motion-flash");
+var agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival");
 function backgroundFlash(el, ms) {
   return motion(el, [{ backgroundColor: "var(--hi-tint)", offset: 0 }], ms);
 }
-var foldDuration = () => time("--lf-motion-fold");
-var returnDuration = () => time("--lf-motion-return");
+var foldDuration = () => motionTime("--lf-motion-fold");
+var returnDuration = () => motionTime("--lf-motion-return");
 function foldBlock(el, allocation = null) {
   if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
   const adjustment = allocation ? allocation.priorSize - allocation.container.getBoundingClientRect().height : 0;
@@ -78,7 +83,11 @@ export {
   reducedMotion,
   scrollBehavior,
   onMotionPreferenceChange,
+  motionPlays,
   motion,
+  playMotion,
+  motionTime,
+  motionEasing,
   flashDuration,
   agentArrivalDuration,
   backgroundFlash,

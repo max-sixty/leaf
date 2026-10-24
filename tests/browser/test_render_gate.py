@@ -193,11 +193,11 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
     assert len(reading.margin_widths) == 2, reading.margin_widths
     assert reading.margin_widths == sorted(reading.margin_widths)
     assert seen == [
-        (1200, 900, "light"),
-        (1200, 900, "dark"),
+        (1280, 720, "light"),
+        (1280, 720, "dark"),
         (540, 720, "light"),
         (540, 720, "dark"),
-        *((width, 900, "light") for width in reading.margin_widths),
+        *((width, 720, "light") for width in reading.margin_widths),
     ]
     arm = render_gate_scheme.INTERCEPTION_ARM
     assert len(per_page) == len(seen)
@@ -277,7 +277,8 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     the decision's controls under the card's clip: a press nobody can reach, which only
     the sweep's narrowest widths see. A card as tall as the window holds its decision
     below 600px of plan, so a window 720px tall clips it and one 900px tall does not:
-    only the phone render's sweep, at its own height, sees it. A card whose rule for the
+    read at a user's 900px-tall desktop window, only the phone render's sweep, at its
+    own height, sees it. A card whose rule for the
     dark scheme pushes its decision under the clip is clipped only in the two dark
     renders, which each read the geometry once."""
     source = leaf_page(
@@ -319,7 +320,9 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     )
 
     reading = render_gate_model.render_version(
-        browser, serve(source, packages=("default",))
+        browser,
+        serve(source, packages=("default",)),
+        desktop={"width": 1280, "height": 900},
     )
 
     clipped = [f for f in reading.failures if f.code == "clipped-control"]
@@ -327,7 +330,7 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     assert {(f.values["by"], f.widths) for f in clipped} == {
         ("<div id=card>", (360, 440)),
         ("<div id=short>", (360, 540)),
-        ("<div id=dusk>", (1200, 1200)),
+        ("<div id=dusk>", (1280, 1280)),
         ("<div id=dusk>", (540, 540)),
     }, clipped
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
@@ -1518,9 +1521,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
     to the reader."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
-    declared = CliRunner().invoke(
-        cli_model.cli, ["status", str(serve.page_dir), "waiting", "Pick a shard."]
-    )
+    declared = CliRunner().invoke(cli_model.cli, ["page", "open", str(serve.page_dir)])
     assert declared.exit_code == 0, declared.output
     claim = service_model.page_claim(serve.page_dir)
     lease = leases_model.take_lease(
@@ -1530,9 +1531,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
         # The leaf names the agent's status.
-        assert "Pick a shard." in page.locator(".lf-fp-leaf").get_attribute(
-            "aria-label"
-        )
+        assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
 
@@ -4072,7 +4071,7 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
 ):
     """The column's readings, put on one page beside their controls.
 
-    Content set past the column: the window is the wider of the two boxes, 1200px
+    Content set past the column: the window is the wider of the two boxes, 1280px
     against a 720px column, so content can stand out in the margin with the document
     still not scrolling sideways, and the static lint reads pinned pixels, which a vw
     width is not. The failure names the element and how far out it is.

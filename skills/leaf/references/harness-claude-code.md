@@ -12,7 +12,7 @@ leaf server start <page>
 ```
 
 It prints a JSON object whose `url` is the page's keyed URL, and returns. Then follow
-`references/conversation-loop.md`, "Status and handoff". `leaf server run` never
+`references/conversation-loop.md`, "Page availability and handoff". `leaf server run` never
 exits, so you would see nothing it prints and could not end the turn.
 `references/serving-pages.md` covers the key, the address the server binds, and a
 URL the user cannot reach.

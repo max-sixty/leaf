@@ -71,7 +71,7 @@ must outlive the page directory.
    again; each later stamp repeats the render check and the reading for the views
    and On me obligations it adds. A quick page takes this review once a stamp makes it a record.
 5. Read the contract that "Harness selection" below picks. Follow
-   `references/conversation-loop.md`, "Status and handoff", and serve and hand
+   `references/conversation-loop.md`, "Page availability and handoff", and serve and hand
    over the page the way that contract says.
 6. When a delivery arrives, read `references/event-batches.md`, the harness
    contract and, for user messages, `references/threads.md`, and answer every

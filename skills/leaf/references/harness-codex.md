@@ -7,7 +7,7 @@ Follow each event's `handling` and, for a thread reply, its `answer.writer`.
 
 Run `leaf server start <page>` and keep the exact keyed URL it prints. When Codex offers
 `open_in_codex`, open that URL as a browser target beside this task; otherwise give the
-user the URL. Follow `conversation-loop.md`, "Status and handoff".
+user the URL. Follow `conversation-loop.md`, "Page availability and handoff".
 
 `server start` connects delivery before it prints the URL, even when the server is
 already running; if it refuses, follow its message before handing the page over. If

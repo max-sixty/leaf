@@ -14,7 +14,7 @@ leaf server start <page>
 ```
 
 It prints a JSON object whose `url` is the page's keyed URL, and returns. Follow
-`conversation-loop.md`, "Status and handoff". `serving-pages.md` covers the address and
+`conversation-loop.md`, "Page availability and handoff". `serving-pages.md` covers the address and
 what to do when the user can't reach the URL.
 
 ## Wait loop

@@ -137,7 +137,7 @@ but not replace the kernel's. The Leaf serving a page supplies its runtime,
 `widget-api.js` and the kernel's `vendor/` modules included, so a vendored package runs
 against whichever Leaf serves its page, and a package's `vendor/` file at one of those
 paths replaces it there. Leaf keeps `widget-api.js`'s names and what they return across
-updates at one page protocol (`../scripts/leaf/layer-registry.md`, "Page protocol").
+updates at one page protocol (`../../../src/leaf/layer-registry.md`, "Page protocol").
 
 Registries merge in order: kernel, `default`, then the selected packages in command
 order, and a later package wins a collision. A later package replaces an element or

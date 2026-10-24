@@ -76,7 +76,9 @@ def cmd_page_state(
 ) -> dict:
     """The agent-side state from one transaction-consistent snapshot: the page's,
     or the part `target` names — a thread with a page of its history, or a
-    widget."""
+    widget. Paging with no thread named is refused before the page is read."""
+    if target is None and (after is not None or limit is not None):
+        raise Refused("--after and --limit page a thread; name one as ID")
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir, transaction=page)
         return _page_state(
@@ -429,12 +431,9 @@ def _page_state(
                 f"{target!r} names no thread or widget on this page"
                 + (f"; {held}" if held else "")
             )
-    if (after is not None or limit is not None) and (
-        subject is None or subject["kind"] == "widget"
-    ):
-        named = "no ID" if subject is None else f"{target!r} is a widget"
-        raise Refused(f"{named}; --after and --limit page a thread, named as ID")
     if subject is not None and subject["kind"] == "widget":
+        if after is not None or limit is not None:
+            raise Refused(f"{target!r} is a widget; --after and --limit page a thread")
         state = _widget_state(
             state, page_dir, subject["id"], active_enclosing(page_dir)
         )

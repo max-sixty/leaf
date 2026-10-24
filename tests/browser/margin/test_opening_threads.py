@@ -772,12 +772,15 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     from its head down and reads like the short one after it. Opened at its latest
     reply instead, the card showed that reply whole, which read it, beneath the end of a
     long one whose start stayed above the card and so stayed unread."""
-    long_reply, short_reply = LONG_THREAD[1], {
-        **LONG_THREAD[1],
-        "text": "Landed: the first two now close to the page.",
-        "id": "d" * 32,
-        "ts": "2026-09-18T19:34:26-07:00",
-    }
+    long_reply, short_reply = (
+        LONG_THREAD[1],
+        {
+            **LONG_THREAD[1],
+            "text": "Landed: the first two now close to the page.",
+            "id": "d" * 32,
+            "ts": "2026-09-18T19:34:26-07:00",
+        },
+    )
     page = open_page(
         browser,
         serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, long_reply, short_reply]),
@@ -789,13 +792,16 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     expect(first).to_be_visible()
     room = transcript.evaluate("list => list.scrollHeight - list.clientHeight")
     assert room > 300, f"the transcript scrolls {room}px, too little to need a landing"
-    assert abs(
-        first.bounding_box()["y"]
-        - transcript.evaluate(
-            "list => list.getBoundingClientRect().top + list.clientTop"
-            " + parseFloat(getComputedStyle(list).paddingTop)"
+    assert (
+        abs(
+            first.bounding_box()["y"]
+            - transcript.evaluate(
+                "list => list.getBoundingClientRect().top + list.clientTop"
+                " + parseFloat(getComputedStyle(list).paddingTop)"
+            )
         )
-    ) <= 1
+        <= 1
+    )
     # Each unread reply says New in its head, which a screen reader reads with it.
     expect(transcript.locator(".lf-msg-new")).to_have_count(2)
     expect(first.locator(".lf-msg-head")).to_contain_text("New")
@@ -803,7 +809,9 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     # Partway down the long reply, its head has stuck with New in it.
     transcript.hover()
     page.mouse.wheel(0, 240)
-    page.wait_for_function("list => list.scrollTop > 200", arg=transcript.element_handle())
+    page.wait_for_function(
+        "list => list.scrollTop > 200", arg=transcript.element_handle()
+    )
     tag = first.locator(".lf-msg-new").bounding_box()
     top = transcript.evaluate("list => list.getBoundingClientRect().top")
     assert top - 1 <= tag["y"] <= top + 30, (tag, top)

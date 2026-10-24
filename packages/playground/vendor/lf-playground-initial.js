@@ -8,11 +8,7 @@
       (control) => belongsTo(host, control)
     )
   ];
-  var COPY_LABELS = [
-    ["rest", "Copy instruction"],
-    ["success", "Copied"],
-    ["error", "Copy failed"]
-  ];
+  var SUBMITTED = "Submitted";
   function render(host, { tabStore, offer, generatedElement, keeps }) {
     const presets = own(host, "lf-playground-preset");
     const outputs = own(host, "lf-playground-output");
@@ -159,7 +155,8 @@
         return [preset, Object.freeze(next)];
       })
     );
-    let submit = null, copy = null, reset = null;
+    const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
+    let submit = null, submitWords = null, reset = null;
     if (interactive) {
       const railed = controls.filter((control) => control.parentElement === host);
       const panel = node("div", "lf-playground-controls");
@@ -237,17 +234,12 @@
       }
       const actions = node("footer", "lf-playground-actions");
       reset = offer("button", "lf-btn lf-playground-reset", "Reset");
-      copy = offer("button", "lf-btn lf-playground-copy-trigger");
-      copy.id = `${host.id}-copy`;
-      copy.dataset.copyState = "rest";
-      for (const [state, text2] of COPY_LABELS)
-        copy.append(node("span", `lf-playground-copy-label ${state}`, text2));
-      submit = offer(
-        "button",
-        "lf-btn primary lf-playground-submit",
-        host.getAttribute("submit-label") ?? "Use these settings"
-      );
-      actions.append(reset, copy, submit);
+      submit = offer("button", "lf-btn primary lf-playground-submit");
+      submit.dataset.room = `${submitLabel}
+${SUBMITTED}`;
+      submitWords = node("span", "", submitLabel);
+      submit.append(submitWords);
+      actions.append(reset, submit);
       if (document.querySelector("script[data-lf-offline]"))
         actions.append(
           node(
@@ -329,6 +321,7 @@
         text(slot, formatted(controlByName.get(name), next[name]));
       }
     };
+    const paintSubmitted = (submitted) => text(submitWords, submitted ? SUBMITTED : submitLabel);
     const paintPresets = (next) => {
       for (const [preset, button] of presetButtons) {
         const active = Object.entries(presetSettings.get(preset)).every(
@@ -358,7 +351,6 @@
       output,
       preview,
       submit,
-      copy,
       reset,
       regions,
       presetButtons,
@@ -369,7 +361,8 @@
       setInput,
       renderValues,
       reflection,
-      paintPresets
+      paintPresets,
+      paintSubmitted
     };
   }
   document.documentElement.lfInitial.register("lf-playground", render);

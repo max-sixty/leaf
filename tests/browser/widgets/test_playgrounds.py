@@ -324,10 +324,14 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     })""")
     rendered(page)
     expect(field).to_have_value("unsent-region")
-    # Equal values do not make two choices the same gesture. Undoing the second
-    # makes the first current again and leaves the later working edit in place; a
-    # reload draws the decided configuration.
+    # The values in force are already sent, so the control offers no second press
+    # for them. Undoing a later choice makes the first current again and leaves the
+    # later working edit in place; a reload draws the decided configuration.
     field.fill("chosen-region")
+    expect(playground.locator(".lf-playground-submit")).to_have_accessible_name(
+        "Submitted"
+    )
+    field.fill("second-region")
     with sending(page, "the query configuration"):
         playground.get_by_role("button", name="Use these settings").evaluate(
             "button => button.click()"
@@ -475,7 +479,7 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     its edge, and a cue painted under them showed nothing. Focus within a region lifts
     its cue, and reaching the end removes it."""
     page = open_page(browser, serve(ROOT / "examples" / "code-comparison.html"))
-    resized(page, 1280, 560)
+    resized(page, 1280, 540)
     playground = page.locator("#code-comparison-playground")
     bodies = {
         "preview": playground.locator(".lf-playground-preview-body"),
@@ -846,20 +850,25 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(quote).not_to_have_class(re.compile(r"detached"))
 
 
-def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
+def test_a_playground_says_submitted_while_its_values_are_the_choice_in_force(
     browser, serve
 ):
+    """The press itself turns the submit control to Submitted, before the server
+    answers, and a second press sends nothing. It stays Submitted once the choice is
+    admitted, and an edit makes the values unsent again, so the control offers to send
+    them."""
     page = open_page(browser, serve(PLAYGROUND_PAGE))
     playground = page.locator("#card-playground")
-    choose = playground.get_by_role("button", name="Use these settings")
+    choose = playground.locator(".lf-playground-submit")
+    expect(choose).to_have_accessible_name("Use these settings")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
 
     with page.expect_request("**/api/event"):
         choose.press("Enter")
     holding(page, held, 1, "the playground choice")
+    expect(choose).to_have_accessible_name("Submitted")
     expect(choose).to_be_disabled()
-    expect(choose).to_have_attribute("aria-busy", "true")
     expect(choose).to_be_focused()
     choose.press("Space")
     choose.dispatch_event("click")
@@ -868,15 +877,17 @@ def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
 
     held[0].continue_()
     round_trip(page)
-    expect(choose).to_be_enabled()
-    expect(choose).not_to_have_attribute("aria-busy", "true")
-    expect(choose).to_be_focused()
+    expect(choose).to_have_accessible_name("Submitted")
+    expect(choose).to_be_disabled()
     assert len(actions(serve.page_dir)) == 1
 
+    playground.get_by_role("switch", name="Compact spacing").click()
+    expect(choose).to_have_accessible_name("Use these settings")
+    expect(choose).to_be_enabled()
 
-def test_a_playground_switch_and_copy_are_reachable_through_go_to(browser, serve):
-    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-    page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
+
+def test_a_playground_switch_is_reachable_through_go_to(browser, serve):
+    page = open_page(browser, serve(PLAYGROUND_PAGE))
     playground = page.locator("#card-playground")
 
     page.keyboard.press("g")
@@ -891,28 +902,6 @@ def test_a_playground_switch_and_copy_are_reachable_through_go_to(browser, serve
     assert switch_code
     page.keyboard.type(switch_code)
     expect(playground.get_by_role("switch", name="Compact spacing")).to_be_checked()
-
-    playground.get_by_role(
-        "button", name="Copy instruction"
-    ).scroll_into_view_if_needed()
-
-    page.keyboard.press("g")
-    page.wait_for_function(
-        "() => document.querySelectorAll('.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]').length"
-    )
-    hint_targets = page.locator(".lf-go-to-hint").evaluate_all(
-        "els => els.map(el => [el.dataset.lfGoToTarget, el.dataset.lfGoToKind])"
-    )
-    assert hint_targets, hint_targets
-    copy_hint = page.locator(
-        '.lf-go-to-hint[data-lf-go-to-target="card-playground-copy"]'
-    )
-    expect(copy_hint).to_have_count(1)
-    copy_code = copy_hint.get_attribute("data-lf-hint-code")
-    assert copy_code
-
-    page.keyboard.type(copy_code)
-    assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
 
 
 def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser, serve):

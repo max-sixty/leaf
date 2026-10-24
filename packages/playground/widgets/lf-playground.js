@@ -5,6 +5,10 @@
  * this module adopts that drawing and owns the live mechanics: working state,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
+ * The instruction's copy control is the one a code block floats at its corner
+ * (`copyBlock`), standing at the instruction pane's. The submit control says
+ * Submitted, and takes no press, while the working values are the choice in force, so
+ * it shows whether what the controls say has been sent.
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and get an immutable slice handle; set replaces that slice. Required
@@ -30,14 +34,13 @@
  * undo makes current again: a pending choice is this tab's newest gesture, and a
  * durable one compares by its seq. */
 import {
-  announce,
   commands,
   compoundReadingRegionId,
+  copyBlock,
   dressSamples,
   focusDestination,
   layoutChanged,
   initialRender,
-  keeps,
   LeafElement,
   nothing,
   paintKeys,
@@ -61,6 +64,16 @@ const ONE_PRESS = [
   ".lf-playground-reset",
   ...["choice", "toggle", "range"].map((kind) => `.lf-playground-${kind}`),
 ].join(", ");
+
+// One spelling per configuration, whatever order its fields were declared in.
+const canonical = (value) =>
+  JSON.stringify(value, (_, item) =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.entries(item).sort(([left], [right]) => (left < right ? -1 : 1)),
+        )
+      : item,
+  );
 
 const sameKeys = (left, right) =>
   left.length === right.length && left.every((key, index) => key === right[index]);
@@ -113,10 +126,7 @@ customElements.define(
     #output = null;
     #preview = null;
     #submit = null;
-    #copy = null;
-    #copyTimer = null;
     #reset = null;
-    #choosing = false;
     #projected = undefined;
     #drawnThrough = -Infinity;
     #ready = false;
@@ -142,10 +152,8 @@ customElements.define(
           );
         });
         if (controls) observer.observe(controls.host);
-        this.#paintAvailability();
         return () => {
           observer.disconnect();
-          clearTimeout(this.#copyTimer);
           for (const stop of stops) stop();
         };
       });
@@ -208,7 +216,6 @@ customElements.define(
       this.#preview = initial.preview;
       this.#interactive = Boolean(initial.submit);
       this.#submit = initial.submit;
-      this.#copy = initial.copy;
       this.#reset = initial.reset;
       this.#presetButtons = initial.presetButtons;
       this.#regions = initial.regions.map((region) => ({
@@ -219,7 +226,6 @@ customElements.define(
       this.#initial.renderValues(this.#values);
       const reflection = this.#reflection();
       wear(this, reflection);
-      this.#syncCopy();
       dressSamples(this, reflection);
       if (this.#interactive) {
         this.addEventListener("click", (event) => {
@@ -255,7 +261,12 @@ customElements.define(
             });
             this.#draw();
           });
-        this.#copy.addEventListener("click", () => this.#copyInstruction());
+        // The pane's header holds the copy, since a pane holds one body between its
+        // header and footer; it floats at the pane's corner, beside the title.
+        const pane = this.#regions.find(({ name }) => name === "instruction").host;
+        pane
+          .querySelector(":scope > header")
+          .append(copyBlock(pane, () => this.#instruction(), "instruction"));
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;
@@ -351,7 +362,7 @@ customElements.define(
           control: this.#submit,
           decision: true,
           title: () => this.#submit.textContent,
-          when: () => !this.#choosing && this.#available(),
+          when: () => this.#available() && !this.#submitted(),
           run: () => this.#choose(),
         },
         {
@@ -406,8 +417,8 @@ customElements.define(
       wear(this, reflection);
       dressSamples(this, reflection);
       this.#renderOutput();
-      this.#syncCopy();
       this.#paintPresets();
+      if (this.#submit) this.#initial.paintSubmitted(this.#submitted());
       // Keep not-yet-declared tab values without another copy of known working slices.
       tabStore.set(
         this.#storeKey(),
@@ -440,63 +451,24 @@ customElements.define(
         .trim();
     }
 
-    #syncCopy() {
-      if (!this.#copy) return;
-      const instruction = this.#instruction();
-      if (this.#copy.dataset.instruction === instruction) return;
-      clearTimeout(this.#copyTimer);
-      this.#copy.dataset.instruction = instruction;
-      keeps(this.#copy, "data-copy-state", "rest");
+    #choose() {
+      this.controller.dispatch({
+        kind: "action",
+        verb: "choose",
+        detail: { values: this.values, instruction: this.#instruction() },
+        says: "Playground settings",
+      });
     }
 
-    // The copy control is a native button rather than a `wa-copy-button`, because the
-    // initial producer draws it before any module loads and the theme reserves its
-    // feedback words' width in place. Its label shows the result where the press was;
-    // the page's live region says it, as Web Awesome's copy button says its own.
-    async #copyInstruction() {
-      const instruction = this.#instruction();
-      let feedback;
-      try {
-        await navigator.clipboard.writeText(instruction);
-        feedback = "success";
-      } catch {
-        feedback = "error";
-      }
-      if (this.#instruction() !== instruction || !this.isConnected) return;
-      clearTimeout(this.#copyTimer);
-      keeps(this.#copy, "data-copy-state", feedback);
-      announce(
-        feedback === "success"
-          ? "Instruction copied"
-          : "Could not copy the instruction",
+    // Whether the values a press would send are the choice in force, the user's gesture
+    // included before the server admits it, so the control says Submitted as it is
+    // pressed.
+    #submitted() {
+      const choice = this.reading?.state.choose;
+      return (
+        Boolean(choice?.action) &&
+        canonical(choice.detail.values) === canonical(this.#values)
       );
-      this.#copyTimer = setTimeout(() => {
-        keeps(this.#copy, "data-copy-state", "rest");
-      }, 2000);
-    }
-
-    async #choose() {
-      if (this.#choosing || !this.#available()) return;
-      this.#choosing = true;
-      this.#paintAvailability();
-      this.#submit.setAttribute("aria-busy", "true");
-      try {
-        await this.controller.dispatch({
-          kind: "action",
-          verb: "choose",
-          detail: { values: this.values, instruction: this.#instruction() },
-          says: "Playground settings",
-        })?.delivery;
-      } finally {
-        this.#choosing = false;
-        this.#submit.removeAttribute("aria-busy");
-        this.#paintAvailability();
-      }
-    }
-
-    #paintAvailability() {
-      if (!this.#submit) return;
-      paintKeys();
     }
 
     #available() {
@@ -519,7 +491,6 @@ customElements.define(
       if (Number.isInteger(choice?.seq))
         this.#drawnThrough = Math.max(this.#drawnThrough, choice.seq);
       this.#paint();
-      this.#paintAvailability();
       return nothing;
     }
   },

@@ -1,5 +1,3 @@
-# File navigation
-
 Select the `file-tree` package for a directory navigator when the folder hierarchy
 helps the reader move among many files. Keep an ordinary document outline in
 `lf-toc`.
@@ -24,7 +22,6 @@ Selecting a keyed file reveals that datum through the declared reference. A tree
 bound directly to a source keeps selection local. Files are data, not actions:
 expansion, search, and selection do not enter Leaf's event log.
 
-Arrow keys move among visible files and folders; Enter or Space selects a file or
-toggles a folder. Typing searches. The navigator fills a definite height allocation,
+The navigator fills a definite height allocation,
 such as a workspace pane's body. In ordinary flow, `--lf-file-tree-height` chooses
 its bounded height while the listing scrolls.

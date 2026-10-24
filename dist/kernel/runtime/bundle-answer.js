@@ -9,10 +9,11 @@ import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-init
 import { HOLDS_WORD, HeldNews, MessageView, PAGE_SCOPE, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed as claimed$1, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, drawnThreadId, fitsWhole, focusThread, focusedInView, focusedThreadTarget, formatDeclaredMarkdown, hasLandmark, heldOut, heldThread, heldThreadId, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, openingPassage, pageCommand, pageReadingBlock, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeNode, placeOf as placeOf$1, placeOffset, placePageThreads as placePageThreads$1, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, rawOffsetFits, readObligations, readThreads, readingReturn, registerWritingDestination, reindexPassageOwners, rememberPassageParts, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDestination, replyDraftContext, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, saveDraft, scrollIntoReadingBand, scrollIntoView, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, tabStore, textBlocks, threadDraft, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
 import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, failSoft, failSoftUnreported, once, orderChildren, patchRetains, patchTree, placesFailure, quoted as quoted$1, rememberAuthoredParents, reportFailure, setChildren, stageAuthoredStates, stageWidgetDescriptors, widgetDescriptor } from "./bundle-abort.js";
 import { scrollBehavior } from "./bundle-motion.js";
+import { isCanonicalMediaUrl, scopedMediaUrl } from "./bundle-media.js";
 import { createProjectionPresentation } from "./bundle-presentation.js";
 import { KINDS, activateContributionControl, annotationItems, clearContributionControls, compareContributions, contributionControlKey, contributionEntries, contributionEntryRecord, contributionSource, entryControls, marginInventory, materializeContributionControls, presentContributionReceipts, presentingContributions, registerContribution, spokenSubject, threadMarks, watchContributions } from "./bundle-margin-model.js";
 import { PAGE_CONTROL_RANK, commitPoint, livePoint, registerPageControl, settleMarginContentLayout, visibleTargetParts } from "./bundle-visible-target-parts.js";
-import { Compartment, Decoration, Direction, EditorState, EditorView, LanguageSupport, StateEffect, ViewPlugin, history as history$1, historyKeymap, insertNewlineContinueMarkup, invertedEffects, isolateHistory, keymap, markdownLanguage, standardKeymap } from "/vendor/codemirror.esm.js";
+import { Compartment, Decoration, Direction, EditorState, EditorView, LanguageSupport, StateEffect, ViewPlugin, WidgetType, history as history$1, historyKeymap, insertNewlineContinueMarkup, invertedEffects, isolateHistory, keymap, markdownLanguage, standardKeymap } from "/vendor/codemirror.esm.js";
 
 //#region runtime/document-identity.js
 const servedRevision = document.querySelector("meta[name=\"lf-revision\"][data-lf-runtime]")?.content;
@@ -747,6 +748,10 @@ sheet.replaceSync(`
      that builds the editor. */
   .lf-field-rest { min-height: 1lh; outline: none; }
   .cm-line { padding: 0; }
+  /* CodeMirror's caret stops beside a widget hang from the text's top, which stands
+     above a line set tighter than its type, as a heading's is, and would make that
+     line taller than the heading it draws. The field's caret is the platform's. */
+  .cm-widgetBuffer { vertical-align: top; }
   /* The placeholder is a layer under the words, as a textarea's is, never content in
      the line: a widget in an empty line is what the platform would draw the caret
      against. Both layers share one grid cell, inside the host's padding. */
@@ -800,16 +805,17 @@ sheet.replaceSync(`
   :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
     content: none;
   }
-  /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
-     elements themselves, which the platform dresses here as it does in the message;
-     the rest read the theme's tokens, since its element rules stop at this root. A
-     heading is bold, as the platform draws one, at the size of the words around it. A
-     block is drawn line by line, so a code block's frame is each line's sides, closed
-     above its first line and below its last. Syntax that holds its room while the
-     caret is away, as a code fence's line does, is there unseen and unspoken. Its
-     glyphs go unfilled while its colour stays the words', because the caret can stand
-     at the end of unseen text, as just past a new item's marker, and the browser draws
-     it in that text's colour. */
+  /* A draft wears the sent message's faces, or where it stands in place, those its
+     display gives each block (\`standBlocks\`), written on its lines over these. Strong,
+     emphasis and strikethrough are the elements themselves, which the platform dresses
+     here as it does in the message; the rest read the theme's tokens, since its element
+     rules stop at this root. A heading is bold, as the platform draws one, at the size
+     of the words around it. A block is drawn line by line, so a code block's frame is
+     each line's sides, closed above its first line and below its last. Syntax that holds
+     its room while the caret is away, as a code fence's line does, is there unseen and
+     unspoken. Its glyphs go unfilled while its colour stays the words', because the
+     caret can stand at the end of unseen text, as just past a new item's marker, and the
+     browser draws it in that text's colour. */
   .lf-md-mark { color: var(--muted); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
@@ -846,6 +852,15 @@ sheet.replaceSync(`
   .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
     border-end-start-radius: var(--r); border-end-end-radius: var(--r);
     padding-block-end: 8px; }
+  /* A picture fits the field as media fits its container on the page, centred on its
+     line (theme.css), and the mark after a link that leaves the page is the page's
+     own (surfaces.css). */
+  .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
+  .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
+    margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
+    fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
+    stroke-linejoin: round; overflow: visible; user-select: none;
+    -webkit-user-select: none; }
   /* Code with no fence lines takes the message's padding at its ends instead. */
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
@@ -883,6 +898,81 @@ const touches = (state, from, to) => state.selection.ranges.some((range) => rang
 const read = (state) => {
 	return placedMarkdownTokens(state.doc.toString());
 };
+const FACE_PROBE = "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre><blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
+const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
+const GAP = "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
+function readFaces(field, display) {
+	const probe = display.cloneNode(false);
+	probe.removeAttribute("id");
+	probe.setAttribute("aria-hidden", "true");
+	probe.style.cssText = "position: absolute; visibility: hidden; inline-size: 0; display: block";
+	probe.innerHTML = FACE_PROBE;
+	field.after(probe);
+	const face = {};
+	const own = getComputedStyle(field);
+	const TYPE = [
+		"font-size",
+		"line-height",
+		"font-weight",
+		"letter-spacing"
+	];
+	for (const node of probe.querySelectorAll(":scope > :not(div), li + li")) {
+		const s = getComputedStyle(node);
+		const px = (value) => Number.parseFloat(value) || 0;
+		face[node.localName] = {
+			type: TYPE.filter((name) => s.getPropertyValue(name) !== own.getPropertyValue(name)).map((name) => `${name}: ${s.getPropertyValue(name)}`).join("; "),
+			start: px(s.marginTop),
+			end: px(s.marginBottom),
+			padStart: px(s.paddingTop),
+			padEnd: px(s.paddingBottom),
+			inset: s.paddingInlineStart,
+			indent: s.marginInlineStart
+		};
+	}
+	probe.remove();
+	const { li, pre, blockquote: quote } = face;
+	const rules = [];
+	for (const [tag, { type, start, end }] of Object.entries(face)) {
+		const list = tag === "ul" || tag === "ol";
+		rules.push(`.lf-face-${tag} { ${type} }`, `.lf-starts-${tag} { --lf-gap-start: ${list ? collapsed(start, li.start) : start}px }`, `.lf-ends-${tag} { --lf-gap-end: ${list ? collapsed(end, li.end) : end}px }`);
+	}
+	rules.push(`.lf-face-gap { line-height: ${GAP} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`, `.lf-face-rule { line-height: 0 }`, `.lf-face-gap-above { padding-block-start: ${GAP} }`, `.lf-face-fence-open { line-height: ${pre.padStart}px }`, `.lf-face-fence-close { line-height: ${pre.padEnd}px }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; padding-inline-start: ${quote.inset}; --lf-marker-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
+	return rules.join("\n");
+}
+var Picture = class extends WidgetType {
+	constructor(src, alt) {
+		super();
+		this.src = isCanonicalMediaUrl(src) ? scopedMediaUrl(src) : src;
+		this.alt = alt;
+	}
+	eq(other) {
+		return other.src === this.src && other.alt === this.alt;
+	}
+	toDOM(view) {
+		const img = document.createElement("img");
+		img.className = "lf-md-picture";
+		img.alt = this.alt;
+		img.src = this.src;
+		img.addEventListener("load", () => view.requestMeasure(), { once: true });
+		return img;
+	}
+	ignoreEvent() {
+		return false;
+	}
+};
+var ExternalMark = class extends WidgetType {
+	eq() {
+		return true;
+	}
+	toDOM() {
+		return document.documentElement.lfExternalLink.mark();
+	}
+};
+const externalMark = Decoration.widget({
+	widget: new ExternalMark(),
+	side: -1
+});
+const opensElsewhere = (href) => document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
 function decorate(state, placed) {
 	const out = [];
 	const lists = [];
@@ -900,21 +990,35 @@ function decorate(state, placed) {
 			at = current.to + 1;
 		}
 	};
-	for (const { token, from, to, contentFrom, contentTo, escapes, markers, contentLines } of placed) {
+	for (const { token, from, to, contentFrom, contentTo, escapes, markers, contentLines, words: said } of placed) {
 		const syntax = touches(state, from, to) ? dim : hide;
 		if (token.type === "code_inline" || contentFrom !== void 0) {
 			const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
 			if (words[0] > words[1]) continue;
 			if (INLINE[token.type]) add(from, to, INLINE[token.type]);
-			else if (token.type === "link_open" && token.meta.linked) add(words[0], words[1], link);
+			else if (token.type === "link_open" && token.meta.linked) {
+				add(words[0], words[1], link);
+				if (opensElsewhere(token.attrGet("href"))) out.push(externalMark.range(words[1]));
+			}
 			add(from, words[0], syntax);
 			add(words[1], to, syntax);
+		} else if (token.type === "image") {
+			if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
+			const widget = new Picture(token.attrGet("src"), token.content);
+			out.push(touches(state, from, to) ? Decoration.widget({
+				widget,
+				side: 1
+			}).range(to) : Decoration.replace({ widget }).range(from, to));
 		} else if (token.type === "text") for (const at of escapes ?? []) add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
 		else if (token.type === "heading_open") {
 			lines(...contentLines, (each) => {
 				out.push(line("lf-md-heading").range(each.from));
 			});
-			for (const [a, b] of markers) add(a, b, token.markup.startsWith("#") ? syntax : dim);
+			for (const [a, b] of markers) {
+				const rule = state.doc.lineAt(a);
+				const shown = touches(state, rule.from, rule.to) ? dim : unseen;
+				add(a, b, token.markup.startsWith("#") ? syntax : shown);
+			}
 		} else if (token.type === "fence" || token.type === "code_block") {
 			code.push([from, to]);
 			const body = token.content.split("\n");
@@ -931,8 +1035,10 @@ function decorate(state, placed) {
 				const lead = each.text.match(/^[ \t]*/)[0].length;
 				add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
 			});
-			const fence = touches(state, from, to - 1) ? dim : unseen;
-			for (const [a, b] of markers ?? []) add(a, b, fence);
+			for (const [a, b] of markers ?? []) {
+				const fence = state.doc.lineAt(a);
+				add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
+			}
 		} else if (token.type === "blockquote_open") {
 			lines(from, to, (each) => {
 				out.push(line("lf-md-quote").range(each.from));
@@ -978,7 +1084,91 @@ function decorate(state, placed) {
 		if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
 		add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
 	}
+	standBlocks(state, placed, out);
 	return Decoration.set(out, true);
+}
+const blockTag = (token) => token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
+function standBlocks(state, placed, out) {
+	const lines = (from, to, each) => {
+		for (let at = from; at < to;) {
+			const current = state.doc.lineAt(at);
+			each(current);
+			at = current.to + 1;
+		}
+	};
+	const named = (from, cls) => out.push(line(cls).range(from));
+	const gapLines = (from, to, gap) => {
+		const runs = state.doc.lineAt(to).number - state.doc.lineAt(from).number;
+		const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
+		lines(from, to, (each) => named(each.from, `lf-face-gap${share} ${gap}`));
+	};
+	const lineTouched = (at) => {
+		const { from, to } = state.doc.lineAt(at);
+		return touches(state, from, to);
+	};
+	const before = [];
+	const open = [];
+	let item = null;
+	const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
+	for (const { token, from, to, markers, contentLines } of placed) {
+		if (!token.block) continue;
+		const tag = blockTag(token);
+		if (token.type === "heading_open") {
+			lines(...contentLines, (each) => named(each.from, `lf-face-${tag}`));
+			if (!token.markup.startsWith("#")) {
+				for (const [at] of markers) if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
+			}
+		} else if (token.type === "fence" || token.type === "code_block") {
+			lines(from, to, (each) => named(each.from, "lf-face-code"));
+			const opener = state.doc.lineAt(from).number;
+			for (const [at] of token.type === "fence" ? markers : []) {
+				const fence = state.doc.lineAt(at);
+				if (lineTouched(at)) continue;
+				const side = fence.number === opener ? "open" : "close";
+				named(fence.from, `lf-face-fence-${side}`);
+			}
+		}
+		while (open.at(-1)?.to <= from) before.length = open.pop().level + 1;
+		const within = open.at(-1)?.type;
+		if (token.type === "list_item_open" && within !== "list_item_open") {
+			if (item?.to === from) named(from, "lf-face-item");
+			item = { to };
+		}
+		if (/^(blockquote|bullet_list|ordered_list|list_item)_open$/.test(token.type)) open.push({
+			type: token.type,
+			to,
+			level: token.level
+		});
+		if (token.type === "list_item_open" || within === "list_item_open") continue;
+		const level = token.level;
+		if (!FACE_PROBE.includes(`<${tag}>`)) {
+			before[level] = null;
+			continue;
+		}
+		const list = tag === "ul" || tag === "ol";
+		if (list && from === 0) named(0, "lf-face-list-lead");
+		if (list && to >= state.doc.length) named(state.doc.lineAt(state.doc.length).from, "lf-face-list-tail");
+		const prior = before[level];
+		const gap = `lf-ends-${prior?.tag} lf-starts-${tag}`;
+		if (prior && prior.to < from) gapLines(prior.to, from, gap);
+		else if (prior) named(from, `lf-face-gap-above ${gap}`);
+		let end = to;
+		while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
+		before[level] = {
+			tag,
+			to: end
+		};
+		before.length = level + 1;
+		if (token.type === "paragraph_open" && level === 0) lines(from, to, (each) => named(each.from, "lf-face-p"));
+		else if (token.type === "blockquote_open" && level === 0) {
+			lines(from, end, (each) => named(each.from, "lf-face-quote"));
+			named(from, "lf-face-quote-first");
+			named(state.doc.lineAt(Math.max(from, end - 1)).from, "lf-face-quote-last");
+		}
+	}
+	const last = state.doc.line(state.doc.lines);
+	const final = before[0];
+	if (final && final.to < last.from) gapLines(final.to, last.from, `lf-ends-${final.tag} lf-starts-p`);
 }
 const livePreview = ViewPlugin.fromClass(class {
 	constructor(view) {
@@ -1019,11 +1209,22 @@ var LeafText = class extends HTMLElement {
 	#editable = new Compartment();
 	#history = new Compartment();
 	#attributes = new Compartment();
+	facesOf = null;
+	#faces = new CSSStyleSheet();
+	#facesRead = "";
+	#readFaces() {
+		if (!this.facesOf?.isConnected || !this.isConnected) return;
+		const rules = readFaces(this, this.facesOf);
+		if (rules === this.#facesRead) return;
+		this.#facesRead = rules;
+		this.#faces.replaceSync(rules);
+	}
 	#placeholderLayer = document.createElement("div");
 	#placeholderText = document.createTextNode("");
 	#frame = document.createElement("div");
 	#readOnly = false;
 	#sizes = sizeObserver(() => {
+		this.#readFaces();
 		const view = this.#view;
 		if (view?.hasFocus) view.requestMeasure({
 			key: this,
@@ -1173,7 +1374,7 @@ var LeafText = class extends HTMLElement {
 		if (!this.hasAttribute("aria-multiline")) this.setAttribute("aria-multiline", "true");
 		if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
 		this.#internals ??= this.attachInternals();
-		this.#root.adoptedStyleSheets = [sheet];
+		this.#root.adoptedStyleSheets = [sheet, this.#faces];
 		if (this.#model.doc.length) this.#build();
 		else this.#describe();
 		this.#paintEmpty();
@@ -1195,6 +1396,7 @@ var LeafText = class extends HTMLElement {
 		for (const [name, value] of Object.entries(wanted)) if (this.#rest.getAttribute(name) !== value) this.#rest.setAttribute(name, value);
 	}
 	#build() {
+		this.#readFaces();
 		this.#view = new LeafEditorView({
 			root: this.#root,
 			parent: this.#frame,

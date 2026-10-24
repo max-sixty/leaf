@@ -458,10 +458,8 @@
   const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
   const externalLinkState = new WeakMap();
   let externalMarkSequence = 0;
-  function isExternalPageLink(link) {
-    if (!(link instanceof HTMLAnchorElement)) return false;
+  const opensElsewhere = (href) => {
     try {
-      const href = link.getAttribute("href");
       const url = href === null ? null : new URL(href, document.baseURI);
       return (
         ["http:", "https:"].includes(url?.protocol) && url.origin !== location.origin
@@ -469,7 +467,25 @@
     } catch {
       return false;
     }
+  };
+  const isExternalPageLink = (link) =>
+    link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
+  function externalMark() {
+    const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    mark.setAttribute("class", "lf-ui lf-external-mark");
+    mark.setAttribute("viewBox", "0 0 16 16");
+    mark.setAttribute("aria-hidden", "true");
+    mark.setAttribute("aria-label", "opens in a new tab");
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    line.setAttribute(
+      "d",
+      "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
+    );
+    mark.append(line);
+    return mark;
   }
+  // The text field draws the same mark after a link it shows (composing/text-field.js).
+  root.lfExternalLink = Object.freeze({ opensElsewhere, mark: externalMark });
   const linkAttributes = (link) =>
     Object.fromEntries(
       EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)]),
@@ -538,18 +554,7 @@
     /** @type {SVGElement | null} */
     let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
     if (!mark) {
-      mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      mark.setAttribute("class", "lf-ui lf-external-mark");
-      mark.setAttribute("viewBox", "0 0 16 16");
-      generatedElement(mark, { says: false });
-      mark.setAttribute("aria-hidden", "true");
-      mark.setAttribute("aria-label", "opens in a new tab");
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      line.setAttribute(
-        "d",
-        "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
-      );
-      mark.append(line);
+      mark = generatedElement(externalMark(), { says: false });
     }
     // Parsing may yield while this anchor is still open. Keep the mark after any
     // words the parser (or a later render) has appended since the previous pass.

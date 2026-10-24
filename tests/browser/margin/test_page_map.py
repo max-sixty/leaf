@@ -23,6 +23,7 @@ from render_harness import (
     panel_control,
     panel_settled,
     panel_view,
+    press_visible,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -1076,7 +1077,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         page.keyboard.press("g")
         page.keyboard.press("Shift+p")
     else:
-        panel_control(page, "map", at="navigate").tap()
+        press_visible(page, panel_control(page, "map", at="navigate"), touch=True)
     dialog = page.locator(".lf-page-map-dialog")
     expect(dialog).to_be_visible()
     # A finger arrives on the first row, where a soft keyboard would cover the list.

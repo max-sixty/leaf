@@ -8,9 +8,10 @@
    shift restore (version.js) undoes only layout's moves, so it asks which boxes the
    reader has chosen for since its reading (`chosenSince`).
 
-   The platform draws the line: a scroll sequence ends with `scrollend`, whoever started
-   it, and layout's moves start none (measured in Chromium and WebKit). So a `scrollend`
-   on a box is a choice, with two exceptions. A place keeper's write returns the reader
+   A scroll sequence ends with `scrollend`, whoever started it. Chromium also sends one
+   when layout changes the scroll range and anchors or clamps a box, so that event
+   names layout's move rather than a reader choice. A multi-frame scroll remains a
+   choice even when content grows during it. A place keeper's write returns the reader
    to a place they already had (reading-place.js, `restorePlace`; user-place.js,
    `placeKeeper`; continuity's move of the page with its band), so it says where it
    left each box (`placeKept`), and a sequence ending there is the keeper's. A landing
@@ -20,7 +21,8 @@
    that record, this listens on the document, which a scroll inside a shadow root does
    not reach. */
 
-import { nextFrame } from "./rendering.js";
+import { nextFrame, sizeObserver } from "./rendering.js";
+import { watchOwner } from "./arrivals.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
@@ -29,6 +31,66 @@ import { nextFrame } from "./rendering.js";
 export const pageScroller = document.scrollingElement;
 
 const moving = new WeakMap();
+const scrollSteps = new WeakMap();
+// A resized scrollport or its contents can make Chromium send `scrollend` for
+// anchoring or clamping. Observe that layout change where it happens, so a later
+// user scroll after content grew still counts as their choice.
+const layoutMoved = new WeakSet();
+const watchedLayout = new WeakSet();
+const lastTop = new WeakMap();
+const extents = new WeakMap();
+const extentOf = (box) => [box.scrollHeight, box.clientWidth, box.clientHeight];
+const changedExtent = (before, after) =>
+  before?.some((value, index) => value !== after[index]);
+function watchLayout(box) {
+  if (watchedLayout.has(box)) return;
+  watchedLayout.add(box);
+  lastTop.set(box, box.scrollTop);
+  extents.set(box, extentOf(box));
+  const root = box === pageScroller ? document.documentElement : box;
+  const sizes = new WeakMap();
+  const measure = (node) => [node.clientWidth, node.clientHeight, node.scrollHeight];
+  const observer = sizeObserver(
+    (entries) => {
+      let changed = false;
+      for (const { target } of entries) {
+        const next = measure(target);
+        const before = sizes.get(target);
+        sizes.set(target, next);
+        if (before?.some((value, index) => value !== next[index])) changed = true;
+      }
+      if (changed) {
+        if (box.scrollTop !== lastTop.get(box)) layoutMoved.add(box);
+        else extents.set(box, extentOf(box));
+      }
+    },
+    { counted: false },
+  );
+  const observe = (node) => {
+    sizes.set(node, measure(node));
+    observer.observe(node);
+  };
+  observe(root);
+  if (box !== pageScroller) {
+    for (const child of box.children) observe(child);
+    const mutation = new MutationObserver((entries) => {
+      for (const entry of entries) {
+        for (const node of entry.addedNodes) if (node instanceof Element) observe(node);
+        for (const node of entry.removedNodes)
+          if (node instanceof Element) observer.unobserve(node);
+      }
+    });
+    mutation.observe(box, { childList: true });
+    watchOwner(box, {
+      disconnect() {
+        observer.disconnect();
+        mutation.disconnect();
+        watchedLayout.delete(box);
+      },
+    });
+  }
+}
+watchLayout(pageScroller);
 
 // A new landing or return takes over the old native placement, even if its target
 // is already visible. Chromium can deliver one last compositor scroll after this
@@ -75,6 +137,8 @@ document.addEventListener(
   "scroll",
   ({ target }) => {
     const box = eventScroller(target);
+    watchLayout(box);
+    scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
     if (moving.get(box)?.glide) return;
     // Layout anchoring and clamps send scroll without scrollend. Native input
     // keeps sending scroll while it moves; quiet layout moves expire after an update.
@@ -98,8 +162,20 @@ document.addEventListener(
   "scrollend",
   ({ target }) => {
     const box = eventScroller(target);
+    watchLayout(box);
+    const wasMoving = moving.get(box);
     moving.delete(box);
-    if (kept.get(box) !== box.scrollTop) chooseScroll(box);
+    const extent = extentOf(box);
+    const repeated = (scrollSteps.get(box) ?? 0) > 1;
+    scrollSteps.delete(box);
+    const chosenHere =
+      wasMoving?.glide ||
+      repeated ||
+      (!layoutMoved.has(box) && !changedExtent(extents.get(box), extent));
+    if (chosenHere && kept.get(box) !== box.scrollTop) chooseScroll(box);
+    layoutMoved.delete(box);
+    lastTop.set(box, box.scrollTop);
+    extents.set(box, extent);
     kept.delete(box);
   },
   { capture: true, passive: true },

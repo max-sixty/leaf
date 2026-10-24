@@ -585,7 +585,10 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     question = page.locator("#live-question-decision")
     page.keyboard.press("m")
     expect(question).to_have_attribute("data-lf-obligation", "1")
-    arrival_ring = question.evaluate(RING)
+    arrival_ring = question.evaluate(
+        "ask => { const s = getComputedStyle(ask, '::after'); "
+        "return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"
+    )
     assert arrival_ring == [
         "solid",
         "2px",

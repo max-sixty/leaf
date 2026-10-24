@@ -101,7 +101,10 @@
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import {
-  anchorLabel,
+  addressableLabel,
+  addressableWord,
+  authoredScope,
+  elementById,
   threadInput,
   inChrome,
   keeps,
@@ -484,14 +487,16 @@ customElements.define(
       commands(this, SECTION, answerRows);
     }
 
-    // The block this option is about. A pointer, not a voice: it names the block as a
-    // thread's § coordinate does (`anchorLabel`), the id only where no block answers to
-    // it, and is chrome throughout — a thing to work and nothing else, so paper drops
-    // it.
+    // The block this option is about. A pointer, not a voice: it names the block by the
+    // name the chrome gives it (`addressableLabel`), else by its word, and by the id
+    // only where no block in the option's document answers to it. After § a kind word
+    // such as "section" says nothing, so the name stands alone. It is chrome
+    // throughout — a thing to work and nothing else, so paper drops it.
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;
-      const label = anchorLabel({ section: target });
+      const block = elementById(target, authoredScope(this));
+      const label = `§ ${addressableLabel(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;
       ref.title = `Jump to ${label}`;

@@ -116,7 +116,7 @@ intended. To learn what main fails, read that job's run and reproduce a failure 
 id.
 
 A failure on main, in that run or only in a local one, needs an owner. `tend-ci-fix`
-owns one that main's latest run shows while its run on it is going, or once a
+owns one that main's latest run shows while its run on it is going, or while an open
 `fix/ci-*` pull request or `ci-fix:` issue it opened names it. A failure only macOS
 reproduces is beyond it, as is one whose `tend-ci-fix` run was refused or ended without
 naming it. Confirm a macOS-only failure at normal priority: `taskpolicy -b` slows

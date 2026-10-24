@@ -155,7 +155,9 @@
   // control a user reaches by scrolling to it. Each control is held to the floor it
   // computes, as the floor rule holds it: a press that is one row of a stack of lines,
   // as a diff line's number is, has no room for a reach or a floor-tall face, and says
-  // so by setting its own `--aim-floor` to 0px.
+  // so by setting its own `--aim-floor` to 0px. Only the control's own declaration
+  // lowers its floor; one it inherits from a container holds it to the document's, and
+  // an aim another box covers to nothing is short under any floor.
   function flooredAims(selectors) {
     const floor = parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--aim-floor"),
@@ -169,7 +171,12 @@
         const shown = getComputedStyle(el);
         if (shown.visibility === "hidden" || shown.pointerEvents === "none") continue;
         seen += 1;
-        if (Math.min(w, h) < parseFloat(shown.getPropertyValue("--aim-floor")) - 0.5)
+        const own = parseFloat(shown.getPropertyValue("--aim-floor"));
+        const parent = el.parentElement ?? el.getRootNode().host;
+        const inherited =
+          parent &&
+          parseFloat(getComputedStyle(parent).getPropertyValue("--aim-floor")) === own;
+        if (Math.min(w, h) < Math.max(inherited ? floor : own, 1) - 0.5)
           short.push(
             `${Math.round(w)}x${Math.round(h)} ${el.className}${by ? ` under ${by}` : ""}`,
           );

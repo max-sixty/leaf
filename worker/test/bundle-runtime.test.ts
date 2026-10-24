@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -46,6 +46,10 @@ describe("published runtime bundle", () => {
         );
       }
       await writeFile(
+        join(layer, "runtime", "check-api.js"),
+        'export { moduleUrl, prose } from "./url.js"; export const ownUrl = import.meta.url;',
+      );
+      await writeFile(
         join(layer, "widgets", "lf-study.js"),
         `import { state } from "${root}/page/state.js"; import { html } from "../vendor/lit.js"; console.log(state, html);`,
       );
@@ -66,19 +70,27 @@ describe("published runtime bundle", () => {
         expect(bundled).toContain(`from"${root}/page/state.js"`);
         expect(bundled).not.toContain("revision:");
       }
-      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
-        `new URL("${root}/leaf.js",location.origin).href`,
+      // Execute the emitted module so the check is independent of minifier syntax.
+      const entry = pathToFileURL(join(layer, "runtime", "check-api.js")).href;
+      const urls = JSON.parse(
+        execFileSync(
+          process.execPath,
+          [
+            "--input-type=module",
+            "-e",
+            `globalThis.location = {origin: "https://leaf.invalid"}; console.log(JSON.stringify(await import(${JSON.stringify(entry)})));`,
+          ],
+          { encoding: "utf8" },
+        ),
       );
+      expect(urls).toEqual({
+        ownUrl: `https://leaf.invalid${root}/runtime/check-api.js`,
+        moduleUrl: `https://leaf.invalid${root}/runtime/url.js`,
+        prose: "import.meta.url",
+      });
       // A relative import of a vendor module keeps the page's one copy.
       expect(await readFile(join(layer, "widgets", "lf-study.js"), "utf8")).toContain(
         `from"${root}/vendor/lit.js"`,
-      );
-      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
-        `new URL("${root}/runtime/url.js",location.origin).href`,
-      );
-      // Only a read of the module's URL is rewritten, not text that spells one.
-      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
-        '"import.meta.url"',
       );
       expect(await readFile(join(layer, "page", "state.js"), "utf8")).toBe(
         `export const state = { revision: "${revision}" };`,

@@ -19,6 +19,7 @@ from render_harness import (
     open_page,
     pane_scroll_behavior,
     panel_control,
+    panel_field,
     regions_side_by_side,
     resized,
     write,
@@ -527,6 +528,43 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
         "data-lf-annotations", re.compile(".*")
     )
     expect(pin).to_be_visible()
+
+
+def test_the_panel_says_the_annotations_are_hidden_while_they_are(browser, serve):
+    """Hidden annotations leave a commented page looking as if nobody commented, and
+    the hidden layer comes back with a reload, after its notice has passed. So while it
+    is hidden the panel's field says so, ahead of the status or after a stance's name,
+    until `o` shows the layer again."""
+    page = open_page(browser, serve(PANEL_PAGE, events=[_comment_on("lede")]))
+    margins_laid_out(page)
+    field = panel_field(page)
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("o")
+    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+
+    page.reload()
+    page.wait_for_selector("body[data-lf-presented]")
+    expect(field).to_have_attribute("data-says", "status")
+    expect(field).to_have_attribute(
+        "placeholder", re.compile(r"^Annotations hidden · \S")
+    )
+
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("w")
+    expect(field).to_have_attribute("data-says", "stance")
+    expect(field).to_have_attribute(
+        "placeholder", re.compile("^In Draw mode · Annotations hidden")
+    )
+    page.keyboard.press("Escape")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+
+    page.keyboard.press("o")
+    expect(page.locator("html")).not_to_have_attribute(
+        "data-lf-annotations", re.compile(".*")
+    )
+    # The notice saying the annotations are shown passes, and the status stands alone.
+    expect(field).to_have_attribute("data-says", "status", timeout=8000)
+    expect(field).not_to_have_attribute("placeholder", re.compile("Annotations"))
 
 
 FOOTER_OBLIGATION_PAGE = leaf_page(

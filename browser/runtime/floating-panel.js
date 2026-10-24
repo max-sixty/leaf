@@ -329,6 +329,7 @@ export function createFloatingPanel({
   settlement,
   placedAt,
   openThreadSubject,
+  annotationsHidden,
 }) {
   const host = new FloatingPanel();
   host.className = "lf-ui lf-floating-panel";
@@ -637,13 +638,18 @@ export function createFloatingPanel({
   // resolved thread's way back; else on the page what the agent is doing or wants, in
   // the status's words, and in a thread whose turn it is. On the page, the stance the
   // user is in, such as Draw mode, heads a passing notice and takes the status's
-  // place (keyboard/status-context.js); the leaf keeps the status's colour.
+  // place (keyboard/status-context.js); the leaf keeps the status's colour. While the
+  // user has hidden the annotation layer (`o`, annotation-layer.js), which a reload
+  // keeps, the status or stance says so, or a page whose marks are hidden would read
+  // as one with none.
   //
   // In an open thread the field is the reply box, so it says the reply, with the key
   // that enters it, but for a notice or the Go-to word for their moment; a walk's
   // position, which stands as long as the user does, stands at its end (`passingAside`).
   // The user asked for this on 22 October, when a walk's "Thread 11 of 11" in the
   // field's place left nothing saying how to reply to the thread they were reading.
+  const HIDDEN = "Annotations hidden";
+  const hiddenLead = () => (annotationsHidden() ? `${HIDDEN} · ` : "");
   function fieldReading(key, input) {
     const [error] = sayable();
     if (error) return { says: "error", words: error.message };
@@ -675,8 +681,12 @@ export function createFloatingPanel({
         words: stance ? `${stance} · ${notice.message}` : notice.message,
       };
     if (thread?.resolved) return { says: "turn", words: "Resolved" };
-    if (stance) return { says: "stance", words: stance };
-    if (!key) return { says: "status", words: status().summary };
+    if (stance)
+      return {
+        says: "stance",
+        words: annotationsHidden() ? `${stance} · ${HIDDEN}` : stance,
+      };
+    if (!key) return { says: "status", words: hiddenLead() + status().summary };
     return { says: "turn", words: "Reply…" };
   }
   // The reply the open thread's field takes, then whose turn it is, so a field too
@@ -725,7 +735,7 @@ export function createFloatingPanel({
         const parts = status().summaryParts;
         return fieldReading(null, input).says === "status" &&
           parts?.some((part) => part.source)
-          ? statusParts(parts)
+          ? [hiddenLead(), ...statusParts(parts)]
           : null;
       },
       // Named for what a press there does, as the field's reading says it, once the

@@ -5136,7 +5136,7 @@ var FloatingPanel = class extends LeafElement {
 	}
 };
 customElements.define("leaf-floating-panel", FloatingPanel);
-function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject }) {
+function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
 	const ease = () => motionEasing("--lf-motion-panel-ease", host);
@@ -5336,6 +5336,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return errorsReading().filter((error) => !error.passed && error.subject === null);
 	}
 	let selectedWords = null;
+	const HIDDEN = "Annotations hidden";
+	const hiddenLead = () => annotationsHidden() ? `${HIDDEN} · ` : "";
 	function fieldReading(key, input) {
 		const [error] = sayable();
 		if (error) return {
@@ -5371,11 +5373,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		if (stance) return {
 			says: "stance",
-			words: stance
+			words: annotationsHidden() ? `${stance} · ${HIDDEN}` : stance
 		};
 		if (!key) return {
 			says: "status",
-			words: status().summary
+			words: hiddenLead() + status().summary
 		};
 		return {
 			says: "turn",
@@ -5411,7 +5413,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			hint: () => saying(null, input),
 			hintParts: () => {
 				const parts = status().summaryParts;
-				return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
+				return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? [hiddenLead(), ...statusParts(parts)] : null;
 			},
 			accessibleName: () => general && fieldReading(null, input).says === "selection" ? "Comment on the selection" : "Comment on the page",
 			sends: "send",
@@ -10576,7 +10578,8 @@ floatingPanel = createFloatingPanel({
 	withdraw: app.withdraw,
 	settlement: app.settlement,
 	placedAt: anchorPlacement.placedAt,
-	openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options)
+	openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options),
+	annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false
 });
 const generalComment = floatingPanel.pageComment;
 const passageSelection = createPassageSelection({ restore: anchorTravel.restoreSelection });

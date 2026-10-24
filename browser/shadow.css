@@ -1800,11 +1800,9 @@ leaf-text.lf-fab-input {
   max-width: calc(100vw - 16px);
   margin: 4px 8px;
   padding: 4px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
+  border: 0;
+  background: transparent;
   color: var(--ink);
-  box-shadow: var(--raise-2);
 }
 .lf-response-options:popover-open {
   display: flex;

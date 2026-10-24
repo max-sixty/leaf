@@ -131,7 +131,7 @@ them, whichever draws them larger, so short wide captures stack and tall narrow 
 side by side; stacked frames fit together on screen, or in a bounded comparison's room. At 100%, both panes stay visible and scrolling either image moves
 the other to the same location. This scale uses CSS pixels when capture metadata
 supplies the pixel ratio, or bitmap pixels otherwise. The **…** menu offers Fit,
-100%, the Pixels color key and, for a pair with focus metadata, Full frame to inspect
+100%, the Changed pixels color key and, for a pair with focus metadata, Full frame to inspect
 beyond that region. Outline changes stays beside the menu.
 
 In Slider, click or tap the image to alternate between the complete Before and After
@@ -139,9 +139,9 @@ frames. Drag the divider for an intermediate comparison, or focus it and use the
 arrow keys; Home and End show the complete frames.
 
 **Outline changes** marks changed regions in Pair and Slider, using the accent color
-for content that only moved. **Pixels** paints removed pixels red, added pixels
-green and recoloured pixels amber over the greyed after image, so build no difference
-image of your own. These controls belong to the reader; author the pair with `before`,
+for content that only moved. **Pixels** paints changed pixels amber over the greyed after image, softly for
+small changes and more strongly for large ones, so build no difference image of your
+own. It locates differences without inferring what was added or removed. These controls belong to the reader; author the pair with `before`,
 `after` and `alt`.
 
 The comparison reports identical images, slight changes or changes throughout the

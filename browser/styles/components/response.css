@@ -30,7 +30,7 @@
 :root,
 :is(.lf-fab-bar, .lf-margin-preview),
 .lf-compose-field {
-  --lf-compose-h:calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
+  --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
@@ -559,7 +559,7 @@ button.lf-media-open {
 }
 /* A rewrite in the card is the comment box the card grew from, its frame and padding in
    the room each line of the message already keeps (`.lf-msg-editor`). Rejected: the
-   panel's reply box's taller field, with the message keeping its height from first paint
+   taller field of a reply box outside the card, with the message keeping its height from first paint
    (#2985), which made every short card taller than the box it came from for a rewrite
    the user may never open. */
 .lf-fab-bar .lf-compose-field,

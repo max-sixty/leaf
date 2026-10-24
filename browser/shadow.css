@@ -1353,7 +1353,7 @@ svg[data-lf-icon] {
 :root,
 :is(.lf-fab-bar, .lf-margin-preview),
 .lf-compose-field {
-  --lf-compose-h:calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
+  --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;

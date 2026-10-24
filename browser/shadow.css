@@ -151,15 +151,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
+  min-height: var(--lf-face-floor, var(--aim-floor));
 }
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-mark-note, .lf-btn, .lf-msg-control)),
-.lf-react,
-.lf-margin-entry,
-.lf-command-reference-command,
-.lf-quote {
-  min-height: var(--aim-floor);
-}
+@property --lf-face-floor { syntax: "*"; inherits: false; }
 :where(.lf-btn, .button, .lf-icon-action, .lf-msg-control, .lf-thread-action, .lf-thread-notice:is(button), .lf-draft-action, .lf-corner-mark, button.lf-fp-face) {
+  --lf-face-floor: auto;
   position: relative;
   &::after {
     content: "";

@@ -791,7 +791,10 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     assert room > 300, f"the transcript scrolls {room}px, too little to need a landing"
     assert abs(
         first.bounding_box()["y"]
-        - transcript.evaluate("list => list.getBoundingClientRect().top")
+        - transcript.evaluate(
+            "list => list.getBoundingClientRect().top + list.clientTop"
+            " + parseFloat(getComputedStyle(list).paddingTop)"
+        )
     ) <= 1
     # Each unread reply says New in its head, which a screen reader reads with it.
     expect(transcript.locator(".lf-msg-new")).to_have_count(2)

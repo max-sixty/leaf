@@ -3040,7 +3040,7 @@ function showReturnTurn(transcript, unread = null) {
   scrollToEnd(transcript);
   const turn = returnTurn(transcript, unread);
   if (!turn) return;
-  const over = transcript.getBoundingClientRect().top + transcript.clientTop - turn.getBoundingClientRect().top;
+  const over = transcript.getBoundingClientRect().top + transcript.clientTop + parseFloat(getComputedStyle(transcript).paddingTop) - turn.getBoundingClientRect().top;
   const headHeight = turn.firstElementChild?.getBoundingClientRect().height ?? 0;
   if (over > headHeight) moveScrollerBy(transcript, -over);
 }

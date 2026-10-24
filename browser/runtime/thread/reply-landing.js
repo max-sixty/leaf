@@ -113,9 +113,13 @@ export function showReturnTurn(transcript, unread = null) {
   scrollToEnd(transcript);
   const turn = returnTurn(transcript, unread);
   if (!turn) return;
+  // Measured from the transcript's content edge, below the focus-ring room its
+  // padding keeps over the heads: a turn landed in that room would start where read
+  // tracking sees nothing of it (geometry.js, `seenRect`), and never read.
   const over =
     transcript.getBoundingClientRect().top +
-    transcript.clientTop -
+    transcript.clientTop +
+    parseFloat(getComputedStyle(transcript).paddingTop) -
     turn.getBoundingClientRect().top;
   // A turn only a little taller than its room still shows its head at the end.
   // Keep its trailing reference and metadata there; align to the head only when

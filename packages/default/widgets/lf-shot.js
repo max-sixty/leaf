@@ -220,6 +220,9 @@ customElements.define(
       whileConnected(this, () => {
         const observer = sizeObserver(() => this.#fit());
         observer.observe(this.#stage);
+        // Pair's bound in flow is the screen's height, which the stage doesn't track.
+        const refit = () => this.#fit();
+        window.addEventListener("resize", refit, { passive: true });
         const unregister = [
           registerReadingRegion({
             id: compoundReadingRegionId(this, "capture"),
@@ -236,6 +239,7 @@ customElements.define(
         ];
         return () => {
           observer.disconnect();
+          window.removeEventListener("resize", refit);
           for (const release of unregister) release();
         };
       });

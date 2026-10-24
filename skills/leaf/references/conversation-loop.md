@@ -260,10 +260,10 @@ without asking again. Ask about a paused project only when resuming or dropping 
 needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
 
-When the user answers in chat or elsewhere, use the answer and retire the page's obligation
-in a revision (`authoring-revisions.md`), or end their to-do with `leaf task end`. End
-a question in a thread answered elsewhere `done`, or `dropped` when it no longer
-applies:
+When the user answers a conversational question elsewhere, use the answer and end
+its obligation with `leaf task end`, using the id from `page state`: `done` records
+where they answered; `dropped` withdraws a question that no longer applies. Neither
+outcome fabricates an answer in the page's history:
 
 ```bash
 leaf task end <page> message:<message-id> done "<where the answer is>"
@@ -271,3 +271,6 @@ leaf task end <page> message:<message-id> dropped "<why>"
 ```
 
 For a reply-answered widget, use its `widget:<widget-id>` obligation id instead.
+An obligation answered through a widget's controls ends through its state or an
+authored withdrawal (`authoring-revisions.md`). Explicit user to-dos also end with
+`leaf task end` when the work is complete, failed or dropped.

@@ -3379,10 +3379,7 @@ export function createFloatingPanel({
     keepsHidden(resolvedLine, !resting);
     keepsHidden(replyOutlet, resting);
     const input = fieldInput();
-    if (input) {
-      keeps(input, "data-lf-end-room-glued", "");
-      syncInput(input);
-    }
+    if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
     // While the field holds a draft, Send stands in its corner and the counts step
     // aside for it (`drafted`).

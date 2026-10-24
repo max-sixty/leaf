@@ -7094,10 +7094,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		keepsHidden(resolvedLine, !resting);
 		keepsHidden(replyOutlet, resting);
 		const input = fieldInput();
-		if (input) {
-			keeps(input, "data-lf-end-room-glued", "");
-			syncInput(input);
-		}
+		if (input) syncInput(input);
 		keeps(host, "data-writing", writing ? "" : null);
 		const words = Boolean(draftOf(input));
 		if (postureMoved || !words) drafted = words;

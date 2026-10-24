@@ -1,19 +1,15 @@
 /* The runtime's text field: a Markdown editor that presents itself as a textarea.
  *
  * Every composer the runtime builds is a `leaf-text`. Inside a closed shadow root it
- * runs CodeMirror over the draft's exact source, and draws that source the way a sent
- * message will read: inline code in code type, emphasis and strong in their weights,
- * a link as a link, a heading in bold, a list item at the message's inset under the
- * message's own marker. The syntax that produces each (backticks, asterisks, brackets,
- * hashes, list markers) is hidden unless the selection touches the construct. List
- * markers reveal their source only inside the marker: the caret after its trailing
- * space is ready to type content, so even an empty new item already shows its bullet
- * or number. The user can move back into the marker to edit every source character.
- * Nothing is converted: the value is always the source the user typed, which is what
- * the agent reads. The constructs come from the renderer that sends the message
- * (`markdownTokens`), never from a second grammar, so the preview and the message agree
- * on what is a link, a heading or code. CodeMirror's own Markdown grammar serves only
- * editing: Shift+Enter continuing a list.
+ * runs CodeMirror over the draft's exact source and shows that source as typed: the
+ * field hides no character and lays out no block, so a list, quote, heading or code
+ * fence reads as its plain text. Inline constructs wear the sent message's faces, with
+ * their delimiters dimmed: inline code in code type, emphasis and strong in their
+ * weights, struck words struck, a link as a link. The value is the source the user
+ * typed, which is what the agent reads. The constructs come from the renderer that
+ * sends the message (`placedMarkdownTokens`), never from a second grammar, so the
+ * field and the message agree on what is code or a link. CodeMirror's own Markdown
+ * grammar serves only editing: Shift+Enter continuing a list.
  *
  * Focus is the field's own, as a textarea's is. `focus()` puts the user in the words
  * with the caret where it stood, `blur()` takes them out, and a press anywhere in the
@@ -182,87 +178,26 @@ sheet.replaceSync(`
   :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
     content: none;
   }
-  /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
-     elements themselves, which the platform dresses here as it does in the message;
-     the rest read the theme's tokens, since its element rules stop at this root. A
-     heading is bold, as the platform draws one, at the size of the words around it. A
-     block is drawn line by line, so a code block's frame is each line's sides, closed
-     above its first line and below its last. Syntax that holds its room while the
-     caret is away, as a code fence's line does, is there unseen and unspoken. Its
-     glyphs go unfilled while its colour stays the words', because the caret can stand
-     at the end of unseen text, as just past a new item's marker, and the browser draws
-     it in that text's colour. */
+  /* Inline constructs wear the sent message's faces. Strong, emphasis and strikethrough
+     are the elements themselves, which the platform dresses here as it does in the
+     message; code and links read the theme's tokens, since its element rules stop at
+     this root. */
   .lf-md-mark { color: var(--muted); }
-  .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
     background: var(--code-bg); border-radius: var(--code-inline-r);
     padding: var(--code-inline-pad); box-decoration-break: slice; }
-  .lf-md-heading { font-weight: bold; }
   .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
     text-underline-offset: var(--link-underline-offset); }
-  .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset); color: var(--muted);
-    --lf-marker-inset: var(--quote-inset); }
-  /* A quote's and a list item's words stand where the message's do, and the source's
-     marker stands in the inset before them, unseen while the caret is away, so
-     revealing it moves no word. A list item's lines stand one list inset in per level,
-     under the platform's own list marker, as in the message, so it is the same bullet
-     or number at the same place. */
-  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset));
-    --lf-marker-inset: var(--list-inset); }
-  .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
-    inline-size: var(--lf-marker-inset);
-    margin-inline-start: calc(-1 * var(--lf-marker-inset)); }
-  .lf-md-listed { display: list-item; }
-  .lf-md-disc { list-style-type: disc; }
-  .lf-md-circle { list-style-type: circle; }
-  .lf-md-square { list-style-type: square; }
-  .lf-md-number { list-style-type: decimal; }
-  .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
-    line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
-    font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
-    padding-inline: var(--pre-inset); }
-  .lf-md-code-first { border-block-start: 1px solid var(--code-border);
-    border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
-  .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
-    padding-block-end: 8px; }
-  /* Code with no fence lines takes the message's padding at its ends instead. */
-  .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 
 // A step an owner recorded in the words' history (`record`): `run` makes it happen when
 // the history reaches it, and `back` is the step the other way.
 const ownerStep = StateEffect.define();
 
-const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
 const link = Decoration.mark({ class: "lf-md-link" });
-const unseen = Decoration.mark({
-  class: "lf-md-unseen",
-  attributes: { "aria-hidden": "true" },
-});
-const marker = Decoration.mark({
-  class: "lf-md-marker lf-md-unseen",
-  attributes: { "aria-hidden": "true" },
-});
-const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
-const line = (cls) => Decoration.line({ class: cls });
-// A list item's line at its depth, wearing the marker a message's list draws there: the
-// bullet the platform's style sheet nests, or the item's number in its list. An item's
-// later line, and one whose source marker shows, wear none.
-const BULLETS = ["lf-md-disc", "lf-md-circle", "lf-md-square"];
-const itemLine = (depth, kind, number) =>
-  Decoration.line({
-    class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
-    attributes: {
-      style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}`,
-    },
-  });
 
-// The inline constructs the preview draws, by the renderer's token type: each as the
+// The inline constructs the field draws, by the renderer's token type: each as the
 // element the renderer sends it as.
 const INLINE = {
   code_inline: Decoration.mark({ tagName: "code" }),
@@ -271,35 +206,12 @@ const INLINE = {
   s_open: Decoration.mark({ tagName: "s" }),
 };
 
-// Whether the selection touches [from, to], ends included: the caret standing just
-// after a closing backtick still reveals it, so the user can delete what they see.
-const touches = (state, from, to) =>
-  state.selection.ranges.some((range) => range.from <= to && range.to >= from);
-
-// The draft as the renderer reads it, placed. Empty until the renderer has loaded.
-const read = (state) => {
-  return placedMarkdownTokens(state.doc.toString());
-};
-
-function decorate(state, placed) {
+// The draft as the renderer reads it: each inline construct in its face, its delimiters
+// and escapes dimmed. Plain until the renderer has loaded.
+function decorate(source) {
   const out = [];
-  // The ends of the lists open at the token being read, each list line's item, and the
-  // code blocks, whose lines their own reading indents.
-  const lists = [];
-  const items = new Map();
-  const code = [];
   const add = (from, to, deco) => {
-    if (from >= to) return;
-    // A hidden range may not hold a line break; such syntax stays drawn.
-    if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
-    out.push(deco.range(from, to));
-  };
-  const lines = (from, to, each) => {
-    for (let at = from; at < to;) {
-      const current = state.doc.lineAt(at);
-      each(current);
-      at = current.to + 1;
-    }
+    if (from < to) out.push(deco.range(from, to));
   };
   for (const {
     token,
@@ -308,115 +220,29 @@ function decorate(state, placed) {
     contentFrom,
     contentTo,
     escapes,
-    markers,
-    contentLines,
-  } of placed) {
-    const syntax = touches(state, from, to) ? dim : hide;
+  } of placedMarkdownTokens(source)) {
     if (token.type === "code_inline" || contentFrom !== undefined) {
-      const words =
+      const [start, end] =
         token.type === "code_inline"
           ? [from + token.markup.length, to - token.markup.length]
           : [contentFrom, contentTo];
-      if (words[0] > words[1]) continue;
+      if (start > end) continue;
       if (INLINE[token.type]) add(from, to, INLINE[token.type]);
-      else if (token.type === "link_open" && token.meta.linked)
-        add(words[0], words[1], link);
-      add(from, words[0], syntax);
-      add(words[1], to, syntax);
-    } else if (token.type === "text") {
-      for (const at of escapes ?? [])
-        add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
-    } else if (token.type === "heading_open") {
-      lines(...contentLines, (each) => {
-        out.push(line("lf-md-heading").range(each.from));
-      });
-      for (const [a, b] of markers)
-        add(a, b, token.markup.startsWith("#") ? syntax : dim);
-    } else if (token.type === "fence" || token.type === "code_block") {
-      code.push([from, to]);
-      // Each line of code keeps the indent the parser's reading of it keeps; the rest,
-      // a list item's or an indented block's own four spaces, the message drops.
-      const body = token.content.split("\n");
-      const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
-      lines(from, to, (each) => {
-        const ends = [
-          each.from <= from ? " lf-md-code-first" : "",
-          each.to + 1 >= to ? " lf-md-code-last" : "",
-          token.type === "code_block" ? " lf-md-code-bare" : "",
-        ].join("");
-        out.push(line(`lf-md-code-block${ends}`).range(each.from));
-        const kept = body[each.number - opened];
-        if (kept === undefined || each.number - opened >= body.length - 1) return;
-        const lead = each.text.match(/^[ \t]*/)[0].length;
-        add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
-      });
-      // A fence's lines keep their room, as the message's code keeps its padding.
-      const fence = touches(state, from, to - 1) ? dim : unseen;
-      for (const [a, b] of markers ?? []) add(a, b, fence);
-    } else if (token.type === "blockquote_open") {
-      lines(from, to, (each) => {
-        out.push(line("lf-md-quote").range(each.from));
-      });
-      for (const [a, b] of markers)
-        add(a, b, touches(state, a, b) ? shownMarker : marker);
-    } else if (
-      token.type === "bullet_list_open" ||
-      token.type === "ordered_list_open"
-    ) {
-      while (lists.at(-1)?.to <= from) lists.pop();
-      const ordered = token.type === "ordered_list_open";
-      lists.push({ to, next: ordered ? Number(token.attrGet("start") ?? 1) : null });
-    } else if (token.type === "list_item_open") {
-      while (lists.at(-1)?.to <= from) lists.pop();
-      const list = lists.at(-1);
-      const depth = lists.length;
-      // An item's later lines stand under its words, their indent hidden as the
-      // message drops it, and never revealed, so the words don't jump as the caret
-      // arrives: a paragraph's whole indent, and in code what the code's reading drops
-      // (above). A nested item, read after its parent, takes its own lines.
-      const head = state.doc.lineAt(from);
-      const [at, end] = markers[0];
-      // The marker's own indent stands in the inset with it. A quote's line keeps the
-      // quote's rule and prefix at its start, where the platform's marker can't stand,
-      // so an item there keeps its source marker, drawn as the prefix is.
-      const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
-      if (head.text.slice(0, start - head.from).trim()) {
-        add(start, end, dim);
-        continue;
-      }
-      lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-        items.set(each.from, { depth, continued: true });
-      });
-      const kind =
-        list.next === null
-          ? BULLETS[Math.min(depth, BULLETS.length) - 1]
-          : "lf-md-number";
-      const shown = state.selection.ranges.some(
-        (range) => range.from < end && range.to >= start,
-      );
-      items.set(head.from, { depth, kind: shown ? null : kind, number: list.next });
-      if (list.next !== null) list.next++;
-      add(start, end, shown ? shownMarker : marker);
-    }
-  }
-  for (const [from, { depth, kind, number, continued }] of items) {
-    out.push(itemLine(depth, kind, number).range(from));
-    if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
-    add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
+      else if (token.type === "link_open" && token.meta.linked) add(start, end, link);
+      add(from, start, dim);
+      add(end, to, dim);
+    } else for (const at of escapes ?? []) add(at, at + 1, dim);
   }
   return Decoration.set(out, true);
 }
 
-// The draft is read by the renderer that will send it, so the preview styles exactly what
-// the message will: the same constructs, the same links. The reading is taken again when
-// the words change and the styling when the selection moves. The renderer loads lazily;
-// until it has, the words stand plain, and its arrival draws every open field.
-const livePreview = ViewPlugin.fromClass(
+// The renderer loads lazily; until it has, the words stand plain, and its arrival draws
+// every open field.
+const inlineFaces = ViewPlugin.fromClass(
   class {
     constructor(view) {
       this.live = true;
-      this.placed = read(view.state);
-      this.decorations = decorate(view.state, this.placed);
+      this.decorations = decorate(view.state.doc.toString());
       this.judged = markdownReady();
       if (!this.judged)
         loadMarkdown().then(
@@ -429,11 +255,9 @@ const livePreview = ViewPlugin.fromClass(
     }
     update(update) {
       const judged = markdownReady();
-      if (update.docChanged || judged !== this.judged) {
-        this.judged = judged;
-        this.placed = read(update.state);
-      } else if (!update.selectionSet) return;
-      this.decorations = decorate(update.state, this.placed);
+      if (!update.docChanged && judged === this.judged) return;
+      this.judged = judged;
+      this.decorations = decorate(update.state.doc.toString());
     }
   },
   { decorations: (plugin) => plugin.decorations },
@@ -668,7 +492,7 @@ class LeafText extends HTMLElement {
           ...historyKeymap,
         ]),
         new LanguageSupport(markdownLanguage),
-        livePreview,
+        inlineFaces,
         lastLineRoom,
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(this.#readOnly)),

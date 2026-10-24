@@ -198,58 +198,6 @@ const bundles = {
     entry:
       'export { default as MarkdownIt } from "markdown-it";\n' +
       'export { default as taskLists } from "markdown-it-task-lists";\n',
-    // Record block syntax where native rules consume it. Public maps expose only
-    // lines; guessing delimiters again disagrees with containers and code content.
-    adapt: [
-      {
-        file: /markdown-it\/dist\/markdown-it\.mjs$/,
-        edit: (source) =>
-          [
-            [
-              "var StateBlock = class {",
-              `function sourceSpan(state, line, from, to) {
-                const start = state.src.lastIndexOf("\\n", from - 1) + 1;
-                return [line, from - start, to - start];
-              }
-              var StateBlock = class {`,
-            ],
-            [
-              'const token = state.push("fence", "code", 0);',
-              `const token = state.push("fence", "code", 0);
-          token.meta = { markers: [sourceSpan(state, startLine, state.bMarks[startLine] + state.tShift[startLine], state.eMarks[startLine])] };
-          if (haveEndMarker) token.meta.markers.push(sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], state.eMarks[nextLine]));`,
-            ],
-            [
-              'token_o.markup = "########".slice(0, level);',
-              `token_o.meta = { markers: [sourceSpan(state, startLine, state.bMarks[startLine] + state.tShift[startLine], state.skipSpaces(pos)), sourceSpan(state, startLine, max, state.eMarks[startLine])] };
-          token_o.markup = "########".slice(0, level);`,
-            ],
-            [
-              "token_o.markup = String.fromCharCode(marker);",
-              `token_o.meta = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], state.eMarks[nextLine])] };
-          token_o.markup = String.fromCharCode(marker);`,
-            ],
-            ["const oldBMarks = [];", "const markers = []; const oldBMarks = [];"],
-            [
-              "oldBMarks.push(state.bMarks[nextLine]);\n\t\t\tstate.bMarks[nextLine] = pos;",
-              "markers.push(sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], pos));\n\t\t\toldBMarks.push(state.bMarks[nextLine]);\n\t\t\tstate.bMarks[nextLine] = pos;",
-            ],
-            [
-              'token_o.markup = ">";',
-              'token_o.meta = { markers }; token_o.markup = ">";',
-            ],
-            [
-              'token = state.push("list_item_open", "li", 1);',
-              `token = state.push("list_item_open", "li", 1);
-          token.meta = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], Math.min(posAfterMarker + 1, contentStart))] };`,
-            ],
-          ].reduce(
-            (text, [original, replacement]) =>
-              seam(text, original, replacement, "Markdown block source"),
-            source,
-          ),
-      },
-    ],
   }),
 
   // Load the viewer with its own styles in one optional, exportable module.

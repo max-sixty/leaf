@@ -234,57 +234,6 @@ test("editor tokens retain native constructs and exact source syntax after parse
   );
 });
 
-test("block markers retain native source spans inside containers and fences", async () => {
-  const { loadMarkdown, placedMarkdownTokens } = await import("/runtime/markdown.js");
-  await loadMarkdown();
-  for (const [source, expected] of [
-    [
-      "> - # Heading ##",
-      [
-        ["blockquote_open", ["> "], null],
-        ["list_item_open", ["- "], null],
-        ["heading_open", ["# ", "##"], "> - # Heading ##"],
-      ],
-    ],
-    [
-      "> Heading\n> -------",
-      [
-        ["blockquote_open", ["> ", "> "], null],
-        ["heading_open", ["-------"], "> Heading\n"],
-      ],
-    ],
-    [
-      "lead\r\n\r\n> # Heading",
-      [
-        ["blockquote_open", ["> "], null],
-        ["heading_open", ["# "], "> # Heading"],
-      ],
-    ],
-    ["````\n```\nbody\n````", [["fence", ["````", "````"], null]]],
-    ["~~~\n```\nbody\n~~~", [["fence", ["~~~", "~~~"], null]]],
-    [
-      "> 1. ~~~\n>    ```\n>    body",
-      [
-        ["blockquote_open", ["> ", "> ", "> "], null],
-        ["list_item_open", ["1. "], null],
-        ["fence", ["~~~"], null],
-      ],
-    ],
-  ]) {
-    assert.deepEqual(
-      placedMarkdownTokens(source)
-        .filter(({ markers }) => markers)
-        .map(({ token, markers, contentLines }) => [
-          token.type,
-          markers.filter(([a, b]) => a < b).map(([a, b]) => source.slice(a, b)),
-          contentLines ? source.slice(...contentLines) : null,
-        ]),
-      expected,
-      source,
-    );
-  }
-});
-
 test("preloading an arriving Markdown widget preserves its exact authored body", async () => {
   const { registry } = await import("/runtime/registry.js");
   const { preloadWidgets } = await import("/runtime/widget-loader.js");

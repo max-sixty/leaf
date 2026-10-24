@@ -634,11 +634,14 @@ def test_composer_return_edits_or_sends_according_to_its_keyboard(
     assert [event["text"] for event in comments] == [exact]
 
 
-def test_markdown_decoration_keeps_source_editable(browser, serve):
-    """Headings and code follow the renderer; new bullets render before typing text."""
+def test_a_draft_shows_its_exact_source_with_inline_faces(browser, serve):
+    """The field shows the draft's source as typed: a heading, quote, list and code fence
+    read as their plain text, while inline constructs wear the message's faces with their
+    delimiters dimmed. Native caret movement, undo and list continuation keep the
+    source exact."""
     page = open_page(browser, serve(LONG_PAGE))
     field = page_comment(page)
-    source = "> - # Heading\n\n````\n```\nbody\n````\n\n**end**"
+    source = "> - # Heading\n\n```\nbody\n```\n\n**end** and `code` \\*"
     write(field, source)
     expect(field).to_have_js_property("value", source)
     cdp = page.context.new_cdp_session(page)
@@ -659,53 +662,29 @@ def test_markdown_decoration_keeps_source_editable(browser, serve):
                 "returnByValue": True,
                 "functionDeclaration": """function() {
               return [...this.querySelectorAll('.cm-line')].map(line => ({
-                text: line.textContent, heading: line.classList.contains('lf-md-heading'),
-                syntax: [...line.querySelectorAll('.lf-md-mark, .lf-md-unseen')].map(mark => mark.textContent),
-                strong: line.querySelector('strong')?.textContent,
+                text: line.textContent,
                 listed: getComputedStyle(line).display === 'list-item',
-                shownMarkers: [...line.querySelectorAll('.lf-md-marker:not(.lf-md-unseen)')].map(mark => mark.textContent),
+                faces: [...line.querySelectorAll('strong, code')].map(face => face.textContent),
+                dimmed: [...line.querySelectorAll('.lf-md-mark')].map(mark => mark.textContent),
               }));
             }""",
             },
         )["result"]["value"]
 
     lines = reading()
-    assert lines[0]["heading"] and "Heading" in lines[0]["text"], lines
-    assert lines[3]["text"] == "```" and not lines[3]["syntax"], lines
-    assert lines[2]["syntax"] == ["````"] and lines[5]["syntax"] == ["````"], lines
-    assert lines[-1]["strong"] == "**end**", lines
-    # Native caret movement and undo preserve the exact source, including the
-    # delimiter the renderer reads as literal code.
+    assert [line["text"] for line in lines] == source.split("\n"), lines
+    assert not any(line["listed"] or line["faces"] for line in lines[:-1]), lines
+    assert lines[-1]["faces"] == ["**end**", "`code`"], lines
+    assert lines[-1]["dimmed"] == ["**", "**", "`", "`", "\\"], lines
+    # Native caret movement and undo preserve the exact source.
     page.keyboard.press("ControlOrMeta+Home")
     page.keyboard.press("ArrowRight")
     page.keyboard.insert_text("x")
     page.keyboard.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", source)
-    assert reading()[0]["heading"]
-
-    # Continuing a list already shows its bullet. Typing the first letter must not
-    # be what changes the marker, and moving into its source must still expose it.
+    # Shift+Enter continues a list, and its marker stays typed text.
     write(field, "- First")
     field.press("Shift+Enter")
     expect(field).to_have_js_property("value", "- First\n- ")
-    lines = reading()
-    assert len(lines) == 2, lines
-    assert all(line["listed"] and not line["shownMarkers"] for line in lines), lines
-    field.press("ArrowLeft")
-    assert reading()[-1]["shownMarkers"] == ["- "]
-    field.press("Backspace")
-    expect(field).to_have_js_property("value", "- First\n ")
-    page.keyboard.type("*")
-    expect(field).to_have_js_property("value", "- First\n* ")
-    assert reading()[-1]["shownMarkers"] == ["* "]
-    field.press("ArrowRight")
-    assert reading()[-1]["listed"]
-    page.keyboard.type("Carts")
-    expect(field).to_have_js_property("value", "- First\n* Carts")
-    assert reading()[-1]["listed"]
-    field.press("ArrowLeft")
-    field.press("Backspace")
-    expect(field).to_have_js_property("value", "- First\n* Cars")
-    field.press("ControlOrMeta+z")
-    expect(field).to_have_js_property("value", "- First\n* Carts")
+    assert [line["text"] for line in reading()] == ["- First", "- "]
     cdp.detach()

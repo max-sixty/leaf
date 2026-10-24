@@ -394,13 +394,12 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
 def test_a_draft_wears_the_faces_its_sent_message_wears(
     browser, serve, surface, scheme
 ):
-    """The composer's Markdown preview draws each construct the way the message will.
+    """The composer draws each inline construct the way the message will.
 
-    The preview stands in the field's closed shadow root, where the theme's element
-    rules do not reach, so it reads the faces from the theme's tokens instead of
-    stating its own. It had stated its own from birth: a quote drafted upright with a
-    heavy dark rule was sent italic with a light one, and code sat a size and a chip
-    shape away from how it arrived. DevTools reads the closed root, as it reads any.
+    The field stands in a closed shadow root, where the theme's element rules do not
+    reach, so it reads the faces from the theme's tokens instead of stating its own.
+    It had stated its own from birth, and code sat a size and a chip shape away from
+    how it arrived. DevTools reads the closed root, as it reads any.
     """
     if surface == "outlet":
         url = serve(
@@ -504,9 +503,7 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
     draft = {name: drawn(selector) for name, (_, selector) in FACES.items()}
 
     # Inline constructs are sized against the words around them, and the draft's words
-    # are the box's type where the message's are the body's; a code block is set at the
-    # code size whatever holds it. A draft marks a heading by weight alone, at the size
-    # of its words, so a heading's size is left out.
+    # are the box's type where the message's are the body's.
     def px(value):
         return float(value.removesuffix("px"))
 
@@ -515,8 +512,7 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
         "sent": sent_size,
     }
     for face, which in ((draft, "draft"), (sent, "sent")):
-        del face["heading"]["font-size"]
-        for name in FACES.keys() - {"heading", "code block"}:
+        for name in FACES:
             share = px(face[name]["font-size"]) / px(size[which])
             face[name]["font-size"] = round(share, 3)
     differ = {

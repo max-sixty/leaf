@@ -932,103 +932,30 @@ sheet.replaceSync(`
   :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
     content: none;
   }
-  /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
-     elements themselves, which the platform dresses here as it does in the message;
-     the rest read the theme's tokens, since its element rules stop at this root. A
-     heading is bold, as the platform draws one, at the size of the words around it. A
-     block is drawn line by line, so a code block's frame is each line's sides, closed
-     above its first line and below its last. Syntax that holds its room while the
-     caret is away, as a code fence's line does, is there unseen and unspoken. Its
-     glyphs go unfilled while its colour stays the words', because the caret can stand
-     at the end of unseen text, as just past a new item's marker, and the browser draws
-     it in that text's colour. */
+  /* Inline constructs wear the sent message's faces. Strong, emphasis and strikethrough
+     are the elements themselves, which the platform dresses here as it does in the
+     message; code and links read the theme's tokens, since its element rules stop at
+     this root. */
   .lf-md-mark { color: var(--muted); }
-  .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
     background: var(--code-bg); border-radius: var(--code-inline-r);
     padding: var(--code-inline-pad); box-decoration-break: slice; }
-  .lf-md-heading { font-weight: bold; }
   .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
     text-underline-offset: var(--link-underline-offset); }
-  .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset); color: var(--muted);
-    --lf-marker-inset: var(--quote-inset); }
-  /* A quote's and a list item's words stand where the message's do, and the source's
-     marker stands in the inset before them, unseen while the caret is away, so
-     revealing it moves no word. A list item's lines stand one list inset in per level,
-     under the platform's own list marker, as in the message, so it is the same bullet
-     or number at the same place. */
-  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset));
-    --lf-marker-inset: var(--list-inset); }
-  .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
-    inline-size: var(--lf-marker-inset);
-    margin-inline-start: calc(-1 * var(--lf-marker-inset)); }
-  .lf-md-listed { display: list-item; }
-  .lf-md-disc { list-style-type: disc; }
-  .lf-md-circle { list-style-type: circle; }
-  .lf-md-square { list-style-type: square; }
-  .lf-md-number { list-style-type: decimal; }
-  .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
-    line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
-    font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
-    padding-inline: var(--pre-inset); }
-  .lf-md-code-first { border-block-start: 1px solid var(--code-border);
-    border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
-  .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
-    padding-block-end: 8px; }
-  /* Code with no fence lines takes the message's padding at its ends instead. */
-  .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 var ownerStep = StateEffect2.define();
-var hide = Decoration.replace({});
 var dim = Decoration.mark({ class: "lf-md-mark" });
 var link = Decoration.mark({ class: "lf-md-link" });
-var unseen = Decoration.mark({
-  class: "lf-md-unseen",
-  attributes: { "aria-hidden": "true" }
-});
-var marker = Decoration.mark({
-  class: "lf-md-marker lf-md-unseen",
-  attributes: { "aria-hidden": "true" }
-});
-var shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
-var line = (cls) => Decoration.line({ class: cls });
-var BULLETS = ["lf-md-disc", "lf-md-circle", "lf-md-square"];
-var itemLine = (depth, kind, number) => Decoration.line({
-  class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
-  attributes: {
-    style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}`
-  }
-});
 var INLINE = {
   code_inline: Decoration.mark({ tagName: "code" }),
   em_open: Decoration.mark({ tagName: "em" }),
   strong_open: Decoration.mark({ tagName: "strong" }),
   s_open: Decoration.mark({ tagName: "s" })
 };
-var touches = (state, from, to) => state.selection.ranges.some((range) => range.from <= to && range.to >= from);
-var read = (state) => {
-  return placedMarkdownTokens(state.doc.toString());
-};
-function decorate(state, placed) {
+function decorate(source) {
   const out = [];
-  const lists = [];
-  const items = /* @__PURE__ */ new Map();
-  const code = [];
   const add = (from, to, deco) => {
-    if (from >= to) return;
-    if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
-    out.push(deco.range(from, to));
-  };
-  const lines = (from, to, each) => {
-    for (let at = from; at < to; ) {
-      const current = state.doc.lineAt(at);
-      each(current);
-      at = current.to + 1;
-    }
+    if (from < to) out.push(deco.range(from, to));
   };
   for (const {
     token,
@@ -1036,92 +963,24 @@ function decorate(state, placed) {
     to,
     contentFrom,
     contentTo,
-    escapes,
-    markers,
-    contentLines
-  } of placed) {
-    const syntax = touches(state, from, to) ? dim : hide;
+    escapes
+  } of placedMarkdownTokens(source)) {
     if (token.type === "code_inline" || contentFrom !== void 0) {
-      const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
-      if (words[0] > words[1]) continue;
+      const [start, end] = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
+      if (start > end) continue;
       if (INLINE[token.type]) add(from, to, INLINE[token.type]);
-      else if (token.type === "link_open" && token.meta.linked)
-        add(words[0], words[1], link);
-      add(from, words[0], syntax);
-      add(words[1], to, syntax);
-    } else if (token.type === "text") {
-      for (const at of escapes ?? [])
-        add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
-    } else if (token.type === "heading_open") {
-      lines(...contentLines, (each) => {
-        out.push(line("lf-md-heading").range(each.from));
-      });
-      for (const [a, b] of markers)
-        add(a, b, token.markup.startsWith("#") ? syntax : dim);
-    } else if (token.type === "fence" || token.type === "code_block") {
-      code.push([from, to]);
-      const body = token.content.split("\n");
-      const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
-      lines(from, to, (each) => {
-        const ends = [
-          each.from <= from ? " lf-md-code-first" : "",
-          each.to + 1 >= to ? " lf-md-code-last" : "",
-          token.type === "code_block" ? " lf-md-code-bare" : ""
-        ].join("");
-        out.push(line(`lf-md-code-block${ends}`).range(each.from));
-        const kept = body[each.number - opened];
-        if (kept === void 0 || each.number - opened >= body.length - 1) return;
-        const lead = each.text.match(/^[ \t]*/)[0].length;
-        add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
-      });
-      const fence = touches(state, from, to - 1) ? dim : unseen;
-      for (const [a, b] of markers ?? []) add(a, b, fence);
-    } else if (token.type === "blockquote_open") {
-      lines(from, to, (each) => {
-        out.push(line("lf-md-quote").range(each.from));
-      });
-      for (const [a, b] of markers)
-        add(a, b, touches(state, a, b) ? shownMarker : marker);
-    } else if (token.type === "bullet_list_open" || token.type === "ordered_list_open") {
-      while (lists.at(-1)?.to <= from) lists.pop();
-      const ordered = token.type === "ordered_list_open";
-      lists.push({ to, next: ordered ? Number(token.attrGet("start") ?? 1) : null });
-    } else if (token.type === "list_item_open") {
-      while (lists.at(-1)?.to <= from) lists.pop();
-      const list = lists.at(-1);
-      const depth = lists.length;
-      const head = state.doc.lineAt(from);
-      const [at, end] = markers[0];
-      const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
-      if (head.text.slice(0, start - head.from).trim()) {
-        add(start, end, dim);
-        continue;
-      }
-      lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-        items.set(each.from, { depth, continued: true });
-      });
-      const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
-      const shown = state.selection.ranges.some(
-        (range) => range.from < end && range.to >= start
-      );
-      items.set(head.from, { depth, kind: shown ? null : kind, number: list.next });
-      if (list.next !== null) list.next++;
-      add(start, end, shown ? shownMarker : marker);
-    }
-  }
-  for (const [from, { depth, kind, number, continued }] of items) {
-    out.push(itemLine(depth, kind, number).range(from));
-    if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
-    add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
+      else if (token.type === "link_open" && token.meta.linked) add(start, end, link);
+      add(from, start, dim);
+      add(end, to, dim);
+    } else for (const at of escapes ?? []) add(at, at + 1, dim);
   }
   return Decoration.set(out, true);
 }
-var livePreview = ViewPlugin.fromClass(
+var inlineFaces = ViewPlugin.fromClass(
   class {
     constructor(view) {
       this.live = true;
-      this.placed = read(view.state);
-      this.decorations = decorate(view.state, this.placed);
+      this.decorations = decorate(view.state.doc.toString());
       this.judged = markdownReady();
       if (!this.judged)
         loadMarkdown().then(
@@ -1135,11 +994,9 @@ var livePreview = ViewPlugin.fromClass(
     }
     update(update) {
       const judged = markdownReady();
-      if (update.docChanged || judged !== this.judged) {
-        this.judged = judged;
-        this.placed = read(update.state);
-      } else if (!update.selectionSet) return;
-      this.decorations = decorate(update.state, this.placed);
+      if (!update.docChanged && judged === this.judged) return;
+      this.judged = judged;
+      this.decorations = decorate(update.state.doc.toString());
     }
   },
   { decorations: (plugin) => plugin.decorations }
@@ -1323,7 +1180,7 @@ var LeafText = class extends HTMLElement {
           ...historyKeymap
         ]),
         new LanguageSupport(markdownLanguage),
-        livePreview,
+        inlineFaces,
         lastLineRoom,
         EditorView2.lineWrapping,
         this.#editable.of(EditorState2.readOnly.of(this.#readOnly)),
@@ -3336,14 +3193,14 @@ function createVersionController({
       }
       authoredHeadNodes = next;
     }
-    let marker2 = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
-    if (!marker2) {
-      marker2 = document.createElement("meta");
-      marker2.name = "lf-revision";
-      marker2.dataset.lfRuntime = "1";
-      document.head.append(marker2);
+    let marker = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
+    if (!marker) {
+      marker = document.createElement("meta");
+      marker.name = "lf-revision";
+      marker.dataset.lfRuntime = "1";
+      document.head.append(marker);
     }
-    marker2.content = String(revision.revision);
+    marker.content = String(revision.revision);
   }
   const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
   function widgetKeys(source) {
@@ -5092,8 +4949,8 @@ function createStateFeed({
     await invalidateDom2();
     await tick();
   }
-  async function readAndApply(read2 = buffer(STATE_READ_TIMEOUT_MS)) {
-    const answer = await read2;
+  async function readAndApply(read = buffer(STATE_READ_TIMEOUT_MS)) {
+    const answer = await read;
     if ("error" in answer) throw answer.error;
     const { state, fault } = answer;
     if (!state) {
@@ -5279,7 +5136,7 @@ function createPendingLedger({ newAttempt, enqueue }) {
       const attempted = { ...event, attempt: event.attempt || newAttempt() };
       if (applicationState.entry(attempted.attempt)) return null;
       const { promise: answer, resolve } = Promise.withResolvers();
-      const { promise: read2, resolve: resolveRead } = Promise.withResolvers();
+      const { promise: read, resolve: resolveRead } = Promise.withResolvers();
       const current = () => applicationState.entry(attempted.attempt);
       const handle = {
         get event() {
@@ -5289,7 +5146,7 @@ function createPendingLedger({ newAttempt, enqueue }) {
           return current()?.admitted ?? null;
         },
         answer,
-        read: read2,
+        read,
         resolve(value) {
           resolve(value);
           handles.delete(attempted.attempt);
@@ -5925,7 +5782,7 @@ function createThreadPresentation({
   openThread,
   continueThread,
   threadAt,
-  read: read2
+  read
 }) {
   let primary = null;
   const presenter = applicationPresenter({
@@ -5952,7 +5809,7 @@ function createThreadPresentation({
   };
   async function renderReading(cancelled, presenting, resume) {
     const generation = ++surfaceGeneration;
-    read2.begin();
+    read.begin();
     const current = () => generation === surfaceGeneration && presenting();
     const batch = beginThreadSeats();
     const restorePlace2 = holdThreadPlace(openThread, {
@@ -6004,7 +5861,7 @@ function createThreadPresentation({
             surfaceView.composition.finishPlacement();
             d(renderAnnotations);
             pageGeometry.pageShifted();
-            read2.present();
+            read.present();
             void continueReplies(restorePlace2).catch(
               (error) => reportPageError(error, `Reply continuation failed`)
             );
@@ -6016,7 +5873,7 @@ function createThreadPresentation({
       surfaces?.cancel();
       if (!current()) throw error;
       anchorControls.withholdVisualActions();
-      read2.abort();
+      read.abort();
       primary?.cancel();
       if (!current()) return;
       retainThreadSeats(batch);
@@ -7794,7 +7651,7 @@ function mountApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
-  const read2 = createReadTracking({
+  const read = createReadTracking({
     markRead,
     openThread: openPageThread
   });
@@ -7829,7 +7686,7 @@ function mountApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
-    read: read2,
+    read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread
   };
@@ -7933,7 +7790,7 @@ function mountApplication(dependencies) {
     // The thread a margin entry stands for, which a user on it goes on with when the
     // thread leaves the margin.
     threadAt: (node) => overlay?.entryThread(node) ?? null,
-    read: read2
+    read
   });
   const accountPending = (receipts) => {
     ledger.present(receipts);
@@ -8121,8 +7978,8 @@ function mountApplication(dependencies) {
     mountAnnotations,
     overlay,
     threadDestinations,
-    read: read2,
-    mountRead: read2.mount,
+    read,
+    mountRead: read.mount,
     registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, false),
     registerChromeThreadPresentation: (owner, spec) => presentThreads(owner, spec, true),
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
@@ -8372,7 +8229,7 @@ function createWidgetController(owner) {
   const pendingPreparations = /* @__PURE__ */ new Map();
   let preparation = null;
   let preparationBatch = null;
-  const read2 = () => descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
+  const read = () => descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
   const prepared = () => {
     if (!preparationHandle && owner.isConnected)
       preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
@@ -8410,12 +8267,12 @@ function createWidgetController(owner) {
   };
   watchOwner(owner, { connect, disconnect });
   return Object.freeze({
-    read: read2,
+    read,
     dispatch(command) {
       if (!descriptorStillMatches(owner, descriptor)) return null;
       const delivery = dispatchWidget(descriptor, command);
       if (!delivery) return null;
-      return immutable({ reading: read2(), delivery });
+      return immutable({ reading: read(), delivery });
     },
     // Hold the widget's drawing through a gesture that rewrites its nodes; the release
     // draws the newest reading at once and returns it.
@@ -8428,16 +8285,16 @@ function createWidgetController(owner) {
       const release = drawing.hold();
       let released = false;
       return () => {
-        if (released) return read2();
+        if (released) return read();
         released = true;
         deferred = false;
         release();
         invalidateDom();
-        return read2();
+        return read();
       };
     },
     present(promise) {
-      const value = read2();
+      const value = read();
       if (!preparationBatch || preparationBatch.value !== value) {
         preparationBatch = { value, promises: [] };
       }
@@ -8688,11 +8545,11 @@ var LeafElement = class extends q(UpdateBoundary) {
   }
   /** Finish this render when its presentation prerequisites are ready. Readiness
    * does not claim another presentation, which would invalidate its own proof. */
-  whenReady(read2) {
-    if (d(read2)) return true;
+  whenReady(read) {
+    if (d(read)) return true;
     if (!this.#stopReadiness) {
       this.#stopReadiness = watchPresentation(() => {
-        if (!d(read2)) return;
+        if (!d(read)) return;
         this.#stopReadiness?.();
         this.#stopReadiness = null;
         super.requestUpdate();
@@ -8796,10 +8653,10 @@ var LeafElement = class extends q(UpdateBoundary) {
   }
   /** The bound reading of a declared `x-data` input, one copy a delivery (data.js). */
   data(input) {
-    let read2 = this.#data.get(input);
-    if (!read2)
-      this.#data.set(input, read2 = dataReader(this, input, () => this.#stage()));
-    return read2();
+    let read = this.#data.get(input);
+    if (!read)
+      this.#data.set(input, read = dataReader(this, input, () => this.#stage()));
+    return read();
   }
   // The controller's `defer` for this widget, which refuses a second hold and releases
   // once: hold its presentation through a gesture that rewrites its nodes; the release

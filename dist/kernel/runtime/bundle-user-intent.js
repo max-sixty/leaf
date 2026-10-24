@@ -1699,23 +1699,12 @@ function placedMarkdownTokens(source) {
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
-  for (const [index, token] of tokens2.entries()) {
+  for (const token of tokens2) {
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
-      if (token.map && (token.nesting === 1 || token.type === "fence" || token.type === "code_block"))
-        found.push({
-          token,
-          from,
-          to,
-          markers: token.meta?.markers?.map(([line, a, b]) => [
-            starts[line] + a,
-            starts[line] + b
-          ]),
-          // A heading's inline token owns its content lines, excluding Setext syntax.
-          contentLines: token.type === "heading_open" ? tokens2[index + 1].map.map((at) => starts[at]) : void 0,
-          words: token.nesting ? null : token.content
-        });
+      if (token.type === "fence" || token.type === "code_block")
+        found.push({ token, from, to, words: token.content });
       continue;
     }
     const positions = inlineSourcePositions(

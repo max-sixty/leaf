@@ -284,3 +284,6 @@ export { heldGrowth } from "./thread/held-news.js";
 export { PRESSABLE } from "./widget-elements.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
+// A region's open obligations by whose turn each is, in the words `lf-tally` and
+// `lf-deck` both show.
+export { tally, tallyWords } from "./obligations/tally.js";

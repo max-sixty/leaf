@@ -1,0 +1,120 @@
+:scope:is(lf-deck) {
+  --lf-deck-bar-h: calc(var(--lf-line) + var(--sp-2));
+  --lf-deck-edge: 6px;
+  display: block;
+  position: relative;
+  margin-block: var(--sp-3);
+}
+/* A leaving card flies out past the deck's sides; clip it there, not above or below,
+   and only while it flies, so the open card's focus ring stands whole. */
+:scope:is(lf-deck)[data-lf-deck-flying] {
+  overflow-x: clip;
+}
+
+.lf-deck-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-block-size: var(--lf-deck-bar-h);
+  font: var(--t-6) / 1.4 var(--sans);
+  color: var(--muted);
+}
+.lf-deck-count {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.lf-deck-pips {
+  display: flex;
+  flex: 1;
+  gap: 3px;
+  min-inline-size: 0;
+}
+.lf-deck-pip {
+  flex: 1;
+  max-inline-size: 28px;
+  block-size: 4px;
+  border-radius: 2px;
+  background: var(--rule);
+}
+.lf-deck-pip[data-state="done"] {
+  background: var(--ok);
+}
+.lf-deck-pip[data-state="agent"] {
+  background: var(--muted-2);
+}
+.lf-deck-pip[data-state="open"] {
+  background: var(--ink-2);
+}
+.lf-deck-forward {
+  margin-inline-start: auto;
+}
+
+/* Where the runtime runs, the open card stands alone in its frame, with the edges of
+   the cards still waiting under it. Before upgrade the card the deck will open on
+   (`data-lf-opening`) stands so already, below the bar's room. Elsewhere, as after a
+   failed startup or on paper, the cards stand one after another. */
+@media screen {
+  @scope (html[data-lf-interactive] :scope) {
+    /* The room under the open card holds the edges of the cards waiting under it. */
+    :scope:is(lf-deck) {
+      padding-block-end: calc(2 * var(--lf-deck-edge));
+    }
+    :scope:is(lf-deck):not(.lf-rendered) {
+      padding-block-start: var(--lf-deck-bar-h);
+    }
+    :scope:is(lf-deck):not(.lf-rendered)[data-lf-views] > :not([data-lf-opening]) {
+      display: none;
+    }
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-open],
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-leaving],
+    :scope:is(lf-deck):not(.lf-rendered) > [data-lf-opening] {
+      display: block;
+      box-sizing: border-box;
+      margin: 0;
+      padding: var(--sp-3) var(--sp-4);
+      border: 1px solid var(--rule);
+      border-radius: var(--r);
+      background: var(--card);
+      --lf-deck-first-edge:
+        0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2) var(--card),
+        0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2 + 1px) var(--rule);
+      --lf-deck-second-edge:
+        0 calc(2 * var(--lf-deck-edge)) 0 calc(-1 * var(--lf-deck-edge)) var(--card),
+        0 calc(2 * var(--lf-deck-edge)) 0 calc(-1 * var(--lf-deck-edge) + 1px)
+          var(--rule);
+      /* A sideways touch drag is the card's; a vertical one still scrolls the page. */
+      touch-action: pan-y;
+    }
+    :scope:is(lf-deck) > :is([data-lf-deck-open], [data-lf-opening]) > :first-child {
+      margin-block-start: 0;
+    }
+    :scope:is(lf-deck) > :is([data-lf-deck-open], [data-lf-opening]) > :last-child {
+      margin-block-end: 0;
+    }
+    :scope:is(lf-deck)[data-lf-deck-behind="1"] > [data-lf-deck-open] {
+      box-shadow: var(--lf-deck-first-edge);
+    }
+    :scope:is(lf-deck)[data-lf-deck-behind="2"] > [data-lf-deck-open] {
+      box-shadow: var(--lf-deck-first-edge), var(--lf-deck-second-edge);
+    }
+    /* A card that just came up takes no press until it settles, so a quick second
+       click meant for the card that left doesn't answer it. */
+    :scope:is(lf-deck) > [data-lf-deck-settling] {
+      pointer-events: none;
+    }
+    /* A leaving card keeps its box over the deck while the next comes up beneath it. */
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-leaving] {
+      position: absolute;
+      inset-inline: 0;
+      inset-block-start: var(--lf-deck-leave-top);
+      z-index: 1;
+      pointer-events: none;
+    }
+    /* until-found keeps a hidden card's own box in flow; zero it. */
+    :scope:is(lf-deck).lf-rendered > [hidden="until-found"] {
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+  }
+}

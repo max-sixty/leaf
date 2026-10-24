@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Catch up on a release, one card at a time</title>
+    <meta
+      name="description"
+      content="Work through six release decisions one card at a time with Leaf's deck: answer a card and the next comes up, or leave it for later."
+    />
+  </head>
+  <body>
+    <main class="layout-column">
+      <hgroup id="deck-title">
+        <p class="eyebrow">deck package</p>
+        <h1>What's left before Friday's release</h1>
+      </hgroup>
+      <p class="lede" id="deck-lede">
+        Six things wait on you. Answer a card and the next comes up; Later leaves one
+        for the end.
+      </p>
+      <lf-deck id="deck-catch-up">
+        <lf-ask id="deck-store-ask">
+          <h3>Which session store ships in 2.4?</h3>
+          <p>
+            Postgres removed the Redis hop in load tests (p99 41 ms to 29 ms) but needs
+            the migration in the runbook. Redis is what production runs today.
+          </p>
+          <lf-options id="deck-store-choice" choose>
+            <lf-option id="deck-store-redis"
+              ><strong>Keep Redis</strong> No migration this release.</lf-option
+            >
+            <lf-option id="deck-store-pg"
+              ><strong>Move sessions to Postgres</strong> Run the migration
+              Thursday.</lf-option
+            >
+          </lf-options>
+        </lf-ask>
+        <section id="deck-notes-card">
+          <h3>Tighten the upgrade note?</h3>
+          <lf-suggestion id="deck-notes-suggestion">
+            <lf-old
+              ><p id="deck-notes-old">
+                Users upgrading from 2.2 or earlier should be aware that they may need
+                to clear their cache in some cases.
+              </p></lf-old
+            >
+            <lf-new
+              ><p>
+                Upgrading from 2.2 or earlier? Clear the cache once after installing.
+              </p></lf-new
+            >
+          </lf-suggestion>
+        </section>
+        <lf-ask id="deck-beta-ask">
+          <h3>Which platforms get the 2.4 beta?</h3>
+          <p>Each platform adds a day of smoke testing.</p>
+          <lf-options id="deck-beta-choice" choose multiple>
+            <lf-option id="deck-beta-mac">macOS</lf-option>
+            <lf-option id="deck-beta-linux">Linux</lf-option>
+            <lf-option id="deck-beta-win">Windows</lf-option>
+          </lf-options>
+        </lf-ask>
+        <lf-ask id="deck-support-ask">
+          <h3>Reply to the support thread about slow logins</h3>
+          <p>Edit the reply; it goes out under your name.</p>
+          <lf-draft id="deck-support-draft" needed>
+            <pre>
+      Thanks for the report. 2.4 moves session lookups off the slow path; logins should feel faster from Friday.</pre>
+          </lf-draft>
+        </lf-ask>
+        <lf-ask id="deck-retry-ask">
+          What retry ceiling should the client use? Today it retries forever; the load
+          test stayed healthy up to five.
+        </lf-ask>
+        <lf-approval id="deck-publish-approval">
+          <h3>Post the release notes to #eng on Friday?</h3>
+          <p>Posts the notes, with the upgrade note as you leave it.</p>
+        </lf-approval>
+      </lf-deck>
+      <p id="deck-after">The rest of the page goes on below the deck.</p>
+    </main>
+  </body>
+</html>

@@ -190,6 +190,7 @@ In flow it lists every included heading; where the margin has room it may show t
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user |
 | **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or obligation, which it arranges without owning |
 | **Tally** | `lf-tally`: how many of a region's obligations (`obligationsIn`) are still open and whose turn each is, “2 of 8 to answer · 1 on Claude”, with an optional Next on me that walks the region's obligations waiting on the user |
+| **Deck** | `lf-deck`: cards worked through one at a time, each holding its own obligations. A card the server no longer reads as waiting on the user moves on by itself; **Later** leaves one waiting for the end of the pass and records nothing, and **Back** returns to the card before |
 | **Resend** | An update a harness handed back to the user to send again: its obligation stays in On me, next actor the user, until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them; it writes `todo_end`. A widget may also call its own submit control Done |
 | **Done items** | The items that left either list, under a Done heading at the foot of the On view |

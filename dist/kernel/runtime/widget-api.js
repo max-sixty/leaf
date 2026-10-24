@@ -1188,6 +1188,26 @@ function connection(name) {
   };
 }
 
+// runtime/obligations/tally.js
+function tally(held2) {
+  const open = held2.filter((item) => item.status === "open");
+  return {
+    onUser: open.filter((item) => item.next_actor === "user").length,
+    onAgent: open.filter((item) => item.next_actor === "agent").length,
+    open: open.length,
+    total: held2.length
+  };
+}
+function tallyWords({ onUser, onAgent, open, total }, agent) {
+  if (!total) return "Nothing to answer";
+  if (onUser && onAgent)
+    return `${onUser} of ${total} to answer \xB7 ${onAgent} on ${agent}`;
+  if (onUser) return `${onUser} of ${total} to answer`;
+  if (onAgent) return `${onAgent} of ${total} on ${agent}`;
+  if (open) return `${open} of ${total} open`;
+  return total === 1 ? "Answered" : `All ${total} answered`;
+}
+
 // runtime/widget-api.js
 async function mountSample(frame, options) {
   const owner = await import("./bundle-sample.js");
@@ -1421,6 +1441,8 @@ export {
   synNodes,
   syntax,
   tabStore,
+  tally,
+  tallyWords,
   textNodesUnder,
   threadActions,
   threadBox,

@@ -2061,7 +2061,7 @@ function createRegionCapture({ parent, visibleTargets, openComposerWithMedia, cl
 				});
 				document.documentElement.setAttribute("data-lf-region-capture", "");
 				removeScope = pageScope("region capture", {
-					title: "In area capture",
+					title: "Drag an area to capture",
 					escape: "inner",
 					at: () => Boolean(selector),
 					claims: allButCommandReference,
@@ -3354,8 +3354,8 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		id: "target.picker.open",
 		keys: ["s"],
 		description: () => bindings(TARGET_HINT_TYPE).length ? "Choose an element by pressing it or typing its hint, then comment" : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
-		title: "select element",
-		touch: "Select element",
+		title: "comment on an element",
+		touch: "Comment on an element",
 		menu: "annotate",
 		when: canChoose,
 		run: (...args) => openTargetPicker(...args)
@@ -5092,8 +5092,7 @@ const GROUPS = Object.freeze({
 });
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
-const PICK = "command:target.picker.open";
-const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && !(entry.key === PICK && advertisesKeys());
+const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key);
 let copyRefused = false;
 const canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
 const groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;
@@ -5136,7 +5135,7 @@ var FloatingPanel = class extends LeafElement {
 	}
 };
 customElements.define("leaf-floating-panel", FloatingPanel);
-function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject }) {
+function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
 	const ease = () => motionEasing("--lf-motion-panel-ease", host);
@@ -5336,6 +5335,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return errorsReading().filter((error) => !error.passed && error.subject === null);
 	}
 	let selectedWords = null;
+	const HIDDEN = "Annotations hidden";
+	const hiddenLead = () => annotationsHidden() ? `${HIDDEN} · ` : "";
 	function fieldReading(key, input) {
 		const [error] = sayable();
 		if (error) return {
@@ -5371,11 +5372,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		if (stance) return {
 			says: "stance",
-			words: stance
+			words: annotationsHidden() ? `${stance} · ${HIDDEN}` : stance
 		};
 		if (!key) return {
 			says: "status",
-			words: status().summary
+			words: hiddenLead() + status().summary
 		};
 		return {
 			says: "turn",
@@ -5411,7 +5412,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			hint: () => saying(null, input),
 			hintParts: () => {
 				const parts = status().summaryParts;
-				return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
+				return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? [hiddenLead(), ...statusParts(parts)] : null;
 			},
 			accessibleName: () => general && fieldReading(null, input).says === "selection" ? "Comment on the selection" : "Comment on the page",
 			sends: "send",
@@ -6907,7 +6908,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}));
 		}}
             >
-              ${inMessage ? "In its message" : "On the page"}
+              ${inMessage ? "Show in message" : "Show on page"}
             </button>` : nothing}<button
         type="button"
         class="lf-fp-face lf-fp-icon-btn lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
@@ -7492,7 +7493,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				if (thread.anchor && !(part === "message" && shown)) {
 					if (!last) {
 						unplaced.delete(thread.key);
-						if (shown) close();
+						if (top?.thread) close();
 						return false;
 					}
 					unplaced.add(thread.key);
@@ -10573,7 +10574,8 @@ floatingPanel = createFloatingPanel({
 	withdraw: app.withdraw,
 	settlement: app.settlement,
 	placedAt: anchorPlacement.placedAt,
-	openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options)
+	openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options),
+	annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false
 });
 const generalComment = floatingPanel.pageComment;
 const passageSelection = createPassageSelection({ restore: anchorTravel.restoreSelection });

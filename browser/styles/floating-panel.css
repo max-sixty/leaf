@@ -1267,7 +1267,7 @@
     gap: 4px;
     margin: 0 0 12px;
   }
-  /* The quote here only says what the thread is about: "On the page" in the head is the
+  /* The quote here only says what the thread is about: "Show on page" at the foot is the
      way to the words, so it takes no press, no aim's room and no title naming a jump; a
      detached quote's title still says where its words went. The head names it, so the
      rule outranks a card's `.lf-quote` (chrome.css), which this file comes ahead of.

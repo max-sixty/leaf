@@ -1,5 +1,5 @@
 import { SVG_NS, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-target-paint.js";
-import { bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
+import { Z, bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, tabStops, under } from "./bundle-dom-move.js";
 import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, setRuntimeRootAttribute, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-layer-client.js";
 import { whenDocumentPresented } from "./bundle-context.js";
@@ -824,9 +824,9 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 
 //#endregion
 //#region runtime/annotation-overlay/annotation-layer.js
-let hidden = false;
+const hidden = Z(false);
 const watchers = /* @__PURE__ */ new Set();
-const annotationsHidden = () => hidden;
+const annotationsHidden = () => hidden.value;
 function watchAnnotations(watcher) {
 	watchers.add(watcher);
 }
@@ -834,19 +834,19 @@ function mountAnnotationControls() {
 	pageCommand({
 		id: "annotations.toggle",
 		keys: ["o"],
-		title: () => hidden ? "show annotations" : "hide annotations",
-		touch: () => hidden ? "Show annotations" : "Hide annotations",
+		title: () => hidden.value ? "show annotations" : "hide annotations",
+		touch: () => hidden.value ? "Show annotations" : "Hide annotations",
 		menu: "annotate",
 		when: () => watchers.size > 0,
 		run: () => {
-			setAnnotationsHidden(!hidden);
-			notice(!hidden ? "Annotations shown" : coarsePointer.matches ? "Annotations hidden" : "Annotations hidden. o shows them");
+			setAnnotationsHidden(!hidden.value);
+			notice(!hidden.value ? "Annotations shown" : coarsePointer.matches ? "Annotations hidden" : "Annotations hidden. o shows them");
 		}
 	});
 }
 function setAnnotationsHidden(on) {
-	if (on === hidden) return;
-	hidden = on;
+	if (on === hidden.value) return;
+	hidden.value = on;
 	setRuntimeRootAttribute(document.documentElement, "data-lf-annotations", on ? "hidden" : null);
 	tabStore.set(ANNOTATIONS_KEY, on ? "hidden" : null);
 	for (const watcher of watchers) watcher(on);
@@ -2758,4 +2758,4 @@ function postedDrawings(threads, anchors) {
 }
 
 //#endregion
-export { createAnchorPaint, createFloatingResponsePlacement, createMarginProjection, createVisualMarkPaint, floatingSelections, mountAnnotationControls, postedDrawings, restoreAnnotations, syncMarginContentLayout };
+export { annotationsHidden, createAnchorPaint, createFloatingResponsePlacement, createMarginProjection, createVisualMarkPaint, floatingSelections, mountAnnotationControls, postedDrawings, restoreAnnotations, syncMarginContentLayout };

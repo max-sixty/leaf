@@ -1,4 +1,4 @@
-import { closeLayer, focusDestination, focused, handBack, keeps, keepsText, nextRender } from "./bundle-dom-move.js";
+import { closeLayer, focusDestination, focused, handBack, keeps, keepsHidden, keepsText, nextRender } from "./bundle-dom-move.js";
 import { clamp, el, layoutWindow, notice, paintKeys, raiseError } from "./bundle-layer-client.js";
 import { runtime } from "./bundle-context.js";
 import { pageImage } from "./bundle-page-image2.js";
@@ -19,18 +19,18 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 	const status = el("p", "lf-live lf-region-status");
 	status.setAttribute("role", "status");
 	overlay.append(selection, status);
-	const { right: width, bottom: height } = layoutWindow();
-	let box = {
-		x: Math.round(width * .2),
-		y: Math.round(height * .2),
-		width: Math.round(width * .6),
-		height: Math.round(height * .5)
-	};
+	let box = null;
 	let drag = null;
 	let busy = false;
 	let attempt = 0;
 	let ended = false;
 	function paint() {
+		keepsHidden(selection, !box);
+		if (!box) {
+			keepsText(status, "");
+			paintKeys();
+			return;
+		}
 		selection.style.left = `${box.x}px`;
 		selection.style.top = `${box.y}px`;
 		selection.style.width = `${box.width}px`;
@@ -40,6 +40,7 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 	}
 	function fit() {
 		if (ended) return;
+		if (!box) return paint();
 		const { right, bottom } = layoutWindow();
 		box.width = clamp(box.width, MIN_SIZE, right);
 		box.height = clamp(box.height, MIN_SIZE, bottom);
@@ -64,6 +65,16 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 		fit();
 	}
 	function move(binding) {
+		if (!box) {
+			const { right: width, bottom: height } = layoutWindow();
+			box = {
+				x: Math.round(width * .2),
+				y: Math.round(height * .2),
+				width: Math.round(width * .6),
+				height: Math.round(height * .5)
+			};
+			return fit();
+		}
 		const resizing = binding.startsWith("Shift+");
 		const key = binding.split("+").at(-1);
 		const dx = key === "ArrowLeft" ? -10 : key === "ArrowRight" ? STEP : 0;
@@ -172,7 +183,7 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 			keys: ["Enter"],
 			title: "Attach capture",
 			touch: false,
-			when: () => !ended && !busy && !drag,
+			when: () => !ended && !busy && !drag && Boolean(box),
 			run: capture
 		},
 		{

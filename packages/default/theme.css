@@ -1080,10 +1080,9 @@
   }
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-ref {
-  display: table-cell;
-  width: 0;
-  white-space: nowrap;
-  vertical-align: middle;
+  float: inline-end;
+  margin-inline-start: var(--lf-row-gap);
+  line-height: 1lh;
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-pick {
   position: absolute;

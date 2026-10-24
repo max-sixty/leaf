@@ -279,6 +279,11 @@
      rail below is sized from the same length, so it is named rather than written into
      each. */
   --margin-entry: max(32px, var(--aim-floor));
+  /* A margin entry's corner is a button's (`--r`), so a response pressed in the
+     selection toolbar keeps its face when it lands in the margin, and the margin's
+     controls read as the theme's other controls rather than as a separate family of
+     discs. A pin squares the same corners (annotation-theme.css). */
+  --margin-entry-r: var(--r);
   /* A corner mark's disc (controls.css, `.lf-corner-mark`). A surface that keeps room
      for the marks on its corners reads it, so it is named rather than written there. */
   --corner-mark: 20px;
@@ -2031,7 +2036,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   min-height: var(--margin-entry);
   padding: 0;
   border: 1px solid var(--border-2);
-  border-radius: 50%;
+  border-radius: var(--margin-entry-r);
   background: var(--lf-entry-tint, var(--paper));
   color: var(--lf-entry-ink, var(--ink-2));
   flex: 0 0 auto;
@@ -2048,7 +2053,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 /* A margin entry carries one of three promises on the same paper surface.
    An action's heavier ring and lower shadow say this press acts now; a disclosure's
    firmer single ring says it opens context; read-only status keeps only the page's
-   ghost hairline. All three keep one circular silhouette and one place in the cluster,
+   ghost hairline. All three keep one silhouette and one place in the cluster,
    while the static status alone has no raised or responsive material. */
 .lf-margin-entry[data-lf-behavior="action"] {
   border-width: 2px;
@@ -2182,7 +2187,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   --lf-agent-stage-shadow: var(--lf-entry-lift);
 }
 /* Unread agent content marks the entry the way it marks the Threads toggle: a dot
-   painted inside the box the entry already reserves, so it adds no width. */
+   painted inside the box the entry already reserves, so it adds no width. It sits on
+   the entry's corner, over its border, so a paper ring parts the two. */
 .lf-margin-entry[data-lf-unread]::after {
   content: "";
   position: absolute;
@@ -2192,6 +2198,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 0 2px var(--paper);
 }
 .lf-margin-entry-glyph {
   line-height: 1;

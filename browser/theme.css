@@ -1302,6 +1302,7 @@
   --lf-reach-room: max(0px, (var(--aim-floor) - var(--lf-line)) / 2);
   --entry-floor: 0px;
   --margin-entry: max(32px, var(--aim-floor));
+  --margin-entry-r: var(--r);
   --corner-mark: 20px;
   --pin-inset: 4px;
   --margin-gap: 4px;
@@ -2124,7 +2125,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   min-height: var(--margin-entry);
   padding: 0;
   border: 1px solid var(--border-2);
-  border-radius: 50%;
+  border-radius: var(--margin-entry-r);
   background: var(--lf-entry-tint, var(--paper));
   color: var(--lf-entry-ink, var(--ink-2));
   flex: 0 0 auto;
@@ -2228,6 +2229,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 0 2px var(--paper);
 }
 .lf-margin-entry-glyph {
   line-height: 1;

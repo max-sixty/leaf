@@ -133,7 +133,9 @@
   flex: none;
   border-radius: 2px;
 }
-@container lf-shot (max-width: 540px) {
+/* The source blocks and controls fit one row down to this width, including
+   touch targets. Reserve a second row only below that combined width. */
+@container lf-shot (max-width: 450px) {
   .lf-shot-toolbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "actions actions" "before after";

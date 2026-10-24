@@ -1547,6 +1547,13 @@ STATES = (
         region="#bg-shot",
     ),
     State(
+        "screenshot-comparison-compact",
+        "developer/feature-gallery",
+        screenshot_comparison,
+        viewport=(544, 844),
+        region="#bg-shot",
+    ),
+    State(
         "screenshot-comparison-phone",
         "developer/feature-gallery",
         screenshot_comparison,

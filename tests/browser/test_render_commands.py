@@ -252,7 +252,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
           '.lf-shot-views button, .lf-shot-tools > button'
         )].map(box), stageTop: box(node.querySelector('.lf-shotstage')).y};
     }"""
-    for width in (390, 1000):
+    for width in (390, 500, 1000):
         page.set_viewport_size({"width": width, "height": 844})
         shot.get_by_role("button", name="Slider", exact=True).click()
         toolbar.scroll_into_view_if_needed()

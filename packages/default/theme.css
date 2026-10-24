@@ -129,7 +129,7 @@
   flex: none;
   border-radius: 2px;
 }
-@container lf-shot (max-width: 540px) {
+@container lf-shot (max-width: 450px) {
   .lf-shot-toolbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "actions actions" "before after";

@@ -7,17 +7,6 @@
       content="Review supplied worktrees in expandable rows, with contextual diffs, paths, commit details and optional agent commentary."
     />
     <style>
-      main.worktree-example {
-        --measure: 1000px;
-        max-width: 1160px;
-        width: 100%;
-        padding: 32px 28px 72px;
-        margin-inline: auto;
-        box-sizing: border-box;
-      }
-      main.worktree-example > * {
-        max-width: none;
-      }
       #worktree-example-intro h1 {
         font-size: 32px;
         letter-spacing: -0.025em;
@@ -55,9 +44,6 @@
         font: 13px var(--sans);
       }
       @media (max-width: 600px) {
-        main.worktree-example {
-          padding: 20px 12px 60px;
-        }
         #worktree-example-intro h1 {
           font-size: 26px;
         }
@@ -68,7 +54,7 @@
     </style>
   </head>
   <body>
-    <main class="layout-column worktree-example">
+    <main class="layout-column">
       <header id="worktree-example-intro" class="worktree-example-intro">
         <h1>Worktree diffs</h1>
         <p>

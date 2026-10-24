@@ -2724,8 +2724,10 @@ const landingTarget = (held, control) => {
 };
 const onScreen = (node) => seenRect(node, /* @__PURE__ */ new Map()) !== null;
 const returnTurn = (transcript, unread) => {
-	const shown = [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")].filter((node) => node.checkVisibility());
-	return (unread && shown.find((node) => node.dataset.message === unread)) ?? shown.at(-1) ?? null;
+	const turns = [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")];
+	let start = unread && turns.find((node) => node.dataset.message === unread);
+	while (start && !start.checkVisibility()) start = start.previousElementSibling;
+	return start ?? turns.findLast((node) => node.checkVisibility()) ?? null;
 };
 function showReturnTurn(transcript, thread) {
 	const scroller = scrollerFor(transcript);

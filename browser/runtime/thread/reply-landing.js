@@ -93,16 +93,18 @@ const onScreen = (node) => seenRect(node, new Map()) !== null;
 // named by the thread's `unread`, else its latest message shown, or the summary
 // standing for earlier ones. Landing past an unread start would leave the user reading
 // below a message they never saw begin, which read tracking (read.js) then rightly
-// keeps unread while every reply after it reads.
+// keeps unread while every reply after it reads. A closed summary hides the unread
+// message behind its checkpoint, which stands before the messages it covers
+// (transcript.js), so the user starts at that summary, and Next unread or `g u` opens
+// it. Rejected: opening the summary on arrival, which would undo the fold the agent
+// wrote for every reader who comes back.
 const returnTurn = (transcript, unread) => {
-  const shown = [
+  const turns = [
     ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)"),
-  ].filter((node) => node.checkVisibility());
-  return (
-    (unread && shown.find((node) => node.dataset.message === unread)) ??
-    shown.at(-1) ??
-    null
-  );
+  ];
+  let start = unread && turns.find((node) => node.dataset.message === unread);
+  while (start && !start.checkVisibility()) start = start.previousElementSibling;
+  return start ?? turns.findLast((node) => node.checkVisibility()) ?? null;
 };
 
 // A thread opened for reading shows the turn the user comes back for: the end of the

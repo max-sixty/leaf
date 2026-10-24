@@ -2341,5 +2341,9 @@ export function createVersionController({
     aimArrival,
     installArrival,
     mount,
+    // The element as this revision's author wrote it, inert: what a widget drawn again
+    // away from the page is copied from (obligations/seat.js).
+    authoredElement: (id) =>
+      authoredSource?.querySelector(`[id="${CSS.escape(id)}"]`) ?? null,
   };
 }

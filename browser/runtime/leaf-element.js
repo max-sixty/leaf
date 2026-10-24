@@ -52,7 +52,7 @@ import {
   queueWidgetUpdate,
   watchPresentation,
 } from "./semantic-state.js";
-import { widgetDescriptor } from "./widget-descriptors.js";
+import { seatOf, widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
 import {
   failSoft,
@@ -152,8 +152,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   #queueUpdate() {
     if (!this.#descriptor) return super.scheduleUpdate();
+    const seat = seatOf(this);
     const scheduled = queueWidgetUpdate(
-      this.#descriptor.id,
+      seat ? `${this.#descriptor.id}@${seat}` : this.#descriptor.id,
       () => {
         if (this.#scheduled !== scheduled) return;
         this.#scheduled = null;
@@ -383,7 +384,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   #connect() {
     this.#connected = true;
     this.#region = this.#descriptor
-      ? attachWidgetPresentation(this.#descriptor.id, "render", this)
+      ? attachWidgetPresentation(this.#descriptor.id, "render", this, seatOf(this))
       : attachApplicationPresentation(this.#regionName, this);
     const parentChanged = this.#connectedParent !== this.parentElement;
     this.#connectedParent = this.parentElement;

@@ -173,6 +173,7 @@ export function prepareAuthoredMessage(message, thread) {
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {
       message: message.id,
+      markup: message.markup ?? "",
       body: {
         text,
         document: { thread, message: message.id },
@@ -191,6 +192,18 @@ export function prepareAuthoredMessage(message, thread) {
     )
       throw new TypeError("an authored message changed its frozen document identity");
   return prepared;
+}
+// An element of a message's markup as its author wrote it, inert and fresh each call,
+// since the prepared nodes are the one live instance its drawings take (PROTOTYPE,
+// obligations/seat.js).
+export function authoredInMessage(messageId, id) {
+  for (const prepared of authoredMessages.values())
+    if (prepared.message === messageId) {
+      const template = document.createElement("template");
+      template.innerHTML = prepared.markup;
+      return template.content.querySelector(`[id="${CSS.escape(id)}"]`);
+    }
+  return null;
 }
 const authoredMessage = (message) => {
   const prepared = authoredMessages.get(message.attempt ?? message.id);

@@ -21,3 +21,12 @@
 :scope:is(lf-approval) .lf-approval-actions button {
   min-block-size: var(--aim-floor);
 }
+/* On me's card draws the request's action alone (obligations/seat.js): the card's frame
+ * already names what it asks, under the request's own heading. */
+:scope:is(lf-approval[data-lf-seat="card"]) {
+  padding: 0;
+  border: 0;
+  & > :not(.lf-approval-actions) {
+    display: none;
+  }
+}

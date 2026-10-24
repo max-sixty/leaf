@@ -147,5 +147,10 @@ export function widgetDescriptor(owner) {
 export const quoted = (element) =>
   widgetDescriptor(element)?.quoted ?? quotedBy(element);
 
+// The seat a widget's element is drawn in away from its source, such as On me's card
+// (obligations/seat.js), or null for the source itself. A seat binds to its source's
+// descriptor by the same id; only what is keyed by the element's place tells them apart.
+export const seatOf = (element) => element?.getAttribute?.("data-lf-seat") ?? null;
+
 export const descriptorStillMatches = (owner, descriptor) =>
   owner.id === descriptor.id && owner.localName === descriptor.tag;

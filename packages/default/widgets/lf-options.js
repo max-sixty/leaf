@@ -148,6 +148,10 @@ customElements.define(
     // What the obligation was answered with: the picked options' names, the group's own in its
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.
+    // On me's card draws this widget itself (runtime obligations/seat.js), in the
+    // form its theme gives `[data-lf-seat="card"]`.
+    static seats = ["card"];
+
     static answerWords(value, group) {
       const picked = new Set(value);
       const added = Object.entries(group.reading?.state.add?.units ?? {});

@@ -1155,6 +1155,27 @@
     box-shadow: none !important;
   }
 }
+:scope:is(lf-options[data-lf-seat=card]) {
+  margin: 0;
+  --lf-option-font: 13px/1.4 var(--sans);
+  --lf-option-pad-block: 4px;
+  font: var(--lf-option-font);
+  & > lf-option {
+    padding-block: 4px;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  & > lf-option > :not(strong, lf-option-control, .lf-key-badge) {
+    display: none;
+  }
+  & > lf-option > strong {
+    display: inline;
+    margin: 0 0.35em 0 0;
+  }
+}
 
 /* packages/default/styles/board.css */
 :scope:is(lf-board) {
@@ -3229,6 +3250,13 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
 }
 :scope:is(lf-approval) .lf-approval-actions button {
   min-block-size: var(--aim-floor);
+}
+:scope:is(lf-approval[data-lf-seat=card]) {
+  padding: 0;
+  border: 0;
+  & > :not(.lf-approval-actions) {
+    display: none;
+  }
 }
 
 /* packages/default/styles/theme.css */

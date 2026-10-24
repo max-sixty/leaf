@@ -164,7 +164,12 @@ import { hasUnread, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
 import { afterScript } from "./rendering.js";
 import { threadAttention, workflowStep } from "./thread/workflow.js";
-import { messageReading, threadHeading, threadName } from "./thread/messages.js";
+import {
+  authoredInMessage,
+  messageReading,
+  threadHeading,
+  threadName,
+} from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading } from "./thread/thread-card.js";
@@ -193,6 +198,7 @@ import { shortAgo } from "./presence.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
+import { keepSeats, seatedWidget } from "./obligations/seat.js";
 import { declareSide } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
@@ -233,7 +239,8 @@ import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedUnder, under } from "./shadow.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
-import { closestAcross } from "./passages.js";
+import { closestAcross, elementById } from "./passages.js";
+import { answerBox } from "./thread/box.js";
 
 const prefs = () => document.documentElement.lfChrome;
 
@@ -325,6 +332,7 @@ export function createFloatingPanel({
   settlement,
   placedAt,
   openThreadSubject,
+  authoredElement,
 }) {
   const host = new FloatingPanel();
   host.className = "lf-ui lf-floating-panel";
@@ -1656,6 +1664,8 @@ export function createFloatingPanel({
     if (after?.view !== "queue") {
       seated = null;
       seatHeights.clear();
+      keepSeats("card", new Set());
+      answerBoxes.clear();
     }
     const changed =
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
@@ -2311,6 +2321,45 @@ export function createFloatingPanel({
       if (thread?.msgs.some((candidate) => candidate.key === message))
         parts.message(key, message, outlet);
     }
+    // And the reply box of each thread asking, once, in the first card it asks in.
+    const replying = new Set();
+    for (const outlet of stage.querySelectorAll(
+      ".lf-fp-view:not([data-leaving]) .lf-fp-asked-reply",
+    )) {
+      const { thread: key } = outlet.dataset;
+      if (replying.has(key) || !collection.threads.some((t) => t.key === key)) continue;
+      replying.add(key);
+      parts.reply(key, outlet, {
+        accessibleName: () => `Reply to ${threadTitle(key)}`,
+      });
+    }
+  }
+  // A question on the page answered in words, with no thread yet, is answered from a
+  // box seated in its card (thread/box.js, `answerBox`); the box is kept while its
+  // card stands, so a repaint keeps its words and caret.
+  // What the author wrote of an obligation's widget, for its card to draw it from: the
+  // revision's source on the page, the message's markup in a thread.
+  function authoredOf(record) {
+    return record.thread
+      ? authoredInMessage(record.message, record.source.id)
+      : authoredElement(record.source.id);
+  }
+  const answerBoxes = new Map();
+  function answerBoxFor(record) {
+    if (record?.source.kind !== "widget" || record.thread) return null;
+    if (!answerBoxes.has(record.id)) {
+      const question = elementById(record.source.id);
+      answerBoxes.set(
+        record.id,
+        question &&
+          answerBox(question, "Answer", {
+            createComment: (command) => threadActions.create(command)?.delivery ?? null,
+            onDraftChanged: () => {},
+            wireInput,
+          }),
+      );
+    }
+    return answerBoxes.get(record.id);
   }
   function nominateThread(route, collection, parts) {
     const outlet = outletOf();
@@ -2682,8 +2731,15 @@ export function createFloatingPanel({
     const heading =
       thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
+    // A widget that draws a form for the card draws itself there, bound to the same
+    // state as its source (obligations/seat.js); the card keeps only its frame around
+    // it. One that draws none offers copies of its decision controls (`choicesOf`).
+    const seat =
+      record && record.status !== "withdrawn" && !inWords
+        ? seatedWidget(record, "card", authoredOf)
+        : null;
     const choices =
-      record && !answered && record.source.kind === "widget" && !inWords
+      !seat && record && !answered && record.source.kind === "widget" && !inWords
         ? obligationView.choicesOf(record)
         : null;
     const gesture = answered ? answerGesture(record) : null;
@@ -2764,15 +2820,25 @@ export function createFloatingPanel({
         Done
       </button>`;
     else if (inWords && thread) {
-      discussHere = false;
-      answers = html`<button
-        type="button"
-        class="lf-fp-face lf-fp-answer"
-        @click=${() => open({ view: "thread", thread: thread.key })}
-      >
-        Reply
-      </button>`;
+      // The thread's own reply box stands in the card, under its question
+      // (`nominateAsked`), and Discuss opens the thread whole, where Reply did.
+      discussHere = Boolean(message);
+      answers = message
+        ? nothing
+        : html`<button
+            type="button"
+            class="lf-fp-face lf-fp-answer"
+            @click=${() => open({ view: "thread", thread: thread.key })}
+          >
+            Reply
+          </button>`;
     } else answers = nothing;
+    // A question answered in words is answered in its thread's reply box, the card's
+    // body where the question asks the user; one on the page with no thread yet is
+    // answered by the first message of one, from a box anchored at it.
+    const replyHere = Boolean(inWords && message && list === "you" && !answered);
+    const askBox =
+      inWords && !thread && list === "you" && !answered ? answerBoxFor(record) : null;
     const key = queueItemKey(item);
     const stop = queueStop(item);
     // What waits on the user says what it is, in the walk's word for it, so a
@@ -2804,6 +2870,15 @@ export function createFloatingPanel({
             ? html`<h3 class="lf-fp-on-title">${heading}</h3>
                 <p class="lf-fp-prompt">${prompt}</p>`
             : html`<p class="lf-fp-prompt">${heading}</p>`
+      }${seat ? html`<div class="lf-fp-seat">${seat}</div>` : nothing}${
+        replyHere
+          ? html`<div
+              class="lf-fp-seat lf-fp-asked-reply"
+              data-thread=${thread.key}
+            ></div>`
+          : askBox
+            ? html`<div class="lf-fp-seat">${askBox}</div>`
+            : nothing
       }
       <div class="lf-fp-answers">
         ${answers}${discussHere ? discuss : nothing}${show}
@@ -2858,6 +2933,12 @@ export function createFloatingPanel({
       lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
     const items = inWalkOrder(seated.map((key) => byKey.get(key)));
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
+    keepSeats(
+      "card",
+      new Set(
+        all.flatMap((item) => (carriesObligation(item) ? [item.obligation.id] : [])),
+      ),
+    );
     return html`${
       items.length
         ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item)))

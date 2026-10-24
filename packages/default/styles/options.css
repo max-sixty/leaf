@@ -862,3 +862,27 @@
     box-shadow: none !important;
   }
 }
+/* On me's card draws the group compact (obligations/seat.js): each option its title or
+ * label and its pick, in the panel's type, two lines at most, and none of the evidence
+ * it argues from, which stays on the page that Show leads to. */
+:scope:is(lf-options[data-lf-seat="card"]) {
+  margin: 0;
+  --lf-option-font: 13px/1.4 var(--sans);
+  --lf-option-pad-block: 4px;
+  font: var(--lf-option-font);
+  & > lf-option {
+    padding-block: 4px;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  & > lf-option > :not(strong, lf-option-control, .lf-key-badge) {
+    display: none;
+  }
+  & > lf-option > strong {
+    display: inline;
+    margin: 0 0.35em 0 0;
+  }
+}

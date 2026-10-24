@@ -11,13 +11,29 @@ import { notice } from "../notifications.js";
 import { mountFirstMessage } from "./inline.js";
 import { sendLanding } from "./reply-landing.js";
 
-export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }) => {
+export const threadBox = (el, hint, dependencies) => {
   if (inChrome(el) || quoted(el)) return null;
   const declaration = registry[el.localName]?.["x-thread-seat"];
   if (!declaration || !matchesWhen(el, declaration.when))
     throw new TypeError(
       `<${el.localName}> placed a thread outside its x-thread-seat predicate`,
     );
+  return seatedBox(el, hint, declaration, dependencies);
+};
+
+// PROTOTYPE (design C): the same box for a question answered in words, seated in On
+// me's card rather than in the page (floating-panel.js). The question declares no
+// x-thread-seat, since nothing draws a box for it on the page; the box starts the
+// thread its answer is, anchored at the question as a comment on it would be.
+export const answerBox = (el, hint, dependencies) =>
+  quoted(el) ? null : seatedBox(el, hint, {}, dependencies);
+
+function seatedBox(
+  el,
+  hint,
+  declaration,
+  { createComment, onDraftChanged, wireInput },
+) {
   const box = offer("div", "lf-thread-seat");
   box.dataset.lfRuntime = "";
   box.dataset.lfThreadSeat = el.id;
@@ -85,4 +101,4 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   );
   mountFirstMessage(box, row);
   return box;
-};
+}

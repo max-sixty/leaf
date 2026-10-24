@@ -7,7 +7,7 @@ import { DATUM, TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcr
 import { ADDRESSABLE, addressableLabel, addressableWord, addressedElements, anchorForRange, anchoringIsReady, fragmentTarget, resolveAnchor, revealAddressed, sectionOf, targetElement, targetPlace, targetSegments, visualPartLabel, widgetWord } from "./bundle-css-anchors.js";
 import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
 import { HOLDS_WORD, HeldNews, MessageView, PAGE_SCOPE, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed as claimed$1, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, drawnThreadId, fitsWhole, focusThread, focusedInView, focusedThreadTarget, formatDeclaredMarkdown, hasLandmark, heldOut, heldThread, heldThreadId, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, openingPassage, pageCommand, pageReadingBlock, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeNode, placeOf as placeOf$1, placeOffset, placePageThreads as placePageThreads$1, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, rawOffsetFits, readObligations, readThreads, readingReturn, registerWritingDestination, reindexPassageOwners, rememberPassageParts, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDestination, replyDraftContext, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, saveDraft, scrollIntoReadingBand, scrollIntoView, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, tabStore, textBlocks, threadDraft, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
-import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, failSoft, failSoftUnreported, once, orderChildren, patchRetains, patchTree, placesFailure, quoted as quoted$1, rememberAuthoredParents, reportFailure, setChildren, stageAuthoredStates, stageWidgetDescriptors, widgetDescriptor } from "./bundle-abort.js";
+import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, failSoft, failSoftUnreported, once, orderChildren, patchRetains, patchTree, placesFailure, quoted as quoted$1, rememberAuthoredParents, reportFailure, seatOf, setChildren, stageAuthoredStates, stageWidgetDescriptors, widgetDescriptor } from "./bundle-abort.js";
 import { scrollBehavior } from "./bundle-motion.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./bundle-media.js";
 import { createProjectionPresentation } from "./bundle-presentation.js";
@@ -3954,7 +3954,8 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		prepareActivation,
 		aimArrival,
 		installArrival,
-		mount
+		mount,
+		authoredElement: (id) => authoredSource?.querySelector(`[id="${CSS.escape(id)}"]`) ?? null
 	};
 }
 
@@ -6315,10 +6316,14 @@ function createReadTracking({ markRead, openThread }) {
 
 //#endregion
 //#region runtime/thread/box.js
-const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => {
+const threadBox$1 = (el, hint, dependencies) => {
 	if (inChrome(el) || quoted$1(el)) return null;
 	const declaration = registry[el.localName]?.["x-thread-seat"];
 	if (!declaration || !matchesWhen(el, declaration.when)) throw new TypeError(`<${el.localName}> placed a thread outside its x-thread-seat predicate`);
+	return seatedBox(el, hint, declaration, dependencies);
+};
+const answerBox = (el, hint, dependencies) => quoted$1(el) ? null : seatedBox(el, hint, {}, dependencies);
+function seatedBox(el, hint, declaration, { createComment, onDraftChanged, wireInput }) {
 	const box = offer("div", "lf-thread-seat");
 	box.dataset.lfRuntime = "";
 	box.dataset.lfThreadSeat = el.id;
@@ -6369,7 +6374,7 @@ const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => 
 	}));
 	mountFirstMessage(box, row);
 	return box;
-};
+}
 
 //#endregion
 //#region runtime/semantic-news.js
@@ -7549,7 +7554,7 @@ function createWidgetController(owner) {
 	let preparationBatch = null;
 	const read = () => descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
 	const prepared = () => {
-		if (!preparationHandle && owner.isConnected) preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
+		if (!preparationHandle && owner.isConnected) preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner, seatOf(owner));
 		return preparationHandle;
 	};
 	const holdPreparation = (promise) => {
@@ -7874,7 +7879,8 @@ var LeafElement = class extends q(UpdateBoundary) {
 	}
 	#queueUpdate() {
 		if (!this.#descriptor) return super.scheduleUpdate();
-		const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
+		const seat = seatOf(this);
+		const scheduled = queueWidgetUpdate(seat ? `${this.#descriptor.id}@${seat}` : this.#descriptor.id, () => {
 			if (this.#scheduled !== scheduled) return;
 			this.#scheduled = null;
 			return super.scheduleUpdate();
@@ -8025,7 +8031,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 	}
 	#connect() {
 		this.#connected = true;
-		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render", this) : attachApplicationPresentation(this.#regionName, this);
+		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render", this, seatOf(this)) : attachApplicationPresentation(this.#regionName, this);
 		const parentChanged = this.#connectedParent !== this.parentElement;
 		this.#connectedParent = this.parentElement;
 		if (registry[this.localName]?.["x-data"]) this.#leaveData = joinDataDelivery(this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName);
@@ -8090,4 +8096,4 @@ function obligationEnding(item) {
 }
 
 //#endregion
-export { DRAWING_COORDINATE_LIMIT, LeafEditorView, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, answerWords, beginRead, claimTraversals, commandSteps, comparisonChanges, composerOpen, composerQuote, consumeAnnotations, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, currentProjection, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, landInThread, leavesBox, loadDeferred, mountApplication, mountHistory, navigateToDatum, notifyDataSubscribers, obligationActions, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, projectData, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, referencedProjection, registerThreadPresentation, replaceEntry, requireReference, returnPlace, sendReaction, textField, threadActions, threadBox, threadInput, versionPicker, versionsReading, widgetController, wireInput };
+export { DRAWING_COORDINATE_LIMIT, LeafEditorView, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, answerBox, answerWords, beginRead, claimTraversals, commandSteps, comparisonChanges, composerOpen, composerQuote, consumeAnnotations, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, currentProjection, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, landInThread, leavesBox, loadDeferred, mountApplication, mountHistory, navigateToDatum, notifyDataSubscribers, obligationActions, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, projectData, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, referencedProjection, registerThreadPresentation, replaceEntry, requireReference, returnPlace, sendReaction, textField, threadActions, threadBox, threadInput, versionPicker, versionsReading, widgetController, wireInput };

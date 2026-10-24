@@ -20,7 +20,7 @@ const selectWidgets = applicationState.selectWidgets;
 const attachApplicationPresentation = (region, renderer) => presentation.attach(region, renderer);
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
 const widgetRegions = (widget) => ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
-const attachWidgetPresentation = (widget, kind, renderer) => presentation.attach(widgetRegion(widget, kind), renderer);
+const attachWidgetPresentation = (widget, kind, renderer, seat = null) => presentation.attach(seat ? `${widgetRegion(widget, kind)}@${seat}` : widgetRegion(widget, kind), renderer);
 const widgetCommits = /* @__PURE__ */ new Map();
 const documentCommits = /* @__PURE__ */ new Map();
 const currentWidgetParents = readPart((root) => root.effective.widgetParents);

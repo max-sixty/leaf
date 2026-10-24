@@ -176,7 +176,7 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
     mark.click()
     row = page.locator('.lf-fp-on-item[data-list="you"]')
     expect(row).to_contain_text(question)
-    expect(row.get_by_role("button", name="Reply", exact=True)).to_be_visible()
+    expect(row.get_by_role("textbox", name="Reply to")).to_be_visible()
     row.get_by_role("button", name="Show", exact=True).click()
     shown = page.locator(
         f'.lf-page-thread:visible .lf-msg[data-event="{message["id"]}"]'

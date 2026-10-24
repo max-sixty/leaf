@@ -5,14 +5,14 @@ import { EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, adver
 import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
-import { DRAWING_COORDINATE_LIMIT, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, beginRead, commandSteps, composerOpen, composerQuote, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, leavesBox, mountApplication, mountHistory, notifyDataSubscribers, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, returnPlace, sendReaction, textField, threadInput, versionPicker, versionsReading } from "./runtime/bundle-answer.js";
+import { DRAWING_COORDINATE_LIMIT, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, answerBox, beginRead, commandSteps, composerOpen, composerQuote, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, leavesBox, mountApplication, mountHistory, notifyDataSubscribers, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, returnPlace, sendReaction, textField, threadInput, versionPicker, versionsReading } from "./runtime/bundle-answer.js";
 import { chromeForeground, chromeRoot } from "./runtime/bundle-chrome.js";
 import { COLLAPSE, LEAF_SURFACE, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
 import { ADDRESSABLE, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-css-anchors.js";
 import { fragmentId } from "./runtime/bundle-initial-render.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, snapSelection, stepFrom, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
+import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredInMessage, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, snapSelection, stepFrom, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
 import { copyControl } from "./runtime/bundle-copy-control.js";
-import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, setChildren, watchDisclosures } from "./runtime/bundle-abort.js";
+import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, seatOf, setChildren, watchDisclosures, widgetDescriptor, widgetElement } from "./runtime/bundle-abort.js";
 import { motionEasing, motionPlays, motionTime, playMotion, reducedMotion, scrollBehavior } from "./runtime/bundle-motion.js";
 import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/bundle-media.js";
 import { KINDS, annotationItems, clearContributionControls, contributionHost, contributionItemKey, contributionReceipts, contributionSource, entryControls, registerContribution, spokenSubject, visibleContributionEntryLabel } from "./runtime/bundle-margin-model.js";
@@ -4644,6 +4644,29 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 }
 
 //#endregion
+//#region runtime/obligations/seat.js
+const seats$1 = /* @__PURE__ */ new Map();
+const seatsIn = (tag, seat) => Boolean(customElements.get(tag)?.seats?.includes(seat));
+function seatedWidget(record, seat, authored) {
+	if (record?.source.kind !== "widget" || record.source.unit) return null;
+	const { id, tag } = record.source;
+	if (!seatsIn(tag, seat)) return null;
+	const key = `${seat}:${record.id}`;
+	const source = widgetElement(id);
+	const cached = seats$1.get(key);
+	if (cached && (!source || widgetDescriptor(cached) === widgetDescriptor(source))) return cached;
+	const written = authored(record);
+	if (!written || seatOf(written)) return null;
+	const copy = document.importNode(written, true);
+	copy.setAttribute("data-lf-seat", seat);
+	seats$1.set(key, copy);
+	return copy;
+}
+function keepSeats(seat, recordIds) {
+	for (const key of [...seats$1.keys()]) if (key.startsWith(`${seat}:`) && !recordIds.has(key.slice(seat.length + 1))) seats$1.delete(key);
+}
+
+//#endregion
 //#region runtime/keyboard/status-context.js
 const EMPTY = Object.freeze({
 	goTo: null,
@@ -5137,7 +5160,7 @@ var FloatingPanel = class extends LeafElement {
 	}
 };
 customElements.define("leaf-floating-panel", FloatingPanel);
-function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject }) {
+function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject, authoredElement }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
 	const ease = () => motionEasing("--lf-motion-panel-ease", host);
@@ -6018,6 +6041,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (after?.view !== "queue") {
 			seated = null;
 			seatHeights.clear();
+			keepSeats("card", /* @__PURE__ */ new Set());
+			answerBoxes.clear();
 		}
 		const changed = (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
 		if (changed) {
@@ -6416,6 +6441,29 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			const { thread: key, message } = outlet.dataset;
 			if (collection.threads.find((candidate) => candidate.key === key)?.msgs.some((candidate) => candidate.key === message)) parts.message(key, message, outlet);
 		}
+		const replying = /* @__PURE__ */ new Set();
+		for (const outlet of stage.querySelectorAll(".lf-fp-view:not([data-leaving]) .lf-fp-asked-reply")) {
+			const { thread: key } = outlet.dataset;
+			if (replying.has(key) || !collection.threads.some((t) => t.key === key)) continue;
+			replying.add(key);
+			parts.reply(key, outlet, { accessibleName: () => `Reply to ${threadTitle(key)}` });
+		}
+	}
+	function authoredOf(record) {
+		return record.thread ? authoredInMessage(record.message, record.source.id) : authoredElement(record.source.id);
+	}
+	const answerBoxes = /* @__PURE__ */ new Map();
+	function answerBoxFor(record) {
+		if (record?.source.kind !== "widget" || record.thread) return null;
+		if (!answerBoxes.has(record.id)) {
+			const question = elementById(record.source.id);
+			answerBoxes.set(record.id, question && answerBox(question, "Answer", {
+				createComment: (command) => threadActions.create(command)?.delivery ?? null,
+				onDraftChanged: () => {},
+				wireInput
+			}));
+		}
+		return answerBoxes.get(record.id);
 	}
 	function nominateThread(route, collection, parts) {
 		const outlet = outletOf();
@@ -6642,7 +6690,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const prompt = said && said.trim() !== title.trim() ? said : "";
 		const heading = thread && title === threadName(thread) ? threadHeading(thread) : title;
 		const answered = record && record.status !== "open";
-		const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
+		const seat = record && record.status !== "withdrawn" && !inWords ? seatedWidget(record, "card", authoredOf) : null;
+		const choices = !seat && record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
 		const gesture = answered ? answerGesture(record) : null;
 		const discuss = thread ? html`<button
           type="button"
@@ -6702,18 +6751,20 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         Done
       </button>`;
 		else if (inWords && thread) {
-			discussHere = false;
-			answers = html`<button
-        type="button"
-        class="lf-fp-face lf-fp-answer"
-        @click=${() => open({
+			discussHere = Boolean(message);
+			answers = message ? nothing : html`<button
+            type="button"
+            class="lf-fp-face lf-fp-answer"
+            @click=${() => open({
 				view: "thread",
 				thread: thread.key
 			})}
-      >
-        Reply
-      </button>`;
+          >
+            Reply
+          </button>`;
 		} else answers = nothing;
+		const replyHere = Boolean(inWords && message && list === "you" && !answered);
+		const askBox = inWords && !thread && list === "you" && !answered ? answerBoxFor(record) : null;
 		const key = queueItemKey(item);
 		const stop = queueStop(item);
 		const about = queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
@@ -6731,7 +6782,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                 data-thread=${thread.key}
                 data-message=${message.key}
               ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
-                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
+                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}${seat ? html`<div class="lf-fp-seat">${seat}</div>` : nothing}${replyHere ? html`<div
+              class="lf-fp-seat lf-fp-asked-reply"
+              data-thread=${thread.key}
+            ></div>` : askBox ? html`<div class="lf-fp-seat">${askBox}</div>` : nothing}
       <div class="lf-fp-answers">
         ${answers}${discussHere ? discuss : nothing}${show}
       </div>
@@ -6766,6 +6820,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
 		const items = inWalkOrder(seated.map((key) => byKey.get(key)));
 		const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
+		keepSeats("card", new Set(all.flatMap((item) => carriesObligation(item) ? [item.obligation.id] : [])));
 		return html`${items.length ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
             Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
           </p>`}${finished.length ? html`<h3 class="lf-fp-on-done">Done</h3>
@@ -10573,6 +10628,7 @@ floatingPanel = createFloatingPanel({
 	withdraw: app.withdraw,
 	settlement: app.settlement,
 	placedAt: anchorPlacement.placedAt,
+	authoredElement: (id) => version.authoredElement(id),
 	openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options)
 });
 const generalComment = floatingPanel.pageComment;

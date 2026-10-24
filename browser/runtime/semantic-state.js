@@ -67,8 +67,14 @@ export const attachApplicationPresentation = (region, renderer) =>
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
 const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
-export const attachWidgetPresentation = (widget, kind, renderer) =>
-  presentation.attach(widgetRegion(widget, kind), renderer);
+// A widget drawn again in a seat (obligations/seat.js) presents in a region of its
+// own, so the source's region keeps its renderer: one name per region is what the
+// coordinator keeps, and a second attach would take the source's over.
+export const attachWidgetPresentation = (widget, kind, renderer, seat = null) =>
+  presentation.attach(
+    seat ? `${widgetRegion(widget, kind)}@${seat}` : widgetRegion(widget, kind),
+    renderer,
+  );
 
 // These promises describe committed DOM, never the semantic ledger's proof. A
 // widget's native updateComplete includes Lit's updated callback; its preparation

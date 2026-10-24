@@ -815,7 +815,7 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     card.focus()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
-    expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
+    expect(page.locator("main #store-cookie")).to_have_attribute("chosen", "")
 
 
 def test_escape_lets_go_of_the_obligation_the_users_current_location_names(

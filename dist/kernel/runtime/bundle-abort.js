@@ -507,6 +507,7 @@ function widgetDescriptor(owner) {
 	return replacement;
 }
 const quoted = (element) => widgetDescriptor(element)?.quoted ?? quotedBy(element);
+const seatOf = (element) => element?.getAttribute?.("data-lf-seat") ?? null;
 const descriptorStillMatches = (owner, descriptor) => owner.id === descriptor.id && owner.localName === descriptor.tag;
 
 //#endregion
@@ -519,4 +520,4 @@ const aborted = (signal) => {
 };
 
 //#endregion
-export { DISCLOSE, DISCLOSURE_SELECTOR, aborted, authoredStates, bodyText, commitWidgetDescriptors, dataBody, descriptorStillMatches, disclosed, domValue, failSoft, failSoftUnreported, once, orderChildren, patchRetains, patchTree, placesFailure, quoted, rememberAuthoredParents, reportFailure, setChildLists, setChildren, setRenderedChildren, shadowStage, stageAuthoredStates, stageWidgetDescriptors, watchDisclosures, widgetDescriptor, widgetElement };
+export { DISCLOSE, DISCLOSURE_SELECTOR, aborted, authoredStates, bodyText, commitWidgetDescriptors, dataBody, descriptorStillMatches, disclosed, domValue, failSoft, failSoftUnreported, once, orderChildren, patchRetains, patchTree, placesFailure, quoted, rememberAuthoredParents, reportFailure, seatOf, setChildLists, setChildren, setRenderedChildren, shadowStage, stageAuthoredStates, stageWidgetDescriptors, watchDisclosures, widgetDescriptor, widgetElement };

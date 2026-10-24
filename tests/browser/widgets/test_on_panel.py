@@ -10,6 +10,7 @@ from render_cases_interaction import (
     OBLIGATION_WITH_CONTEXT_PAGE,
     OBLIGATIONS_PAGE,
     ON_ITEM_SAYS,
+    panel_comment,
 )
 from render_harness import (
     PANEL,
@@ -21,10 +22,14 @@ from render_harness import (
     post_event,
     resized,
     round_trip,
+    sending,
     told,
+    undo,
 )
 
 from browser.navigation import expect_walk_position
+from leaf import event_log as events_model
+from leaf import thread as thread_model
 from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -93,7 +98,7 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
 
     # Answered on the page, and the card moves to Done as the route back, saying its
     # current answer. The press on the page puts the view away; it opens on the same.
-    page.locator("#lq-token").click()
+    page.locator("main #lq-token").click()
     expect_obligations_answered(page, "2/5")
     open_on_me(page)
     expect(page.locator(f"{ON_ME} .lf-fp-on-item")).to_have_count(5)
@@ -294,9 +299,9 @@ def test_a_completed_obligation_persists_and_on_me_says_its_current_answer(
         "Answered: Pause offline editing"
     )
 
-    page.locator("#storage-evict").click()
+    page.locator("main #storage-evict").click()
     round_trip(page)
-    expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
+    expect(page.locator("main #storage-evict")).to_have_attribute("chosen", "")
     expect_obligations_answered(page, "1/1")
     open_on_me(page)
     expect(card.locator(".lf-fp-said")).to_contain_text(
@@ -532,3 +537,218 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     # Scroll anchoring restores the offset to the scroller's subpixel precision.
     after = read.bounding_box()
     assert after["y"] == pytest.approx(before["y"], abs=1), (before, after)
+
+
+# Design C (prototype): a widget that draws a form for On me's card draws itself there,
+# bound to its source's state (runtime obligations/seat.js).
+SEATS_PAGE = leaf_page(
+    "seats",
+    """
+<h1 id="h">Seats</h1>
+<lf-ask id="store-ask"><h2>What should a full store do?</h2>
+<lf-options id="store" choose>
+  <lf-option id="store-evict"><strong>Drop the oldest</strong> Editing continues.</lf-option>
+  <lf-option id="store-stop"><strong>Pause editing</strong> Nothing leaves.</lf-option>
+</lf-options></lf-ask>
+<lf-approval id="publish"><h3>Publish this report?</h3><p>To the team.</p></lf-approval>
+<lf-ask id="name-ask"><p>What should the release be called?</p></lf-ask>
+""",
+)
+WEEK_REPLY = (
+    '<lf-ask id="week-ask"><h3>Which week?</h3><lf-options id="week" choose>'
+    '<lf-option id="this-week">This week</lf-option>'
+    '<lf-option id="next-week">Next week</lf-option></lf-options></lf-ask>'
+)
+
+
+def last_event(serve):
+    event = events_model.read_events(serve.page_dir)[-1]
+    return {key: event.get(key) for key in ("kind", "widget", "action", "detail")}
+
+
+def seat(page, at):
+    """The widget On me's card for `at` draws, such as `store`."""
+    return on_card(page, f"widget:{at}").locator(f'[data-lf-seat="card"]#{at}')
+
+
+def test_a_card_draws_its_options_and_answers_them_as_the_page_does(browser, serve):
+    """An options card holds the group itself, in its card form, so a press on an
+    option there is the widget's own pick: the same admitted action a press on the page
+    records, which the page's group then shows. The card's Undo takes it back, and the
+    group's own digits work in the card, its own mark taking the press."""
+    page = open_page(browser, serve(SEATS_PAGE))
+    resized(page, 1280, 900)
+    open_on_me(page)
+    options = seat(page, "store")
+    expect(options.locator("lf-option")).to_have_count(2)
+    expect(options.locator("lf-option-control")).to_have_count(2)
+
+    with sending(page, "the pick in the card"):
+        options.locator("#store-evict lf-option-control").click()
+    assert last_event(serve) == {
+        "kind": "action",
+        "widget": "store",
+        "action": "choose",
+        "detail": {"value": ["store-evict"]},
+    }
+    expect(page.locator("main #store-evict")).to_have_attribute("chosen", "")
+    card = on_card(page, "widget:store")
+    expect(card).to_have_attribute("data-list", "done")
+    expect(card.locator(".lf-fp-said")).to_contain_text("Answered: Drop the oldest")
+
+    with sending(page, "the card's undo"):
+        card.get_by_role("button", name="Undo").click()
+    assert last_event(serve)["kind"] == "undo"
+    expect(page.locator("main #store-evict")).not_to_have_attribute("chosen", "")
+
+    open_on_me(page)
+    page.evaluate(
+        """() => { window.pressed = [];
+          for (const mark of document.querySelectorAll('#store lf-option-control'))
+            mark.addEventListener('click', () => pressed.push(
+              (mark.closest('.lf-chrome') ? 'card:' : 'page:') + mark.parentElement.id)); }"""
+    )
+    options.locator("#store-evict lf-option-control").focus()
+    with sending(page, "the digit"):
+        page.keyboard.press("2")
+    assert last_event(serve)["detail"] == {"value": ["store-stop"]}
+    assert page.evaluate("pressed") == ["card:store-stop"]
+    expect(page.locator("main #store-stop")).to_have_attribute("chosen", "")
+
+
+def test_an_approval_card_approves_and_the_page_takes_it_back(browser, serve):
+    """An approval card holds the request's action alone, the card naming what it asks.
+    Approve there records the widget's approval, the page's request says Approved, and
+    an undo on the page brings Approve back to the card."""
+    page = open_page(browser, serve(SEATS_PAGE))
+    resized(page, 1280, 900)
+    open_on_me(page)
+    approval = seat(page, "publish")
+    expect(approval.locator("h3")).to_be_hidden()
+    with sending(page, "the approval"):
+        approval.get_by_role("button", name="Approve").click()
+    assert last_event(serve) == {
+        "kind": "action",
+        "widget": "publish",
+        "action": "approve",
+        "detail": {},
+    }
+    expect(page.locator("main #publish .lf-approval-status")).to_have_text("Approved")
+    open_on_me(page)
+    expect(approval.get_by_role("button", name="Undo approval")).to_be_visible()
+
+    page.locator("main #publish button").focus()
+    undo(page)
+    assert last_event(serve)["kind"] == "undo"
+    open_on_me(page)
+    expect(approval.get_by_role("button", name="Approve")).to_be_visible()
+    expect(page.locator("main #publish .lf-approval-status")).to_have_text(
+        "Awaiting approval"
+    )
+
+
+def test_a_question_in_words_is_answered_from_its_card(browser, serve):
+    """A question answered in words takes its answer in its card: one on the page with
+    no thread from a box that starts the thread anchored at it, one an agent asked in a
+    thread from that thread's own reply box under the question. Each answer is the
+    user's message, and the card says it."""
+    url = serve(SEATS_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "Release naming",
+        author="agent",
+        question="<p>Which codename?</p>",
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    open_on_me(page)
+
+    on_card(page, "widget:name-ask").locator(".lf-fp-seat leaf-text").click()
+    page.keyboard.type("Call it Larch")
+    with sending(page, "the answer"):
+        page.keyboard.press("Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert (event["kind"], event["text"], event["anchor"]) == (
+        "comment",
+        "Call it Larch",
+        {"section": "name-ask"},
+    )
+    expect(on_card(page, "widget:name-ask").locator(".lf-fp-said")).to_contain_text(
+        "Answered: Call it Larch"
+    )
+
+    asked = page.locator(f"{ON_ME} .lf-fp-on-item", has_text="Which codename?")
+    asked.locator(".lf-fp-asked-reply leaf-text").click()
+    page.keyboard.type("Spruce")
+    with sending(page, "the reply"):
+        page.keyboard.press("Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert (event["kind"], event["author"], event["text"]) == (
+        "reply",
+        "user",
+        "Spruce",
+    )
+    expect(asked.locator(".lf-fp-said")).to_contain_text("Answered: Spruce")
+
+
+def test_a_card_answers_a_widget_in_an_unopened_thread_message(browser, serve):
+    """A widget in a thread message nobody has opened draws itself in its card from the
+    message's markup, so the user picks there without opening the thread, and Show then
+    opens the thread at the one instance the message holds, showing the pick."""
+    url = serve(SEATS_PAGE)
+    root = panel_comment(serve.page_dir, "Should the rollout wait?")
+    thread_model.post_reply(
+        serve.page_dir, {"responds": root}, "Which week suits?", WEEK_REPLY
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    open_on_me(page)
+    week = seat(page, "week")
+    expect(week.locator("lf-option-control")).to_have_count(2)
+    with sending(page, "the pick"):
+        week.locator("#next-week lf-option-control").click()
+    assert last_event(serve) == {
+        "kind": "action",
+        "widget": "week",
+        "action": "choose",
+        "detail": {"value": ["next-week"]},
+    }
+    card = on_card(page, "widget:week")
+    expect(card.locator(".lf-fp-said")).to_contain_text("Answered: Next week")
+    card.get_by_role("button", name="Show", exact=True).click()
+    panel_settled(page, view="thread")
+    expect(page.locator('[id="week"]')).to_have_count(1)
+    expect(page.locator(f"{panel_view('thread')} #next-week")).to_have_attribute(
+        "chosen", ""
+    )
+
+
+HELD_PAGE_APPROVAL_PENDING = """async () => {
+  const {readApplicationPresentation} = await window.__lfCheckApi();
+  const request = document.querySelector('main #publish');
+  const release = request.controller.defer();
+  const sent = request.controller.dispatch(
+    {kind: 'action', verb: 'approve', detail: {}, says: 'Approved'});
+  const pending = [...readApplicationPresentation().pending];
+  await sent.delivery;
+  release();
+  return pending;
+}"""
+
+
+@pytest.mark.parametrize("card", ["open", "closed"])
+def test_a_card_s_widget_leaves_its_source_s_presentation_to_the_source(
+    browser, serve, card
+):
+    """The card's widget presents in a region of its own, so the page's widget keeps
+    its own while the card stands and after it goes: a draw the page's widget holds back
+    still holds the page's presentation. Sharing the source's region, the card took it
+    over, and its departure deleted it, so the page's draws held nothing."""
+    page = open_page(browser, serve(SEATS_PAGE))
+    resized(page, 1280, 900)
+    open_on_me(page)
+    expect(seat(page, "publish")).to_have_count(1)
+    if card == "closed":
+        page.locator(".lf-fp-on-user").click()
+        panel_settled(page, open=False)
+    assert "widget:publish:render" in page.evaluate(HELD_PAGE_APPROVAL_PENDING)

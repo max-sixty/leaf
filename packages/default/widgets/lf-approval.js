@@ -18,6 +18,10 @@ import {
 customElements.define(
   "lf-approval",
   class extends LeafElement {
+    // On me's card draws this widget itself (runtime obligations/seat.js), in the
+    // form its theme gives `[data-lf-seat="card"]`.
+    static seats = ["card"];
+
     static answerWords() {
       return "Approved";
     }

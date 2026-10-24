@@ -464,6 +464,7 @@ floatingPanel = createFloatingPanel({
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,
+  authoredElement: (id) => version.authoredElement(id),
   openThreadSubject: (id, options) =>
     app.threadDestinations.openThreadSubject(id, options),
 });

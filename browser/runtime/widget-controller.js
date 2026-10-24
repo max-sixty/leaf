@@ -11,7 +11,11 @@
 import { untracked } from "/vendor/browser-runtime.js";
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
-import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
+import {
+  descriptorStillMatches,
+  seatOf,
+  widgetDescriptor,
+} from "./widget-descriptors.js";
 import { failSoftUnreported } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { holdRendering } from "./rendering.js";
@@ -95,7 +99,12 @@ function createWidgetController(owner) {
 
   const prepared = () => {
     if (!preparationHandle && owner.isConnected)
-      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
+      preparationHandle = attachWidgetPresentation(
+        descriptor.id,
+        "preparation",
+        owner,
+        seatOf(owner),
+      );
     return preparationHandle;
   };
 

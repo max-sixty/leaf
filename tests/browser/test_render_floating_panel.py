@@ -596,8 +596,9 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
 
 def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, serve):
     """A question the agent asked in a thread reads in the On view as its message, drawn
-    whole as the thread draws it, so what it introduces after a colon is there with it.
-    Reply opens its thread with On behind it, where the back link returns."""
+    whole as the thread draws it, so what it introduces after a colon is there with it,
+    with the thread's reply box under it. Discuss opens its thread with On behind it,
+    where the back link returns."""
     url = serve(LONG_PAGE)
     panel_comment(
         serve.page_dir,
@@ -613,7 +614,8 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
     expect(card.locator("li")).to_have_count(2)
     expect(card).to_contain_text("#4812 manual")
 
-    card.locator(".lf-fp-answer", has_text="Reply").click()
+    expect(card.get_by_role("textbox", name="Reply to")).to_be_visible()
+    card.get_by_role("button", name="Discuss").click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
     back = page.locator(".lf-fp-back")
     expect(back).to_have_text("On me")
@@ -3192,7 +3194,7 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     settled(page)
     first, second = cards.first.bounding_box(), cards.nth(1).bounding_box()
     with sending(page, "the answer"):
-        cards.first.locator(".lf-fp-answer", has_text="Shim").click()
+        cards.first.locator("#shim lf-option-control").click()
     answer = events_model.read_events(serve.page_dir)[-1]
     assert (answer["kind"], answer["widget"]) == ("action", "schema")
     expect(cards.first.locator(".lf-fp-said")).to_have_text(
@@ -3205,7 +3207,7 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     with sending(page, "the undo"):
         cards.first.get_by_role("button", name="Undo").click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    expect(cards.first.locator(".lf-fp-answer", has_text="Shim")).to_be_visible()
+    expect(cards.first.locator("#shim lf-option-control")).to_be_visible()
     expect(chip).to_contain_text("2")
     # The pressed Undo is gone, and Escape still puts the view away.
     page.keyboard.press("Escape")
@@ -3241,7 +3243,7 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
     settled(page)
     answers = cards.first.locator(".lf-fp-answers").bounding_box()
     with sending(page, "the answer"):
-        cards.first.locator(".lf-fp-answer", has_text="Shim").click()
+        cards.first.locator("#shim lf-option-control").click()
     expect(cards.first.locator(".lf-fp-said")).to_have_text(re.compile("^Answered"))
     expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
         "Options · Ship the migration · step 2 of 3"

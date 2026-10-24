@@ -604,8 +604,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     min-width: min-content;
     overflow: hidden;
   }
+  /* An unread reply's New stands with the time: never cut, so its track keeps its
+     whole width, and with a gap of its own. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta:has(> .lf-msg-new) {
+    grid-template-columns: max-content max-content;
+  }
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > .lf-msg-new {
+    margin-inline-start: var(--sp-2);
+  }
   /* Each annotation carries its own gap, so one cut to nothing takes its gap too. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time) {
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new) {
     padding-inline-start: var(--sp-2);
     min-width: 0;
     overflow: hidden;

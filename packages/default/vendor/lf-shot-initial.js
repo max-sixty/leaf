@@ -30,13 +30,13 @@
     if (!available || !(crop || sourceWidth && sourceHeight)) return null;
     const width = crop ? focus.width : sourceWidth;
     const height = crop ? focus.height : sourceHeight;
-    const stageHeight = availableHeight ?? height * Math.max(0, Math.min(1, (available - 2) / width)) + 2;
+    const fitHeight = availableHeight ?? height * Math.max(0, Math.min(1, (available - 2) / width)) + 2;
     const fit = (columns2, rows2, captions = 0) => Math.max(
       0,
       Math.min(
         1,
         (available - columns2 * 2 - (columns2 - 1) * gap) / (columns2 * width),
-        (stageHeight - rows2 * (captions + 2) - (rows2 - 1) * gap) / (rows2 * height)
+        (fitHeight - rows2 * (captions + 2) - (rows2 - 1) * gap) / (rows2 * height)
       )
     );
     const side = fit(2, 1);
@@ -54,7 +54,7 @@
     );
     const viewportHeight = Math.min(
       height * scale,
-      Math.max(0, (stageHeight - rows * (captionHeight + 2) - (rows - 1) * gap) / rows)
+      Math.max(0, (fitHeight - rows * (captionHeight + 2) - (rows - 1) * gap) / rows)
     );
     return {
       layout,
@@ -63,7 +63,7 @@
       crop,
       focus: Boolean(focus),
       vars: {
-        "stage-height": stageHeight,
+        "stage-height": availableHeight ?? (view === "compare" ? rows * (viewportHeight + captionHeight + 2) + (rows - 1) * gap : fitHeight),
         "frame-width": width * scale,
         "frame-height": height * scale,
         "viewport-width": viewportWidth,

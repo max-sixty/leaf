@@ -43,10 +43,10 @@ export function fitShotGeometry({
   if (!available || !(crop || (sourceWidth && sourceHeight))) return null;
   const width = crop ? focus.width : sourceWidth;
   const height = crop ? focus.height : sourceHeight;
-  // Every view inspects the same allocation. In flow it is the fitted single
-  // image's height; a bounded host supplies its own. Pair fits both images into
-  // that space instead of growing the document when the reader changes views.
-  const stageHeight =
+  // Fit against the single-image height in flow, or the host's bounded height.
+  // Pair uses this budget to choose its orientation, then takes only the height
+  // its fitted windows need; the toolbar remains outside that changing content.
+  const fitHeight =
     availableHeight ?? height * Math.max(0, Math.min(1, (available - 2) / width)) + 2;
   const fit = (columns, rows, captions = 0) =>
     Math.max(
@@ -54,7 +54,7 @@ export function fitShotGeometry({
       Math.min(
         1,
         (available - columns * 2 - (columns - 1) * gap) / (columns * width),
-        (stageHeight - rows * (captions + 2) - (rows - 1) * gap) / (rows * height),
+        (fitHeight - rows * (captions + 2) - (rows - 1) * gap) / (rows * height),
       ),
     );
   const side = fit(2, 1);
@@ -74,7 +74,7 @@ export function fitShotGeometry({
   );
   const viewportHeight = Math.min(
     height * scale,
-    Math.max(0, (stageHeight - rows * (captionHeight + 2) - (rows - 1) * gap) / rows),
+    Math.max(0, (fitHeight - rows * (captionHeight + 2) - (rows - 1) * gap) / rows),
   );
   return {
     layout,
@@ -83,7 +83,11 @@ export function fitShotGeometry({
     crop,
     focus: Boolean(focus),
     vars: {
-      "stage-height": stageHeight,
+      "stage-height":
+        availableHeight ??
+        (view === "compare"
+          ? rows * (viewportHeight + captionHeight + 2) + (rows - 1) * gap
+          : fitHeight),
       "frame-width": width * scale,
       "frame-height": height * scale,
       "viewport-width": viewportWidth,

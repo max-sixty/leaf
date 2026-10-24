@@ -156,8 +156,7 @@
   --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));
   padding: var(--lf-shot-frame-room);
   block-size: calc(var(--lf-shot-stage-height) + 2 * var(--lf-shot-frame-room));
-  /* A bounded host owns the final allocation; in flow the fitted single image
-     sets the height shared by every view. */
+  /* Bounded hosts fill their allocation; flow pairs take their fitted height. */
   flex: 1 1 auto;
   min-inline-size: 0;
   min-block-size: 0;

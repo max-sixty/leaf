@@ -238,11 +238,20 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     shot.get_by_role("button", name="Pair", exact=True).click()
     for index in (0, 1):
         expect(captions.nth(index)).to_have_css("color", label_colors[index])
-    # Mode changes replace the evidence inside one allocation. Checking only
-    # immediate vs painted geometry missed the document jumping between modes.
-    boxes = """node => [node, ...node.querySelectorAll(
-      '.lf-shot-toolbar, .lf-shotstage'
-    )].map(box => box.getBoundingClientRect().toJSON())"""
+    # Controls and the image area's top stay put; Pair may shrink the content
+    # below them instead of reserving unused space for the other views.
+    # This fixture ends at the widget: a shorter document may clamp scrollY.
+    # Compare document coordinates rather than requiring empty space below it.
+    boxes = """node => {
+      const box = element => {
+        const r = element.getBoundingClientRect();
+        return {x: r.x, y: r.y + scrollY, width: r.width, height: r.height};
+      };
+      return {toolbar: box(node.querySelector('.lf-shot-toolbar')),
+        controls: [...node.querySelectorAll(
+          '.lf-shot-views button, .lf-shot-tools > button'
+        )].map(box), stageTop: box(node.querySelector('.lf-shotstage')).y};
+    }"""
     for width in (390, 1000):
         page.set_viewport_size({"width": width, "height": 844})
         shot.get_by_role("button", name="Slider", exact=True).click()
@@ -254,6 +263,15 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
             page.evaluate("() => new Promise(requestAnimationFrame)")
             assert shot.evaluate(boxes) == allocation, view
             assert_source_words()
+            if view == "Pair":
+                unused_height = shot.evaluate("""node => {
+                  const stage = node.querySelector('.lf-shotstage');
+                  const style = getComputedStyle(stage);
+                  return stage.clientHeight - parseFloat(style.paddingTop)
+                    - parseFloat(style.paddingBottom)
+                    - node.querySelector('.lf-shotcanvas').getBoundingClientRect().height;
+                }""")
+                assert abs(unused_height) <= 1
 
 
 @pytest.mark.parametrize("touch", [False, True])

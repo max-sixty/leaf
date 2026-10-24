@@ -13,10 +13,11 @@
  * A stacked pair labels each frame instead of the header, since left/right
  * bookends cannot identify vertically arranged images. Other views label the header.
  *
- * All views share one allocation: the single image's fitted height in ordinary
- * flow, or the containing host's bounded height. Pair chooses the orientation
- * that gives both images the larger scale inside that allocation, so changing
- * views never moves the page below. Fit recalculates for that layout; 100% retains the captured CSS
+ * Pair chooses the orientation that gives both images the larger scale within
+ * the single image's fitted height, or the containing host's bounded height.
+ * In ordinary flow it takes only the height its windows need; the toolbar stays
+ * in place while content below follows the images. Fit recalculates for that
+ * layout; 100% retains the captured CSS
  * scale, or bitmap pixels when no capture ratio is supplied. Inspection choices
  * belong to this element's lifetime, not the document's application state.
  *

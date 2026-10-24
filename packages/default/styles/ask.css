@@ -5,6 +5,23 @@
 :scope:is(lf-ask) {
   display: block;
 }
+/* A full-height question can meet the viewport's foot, leaving no scroll position
+ * that shows an outside obligation ring. Its content can cover an inset outline, so
+ * paint the same band on a non-interactive overlay above the question's children. */
+:scope:is(lf-ask)[data-lf-obligation] {
+  position: relative;
+  /* Runtime chrome is adopted after the package sheet. */
+  outline: none !important;
+}
+:scope:is(lf-ask)[data-lf-obligation]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  outline: var(--lf-obligation-ring, var(--focus-ring));
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 /* An lf-ask frames prose, so it keeps the reading measure as its text does (theme.css),
  * its outer width the measure, and in a flow wider than the column (a sidebar page's
  * body) its ring stands round the prose rather than the flow. It widens to the widest

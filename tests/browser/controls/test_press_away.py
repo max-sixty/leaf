@@ -132,7 +132,7 @@ def test_a_press_away_takes_back_a_reaction_s_offered_remove(browser, serve):
     )
     page = open_page(browser, url)
     mark = page.get_by_role("button", name="keep reaction actions", exact=True)
-    remove = page.locator('[aria-label="Remove keep reaction"]:visible')
+    remove = page.locator('[aria-label="Undo keep reaction"]:visible')
     outside = centre(page.locator("h1"))
     mark.click()
     expect(remove).to_be_visible()

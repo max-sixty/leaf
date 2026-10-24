@@ -5,20 +5,6 @@ event's `handling`. A chat response does not change the page.
 
 ## What the user sees
 
-The user follows your work on the page:
-
-| Surface                   | What it shows                                                                                                                                                                 | Written by                                                              |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Leaf's panel              | one sentence for the whole page, in the empty comment field: the line of the item you started last, or an invitation to comment; the leaf beside it takes the status's colour | `leaf task start`, `leaf page open <page>`                              |
-| Beside a thread or widget | **Working** and your line: the thread's working message, where you posted it, or on the control the work answers                                                              | `leaf thread reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread                    | your answer to the user's message, replacing the progress before it                                                                                                           | the response operation named by delivered `handling`                    |
-| Page                      | the revised content in place, and a stamp's changelog                                                                                                                         | saving `index.html`, `leaf page stamp`                                  |
-
-Leaf's panel floats at the foot of the window. Leaf marks each update **Sent**,
-**Queued**, and **Delivered** by itself. Your harness may add its current step to the
-status, which the user reads in full in the leaf's menu, or by pointing at the leaf
-when the panel is folded.
-
 In `leaf page state <page>`, `viewed` is when a browser tab last showed the page, in
 epoch seconds, renewed about every 10 seconds while visible and `null` if nobody has
 opened it. Each thread's `unread` lists your messages the user has not read
@@ -29,14 +15,13 @@ status.
 
 `user_views` in `leaf page state <page>` has one entry per browser page load over the
 last day: its viewport, the area left after Leaf's chrome, color scheme, pointer,
-reduced motion, scroll position, and which regions are on screen. Use it to check
+scroll position, and which regions are on screen. Use it to check
 that a revision fits the window the user has. `visible` says whether the load showed
 the page at its last report, `freshness` turns `stale` after 45 seconds without one,
 and `matches_active_revision` says whether it shows your latest revision. Each
 entry's `checks` lists layout problems that browser measured, such as sideways
-overflow, with their own `freshness` and `matches_view`. They are context, not a
-substitute for `leaf page check --render`, which reads the desktop at the latest
-entry's viewport. An empty list means no browser has
+overflow. They are context, not a substitute for `leaf page check --render`, which
+reads the desktop at the latest entry's viewport. An empty list means no browser has
 reported, and a region on screen does not mean the user read it.
 
 ## When to write
@@ -51,8 +36,7 @@ leaf thread reply <answer.ref> --ephemeral --text "<what you will do, in a line>
 ```
 
 The line shows at once as the thread's working message and the panel's **Working**
-status, and it starts the update. Your answer later folds it away
-([progress messages](threads.md#progress-messages)). Start any other item, such as a
+status, and it starts the update. Start any other item, such as a
 to-do or an action on a page widget, with `leaf task start`:
 
 ```bash
@@ -75,8 +59,8 @@ leaf task start <page> <todo> "drafting the glossary entries"
 leaf task end <page> <todo> done "<where the result is>"
 ```
 
-`leaf task open` prints the to-do's `id`. Until you end it, `leaf page close …`
-refuses. Housekeeping such as re-vendoring, restarting the server, or merging needs
+`leaf task open` prints the to-do's `id`.
+Housekeeping such as re-vendoring, restarting the server, or merging needs
 no to-do.
 
 When the work runs to several steps, some of which may wait on the user, write your plan
@@ -101,15 +85,10 @@ the plan again when a step finishes or the breakdown changes.
 
 When input arrives:
 
-1. If the delivery's `acknowledge` names a receipt command, run it first. If it is
-   `null`, your harness has confirmed receipt.
-2. Post the progress line for each update that asks for work. Answer a question you
+1. Post the progress line for each update that asks for work. Answer a question you
    can already settle at once; make any related page revision after replying.
-3. If it interrupted other work, start that item again, so the panel's status
+2. If it interrupted other work, start that item again, so the panel's status
    describes the work that continues.
-
-Reply about a page revision as soon as it is saved; the reply checks it (the main
-skill's "Check the page").
 
 ## Page availability and handoff
 
@@ -133,18 +112,12 @@ When the page's work and conversation are finished, `leaf page close <page>` sto
 watching it. It refuses while updates are unread, answers are owed or agent to-dos
 remain open; closing settles no obligation.
 
-Your reply ends an update's start, or, for an answer owed in markup, the stamped
-version that records
-the user's press. A to-do's start ends with the to-do, through `leaf task end` or a
+A to-do's start ends with the to-do, through `leaf task end` or a
 stamped version that completes its widget:
 
 ```bash
 leaf page stamp <page> --text "…" --completes <widget-id>
 ```
-
-`--completes` ends every open to-do on that widget `done`, citing the version; repeat
-it for each widget. A to-do on a widget stays open through versions that do not
-complete it, even one that removes the widget.
 
 ## Long-running work
 
@@ -163,10 +136,8 @@ exceptions are a command hub worker (the `worker` value from
 your conversation inherits the page too. Work that needs its own conversation with
 the user belongs in its own session, with its own page.
 
-A start lasts only for the turn that wrote it. About two minutes after the turn ends,
-the panel's status says your turn ended and quotes the line, or in Claude Code, while
-background subagents run, that you are working in the background. Within a long turn
-a start goes stale after about 15 minutes. The status shows the item you started last, so
+A start lasts only for the turn that wrote it.
+Within a long turn a start goes stale after about 15 minutes. The status shows the item you started last, so
 start the one that best describes what is running. While a worker produces an
 update's answer, start that update before you end your turn; the Stop hook lets a
 turn end over an update it started. In the next turn, start the item again or answer
@@ -214,7 +185,7 @@ press lands where the obligation is answered; on a widget's obligation, its numb
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence                 | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
 | A conversational answer                                                         | `--obligation` on `thread open` or `thread reply` (`threads.md`)                                                        | The user's next message there or a settling reaction                                  |
-| Approval of a stated action                                                     | Write `lf-approval` with the exact subject (`authoring-decisions.md`, "Approval")                                       | The widget's recorded approval and its row in On me                                   |
+| Permission for a stated action                                                  | A decision with the action and an option keeping things as they are (`authoring-decisions.md`, "Permission")            | The user's pick and its row in On me                                                  |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its thread, widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 Generally pass `--obligation` when a message hands the next move to the user.
@@ -222,7 +193,7 @@ Progress and information that need no response create no obligation. When a widg
 already captures the same answer, its obligation is sufficient.
 
 Obligation ids are `message:<message-id>` for an explicit message request,
-`widget:<widget-id>` for a widget, `lf-ask` and `lf-approval` included,
+`widget:<widget-id>` for a widget, `lf-ask` included,
 and `update:<event-id>` for an update
 the user handed over. A to-do on the user keeps the id `task open` printed. It can sit on a thread; replies discuss the action and Done completes it.
 The user's next message in a thread answers every conversational request before it.
@@ -238,8 +209,7 @@ answer:
 leaf page state <page> | jq '{source, obligations, todos, queues}'
 ```
 
-`queues.on_user` is On me: the open obligations on the user, including updates to
-resend and user to-dos. `queues.on_agent` is your list: the updates you owe a
+`queues.on_user` is On me. `queues.on_agent` is your list: the updates you owe a
 reply or a version, and your to-dos. Read them as given rather than rebuilding them
 from events. A row names its obligation or to-do by `id`. An obligation's record in
 `obligations` holds its `prompt`, its `answer` once given, its `status` and its
@@ -248,11 +218,9 @@ to-do's record in `todos` holds its `title` and the start `running` on it.
 `activity.obligations` lists each answer you owe as its record's `id` beside the
 `answer` that settles it: the reply to write, with the `ref` its delivery gave where
 you can still use it, or the action a stamped version must record. Recover what you
-owe there when no delivery is at hand. Read a thread or a widget with
-`leaf page state <page> <id>`, using a message id or a widget id; the widget's markup
-is in the HTML file named by `active.file`. Unsent drafts and tabs on older versions
+owe there when no delivery is at hand. Unsent browser drafts and tabs on older versions
 are not in this reading.
-Check `source` for an invalid or missing draft before taking an empty list as a
+Check `source` for an invalid or missing `index.html` before taking an empty list as a
 clean handoff.
 
 An empty On me means you need nothing from the user now. Finish authorized work
@@ -260,10 +228,10 @@ without asking again. Ask about a paused project only when resuming or dropping 
 needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
 
-When the user answers in chat or elsewhere, use the answer and retire the page's obligation
-in a revision (`authoring-revisions.md`), or end their to-do with `leaf task end`. End
-a question in a thread answered elsewhere `done`, or `dropped` when it no longer
-applies:
+When the user answers a conversational question elsewhere, use the answer and end
+its obligation with `leaf task end`, using the id from `page state`: `done` records
+where they answered; `dropped` withdraws a question that no longer applies. Neither
+outcome fabricates an answer in the page's history:
 
 ```bash
 leaf task end <page> message:<message-id> done "<where the answer is>"
@@ -271,3 +239,6 @@ leaf task end <page> message:<message-id> dropped "<why>"
 ```
 
 For a reply-answered widget, use its `widget:<widget-id>` obligation id instead.
+An obligation answered through a widget's controls ends through its state or an
+authored withdrawal (`authoring-revisions.md`). Explicit user to-dos also end with
+`leaf task end` when the work is complete, failed or dropped.

@@ -294,14 +294,15 @@
    * `--lf-shift` moves the column off centre where a margin element needs more room on one
    * side (prepaint.js, `marginContentLayout`).
    *
-   * A breakout centres on the prose's axis, so its left edge matches neither the title
-   * nor the prose. That suits a figure the prose cites. A page led by one wide surface
-   * is a workspace instead (page-authoring.md, "Composing a page"), so this Layout does
-   * not align them. Three alignments were sketched and rejected on 2026-10-16 because each
-   * adds a rule to every column page: the title on a leading breakout's edge, headings
-   * on the wide line, and prose and breakouts sharing one left edge. Reconsider if column
-   * pages keep opening with a wide surface, or keep writing their own CSS to line a
-   * title up with one. */
+   * A `wide` breakout starts at the prose's start edge and grows toward the end, so a
+   * block slightly wider than the column, such as 100-column code, a diff or a table,
+   * reads as part of the column. An `available` one spans both margins and centres on
+   * the prose's axis. Until 2026-10-23 `wide` centred too, at 1080px; its left edge
+   * matched neither the title nor the prose, and the user found that ugly for code that
+   * needs only a little more than the column. Hanging a code block's line numbers into
+   * the left gutter, so its text rather than its box met the prose's edge, was rejected
+   * then because where a block's text starts is each widget's own fact (a diff's gutter,
+   * a table's cell padding), so it would need a rule per widget. */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column {
     max-width: var(--col);
     margin-inline: auto;
@@ -476,18 +477,20 @@
       margin: 0 calc(-1 * var(--note)) 12px 0;
     }
   }
-  /* Breakouts: content wider than the argument about it. The prose axis never moves and
-   * there is one wider width, so wide evidence is in the column or at --wide. Which
-   * widgets break out is the registry's (x-space), painted as `data-lf-space`, so this
-   * reaches a widget nobody has written yet.
+  /* Breakouts: content wider than the argument about it. The prose never moves. There
+   * are two wider widths: `wide`, from the prose's start edge to at most --wide, for a
+   * block slightly wider than the column, and `available`, all the room, about the
+   * prose's axis. Which widgets break out is the registry's (x-space), painted as
+   * `data-lf-space`, so this reaches a widget nobody has written yet.
    *
    * The element grows out of the column rather than widening the prose, so a margin with
    * no room gives nothing and an undeclared widget stays the column's width. Growth stops
    * at the column's gutters less the margin elements' claims (`--lf-taken-l/r`); the rail claims
    * nothing, and a margin row level with a breakout stands on it as a pin
-   * (margin-placement.js), since nothing Leaf draws moves the page's content. Where one
-   * side has less room, the freer side takes what the other lacks; with both free the
-   * element keeps the prose axis.
+   * (margin-placement.js), since nothing Leaf draws moves the page's content. A `wide`
+   * block grows only into the end side's free room, so where that runs short it is
+   * narrower and its start edge still meets the prose's. An `available` block takes
+   * both sides; where one has less room, the freer side takes what the other lacks.
    *
    * Screen only: paper is the column's width. `body` is the size container, and no
    * surface Leaf opens changes its inline size.
@@ -542,8 +545,8 @@
         [data-lf-content="markup"]:has(> [data-lf-space]:not([data-lf-kept]))
       ) {
         /* Held to the free room beside the page (--lf-free-l/r) and spent evenly about
-         * the prose axis where both sides have it. Neither side goes below zero, so the
-         * box always covers its holder. */
+         * the prose axis where both sides have it; `wide` refines this below. Neither
+         * side goes below zero, so the box always covers its holder. */
         --lf-surplus: clamp(
           0px,
           calc(var(--lf-reach) - 100%),
@@ -565,13 +568,27 @@
         box-sizing: border-box;
       }
       /* `wide` is one width wherever the block stands: capped at --wide even in a holder
-       * already wider, such as a sidebar page's body; `available` takes everything. A
-       * widget holding a block that breaks out reaches as far as that block. */
+       * already wider, such as a sidebar page's body, and grown only toward the end
+       * side, so its start edge is the prose's. `available` takes everything. A widget
+       * holding a block that breaks out reaches as far as that block. */
       :is(
         [data-lf-space="wide"],
         [data-lf-content="markup"]:has(> [data-lf-space="wide"]:not([data-lf-kept]))
       ) {
-        --lf-reach: min(var(--wide), var(--lf-room, 0px));
+        --lf-reach: min(
+          var(--wide),
+          var(--lf-room, 0px),
+          calc(100% + var(--lf-free-r))
+        );
+        --lf-grow-l: 0px;
+        &:dir(rtl) {
+          --lf-reach: min(
+            var(--wide),
+            var(--lf-room, 0px),
+            calc(100% + var(--lf-free-l))
+          );
+          --lf-grow-l: var(--lf-surplus);
+        }
       }
       :is(
         [data-lf-space="available"],
@@ -621,8 +638,9 @@
     /* A table breakout paints only its columns' rules, so its room is a limit, not a
      * size: its box takes the columns' natural width (`max-content`), at least its
      * holder's and at most the breakout's, and stands where a breakout of that width
-     * would, by the same arithmetic about the prose axis (`--lf-over` is how far it
-     * passes the column). One that fits the column starts where the prose does.
+     * would: a `wide` one from the prose's start edge, an `available` one by the same
+     * arithmetic about the prose axis (`--lf-over` is how far it passes the column).
+     * One that fits the column starts where the prose does.
      *
      * The margin sets the box at the edge of the free room on its holder's start side,
      * and a translation, which can use the box's own width (`--lf-pull` is how far a
@@ -654,10 +672,16 @@
           min(var(--lf-over), var(--lf-free-l))
         );
         translate: calc(var(--lf-free-l) - var(--lf-pull)) 0;
+        &[data-lf-space="wide"] {
+          --lf-pull: 0px;
+        }
         :dir(rtl) > & {
           margin-left: auto;
           margin-right: calc(-1 * var(--lf-free-r));
           translate: calc(var(--lf-over) - var(--lf-free-r) - var(--lf-pull)) 0;
+        }
+        :dir(rtl) > &[data-lf-space="wide"] {
+          --lf-pull: var(--lf-over);
         }
         & > caption {
           max-inline-size: max(var(--lf-width), var(--lf-reach));

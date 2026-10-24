@@ -11,6 +11,15 @@
   --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;
 }
+/* How far in from a field's frame the words of a field holding Send stop: Send's hit
+   box with the action inset on either side of it. A user's message written in such a
+   field keeps the same end (reading.css, `--lf-msg-text-end`). */
+:root,
+.lf-compose-field {
+  --lf-compose-send-end: calc(
+    var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
+  );
+}
 :root,
 .lf-compose-field,
 .lf-icon-action {
@@ -105,8 +114,7 @@
    whole line. */
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
   --lf-field-end-room: calc(
-    var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) -
-      var(--lf-compose-pad-inline-start)
+    var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start)
   );
 }
 .lf-icon-action {
@@ -301,7 +309,7 @@ button.lf-media-open {
    tall screenshot is more than a sliver, up to twice as wide. */
 .lf-media-frame,
 .lf-composer-media-item > .lf-composer-media-open {
-  border-radius: 8px;
+  border-radius: var(--r);
   box-shadow:
     0 0 0 1px var(--lf-ring, var(--border-2)),
     var(--raise-1);
@@ -621,7 +629,11 @@ leaf-text.lf-fab-input {
   min-height: var(--lf-response-height);
 }
 /* The native top layer keeps this picker out of each composer's layout and clipping.
-   CSS anchors follow its trigger across floating, panel and widget seats. */
+   CSS anchors follow its trigger across floating, panel and widget seats. The row has
+   no backing box: each choice's own button face stands on the page, as the field and
+   trigger beside it do. Max removed the box, a bordered, shadowed card behind the row,
+   on 23 October 2026 as unneeded. The padding stays, clear, as room for each choice's
+   focus ring inside the popover's scrollport. */
 .lf-response-options {
   position: fixed;
   position-anchor: --lf-response-trigger;
@@ -634,11 +646,9 @@ leaf-text.lf-fab-input {
   max-width: calc(100vw - 16px);
   margin: 4px 8px;
   padding: 4px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
+  border: 0;
+  background: transparent;
   color: var(--ink);
-  box-shadow: var(--raise-2);
 }
 .lf-response-options:popover-open {
   display: flex;

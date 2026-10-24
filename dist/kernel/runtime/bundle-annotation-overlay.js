@@ -7,7 +7,7 @@ import { atScrollEnd, effectiveScroller, moveScrollerBy, pageScroller, placeKept
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { exactTarget, passageGeometry, rangeGeometry, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-css-anchors.js";
-import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, retainUserIntent, revealHeld, rowWalk, selectionAnchor, showLatestTurn, strongestWorkflow, tabStore, threadFocusDestination, threadIdNamed, threadNamed, writingIn } from "./bundle-surfaces.js";
+import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, retainUserIntent, revealHeld, rowWalk, selectionAnchor, showLatestTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-surfaces.js";
 import { setChildLists, setChildren } from "./bundle-abort.js";
 import { reducedMotion } from "./bundle-motion.js";
 import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-margin-model.js";
@@ -113,6 +113,99 @@ function surfaceGrip({ surface, bounds, dropped }) {
 }
 
 //#endregion
+//#region runtime/thread/card-anchor.js
+var CardAnchor = class {
+	#surface;
+	#sent = null;
+	#press = null;
+	#side = null;
+	constructor(surface) {
+		this.#surface = surface;
+	}
+	sending(attempt) {
+		this.#sent = attempt;
+	}
+	writing() {
+		this.#sent = null;
+	}
+	#keepsSend(joined) {
+		return this.#sent !== null && (!joined?.size || joined.has(this.#sent));
+	}
+	presented(joined) {
+		if (!this.#keepsSend(joined)) this.#sent = null;
+	}
+	pressed(event, input) {
+		if (![
+			"pointerdown",
+			"touchstart",
+			"keydown"
+		].includes(event.type)) return;
+		const path = event.composedPath();
+		if (!path.includes(this.#surface)) return;
+		const top = this.#surface.getBoundingClientRect().top;
+		this.#press = {
+			input,
+			path: path.filter((node) => node instanceof Element && node !== this.#surface && this.#surface.contains(node)).map((node) => ({
+				node,
+				offset: node.getBoundingClientRect().top - top
+			})),
+			extent: this.#extent(),
+			edge: null
+		};
+	}
+	#field() {
+		return this.#surface.querySelector(`.lf-thread-reply ${TEXT_FIELD}`);
+	}
+	#writing() {
+		const field = this.#field();
+		return Boolean(field?.checkVisibility() && (currentLocationIn(field.closest(".lf-thread-reply")) || field.value !== ""));
+	}
+	#extent() {
+		const transcript = this.#surface.querySelector(".lf-thread-transcript");
+		return transcript ? parseFloat(getComputedStyle(transcript).height) + transcript.scrollHeight - transcript.clientHeight : 0;
+	}
+	prepare(seat) {
+		if (seat.fresh) this.forget();
+		this.#side = seat.side;
+		if (this.#field()?.value) this.writing();
+		const writing = this.#writing();
+		const captured = this.#press;
+		let press = captured?.input === inputCount() ? captured : null;
+		if (press) {
+			const extent = this.#extent();
+			if (Math.abs(extent - press.extent) > .5) {
+				const reference = press.path.find(({ node }) => node.checkVisibility());
+				if (press.edge) press = null;
+				else if (reference) {
+					const offset = reference.node.getBoundingClientRect().top - this.#surface.getBoundingClientRect().top;
+					press = {
+						...press,
+						edge: seat.side === "top" || Math.abs(offset - reference.offset) > .5 ? "foot" : "top",
+						extent
+					};
+				}
+			}
+		}
+		const attachment = seat.side === "top" ? "foot" : "top";
+		const ordinary = this.#sent || (writing ? seat.floored && seat.side !== "top" && seat.side !== "bottom" : seat.side === "top") ? "foot" : "top";
+		return {
+			edge: seat.adopted ? attachment : press?.edge ?? ordinary,
+			commit: () => {
+				if (this.#press === captured) this.#press = press;
+			}
+		};
+	}
+	newsMoves(joined) {
+		return this.#writing() || this.#side === "top" || this.#keepsSend(joined);
+	}
+	forget() {
+		this.#sent = null;
+		this.#press = null;
+		this.#side = null;
+	}
+};
+
+//#endregion
 //#region runtime/annotation-overlay/thread-preview.js
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
 const CUT_EDGES = [
@@ -205,22 +298,9 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		when: () => onOpener() && under(stopsBeside(chromeRoot, opener(), -1).at(-1), preview),
 		run: () => focusDestination(preview, "return")
 	}];
-	onUserInput((event) => {
-		if (!previewSession || ![
-			"pointerdown",
-			"touchstart",
-			"keydown"
-		].includes(event.type)) return;
-		const path = event.composedPath();
-		if (!path.includes(preview)) return;
-		const top = preview.getBoundingClientRect().top;
-		previewSession.pressed = {
-			input: inputCount(),
-			path: path.filter((node) => node instanceof Element && node !== preview && preview.contains(node)).map((node) => ({
-				node,
-				offset: node.getBoundingClientRect().top - top
-			}))
-		};
+	onUserInput((event) => previewSession?.anchor.pressed(event, inputCount()));
+	preview.addEventListener("lf-before-edit", (event) => {
+		if (event.composedPath().some((node) => node instanceof Element && node.matches(".lf-thread-reply"))) previewSession?.anchor.writing();
 	});
 	let previewRegionMounted = false;
 	function syncPreviewTranscript() {
@@ -275,6 +355,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		cancelRender(previewSession.positionFrame);
 		previewSession.positionFrame = 0;
 		previewSession.side.forget();
+		previewSession.anchor.forget();
 		previewSession.away = false;
 	}
 	function retirePreviewSession() {
@@ -322,9 +403,6 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		if (!session.sent) return showLatestTurn(session.transcript);
 		scrollToEnd(session.transcript);
 		moveScrollerBy(session.transcript, -session.sent.fromEnd);
-	}
-	function measureTranscript() {
-		return previewSession.transcript ? parseFloat(getComputedStyle(previewSession.transcript).height) + previewSession.transcript.scrollHeight - previewSession.transcript.clientHeight : 0;
 	}
 	function threadCardCluster(session) {
 		const row = session.control.closest("[data-lf-margin-for]") ?? session.control;
@@ -386,11 +464,6 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			floatingUi().then((ui) => stillCurrent() && watch(ui));
 			return false;
 		}
-		const thread = threadCardThread(session);
-		const latest = thread && turns(thread).at(-1);
-		const replyEditor = previewList.querySelector(REPLY_BOX);
-		const sending = latest?.author === "user" && strongestWorkflow(latest.workflows)?.stage === "sending";
-		const drafting = writingIn(replyEditor, sending);
 		const boundary = commentBoundary({ region: place.region });
 		session.region = place.region;
 		if (!boundary.width || !boundary.height) {
@@ -398,7 +471,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			return false;
 		}
 		const scroller = place.scroller;
-		const { side, fresh, hold } = session.side.choose({
+		const seat = session.side.choose({
 			clear: place.clear,
 			row: place.row,
 			column: place.column,
@@ -407,21 +480,11 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			scroller,
 			coarse: coarsePointer.matches
 		});
-		const pressed = session.pressed?.input === inputCount() ? session.pressed.path.find(({ node }) => node.checkVisibility()) : null;
-		const held = session.side.holding({
-			fresh,
-			hold,
-			transcript: measureTranscript(),
-			drafting,
-			latest,
-			draftText: replyEditor?.value ?? "",
-			pressed: pressed && {
-				input: session.pressed.input,
-				moved: Math.abs(pressed.node.getBoundingClientRect().top - preview.getBoundingClientRect().top - pressed.offset) > .5
-			}
-		});
+		const { side, fresh } = seat;
+		let anchored;
 		floatingUi().then((ui) => {
 			if (!stillCurrent()) return null;
+			anchored = session.anchor.prepare(seat);
 			const { reference, placement, middleware, plane } = session.side.options(ui, {
 				clear: place.clear,
 				row: place.row,
@@ -444,7 +507,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 						placeThreadPreview();
 					}
 				},
-				hold: () => session.side.heldAt(held)
+				edge: anchored.edge
 			});
 			watch(ui);
 			return placementDriver.position(ui.computePosition, commentReference(place, reference), {
@@ -455,6 +518,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			if (!position || !stillCurrent()) return;
 			session.arriving = false;
 			const { scale } = session.side.landed(position);
+			anchored.commit();
 			placementDriver.stand(position);
 			session.width ??= preview.getBoundingClientRect().width;
 			carry.placed();
@@ -520,9 +584,9 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			place: null,
 			stopRegion: null,
 			side: commentPlacement(),
+			anchor: new CardAnchor(preview),
 			width: origin?.box.width ?? null,
-			region: null,
-			pressed: null
+			region: null
 		};
 		if (origin) previewSession.side.adopt(origin);
 		return previewSession;
@@ -598,7 +662,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		renderMarginThread(node.querySelector(":scope > .lf-margin-thread-body"), sourceItem(item).thread, {
 			nav: previewNav.hidden ? null : previewNav,
 			close: previewClose,
-			heldEdge: (turn) => previewSession?.side.edgeFor(turn) ?? "top",
+			anchor: previewSession.anchor,
 			prepareLanding: () => {
 				const target = targetFor(previewSession?.entry);
 				const thread = sourceItem(item).thread.id;
@@ -724,6 +788,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		previewPrevious.onclick = () => stepPreviewThread(-1);
 		previewNext.onclick = () => stepPreviewThread(1);
 		onCurrentLocation((node, cause, left) => {
+			if (node && under(node, preview) && closestAcross(node, ".lf-thread-reply") && cause !== "return" && cause !== "drop") {
+				previewSession?.anchor.writing();
+				scheduleThreadPreviewPosition();
+			}
 			const row = left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
 			if (row && !(node && under(node, row)) && !row.querySelector(REPLY_BOX)?.value) scheduleThreadPreviewPosition();
 		});

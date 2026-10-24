@@ -49,9 +49,7 @@ import {
   replyAvailable,
   dismissReply,
   threadHoldsDraft,
-  writingIn,
 } from "./replies.js";
-import { TEXT_FIELD } from "../control-selectors.js";
 import { atScrollEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
 import { iconTemplate } from "../icons.js";
@@ -63,7 +61,7 @@ import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, replyPinned } from "./reply-landing.js";
 import { threadRewrites } from "./message-edit.js";
-import { newsNotice } from "./held-news.js";
+import { newsNotice, threadChange } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 import { Transcript } from "./transcript.js";
 
@@ -412,7 +410,7 @@ export class ThreadView {
   // would move visible words. Existing-message changes and active compositions
   // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
   // absorb changes above it or settlement replacing the reply itself.
-  newsMoves({ news, changed, folds, appendedAtEnd, footFold }) {
+  newsMoves({ news, changed, joined, folds, appendedAtEnd, footFold }) {
     // Settling moves the card between the seat's open threads and its Resolved
     // disclosure, so it grows the seat where the card lands as well as where it stood.
     const lands = news.settled ? this.#settlesAt?.() : null;
@@ -428,7 +426,7 @@ export class ThreadView {
       footFold &&
       !folds.messages.some((key) => currentLocationTouches(this.#messageNode(key)));
     // The margin's floating card grows at one of its own edges: the one its placement
-    // does not hold (comment-placement.js, `edgeFor`, which a turn joining may change).
+    // does not hold (card-anchor.js, whose send hold arriving words end).
     // News shows at once only where it changes the thread's end and the card holds its
     // top for it with the user not writing in it: the card grows down, moving its reply
     // row and nothing above. A change to the last message is such news where it is a
@@ -448,14 +446,9 @@ export class ThreadView {
           (key) => key === last?.key && (last.provisional || follows),
         ) &&
         (foot || (!folds.messages.length && !folds.summaries.length));
-      const writing = writingIn(
-        this.#reply?.node.querySelector(TEXT_FIELD),
-        last?.author === "user" && last.pending,
-      );
-      const turn = news.appended || news.progress > 0 || footFold;
       return (
         growthIsSeen(this.node) &&
-        (!atEnd || writing || this.#marginControls?.heldEdge(turn) === "foot")
+        (!atEnd || this.#marginControls?.anchor.newsMoves(joined))
       );
     }
     const followed = pinned && !news.settled ? this.#foot : null;
@@ -520,6 +513,8 @@ export class ThreadView {
     const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
+    if (marginControls && prior)
+      marginControls.anchor.presented(threadChange(prior, model)?.joined);
     // Where the settlement stands, decided once: the container it renders in and the
     // face it wears both follow from it.
     // - "margin": a margin card's own controls row, which also stands the notice,
@@ -833,10 +828,29 @@ export class ThreadView {
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
-    return createReplyView(model.key, this.#commands.reply, () => this.repaint(), {
-      onChange: replyChanged,
-      editLast: this.#rewrites.editLast,
-    });
+    const commands = this.#commands.reply;
+    return createReplyView(
+      model.key,
+      {
+        ...commands,
+        actions: {
+          ...commands.actions,
+          reply: (key, text, options) => {
+            // The operation owns this promise before it publishes the local turn.
+            const anchor = this.#marginControls?.anchor;
+            anchor?.sending(options.attempt);
+            const flight = commands.actions.reply(key, text, options);
+            if (!flight) anchor?.writing();
+            return flight;
+          },
+        },
+      },
+      () => this.repaint(),
+      {
+        onChange: replyChanged,
+        editLast: this.#rewrites.editLast,
+      },
+    );
   }
 
   commit() {

@@ -323,15 +323,15 @@ const bundles = {
     adapt: [
       {
         file: /pele\/dist\/pele\.js$/,
-        // Pele 1.6.0 consumes every HTML-looking label tag, discarding unsupported
+        // Pele consumes every HTML-looking label tag, discarding unsupported
         // tags such as a literal <img> code sample. Consume only the formatting
         // tags its tokenizer recognizes; other characters stay in its text buffer
         // and the SVG builder escapes them. Breaks are handled before this scan.
         edit: (source) =>
           seam(
             source,
-            "h&&(l(),o=m?o&~h|r&h:o|h),i+=p[0].length;continue",
-            "if(h){l();o=m?o&~h|r&h:o|h;i+=p[0].length;continue}",
+            "b&&(f(),o=h?o&~b|r&b:o|b,s=h?s&~b|r&b:s|b),c+=u[0].length;continue",
+            "if(b){f();o=h?o&~b|r&b:o|b;s=h?s&~b|r&b:s|b;c+=u[0].length;continue}",
             "Pele literal unsupported label tags",
           ),
       },
@@ -521,7 +521,7 @@ const bundles = {
     },
     adapt: [
       {
-        file: /@pierre\/diffs\/dist\/highlighter\/shared_highlighter\.js$/,
+        file: /@pierre\/diffs\/dist\/highlighter\/backends\/shiki\.js$/,
         edit: (source) =>
           seam(
             source,

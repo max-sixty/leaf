@@ -246,10 +246,10 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-tabs .lf-tab-btn:nth-child(2)",
     },
     {
-        # The playground's action row: Reset, Copy instruction, and the send beside each
-        # other under the controls. The send is the press with something to prove — it
-        # posts the configuration and comes back disabled, and a control that changes its
-        # own paint on the press is where a neighbour moves.
+        # The playground's action row: Reset and the send beside each other under the
+        # controls. The send is the press with something to prove — it posts the
+        # configuration and turns to Undo choice, and a control that changes its own
+        # words on the press is where a neighbour moves.
         "name": "playground-actions",
         "target": "#stable-playground .lf-playground-submit",
     },

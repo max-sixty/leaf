@@ -124,10 +124,9 @@ def restart(obligations: list[dict]) -> str:
     if not items:
         return ""
     return (
-        f"; your start on {', '.join(items)} came before this turn, or before a "
-        "newer update in its thread was picked up. Answer once that work is done, "
-        "or, while it still runs, start it again in this turn with "
-        '`leaf task start <page> <id> "<what is still running>"`'
+        f"; your start on {', '.join(items)} predates this turn or the pickup of "
+        "a newer update in its thread. Answer once that work is done, or, while it runs, start it "
+        'again with `leaf task start <page> <id> "<what is still running>"`'
     )
 
 

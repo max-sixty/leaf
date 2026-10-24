@@ -241,7 +241,8 @@
     // CodeMirror also restates a line's decoration class when it reconciles an
     // editor update, even when the preview gives that line the same face.
     (what, node) =>
-      what === "class" && is(node, "div.cm-line") &&
+      what === "class" &&
+      is(node, "div.cm-line") &&
       hosts(node)[0]?.localName === "leaf-text",
     // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
     // editor updates, including equivalent line-break nodes in either editor host.

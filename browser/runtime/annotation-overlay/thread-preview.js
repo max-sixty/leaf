@@ -27,8 +27,9 @@
    transcript yield writing room without losing the visible lines.
 
    Placement changes geometry, never rebuilds contents. Retained state reads hold the
-   reader's message and scroll position; another thread opens at its latest message,
-   and the thread a comment's Send opened where the box's words stood (`showArrival`).
+   reader's message and scroll position; another thread opens at its first unread
+   message, else its latest, and the thread a comment's Send opened where the box's
+   words stood (`showArrival`).
    A new/growing agent turn follows only at the tail. Landing, Send and stepping may
    move the reading; keepThreadLanding retains their destination through fitting until
    a newer reading gesture ends that authority. Size is fitted before paint, so a sent
@@ -83,7 +84,7 @@ import { retainUserIntent } from "../user-intent.js";
 import { threadFocusDestination } from "../thread/focus.js";
 import { claimSeatReplies } from "../thread/inline.js";
 import { releaseReplies } from "../thread/replies.js";
-import { keepThreadLanding, showLatestTurn } from "../thread/reply-landing.js";
+import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
 import { CardAnchor } from "../thread/card-anchor.js";
 
 // A margin card's reply box.
@@ -373,12 +374,14 @@ export function createThreadPreview({
     else if (reading?.end) scrollToEnd(previewSession.transcript);
     return preview.getBoundingClientRect().height;
   }
-  // A card opens on its latest turn, at that turn's start. A card Send opened stands
+  // A card opens on its first unread turn, else its latest, at that turn's start
+  // (`showReturnTurn`). A card Send opened stands
   // its words as far above its end as the box it replaces stood them, which shares
   // its text column and its foot, so the words the user was reading stay where they
   // were.
   function showArrival(session) {
-    if (!session.sent) return showLatestTurn(session.transcript);
+    if (!session.sent)
+      return showReturnTurn(session.transcript, threadCardThread(session));
     scrollToEnd(session.transcript);
     moveScrollerBy(session.transcript, -session.sent.fromEnd);
   }

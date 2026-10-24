@@ -1007,7 +1007,7 @@
     width: 14px;
     height: 14px;
   }
-  /* Next unread is news's way in, so it wears the accent the unread rail does. */
+  /* Next unread is news's way in, so it wears the accent an unread reply's New does. */
   .lf-fp-next-unread {
     display: inline-flex;
     align-items: center;

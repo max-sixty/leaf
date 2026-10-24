@@ -1668,38 +1668,61 @@ def test_a_thread_s_view_hides_completed_progress_as_its_card_does(browser, serv
         assert words.evaluate(face) == leaf
 
 
-def test_a_thread_s_view_marks_unread_replies_and_goes_to_the_next(browser, serve):
-    """A reply the user has not read wears the unread rail in the thread's view, as on
-    its card, and Next unread among the view's controls goes to the thread's first
-    one, above the end the view opens at, past the long reply after it. Shown whole
-    there, it counts as read, as on a card, and so does the long reply, whose whole
-    extent the view has now shown, so Next unread is no longer offered, though its seat
-    stays."""
+def test_a_thread_s_view_opens_on_its_first_unread_reply(browser, serve):
+    """A thread's view opens on its first unread reply, as its card does, with that
+    reply's head and its New at the view's top rather than above it. A long reply
+    shown only in part stays unread, so Next unread is offered; scrolling the view to
+    its end shows the rest of it, and every reply then counts as read, so Next unread
+    is no longer offered, though its seat stays."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?")
-    agent_said(serve.page_dir, root, "The mounts come first.", responds=root)
     agent_said(
-        serve.page_dir, root, "Then the beds. " + "The frost dates hold them. " * 150
+        serve.page_dir,
+        root,
+        "The mounts come first. " + "The frost dates hold them. " * 150,
+        responds=root,
     )
+    agent_said(serve.page_dir, root, "Then the beds.")
     page = floating(browser, url)
     page.locator("body").focus()
     page.keyboard.press("t")
     view = page.locator(panel_view("thread"))
-    reply = view.locator(".lf-msg", has_text="The mounts come first.")
+    long_reply = view.locator(".lf-msg", has_text="The mounts come first.")
+    new = long_reply.locator(".lf-msg-head .lf-msg-new")
     unread = re.compile(r"(^|\s)lf-unread(\s|$)")
-    expect(reply).to_have_class(unread)
-    assert reply.evaluate("(node) => getComputedStyle(node).borderImageSource") != (
-        "none"
+    expect(new).to_have_text("New")
+    expect(new).to_be_in_viewport(ratio=1)
+    settled(page)
+    # Nothing in the view, such as its head, stands over the reply's New.
+    assert new.evaluate(
+        """(tag) => {
+          const box = tag.getBoundingClientRect();
+          return document.elementsFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+            .includes(tag);
+        }"""
     )
-    expect(reply).not_to_be_in_viewport()
+    expect(long_reply).to_have_class(unread)
     press = page.locator(".lf-fp-controls .lf-fp-next-unread")
     expect(press).to_have_text("Next unread")
 
-    with sending(page, "the reply read"):
-        press.click()
-    expect(reply).to_be_focused()
-    expect(reply).to_be_in_viewport()
-    expect(reply).not_to_have_class(unread)
+    # Read tracking needs a reply's whole extent shown (thread/read.js), so the wheel
+    # steps by less than the view's height and each step draws before the next.
+    scroller = view.element_handle()
+    view.hover()
+    with sending(page, "the replies read"):
+        while not view.evaluate(
+            "v => v.scrollTop + v.clientHeight >= v.scrollHeight - 1"
+        ):
+            stood = view.evaluate("v => v.scrollTop")
+            page.mouse.wheel(0, 120)
+            page.wait_for_function(
+                "([v, stood]) => v.scrollTop > stood", arg=[scroller, stood]
+            )
+            page.evaluate(
+                "() => new Promise((done) =>"
+                " requestAnimationFrame(() => requestAnimationFrame(done)))"
+            )
+    expect(long_reply).not_to_have_class(unread)
     expect(view.locator(".lf-msg", has_text="Then the beds.")).not_to_have_class(unread)
     expect(press).to_be_hidden()
     expect(press).to_be_disabled()
@@ -1826,6 +1849,32 @@ def test_closing_a_fold_keeps_its_press_and_the_head_in_place(browser, serve):
     expect(page.locator(toggle)).to_have_attribute("aria-expanded", "false")
     settled(page)
     assert page.evaluate(PRESS_AND_HEAD, toggle) == pytest.approx(stood, abs=0.5)
+
+
+def test_a_thread_s_view_opens_on_the_summary_holding_its_first_unread_reply(
+    browser, serve
+):
+    """A first unread reply a closed summary folds away is reached through the
+    summary, so the view opens on that summary rather than past it, at the long reply
+    after it, and Next unread is offered to open it."""
+    from browser.threads import summarize_thread
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which jobs come first?")
+    first = agent_said(serve.page_dir, root, "The mounts come first.", responds=root)
+    then = agent_said(serve.page_dir, root, "Then the beds, once the frost lifts.")
+    summarize_thread(serve.page_dir, first, then, "Mounts, then beds.")
+    agent_said(
+        serve.page_dir, root, "That is the order. " + "The frost dates hold. " * 150
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    summary = page.locator(".lf-fp-view .lf-summary-checkpoint .lf-summary-header")
+    expect(summary).to_be_in_viewport(ratio=1)
+    expect(page.locator(".lf-fp-controls .lf-fp-next-unread")).to_have_text(
+        "Next unread"
+    )
 
 
 def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve):

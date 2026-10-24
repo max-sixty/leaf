@@ -325,7 +325,7 @@ RING_CASES = (
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
                 ("lf-diff summary", ".lf-diff-file > details > summary"),
-                ("lf-diff code", "code[data-code]"),
+                ("lf-diff code", ".lf-diff-frame"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", ".lf-mark-el"),
@@ -367,7 +367,7 @@ RING_CASES = (
     (
         "passage search",
         ("/",),
-        {RING_CHROME: ((".lf-page-search-box input:visible", "wa-input::part"),)},
+        {RING_CHROME: ((".lf-page-search-box input:visible", ".lf-fp-field"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -512,6 +512,7 @@ RING_EXAMPLE_FILES = {
 # paint so an unrelated ring drawn by the same rule cannot credit the sample.
 RING_REMOTE_CARRIER = {
     ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
+    ".lf-diff-frame": "lf-diff code[data-lf-focus-visible] + .lf-diff-frame",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
     "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
@@ -2628,7 +2629,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         # Settled choices are user view state, so expose their focusable controls.
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
-                row.click()
+                row.focus()
+                page.keyboard.press("Enter")
         page_at_rest(page)
 
         for scope, keys, cases in RING_CASES:

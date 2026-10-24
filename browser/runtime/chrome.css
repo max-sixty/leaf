@@ -1586,11 +1586,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     pointer-events: none;
     overflow: hidden;
     color: var(--ink);
+    --lf-region-dim: rgb(0 0 0 / 40%);
   }
   .lf-region-selection {
     position: absolute;
     outline: 1px solid var(--accent);
-    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%);
+    box-shadow: 0 0 0 100vmax var(--lf-region-dim);
+  }
+  .lf-region-capture:has(> .lf-region-selection[hidden]) {
+    background: var(--lf-region-dim);
   }
   @media print {
     :scope {

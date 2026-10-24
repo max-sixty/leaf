@@ -236,13 +236,16 @@
 }
 .lf-shotcap[data-lf-state="before"],
 .lf-shot-frame-label[data-lf-state="before"] {
+  background: var(--del-tint);
   color: var(--danger-ink);
 }
 .lf-shotcap[data-lf-state="after"],
 .lf-shot-frame-label[data-lf-state="after"] {
+  background: var(--add-tint);
   color: var(--ok-ink);
 }
 .lf-shotcap[data-lf-shot-hidden] {
+  background: transparent;
   color: var(--muted);
   font-weight: 400;
 }

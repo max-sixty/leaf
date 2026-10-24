@@ -164,6 +164,10 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     label_colors = captions.evaluate_all(
         "nodes => nodes.map(n => getComputedStyle(n).color)"
     )
+    label_fills = captions.evaluate_all(
+        "nodes => nodes.map(n => getComputedStyle(n).backgroundColor)"
+    )
+    assert all(fill != "rgba(0, 0, 0, 0)" for fill in label_fills)
     for caption in captions.all():
         caption.tap() if touch else caption.click()
         expect(shot.locator("wa-comparison")).to_have_attribute("position", "50")
@@ -207,6 +211,10 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         comparison.tap(position=point) if touch else comparison.click(position=point)
         expect(comparison).to_have_attribute("position", endpoint)
         hidden = 1 if endpoint == "100" else 0
+        expect(captions.nth(hidden)).to_have_css("background-color", "rgba(0, 0, 0, 0)")
+        expect(captions.nth(1 - hidden)).to_have_css(
+            "background-color", label_fills[1 - hidden]
+        )
         expect(captions.nth(hidden)).not_to_have_css("color", label_colors[hidden])
         expect(captions.nth(1 - hidden)).to_have_css("color", label_colors[1 - hidden])
         expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(

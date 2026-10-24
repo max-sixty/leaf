@@ -506,8 +506,9 @@ const bundles = {
   // Parsing is needed before a metadata row appears; static rendering waits for
   // textual evidence to open. Independent builds keep the shared public barrel
   // from hoisting the renderer into the parser's eager dependency graph.
-  // Pierre's static renderer uses the shared Leaf syntax engine: Shiki binds to
-  // `syntax.esm.js`, and Pierre's theme registry binds to Leaf's theme shim.
+  // Pierre's static renderer reads Leaf's syntax module for grammars, Shiki core
+  // and the token theme. Its grammar and core imports are made static below so
+  // offline exports can inline them without bundling Shiki's full catalogs.
   // The unused WASM import carries no binary or separate module.
   pierre: () => ({
     out: `${packageVendor("default")}/pierre-diffs.esm.js`,
@@ -530,6 +531,28 @@ const bundles = {
             "Pierre unused WASM import",
           ),
       },
+      {
+        file: /@pierre\/diffs\/dist\/highlighter\/languages\/resolveLanguage\.js$/,
+        edit: (source) =>
+          'import { bundledLanguages } from "shiki/langs";\n' +
+          seam(
+            source,
+            'const { bundledLanguages } = await import("shiki/langs");',
+            "",
+            "Pierre shared grammar catalog",
+          ),
+      },
+      {
+        file: /@pierre\/diffs\/dist\/highlighter\/themes\/themeResolver\.js$/,
+        edit: (source) =>
+          'import * as leafShikiCore from "shiki/core";\n' +
+          seam(
+            source,
+            'createCachedLoader(() => import("shiki/core"))',
+            "createCachedLoader(() => Promise.resolve(leafShikiCore))",
+            "Pierre shared Shiki core",
+          ),
+      },
     ],
     platform: "browser",
     external: ["/runtime/widget-api.js"],
@@ -538,7 +561,7 @@ const bundles = {
       js: `/*! @pierre/diffs ${version("@pierre/diffs")} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,
     },
     plugins: [
-      bindTo(/^shiki$/, "./syntax.esm.js"),
+      bindTo(/^shiki(?:\/(?:core|langs))?$/, "./syntax.esm.js"),
       {
         name: "leaf-pierre-shims",
         setup(builder) {

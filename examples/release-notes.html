@@ -4,7 +4,7 @@
     <title>Release 3.2 notes for review</title>
     <meta
       name="description"
-      content="Rewrite a release note in place, accept or reject each proposed edit beside the words it changes, then approve the finished set."
+      content="Rewrite a release note in place, accept or reject each proposed edit beside the words it changes, then decide whether to publish the finished set."
     />
   </head>
   <body>
@@ -13,7 +13,7 @@
       <h1>Review the 3.2 release packet</h1>
       <p class="lede" id="rn-lede">
         Review four notes for users and operators. Edit any draft that needs different
-        wording, accept or reject the proposed changes, then approve the finished set.
+        wording, accept or reject the proposed changes, then decide whether to publish the finished set.
       </p>
 
       <section id="rn-cli-section">
@@ -81,13 +81,21 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
           <pre>Run the online schema migration before deploying.</pre>
         </lf-draft>
       </section>
-      <lf-approval id="rn-publication">
+      <lf-ask id="rn-publication-decision">
         <h2>Publish these release notes?</h2>
         <p>
-          Publish the wording shown on this page for release 3.2. This permits
-          publication of the current wording; later edits need a new approval request.
+          Publishing takes the wording shown on this page for release 3.2. Later edits
+          need a new request.
         </p>
-      </lf-approval>
+        <lf-options id="rn-publication" choose>
+          <lf-option id="rn-publication-hold"
+            ><strong>Keep them as a draft</strong></lf-option
+          >
+          <lf-option id="rn-publication-publish"
+            ><strong>Publish them for release 3.2</strong></lf-option
+          >
+        </lf-options>
+      </lf-ask>
     </main>
   </body>
 </html>

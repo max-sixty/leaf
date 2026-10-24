@@ -188,10 +188,14 @@ new version as the checks finish.</p>
 {board_markup(board or BOARD)}
 </lf-board>
 </section>
-<lf-approval id="migration-approval">
-<h2>Approve the migration plan</h2>
-<p>Authorize the rollout sequence and acceptance criteria described above.</p>
-</lf-approval>
+<lf-ask id="migration-approval-decision">
+<h2>Approve the migration plan?</h2>
+<p>The rollout sequence and acceptance criteria described above.</p>
+<lf-options id="migration-approval" choose>
+<lf-option id="migration-hold"><strong>Hold the rollout</strong></lf-option>
+<lf-option id="migration-approve"><strong>Approve the plan</strong></lf-option>
+</lf-options>
+</lf-ask>
 </main>
 </body>
 </html>

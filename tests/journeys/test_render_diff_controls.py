@@ -214,7 +214,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
             head="""<style id="response-inset-override" data-controls>
               :is(.lf-fab-bar, .lf-margin-preview) {
                 --lf-thread-text-pad-block: 12px !important;
-                --lf-comment-text-end: 60px !important;
+                --lf-compose-action-inset: 16px !important;
               }
             </style>""",
         )
@@ -270,7 +270,9 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     expect(floating).to_be_focused()
     physical_face = face(floating)
     assert float(physical_face["padding-top"].removesuffix("px")) + 1 == 12
-    assert float(physical_face["padding-right"].removesuffix("px")) + 1 == 60
+    # Send's hit box with the action inset on either side, past the 1px frame.
+    text_end = f"{(44 if touch else 28) + 2 * 16 + 1}px"
+    assert f"{float(physical_face['padding-right'].removesuffix('px')) + 1:g}px" == text_end
     page.emulate_media(forced_colors="active")
     forced = floating.evaluate(
         "node => [getComputedStyle(node).outlineWidth, "
@@ -287,7 +289,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
           return {block: style.paddingTop, end: style.paddingInlineEnd};
         }"""
     )
-    assert sent_insets == {"block": "12px", "end": "60px"}
+    assert sent_insets == {"block": "12px", "end": text_end}
     page.keyboard.press("Escape")
     diff = page.locator("#patch")
     # An author can dress a declared tree too. Install the same inputs before

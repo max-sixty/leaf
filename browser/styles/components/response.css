@@ -13,8 +13,10 @@
 }
 /* How far in from a field's frame the words of a field holding Send stop: Send's hit
    box with the action inset on either side of it. A user's message written in such a
-   field keeps the same end (reading.css, `--lf-msg-text-end`). */
+   field keeps the same end (reading.css, `--lf-msg-text-end`). A surface that sets
+   its own action inset restates this and the field's height. */
 :root,
+:is(.lf-fab-bar, .lf-margin-preview),
 .lf-compose-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
@@ -26,8 +28,9 @@
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
+:is(.lf-fab-bar, .lf-margin-preview),
 .lf-compose-field {
-  --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
+  --lf-compose-h:calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
@@ -539,27 +542,28 @@ button.lf-media-open {
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-response-height: var(--lf-line);
 }
-/* The comment box and the card its words become share one text column, so Send
-     moves no word: both start the words `--lf-thread-text-inset` inside the field's or
-     the transcript's edge, and both end them `--lf-comment-text-end` inside it, on
-     every line, the room Send stands in at the box's foot. The editor spends one pixel
-     of each inset on its frame, which the card does not draw. */
+/* The comment box, the card its words become and the card's reply box share one text
+     column, so Send moves no word: each starts the words `--lf-thread-text-inset`
+     inside the field's or the transcript's edge, and ends them, on every line, past
+     the room Send takes at the box's foot (`--lf-compose-send-end`), Send standing
+     centred in a line (`--lf-response-height`). The editor spends one pixel of each
+     inset on its frame, which the card does not draw. */
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
-  --lf-comment-send-inset: calc(
+  --lf-compose-action-inset: calc(
     (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
   );
-  --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
 }
 .lf-margin-preview .lf-msg {
-  --lf-msg-text-end: var(--lf-comment-text-end);
+  --lf-msg-text-end: calc(var(--lf-compose-send-end) + 1px);
 }
 /* A rewrite in the card is the comment box the card grew from, its frame and padding in
    the room each line of the message already keeps (`.lf-msg-editor`). Rejected: the
-   reply box's taller field, with the message keeping its height from first paint
+   panel's reply box's taller field, with the message keeping its height from first paint
    (#2985), which made every short card taller than the box it came from for a rewrite
    the user may never open. */
 .lf-fab-bar .lf-compose-field,
+.lf-margin-preview .lf-thread-reply .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
 }
@@ -588,13 +592,8 @@ leaf-text.lf-fab-input {
   display: none;
   width: 100%;
   min-width: 0;
-  padding-inline: var(--lf-compose-pad-inline-start)
-    calc(var(--lf-comment-text-end) - 1px);
+  padding-inline: var(--lf-compose-pad-inline-start) var(--lf-compose-send-end);
   overflow-y: auto;
-}
-.lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {
-  inset-inline-end: var(--lf-comment-send-inset);
-  inset-block-end: var(--lf-comment-send-inset);
 }
 .lf-response-action {
   min-width: max(30px, var(--aim-floor));

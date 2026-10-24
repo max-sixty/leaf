@@ -1341,6 +1341,7 @@ svg[data-lf-icon] {
   --lf-compose-action-inset: 6px;
 }
 :root,
+:is(.lf-fab-bar, .lf-margin-preview),
 .lf-compose-field {
   --lf-compose-send-end: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) );
 }
@@ -1350,8 +1351,9 @@ svg[data-lf-icon] {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
+:is(.lf-fab-bar, .lf-margin-preview),
 .lf-compose-field {
-  --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
+  --lf-compose-h:calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
@@ -1739,13 +1741,13 @@ button.lf-media-open {
 }
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
-  --lf-comment-send-inset: calc( (var(--lf-response-height) - var(--lf-icon-action-face)) / 2 );
-  --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
+  --lf-compose-action-inset: calc( (var(--lf-response-height) - var(--lf-icon-action-face)) / 2 );
 }
 .lf-margin-preview .lf-msg {
-  --lf-msg-text-end: var(--lf-comment-text-end);
+  --lf-msg-text-end: calc(var(--lf-compose-send-end) + 1px);
 }
 .lf-fab-bar .lf-compose-field,
+.lf-margin-preview .lf-thread-reply .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
 }
@@ -1764,12 +1766,8 @@ leaf-text.lf-fab-input {
   display: none;
   width: 100%;
   min-width: 0;
-  padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-end) - 1px);
+  padding-inline: var(--lf-compose-pad-inline-start) var(--lf-compose-send-end);
   overflow-y: auto;
-}
-.lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {
-  inset-inline-end: var(--lf-comment-send-inset);
-  inset-block-end: var(--lf-comment-send-inset);
 }
 .lf-response-action {
   min-width: max(30px, var(--aim-floor));

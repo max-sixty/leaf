@@ -1819,6 +1819,12 @@ function createMarginProjection({
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
       else if (destination) focusDestination(destination, "return");
+    } else if (focus.focusedToggle && more.hidden) {
+      focus.restore?.(
+        clusterMarginEntries(options)[0],
+        primary,
+        clusterMarginEntries(host)[0]
+      );
     } else if (lostOptionFocus || lostPrimaryFocus) {
       focus.restore?.(
         primary,
@@ -1932,6 +1938,7 @@ function createMarginProjection({
       const focus = {
         focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
         focusedOption: Boolean(host.options && currentLocationIn(host.options)),
+        focusedToggle: focused() === more,
         // The entry the user is on, by its contribution's key, across the projection
         // that may replace its control (focus.js, keyed `holdFocus`).
         restore: holdFocus(host, { key: "data-lf-margin-entry-identity" })

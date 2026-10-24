@@ -362,8 +362,7 @@ def test_reload_swap_retires_pending_sample_faults(browser, serve):
     document_url = child.url
     stylesheets = []
     stylesheet_pattern = re.compile(
-        re.escape(urlsplit(document_url).path)
-        + r"revisions/[^/]+/[^/]+/theme.css$"
+        re.escape(urlsplit(document_url).path) + r"revisions/[^/]+/[^/]+/theme.css$"
     )
     page.route(stylesheet_pattern, lambda route: stylesheets.append(route))
     with child.expect_navigation(wait_until="commit"):

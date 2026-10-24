@@ -86,11 +86,14 @@
  *
  * A box whose Send action stands in the field's trailing corner sets
  * `--lf-field-end-room` to the room the action takes beyond the field's end padding.
- * The field keeps that room after its last words only, on the line the action stands
- * beside, so the lines above wrap at the box's full measure. Under a finger, whose hit
- * box is taller than a line, and while the field scrolls, other lines pass beside the
- * action too, so there the room is held on every line. A sent message that keeps the
- * draft's wrapping keeps the same room.
+ * The field keeps that room at the end of every line, so where its words wrap depends
+ * only on the words and the box's width, never on which line Send stands beside or on
+ * what follows the last word. A sent message that keeps the draft's wrapping keeps the
+ * same room. Rejected: the room after the last words only (#1871 to #3678), which ran
+ * the lines above under Send's column but made the last line's wrapping turn on the
+ * caret's surroundings: an inline spacer after the last word wrapped alone or carried
+ * that word with it, so typing a space after a word could pull it back up a line,
+ * and it needed separate modes under a finger and while the field scrolled.
  *
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
@@ -151,6 +154,11 @@ sheet.replaceSync(`
      that builds the editor. */
   .lf-field-rest { min-height: 1lh; outline: none; }
   .cm-line { padding: 0; }
+  /* A space after a line's last word hangs past its end, as in a textarea and in the
+     sent message (reading.css, \`.lf-msg-text > p\`), rather than taking room on the
+     line and carrying the word to the next one, as CodeMirror's \`break-spaces\`
+     does. */
+  .cm-editor .cm-content.cm-lineWrapping { white-space: pre-wrap; }
   /* CodeMirror's caret stops beside a widget hang from the text's top, which stands
      above a line set tighter than its type, as a heading's is, and would make that
      line taller than the heading it draws. The field's caret is the platform's. */
@@ -168,7 +176,7 @@ sheet.replaceSync(`
      scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
      reaches 2px past that box, the caret's width at a line's end: Firefox paints the
      caret from its offset onward and pulls it inside only a scroll container, so a
-     caret after a line that fills the box, as a trailing space beside Send can, was
+     caret after a line that fills the box, as a trailing space can, was
      cut away whole. */
   .lf-field { overflow: clip; overflow-clip-margin: 2px; }
   .lf-field > * {
@@ -182,32 +190,8 @@ sheet.replaceSync(`
     contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
     color: var(--muted); }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
-  /* The trailing action's room, after the last word. A box too narrow for it on the
-     word's line takes it on a line of its own, so the field grows rather than run a
-     word under the action. */
-  .cm-line.lf-field-last::after { content: ""; display: inline-block;
-    inline-size: var(--lf-field-end-room); }
-  /* In a narrow field, the spacer can wrap by itself after the last word and leave
-     that word under Send. Keep both together where the field asks for it. */
-  :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after {
-    content: "\\00a0"; display: inline; inline-size: auto;
-    padding-inline-end: var(--lf-field-end-room); white-space: nowrap;
-  }
-  /* The placeholder is a single line, so it stands where a last line would. */
-  .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
-  /* The action stands beside more than the last line under a finger, whose hit box is
-     taller than a line, and in a scrolled field, which carries other lines past it. */
-  @media (pointer: coarse) {
-    .lf-field { padding-inline-end: var(--lf-field-end-room); }
-    .lf-field-placeholder { padding-inline-end: 0; }
-    .cm-line.lf-field-last::after,
-    :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after { content: none; }
-  }
-  :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host([data-scrolls]) .cm-line.lf-field-last::after,
-  :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
-    content: none;
-  }
+  /* The trailing action's room, on every line. */
+  .lf-field { padding-inline-end: var(--lf-field-end-room); }
   /* A draft wears the sent message's faces, or where it stands in place, those its
      display gives each block (\`standBlocks\`), written on its lines over these. Strong,
      emphasis and strikethrough are the elements themselves, which the platform dresses
@@ -713,21 +697,6 @@ const livePreview = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
-// The last line, while it holds words. A blank last line has none to run under the
-// action, and an inline box after its break would stand on a line of its own. The room
-// stays on the last line rather than on the last with words, so the line above gives it
-// up as Shift+Enter opens a line, not when the first character lands on the new one: the
-// keystroke that changes the lines is the one that rewraps them.
-const lastLine = Decoration.line({ class: "lf-field-last" });
-const lastWithWords = (state) => {
-  const last = state.doc.line(state.doc.lines);
-  return last.text.trim() ? last : null;
-};
-const lastLineRoom = EditorView.decorations.compute(["doc"], (state) => {
-  const last = lastWithWords(state);
-  return last ? Decoration.set([lastLine.range(last.from)]) : Decoration.none;
-});
-
 /** @typedef {LeafText} LeafTextElement For its tag (`runtime-globals.d.ts`). */
 class LeafText extends HTMLElement {
   // The field's one model. Until the field has an editor it is a bare EditorState,
@@ -825,13 +794,12 @@ class LeafText extends HTMLElement {
       });
   });
 
-  // Host overflow holds the action's room on every line. The host stops at the page's
-  // height limit while words grow inside it, so the reading watches the editor's
-  // content too. Editor updates and size changes share its read/write phase: the room
-  // changes layout there, rather than feeding back into resize observer delivery. The
-  // same reading says which edges words run past (`more-above`, `more-below`), read
-  // again as the host scrolls, so an owner can show there is more without a scrollbar.
-  // A scroll timeline would say it in CSS alone, but Firefox lacks scroll timelines.
+  // Whether the host's words overflow it (`data-scrolls`), and which edges they run
+  // past (`more-above`, `more-below`), read again as the host scrolls, so an owner can
+  // show there is more without a scrollbar. The host stops at the page's height limit
+  // while words grow inside it, so the reading watches the editor's content too, in the
+  // editor's read/write phase. A scroll timeline would say it in CSS alone, but Firefox
+  // lacks scroll timelines.
   #overflow = sizeObserver(() => this.#measureOverflow());
 
   #measureOverflow() {
@@ -960,7 +928,6 @@ class LeafText extends HTMLElement {
         ]),
         new LanguageSupport(markdownLanguage),
         livePreview,
-        lastLineRoom,
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
         this.#attributes.of(EditorView.contentAttributes.of(this.#contentAttributes())),
@@ -1178,14 +1145,6 @@ class LeafText extends HTMLElement {
   #paintEmpty() {
     if (this.#state.doc.length) this.#internals.states.delete("placeholder-shown");
     else this.#internals.states.add("placeholder-shown");
-  }
-
-  // Where the field holds its action's room now: `every-line`, `last-line` after its
-  // last words, or `none` while its last line is blank.
-  get endRoom() {
-    if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0)
-      return "every-line";
-    return lastWithWords(this.#state) ? "last-line" : "none";
   }
 
   get value() {

@@ -748,6 +748,11 @@ sheet.replaceSync(`
      that builds the editor. */
   .lf-field-rest { min-height: 1lh; outline: none; }
   .cm-line { padding: 0; }
+  /* A space after a line's last word hangs past its end, as in a textarea and in the
+     sent message (reading.css, \`.lf-msg-text > p\`), rather than taking room on the
+     line and carrying the word to the next one, as CodeMirror's \`break-spaces\`
+     does. */
+  .cm-editor .cm-content.cm-lineWrapping { white-space: pre-wrap; }
   /* CodeMirror's caret stops beside a widget hang from the text's top, which stands
      above a line set tighter than its type, as a heading's is, and would make that
      line taller than the heading it draws. The field's caret is the platform's. */
@@ -765,7 +770,7 @@ sheet.replaceSync(`
      scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
      reaches 2px past that box, the caret's width at a line's end: Firefox paints the
      caret from its offset onward and pulls it inside only a scroll container, so a
-     caret after a line that fills the box, as a trailing space beside Send can, was
+     caret after a line that fills the box, as a trailing space can, was
      cut away whole. */
   .lf-field { overflow: clip; overflow-clip-margin: 2px; }
   .lf-field > * {
@@ -779,32 +784,8 @@ sheet.replaceSync(`
     contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
     color: var(--muted); }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
-  /* The trailing action's room, after the last word. A box too narrow for it on the
-     word's line takes it on a line of its own, so the field grows rather than run a
-     word under the action. */
-  .cm-line.lf-field-last::after { content: ""; display: inline-block;
-    inline-size: var(--lf-field-end-room); }
-  /* In a narrow field, the spacer can wrap by itself after the last word and leave
-     that word under Send. Keep both together where the field asks for it. */
-  :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after {
-    content: "\\00a0"; display: inline; inline-size: auto;
-    padding-inline-end: var(--lf-field-end-room); white-space: nowrap;
-  }
-  /* The placeholder is a single line, so it stands where a last line would. */
-  .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
-  /* The action stands beside more than the last line under a finger, whose hit box is
-     taller than a line, and in a scrolled field, which carries other lines past it. */
-  @media (pointer: coarse) {
-    .lf-field { padding-inline-end: var(--lf-field-end-room); }
-    .lf-field-placeholder { padding-inline-end: 0; }
-    .cm-line.lf-field-last::after,
-    :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after { content: none; }
-  }
-  :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host([data-scrolls]) .cm-line.lf-field-last::after,
-  :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
-    content: none;
-  }
+  /* The trailing action's room, on every line. */
+  .lf-field { padding-inline-end: var(--lf-field-end-room); }
   /* A draft wears the sent message's faces, or where it stands in place, those its
      display gives each block (\`standBlocks\`), written on its lines over these. Strong,
      emphasis and strikethrough are the elements themselves, which the platform dresses
@@ -1190,15 +1171,6 @@ const livePreview = ViewPlugin.fromClass(class {
 		this.decorations = decorate(update.state, this.placed);
 	}
 }, { decorations: (plugin) => plugin.decorations });
-const lastLine = Decoration.line({ class: "lf-field-last" });
-const lastWithWords = (state) => {
-	const last = state.doc.line(state.doc.lines);
-	return last.text.trim() ? last : null;
-};
-const lastLineRoom = EditorView.decorations.compute(["doc"], (state) => {
-	const last = lastWithWords(state);
-	return last ? Decoration.set([lastLine.range(last.from)]) : Decoration.none;
-});
 var LeafText = class extends HTMLElement {
 	#model;
 	#view = null;
@@ -1351,7 +1323,6 @@ var LeafText = class extends HTMLElement {
 				]),
 				new LanguageSupport(markdownLanguage),
 				livePreview,
-				lastLineRoom,
 				EditorView.lineWrapping,
 				this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
 				this.#attributes.of(EditorView.contentAttributes.of(this.#contentAttributes()))
@@ -1502,10 +1473,6 @@ var LeafText = class extends HTMLElement {
 	#paintEmpty() {
 		if (this.#state.doc.length) this.#internals.states.delete("placeholder-shown");
 		else this.#internals.states.add("placeholder-shown");
-	}
-	get endRoom() {
-		if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0) return "every-line";
-		return lastWithWords(this.#state) ? "last-line" : "none";
 	}
 	get value() {
 		return this.#state.doc.toString();

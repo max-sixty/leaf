@@ -3840,8 +3840,7 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     """Everything in the row stands on the one line the words are written on: the
     leaf, Dictate, the counts, and Send while the user types, each centred on the
     field's last line of words, however many lines it holds. Send floats in the field's
-    end corner, as an anchored comment box's does: the words above its line run past
-    it, and the last line keeps room for it."""
+    end corner, as an anchored comment box's does, and every line keeps room for it."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     field(page).click()
     settled(page)
@@ -3858,38 +3857,8 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     for mark in ("leaf", "send"):
         assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     assert seats["press"]["right"] == pytest.approx(seats["field"], abs=1), seats
-    # The lines above Send's own may run past its left edge (where words end depends
-    # on how they wrap); the last line's words stop short of it.
-    first_line = field(page).evaluate(
-        "host => window.editorRoots.get(host).querySelector('.cm-line')"
-        ".getBoundingClientRect().right"
-    )
-    assert first_line > seats["press"]["left"], (first_line, seats)
     lines = field(page).evaluate(WORD_LINES)
-    assert lines[-1] <= seats["press"]["left"], (lines, seats)
-
-
-def test_a_touch_panel_does_not_reserve_send_room_twice(browser, serve):
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(
-        browser, serve(LONG_PAGE), context=context, init_script=EDITOR_ROOTS
-    )
-    draft = field(page)
-    draft.click()
-    page.keyboard.type("The last words should have room beside Send.")
-    room = draft.evaluate("""host => {
-      const line = window.editorRoots.get(host).querySelector('.cm-line.lf-field-last');
-      return {
-        glued: host.hasAttribute('data-lf-end-room-glued'),
-        padding: getComputedStyle(window.editorRoots.get(host).querySelector('.lf-field')).paddingInlineEnd,
-        after: getComputedStyle(line, '::after').content,
-      };
-    }""")
-    assert room["glued"]
-    assert room["padding"] != "0px", room
-    assert room["after"] == "none", room
+    assert max(lines) <= seats["press"]["left"], (lines, seats)
 
 
 def test_a_long_draft_offers_more_room_at_a_press(browser, serve):

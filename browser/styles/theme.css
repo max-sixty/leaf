@@ -942,7 +942,7 @@ html[data-lf-interactive] [data-lf-arriving] {
   border-radius: var(--r);
   background: var(--card);
 }
-/* The room a text field keeps after its last words for the action standing in its
+/* The room a text field keeps at the end of its lines for the action standing in its
    trailing corner (composing/text-field.js). Typed, so a reading resolves to a length. */
 @property --lf-field-end-room {
   syntax: "<length>";

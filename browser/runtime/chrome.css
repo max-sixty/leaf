@@ -15,6 +15,7 @@
     --lf-fp-aim: 32px;
     --lf-fp-press: 28px;
     --lf-fp-inset: 8px;
+    --lf-fp-send-room: calc(max(var(--lf-line), var(--aim-floor)) - 6px);
     --lf-fp-max: 540px;
     --lf-fp-gutter: 24px;
     --lf-fp-width: min( var(--lf-fp-max), calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right)) );
@@ -418,7 +419,7 @@
   }
   .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-field .lf-compose-field > leaf-text,
   .lf-fp-field .lf-compose-field > leaf-text:has(.lf-compose-placeholder-aside:not(:empty)) {
-    --lf-field-end-room: calc(max(var(--lf-line), var(--aim-floor)) - 6px);
+    --lf-field-end-room: var(--lf-fp-send-room);
   }
   .lf-fp-field .lf-compose-submit {
     display: none;
@@ -1159,7 +1160,7 @@
     padding-inline-start: 0;
   }
   .lf-fp-messages .lf-msg.user {
-    --lf-msg-text-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
+    --lf-msg-text-end: calc( 2 * (var(--lf-fp-row-pad) + var(--lf-fp-aim) + 8px) + var(--lf-fp-send-room) - 32px );
   }
   .lf-fp-messages .lf-msg.user .lf-msg-text {
     box-sizing: border-box;

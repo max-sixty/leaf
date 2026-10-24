@@ -682,49 +682,42 @@ var drawsLandmark = (parent) => {
   while (box && getComputedStyle(box).display === "contents") box = renderedParent(box);
   return Boolean(box?.checkVisibility({ opacityProperty: true }));
 };
-var blockWords = /* @__PURE__ */ new WeakMap();
-var drawnInside = (block, segments, known) => {
-  if (!known.has(block)) {
-    const asked = /* @__PURE__ */ new Set();
-    let inside = true;
-    for (const { node } of segments) {
-      for (let at = renderedParent(node); inside && at && at !== block; ) {
-        if (asked.has(at)) break;
-        asked.add(at);
-        const style = getComputedStyle(at);
-        inside = (style.position === "static" || style.position === "sticky") && style.transform === "none" && style.translate === "none";
-        at = renderedParent(at);
-      }
-      if (!inside) break;
-    }
-    known.set(block, inside);
-  }
-  return known.get(block);
+var blockRuns = /* @__PURE__ */ new WeakMap();
+var textEnvelope = (block, segments, range) => {
+  if (!segments.every(({ node }) => block.contains(node)) || [...block.querySelectorAll("*")].some(skipped))
+    return null;
+  range.selectNodeContents(block);
+  return range.getBoundingClientRect();
 };
 function* renderedBlocks(blocks, within2 = null) {
   const reading = pageText();
-  if (!blockWords.has(reading)) {
-    const words2 = /* @__PURE__ */ new Map();
+  if (!blockRuns.has(reading)) {
+    const groups = [];
     for (const segment of reading.segments) {
-      if (!words2.has(segment.block)) words2.set(segment.block, []);
-      words2.get(segment.block).push(segment);
+      let group = groups.at(-1);
+      if (!group || group.block !== segment.block)
+        groups.push(group = { block: segment.block, segments: [] });
+      group.segments.push(segment);
     }
-    blockWords.set(reading, words2);
+    blockRuns.set(reading, groups);
   }
-  const words = blockWords.get(reading);
-  const inside = /* @__PURE__ */ new Map();
+  const allowed = new Set(blocks);
   const drawn3 = /* @__PURE__ */ new Map();
   const range = document.createRange();
-  for (const block of blocks) {
+  for (const { block, segments } of blockRuns.get(reading)) {
+    if (!allowed.has(block)) continue;
     if (inChrome(block) || skipped(block)) continue;
     if (within2) {
       const own = block.getBoundingClientRect();
-      if (own.height && (own.bottom <= within2.top || own.top >= within2.bottom) && drawnInside(block, words.get(block), inside))
-        continue;
+      if (own.height && (own.bottom <= within2.top || own.top >= within2.bottom)) {
+        const envelope = textEnvelope(block, segments, range);
+        if (envelope && (envelope.bottom <= within2.top || envelope.top >= within2.bottom))
+          continue;
+      }
     }
     const boxes = [], runs = [];
     let run = null;
-    for (const segment of words.get(block)) {
+    for (const segment of segments) {
       const { node, start, end } = segment;
       const parent = renderedParent(node);
       if (!drawn3.has(parent)) drawn3.set(parent, drawsLandmark(parent));
@@ -958,8 +951,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
   if (line) {
     const { block, rect, landmark } = line;
     named = block;
-    const { section: id, quote, prefix, suffix } = landmark.anchor;
-    Object.assign(view, { section: id, quote, prefix, suffix });
+    Object.assign(view, landmark.anchor);
     const section = sectionOf(view);
     view.sectionTop = section && landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop);
     view.quoteTop = landmarkTop(

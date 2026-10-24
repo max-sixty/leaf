@@ -188,6 +188,7 @@ var NO_CONTEXT = Object.freeze({
   generated: false,
   gen: null,
   block: null,
+  textBlock: null,
   island: null,
   cells: null
 });
@@ -195,6 +196,7 @@ var GEN = "[data-lf-gen]";
 var ISLAND = "[data-lf-markdown-words]";
 var MARKS = [UI_MARKS, GENERATED, ISLAND].join(", ");
 var BLOCK_TAGS = new Set(TEXT_BLOCK.split(","));
+var BLOCKS = `${TEXT_BLOCK}, ${DATUM}`;
 var chromeMark = (el) => el.matches(UI_MARKS) ? !el.matches(SAID) : null;
 var SILENT_TAGS = /* @__PURE__ */ new Set(["script", "style", "textarea"]);
 var silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
@@ -209,7 +211,8 @@ var opaque = (el) => passageFences.has(el);
 var editingBoundary = (el) => Boolean(el.isContentEditable) !== Boolean(el.parentElement?.isContentEditable);
 function enter(ctx, el, inFrame = true) {
   const marked = el.hasAttributes() && el.matches(MARKS);
-  const block = BLOCK_TAGS.has(el.localName);
+  const textBlock = BLOCK_TAGS.has(el.localName);
+  const block = textBlock || el.matches(DATUM);
   const editing = editingBoundary(el);
   const cell = opaque(el) || editing || marked && el.matches(GEN) && unmodelled(el);
   const silent = !ctx.silenced && silences(el);
@@ -222,6 +225,7 @@ function enter(ctx, el, inFrame = true) {
     generated,
     gen: marked && el.matches(GEN) ? el : ctx.gen,
     block: block ? el : ctx.block,
+    textBlock: textBlock ? el : ctx.textBlock,
     island: marked && el.matches(ISLAND) ? el : ctx.island,
     cells: cell ? { el, editing, up: ctx.cells } : ctx.cells
   };
@@ -251,6 +255,7 @@ var segmentIn = (node, ctx) => ({
   start: 0,
   end: node.data.length,
   block: ctx.block ?? (ctx.island ? upFrom(ctx.island) : null),
+  textBlock: ctx.textBlock ?? (ctx.island ? upFrom(ctx.island) : null),
   gen: ctx.gen
 });
 var READINGS = {
@@ -430,12 +435,13 @@ function segmentsIn(range) {
   return segments;
 }
 var blockAt = (node) => {
-  const block = closestAcross(node, TEXT_BLOCK);
+  const block = closestAcross(node, BLOCKS);
   if (block) return block;
   const island = closestAcross(node, ISLAND);
   return island ? upFrom(island) : null;
 };
 var segmentBlock = (segment) => segment.block ?? segment.node.parentElement;
+var segmentTextBlock = (segment) => segment.textBlock ?? segment.node.parentElement;
 var COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 function readSegments(segments, mapCharacters) {
   let text = "";
@@ -456,7 +462,7 @@ function readSegments(segments, mapCharacters) {
     if (mapCharacters) units.push({ text: character, start, end });
   };
   segments.forEach((seg, i) => {
-    if (i && (seg.breakBefore || segmentBlock(seg) !== segmentBlock(segments[i - 1]))) {
+    if (i && (seg.breakBefore || segmentTextBlock(seg) !== segmentTextBlock(segments[i - 1]))) {
       const point = { node: seg.node, offset: seg.start };
       push(" ", point, point);
     }
@@ -516,11 +522,9 @@ function spanOf(reading2, lo, hi) {
     const b = Math.min(hi, from + seg.end - seg.start);
     if (b > a)
       out.push({
-        node: seg.node,
+        ...seg,
         start: seg.start + a - from,
         end: seg.start + b - from,
-        block: seg.block,
-        gen: seg.gen,
         breakBefore: seg.breakBefore && a === from
       });
   }
@@ -545,6 +549,8 @@ var READING_MARKERS = [
   "class",
   "data-lf-said",
   "data-lf-gen",
+  "data-lf-projection",
+  "data-lf-datum",
   "slot",
   "name",
   "contenteditable"

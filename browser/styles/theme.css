@@ -719,6 +719,12 @@ html:not([data-lf-live]) {
   inherits: false;
   initial-value: 0;
 }
+/* A bounded widget names its inner scroller on its host. Nested bounds choose their
+ * own scroller, so the selector does not inherit (package-themes.md). */
+@property --lf-bound-box {
+  syntax: "*";
+  inherits: false;
+}
 /* A box that wears the focus ring for a control inside it, as its face, says so in the
  * rule that rings it: a playground's choice rings its radio and words together, a
  * joined option group's row rings its pick. A landing then shows that box with the

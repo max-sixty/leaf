@@ -2472,6 +2472,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 }
 @media screen {
   :scope:is(lf-activity)[data-lf-bound] {
+    --lf-bound-box: .lf-activity-list;
     max-block-size: none;
     overflow: visible;
     --lf-top: inherit;
@@ -2479,7 +2480,6 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   :scope:is(lf-activity)[data-lf-bound] > .lf-activity-list {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
-    --lf-bound-box: 1;
     --lf-holds-height: 1;
     --lf-top: 0px;
   }
@@ -2994,9 +2994,11 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   :scope:is(lf-text-document):not([preview])[data-lf-bound] pre {
     block-size: var(--lf-bound, 28rem);
     overflow: auto;
-    --lf-bound-box: 1;
     --lf-holds-height: 1;
     --lf-top: 0px;
+  }
+  :scope:is(lf-text-document):not([preview])[data-lf-bound] {
+    --lf-bound-box: .lf-text-document-listing > pre;
   }
   html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *)) {
     border: 1px solid var(--code-border);

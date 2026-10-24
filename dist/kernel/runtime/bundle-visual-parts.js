@@ -796,10 +796,11 @@ var registered = /* @__PURE__ */ new Set();
 var byBox = /* @__PURE__ */ new WeakMap();
 var THIS_DOCUMENT = `lf-region:bound:${performance.timeOrigin}`;
 var unnamed = 0;
-var declaresBound = (box) => getComputedStyle(box).getPropertyValue("--lf-bound-box").trim() === "1";
 function scrollerOf(bounded) {
-  for (const box of bounded.querySelectorAll("*"))
-    if (declaresBound(box) && box.closest(BOUNDED) === bounded) return box;
+  const selector = getComputedStyle(bounded).getPropertyValue("--lf-bound-box").trim();
+  if (!selector) return bounded;
+  for (const box of bounded.querySelectorAll(selector))
+    if (box.closest(BOUNDED) === bounded) return box;
   return bounded;
 }
 var regionId = (bounded) => bounded.id && authoredScope(bounded) === pageDocument() ? compoundReadingRegionId(bounded, "bound") : `${THIS_DOCUMENT}:${unnamed += 1}`;

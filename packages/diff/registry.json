@@ -142,6 +142,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
+    "x-space": "wide",
     "x-data": {
       "document": {
         "contract": "unified-diff",
@@ -218,6 +219,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
+    "x-space": "wide",
     "x-upgrade": true,
     "x-initial": "/vendor/lf-worktree-diffs-initial.js",
     "x-patch": "members",

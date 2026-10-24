@@ -82,7 +82,11 @@ test("removing repeated chrome rows does not leave accumulating markers", () => 
   try {
     const draw = (items) =>
       live.render(
-        live.html`${live.repeat(items, (item) => item, (item) => live.html`<span>${item}</span>`)}`,
+        live.html`${live.repeat(
+          items,
+          (item) => item,
+          (item) => live.html`<span>${item}</span>`,
+        )}`,
         host,
       );
     draw(["first", "second"]);

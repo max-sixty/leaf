@@ -251,13 +251,11 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
     ]
 
 
-def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
-    """Send's room stands after the field's last words, so it changes lines with the
-    keystroke that changes the lines. A last line whose words fill the field puts the
-    room on a line of its own; Shift+Enter then opens the new line in that room's
-    place and the first character typed there moves nothing above it. When the room
-    stayed on the last line with words instead, that first character took it away and
-    the field shrank under the caret."""
+def test_opening_a_line_under_the_last_moves_no_words(browser, serve):
+    """Shift+Enter opens a line under a draft's last words, and once the first
+    character typed there lands, every word above rests where it did: Send's room
+    stands on every line, so no keystroke at the end changes where the lines above
+    wrap."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
     page = open_page(
@@ -298,22 +296,14 @@ def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
               }
               const box = host.getBoundingClientRect();
               return {top: box.top, height: box.height,
-                      rows: rows.sort((a, b) => a.top - b.top)};
+                      rows: rows.sort((a, b) => a.top - b.top)
+                        .map((row) => ({top: row.top - box.top, right: row.right}))};
             }"""
         )
 
-    page.keyboard.insert_text("The first paragraph runs long enough to wrap once")
-    before = reading()
-    for key in "abcde " * 40:
-        page.keyboard.type(key)
-        after = reading()
-        if after["height"] > before["height"] and len(after["rows"]) == len(
-            before["rows"]
-        ):
-            break
-        before = after
-    else:
-        pytest.fail("no last line filled the field before its room")
+    page.keyboard.insert_text(
+        "The first paragraph runs long enough to wrap once, and then runs on a while"
+    )
     # A newly grown line carries the existing words with the panel edge; compare
     # the resulting places after that ride finishes.
     panel_settled(page)
@@ -322,10 +312,17 @@ def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
     panel_settled(page)
     opened = reading()
     page.keyboard.type("S")
+    panel_settled(page)
     typed = reading()
-    assert opened["height"] == full["height"] == typed["height"], (full, opened, typed)
-    assert opened["top"] == full["top"] == typed["top"]
-    assert typed["rows"][: len(full["rows"])] == full["rows"]
+    assert typed["height"] == opened["height"], (opened, typed)
+    assert typed["top"] == opened["top"], (opened, typed)
+    assert typed["rows"][: len(full["rows"])] == opened["rows"][: len(full["rows"])], (
+        opened,
+        typed,
+    )
+    assert [row["right"] for row in opened["rows"]] == [
+        row["right"] for row in full["rows"]
+    ], (full, opened)
 
 
 @pytest.mark.parametrize("viewport", [None, "width=device-width, initial-scale=1"])

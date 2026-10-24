@@ -11,6 +11,15 @@
   --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;
 }
+/* How far in from a field's frame the words of a field holding Send stop: Send's hit
+   box with the action inset on either side of it. A user's message written in such a
+   field keeps the same end (reading.css, `--lf-msg-text-end`). */
+:root,
+.lf-compose-field {
+  --lf-compose-send-end: calc(
+    var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
+  );
+}
 :root,
 .lf-compose-field,
 .lf-icon-action {
@@ -105,8 +114,7 @@
    whole line. */
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
   --lf-field-end-room: calc(
-    var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) -
-      var(--lf-compose-pad-inline-start)
+    var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start)
   );
 }
 .lf-icon-action {

@@ -1528,10 +1528,10 @@ th:not([scope="row"]),
 }
 
 /* The block an option row is about (§): its `for`, which lf-options writes.
- * It points; it never supplies the row's words, so it
- * reads as what it is — an id, written the way a thread writes an element
- * anchor — and rides at the line's end with the mark, out of the way of what the row
- * says.
+ * It points; it never supplies the row's words. It names the block the way a thread's
+ * § coordinate does, with a "Jump to" title, and rides at the line's end with the mark,
+ * out of the way of what the row says. The user chose the block's name over its raw
+ * id on 23 October 2026, reversing the earlier choice to show the id as "what it is".
  *
  * The secondary interface ink and not the document's muted, because a row's ground is
  * one of the surfaces the layer itself paints: a chosen row wears --ok-tint, and

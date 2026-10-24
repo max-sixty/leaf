@@ -1354,10 +1354,11 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
         "a row nobody can press draws cell edges anyway"
     )
 
-    # The block a row is about, reachable as a link and written as the id it names —
-    # the same way the thread panel writes an element anchor.
+    # The block a row is about, reachable as a link and named as a thread's §
+    # coordinate names it, by the block's own words rather than its id.
     ref = page.locator("#job-mounts .lf-ref")
-    expect(ref).to_have_text("§ sec-mounts")
+    expect(ref).to_have_text("§ section · The mounts")
+    expect(ref).to_have_attribute("title", "Jump to § section · The mounts")
     assert ref.get_attribute("href") == "#sec-mounts"
     assert page.locator("#job-camera .lf-ref").count() == 0
 

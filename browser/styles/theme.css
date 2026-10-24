@@ -238,7 +238,18 @@
   --pin-fill: light-dark(var(--accent), #4d74a8);
   /* The user's turn needs a deeper green under a white pin glyph in both schemes. */
   --pin-on-user: light-dark(#2f7d45, #2d8047);
+  /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
+     Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
+     inline code, a tooltip, a checkbox, a corner mark, a word's highlight) takes --r-s.
+     A control or a box in the page's flow (a button, a field, a margin entry, a menu
+     row, a code block, an option list) takes --r. A surface floating over the page
+     that holds controls (the Leaf panel and its menu, a thread card, a dialog) takes
+     --r-l, so the controls inside it stay clear of its corners. Only what is round by
+     meaning is round: a dot, a radio mark, a count's pill. A role's own token, such as
+     --chip-r, names its size here rather than a length. */
+  --r-s: 3px;
   --r: 6px;
+  --r-l: 12px;
   /* The compact label every layer draws a small fact in: .tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --t-6, so a band of chips from different layers stands at one
@@ -246,7 +257,7 @@
      A chip that draws a border adds it outside this geometry. A chip left inline in a
      line of text takes the inset alone: an inline box paints its font's height whatever
      its line-height, which there would only resize the holder's line. */
-  --chip-r: 3px;
+  --chip-r: var(--r-s);
   --chip-pad: 0 8px;
   --chip-lh: 1.6;
   --sp-1: 4px;
@@ -279,12 +290,7 @@
      rail below is sized from the same length, so it is named rather than written into
      each. */
   --margin-entry: max(32px, var(--aim-floor));
-  /* A margin entry's corner is a button's (`--r`), so a response pressed in the
-     selection toolbar keeps its face when it lands in the margin, and the margin's
-     controls read as the theme's other controls rather than as a separate family of
-     discs. A pin squares the same corners (annotation-theme.css). */
-  --margin-entry-r: var(--r);
-  /* A corner mark's disc (controls.css, `.lf-corner-mark`). A surface that keeps room
+  /* A corner mark's box (controls.css, `.lf-corner-mark`). A surface that keeps room
      for the marks on its corners reads it, so it is named rather than written there. */
   --corner-mark: 20px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
@@ -411,7 +417,7 @@
      sent message. */
   --code-inline-size: 82%;
   --code-inline-pad: 1px 5px;
-  --code-inline-r: 4px;
+  --code-inline-r: var(--r-s);
   --quote-rule: 2px solid var(--rule);
   --quote-style: italic;
   --quote-inset: 18px;
@@ -471,7 +477,7 @@
   --tip-bg: var(--ink);
   --tip-ink: var(--paper);
   --tip-pad: 4px 7px;
-  --tip-r: 4px;
+  --tip-r: var(--r-s);
   /* Inline code's ground is measured against the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over this ivory is 1.01:1, so the chip vanished and its
      side padding read as double spaces around every span. */
@@ -1839,7 +1845,7 @@ lf-suggestion {
 }
 lf-old,
 lf-new {
-  border-radius: 3px;
+  border-radius: var(--r-s);
   padding: 0 3px;
 }
 /* --ink-2, not --muted: the strike and the tint already say retired, and muted on
@@ -2036,7 +2042,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   min-height: var(--margin-entry);
   padding: 0;
   border: 1px solid var(--border-2);
-  border-radius: var(--margin-entry-r);
+  border-radius: var(--r);
   background: var(--lf-entry-tint, var(--paper));
   color: var(--lf-entry-ink, var(--ink-2));
   flex: 0 0 auto;

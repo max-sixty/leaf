@@ -162,7 +162,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 .lf-ins-block {
   background: var(--add-tint);
   box-shadow: 0 0 0 4px var(--add-tint);
-  border-radius: 2px;
+  border-radius: var(--r-s);
 }
 /* A marked block becomes one inline text diff when its Change disclosure opens
    (version.js): the block wash steps back so the insertion highlight marks only new
@@ -568,7 +568,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     margin: 0;
     background: var(--card);
     border: 1px solid var(--border-2);
-    border-radius: var(--r);
+    border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
   }
@@ -835,7 +835,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     margin: -3px -6px;
     padding: 3px 6px;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--r);
     background: transparent;
     color: inherit;
     font: inherit;
@@ -934,7 +934,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     margin: 0 auto;
     padding: 14px;
     border: 1px solid var(--border-2);
-    border-radius: 12px;
+    border-radius: var(--r-l);
     background: var(--paper);
     color: var(--ink);
     box-shadow: var(--raise-3);
@@ -1165,7 +1165,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-overflow: ellipsis;
     white-space: nowrap;
     padding: 1px 6px;
-    border-radius: 3px;
+    border-radius: var(--r-s);
     font-size: var(--t-6);
     line-height: 1.5;
     background: var(--accent);

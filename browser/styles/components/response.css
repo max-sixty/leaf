@@ -301,7 +301,7 @@ button.lf-media-open {
    tall screenshot is more than a sliver, up to twice as wide. */
 .lf-media-frame,
 .lf-composer-media-item > .lf-composer-media-open {
-  border-radius: 8px;
+  border-radius: var(--r);
   box-shadow:
     0 0 0 1px var(--lf-ring, var(--border-2)),
     var(--raise-1);

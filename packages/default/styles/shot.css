@@ -131,7 +131,7 @@
   inline-size: 0.75em;
   block-size: 0.75em;
   flex: none;
-  border-radius: 2px;
+  border-radius: var(--r-s);
 }
 @container lf-shot (max-width: 540px) {
   .lf-shot-toolbar {

@@ -131,7 +131,7 @@
   --margin-entry: max(26px, var(--aim-floor));
 }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry {
-  border-radius: var(--margin-entry-r) var(--margin-entry-r) var(--margin-entry-r) 0;
+  border-radius: var(--r) var(--r) var(--r) 0;
   --lf-pin-edge: var(--paper);
   border: 2px solid var(--lf-pin-edge);
   background: var(--lf-pin-face, var(--pin-fill));

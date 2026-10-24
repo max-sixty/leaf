@@ -649,7 +649,7 @@ def test_serving_connects_codex_feedback_before_handing_over_its_url(
     handoff,
     initially_idle,
 ):
-    """HTTP feedback reaches the current task without a second `codex start`.
+    """HTTP feedback reaches the current task without a second `page claim`.
 
     The detached adapter, claim and page server are real. Only the external Codex
     CLI is replaced: its queue boundary acknowledges and records the submitted

@@ -8,9 +8,11 @@ updates handed back to them among them, then the to-dos on the user; On <agent>
 inventory (`obligations`) also retains finished records, whatever their `status`.
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
-agent recovers what it owes without the delivery. `source` states whether a document is live and whether an invalid
-source save leaves the last valid version active. Before the first valid revision,
-an invalid candidate registry leaves no active document or readable vocabulary; its
+agent recovers what it owes without the delivery. `source` states whether a document
+is live and whether an invalid source save leaves the last valid version active. Its
+`digest` identifies the current index.html and complete page/ tree, even when invalid,
+for `page stamp --if-source`. Before the first valid revision, an invalid candidate
+registry leaves no active document or readable vocabulary; its
 source error still remains readable. A page this Leaf cannot serve as
 vendored (`layer.incompatible_layer`) is still read, its `source.error` the refusal
 naming the re-vendor: the reading gives the agent the page's context, and the error
@@ -28,6 +30,7 @@ from .events import bare_reaction, is_reaction
 from .files import revision_path
 from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
+from .publishing import authored_digest, authored_files
 from .refusals import Refused
 from .registry.storage import layer_metadata
 from .revision_artifact import active_enclosing
@@ -105,6 +108,9 @@ def _base_state(
         "versions": versions,
         "source": {
             "file": "index.html",
+            "digest": authored_digest(
+                authored_files(page_dir / "index.html", page_dir / "page")
+            ),
             "live": source_error is None and active is not None,
             "error": source_error,
         },

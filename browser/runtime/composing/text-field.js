@@ -2,18 +2,38 @@
  *
  * Every composer the runtime builds is a `leaf-text`. Inside a closed shadow root it
  * runs CodeMirror over the draft's exact source, and draws that source the way a sent
- * message will read: inline code in code type, emphasis and strong in their weights,
- * a link as a link, a heading in bold, a list item at the message's inset under the
- * message's own marker. The syntax that produces each (backticks, asterisks, brackets,
- * hashes, list markers) is hidden unless the selection touches the construct. List
- * markers reveal their source only inside the marker: the caret after its trailing
- * space is ready to type content, so even an empty new item already shows its bullet
- * or number. The user can move back into the marker to edit every source character.
- * Nothing is converted: the value is always the source the user typed, which is what
- * the agent reads. The constructs come from the renderer that sends the message
- * (`markdownTokens`), never from a second grammar, so the preview and the message agree
- * on what is a link, a heading or code. CodeMirror's own Markdown grammar serves only
- * editing: Shift+Enter continuing a list.
+ * message will read: inline code in code type, emphasis and strong in their weights, a
+ * link as a link, a heading in bold, a list item at the message's inset under the
+ * message's own marker, a picture as the picture, drawn after its source while the
+ * caret is in it, and a link that leaves the page with the mark the page draws after
+ * one (prepaint.js). The syntax that produces each (backticks, asterisks, brackets,
+ * hashes, list markers, a picture's source) is hidden unless the selection touches the
+ * construct. List markers reveal their source only inside the marker: the caret after
+ * its trailing space is ready to type content, so even an empty new item already shows
+ * its bullet or number. The user can move back into the marker to edit every source
+ * character. Nothing is converted: the value is always the source the user typed,
+ * which is what the agent reads. The constructs come from the renderer that sends the
+ * message (`markdownTokens`), never from a second grammar, so the preview and the
+ * message agree on what is a link, a heading or code. CodeMirror's own Markdown
+ * grammar serves only editing: Shift+Enter continuing a list.
+ *
+ * A field that edits words where they are shown, as a draft's does over its prose, names
+ * the element that shows them (`facesOf`) and draws them in that display's faces
+ * instead of the message's: each heading and code block in the type, padding and indent
+ * the page gives it there, each outermost block's quote and list insets, and the
+ * display's gap between two outermost blocks in place of the blank lines that part them
+ * in the source, so no word moves as the editor opens (browser/AGENTS.md, "Editing in
+ * place"). The cascade answers what those faces are: as the editor builds, and when its
+ * width changes, an empty copy of that element holding one of each block stands hidden
+ * beside the field, where the page's own rules and density reach it, and is read and
+ * removed in the same task. The rules it yields go in a sheet of the field's own, which
+ * the lines' classes name, so the field draws nothing differently without one. A code
+ * fence's line and a Setext heading's rule then stand for the block's padding while the
+ * caret is away from that line. A list's inner gaps, a quote's inner blocks and a table
+ * keep the source's lines. Rejected: rules the theme states for each element also stated
+ * for parts the field exposes, which can set type but not the gaps, since CodeMirror
+ * measures a line without its margins and a gap collapses two blocks'; and a style
+ * attribute on each line, which CodeMirror writes again on every redraw.
  *
  * Focus is the field's own, as a textarea's is. `focus()` puts the user in the words
  * with the caret where it stood, `blur()` takes them out, and a press anywhere in the
@@ -95,6 +115,7 @@ import {
   EditorState,
   StateEffect,
   Compartment,
+  WidgetType,
   Decoration,
   LanguageSupport,
   ViewPlugin,
@@ -110,6 +131,7 @@ import {
 import { LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
+import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
 import { sizeObserver } from "../rendering.js";
 
 const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
@@ -129,18 +151,26 @@ sheet.replaceSync(`
      that builds the editor. */
   .lf-field-rest { min-height: 1lh; outline: none; }
   .cm-line { padding: 0; }
+  /* CodeMirror's caret stops beside a widget hang from the text's top, which stands
+     above a line set tighter than its type, as a heading's is, and would make that
+     line taller than the heading it draws. The field's caret is the platform's. */
+  .cm-widgetBuffer { vertical-align: top; }
   /* The placeholder is a layer under the words, as a textarea's is, never content in
      the line: a widget in an empty line is what the platform would draw the caret
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
-  /* An owner moving the field's edges can carry the words from where they stood with
+  /* An owner moving the field's edges can carry the words from where they were with
      them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
      --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
      its layout. The field's content box cuts off what the field doesn't hold yet,
      such as a new line and its caret, and keeps the travel from widening the host's
-     scrolling. A cut naming none is invalid, which leaves the words uncut. */
-  .lf-field { overflow: clip; }
+     scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
+     reaches 2px past that box, the caret's width at a line's end: Firefox paints the
+     caret from its offset onward and pulls it inside only a scroll container, so a
+     caret after a line that fills the box, as a trailing space beside Send can, was
+     cut away whole. */
+  .lf-field { overflow: clip; overflow-clip-margin: 2px; }
   .lf-field > * {
     translate: var(--lf-field-carry);
     clip-path: inset(var(--lf-field-cut));
@@ -157,6 +187,12 @@ sheet.replaceSync(`
      word under the action. */
   .cm-line.lf-field-last::after { content: ""; display: inline-block;
     inline-size: var(--lf-field-end-room); }
+  /* In a narrow field, the spacer can wrap by itself after the last word and leave
+     that word under Send. Keep both together where the field asks for it. */
+  :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after {
+    content: "\\00a0"; display: inline; inline-size: auto;
+    padding-inline-end: var(--lf-field-end-room); white-space: nowrap;
+  }
   /* The placeholder is a single line, so it stands where a last line would. */
   .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
   /* The action stands beside more than the last line under a finger, whose hit box is
@@ -164,19 +200,27 @@ sheet.replaceSync(`
   @media (pointer: coarse) {
     .lf-field { padding-inline-end: var(--lf-field-end-room); }
     .lf-field-placeholder { padding-inline-end: 0; }
-    .cm-line.lf-field-last::after { content: none; }
+    .cm-line.lf-field-last::after,
+    :host([data-lf-end-room-glued]) .cm-line.lf-field-last::after { content: none; }
   }
   :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host([data-scrolls]) .cm-line.lf-field-last::after { content: none; }
-  /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
-     elements themselves, which the platform dresses here as it does in the message;
-     the rest read the theme's tokens, since its element rules stop at this root. A
-     heading is bold, as the platform draws one, at the size of the words around it. A
-     block is drawn line by line, so a code block's frame is each line's sides, closed
-     above its first line and below its last. Syntax that holds its room while the
-     caret is away, as a code fence's line does, is there unseen and unspoken. */
+  :host([data-scrolls]) .cm-line.lf-field-last::after,
+  :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
+    content: none;
+  }
+  /* A draft wears the sent message's faces, or where it stands in place, those its
+     display gives each block (\`standBlocks\`), written on its lines over these. Strong,
+     emphasis and strikethrough are the elements themselves, which the platform dresses
+     here as it does in the message; the rest read the theme's tokens, since its element
+     rules stop at this root. A heading is bold, as the platform draws one, at the size
+     of the words around it. A block is drawn line by line, so a code block's frame is
+     each line's sides, closed above its first line and below its last. Syntax that holds
+     its room while the caret is away, as a code fence's line does, is there unseen and
+     unspoken. Its glyphs go unfilled while its colour stays the words', because the
+     caret can stand at the end of unseen text, as just past a new item's marker, and the
+     browser draws it in that text's colour. */
   .lf-md-mark { color: var(--muted); }
-  .lf-md-unseen { color: transparent; }
+  .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
     background: var(--code-bg); border-radius: var(--code-inline-r);
     padding: var(--code-inline-pad); box-decoration-break: slice; }
@@ -211,6 +255,15 @@ sheet.replaceSync(`
   .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
     border-end-start-radius: var(--r); border-end-end-radius: var(--r);
     padding-block-end: 8px; }
+  /* A picture fits the field as media fits its container on the page, centred on its
+     line (theme.css), and the mark after a link that leaves the page is the page's
+     own (surfaces.css). */
+  .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
+  .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
+    margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
+    fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
+    stroke-linejoin: round; overflow: visible; user-select: none;
+    -webkit-user-select: none; }
   /* Code with no fence lines takes the message's padding at its ends instead. */
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
@@ -264,6 +317,121 @@ const read = (state) => {
   return placedMarkdownTokens(state.doc.toString());
 };
 
+// The elements the renderer sends each block as, in an order that stands each one
+// between others, as a block inside a body stands.
+const FACE_PROBE =
+  "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre>" +
+  "<blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
+// The gap two blocks' margins leave between them, collapsed as the platform collapses
+// adjoining margins, in px or as CSS over the two a gap line names (`standBlocks`).
+const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
+const GAP =
+  "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + " +
+  "min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
+// The rules that draw each block in the face the cascade gives it in `display`, the
+// element whose blocks the field's words are shown as: their type, and the margins and
+// padding that set them apart from their neighbours. The probe is an empty copy of that
+// element standing beside the field, in its place among its siblings, so the page's own
+// rules, which skip Leaf's interface, and its density reach the probe's blocks as they
+// reach the display's. A list's outer margins collapse with its first and last items'.
+function readFaces(field, display) {
+  const probe = /** @type {HTMLElement} */ (display.cloneNode(false));
+  probe.removeAttribute("id");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText =
+    "position: absolute; visibility: hidden; inline-size: 0; display: block";
+  probe.innerHTML = FACE_PROBE;
+  field.after(probe);
+  const face = {};
+  // Type the field already inherits stays inherited: a line height restated in pixels
+  // can round otherwise than the one it resolves from.
+  const own = getComputedStyle(field);
+  const TYPE = ["font-size", "line-height", "font-weight", "letter-spacing"];
+  for (const node of probe.querySelectorAll(":scope > :not(div), li + li")) {
+    const s = getComputedStyle(node);
+    const px = (value) => Number.parseFloat(value) || 0;
+    face[node.localName] = {
+      type: TYPE.filter(
+        (name) => s.getPropertyValue(name) !== own.getPropertyValue(name),
+      )
+        .map((name) => `${name}: ${s.getPropertyValue(name)}`)
+        .join("; "),
+      start: px(s.marginTop),
+      end: px(s.marginBottom),
+      padStart: px(s.paddingTop),
+      padEnd: px(s.paddingBottom),
+      inset: s.paddingInlineStart,
+      indent: s.marginInlineStart,
+    };
+  }
+  probe.remove();
+  const { li, pre, blockquote: quote } = face;
+  const rules = [];
+  for (const [tag, { type, start, end }] of Object.entries(face)) {
+    const list = tag === "ul" || tag === "ol";
+    rules.push(
+      `.lf-face-${tag} { ${type} }`,
+      `.lf-starts-${tag} { --lf-gap-start: ${list ? collapsed(start, li.start) : start}px }`,
+      `.lf-ends-${tag} { --lf-gap-end: ${list ? collapsed(end, li.end) : end}px }`,
+    );
+  }
+  rules.push(
+    `.lf-face-gap { line-height: ${GAP} }`,
+    `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`,
+    `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`,
+    `.lf-face-rule { line-height: 0 }`,
+    `.lf-face-gap-above { padding-block-start: ${GAP} }`,
+    `.lf-face-fence-open { line-height: ${pre.padStart}px }`,
+    `.lf-face-fence-close { line-height: ${pre.padEnd}px }`,
+    `.lf-face-code { padding-inline: ${pre.inset} }`,
+    `.lf-face-quote { margin-inline-start: ${quote.indent}; padding-inline-start: ${quote.inset}; --lf-marker-inset: ${quote.inset} }`,
+    `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`,
+    `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`,
+    `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`,
+    `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`,
+    `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`,
+    `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`,
+  );
+  return rules.join("\n");
+}
+
+// A picture's syntax, while the caret is away, is the picture the message shows for it,
+// from the source the parser resolved, a reference's included, at the address the
+// renderer gives page media (markdown.js). A press on it puts the caret in its source.
+class Picture extends WidgetType {
+  constructor(src, alt) {
+    super();
+    this.src = isCanonicalMediaUrl(src) ? scopedMediaUrl(src) : src;
+    this.alt = alt;
+  }
+  eq(other) {
+    return other.src === this.src && other.alt === this.alt;
+  }
+  toDOM(view) {
+    const img = document.createElement("img");
+    img.className = "lf-md-picture";
+    img.alt = this.alt;
+    img.src = this.src;
+    img.addEventListener("load", () => view.requestMeasure(), { once: true });
+    return img;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
+// The mark the page draws after a link that leaves it (prepaint.js).
+class ExternalMark extends WidgetType {
+  eq() {
+    return true;
+  }
+  toDOM() {
+    return document.documentElement.lfExternalLink.mark();
+  }
+}
+const externalMark = Decoration.widget({ widget: new ExternalMark(), side: -1 });
+const opensElsewhere = (href) =>
+  document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
+
 function decorate(state, placed) {
   const out = [];
   // The ends of the lists open at the token being read, each list line's item, and the
@@ -293,6 +461,7 @@ function decorate(state, placed) {
     escapes,
     markers,
     contentLines,
+    words: said,
   } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
     if (token.type === "code_inline" || contentFrom !== undefined) {
@@ -302,10 +471,25 @@ function decorate(state, placed) {
           : [contentFrom, contentTo];
       if (words[0] > words[1]) continue;
       if (INLINE[token.type]) add(from, to, INLINE[token.type]);
-      else if (token.type === "link_open" && token.meta.linked)
+      else if (token.type === "link_open" && token.meta.linked) {
         add(words[0], words[1], link);
+        if (opensElsewhere(token.attrGet("href")))
+          out.push(externalMark.range(words[1]));
+      }
       add(from, words[0], syntax);
       add(words[1], to, syntax);
+    } else if (token.type === "image") {
+      // A replacement a plugin draws may not take a line break, so a picture whose
+      // source spans lines stays source. With the caret in its source the picture
+      // stays drawn after it, so reaching the source adds its line and takes no
+      // picture away from the page.
+      if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
+      const widget = new Picture(token.attrGet("src"), token.content);
+      out.push(
+        touches(state, from, to)
+          ? Decoration.widget({ widget, side: 1 }).range(to)
+          : Decoration.replace({ widget }).range(from, to),
+      );
     } else if (token.type === "text") {
       for (const at of escapes ?? [])
         add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
@@ -313,8 +497,13 @@ function decorate(state, placed) {
       lines(...contentLines, (each) => {
         out.push(line("lf-md-heading").range(each.from));
       });
-      for (const [a, b] of markers)
-        add(a, b, token.markup.startsWith("#") ? syntax : dim);
+      // A Setext heading's rule is a line of its own, which keeps its room unseen while
+      // the caret is away, as a fence's does.
+      for (const [a, b] of markers) {
+        const rule = state.doc.lineAt(a);
+        const shown = touches(state, rule.from, rule.to) ? dim : unseen;
+        add(a, b, token.markup.startsWith("#") ? syntax : shown);
+      }
     } else if (token.type === "fence" || token.type === "code_block") {
       code.push([from, to]);
       // Each line of code keeps the indent the parser's reading of it keeps; the rest,
@@ -333,9 +522,12 @@ function decorate(state, placed) {
         const lead = each.text.match(/^[ \t]*/)[0].length;
         add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
       });
-      // A fence's lines keep their room, as the message's code keeps its padding.
-      const fence = touches(state, from, to - 1) ? dim : unseen;
-      for (const [a, b] of markers ?? []) add(a, b, fence);
+      // A fence's lines keep their room, as the message's code keeps its padding, and
+      // each shows its marks while the caret is on it.
+      for (const [a, b] of markers ?? []) {
+        const fence = state.doc.lineAt(a);
+        add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
+      }
     } else if (token.type === "blockquote_open") {
       lines(from, to, (each) => {
         out.push(line("lf-md-quote").range(each.from));
@@ -387,7 +579,106 @@ function decorate(state, placed) {
     if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
     add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
   }
+  standBlocks(state, placed, out);
   return Decoration.set(out, true);
+}
+
+// Each outermost block's lines name its face, and the lines between two blocks the gap
+// the display leaves there: the blank lines that part them in the source, or the
+// second's first line where none do. A field that edits in place has rules for the
+// names (`readFaces`); elsewhere they draw nothing. A code fence's lines stand for its
+// block's padding while the caret is away, and an item after the first in a list stands
+// its gap above it. The display trims the outer margins of its first and last blocks,
+// so the field leaves none there, but a list's first and last items keep theirs.
+const blockTag = (token) =>
+  token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
+function standBlocks(state, placed, out) {
+  const lines = (from, to, each) => {
+    for (let at = from; at < to;) {
+      const current = state.doc.lineAt(at);
+      each(current);
+      at = current.to + 1;
+    }
+  };
+  const named = (from, cls) => out.push(line(cls).range(from));
+  // A run of blank lines stands as one gap, shared among them.
+  const gapLines = (from, to, gap) => {
+    const runs = state.doc.lineAt(to).number - state.doc.lineAt(from).number;
+    const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
+    lines(from, to, (each) => named(each.from, `lf-face-gap${share} ${gap}`));
+  };
+  const lineTouched = (at) => {
+    const { from, to } = state.doc.lineAt(at);
+    return touches(state, from, to);
+  };
+  // The block before the one being read in each container still open, by level: the
+  // draft itself and each quote. A list's items stand apart by their own gap.
+  const before = [];
+  const open = [];
+  let item = null;
+  const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
+  for (const { token, from, to, markers, contentLines } of placed) {
+    if (!token.block) continue;
+    const tag = blockTag(token);
+    // A heading and a fence wear their faces wherever they stand.
+    if (token.type === "heading_open") {
+      lines(...contentLines, (each) => named(each.from, `lf-face-${tag}`));
+      if (!token.markup.startsWith("#"))
+        for (const [at] of markers)
+          if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
+    } else if (token.type === "fence" || token.type === "code_block") {
+      lines(from, to, (each) => named(each.from, "lf-face-code"));
+      const opener = state.doc.lineAt(from).number;
+      for (const [at] of token.type === "fence" ? markers : []) {
+        const fence = state.doc.lineAt(at);
+        if (lineTouched(at)) continue;
+        const side = fence.number === opener ? "open" : "close";
+        named(fence.from, `lf-face-fence-${side}`);
+      }
+    }
+    while (open.at(-1)?.to <= from) before.length = open.pop().level + 1;
+    const within = open.at(-1)?.type;
+    if (token.type === "list_item_open" && within !== "list_item_open") {
+      if (item?.to === from) named(from, "lf-face-item");
+      item = { to };
+    }
+    const container = /^(blockquote|bullet_list|ordered_list|list_item)_open$/.test(
+      token.type,
+    );
+    if (container) open.push({ type: token.type, to, level: token.level });
+    if (token.type === "list_item_open" || within === "list_item_open") continue;
+    const level = token.level;
+    if (!FACE_PROBE.includes(`<${tag}>`)) {
+      before[level] = null;
+      continue;
+    }
+    const list = tag === "ul" || tag === "ol";
+    if (list && from === 0) named(0, "lf-face-list-lead");
+    if (list && to >= state.doc.length)
+      named(state.doc.lineAt(state.doc.length).from, "lf-face-list-tail");
+    const prior = before[level];
+    const gap = `lf-ends-${prior?.tag} lf-starts-${tag}`;
+    if (prior && prior.to < from) gapLines(prior.to, from, gap);
+    else if (prior) named(from, `lf-face-gap-above ${gap}`);
+    // A block's reading can take in the blank lines after it, which part it from the next.
+    let end = to;
+    while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
+    before[level] = { tag, to: end };
+    before.length = level + 1;
+    if (token.type === "paragraph_open" && level === 0)
+      lines(from, to, (each) => named(each.from, "lf-face-p"));
+    else if (token.type === "blockquote_open" && level === 0) {
+      lines(from, end, (each) => named(each.from, "lf-face-quote"));
+      named(from, "lf-face-quote-first");
+      named(state.doc.lineAt(Math.max(from, end - 1)).from, "lf-face-quote-last");
+    }
+  }
+  // Blank lines after the last block, short of the line the next words will start on,
+  // stand as the gap before a paragraph, so typing that paragraph moves no line.
+  const last = state.doc.line(state.doc.lines);
+  const final = before[0];
+  if (final && final.to < last.from)
+    gapLines(final.to, last.from, `lf-ends-${final.tag} lf-starts-p`);
 }
 
 // The draft is read by the renderer that will send it, so the preview styles exactly what
@@ -453,11 +744,28 @@ class LeafText extends HTMLElement {
   #editable = new Compartment();
   #history = new Compartment();
   #attributes = new Compartment();
+  /** The element whose blocks a field editing words where they are shown shows them
+   * as, such as a draft's prose; unset, the field draws a sent message's faces.
+   * @type {Element | null} */
+  facesOf = null;
+  // The rules that draw the words in its blocks' faces (`readFaces`), as last read.
+  #faces = new CSSStyleSheet();
+  #facesRead = "";
+  #readFaces() {
+    if (!this.facesOf?.isConnected || !this.isConnected) return;
+    const rules = readFaces(this, this.facesOf);
+    if (rules === this.#facesRead) return;
+    this.#facesRead = rules;
+    this.#faces.replaceSync(rules);
+  }
   #placeholderLayer = document.createElement("div");
   #placeholderText = document.createTextNode("");
   #frame = document.createElement("div");
   #readOnly = false;
   #sizes = sizeObserver(() => {
+    // A new width can set the display's blocks in other faces, as a heading sized to
+    // its container's width is.
+    this.#readFaces();
     const view = this.#view;
     if (view?.hasFocus)
       view.requestMeasure({
@@ -690,7 +998,7 @@ class LeafText extends HTMLElement {
     // host reading -1 is one every stop-counting walk would miss.
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.#internals ??= this.attachInternals();
-    this.#root.adoptedStyleSheets = [sheet];
+    this.#root.adoptedStyleSheets = [sheet, this.#faces];
     if (this.#model.doc.length) this.#build();
     else this.#describe();
     this.#paintEmpty();
@@ -724,6 +1032,9 @@ class LeafText extends HTMLElement {
   // the user types lands in them. A page holding many fields, such as one under each
   // list of options, builds none of them to show itself.
   #build() {
+    // A field that stands where its words are shown takes their faces from there, read
+    // as the editor builds: the field is in place, and nothing has drawn its words yet.
+    this.#readFaces();
     this.#view = new LeafEditorView({
       root: this.#root,
       parent: this.#frame,

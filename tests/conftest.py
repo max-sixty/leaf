@@ -33,6 +33,7 @@ from leaf import machine as machine_model
 from leaf import state as cleanup_model
 from leaf.registry.schema import schema_error, with_leaf_resources
 from leaf.render_gate import browser as browser_model
+from leaf.render_gate import command as render_command_model
 
 __all__ = ["LEAF_COMMAND"]
 
@@ -556,6 +557,9 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("claude")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    # A test's own browser reports its window to the pages it opens, so `page check
+    # --render` reads the fixed window unless a test unsets this.
+    monkeypatch.setenv(render_command_model.PIN_VARIABLE, "fixed")
     # A Claude Code session whose harness runs Leaf's hooks, as the plugin installs
     # them, supplying capability evidence to hook transport and turn activity.
     for session in HOOKED_SESSIONS:

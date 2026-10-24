@@ -1031,14 +1031,14 @@
               </p>
               <p id="handoff-reading">
                 The agent creates a page directory and writes
-                <code>index.html</code> with ordinary HTML and Leaf components. Here,
+                <code>index.html</code> with ordinary HTML and Leaf elements. Here,
                 <code>./review</code> names that directory, relative to the commands’
                 working directory.
               </p>
               <p id="handoff-runtime">
                 <code>leaf page init</code> installs the page’s
                 <a href="#layer">runtime and selected packages</a>. The agent then
-                authors its content using the HTML and components described in
+                authors its content using the HTML and Leaf elements described in
                 <a href="#page">Pages</a>.
               </p>
               <p id="handoff-serving">
@@ -1054,7 +1054,7 @@
 # Write ./review/index.html with the harness's file tools.
 leaf page check ./review --render
 leaf page stamp ./review --text "Queue policy ready for review"
-leaf status ./review waiting "Which queue policy fits the importer?"
+leaf thread open ./review --obligation --text "Which queue policy fits the importer?"
 leaf server start ./review</code></pre>
               <p id="handoff-checkpoint">
                 This example is a record meant to be revisited, so the agent reviews and
@@ -1067,7 +1067,7 @@ leaf server start ./review</code></pre>
               <details id="handoff-packages">
                 <summary>Package instructions, evals, and an existing page</summary>
                 <p id="package-instructions">
-                  Each package adds instructions for its components, written for an
+                  Each package adds instructions for its elements, written for an
                   audience such as the page's author.
                   <code>leaf page instructions ./review</code> prints the packages'
                   shared instructions as JSON, keyed by audience;
@@ -1124,7 +1124,7 @@ leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
 leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
-leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
+leaf thread open ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A decision widget creates an
                 <em>obligation</em> on the user’s On me list, with a prompt, typed
@@ -1173,7 +1173,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                 </p>
                 <p id="answer-kinds-details">
                   A user comment requires a reply in its thread. A decision on a page
-                  widget requires a stamped revision. If the obligation's component
+                  widget requires a stamped revision. If the obligation's widget
                   declares a record form, the revised HTML uses it to show the decision,
                   such as the chosen option. An obligation embedded in a thread message
                   receives a thread reply, because that message's HTML is fixed.
@@ -1239,7 +1239,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   </tbody>
                 </table>
                 <p id="delivery-handling">
-                  The registry is Leaf's machine-readable definition of components and
+                  The registry is Leaf's machine-readable definition of elements and
                   events. It declares event instructions under
                   <code>$events.handling</code> and response instructions under
                   <code>$events.answering</code>. Leaf combines the applicable clauses
@@ -1282,8 +1282,8 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
             <section id="agent">
               <h3>Change the live page</h3>
               <p id="agent-changes-reading">
-                The agent can save HTML, replace a component’s data source, or report a
-                component state change while the user reads. The browser fetches the
+                The agent can save HTML, replace a widget’s data source, or report a
+                widget state change while the user reads. The browser fetches the
                 revised document and state when the server reports a change (<a
                   href="#browser-freshness"
                   >Freshness checks and state reads</a
@@ -1294,14 +1294,14 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
               ><code class="language-bash">leaf data set ./review queue-metrics --file ./metrics.json</code></pre>
               <p id="change-commands-reading">
                 Here, the declared source <code>queue-metrics</code> receives the
-                complete value in <code>metrics.json</code>. For a component state
-                change, <code>leaf page report</code> records its declared operation and
-                fields. Saving HTML changes the live document; stamping adds a version
-                address and changelog entry.
+                complete value in <code>metrics.json</code>. For a widget state change,
+                <code>leaf page report</code> records its declared operation and fields.
+                Saving HTML changes the live document; stamping adds a version address
+                and changelog entry.
               </p>
               <p id="answers-preservation">
                 These changes preserve the user's recorded choices. If an edit changes
-                what a decision was about, the author marks the component
+                what a decision was about, the author marks the widget
                 <code>restated</code> to invalidate that decision. The
                 <a href="/how-it-works/#revisions">Revisions</a> view explains how
                 decisions survive page edits.
@@ -1324,12 +1324,14 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
             <section id="page-ending-flow">
               <h3>Wait for updates or finish</h3>
               <p id="waiting-flow">
-                <code>leaf status ./review waiting</code> says the agent needs more from
-                the user. The harness integration keeps watching after the turn ends and
-                sends later updates back to the same session.
+                <code>leaf page open ./review</code> leaves the page available for
+                feedback. Questions that need an answer go in thread messages with
+                <code>--obligation</code>, which puts them in On me. The harness
+                integration keeps watching after the turn ends and sends later updates
+                back to the same session.
               </p>
               <p id="page-ending">
-                <code>leaf status ./review idle</code> marks the page finished and stops
+                <code>leaf page close ./review</code> marks the page finished and stops
                 watching it. Leaf refuses it while an update awaits receipt or an
                 answer, or an agent to-do is open. If the agent ends a turn with a
                 delivered update unanswered, the Stop hook tells it so (<a
@@ -1514,11 +1516,13 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 </tr>
                 <tr>
                   <td>
-                    <strong>Declare work and report progress</strong><br />Set page
-                    status to waiting or idle, or report a widget's declared state
-                    transition.
+                    <strong>Declare work and report progress</strong><br />Open or close
+                    a page for feedback, or report a widget's declared state transition.
                   </td>
-                  <td><code>leaf status</code><br /><code>leaf page report</code></td>
+                  <td>
+                    <code>leaf page open</code><br /><code>leaf page close</code
+                    ><br /><code>leaf page report</code>
+                  </td>
                 </tr>
                 <tr>
                   <td>
@@ -1574,12 +1578,11 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 </tr>
                 <tr>
                   <td>
-                    <strong>Connect a Codex task</strong><br />Connect delivery
-                    explicitly, or launch the experimental terminal client with its own
-                    App Server.
+                    <strong>Launch a Codex terminal</strong><br />Run the experimental
+                    terminal client with its own App Server.
                   </td>
                   <td>
-                    <code>leaf codex start</code><br /><code>leaf codex launch</code>
+                    <code>leaf codex launch</code>
                   </td>
                 </tr>
                 <tr>
@@ -1714,7 +1717,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               <summary>Codex entry points and the public website</summary>
               <p id="host-codex-start">
                 <code>leaf server start</code> connects the page to the current Codex
-                task. <code>leaf codex start ./review</code> connects delivery when
+                task. <code>leaf page claim ./review</code> connects delivery when
                 claiming a page without serving it. The desktop app uses the queue
                 route, even though it runs an App Server internally.
               </p>
@@ -1808,9 +1811,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <code>ol.steps</code> for a numbered sequence like this list.
               </li>
               <li id="src-widgets">
-                <strong>Widgets.</strong> Leaf widgets are custom HTML elements, such as
-                <code>&lt;lf-options&gt;</code> for choices and
-                <code>&lt;lf-board&gt;</code> for cards in columns. Other
+                <strong>Widgets.</strong> A widget is a complete page feature, authored
+                as a custom HTML element, such as <code>&lt;lf-options&gt;</code> for
+                choices and <code>&lt;lf-board&gt;</code> for cards in columns. Other
                 <code>lf-*</code> elements provide structure, such as
                 <code>&lt;lf-pane&gt;</code> for a pane. The
                 <a href="/registry/">registry</a> declares each element’s attributes and
@@ -1826,11 +1829,11 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </li>
             </ol>
             <p id="boundaries">
-              Interactive components load their JavaScript modules when the page uses
-              them. Behavior specific to one page can use inline module scripts or local
+              Leaf elements load their JavaScript modules when the page uses them.
+              Behavior specific to one page can use inline module scripts or local
               modules under
               <code>page/</code>. Reusable behavior belongs in a package, a directory
-              containing components and their supporting files. The
+              containing element declarations and their supporting files. The
               <a
                 href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/page-behavior.md"
                 >page-behavior reference</a
@@ -1858,9 +1861,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               Leaf's core, called the kernel, supplies the browser runtime, shared
               controls, and collaboration protocol. Packages supply reusable elements,
               JavaScript modules, styles, and authoring instructions. The default
-              package provides common components; optional packages add capabilities
-              such as diagrams and diffs. Project packages use the same format and can
-              replace or extend the page's selected layer. The
+              package provides common widgets and structural elements; optional packages
+              add capabilities such as diagrams and diffs. Project packages use the same
+              format and can replace or extend the page's selected layer. The
               <a href="/extending/">extension guide</a> lists the bundled packages and
               demonstrates a small custom package.
             </p>
@@ -1965,9 +1968,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </figcaption>
             </figure>
             <p id="catalog">
-              The component catalog also includes diagrams, charts, diffs with
-              collapsible files, annotated code, editable drafts, playgrounds, and
-              recorded browser traces. The
+              The widget catalog also includes diagrams, charts, diffs with collapsible
+              files, annotated code, editable drafts, playgrounds, and recorded browser
+              traces. The
               <a href="/examples/">examples gallery</a> opens complete pages using them.
             </p>
           </section>
@@ -2685,12 +2688,14 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <ul id="column-widths">
               <li id="width-column">
                 <code>column</code> is the text measure. In a wider region, such as a
-                sidebar page's body, a <code>column</code> component starts at the same
-                left edge as the text.
+                sidebar page's body, a <code>column</code> block starts at the same left
+                edge as the text.
               </li>
               <li id="width-wide">
-                <code>wide</code> extends up to 1080px. Wide blocks share this width so
-                they align with one another.
+                <code>wide</code> starts at the edge the text starts from (the left, in
+                a left-to-right page) and extends toward its end, up to 840px, enough
+                for 100 columns of code. Wide blocks share this width so they align with
+                one another.
               </li>
               <li id="width-available">
                 <code>available</code> uses the window's width after subtracting the
@@ -2698,16 +2703,16 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </li>
             </ul>
             <p id="column-widths-declared">
-              The <a href="/registry/">registry</a>, which declares each component's
+              The <a href="/registry/">registry</a>, which declares each element's
               behavior, also gives it a default width. For example,
               <code>lf-options</code> uses <code>column</code>,
-              <code>lf-board</code> uses <code>wide</code>, and
-              <code>lf-diagram</code> uses <code>available</code>. A
+              <code>lf-diff</code> uses <code>wide</code>, and
+              <code>lf-board</code> uses <code>available</code>. A
               <code>data-width</code> attribute asks for <code>wide</code> or
               <code>available</code> on any block, overriding the default. If the
-              margins have unequal space, the block extends farther into the wider
-              margin. A table given a width takes its columns' natural width up to that
-              room rather than spreading across it.
+              margins have unequal space, an <code>available</code> block extends
+              farther into the wider margin. A table given a width takes its columns'
+              natural width up to that room rather than spreading across it.
             </p>
 
             <figure class="fig small" id="vocabulary-attribute">
@@ -2813,7 +2818,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               <code>layout-workspace</code> fits the page to the window above Leaf's
               panel. A single-row <code>header</code> holds the title and status tags.
               The body takes the remaining height and contains an <code>lf-pane</code>,
-              a component that arranges its own panes, or a grid of panes defined by the
+              a widget that arranges its own panes, or a grid of panes defined by the
               page's CSS. Each pane scrolls its content beneath its own
               <code>header</code>. A pane's footer stays visible, keeping its actions
               within reach.
@@ -3967,11 +3972,11 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             <h2>Checks before a revision goes live</h2>
             <p>
               Before making a revision live or stamping a version, Leaf validates the
-              HTML structure, component declarations, dependencies, and recorded user
+              HTML structure, element declarations, dependencies, and recorded user
               decisions. An invalid save keeps the last valid revision live and reports
               the error. <code>leaf page check --render</code> additionally opens the
               page in Chrome in both color schemes to check for console errors,
-              invisible components, and horizontal overflow.
+              invisible widgets, and horizontal overflow.
             </p>
           </section>
 
@@ -4479,7 +4484,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 </tr>
                 <tr id="updates-reading-closed">
                   <td>Page closed</td>
-                  <td>The agent wrote <code>leaf status … idle</code>.</td>
+                  <td>The agent wrote <code>leaf page close …</code>.</td>
                 </tr>
               </tbody>
             </table>
@@ -4511,14 +4516,13 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 and tab icon take the status’s colour; All pages repeats its line.
               </li>
               <li id="updates-written-waiting">
-                <strong><code>leaf status … waiting "…"</code></strong> Names the input
-                wanted, such as <em>Claude awaits — pick a layout</em>, while a watcher
-                or turn runs. It clears starts but keeps to-dos; it creates no
-                item-level Working label. Without text it reads
-                <em>Claude awaits — select text to comment</em>.
+                <strong><code>leaf page open …</code></strong> Leaves feedback open and
+                clears starts while keeping to-dos. It creates no obligation. Questions
+                that need an answer belong in a thread message with
+                <code>--obligation</code>, so On me opens the conversation.
               </li>
               <li id="updates-written-idle">
-                <strong><code>leaf status … idle</code></strong> The agent has finished
+                <strong><code>leaf page close …</code></strong> The agent has finished
                 with the page, and the status reads <em>Page closed</em> (<a
                   href="#page-ending-flow"
                   >Wait for updates or finish</a
@@ -4568,9 +4572,9 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               </li>
             </ul>
             <p id="updates-written-report">
-              <code>leaf page report</code> records a component state change. A
-              component supplied by an optional package can use these reports to show a
-              background worker's progress.
+              <code>leaf page report</code> records a widget state change. A widget
+              supplied by an optional package can use these reports to show a background
+              worker's progress.
             </p>
           </section>
 
@@ -5029,10 +5033,7 @@ EOF</code></pre>
                   </tr>
                   <tr>
                     <td>At the first or last thread</td>
-                    <td>
-                      The next step comes round to the other end, and the walk's count
-                      flashes to mark it.
-                    </td>
+                    <td>The next step comes round to the other end.</td>
                   </tr>
                   <tr>
                     <td>Arrive at a long thread</td>
@@ -5156,11 +5157,12 @@ EOF</code></pre>
           <section id="navigation-history">
             <h2>Back and Forward</h2>
             <p id="navigation-history-rule">
-              A successful trip to a destination that is not fully readable adds a
-              return stop. Consecutive trips share it while part of the preceding
-              landing remains visible and the user has not clicked or Tabbed onto
-              another passage. Back returns to the journey’s start. A fully readable
-              destination adds no stop.
+              A successful navigation step to a destination that is not fully readable
+              adds a return stop. Consecutive navigation steps form a navigation group
+              and share that stop while part of the preceding landing remains visible
+              and the user has not clicked or Tabbed onto another passage. Back returns
+              to the navigation group’s start. A fully readable destination adds no
+              stop.
             </p>
             <details id="navigation-history-cases">
               <summary>Which actions create a history entry?</summary>
@@ -5178,25 +5180,27 @@ EOF</code></pre>
                       destination
                     </td>
                     <td>
-                      A successful trip pushes an entry, or replaces the current
-                      journey's entry. Changing focus alone adds none.
+                      A successful navigation step pushes an entry, or replaces the
+                      current navigation group's entry. Changing focus alone adds none.
                     </td>
                   </tr>
                   <tr>
                     <td>
-                      Click or Tab onto a different passage, then take another trip
+                      Click or Tab onto a different passage, then take another
+                      navigation step
                     </td>
                     <td>
-                      The reading choice ends the journey; the next offscreen trip saves
-                      that passage. Controls and runtime focus handoffs do not end it.
+                      The reading choice ends the navigation group; the next offscreen
+                      navigation step saves that passage. Controls and runtime focus
+                      handoffs do not end it.
                     </td>
                   </tr>
                   <tr>
                     <td>
                       Scroll completely away from the last landing, then take another
-                      trip
+                      navigation step
                     </td>
-                    <td>The new trip adds a separate return stop.</td>
+                    <td>The new navigation step adds a separate return stop.</td>
                   </tr>
                   <tr>
                     <td>Follow a #fragment link</td>
@@ -5343,7 +5347,7 @@ EOF</code></pre>
           <section id="browser-state">
             <h2>Browser runtime</h2>
             <p id="browser-lede">
-              The browser runtime upgrades components, draws threads and shared
+              The browser runtime upgrades Leaf elements, draws threads and shared
               controls, sends updates, and keeps the page current. Its inputs meet in
               one read-only state.
             </p>
@@ -5367,12 +5371,12 @@ EOF</code></pre>
               <div class="runtime-connector" aria-hidden="true">↓</div>
               <div class="runtime-current">
                 <strong>Current state</strong
-                ><span>Component values · threads · obligations · On lists</span>
+                ><span>Widget values · threads · obligations · On lists</span>
               </div>
               <div class="runtime-connector" aria-hidden="true">↓</div>
               <div class="runtime-output">
                 <strong>Renderers</strong
-                ><span>Components · threads · Leaf panel · page marks</span>
+                ><span>Widgets · threads · Leaf panel · page marks</span>
               </div>
               <figcaption id="browser-one-reading">
                 Each input change produces one state. Renderers read it through
@@ -5399,8 +5403,8 @@ EOF</code></pre>
               <li id="browser-startup-receipt">
                 <strong>Before first paint</strong>
                 <p>
-                  Small scripts reserve component geometry and panel space, capture
-                  early key presses, and provide a startup-failure notice. Late-arriving
+                  Small scripts reserve element geometry and panel space, capture early
+                  key presses, and provide a startup-failure notice. Late-arriving
                   controls do not shift the page.
                 </p>
               </li>
@@ -5408,7 +5412,7 @@ EOF</code></pre>
                 <strong>Initialize and upgrade</strong>
                 <p>
                   Start the state request, restore control arrangements and load the
-                  registry. Capture each component’s authored values before its module
+                  registry. Capture each element’s authored values before its module
                   changes the DOM, then import modules for the tags the page uses.
                 </p>
               </li>
@@ -5434,7 +5438,7 @@ EOF</code></pre>
                 </li>
                 <li id="loading-javascript">
                   <strong>JavaScript initializes the interface</strong>
-                  <p>Components and comment controls are being prepared.</p>
+                  <p>Widgets and comment controls are being prepared.</p>
                   <span class="runtime-status">Panel: Loading…</span>
                 </li>
                 <li id="loading-comments">
@@ -5593,7 +5597,7 @@ EOF</code></pre>
           <section id="browser-drawing">
             <h2>Drawing current state</h2>
             <p id="browser-drawing-proof">
-              Computing state and drawing it are separate. Components, threads, the
+              Computing state and drawing it are separate. Widgets, threads, the
               obligation view, panel and page marks register as renderers. Each state
               has an epoch number. Renderers report when they have presented it; those
               reports stay outside state, so a slow or failed paint cannot change the
@@ -5673,7 +5677,7 @@ EOF</code></pre>
                   <th scope="row">Node replaced</th>
                   <td>
                     The renderer’s existing identity matches its replacement. Threads
-                    keep reply text and caret; surviving component children keep focus.
+                    keep reply text and caret; surviving widget children keep focus.
                   </td>
                 </tr>
                 <tr>
@@ -5701,7 +5705,7 @@ EOF</code></pre>
                   <strong>Identity unchanged</strong>
                   <h3>Patch the document</h3>
                   <p>
-                    Keep unchanged nodes; changed components recapture authored values.
+                    Keep unchanged nodes; changed elements recapture authored values.
                     Prose, styles and media can update this way.
                   </p>
                 </div>

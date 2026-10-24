@@ -409,6 +409,29 @@
     );
     return node;
   };
+  // Words an upgrade wrote, which the page's authored source lacks: the version diff
+  // looks past them, and they are a passage cell of their own. `says` is whether they
+  // are the page speaking (data-lf-said, quotable even inside chrome), a copy of words
+  // the page says elsewhere ("echo", data-lf-echo), or neither; widget-elements.js,
+  // over `relabel`, says why each answer matters and why none is assumed.
+  /**
+   * @template {Element} T
+   * @param {T} node
+   * @param {{says?: boolean | "echo"}} [options]
+   * @returns {T}
+   */
+  const generatedElement = (node, { says } = {}) => {
+    if (typeof says !== "boolean" && says !== "echo")
+      throw new TypeError(
+        `Say whether these words are the page speaking: ` +
+          `true, false, or "echo" for a copy of words it says elsewhere`,
+      );
+    keepsAttribute(node, "data-lf-gen", "1");
+    // Toggling keeps an x-says span's attribute name (declared-words.js) where it stands.
+    node.toggleAttribute("data-lf-said", says === true);
+    node.toggleAttribute("data-lf-echo", says === "echo");
+    return node;
+  };
   const offer = (tag, cls, label, inputType, pressable = false) => {
     const node = document.createElement(tag);
     if (inputType !== undefined) {
@@ -435,10 +458,8 @@
   const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
   const externalLinkState = new WeakMap();
   let externalMarkSequence = 0;
-  function isExternalPageLink(link) {
-    if (!(link instanceof HTMLAnchorElement)) return false;
+  const opensElsewhere = (href) => {
     try {
-      const href = link.getAttribute("href");
       const url = href === null ? null : new URL(href, document.baseURI);
       return (
         ["http:", "https:"].includes(url?.protocol) && url.origin !== location.origin
@@ -446,7 +467,25 @@
     } catch {
       return false;
     }
+  };
+  const isExternalPageLink = (link) =>
+    link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
+  function externalMark() {
+    const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    mark.setAttribute("class", "lf-ui lf-external-mark");
+    mark.setAttribute("viewBox", "0 0 16 16");
+    mark.setAttribute("aria-hidden", "true");
+    mark.setAttribute("aria-label", "opens in a new tab");
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    line.setAttribute(
+      "d",
+      "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
+    );
+    mark.append(line);
+    return mark;
   }
+  // The text field draws the same mark after a link it shows (composing/text-field.js).
+  root.lfExternalLink = Object.freeze({ opensElsewhere, mark: externalMark });
   const linkAttributes = (link) =>
     Object.fromEntries(
       EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)]),
@@ -515,18 +554,7 @@
     /** @type {SVGElement | null} */
     let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
     if (!mark) {
-      mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      mark.setAttribute("class", "lf-ui lf-external-mark");
-      mark.setAttribute("viewBox", "0 0 16 16");
-      mark.dataset.lfGen = "1";
-      mark.setAttribute("aria-hidden", "true");
-      mark.setAttribute("aria-label", "opens in a new tab");
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      line.setAttribute(
-        "d",
-        "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
-      );
-      mark.append(line);
+      mark = generatedElement(externalMark(), { says: false });
     }
     // Parsing may yield while this anchor is still open. Keep the mark after any
     // words the parser (or a later render) has appended since the previous pass.
@@ -604,12 +632,12 @@
     const held = source.localName === "template" ? source.content : source;
     for (const child of held.childNodes) rememberSource(child);
   };
-  // Margin residency is initial document geometry, not a widget upgrade. The parser
-  // observer seats authored residents before a frame can paint them in another
-  // posture; content-layout adopts this same computation for subsequent changes.
+  // Margin content layout is initial document geometry, not a widget upgrade. The parser
+  // observer seats authored margin elements before a frame can paint them in another
+  // placement; content-layout adopts this same computation for subsequent changes.
   // The body's authored annotation declaration is the same executable fact the
   // module graph reads, so rail admission needs no second delivery configuration.
-  const POSTURES = {
+  const PLACEMENTS = {
     sidebar: ["left", "--sidebar"],
     map: ["left", "--map"],
     note: ["right", "--note"],
@@ -727,7 +755,7 @@
     const shellWritten =
       parseFloat(body.style.getPropertyValue("--lf-column-shift")) || 0;
     const column = box.getBoundingClientRect();
-    // Inside the shell's border and scrollbar gutters. A resident may stand in its
+    // Inside the shell's border and scrollbar gutters. A margin element may stand in its
     // padding, as the rail does in the strip `data-rail="right"` pads `body` with
     // (annotation-theme.css). The client box is in the shell's own pixels, so it is
     // scaled to the window's by any transform on the shell or around it.
@@ -735,7 +763,7 @@
     const scale = shellRect.width / shellNode.offsetWidth || 1;
     const shellLeft = shellRect.left + shellNode.clientLeft * scale;
     const shell = { left: shellLeft, right: shellLeft + shellNode.clientWidth * scale };
-    // A resident fixed to the window, as the contents map is (toc.css), stands from the
+    // A margin element fixed to the window, as the contents map is (toc.css), stands from the
     // shell's left edge rather than the window's, which differ where the page puts
     // something before the shell, as a page's list of parts does.
     const left = Math.round(shellLeft) ? `${Math.round(shellLeft)}px` : "";
@@ -747,8 +775,8 @@
       right: shell.right - column.right + gridShift,
     };
     const declared = new Map();
-    // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
-    // room. One the page hides itself stays a resident, since a page may hide it until it
+    // A margin element a box around it hides (a closed disclosure, a tab not chosen) needs no
+    // room. One the page hides itself stays a margin element, since a page may hide it until it
     // stands in the margin.
     for (const aside of box.querySelectorAll("aside")) {
       if (skipped(aside)) continue;
@@ -756,13 +784,13 @@
       const hiddenItself =
         own.display === "none" && aside.parentElement.checkVisibility();
       if (!aside.checkVisibility() && !hiddenItself) continue;
-      const postures = own
-        .getPropertyValue("--lf-resident")
+      const placements = own
+        .getPropertyValue("--lf-margin-content")
         .split(" ")
-        .filter((posture) => posture in POSTURES);
-      if (postures.length) declared.set(postures.join(" "), postures);
+        .filter((placement) => placement in PLACEMENTS);
+      if (placements.length) declared.set(placements.join(" "), placements);
     }
-    const side = (postures) => POSTURES[postures[0]][0];
+    const side = (placements) => PLACEMENTS[placements[0]][0];
     const preferences = [...declared.values()].sort(
       (a, b) => (side(a) === "left" ? 0 : 1) - (side(b) === "left" ? 0 : 1),
     );
@@ -782,7 +810,7 @@
       root.className,
       document.body.dataset.annotations,
       document.body.dataset.rail,
-      ...Object.values(POSTURES).map(([, token]) => need(token)),
+      ...Object.values(PLACEMENTS).map(([, token]) => need(token)),
       need("--rail"),
       preferences.flat().join(" "),
       ...authoredSheets(),
@@ -806,14 +834,14 @@
         granted.push("rail");
         taken.right = need("--rail");
       }
-      for (const postures of preferences)
-        for (const posture of postures) {
-          const [at, token] = POSTURES[posture];
+      for (const placements of preferences)
+        for (const placement of placements) {
+          const [at, token] = PLACEMENTS[placement];
           const wants = { ...taken, [at]: Math.max(taken[at], need(token)) };
           if (wants.left + wants.right > room.left + room.right + 0.5) continue;
           if (!movable && (wants.left > room.left || wants.right > room.right))
             continue;
-          granted.push(posture);
+          granted.push(placement);
           Object.assign(taken, wants);
           break;
         }
@@ -998,7 +1026,7 @@
     }
     return { changed };
   };
-  // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
+  // Whether each track (`--lf-margin-content: track`, a sidebar page's `aside`, layouts.css)
   // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
   // block it holds in view only there. Flex wrapping places it, from the window's width,
   // the shares the page gives the track and the body, and the minimum the body's content
@@ -1023,7 +1051,7 @@
     return [
       {
         element,
-        track: style.getPropertyValue("--lf-resident").trim() === "track",
+        track: style.getPropertyValue("--lf-margin-content").trim() === "track",
         left,
         right,
         width,
@@ -1037,7 +1065,8 @@
     if (!box) return false;
     const tracks = [...box.children].filter(
       (child) =>
-        getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track",
+        getComputedStyle(child).getPropertyValue("--lf-margin-content").trim() ===
+        "track",
     );
     if (!tracks.length) return false;
     const laid = [...box.children].flatMap((child) => items(child));
@@ -1117,7 +1146,7 @@
     else removeRuntimeRootStyle(body, HEAD);
     return true;
   };
-  const residency = () => {
+  const marginContentLayout = () => {
     const seated = seat();
     const titled = title();
     const headed = head();
@@ -1163,7 +1192,7 @@
     wear,
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
-    residency,
+    marginContentLayout,
     breakouts,
     layoutBox,
     skipped,
@@ -1188,6 +1217,7 @@
         tabStore,
         offer,
         offerElement,
+        generatedElement,
         keeps: keepsAttribute,
       });
       if (drawing?.then)
@@ -1222,6 +1252,7 @@
     },
     offer,
     offerElement,
+    generatedElement,
     origin(node) {
       return origins.get(node);
     },
@@ -1298,7 +1329,7 @@
   };
   const initialLayout = () => {
     mark();
-    residency();
+    marginContentLayout();
     if (root.hasAttribute("data-lf-interactive")) trade("controls", PLAYER);
   };
   // Dress only links the parser added or is still filling. Unrelated arrivals

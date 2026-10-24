@@ -23,7 +23,7 @@ interface LeafStore {
   keys(): string[];
 }
 
-/** Whether a residency or breakout reading changed what it writes (`prepaint.js`). */
+/** Whether a margin element layout or breakout reading changed what it writes (`prepaint.js`). */
 interface LeafReading {
   changed: boolean;
 }
@@ -35,6 +35,7 @@ type LeafInitialRenderer = (
     tabStore: LeafStore;
     offer: LeafInitial["offer"];
     offerElement: LeafInitial["offerElement"];
+    generatedElement: LeafInitial["generatedElement"];
     keeps: LeafInitial["keepsAttribute"];
   },
 ) => unknown;
@@ -65,7 +66,7 @@ interface LeafInitial {
   wear(node: Element, dress: LeafDress): void;
   runtimeRootStyles(node: Element): Set<string>;
   authoredShell(node: Node): Node;
-  residency(): LeafReading;
+  marginContentLayout(): LeafReading;
   breakouts(): LeafReading;
   layoutBox(): Element | null;
   skipped(element: Element, parent?: (node: Element) => Element | null): boolean;
@@ -84,6 +85,7 @@ interface LeafInitial {
     pressable?: boolean,
   ): K extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[K] : HTMLElement;
   offerElement<T extends Element>(node: T, cls?: string, pressable?: boolean): T;
+  generatedElement<T extends Element>(node: T, options: { says: boolean | "echo" }): T;
   origin(node: Node): Node | undefined;
   parent(node: Node): Element | null;
 }
@@ -119,6 +121,11 @@ interface HTMLElement {
     userStore: LeafStore;
   };
   lfKeyboard?: { readonly quick: boolean; setQuick(on: boolean): void };
+  /** Whether a link's target leaves the page, and the mark that says so (prepaint.js). */
+  lfExternalLink?: {
+    opensElsewhere(href: string | null): boolean;
+    mark(): SVGSVGElement;
+  };
   /** The floating panel's resting size. */
   lfChrome?: {
     /** `row` or `mark`. */

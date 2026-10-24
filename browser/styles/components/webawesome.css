@@ -56,6 +56,9 @@
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);
   --wa-form-control-value-color: var(--ink);
+  /* A line tall (`--lf-line`) whatever its type would make it, restated on each
+     control so a place that sets the line sets it here too. */
+  --wa-form-control-height: var(--lf-line);
 }
 
 /* The vendor's native input sits in a shadow
@@ -117,7 +120,7 @@ wa-select::part(combobox lf-focus-visible-within) {
   outline: var(--focus-ring);
 }
 /* An open select's options fill its listbox, which clips what it holds, so the ring on
-   the option the user stands on is inset: outside its box, three of its sides were cut
+   the option the user is on is inset: outside its box, three of its sides were cut
    by the listbox's edge. The ring is the layer's focus floor (surfaces.css), which
    outranks this layer and places the ring at the gap this sets. */
 wa-option {

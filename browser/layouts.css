@@ -45,7 +45,7 @@
    * parent is the shell the Layout places it in: `body`, `main` or the part. The box says so
    * (`--lf-layout-box`), and the runtime finds the shown one by that (prepaint.js,
    * `layoutBox`) rather than by reading a Layout class. It is the style container a
-   * margin resident asks for the Layout's readings (`lf-content-frame`, theme.css), and a
+   * margin content asks for the Layout's readings (`lf-content-frame`, theme.css), and a
    * shell other than `body` is the size its `cqi` measure. Its padding draws nothing, so
    * it trims what it holds at its edges (`--lf-block-frame: trim`, theme.css). */
   @property --lf-layout-box {
@@ -291,17 +291,18 @@
    * option, a breakout, which `data-width` or a widget's x-space asks for. The breakout
    * reads the free room beside the column from the lengths resolved here. Whatever
    * stands in a margin states the room it takes there (`--lf-taken-l`, `--lf-taken-r`).
-   * `--lf-shift` moves the column off centre where a resident needs more room on one
-   * side (prepaint.js, `residency`).
+   * `--lf-shift` moves the column off centre where a margin element needs more room on one
+   * side (prepaint.js, `marginContentLayout`).
    *
-   * A breakout centres on the prose's axis, so its left edge matches neither the title
-   * nor the prose. That suits a figure the prose cites. A page led by one wide surface
-   * is a workspace instead (page-authoring.md, "Composing a page"), so this Layout does
-   * not align them. Three alignments were sketched and rejected on 2026-10-16 because each
-   * adds a rule to every column page: the title on a leading breakout's edge, headings
-   * on the wide line, and prose and breakouts sharing one left edge. Reconsider if column
-   * pages keep opening with a wide surface, or keep writing their own CSS to line a
-   * title up with one. */
+   * A `wide` breakout starts at the prose's start edge and grows toward the end, so a
+   * block slightly wider than the column, such as 100-column code, a diff or a table,
+   * reads as part of the column. An `available` one spans both margins and centres on
+   * the prose's axis. Until 2026-10-23 `wide` centred too, at 1080px; its left edge
+   * matched neither the title nor the prose, and the user found that ugly for code that
+   * needs only a little more than the column. Hanging a code block's line numbers into
+   * the left gutter, so its text rather than its box met the prose's edge, was rejected
+   * then because where a block's text starts is each widget's own fact (a diff's gutter,
+   * a table's cell padding), so it would need a rule per widget. */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column {
     max-width: var(--col);
     margin-inline: auto;
@@ -329,7 +330,7 @@
     /* The column is placed through its shell's tracks (requested by
      * --lf-column-shell, published on the shell before the room is measured) rather than
      * an inset, transform or margin, which on a reading's ancestor would suppress native
-     * scroll anchoring as residents enter or leave. The shell's other rows keep its whole
+     * scroll anchoring as margin elements enter or leave. The shell's other rows keep its whole
      * width. */
     [data-lf-column-shell] {
       display: grid;
@@ -356,15 +357,15 @@
       width: max(0px, calc(100cqi - 2 * var(--col-pad)));
     }
   }
-  /* The column's margins. Its first sidebar and every sidenote are margin residents
-   * (`--lf-resident`, naming the postures each may take in order of preference); the
+  /* The column's margins. Its first sidebar and every sidenote are margin content
+   * (`--lf-margin-content`, naming the placements each may take in order of preference); the
    * margin pass admits each where the room beside the column holds it (prepaint.js,
-   * `residency`) and writes the postures granted to the column's `data-lf-margin`. Screen
+   * `marginContentLayout`) and writes the placements granted to the column's `data-lf-margin`. Screen
    * only. A sidebar in the margin stands sticky in --sidebar left of the column; with a
    * fine pointer, one holding a contents map may stand as the map's spine alone, in --map.
    * A sidenote hangs in the right margin and claims nothing: a wide exhibit level with it
    * clears it, and a margin row level with it stands as a pin (margin-layout.js). */
-  @property --lf-resident {
+  @property --lf-margin-content {
     syntax: "*";
     inherits: false;
   }
@@ -372,33 +373,33 @@
    * keeps its sidebar inside that box; only the view owner declares page flow.
    * A direct sidebar owns the slot before any view's sidebar. */
   @scope (:is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column) {
-    /* An empty map-only slot already has its margin posture: no margin and no
+    /* An empty map-only slot already has its margin placement: no margin and no
      * formatting context between the blocks around it. */
     :is(:scope, :scope:not(:has(> aside.sidebar)) > [data-lf-views-flow="page"] > *)
       > aside.sidebar:nth-child(1 of aside.sidebar):has(
-        > [data-lf-resident="map"]:only-child:empty
+        > [data-lf-margin-content="map"]:only-child:empty
       ) {
       display: block;
       margin-block: 0;
     }
-    /* A resident anchors no scroll (its passage does), and is a reading region of the
-     * Layout's own in either posture (`--lf-reading-region`, reading-regions.js), so the
-     * reader's place in it survives a change of posture. */
+    /* A margin element anchors no scroll (its passage does), and is a reading region of the
+     * Layout's own in either placement (`--lf-reading-region`, reading-regions.js), so the
+     * reader's place in it survives a change of placement. */
     :is(:scope, :scope:not(:has(> aside.sidebar)) > [data-lf-views-flow="page"] > *)
       > aside.sidebar:nth-child(1 of aside.sidebar) {
-      --lf-resident: sidebar;
+      --lf-margin-content: sidebar;
       --lf-sidebar-slot: margin;
       overflow-anchor: none;
       --lf-reading-region: layout;
     }
     :scope aside.sidenote {
-      --lf-resident: note;
+      --lf-margin-content: note;
       overflow-anchor: none;
     }
     @media screen {
       /* Sticky, it can stand level with any band, so it takes its whole side. */
       :scope[data-lf-margin~="sidebar"] {
-        --lf-sidebar-posture: margin;
+        --lf-sidebar-placement: margin;
         --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
         --lf-top-outer: var(--lf-top);
       }
@@ -417,25 +418,27 @@
         margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
       }
     }
-    /* A contents map (whatever declares `x-resident: map`, painted as
-     * `data-lf-resident`) rests as a spine in that slot and reveals its labels over the
+    /* A contents map (whatever declares `x-margin-content: map`, painted as
+     * `data-lf-margin-content`) rests as a spine in that slot and reveals its labels over the
      * page; its package draws it there once the slot is in the margin. */
     @media screen and (hover: hover) and (pointer: fine) {
       :is(:scope, :scope:not(:has(> aside.sidebar)) > [data-lf-views-flow="page"] > *)
-        > aside.sidebar:nth-child(1 of aside.sidebar):has([data-lf-resident="map"]) {
-        --lf-resident: sidebar map;
+        > aside.sidebar:nth-child(1 of aside.sidebar):has(
+          [data-lf-margin-content="map"]
+        ) {
+        --lf-margin-content: sidebar map;
       }
       /* A sidebar holding only the map stands as the map alone. */
       :is(:scope, :scope:not(:has(> aside.sidebar)) > [data-lf-views-flow="page"] > *)
         > aside.sidebar:nth-child(1 of aside.sidebar):has(
-          > [data-lf-resident="map"]:only-child
+          > [data-lf-margin-content="map"]:only-child
         ) {
-        --lf-resident: map;
+        --lf-margin-content: map;
       }
-      /* The admitted posture owns its width. A sidebar with other content keeps
+      /* The admitted placement owns its width. A sidebar with other content keeps
        * its full claim; a map in an inactive view cannot shrink that claim. */
       :scope[data-lf-margin~="map"] {
-        --lf-sidebar-posture: margin;
+        --lf-sidebar-placement: margin;
         --lf-taken-l: var(--map);
       }
       /* A sidebar whose map stands alone takes no room in the flow. */
@@ -446,7 +449,7 @@
             > *
         )
         > aside.sidebar:nth-child(1 of aside.sidebar):has(
-          > [data-lf-resident="map"]:only-child
+          > [data-lf-margin-content="map"]:only-child
         ) {
         display: block;
         margin-block: 0;
@@ -474,18 +477,20 @@
       margin: 0 calc(-1 * var(--note)) 12px 0;
     }
   }
-  /* Breakouts: content wider than the argument about it. The prose axis never moves and
-   * there is one wider width, so wide evidence is in the column or at --wide. Which
-   * widgets break out is the registry's (x-space), painted as `data-lf-space`, so this
-   * reaches a widget nobody has written yet.
+  /* Breakouts: content wider than the argument about it. The prose never moves. There
+   * are two wider widths: `wide`, from the prose's start edge to at most --wide, for a
+   * block slightly wider than the column, and `available`, all the room, about the
+   * prose's axis. Which widgets break out is the registry's (x-space), painted as
+   * `data-lf-space`, so this reaches a widget nobody has written yet.
    *
    * The element grows out of the column rather than widening the prose, so a margin with
    * no room gives nothing and an undeclared widget stays the column's width. Growth stops
-   * at the column's gutters less the residents' claims (`--lf-taken-l/r`); the rail claims
+   * at the column's gutters less the margin elements' claims (`--lf-taken-l/r`); the rail claims
    * nothing, and a margin row level with a breakout stands on it as a pin
-   * (margin-placement.js), since nothing Leaf draws moves the page's content. Where one
-   * side has less room, the freer side takes what the other lacks; with both free the
-   * element keeps the prose axis.
+   * (margin-placement.js), since nothing Leaf draws moves the page's content. A `wide`
+   * block grows only into the end side's free room, so where that runs short it is
+   * narrower and its start edge still meets the prose's. An `available` block takes
+   * both sides; where one has less room, the freer side takes what the other lacks.
    *
    * Screen only: paper is the column's width. `body` is the size container, and no
    * surface Leaf opens changes its inline size.
@@ -540,8 +545,8 @@
         [data-lf-content="markup"]:has(> [data-lf-space]:not([data-lf-kept]))
       ) {
         /* Held to the free room beside the page (--lf-free-l/r) and spent evenly about
-         * the prose axis where both sides have it. Neither side goes below zero, so the
-         * box always covers its holder. */
+         * the prose axis where both sides have it; `wide` refines this below. Neither
+         * side goes below zero, so the box always covers its holder. */
         --lf-surplus: clamp(
           0px,
           calc(var(--lf-reach) - 100%),
@@ -563,13 +568,27 @@
         box-sizing: border-box;
       }
       /* `wide` is one width wherever the block stands: capped at --wide even in a holder
-       * already wider, such as a sidebar page's body; `available` takes everything. A
-       * widget holding a block that breaks out reaches as far as that block. */
+       * already wider, such as a sidebar page's body, and grown only toward the end
+       * side, so its start edge is the prose's. `available` takes everything. A widget
+       * holding a block that breaks out reaches as far as that block. */
       :is(
         [data-lf-space="wide"],
         [data-lf-content="markup"]:has(> [data-lf-space="wide"]:not([data-lf-kept]))
       ) {
-        --lf-reach: min(var(--wide), var(--lf-room, 0px));
+        --lf-reach: min(
+          var(--wide),
+          var(--lf-room, 0px),
+          calc(100% + var(--lf-free-r))
+        );
+        --lf-grow-l: 0px;
+        &:dir(rtl) {
+          --lf-reach: min(
+            var(--wide),
+            var(--lf-room, 0px),
+            calc(100% + var(--lf-free-l))
+          );
+          --lf-grow-l: var(--lf-surplus);
+        }
       }
       :is(
         [data-lf-space="available"],
@@ -619,8 +638,9 @@
     /* A table breakout paints only its columns' rules, so its room is a limit, not a
      * size: its box takes the columns' natural width (`max-content`), at least its
      * holder's and at most the breakout's, and stands where a breakout of that width
-     * would, by the same arithmetic about the prose axis (`--lf-over` is how far it
-     * passes the column). One that fits the column starts where the prose does.
+     * would: a `wide` one from the prose's start edge, an `available` one by the same
+     * arithmetic about the prose axis (`--lf-over` is how far it passes the column).
+     * One that fits the column starts where the prose does.
      *
      * The margin sets the box at the edge of the free room on its holder's start side,
      * and a translation, which can use the box's own width (`--lf-pull` is how far a
@@ -652,10 +672,16 @@
           min(var(--lf-over), var(--lf-free-l))
         );
         translate: calc(var(--lf-free-l) - var(--lf-pull)) 0;
+        &[data-lf-space="wide"] {
+          --lf-pull: 0px;
+        }
         :dir(rtl) > & {
           margin-left: auto;
           margin-right: calc(-1 * var(--lf-free-r));
           translate: calc(var(--lf-over) - var(--lf-free-r) - var(--lf-pull)) 0;
+        }
+        :dir(rtl) > &[data-lf-space="wide"] {
+          --lf-pull: var(--lf-over);
         }
         & > caption {
           max-inline-size: max(var(--lf-width), var(--lf-reach));
@@ -717,13 +743,13 @@
   }
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
     flex: 1 1 18rem;
-    --lf-resident: track;
+    --lf-margin-content: track;
   }
   /* A track holding one block keeps it in view beside the scrolling body: sticky below
    * the window's head room and any tab strip, scrolling what it holds within the window, and only
    * inside its own flex line. The track itself never scrolls, so it keeps its flex
    * sizing. Whether the track stands beside the body depends on widths no query reads,
-   * so the margin reading marks it (`data-lf-beside`, prepaint.js `residency`). Like a
+   * so the margin reading marks it (`data-lf-beside`, prepaint.js `marginContentLayout`). Like a
    * margin sidebar, the block restarts the slot and landing band, keeps the ring's room,
    * anchors no reading, and is a reading region of the Layout's own. */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
@@ -753,13 +779,13 @@
      * (`--lf-holds-height`). Only the window's scroll keeps one in view, since its height
      * is the window's: inside a box that scrolls ([data-lf-scrolls], state.css), inside
      * another sticking block, or where a widget stacks its track with what it serves,
-     * `--lf-track-posture: flow` holds and the block flows with its holder. It also
+     * `--lf-track-scroll-behavior: flow` holds and the block flows with its holder. It also
      * flows in a window shorter than 480px, where a workspace flows too (below). Bounded
      * to such a window, the block would show a few lines of what it holds, and its foot,
      * such as a playground's submit button, only by scrolling inside it; flowing, the
      * page scrolls to all of it. */
     @media (min-height: 480px) {
-      @container not style(--lf-track-posture: flow) {
+      @container not style(--lf-track-scroll-behavior: flow) {
         :is(
             main,
             main > *,
@@ -785,7 +811,7 @@
           --lf-top-covered: 0px;
           --lf-landing-room: 0px;
           --lf-head-inset: initial;
-          --lf-track-posture: flow;
+          --lf-track-scroll-behavior: flow;
           max-height: calc(
             100dvh - var(--lf-foot-room) - var(--lf-top-outer) - 2 * var(--sp-4)
           );
@@ -827,9 +853,14 @@
     padding-inline: var(--lf-workspace-gutter);
     padding-block: var(--sp-2) var(--page-pad-end);
   }
-  /* The root workspace owns the window's foot. Its readers keep the panel's room
-   * within their scrollable content, rather than leaving an empty band below every
-   * pane. Flowing workspaces still use the document's end room. */
+  /* The root workspace owns the window's foot. What can reach the foot keeps the
+   * panel's room within its scrollable content, rather than leaving an empty band below
+   * every pane: the body when it is one pane, and each pane of the body's own grid,
+   * since CSS cannot tell a grid's last row from the others. A pane a body widget
+   * places deeper stands inside that body's own end room (below), so it keeps only its
+   * inset: a visual review's stacked case strip, at the top of the window, had given
+   * 72px of a 720px window to a panel it never reaches. Flowing workspaces still use
+   * the document's end room. */
   @media screen and (min-width: 720px) and (min-height: 480px) {
     html[data-lf-live][data-lf-layout~="workspace"] body {
       padding-block-end: 0;
@@ -840,7 +871,13 @@
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
-      [data-lf-reading-role="pane"]
+      > [data-lf-reading-role="pane"]
+      > :not(header, footer),
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body
+      > main.layout-workspace
+      > :not(header, footer)
+      > [data-lf-reading-role="pane"]
       > :not(header, footer) {
       padding-block-end: calc(var(--pane-inset) + var(--lf-foot-room));
     }

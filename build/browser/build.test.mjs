@@ -386,8 +386,8 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
   const heard = [];
   thread.subscribe((value) => heard.push(["thread", value]));
   pair.subscribe((value) => heard.push(["pair", value]));
-  const standing = thread.read();
-  const standingPair = pair.read();
+  const initialThread = thread.read();
+  const initialPair = pair.read();
   publisher.publish({
     ...initial,
     effective: {
@@ -395,8 +395,8 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
       widgets: new Map([["board", { state: { column: "done" } }]]),
     },
   });
-  assert.equal(thread.read(), standing);
-  assert.equal(pair.read(), standingPair);
+  assert.equal(thread.read(), initialThread);
+  assert.equal(pair.read(), initialPair);
   assert.equal(heard.length, 2);
   publisher.publish({
     ...initial,
@@ -405,7 +405,7 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
       widgets: new Map([["board", { state: { column: "done" } }]]),
     },
   });
-  assert.notEqual(thread.read(), standing);
+  assert.notEqual(thread.read(), initialThread);
   assert.deepEqual(
     heard.slice(2).map(([name]) => name),
     ["thread", "pair"],

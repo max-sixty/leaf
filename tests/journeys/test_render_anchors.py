@@ -24,6 +24,7 @@ from render_harness import (
     command_reference_rows,
     compare_with,
     expect_panel_offers,
+    expect_panel_says,
     leaf_page,
     open_page,
     panel_field,
@@ -54,7 +55,6 @@ from browser.threads import open_panel_thread
 
 from journeys import (
     detached_threads,
-    expect_panel_says,
     first_thread_quote,
     listed_threads,
 )

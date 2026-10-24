@@ -28,8 +28,8 @@
    `walkOrigin` reads that place from the browser on each press, for this walk and the
    thread walk alike. There is no remembered destination underneath those readings, and
    the chrome is a binding badge, not a page position, so its controls do not become the
-   walk's origin. The user stands on an obligation when they stand in its widget, in its thread
-   (`threadHere`), or in its widget or element, and the press steps off it. Standing on
+   walk's origin. The user is on an obligation when they are in its widget, in its thread
+   (`threadHere`), or in its widget or element, and the press steps off it. Being on
    a to-do Done ends, `x` is that Done, as is the Done on its On me row
    (`queue-api.js`, `done`): the user's `todo_end`, which leaves On me in the turn it is
    pressed.
@@ -45,13 +45,13 @@
 
    The walk can also step within one region of the page (`obligationActions.next`, as an
    `lf-tally`'s Next on me presses it): its stops are then the obligations waiting on the user
-   that the region holds (`obligationsIn`, obligations/place.js), stepped by the same standing and
+   that the region holds (`obligationsIn`, obligations/place.js), stepped by the same current location and
    page order, and its position counts them alone. A press from outside the region, such as
    one on the tally's own control above it, counts from the obligation the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
    control, so they keep it, while any other move the user makes ends it. Without one it
    counts from the first of the region's obligations they see, as a place they are at without
-   standing on it, and with none in sight it enters at the region's edge, Next at the
+   being on it, and with none in sight it enters at the region's edge, Next at the
    first and Previous at the last. That obligation, kept by identity
    so a revision replacing its node keeps it, is the one place the walk keeps, and only
    this case reads it: anywhere else the user's own place decides.
@@ -62,14 +62,14 @@
 import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
-import { onStanding } from "./focus.js";
+import { onCurrentLocation } from "./focus.js";
 import {
   obligationHolding,
   placeOf,
-  standingOrigin,
+  currentLocationOrigin,
   stepFrom,
   walkOrigin,
-} from "./standing-target.js";
+} from "./current-target.js";
 import { seenRect } from "./geometry.js";
 import { elementById, inChrome, pageDocument } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
@@ -144,7 +144,7 @@ export function createQueueWalk({
   arriveAtThread,
   threadHere,
   threadPlace,
-  prepareTrip,
+  prepareNavigationStep,
   arrive,
   readableDestination,
   announce,
@@ -194,14 +194,14 @@ export function createQueueWalk({
   }
   const stopsOf = (region) => (region ? stopsWithin(region) : stops());
 
-  // The item the user stands on, if any: the thread holding them, the obligation holding their
+  // The item the user is on, if any: the thread holding them, the obligation holding their
   // place, or the innermost element that does, in page order the last that holds them,
   // as `obligationHolding` reads obligations. The page's own stop is its head element alone, never
-  // what that holds, since on a page without a heading the head is `main`. Standing in
-  // a thread that holds an open obligation is not standing on that obligation. `origin` names
+  // what that holds, since on a page without a heading the head is `main`. Being in
+  // a thread that holds an open obligation is not being on that obligation. `origin` names
   // the user's place unless a walk supplies its own starting point. A reading
   // in the viewport can start a walk but does not select a task to finish or count.
-  function standingStop(list, origin = standingOrigin()) {
+  function currentLocationStop(list, origin = currentLocationOrigin()) {
     const held = threadHere();
     const thread = drawnThreadId(held);
     if (thread) {
@@ -210,7 +210,7 @@ export function createQueueWalk({
       );
       if (stop) return stop;
     }
-    if (origin?.kind !== "standing") return null;
+    if (origin?.kind !== "current-location") return null;
     const { place: here } = origin;
     if (!here) return null;
     const item = obligationHolding(readObligations().all, placeOf(here));
@@ -230,17 +230,17 @@ export function createQueueWalk({
     );
   }
 
-  // The stop `dir` steps to, and whether it came round an end to reach it: off the one
-  // the user stands on, else from their place by the page walks' rule (`stepFrom`,
-  // standing-target.js). Within a region, a place outside it enters at the end the step
+  // The stop `dir` steps to: off the one
+  // the user is on, else from their place by the page walks' rule (`stepFrom`,
+  // current-target.js). Within a region, a place outside it enters at the end the step
   // faces. `enter` starts inside a selected tab's panel; `at` starts at a visible obligation
   // without stepping off it.
   function step(list, dir, region, origin) {
-    // Outside the region nothing the user stands on is one of its stops, even where the
+    // Outside the region nothing the user is on is one of its stops, even where the
     // press sits inside the lf-ask around an obligation.
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
-    const standing = standingStop(list, origin);
-    if (standing) return cycledRow(list, standing, dir);
+    const currentLocation = currentLocationStop(list, origin);
+    if (currentLocation) return cycledRow(list, currentLocation, dir);
     return stepFrom(list, origin, dir, (stop) => stop.place);
   }
 
@@ -250,7 +250,7 @@ export function createQueueWalk({
     const intent = retainUserIntent({ available: () => Boolean(find()) });
     const where = find();
     if (!where) return Promise.resolve(false);
-    const departure = prepareTrip({ landing: find, intent });
+    const departure = prepareNavigationStep({ landing: find, intent });
     departure.plan(where);
     return arrive(
       () => {
@@ -282,7 +282,7 @@ export function createQueueWalk({
   // count is of every kind, so the kind follows it rather than naming the list.
   function position(region) {
     const list = stopsOf(region);
-    const here = standingStop(list);
+    const here = currentLocationStop(list);
     const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
     return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} · ${here.noun}` };
   }
@@ -291,14 +291,14 @@ export function createQueueWalk({
   function walk(dir, region = null, origin = walkOrigin()) {
     const list = stopsOf(region);
     if (!list.length) return Promise.resolve(false);
-    const { row: next, wrapped } = step(list, dir, region, origin);
-    // The walk reads the standing destination, so begin it once the arrival has moved
+    const next = step(list, dir, region, origin);
+    // The walk reads the current destination, so begin it once the arrival has moved
     // focus. A failed arrival has not arrived and must not register the prior item as
     // this walk's destination.
     const ready = arriveAt(next).then((arrived) => {
       if (!arrived) return false;
       announce(
-        beginWalk("queue", null, () => position(region), wrapped) ??
+        beginWalk("queue", null, () => position(region)) ??
           walkPositionLabel(
             null,
             list.indexOf(next) + 1,
@@ -312,7 +312,7 @@ export function createQueueWalk({
     return ready;
   }
 
-  // The to-do Done ends where the user stands on `stop`.
+  // The to-do Done ends where the user is on `stop`.
   const doneAt = (stop) =>
     stop
       ? (readQueues().on_user.find(
@@ -320,8 +320,8 @@ export function createQueueWalk({
         ) ?? null)
       : null;
 
-  // The to-do Done ends now: the one the user stands on.
-  const doneTodo = () => doneAt(standingStop(stops()));
+  // The to-do Done ends now: the one the user is on.
+  const doneTodo = () => doneAt(currentLocationStop(stops()));
 
   // The user's Done on a to-do on them: their `todo_end`, through the one append door.
   // The to-do leaves On me in the turn they press it (`application.ts`).
@@ -371,7 +371,7 @@ export function createQueueWalk({
     when: offered,
     repeat: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
-    // down a level, so the standing scope lets go of whichever one they end on. An item
+    // down a level, so the current scope lets go of whichever one they end on. An item
     // reached through the panel leaves the panel a level of its own on the way out,
     // whether this walk opened it or the user already had it.
     run: (binding) => walk(binding === "m" ? 1 : -1),
@@ -416,7 +416,7 @@ export function createQueueWalk({
   // The id of the obligation the user last went to, for a walk within a region pressed from
   // outside it. Sequential navigation passes over what it crosses, so it keeps the obligation.
   let wentTo = null;
-  onStanding((node, cause) => {
+  onCurrentLocation((node, cause) => {
     if (cause === "step") return;
     const place = node && placeOf(node);
     wentTo = (place && obligationHolding(readObligations().all, place)?.id) ?? null;
@@ -434,10 +434,10 @@ export function createQueueWalk({
     if (kept)
       return walk(toward, within, {
         place: obligationPlace(kept).source,
-        kind: "standing",
+        kind: "current-location",
       });
     // What the user reads in the region: the first of its obligations any of which they see,
-    // where they are without standing on it, so a waiting one is the next and an
+    // where they are without being on it, so a waiting one is the next and an
     // answered one leads to the next after it.
     const clips = new Map();
     const shown = items

@@ -8,7 +8,7 @@
   margin: var(--sp-3) 0;
   container: lf-shot / inline-size;
   --lf-shot-gap: var(--sp-2);
-  --lf-shot-label-height: max(30px, var(--aim-floor));
+  --lf-shot-label-height: var(--lf-line);
 }
 .lf-shot-toolbar {
   display: grid;
@@ -16,7 +16,7 @@
   grid-template-areas: "before actions after";
   align-items: center;
   gap: var(--sp-1);
-  padding-block: var(--sp-1);
+  padding-block: max(var(--sp-1), var(--lf-reach-room));
   flex: none;
   min-inline-size: 0;
   anchor-scope: --lf-shot-options;
@@ -48,19 +48,9 @@
   justify-self: end;
 }
 .lf-shot-scale {
-  inline-size: calc(4ch + 2 * var(--sp-2) + 16px);
   flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-1);
+  min-inline-size: var(--aim-floor);
   anchor-name: --lf-shot-options;
-}
-.lf-shot-scale-icon {
-  display: inline-flex;
-  inline-size: 16px;
-  block-size: 16px;
-  flex: none;
 }
 .lf-shotoptions {
   box-sizing: border-box;
@@ -92,9 +82,6 @@
 .lf-shot-scale-options {
   display: flex;
   gap: var(--sp-1);
-  padding-block-end: var(--sp-1);
-  margin-block-end: var(--sp-1);
-  border-block-end: 1px solid var(--rule);
 }
 .lf-shot-scale-options > button {
   flex: 1;
@@ -107,17 +94,40 @@
   display: none;
 }
 .lf-shot-open {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.lf-shot-open[href] {
+  cursor: zoom-in;
+}
+.lf-shot-open[data-lf-focus-visible] {
+  outline: none;
+}
+.lf-shotframe:has(.lf-shot-open[data-lf-focus-visible]) {
+  --lf-wears-ring: 1;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+}
+.lf-shot-pixel-key {
+  border-block-start: 1px solid var(--rule);
+  margin-block-start: var(--sp-2);
+  padding-block-start: var(--sp-2);
+}
+.lf-shot-key-label {
+  color: var(--muted);
+  margin-block-end: var(--sp-1);
+}
+.lf-shot-key-item {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  min-block-size: var(--aim-floor);
-  padding: var(--sp-1) var(--sp-2);
-  color: var(--ink-2);
-  font: inherit;
 }
-.lf-shot-open:hover {
-  background: var(--chip);
-  color: var(--ink);
+.lf-shot-key-swatch {
+  inline-size: 0.75em;
+  block-size: 0.75em;
+  flex: none;
+  border-radius: 2px;
 }
 @container lf-shot (max-width: 540px) {
   .lf-shot-toolbar {
@@ -138,6 +148,8 @@
   }
 }
 .lf-shotstage {
+  --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));
+  padding: var(--lf-shot-frame-room);
   flex: 1 1 auto;
   min-inline-size: 0;
   min-block-size: 0;
@@ -161,9 +173,8 @@
 }
 .lf-shotframe {
   inline-size: calc(var(--lf-shot-frame-width) + 2px);
-  border: 1px solid var(--rule);
+  border: 1px solid transparent;
   background: var(--card);
-  border-radius: var(--r);
   overflow: clip;
 }
 :scope:is(lf-shot)[data-lf-shot-mode=compare] .lf-shotframe {
@@ -174,6 +185,7 @@
   block-size: var(--lf-shot-frame-height);
 }
 :scope:is(lf-shot)[data-lf-shot-mode=compare] .lf-shotviewport {
+  --lf-holds-height: 1;
   inline-size: var(--lf-shot-viewport-width);
   block-size: var(--lf-shot-viewport-height);
   overflow: auto;
@@ -216,7 +228,13 @@
   background: var(--add-tint);
   color: var(--ok-ink);
 }
+.lf-shotcap[data-lf-shot-hidden] {
+  background: transparent;
+  color: var(--muted);
+  font-weight: 400;
+}
 .lf-shotimage {
+  --lf-drawing: 1;
   position: relative;
   overflow: clip;
   inline-size: var(--lf-shot-frame-width);
@@ -256,8 +274,9 @@
 :scope:is(lf-shot):not([data-lf-shot-mode=compare]) .lf-shotcanvas > .lf-shotframe {
   grid-area: 1 / 1;
 }
-:scope:is(lf-shot)[data-lf-shot-mode=flip] .lf-shotcanvas > .lf-shotframe[data-lf-state=after] {
-  visibility: hidden;
+:scope:is(lf-shot)[data-lf-shot-mode=flip] .lf-shotcanvas > .lf-shotframe[data-lf-state=before] {
+  clip-path: inset(0 50% 0 0);
+  z-index: 1;
 }
 :scope:is(lf-shot)[data-lf-shot-mode=pixels] .lf-shotframe {
   display: none;
@@ -277,9 +296,20 @@
 .lf-shotcomparison::part(divider) {
   background: var(--ink-2);
 }
+.lf-shotcomparison .lf-shotframe {
+  box-shadow: none;
+}
 .lf-shotcomparison::part(handle) {
   border: 1px solid var(--ink-2);
   box-shadow: var(--raise-1);
+  opacity: 0.52;
+}
+.lf-shotcomparison::part(handle):hover,
+.lf-shotcomparison:is([data-lf-focus-visible-within], :state(dragging))::part(handle) {
+  opacity: 1;
+}
+.lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, [data-lf-focus-visible-within], :state(dragging))::part(handle) {
+  opacity: 0.18;
 }
 .lf-shot-handle {
   display: block;
@@ -302,11 +332,9 @@
   right: max(0px, calc(100% - var(--lf-shot-x) - var(--lf-shot-w) - 3px));
   bottom: max(0px, calc(100% - var(--lf-shot-y) - var(--lf-shot-h) - 3px));
   border: 1px solid var(--warn);
-  background: color-mix(in srgb, var(--warn) 8%, transparent);
 }
 .lf-shotdiff > span[data-lf-shot-mark=moved] {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 :scope:is(lf-shot):not([data-lf-shot-outlines=true]) .lf-shotdiff {
   display: none;
@@ -325,7 +353,7 @@
 .lf-shotpixels {
   display: none;
   grid-area: 1 / 1;
-  border: 1px solid var(--rule);
+  border: 1px solid transparent;
 }
 :scope:is(lf-shot)[data-lf-shot-mode=pixels] .lf-shotpixels {
   display: block;
@@ -337,44 +365,16 @@
 .lf-shotpixels .lf-shotplane > span {
   position: absolute;
   inset: 0;
-  background: var(--warn);
   mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100% no-repeat;
 }
-.lf-shotpixels [data-lf-shot-side=before] {
-  background: var(--danger);
-}
-.lf-shotpixels [data-lf-shot-side=after] {
-  background: var(--accent);
-}
-.lf-shotlegend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2) var(--sp-3);
-  padding-block: var(--sp-2);
-  flex: none;
-  color: var(--muted);
-  font: var(--t-working-label)/1.4 var(--sans);
-}
-.lf-shotlegend[hidden] {
-  display: none;
-}
-.lf-shotlegend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-}
-.lf-shotlegend-item::before {
-  content: "";
-  inline-size: 0.65em;
-  block-size: 0.65em;
+:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=both] {
   background: var(--warn);
 }
-.lf-shotlegend-item[data-lf-shot-side=before]::before {
+:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=before] {
   background: var(--danger);
 }
-.lf-shotlegend-item[data-lf-shot-side=after]::before {
-  background: var(--accent);
+:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=after] {
+  background: var(--ok);
 }
 @container style(--lf-full-height:1) {
   :scope:is(lf-shot) {
@@ -389,7 +389,6 @@
     overflow: visible;
   }
   .lf-shot-toolbar,
-  .lf-shotlegend,
   .lf-shotpixels,
   .lf-shotdiff {
     display: none !important;
@@ -443,6 +442,7 @@
   }
   .lf-shotframe {
     margin-block-end: var(--sp-3);
+    clip-path: none !important;
   }
 }
 
@@ -841,6 +841,7 @@
 }
 :scope:is(lf-options) > lf-options-done > .lf-done {
   width: 100%;
+  padding-block: max(4px, (max(var(--lf-line), var(--aim-floor)) - 1lh) / 2 - 1px);
 }
 :scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge {
   z-index: 1;
@@ -867,7 +868,7 @@
     border-radius: var(--r);
     overflow: clip;
     --lf-add-cell-height: calc(var(--lf-option-line) + 2 * var(--lf-option-pad-block));
-    --lf-done-cell-height: 32px;
+    --lf-done-cell-height: max(var(--lf-line), var(--aim-floor));
     &:has(> lf-option > strong) {
       --lf-add-cell-height: calc( max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--lf-option-pad-block) );
     }
@@ -969,9 +970,9 @@
   }
   .lf-another {
     --lf-option-add-seat-inset: var(--sp-1);
-    --lf-option-add-seat-end: calc( var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-icon-action-hit)) / 2 );
+    --lf-option-add-seat-end: calc( var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-icon-action-face)) / 2 );
     --lf-option-add-badge-inset: calc( var(--lf-option-add-seat-inset) + (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2 );
-    --lf-option-add-badge-end: calc( var(--lf-option-add-seat-end) + (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2 );
+    --lf-option-add-badge-end: calc( var(--lf-option-add-seat-end) + (var(--lf-icon-action-face) - var(--lf-key-badge-size)) / 2 );
     --lf-option-write-badge-inset: calc( var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--sp-2) );
     --lf-option-action-room: var(--lf-option-write-badge-inset);
     position: relative;
@@ -2178,7 +2179,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   color: var(--accent);
 }
 @media screen and (hover: hover) and (pointer: fine) {
-  @container lf-content-frame style(--lf-sidebar-posture: margin) {
+  @container lf-content-frame style(--lf-sidebar-placement: margin) {
     @container style(--lf-sidebar-slot: margin) {
       :scope:is(lf-toc) {
         position: fixed;
@@ -2682,6 +2683,14 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   flex-wrap: wrap;
   gap: 8px;
 }
+.lf-sample-action {
+  inline-size: max(2rem, var(--aim-floor));
+  block-size: max(2rem, var(--aim-floor));
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .lf-sample-status {
   position: relative;
   flex: 1 1 10em;
@@ -2906,6 +2915,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       border: 1px solid var(--code-border);
       border-radius: var(--r);
       padding: var(--lf-code-inset-block) var(--lf-code-inset-inline) var(--lf-code-inset-block) calc(var(--lf-code-gutter) + var(--lf-code-gap));
+      padding-block-end: calc(var(--lf-code-inset-block) + var(--lf-text-scroll-clearance));
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
@@ -3184,16 +3194,6 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     min-block-size: 0;
     padding: 0;
   }
-  .lf-draft-action::before {
-    content: "";
-    position: absolute;
-    inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
-  }
-  .lf-draft-tools > .lf-code-copy::part(button)::before {
-    content: "";
-    position: absolute;
-    inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
-  }
   .lf-draft-action[data-lf-focus-visible],
   .lf-draft-tools > .lf-code-copy::part(lf-focus-visible) {
     outline-offset: calc(-1 * var(--focus-ring-w));
@@ -3204,15 +3204,6 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     block-size: auto;
     opacity: 1;
     pointer-events: auto;
-  }
-  .lf-draft-icon {
-    inline-size: 16px;
-    block-size: 16px;
-  }
-}
-@media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus-visible]) {
-    outline-color: Highlight;
   }
 }
 

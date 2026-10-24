@@ -800,10 +800,9 @@
 .lf-trace-bookmark[data-lf-focus-visible] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-/* One width for Play and Pause, so the readout beside it never moves when playback ends. */
 .lf-trace-play {
-  inline-size: 6.5em;
-  min-inline-size: 86px;
+  inline-size: var(--lf-trace-control-size);
+  min-inline-size: var(--lf-trace-control-size);
 }
 .lf-trace-play > svg:nth-child(2),
 .lf-trace-play[data-playing] > svg:first-child {
@@ -816,13 +815,6 @@
   .lf-trace-toolbar .lf-trace-position-row {
     flex-basis: 100%;
     order: 1;
-  }
-  .lf-trace-play {
-    inline-size: var(--lf-trace-control-size);
-    min-inline-size: var(--lf-trace-control-size);
-  }
-  .lf-trace-play > span {
-    display: none;
   }
   .lf-trace-selection {
     font-size: var(--lf-trace-small-type);
@@ -869,17 +861,18 @@
 /* The gap holds a focused button's ring, 2px off its face (controls.css), with a pixel to
  * spare: the button after it paints its border over any of the ring that reaches it. */
 .lf-trace-image-tools {
+  anchor-scope: --lf-trace-scale;
   display: flex;
   align-items: center;
   gap: var(--focus-ring-room);
   flex-wrap: wrap;
   margin-block: var(--sp-2) 0;
 }
-.lf-trace-image-tools button[aria-label] {
-  inline-size: var(--lf-control-compact);
+.lf-trace-image-tools > button:not(.lf-trace-image-scale) {
+  inline-size: var(--lf-line);
 }
 /* Status changes share one slot; loading a frame cannot wrap the tools into a new row. */
-.lf-trace-image-zoom {
+.lf-trace-image-status {
   margin-inline-start: auto;
   inline-size: 24ch;
   flex: 0 0 auto;
@@ -913,7 +906,7 @@
 }
 
 @container (max-width: 480px) {
-  .lf-trace-image-zoom {
+  .lf-trace-image-status {
     margin-inline-start: 0;
     inline-size: 100%;
     text-align: start;
@@ -1014,5 +1007,31 @@
     & > :is(lf-trace, :has(lf-trace)):not([data-lf-opening]) {
       display: none;
     }
+  }
+}
+
+.lf-trace-image-scale {
+  anchor-name: --lf-trace-scale;
+  inline-size: 10ch;
+  font-variant-numeric: tabular-nums;
+}
+.lf-trace-scale-options {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  padding: var(--sp-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--raise-2);
+}
+@supports (position-area: bottom) {
+  .lf-trace-scale-options {
+    position-anchor: --lf-trace-scale;
+    position-area: bottom span-right;
+    inset: auto;
+    margin: var(--sp-2) 0;
+    position-try-fallbacks: flip-block;
   }
 }

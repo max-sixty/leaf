@@ -21,8 +21,8 @@
   interaction mechanisms so each new case does not require another fix.
 - **Reduce the burden of tests.** Tests now take long enough to meaningfully
   slow development. Reduce their runtime and the work needed to run them while
-  preserving useful coverage. `notes/shift-watch-cost.md` records what the
-  Stability sensor costs and when a cheaper gate would be worth revisiting.
+  preserving useful coverage. `notes/shift-watch-cost.md` records the Stability
+  sensor's idle-cost evidence and remaining optimization questions.
   Sharing one page across a test's cases (`tests/AGENTS.md`, "One page for the
   cases that can share it") reaches only cases that leave the log and the page's
   own UI alone, so most of the time spent opening pages needs each opening to
@@ -156,7 +156,7 @@ has tried; settle that before building it.
 ## Next
 
 - **Add a host-owned widget LLM allowance.** The initial `/api/llm` endpoint
-  uses the host's Codex or Claude login and bounds input size, but does not bound
+  uses the claimant harness's login and bounds input size, but does not bound
   cumulative usage. Define an explicitly granted allowance shared across page
   servers, with accounting appropriate to the login's quota or billing model.
   Establish per-request output bounds before promising a hard ceiling, and retain
@@ -292,7 +292,7 @@ and its chrome coordinate.
   pane is empty, and whether a reader reaches every pane by key. The arrangement
   judge sees only the first screen of a pane that scrolls and is told not to infer
   interaction, so no case yet measures whether a workspace works as a screen.
-- **Layout values that wait for a task:** a selection-and-detail component whose phone
+- **Layout values that wait for a task:** a selection-and-detail widget whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
 - **Make a sidebar built from several blocks stick.** A sidebar's track sticks only
@@ -521,6 +521,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
   and needs no second copy — the same SVG with its fill set — but only an icon whose
   outline is a closed shape fills cleanly. Trigger: a user misreads what a pin holds.
+- **Revisit the reaction tokens' meanings or glyphs if they confuse.** A reaction
+  shows only its glyph (👍, ❌, ✂️ …), in the margin and the picker, with its name in
+  the accessible label. Max rejected visible text labels on 23 October 2026 as too
+  heavy, so a fix changes which tokens `$reactions` declares or how each looks.
+  Trigger: a user misreads what a reaction says or picks the wrong one.
 - **#30 — Try a feed of ready-to-approve actions.** An agent pass prepares
   actions, such as a drafted email, and the user approves, edits, dismisses or
   discusses each. Every verb exists as an item; Leaf lacks an agent that runs
@@ -748,7 +753,7 @@ export` writes a file that boots the page's own runtime offline, and that file
   `elementById(id, root)` (`passages.js`): about 31 `elementById` and 9
   `getElementById` calls in the runtime and the package widgets' own lookups
   (`lf-board`, `lf-options-addition`). The lookups that arrive with no drawing
-  each need a rule: obligation standing, `m` walks, an anchor on an element in a
+  each need a rule: the current obligation, `m` walks, an anchor on an element in a
   reply, and the presentation regions keyed `widget:<id>:render`. A 2026-10-20
   trial of per-drawing copies without that broke all four (reverted within
   PR #3436). Revisit if seeing a question in the page and the panel at once is

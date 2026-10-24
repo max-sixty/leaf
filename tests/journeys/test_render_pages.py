@@ -734,19 +734,22 @@ def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
     """`wide` is the shared capped evidence width wherever a block stands on a document
     page. A sidebar page's body is wider than `--wide` at a large window, so the
     breakout's growth alone left a named-wide block at the holder's width there. The
-    cap holds an authored occurrence and a package default (a board) alike, at the
+    cap holds an authored occurrence and a package default (a diff) alike, at the
     page's own `--wide`, while a block that names no width still fills its holder and
     `available` takes it all. A workspace states no evidence width, so there both fill
     their pane as a block that names none does. A narrow window's holder still bounds
     the wide block."""
     blocks = """
 <div id="named" data-width="wide">Named wide.</div>
-<lf-board id="board">
-<lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
-<lf-column id="two" label="Two"></lf-column><lf-column id="three" label="Three"></lf-column>
-<lf-column id="four" label="Four"></lf-column><lf-column id="five" label="Five"></lf-column>
-<lf-column id="six" label="Six"></lf-column>
-</lf-board>
+<lf-diff id="patch"><pre>
+diff --git a/feeders/mount.py b/feeders/mount.py
+--- a/feeders/mount.py
++++ b/feeders/mount.py
+@@ -1,2 +1,2 @@
+ def bracket():
+-    return "plastic"
++    return "steel"
+</pre></lf-diff>
 <div id="plain">No width named.</div>
 <div id="available" data-width="available">Available.</div>
 """
@@ -763,12 +766,12 @@ def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
         layout="sidebar",
     )
     measure = """() => Object.fromEntries(
-      ['named', 'board', 'plain', 'available'].map(id => {
+      ['named', 'patch', 'plain', 'available'].map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
       }))"""
     for source, cap in (
-        (sidebar_page, 1080),
+        (sidebar_page, 840),
         (workspace_page, None),
         (configured, 900),
     ):
@@ -777,7 +780,7 @@ def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
         at = page.evaluate(measure)
         assert at["plain"]["width"] > 1080 + 200, at
         assert at["available"]["width"] == at["plain"]["width"], at
-        for capped in ("named", "board"):
+        for capped in ("named", "patch"):
             width = cap or at["plain"]["width"]
             assert at[capped]["width"] == pytest.approx(width, abs=1), (capped, at)
             assert at[capped]["left"] == at["plain"]["left"], (capped, at)
@@ -798,7 +801,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     room the page states is measured against what is actually in the margin, and a widget
     drawn over any of it is named at handover with both boxes in the message.
 
-    It reads a resident by the same test the pass above excuses one by — placed
+    It reads margin content by the same test the pass above excuses one by — placed
     absolutely or fixed, or floated clear of the column — so this needs no vocabulary
     of its own and nothing has to be declared to it. That is what keeps the two theme
     rules honest: the next claimant that forgets one is a refusal with a name on it
@@ -824,7 +827,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
         for f in failures
         if f.code == "over-margin"
         and f.at == "<lf-board id=sprint>"
-        and f.values["resident"] == "<div id=own-rail>"
+        and f.values["marginContent"] == "<div id=own-rail>"
     ], (
         f"the gate said nothing about a board drawn over the page's own margin: {failures}"
     )
@@ -843,7 +846,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
 
 
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
-    """The sidebar is a page-level margin resident rather than a narrower prose column.
+    """The sidebar is a page-level margin content rather than a narrower prose column.
 
     On a roomy page a sidebar with prose claims the full left margin while its contents
     map rests as a spine, fixed at the window's top. The column keeps the page's axis,
@@ -1118,7 +1121,7 @@ def test_two_listener_keys_keep_both_tabs_authorized(browser, serve):
         assert second.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
 
 
-def test_margin_residency_ignores_concealed_ancestors(browser, serve):
+def test_margin_content_layout_ignores_concealed_ancestors(browser, serve):
     """An own hidden note can reserve a margin, but skipped ancestors cannot."""
     cases = [
         (
@@ -1145,7 +1148,7 @@ def test_margin_residency_ignores_concealed_ancestors(browser, serve):
     ]
     for contents, admitted in cases:
         source = leaf_page(
-            "Concealed residents",
+            "Concealed margin content",
             "<h1>Migration</h1>" + contents + "<p>Advance one cohort at a time.</p>",
         )
         page = open_page(browser, serve(source))

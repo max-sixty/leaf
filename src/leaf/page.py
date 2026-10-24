@@ -63,6 +63,20 @@ def instruction_selection(
     return sorted(selected_entries), sorted(selected_contracts)
 
 
+def words(entry: dict) -> list[str]:
+    """What each attribute of a vocabulary `entry` whose schema lists the words it
+    takes (`enum`) may say, as its schema says it, such as the tones the layer
+    paints (`registry.contract.stamp_words`): an author choosing one need not look
+    it up."""
+    return [
+        f"`{attr}` takes one of: "
+        + ", ".join(f"`{word}`" for word in spec["enum"])
+        + "."
+        for attr, spec in entry.get("properties", {}).items()
+        if "enum" in spec
+    ]
+
+
 def page_instructions(
     page_dir: Path,
     *,
@@ -91,9 +105,14 @@ def page_instructions(
                 f"# Data contract `{contract}`\n\n{text.strip()}"
             )
     for name in selected_entries:
-        if text := registry[name].get("x-instructions"):
+        said = [
+            text.strip()
+            for text in (registry[name].get("x-instructions"), *words(registry[name]))
+            if text
+        ]
+        if said:
             parts.setdefault("author", []).append(
-                f"# Vocabulary `{name}`\n\n{text.strip()}"
+                f"# Vocabulary `{name}`\n\n" + "\n\n".join(said)
             )
     return {
         audience: "\n\n".join(sections).rstrip() + "\n"

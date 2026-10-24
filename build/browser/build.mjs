@@ -177,6 +177,11 @@ function compileModule(text, source) {
  * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
  * keyed and child-part insertions through `runtime/dom-move.js`, which keeps the
  * user's place and native state across the move.
+ *
+ * `package.json` holds `lit-html` at 3.3.0 for that leak: from 3.3.1 `repeat` leaves a
+ * comment behind for each item it removes, so a list the chrome redraws grows for as
+ * long as the page is open. Lift the pin to a release that carries lit/lit#5299; the
+ * closed-surface journey of `test_page_fixture_renders` fails while the leak remains.
  */
 async function litModule() {
   const contents = await litNamespace();

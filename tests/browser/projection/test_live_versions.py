@@ -47,7 +47,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
 
     Nothing here is executable, so the user keeps this document: the next file is
     fetched while they read, then its authored markup is patched onto the page they
-    are standing in. The URL, runtime identity, open chrome, `main` itself, and the
+    are reading. The URL, runtime identity, open chrome, `main` itself, and the
     passage's viewport coordinate therefore survive. Five paragraphs arrive above that
     passage so a raw scroll offset cannot satisfy the position assertion.
     """

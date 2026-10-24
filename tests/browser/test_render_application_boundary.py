@@ -406,7 +406,7 @@ document.documentElement.dataset.pageModule = `${label}:${state.loads}`;
 
 ACTIVATION_READING = f"""\
 <p id="live-reading">{LIVE_READING}</p>
-<button id="standing-control" type="button">Inspect continuity</button>
+<button id="focused-control" type="button">Inspect continuity</button>
 <lf-ask id="activation-decision"><h2>Activate the revision?</h2>
 <lf-options id="activation-choice" choose>
   <lf-option id="activation-go">Continue</lf-option>
@@ -1639,12 +1639,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("2 waiting on me")
+    expect(counts).to_have_text("3 waiting on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: these picks are complete", exact=True
         ).click()
-    expect(counts).to_have_text("1 waiting on me · 1 answered · Chat")
+    expect(counts).to_have_text("2 waiting on me · 1 answered · Chat")
 
 
 def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):

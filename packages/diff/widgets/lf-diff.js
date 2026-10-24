@@ -35,6 +35,8 @@ import {
   failSoft,
   ensureSyntaxLanguage,
   focusDestination,
+  generated,
+  generatedElement,
   holdFocus,
   html,
   nothing,
@@ -73,7 +75,7 @@ import {
   scrollIntoView,
   layoutPx,
   focused,
-  standingIn,
+  currentLocationIn,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -203,6 +205,8 @@ function renderedLines(file, content) {
     );
   return records.map((record, index) => {
     const node = nodes[index];
+    // Pierre represents an empty source row with a newline placeholder.
+    if (node.textContent === "\n") node.replaceChildren();
     const key = diffDatumKey(record);
     node.setAttribute(LINE_KEY, key);
     const row = document.createElement("div");
@@ -334,11 +338,11 @@ function paintSummary(details, record, verified = true) {
   const previous = pathParts(details);
   render(
     html`${keyed(
-      JSON.stringify([path, verified && previousPath]),
+      JSON.stringify([path, verified && previousPath ? previousPath : null]),
       filePathTemplate(verified ? record : { path }),
     )}${
       verified
-        ? html`<span class="lf-diff-stat" data-lf-gen="1"
+        ? html`<span class="lf-diff-stat" ${generated({ says: false })}
             ><span class="lf-diff-additions">+${additions}</span>${" "}<span
               class="lf-diff-deletions"
               >−${deletions}</span
@@ -360,7 +364,7 @@ function summaryNode(record, open, verified = true) {
   details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
-  summary.className = `lf-diff-head ${HOLDS_WORD}`;
+  summary.className = `lf-diff-head lf-disclosure-marker ${HOLDS_WORD}`;
   details.append(summary);
   paintSummary(details, record, verified);
   commands(summary, "On a diff", [
@@ -519,7 +523,7 @@ function diffTools(host) {
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
-  progress.dataset.lfGen = "1";
+  generatedElement(progress, { says: false });
   progress.slot = "end";
   const count = document.createElement("span");
   progress.append(count);
@@ -578,7 +582,7 @@ function paintFileDetails(details, record) {
   if (!evidence) {
     evidence = document.createElement("div");
     evidence.className = "lf-diff-evidence";
-    evidence.dataset.lfGen = "1";
+    generatedElement(evidence, { says: false });
     details.firstElementChild.after(evidence);
   }
   keepsText(evidence, words);
@@ -587,7 +591,7 @@ function paintFileDetails(details, record) {
 function metadataNode(record) {
   const row = document.createElement("div");
   row.className = "lf-diff-metadata";
-  row.dataset.lfGen = "1";
+  generatedElement(row, { says: false });
   render(
     html`${filePathTemplate(record)}<span class="lf-diff-stat"
         >${metadataWords(record)}</span
@@ -782,7 +786,7 @@ function deferredError(details, error, retry) {
   const message = error?.message || error;
   const box = document.createElement("div");
   box.className = "lf-error";
-  box.dataset.lfGen = "1";
+  generatedElement(box, { says: false });
   box.textContent = retry
     ? `That file's diff failed to load: ${message}`
     : `That file's diff cannot be shown: ${message}`;
@@ -834,14 +838,14 @@ customElements.define(
         "In a diff review",
         [
           // The walk leads the scope, so the command reference lists it first: moving
-          // is what a user standing on a diff row does next, where "filter files" is
+          // is what a user on a diff row does next, where "filter files" is
           // the press for someone who has not started reading yet.
           //
           // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
           // unit out. Bracket pairs because that is what an editor and a review tool
           // already spell this walk with, and punctuation spends none of the page's
           // small alphabet: these live in the diff's own scope and answer only while
-          // the user is standing in it.
+          // the user is in it.
           {
             id: "diff.next-hunk",
             keys: ["]"],
@@ -892,7 +896,10 @@ customElements.define(
             when: () => {
               const search = this.diffTools?.search;
               if (!search) return false;
-              return standingIn(this) && Boolean(search.value || standingIn(search));
+              return (
+                currentLocationIn(this) &&
+                Boolean(search.value || currentLocationIn(search))
+              );
             },
             title: () =>
               this.diffTools?.search.value ? "show all files" : "leave filter",
@@ -1072,7 +1079,7 @@ customElements.define(
               refused: false,
               loading: null,
             });
-            keeps(entry.node, "data-lf-gen", "1");
+            generatedElement(entry.node, { says: false });
             if (metadata) {
               entry.lines = [];
               entry.renderKey = null;
@@ -1259,7 +1266,7 @@ customElements.define(
         outlet.className = `lf-diff-thread-outlet lf-ui${
           file ? " lf-diff-file-thread-outlet" : ""
         }`;
-        outlet.dataset.lfGen = "1";
+        generatedElement(outlet, { says: false });
         outlet.dataset.lfThreadDatum = anchor.datum;
         outlet.setAttribute(
           "aria-label",
@@ -1584,13 +1591,15 @@ customElements.define(
       return this.shownEntries().some((entry) => entry.details);
     }
 
-    // Where the user stands inside this diff. A row, a header, or a control in the
+    // Where the user is inside this diff. A row, a header, or a control in the
     // tools row all answer; the walk only needs a node to compare document positions
     // against, and the tools row standing before every file is why a user who has
     // touched nothing steps to the first hunk rather than nowhere.
     hereNode() {
-      const standing = this.shadowRoot && focused(this.shadowRoot);
-      return standing && this.shadowRoot.contains(standing) ? standing : null;
+      const currentLocation = this.shadowRoot && focused(this.shadowRoot);
+      return currentLocation && this.shadowRoot.contains(currentLocation)
+        ? currentLocation
+        : null;
     }
 
     // With nothing focused inside the shadow tree — the host itself is focused, which
@@ -1636,7 +1645,7 @@ customElements.define(
       await this.loadEntry(entry);
     }
 
-    // The walk starts in the file the user is standing in and goes on through the
+    // The walk starts in the file the user is in and goes on through the
     // ones after it, so a closed file is opened only once the step has actually reached
     // it: a user on the last hunk of the third file loads the fourth and stops, rather
     // than every remaining file to discover there is nothing past them.
@@ -1646,10 +1655,10 @@ customElements.define(
       const mayLand = retainUserIntent();
       const here = this.hereNode();
       const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
-      const standing = here
+      const currentLocation = here
         ? order.findIndex((entry) => entry.node.contains(here))
         : -1;
-      for (let index = Math.max(standing, 0); index < order.length; index++) {
+      for (let index = Math.max(currentLocation, 0); index < order.length; index++) {
         const entry = order[index];
         await this.openEntry(entry);
         if (!mayLand()) return;
@@ -1672,12 +1681,12 @@ customElements.define(
       const entries = this.navigationEntries();
       const order = back ? [...entries].reverse() : entries;
       // The whole file is the unit, so a step out of one starts past it rather than at
-      // its own header — and a user standing in the tools row, which belongs to no
+      // its own header — and a user in the tools row, which belongs to no
       // file, steps to the first (or, walking back, the last).
-      const standing = here
+      const currentLocation = here
         ? order.findIndex((entry) => entry.node.contains(here))
         : -1;
-      const entry = order[standing + 1];
+      const entry = order[currentLocation + 1];
       if (!entry) return this.markFileWalk();
       this.fileCursor = entry;
       if (this.singleFile) {

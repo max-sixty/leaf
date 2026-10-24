@@ -26,7 +26,7 @@
    choice on one baseline with one type, border, corner and elevation; the bar keeps its
    DOM owner and accessible name while its contents change. */
 /* Page-attached chrome is absolute against the initial containing block, not against
-   body. Body is the page shell and may move or narrow, as a margin resident moves it;
+   body. Body is the page shell and may move or narrow, as margin content moves it;
    the document coordinate system does neither, and root scrolling still carries
    absolute chrome with the passage it stands beside. */
 /* Shared vocabulary. This sheet is adopted after the theme and every package, so a
@@ -182,7 +182,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-/* The unanswered decision the user is standing in (markHere), worn by the decision
+/* The unanswered decision the user is in (markHere), worn by the decision
    rather than whichever control has focus. Unanswered and not open: a widget whose seat
    holds a thread waiting on the agent has left the user's list. One decision wears it at
    a time; a widget a page styles boxless hangs it on its contents' boxes (shownParts).
@@ -435,12 +435,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     gap: 5px;
   }
   .lf-quote-expand::before {
-    content: "▸";
     inline-size: 1em;
     text-align: center;
-  }
-  .lf-quote-expand[aria-expanded="true"]::before {
-    content: "▾";
   }
   /* A border image outset into the inline margin draws the rail and takes no room. */
   .lf-msg.lf-unread {
@@ -854,12 +850,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     outline: var(--focus-ring);
     outline-offset: 1px;
   }
-  .lf-page-map-head {
+  .lf-page-map-head,
+  .lf-inspection-head {
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .lf-page-map-head > strong {
+  .lf-page-map-head > strong,
+  .lf-inspection-head > strong {
     flex: 1;
   }
   .lf-page-map-action {
@@ -889,8 +887,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: color-mix(in srgb, var(--lf-entry-tint, var(--chip)) 92%, var(--ink));
   }
   .lf-page-map-action .lf-margin-kind {
-    width: 16px;
-    height: 16px;
     align-self: center;
   }
   .lf-page-map-action-label {
@@ -925,7 +921,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   /* The sheet's top belongs to the window, so narrowing its list never carries the
      search or Close under the user's aim. The same top bounds its scrolling room. */
-  .lf-page-map-dialog {
+  .lf-page-map-dialog,
+  .lf-inspection-dialog {
     --lf-page-map-top: max(10dvh, calc(var(--lf-safe-top) + 12px));
     position: fixed;
     inset: var(--lf-page-map-top) 0 auto;
@@ -945,12 +942,54 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   /* The sheet's one scroller takes the room its head and search leave inside the
      window bounds. Said on [open] so the author sheet leaves the UA's display:none
      intact for a dialog that is shut. */
-  .lf-page-map-dialog[open] {
+  .lf-page-map-dialog[open],
+  .lf-inspection-dialog[open] {
     display: flex;
     flex-direction: column;
   }
-  .lf-page-map-dialog::backdrop {
+  .lf-page-map-dialog::backdrop,
+  .lf-inspection-dialog::backdrop {
     background: color-mix(in srgb, var(--ink) 26%, transparent);
+  }
+  .lf-inspection-body {
+    overflow: auto;
+    min-height: 0;
+    overflow-wrap: anywhere;
+    overscroll-behavior: contain;
+    padding: var(--focus-ring-room);
+    scroll-padding: var(--focus-ring-room);
+  }
+  .lf-inspection-body h2 {
+    font-size: var(--t-4);
+    margin-block: 18px 8px;
+  }
+  .lf-inspection-body h3 {
+    font-size: var(--t-5);
+  }
+  .lf-inspection-body details {
+    margin-block: 10px;
+  }
+  .lf-inspection-body summary {
+    cursor: pointer;
+    padding-block: 4px;
+  }
+  .lf-inspection-body pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: var(--t-6);
+  }
+  .lf-inspection-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
+  .lf-inspection-metrics dt {
+    color: var(--muted);
+    font-size: var(--t-6);
+  }
+  .lf-inspection-metrics dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
   }
   .lf-page-map-search {
     width: 100%;
@@ -984,12 +1023,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 
   @media (forced-colors: active) {
-    .lf-page-map-dialog {
+    .lf-page-map-dialog,
+    .lf-inspection-dialog {
       border: 1px solid CanvasText;
       box-shadow: none;
-    }
-    .lf-page-map-action[data-lf-focus-visible] {
-      outline: 2px solid Highlight;
     }
   }
   .lf-binding-sequence {
@@ -1054,7 +1091,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-in {
     transform: translate(-50%, 0);
   }
-  /* The hint the keyboard is browsing is where the user is standing in this mode, so
+  /* The hint the keyboard is browsing is where the user is in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-current {
@@ -1142,7 +1179,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     /* The sheet the Map opens in stands over the whole window and is sized to it, so
        its compact shape belongs to the window rather than to the rail: it asks the
        window, and this is the block that asks it. */
-    .lf-page-map-dialog {
+    .lf-page-map-dialog,
+    .lf-inspection-dialog {
       inset-inline: 8px;
       width: calc(100vw - 16px);
       margin-inline: 0;
@@ -1157,9 +1195,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     }
   }
 
-  /* Windows high-contrast mode suppresses the shadow used by text fields. Restore a
-     platform-colour outline for every focused chrome control instead of freezing the
-     product palette with forced-color-adjust. */
+  /* A forced palette keeps the chrome's states in platform colours rather than freezing
+     the product palette with forced-color-adjust. The focus ring needs nothing here:
+     --focus-ring is Highlight in a forced palette (theme.css). */
   @media (forced-colors: active) {
     .lf-dot {
       background: CanvasText !important;
@@ -1168,11 +1206,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       border-color: Highlight;
       background: Highlight;
       color: HighlightText;
-    }
-    :scope [data-lf-focus-visible] {
-      outline: var(--focus-ring-w) solid Highlight !important;
-      outline-offset: 2px !important;
-      box-shadow: none !important;
     }
     :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {
       border-color: Highlight !important;

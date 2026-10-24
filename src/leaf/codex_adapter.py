@@ -1,6 +1,6 @@
 """The detached process that carries Leaf delivery into later turns of one Codex task.
 
-Serving a claimed page, or explicitly running `leaf codex start`, leaves this
+Serving a claimed page, or explicitly running `leaf page claim`, leaves this
 process running behind the turn that started it, so a user's later updates reach
 the same Codex task instead of waiting for the agent to ask again. It owns the session watch: it captures each batch into the
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
@@ -92,7 +92,7 @@ from .codex_state import (
 )
 from .delivery import stream_reply_target
 from .detached import Handshake, starting_detached
-from .harness import CodexHarness, Harness, session_harness
+from .harness import CodexHarness, session_harness
 from .leases import (
     adapter_is_live,
     adapter_lease_path,
@@ -102,10 +102,7 @@ from .leases import (
     take_lease,
 )
 from .refusals import Refused
-from .service import (
-    claim_page,
-    owned_pages,
-)
+from .service import owned_pages
 from .session import Watch, read_watch_pass
 from .state import (
     Record,
@@ -893,7 +890,7 @@ def run_adapter(
     """Own the session watch until every claimed page ends or transfers.
 
     A detached adapter announces its readiness through `handshake` once it holds
-    its leases and its transport answers, and exits if `leaf codex start` left
+    its leases and its transport answers, and exits if `leaf page claim` left
     without committing that start."""
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
@@ -904,8 +901,8 @@ def run_adapter(
         lease = take_lease(adapter_lease_path(harness.session))
         if lease is None:
             raise Refused("a Codex delivery adapter is already active")
-        # The lease record names this adapter's transport, so a later `leaf codex start`
-        # in the task reports the one it joins.
+        # The lease record names this adapter's transport, so a later `leaf page claim`
+        # in the task verifies any requested endpoint against the one it joins.
         resources.callback(release_lease, lease)
         lease.truncate(0)
         lease.write(
@@ -1004,24 +1001,8 @@ def run_adapter(
             watch.await_news(mark, timeout=1)
 
 
-def cmd_codex_start(
-    page_dir: Path,
-    codex_path: str | None = None,
-    app_server: str | None = None,
-) -> dict:
-    """Claim PAGE and start one detached delivery adapter for this task, or find
-    the one already running; return which, with its task and transport."""
-    with preparing_adapter(session_harness(), codex_path, app_server) as prepared:
-        claim_page(page_dir)
-        return prepared
-
-
 @contextmanager
-def preparing_adapter(
-    harness: Harness | None,
-    codex_path: str | None = None,
-    app_server: str | None = None,
-):
+def preparing_adapter(harness: CodexHarness):
     """Retain a ready adapter for `harness`'s task until the caller commits page
     ownership.
 
@@ -1030,14 +1011,12 @@ def preparing_adapter(
     claim exists, without an adapter retiring in that gap. A new adapter captures
     the launching harness's canonical session generation before subscribing to turns.
     """
-    if harness is None or harness.name != CodexHarness.name:
-        raise Refused("`leaf codex start` must run inside a Codex task")
-    executable = codex_path or shutil.which("codex")
+    executable = shutil.which("codex")
     if executable is None:
         raise Refused("cannot find the `codex` executable on PATH")
     executable = str(Path(executable).absolute())
     session_id = harness.session
-    app_server = app_server or os.environ.get(APP_SERVER_ENV)
+    app_server = os.environ.get(APP_SERVER_ENV)
     if app_server is not None:
         app_server_socket_path(app_server)
     launch_lock = adapter_start_lock_path(session_id)
@@ -1072,7 +1051,7 @@ def preparing_adapter(
                     + (f" through App Server {running}" if running else "")
                     + f", not through App Server {app_server}"
                 )
-            yield {"task": session_id, "app_server": running, "started": False}
+            yield
             return
         # Existing active ownership already proves the canonical lifetime and
         # generation. A detached preview can replace its adapter, but its process
@@ -1098,7 +1077,7 @@ def preparing_adapter(
             launcher=launcher,
         ):
             pass
-        yield {"task": session_id, "app_server": app_server, "started": True}
+        yield
 
 
 def running_adapter(session_id: str) -> dict | None:

@@ -18,22 +18,11 @@ pages that select it. Presentation or behavior used by one page stays in that pa
 `<style>`, inline modules or `page/`. Anything reused belongs in a package:
 
 ```bash
-leaf package init PACKAGE
-leaf package init PACKAGE --widget lf-callout
-leaf package check PACKAGE
-leaf package install PACKAGE
-leaf package run NAME SCRIPT [ARGS]...
-```
-
-`package init` creates the package's directories, keeping anything already there.
-`--widget TAG` also writes a registry example and a `widgets/TAG.js` module that
-registers and upgrades the element; Leaf refuses a tag or module that already exists.
-Check the package before adding it to a page:
-
-```bash
 leaf package init packages/callout --widget lf-callout
 leaf package check packages/callout
 leaf page init --package packages/callout PAGE
+leaf package install packages/callout
+leaf package run NAME SCRIPT [ARGS]...
 ```
 
 `--package` takes a bare name, which selects an installed or bundled package, or a
@@ -43,25 +32,24 @@ path relative to the project or starting with `~`, such as `./.leaf` or
 `leaf package install SOURCE` checks the directory and copies it into
 `~/.local/state/leaf/packages/`, so `--package NAME` selects it from any project on this
 machine. The copy holds only the files in the package layout below, so a README and
-tests stay behind. Installing again replaces the copy only if the new one passes its
-check. An installed package overrides a bundled one of the same name. A page records
+tests stay behind. An installed package overrides a bundled one of the same name. A page records
 the bare name, so re-vendoring it on another machine needs the package installed there
 too.
 
 The optional bundled packages are:
 
-| Package         | Adds                                                                                                                              |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.                                           |
-| `diagram`       | `lf-diagram`, rendering Mermaid syntax with Pele.                                                                                 |
-| `diff`          | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines.                                |
-| `file-editor`   | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                                                |
-| `file-tree`     | `lf-file-tree`, a searchable navigator for a file list or another widget’s typed file inventory, following its opaque datum keys. |
-| `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.                                        |
-| `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                   |
-| `motion`        | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                         |
-| `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                      |
-| `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                |
+| Package         | Adds                                                                                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.                                                                     |
+| `diagram`       | `lf-diagram`, rendering Mermaid syntax with Pele.                                                                                                           |
+| `diff`          | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines, and `lf-worktree-diffs` for a set of worktree snapshots. |
+| `file-editor`   | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                                                                          |
+| `file-tree`     | `lf-file-tree`, a searchable navigator for a file list or another widget’s typed file inventory, following its opaque datum keys.                           |
+| `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.                                                                  |
+| `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                                             |
+| `motion`        | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                                                   |
+| `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                                                |
+| `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                                          |
 
 Packages declare no dependencies on each other; a page lists every package it needs.
 
@@ -94,15 +82,13 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 
 ### Styles and composition
 
-A widget package's rules rank below the Layouts, a theme package's (one that declares
-no widgets) above them, and the page's own `<style>` above both. In layer terms: Leaf
-orders its cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
+Leaf orders its cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
 `lf-controls`, `lf-state`. In the document, a widget package's `theme.css` and `shadow.css` go in
-`lf-base` and a theme package's in `lf-theme`. In a shadow root, each package's
+`lf-base`, below the Layouts, and a theme package's, one that declares no widgets, in `lf-theme`, above them. In a shadow root, each package's
 `shadow.css` goes in `lf-shadow`, or `lf-theme` for a theme package, and Layout rules
 don't reach inside. The page's own CSS is unlayered. An optional `controls.css` grants a theme package
 explicit access to generated controls from `lf-controls`, above ordinary theme rules
-and below semantic state. Its selectors retain native CSS meaning. A widget package already styles its own controls in `theme.css`; `controls.css` belongs
+and below semantic state. A widget package already styles its own controls in `theme.css`; `controls.css` belongs
 to theme packages.
 Page authors grant access per stylesheet (`page-layout.md`, "Page CSS and Leaf's controls"). `!important` and inline styles are not ways to customise a
 widget.
@@ -146,13 +132,12 @@ documents any further inputs it supports. No type or colour override may shrink 
 control below its touch target or focus clearance.
 
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
-Import Leaf only through `/runtime/widget-api.js`; `package check` refuses an import of
-any other kernel module, and `runtime/` modules can add paths but not replace the
-kernel's. The Leaf serving a page supplies its runtime, `widget-api.js` and the
-kernel's `vendor/` modules included, so a vendored package runs against whichever
-Leaf serves its page, and a package's `vendor/` file at one of those paths replaces it
-there. Leaf keeps `widget-api.js`'s names and what they return across updates at one
-page protocol (`../scripts/leaf/layer-registry.md`, "Page protocol").
+Import Leaf only through `/runtime/widget-api.js`, and `runtime/` modules can add paths
+but not replace the kernel's. The Leaf serving a page supplies its runtime,
+`widget-api.js` and the kernel's `vendor/` modules included, so a vendored package runs
+against whichever Leaf serves its page, and a package's `vendor/` file at one of those
+paths replaces it there. Leaf keeps `widget-api.js`'s names and what they return across
+updates at one page protocol (`../../../src/leaf/layer-registry.md`, "Page protocol").
 
 Registries merge in order: kernel, `default`, then the selected packages in command
 order, and a later package wins a collision. A later package replaces an element or
@@ -170,8 +155,6 @@ text per audience beside its schema, and a registry entry's `x-instructions` is 
 string for the page author.
 
 ```bash
-leaf page instructions PAGE | jq 'keys'
-leaf page instructions PAGE --use lf-options --use .eyebrow | jq -r '.author // empty'
 leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 ```
 
@@ -206,7 +189,7 @@ role on the page:
 | Key                | Shipped example                                                |
 | ------------------ | -------------------------------------------------------------- |
 | `x-reading-role`   | `lf-pane`                                                      |
-| `x-resident`       | `lf-toc`                                                       |
+| `x-margin-content` | `lf-toc`                                                       |
 | `x-visual`         | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
 | `x-bound`          | `lf-activity`                                                  |
 | `x-height`         | `lf-chart`                                                     |
@@ -223,8 +206,7 @@ state is in [package-data.md, "User state"](package-data.md#user-state).
 ## Seeing it
 
 `leaf package check PACKAGE --render` draws the worked examples of the package's
-widgets, once in a reading column and once in a workspace pane, and prints findings in
-`page check`'s format. Widget findings are advice for the widget's author and don't
+widgets, once in a reading column and once in a workspace pane. Widget findings are advice for the widget's author and don't
 change the exit status; the command fails only when the package check fails or the
 examples can't be drawn. The checks:
 

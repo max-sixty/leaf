@@ -27,7 +27,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def show_held_news(card):
     """Show what the card holds behind its notice, by a press that leaves focus where
-    the user stands."""
+    the user is located."""
     notice = card.locator(".lf-thread-news")
     expect(notice).to_be_visible()
     notice.evaluate("node => node.click()")
@@ -566,7 +566,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     browser, serve
 ):
-    """A checkpoint arriving over the message the user stands in opens around it.
+    """A checkpoint arriving over the message the user is located in opens around it.
 
     The message stays where it stood, now under the checkpoint, and the user stays on a
     link in it rather than dropping to the page. The summary waits behind the thread's
@@ -727,11 +727,11 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     card = open_margin_card(page, root)
     old_checkpoint = card.locator(f'[data-summary-id="{old["id"]}"]')
     expect(old_checkpoint).to_be_visible()
-    # The user stands on the summary they opened: a message takes no focus in a card.
+    # The user is located on the summary they opened: a message takes no focus in a card.
     opened = old_checkpoint.locator(".lf-summary-expand")
     opened.click()
     expect(opened).to_be_focused()
-    standing = card.locator(f'.lf-msg[data-event="{second["id"]}"]')
+    selected_message = card.locator(f'.lf-msg[data-event="{second["id"]}"]')
 
     replacement = summarize_thread(
         serve.page_dir,
@@ -750,7 +750,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     expect(checkpoint.locator(".lf-summary-expand")).to_have_attribute(
         "aria-expanded", "true"
     )
-    expect(standing).to_be_visible()
+    expect(selected_message).to_be_visible()
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
         "All three constraints now form one decision."
     )

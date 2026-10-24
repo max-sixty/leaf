@@ -18,8 +18,8 @@ ORPHAN_GRACE_SECS = 1
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
 ANSWER_INSTRUCTION = (
-    "Each update takes the answer named for it. Read current obligations with "
-    "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
+    "`leaf page state <page>` lists what is owed, and `leaf page state <page> <id>` "
+    "reads a thread's history."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, thread context, and response "
@@ -356,7 +356,7 @@ EXTENSION_SCHEMA = {
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
-        "x-resident": {"enum": ["map"]},
+        "x-margin-content": {"enum": ["map"]},
         "x-measured": MEASURED_SCHEMA,
         "x-patch": {"enum": ["members"]},
         "x-owners": {

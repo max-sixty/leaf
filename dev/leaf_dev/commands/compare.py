@@ -1,4 +1,4 @@
-"""Two live previews, using the canonical arm builder and preview lifecycle.
+"""Serve a base runtime beside this checkout's as two live previews.
 
 The baseline is an immutable full source arm; the candidate watches this checkout.
 Both read the candidate's authored source unless --authored selects each arm's own

@@ -112,7 +112,7 @@ export function createThreadPresentation({
     read.begin();
     const current = () => generation === surfaceGeneration && presenting();
     const batch = beginThreadSeats();
-    // Where the user stands on a thread, which this pass may take off the surface drawing
+    // Where the user is on a thread, which this pass may take off the surface drawing
     // it (thread/focus.js, `holdThreadPlace`).
     const restorePlace = holdThreadPlace(openThread, {
       threadAt,

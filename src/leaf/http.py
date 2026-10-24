@@ -13,7 +13,6 @@ alone.
 """
 
 import hashlib
-import html
 import json
 import math
 import re
@@ -65,6 +64,7 @@ from .revision_delivery import (
     delivered_resource,
     layer_import_map,
     rebase_document,
+    runtime_settings,
 )
 from .runtime_selection import executing, serving_runtime
 from .samples import Samples
@@ -205,32 +205,19 @@ def page_delivery(
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
-    bootstrap = resources["/runtime/bootstrap.js"].data.decode()
-    release = (
-        f' data-lf-release="{html.escape(release_id, quote=True)}"'
-        if release_id is not None
-        else ""
+    runtime = runtime_settings(
+        resources["/runtime/bootstrap.js"].data.decode(),
+        layer=layer_id,
+        page_root=page_root,
+        entry=address("/leaf.js"),
+        probe=probe or address("/registry.json"),
+        declared={
+            "data-lf-server": server_id,
+            "data-lf-release": release_id,
+            "data-lf-share-url": share_url,
+            "data-lf-runtime-identity": runtime_identity,
+        },
     )
-    share = (
-        f' data-lf-share-url="{html.escape(share_url, quote=True)}"'
-        if share_url is not None
-        else ""
-    )
-    runs = (
-        f' data-lf-runtime-identity="{runtime_identity}"'
-        if runtime_identity is not None
-        else ""
-    )
-
-    runtime = (
-        f'<script data-lf-runtime data-lf-server="{server_id}" '
-        f'data-lf-layer="{layer_id}"{release}{share}{runs} '
-        f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
-        f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-        f'data-lf-probe="{html.escape(probe or address("/registry.json"), quote=True)}">'
-        f"{bootstrap}</script>"
-    )
-
     return Delivery(
         address=address,
         import_map=layer_import_map(assets),
@@ -1115,6 +1102,22 @@ class PageEndpoint:
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
             return self._json({"browser": browser})
+        if path == "/api/inspect":
+            from .page_inspection import inspect_artifact, inspection_views
+
+            try:
+                revision = self.requested_view_revision()
+                if revision is None:
+                    raise ValueError("view revision is required")
+                if revision not in self.source.revision_names:
+                    raise ValueError(f"unknown view revision r{revision}")
+            except ValueError as error:
+                return self._json({"error": str(error)}, 400)
+            artifact = self._artifact(revision)
+            report = inspect_artifact(artifact, revision)
+            report["views"] = inspection_views(self.page_dir, artifact.digest)
+            self.response_layer = self._revision_layer(revision)
+            return self._json(report)
         # Browsers ask for this unprompted, and go on asking where nothing in the
         # markup names an icon — the runtime's link is written as the chrome is built,
         # which is after the parse. Answering "no content" rather than letting it fall

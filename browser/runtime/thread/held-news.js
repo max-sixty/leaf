@@ -28,7 +28,7 @@
      disclosure folding it, where nothing else it changes shows;
    - a new thread in the control row of the thread it would follow, or, where the seat
      draws no thread, in place of its first-message row, at that row's height, unless the
-     user stands in that box, which `holdBox` (reply-landing.js) keeps still instead;
+     user is in that box, which `holdBox` (reply-landing.js) keeps still instead;
    - a new thread at a widget's datum that has no seat yet, such as a diff line with no
      thread, behind the margin marker it gets. Its seat would be a new outlet the widget
      opens in the flow, with no row in it to say what waits, so the widget is not handed
@@ -46,8 +46,8 @@
    in place, so it streams into an idle open card and a held one counts it once as a
    new reply. So is an answer hiding the progress before it
    where that progress is the run at the thread's end, as the agent's acknowledgement
-   is, unless the user stands on a message the fold puts away, by focus or by a
-   selection reaching into it (`standsOn`, focus.js). Hiding progress above a user's
+   is, unless the user is on a message the fold puts away, by focus or by a
+   selection reaching into it (`currentLocationTouches`, focus.js). Hiding progress above a user's
    later message changes earlier content and uses the ordinary reading hold.
    The progress itself is no reply: until that answer it joins its run's face, the
    thread's working message while the work runs, not its replies (transcript.js), and
@@ -81,9 +81,9 @@
    - opening the thread: a seat's Resolved disclosure folding it, or a panel card the
      list opens;
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
-     walk, an obligation, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
+     walk, an obligation, a link, Tab, whatever route took them (focus.js, `onCurrentLocation`), or by
      a press on its title, which stands for the whole thread, whether or not it already
-     stood open. Coming back to the thread they stood in is a stay, whatever puts them
+     stood open. Coming back to the thread they were in is a stay, whatever puts them
      there, as when the runtime puts back a reply box a surface stopped drawing, and so
      is a move within it, such as Escape out of its reply box onto its title or going to
      an obligation it already shows;
@@ -109,10 +109,10 @@
    behind "1 new reply" until the user pressed it), and an answer folding the progress
    run at the thread's end (2026-10-09: since #1926 the agent's first move is a progress
    acknowledgement, so holding the fold held nearly every answer). Everything above that
-   run, the message the user stands on and an active editor remain protected. Rejected: filling the list (#1480), which makes the
+   run, the message the user is on and an active editor remain protected. Rejected: filling the list (#1480), which makes the
    open card as tall as the panel and leaves later cards below the fold; and letting a
    list that cannot scroll push its contents down, which needs the shift watch to stop
-   checking such lists. Arrival is read from where the user stands (the user's decision,
+   checking such lists. Arrival is read from where the user is (the user's decision,
    2026-10-06, reversing #1780's record). Rejected: a `showHeld` call in each route that
    takes the user to a thread, which every new route had to remember and a route putting
    them back had to opt out of. The margin's floating card holds news while the user
@@ -154,7 +154,7 @@ import { allThreads, threadIdNamed, threadState } from "./state.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { runtime } from "../context.js";
-import { onStanding, focused, standingNodes } from "../focus.js";
+import { onCurrentLocation, focused, currentLocationNodes } from "../focus.js";
 import { onReadingInterrupted, readingIsContinuous } from "../reading-continuity.js";
 import { pagePresented } from "../page-paint.js";
 import { watchOwner } from "../arrivals.js";
@@ -223,8 +223,10 @@ function messageChange(prior, message) {
 // says the news is the agent answering the user, who had the last turn as drawn: all of
 // it, the reply, the work under way on it and that work's fold, lies after that turn,
 // which a presentation may show at once (primary-reader.js, `answersAtOnce`). A message the log
-// took back is no news: it goes. Null where nothing differs.
-function difference(was, now, { progressOpen = false } = {}) {
+// took back is no news: it goes. `joined` names new messages and existing streamed
+// messages whose words grew, including progress. Card placement uses those same
+// arrivals when predicting motion and when they actually show. Null where nothing differs.
+export function threadChange(was, now, { progressOpen = false } = {}) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
     Boolean(was.resolved) === Boolean(now.resolved)
@@ -248,10 +250,12 @@ function difference(was, now, { progressOpen = false } = {}) {
     appended: false,
   };
   const changed = new Set();
+  const joined = new Set();
   const arrived = new Set();
   for (const message of now.messages) {
     const prior = drawn.get(message.key);
     const change = messageChange(prior, message);
+    if (change === "joined") joined.add(message.key);
     if (!prior || prior.provisional) arrived.add(message.id);
     // A progress message joins the thread's working message, not its replies, so its
     // notice counts it, as it counts a reply; the answer that later folds it
@@ -350,7 +354,7 @@ function difference(was, now, { progressOpen = false } = {}) {
     !folds.summaries.length &&
     (!news.appended || appendedAtEnd) &&
     ![...changed, ...folds.messages].some((key) => asked.has(key));
-  return { news, changed, folds, appendedAtEnd, footFold, answers };
+  return { news, changed, joined, folds, appendedAtEnd, footFold, answers };
 }
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
@@ -477,9 +481,9 @@ export function newsNotice(header = false) {
   });
   let open = () => null;
   const show = () => {
-    const standing = focused() === node;
+    const currentLocation = focused() === node;
     const landing = open();
-    if (standing && landing) focusThread(landing, "move");
+    if (currentLocation && landing) focusThread(landing, "move");
   };
   keys(node, "On news waiting in a thread", [
     {
@@ -545,16 +549,16 @@ function everySeat(id, show) {
   return shown;
 }
 
-// The thread the user stands in, and their arrivals at another, which show what it holds.
-let standing = null;
-onStanding((node, cause) => {
-  // A drop leaves them standing in the thread, for its owner to put them back in.
+// The thread the user is in, and their arrivals at another, which show what it holds.
+let currentLocation = null;
+onCurrentLocation((node, cause) => {
+  // A drop leaves them in the thread, for its owner to put them back in.
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
   const id = drawnThreadId(thread);
   const arrived =
-    id !== null && id !== standing && (cause === "move" || cause === "step");
-  standing = id;
+    id !== null && id !== currentLocation && (cause === "move" || cause === "step");
+  currentLocation = id;
   if (arrived) showHeld(id);
 });
 
@@ -656,7 +660,7 @@ export class HeldNews {
         const shown = thread.visible !== false && !thread.folding;
         const held =
           was && shown && !this.#released.has(thread.key)
-            ? difference(was, thread, {
+            ? threadChange(was, thread, {
                 progressOpen: this.#view(thread.key)?.progressOpen ?? false,
               })
             : null;
@@ -970,15 +974,15 @@ export class HeldArrivals {
   }
 
   // Releases what `which` picks for a reason other than a gesture of the user's. A
-  // thread the user stands in (`standingNodes`), by focus or by a selection of its
+  // thread the user is in (`currentLocationNodes`), by focus or by a selection of its
   // words, in the margin's card, stays there with them, since its
   // release would take the card, and the reply they may be writing, away; it shows
   // when they press its marker, or the next time its datum's growth goes unseen.
   #lapse(which) {
-    const standing = new Set(
-      standingNodes().map((node) => closestAcross(node, THREAD)?.dataset.thread),
+    const currentLocation = new Set(
+      currentLocationNodes().map((node) => closestAcross(node, THREAD)?.dataset.thread),
     );
-    return this.#release((held) => which(held) && !standing.has(held.id));
+    return this.#release((held) => which(held) && !currentLocation.has(held.id));
   }
 
   // One watch for each datum holding a thread, on the node it stands at now.

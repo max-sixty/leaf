@@ -17,6 +17,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     post_event,
     resized,
     round_trip,
@@ -28,7 +29,7 @@ from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-ON_ME = '.lf-fp-view[data-view="queue"]:not([data-leaving])'
+ON_ME = panel_view("queue")
 
 
 def open_on_me(page):
@@ -219,15 +220,17 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
 
     page.evaluate(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfCheckApi();
+          const {readApplicationPresentation, presentDocument} =
+            await window.__lfCheckApi();
           window.__lfReadObligationPresentation = readApplicationPresentation;
+          window.__lfPresentDocument = presentDocument;
           const cards = [...document.querySelectorAll(
             '.lf-fp-view[data-view="queue"] .lf-fp-on-item')];
           window.__lfObligationCards = new Map(cards.map(card => [card.dataset.key, card]));
           const honored = document.querySelector('#honored-decision');
           document.querySelector('#live-question-decision').before(honored);
           window.__lfObligationCards.get('["widget","widget:sug-refill"]').focus();
-          document.dispatchEvent(new Event('lf-presentation'));
+          await presentDocument();
         }"""
     )
     page.wait_for_function("__lfReadObligationPresentation().pending.length === 0")
@@ -242,9 +245,9 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
     # keyed card stays, focus with it, and takes the walk's place for an item with no
     # place on the page, after the rest of the list.
     page.evaluate(
-        """() => {
+        """async () => {
           document.querySelector('#sug-refill').remove();
-          document.dispatchEvent(new Event('lf-presentation'));
+          await window.__lfPresentDocument();
         }"""
     )
     page.wait_for_function("__lfReadObligationPresentation().pending.length === 0")

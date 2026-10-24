@@ -1254,7 +1254,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         )
 
 
-def test_one_band_says_where_the_user_is_standing(browser, serve):
+def test_one_band_says_where_the_user_is_located(browser, serve):
     """The user's band is drawn once, on the exact option row being worked.
 
     The obligation retains its semantic location marker, but its exterior outline would
@@ -2278,7 +2278,7 @@ def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
     the comment layer's anchoring off screen with it.
 
     Read at a viewport narrow enough for the board to want more room than the
-    column has; at the render sweep's own 1200px the board fits and nothing here
+    column has; at the render gate's 1280px desktop the board fits and nothing here
     can fail."""
     page = open_page(browser, serve(SAMPLE_PAGE))
     page.evaluate(

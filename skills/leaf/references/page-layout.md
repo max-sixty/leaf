@@ -1,10 +1,5 @@
 # Page layout
 
-Read this before giving a page a Layout other than the reading column, widening or
-bounding a block, putting contents or notes in the margin, styling Leaf's controls, or
-showing several contributors' activity. `page-authoring.md`, "Composing a page", says
-which shape fits which subject.
-
 ## Layouts
 
 A Layout is a class that arranges the box it is on. Three set the page's shape. Each
@@ -24,14 +19,13 @@ One arranges a block's children:
 | -------------- | ------------------------------------ |
 | `layout-tiles` | equal cells, as many to a row as fit |
 
-On a column page, a board or diagram declares its own width, and any other block, such
-as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and
-widths"). The block breaks out of the column and the prose stays centred.
+On a column page, a board, diagram or diff declares its own width, and any other block,
+such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and
+widths"). The block breaks out of the column and the prose stays where it is.
 
 On a sidebar page, every block, the title included, starts at the same left edge and
 fills its region. Text, an `lf-ask`, a callout, and widgets read as text such as an
-option list keep the reading measure, on a column page too. Give a table, chart or
-playground inside an `lf-ask` or callout its own `data-width`.
+option list keep the reading measure, on a column page too.
 
 A workspace fills the window. It has no reading measure, every block fills its region,
 and `data-width` has no effect. Where a region would hold prose too wide to read,
@@ -44,10 +38,8 @@ that no Layout fits writes its own grid or flex rules.
 
 ## A page of parts
 
-A page whose subject has parts of different shapes, such as a playground to try, the
-proposal it argues for and the reasoning behind it, puts each in a part of its own with
-the Layout that suits it. Write one `lf-parts` in a `main` that carries no Layout, and
-give each `lf-part` one child carrying that part's Layout:
+Write one `lf-parts` in a `main` that carries no Layout, and give each `lf-part` one
+child carrying that part's Layout:
 
 ```html
 <main>
@@ -67,16 +59,10 @@ give each `lf-part` one child carrying that part's Layout:
 
 The page's `header`, the one element to write before the parts, heads a column down the
 window's left edge, and the list of parts stands under it, with each part's `summary`
-under its label. Both stay in view while a long part scrolls. Each part takes the rest of
-the width from the top of the window, so a workspace part fills the window. Keep the
-header to the page's title, since it shares the column's width, and give each part its
-own heading, and a column part its own contents outline. On a phone the title stands
-over the list, which becomes a row that sticks over the part. Each part opens where the
-user last read it. The parts share the
-page's history, Threads panel and On me list.
-
-Where the views share one Layout and the page's header runs across the top, as a site's
-pages that share one header do, use page tabs instead (the `lf-tabs` entry).
+under its label. Each part takes the rest of the width from the top of the window, so
+a workspace part fills the window. Keep the header to the page's title, since it shares
+the column's width. Give each part its own heading, and a column part its own contents
+outline.
 
 ## A sidebar page
 
@@ -111,17 +97,9 @@ such as a dashboard's log; it then sits on the right. Stack the regions inside t
 and inside the `aside`, so every region shares the same two vertical edges, rather than
 splitting each row anew.
 
-A long page read top to bottom is a column page with its contents in the margin, not a
-sidebar page, unless the reader also keeps a panel of its own in view, such as a
-verdict and its questions beside the document it judges; that panel is the `aside`.
-
 Put everything the `aside` holds in one block, as the `div` above does. While the two
 sit side by side, Leaf keeps that block in view at the window's top as the body scrolls.
 Write no `position`, `top`, height or overflow for it.
-
-Group a working region with a short heading; `section.panel` supplies compact heading
-and spacing without a surrounding card. Use a `.callout` when a point needs emphasis,
-with a status tone (`warn`, `danger`, `ok`) when it reports a status.
 
 ## A workspace
 
@@ -159,10 +137,12 @@ grid of panes:
 }
 ```
 
-Keep enough space to read each region's evidence and reach its decision. Stacked panes
-share the remaining height while the workspace is bounded; in a flowing layout they
-can grow with their content. Each pane's body can scroll on its own, which helps with
-a long file or log but cannot make a cramped working region usable.
+Keep enough space to read each region's evidence and reach its decision. Readers often
+open a workspace on a laptop, in a window about 720px tall, so aim to keep each
+region's decision in view at that height. Stacked panes share the remaining height
+while the workspace is bounded; in a flowing layout they can grow with their content.
+Each pane's body can scroll on its own, which helps with a long file or log but cannot
+make a cramped working region usable.
 
 `density-working` is a style, not a Layout. It sets smaller type, tighter spacing and
 options as rows on any block, for a surface the reader operates. A workspace usually
@@ -170,9 +150,16 @@ takes it, and so can a dense table on a column page.
 
 For a queue of items decided one at a time, such as tickets or findings, make the body
 one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`
-in the header. The list marks each tab's open obligations and the tally counts what is left,
-so write no script or count of your own. The `lf-tab` and `lf-tally` entries cover
-grouping and counting.
+in the header. The list marks each tab's open obligations and the tally counts what is
+left, so write no script or count of your own, and don't state the count in prose or
+chips. Each item's `summary` shows under its label, so the user can choose an item
+without opening it. Start the summary with what the item is about, such as the problem
+a ticket reports, unless the label already says so, then what sets it apart from its
+neighbours, such as its age or suggested outcome. Leave out the item's group, which its
+heading shows. Where items fall into kinds the user works through in turn, such as
+merge, close and FYI, give each item its kind as `group` and place each kind's items
+together in the order to take them; adjacent tabs with the same group share one
+heading.
 
 ## Bounds and widths
 
@@ -188,13 +175,16 @@ a box scroll vertically with page CSS: Leaf keeps no reading position in a scrol
 it didn't make.
 
 `data-width` widens one block, overriding its widget's default. Put it on the block
-itself, such as a `table`, `lf-code` or `lf-diff`, and write no CSS that copies its
-widths. It works on column and sidebar pages:
+itself, such as a `table` or `lf-code`, and write no CSS that copies its widths. It
+works on column and sidebar pages:
 
-- `data-width="wide"` makes the block as wide as `--wide`, the shared width for
-  evidence, growing past the column where the column is narrower than that.
-- `data-width="available"` takes all the width Leaf's chrome and the margin leave free,
-  stopping short of a margin sidebar or the contents map.
+- `data-width="wide"` is for a block slightly wider than the column, such as code up
+  to 100 columns, a diff or a table of a few more columns. The block starts at the
+  prose's start edge, the left in a left-to-right page, and extends toward its end
+  edge to `--wide`, as far as the window allows.
+- `data-width="available"` is for a surface that uses every pixel, such as a board, a
+  large drawing or a playground. It takes all the width Leaf's chrome and the margin
+  leave free, into both margins.
 
 A `table` with either value is only as wide as its columns need, up to that width. A
 block inside an `lf-ask` or callout breaks out only with its own `data-width`; the
@@ -209,23 +199,13 @@ its own height, such as `lf-diagram` or `lf-diff`, reserves nothing, so content 
 moves when it draws unless you set `data-height`. `page check --render` suggests the
 height wherever a drawing differs from what was reserved.
 
-Show evidence at the scale needed to judge it: an aligned detail view of a local
-change with the whole object available for context, or whole frames when their
-composition is the point.
-
 ## The rail and the margin
 
-Leaf places comment markers in a rail beside the column, or over their target where
-nothing beside it is free. Don't pad a heading to make room for its marker; the reader
-hides markers with `o`, or the leaf's menu → Annotations → Hide annotations, to read
-what's under one.
-
-On a column page, write the contents outline in the first `aside.sidebar`. With page
-tabs, each tab can instead start with its own `aside.sidebar` and empty `lf-toc`:
+With page tabs, each tab can start with its own `aside.sidebar` and empty `lf-toc`:
 the tab's outline stands below its strip in flow and becomes its spine when the margin
 has room. A sidebar directly in the column keeps that slot if one is present; nested
-tabbed boxes keep their sidebars in flow. Write short notes in `aside.sidenote`. Leaf moves them into the margin when they fit and leaves
-them where you wrote them in a narrow window. For CSS that depends on what is in the
+tabbed boxes keep their sidebars in flow. Write short notes in `aside.sidenote`. For
+CSS that depends on what is in the
 margin, read the tokens in the `data-lf-margin` of the box carrying `layout-column`
 (`rail`, `map`, `sidebar`, `note`), such as
 `.layout-column:not([data-lf-margin~="sidebar"]) #route { display: none }`, and check
@@ -251,8 +231,7 @@ widgets build: a rule for `button` styles only the page's own buttons. To style 
 controls on purpose, put their rules in a separate `<style data-controls>` or
 `<link rel="stylesheet" data-controls>` element. Its rules and imports stand as
 written; use selectors that reach only the controls you intend to change. Set the marker
-before attaching a dynamic sheet. Theme packages use `controls.css` (`packages.md`,
-"Styles and composition"). A token such as `--accent` on `:root` changes every surface that reads it. For
+before attaching a dynamic sheet. A token such as `--accent` on `:root` changes every surface that reads it. For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 
@@ -260,17 +239,11 @@ To make a control you write match Leaf's, give it `class="button"`,
 `class="button primary"` for the committing action, or `class="field"` for a text
 input or select. A native radio or checkbox uses
 `<label class="choice"><input type="radio" name="view" value="summary">Summary</label>`
-(or `type="checkbox"`). The label supplies the hit area and focus ring; the native
-mark shows selection without a surrounding box.
+(or `type="checkbox"`).
 
 Leaf's panel, thread cards and markers draw over everything in `main`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown
 with `showModal()`, or an element with `popover`.
-
-`conversation-loop.md`, "The On lists", says what belongs in the On lists. A
-package can lay out conversations and obligations itself with the APIs in
-`module-annotations.md`, "Owning the primary conversation presentation", and
-`module-reading.md`, "Reading obligations and the On lists".
 
 ### Space for changing text
 
@@ -325,8 +298,7 @@ the reader needs next remain reachable.
 
 ## Activity from several contributors
 
-On a one-agent page, Leaf's panel shows the agent's activity. When several workers report
-to one orchestrator, write a page-owned adapter that declares their report verbs and
+When several workers report to one orchestrator, write a page-owned adapter that declares their report verbs and
 reads task and worker state from the public work projection. A page several people
 revisit, such as a working board or long review, can show recent changes in an
 `lf-activity` feed.

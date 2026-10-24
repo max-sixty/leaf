@@ -52,6 +52,7 @@ from render_harness import (
     example_media,
     expect_obligations_answered,
     expect_panel_offers,
+    expect_panel_says,
     holding,
     leaf_page,
     names,
@@ -60,6 +61,7 @@ from render_harness import (
     page_registry,
     panel_control,
     panel_field,
+    panel_view,
     resized,
     root_overflow,
     round_trip,
@@ -91,7 +93,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.threads import open_panel_thread
 
-from journeys import expect_panel_says, first_thread_quote
+from journeys import first_thread_quote
 
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
@@ -522,7 +524,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "120, 80 · 640 × 220 CSS px"
     )
     page.keyboard.press("Escape")
-    first.get_by_role("button", name="Image scale and originals").click()
+    first.get_by_role("button", name="Image options").click()
     first.get_by_role("checkbox", name="Full frame").check()
     first.get_by_role("button", name="100%", exact=True).click()
     rendered(page)
@@ -1020,7 +1022,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     assert all(names(f, "lf-tally") for f in failures), failures
 
 
-def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
+def test_a_widget_current_location_out_of_place_is_a_page_the_gate_reports(
     browser, serve, tmp_path, monkeypatch
 ):
     """The premise the test below rests on, stated where it can fail on its own.
@@ -1629,7 +1631,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     page.locator("#tq-one .lf-pick").first.focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
     expect(threads).to_be_visible()
     page.keyboard.press("1")
     expect(threads).to_be_visible()

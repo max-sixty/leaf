@@ -1,6 +1,6 @@
 /* Stable obligation-view chrome and selectors.
  *
- * These values are safe for composition and standing interpretation to import without
+ * These values are safe for composition and current location interpretation to import without
  * evaluating the obligation controller or any of its navigation and command dependencies.
  */
 

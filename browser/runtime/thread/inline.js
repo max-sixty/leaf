@@ -17,11 +17,12 @@
    are inert. Opening the disclosure, undo or refusal ends that fold immediately. HeldNews
    still decides when a passive settlement may move the reader. */
 import { setChildren } from "../dom-children.js";
+import { generatedElement } from "../widget-elements.js";
 import { html, render } from "/vendor/browser-runtime.js";
 import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";
-import { holdFocus, focused, focusDestination, standingIn } from "../focus.js";
+import { holdFocus, focused, focusDestination, currentLocationIn } from "../focus.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
 import { holdBox } from "./reply-landing.js";
@@ -43,9 +44,9 @@ class ResolvedThreads {
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
-    this.node.dataset.lfGen = "1";
+    generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
-    this.summary.className = "lf-resolved-summary";
+    this.summary.className = "lf-resolved-summary lf-disclosure-marker";
     // Native disclosure opens at the attribute checkpoint, before paint, so the first
     // opened body already holds what its threads held back.
     new MutationObserver(() => {
@@ -107,17 +108,19 @@ class ThreadSeat {
   }
 
   present(model, batch = activeBatch) {
-    // A refused batch hands the user back the place they stood in when the seat joined
+    // A refused batch hands the user back their previous location when the seat joined
     // it (`retainThreadSeats`); this render hands them their place across itself.
     if (batch && !batch.seats.has(this)) batch.seats.set(this, holdFocus(this.node));
     const restoreFocus = holdFocus(this.node);
-    const standing = focused();
-    const restoreBox = this.node.contains(standing) ? holdBox(standing) : () => {};
+    const currentLocation = focused();
+    const restoreBox = this.node.contains(currentLocation)
+      ? holdBox(currentLocation)
+      : () => {};
     const stoodIn = [...this.#views.values()].find(({ node }) =>
-      standingIn(node),
+      currentLocationIn(node),
     )?.node;
     const gathered =
-      this.#resolved && standingIn(this.#resolved.summary)
+      this.#resolved && currentLocationIn(this.#resolved.summary)
         ? [
             ...[...this.#resolved.node.children].slice(1),
             ...[...this.#folding.values()].map(({ node }) => node),
@@ -136,7 +139,7 @@ class ThreadSeat {
     // The first-message row the seat drew, which a thread arriving in a seat that gives
     // its box up takes out of the reading even while the seat holds that thread.
     const box = model.surface === "page" ? this.#response() : null;
-    const row = Boolean(box) && prior.response && !box.contains(standing);
+    const row = Boolean(box) && prior.response && !box.contains(currentLocation);
     const shown = this.#held ? this.#held.hold(model, { row }) : model;
     let foot = shown.response ? this.#response() : null;
     if (shown.news) {
@@ -261,9 +264,9 @@ class ThreadSeat {
       }
     }
     this.claim();
-    // The seat's own box gives way to the thread its message started, and the user stands
+    // The seat's own box gives way to the thread its message started, and the user is
     // on that thread, where any send leaves them (`landSent`). Threads the seat held back
-    // show with the user's, which is the one they stand on. A disclosure the user stood
+    // show with the user's, which is their current location. A disclosure the user was
     // on that went, as its last thread reopened, hands them to that thread.
     const own = added.filter(({ messages }) => messages[0]?.author === "user");
     const start = own.length === 1 ? own[0] : added.length === 1 ? added[0] : null;
@@ -272,7 +275,7 @@ class ThreadSeat {
       started && (() => this.#commands?.reply.landSent(started)),
       ...gathered,
     );
-    // A thread the user stood in that settling folded into the closed disclosure leaves
+    // A thread the user was in that settling folded into the closed disclosure leaves
     // them on its summary, whether the move kept them on the hidden thread or dropped
     // them to the body, and the gesture's landing follows them there (`passOn`). One
     // reopened out of it keeps them, as its card hands their place across its own
@@ -285,8 +288,8 @@ class ThreadSeat {
         [...this.#folding.values()].some(({ node }) => node === stoodIn)) &&
       (!now ||
         now === document.body ||
-        standingIn(stoodIn) ||
-        (standingIn(fold.node) && now !== fold.summary))
+        currentLocationIn(stoodIn) ||
+        (currentLocationIn(fold.node) && now !== fold.summary))
     ) {
       focusDestination(fold.summary, "return");
       passOn(stoodIn, fold.summary);

@@ -22,6 +22,7 @@ from render_harness import (
     page_comment,
     panel_field,
     panel_settled,
+    panel_view,
     scroll_settled,
     write,
 )
@@ -61,9 +62,7 @@ def thread_row(page, key):
         key,
     )
     open_threads(page)
-    return page.locator(
-        f'.lf-fp-view[data-view="threads"] .lf-fp-thread[data-key="{key}"]'
-    )
+    return page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{key}"]')
 
 
 def open_panel_thread(page, thread_id):
@@ -514,7 +513,7 @@ def clear_of_the_panel(page, locator):
 
 def pressed_send_surface(browser, serve, surface):
     """A page with words typed into `surface`'s box, and that box, the control that
-    submits it, where the user stands once it has sent, and the reply box a follow-up
+    submits it, the current location once it has sent, and the reply box a follow-up
     is written in: the same box for one that stays to take more, else None."""
     if surface in {"pause", "handoff"}:
         url, host = seated_page(serve, "task" if surface == "pause" else "verdict")

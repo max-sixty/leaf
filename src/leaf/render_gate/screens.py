@@ -25,7 +25,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from leaf.render_checks import RENDER_VIEWPORT, rendered, wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.readings import SWEEP_WIDTHS
 from leaf.state import page_key, state_home
 
@@ -71,7 +71,7 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
 # the walk puts the user on an update handed back to them. Those are the walk's other
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step
 # past it.
-STANDING_OBLIGATION = """() => {
+CURRENT_OBLIGATION = """() => {
   const item = [...document.querySelectorAll('[data-lf-obligation]')]
     .find((el) => !el.parentElement?.closest('[data-lf-obligation]'))?.id;
   if (item) return {obligation: true, id: item};
@@ -96,7 +96,7 @@ def _obligations_in_turn(page, into: Path) -> tuple[list[Path], bool]:
     while True:
         page.keyboard.press("m")
         rendered(page)
-        here = page.evaluate(STANDING_OBLIGATION)
+        here = page.evaluate(CURRENT_OBLIGATION)
         if here is None or (here["obligation"], here["id"]) in seen:
             return shots, False
         seen.add((here["obligation"], here["id"]))
@@ -122,10 +122,11 @@ def screens_dir(page_dir: Path) -> Path:
 
 
 def save_screens(
-    browser, url: str, reading, page_dir: Path
+    browser, url: str, reading, page_dir: Path, desktop: dict
 ) -> tuple[Path, list[tuple[Path, str]]]:
-    """Save the screens for `reading`'s page, replacing the last check's; return their
-    directory and each file with what it shows."""
+    """Save the screens for `reading`'s page, replacing the last check's, with the
+    desktop and wide screens at the `desktop` window's height; return their directory
+    and each file with what it shows."""
     final = screens_dir(page_dir)
     final.parent.mkdir(exist_ok=True)
     into = Path(tempfile.mkdtemp(dir=final.parent, prefix=f".{final.name}-"))
@@ -142,7 +143,7 @@ def save_screens(
             context.close()
 
     def one(width, selector, name, label):
-        viewport = {"width": width, "height": RENDER_VIEWPORT["height"]}
+        viewport = {"width": width, "height": desktop["height"]}
         context, page = _open(browser, url, viewport, False)
         try:
             page.evaluate(
@@ -156,8 +157,8 @@ def save_screens(
         finally:
             context.close()
 
-    whole(RENDER_VIEWPORT, False, "desktop")
-    context, page = _open(browser, url, RENDER_VIEWPORT, False)
+    whole(desktop, False, "desktop")
+    context, page = _open(browser, url, desktop, False)
     try:
         shots, more = _obligations_in_turn(page, into)
         label = "desktop, each press of `m` from the top, at the next open obligation"
@@ -166,7 +167,7 @@ def save_screens(
         saved.extend((shot, label) for shot in shots)
     finally:
         context.close()
-    widest = {"width": max(SWEEP_WIDTHS), "height": RENDER_VIEWPORT["height"]}
+    widest = {"width": max(SWEEP_WIDTHS), "height": desktop["height"]}
     whole(widest, False, "the widest window")
     for width, selector, said in reading.arrangement:
         one(width, selector, "arrangement", f"the tightest before {said}")

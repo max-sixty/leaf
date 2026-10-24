@@ -25,7 +25,7 @@ test("Thread destinations without a page preview retain canonical targets and sh
   });
   control.focus();
   assert.equal(destinations.threadHere(), thread);
-  assert.equal(destinations.threadAtStanding(), thread.dataset.thread);
+  assert.equal(destinations.threadAtCurrentLocation(), thread.dataset.thread);
   assert.equal(destinations.threadTarget(thread.dataset.thread), owner);
   assert.equal(destinations.threadTarget("detached"), null);
   assert.equal(destinations.threadFocusTarget(thread.dataset.thread), null);

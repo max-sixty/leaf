@@ -573,9 +573,15 @@ CARD_TOP_AUTHORS = """transcript => {
   };
   const named = messages.find(shown);
   const head = named?.querySelector(':scope > .lf-msg-head').getBoundingClientRect();
-  const under = document.elementFromPoint(x, (head?.bottom ?? box.top) + 6)
+  const sampleY = (head?.bottom ?? box.top) + 6;
+  const under = document.elementFromPoint(x, sampleY)
     ?.closest('.lf-msg');
+  const next = messages[messages.indexOf(named) + 1];
+  const endGap = named && next &&
+    named.getBoundingClientRect().bottom <= head.bottom + 0.5 &&
+    next.getBoundingClientRect().top > sampleY && shown(next);
   return {named: messages.indexOf(named), under: messages.indexOf(under),
+          endGap,
           row: head ? head.top - box.top < head.height : false,
           scrolled: transcript.scrollTop > 0};
 }"""
@@ -618,7 +624,11 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     assert latest["y"] + latest["height"] <= shown["y"] + shown["height"] + 1
     landed = transcript.evaluate(CARD_TOP_AUTHORS)
     assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
-    assert landed["under"] == landed["named"], landed
+    # At the scroll limit a sliver of the previous author can precede a clear gap,
+    # with the next turn's own visible name below it (the known edge from #1763).
+    assert landed["under"] == landed["named"] or (
+        landed["under"] == -1 and landed["endGap"]
+    ), landed
     assert not transcript.evaluate("box => box.hasAttribute('data-lf-more-below')")
 
     def continuation():
@@ -630,7 +640,8 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
                 paint: style.backgroundImage,
                 heads: [...box.querySelectorAll('.lf-msg-head')]
                   .map(head => head.getBoundingClientRect().toJSON()),
-                top: box.getBoundingClientRect().top + box.clientTop};
+                top: box.getBoundingClientRect().top + box.clientTop
+                  + parseFloat(getComputedStyle(box).paddingTop)};
             }"""
         )
         cdp = page.context.new_cdp_session(page)

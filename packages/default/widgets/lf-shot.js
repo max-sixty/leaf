@@ -42,6 +42,7 @@ import {
   once,
   offer,
   failSoft,
+  frameFor,
   placesFailure,
   focusDestination,
   showNativeLayer,
@@ -217,8 +218,13 @@ customElements.define(
       this.#paintAlt();
       this.#fit();
       this.#paint();
+      // A fit can change the stage's own height, which follows the frames it sizes, so
+      // it runs after ResizeObserver delivery: a fit inside the delivery that asked for
+      // it resizes the box being watched, which the browser reports as undelivered
+      // notifications.
+      const fit = frameFor(this, () => this.#fit());
       whileConnected(this, () => {
-        const observer = sizeObserver(() => this.#fit());
+        const observer = sizeObserver(fit);
         observer.observe(this.#stage);
         // Pair's bound in flow is the screen's height, which the stage doesn't track.
         const refit = () => this.#fit();
@@ -359,7 +365,7 @@ customElements.define(
       if (!this.#stage || !this.#frames.length) return;
       // The mode sets the stage's overflow and classic-scrollbar gutter. Apply it
       // before measuring; fitting the previous mode would resize this observed
-      // stage again during ResizeObserver delivery.
+      // stage again, and fit it a second time a frame later.
       keeps(this, "data-lf-shot-mode", this.#view);
       const allocation = shotAllocation(this, this.#stage);
       if (allocation.available <= 0) return; // Hidden cases retain their last inspection until shown.

@@ -50,7 +50,7 @@ from render_harness import (
     margins_laid_out,
     marked_tops,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -665,7 +665,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         )
         rendered(page)
     elif region in ("pane", "combined"):
-        pane_posture(page, page.locator("#paint-pane"), "bounded")
+        pane_scroll_behavior(page, page.locator("#paint-pane"), "bounded")
     if region == "combined":
         page.locator("#paint-pane").evaluate(
             "node => scrollTo(0, node.getBoundingClientRect().top + scrollY - 100)"
@@ -1097,7 +1097,7 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
         ),
     )
     resized(page, 1440, 600)
-    pane_posture(page, page.locator("#grow-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#grow-pane"), "bounded")
     box = page.locator("#grow-target").bounding_box()
     select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
     page.locator(".lf-fab-input").click()
@@ -1389,7 +1389,7 @@ def test_send_grows_thread_around_the_words(
                   return range.getBoundingClientRect().left;
                 }
               };
-              return [...card.querySelectorAll('.lf-msg-head > b, .lf-msg-body, .lf-compose-placeholder > span')]
+              return [...card.querySelectorAll('.lf-msg-head > b, .lf-msg-body, .lf-compose-placeholder > span:not(.lf-compose-placeholder-aside)')]
                 .map(firstGlyph);
             }""")
 

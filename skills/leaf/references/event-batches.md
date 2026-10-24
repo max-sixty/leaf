@@ -2,10 +2,12 @@
 
 ## Handle the input
 
-Process every event in every batch. If you got a pointer, read it with
-`leaf delivery read <id>`, following each `next` command until you have every part,
-then confirm it ("Delivery and acknowledgement"). For each event, follow the
-`handling` clauses it names, in order; they say what response it needs.
+Process every event in every batch. If you got a pointer, a
+`<leaf-delivery id="<id>" operation="delivery read" />` element, read it with
+`leaf delivery read <id>` before working or replying, following each `next`
+command until you have every part, then confirm it ("Delivery and
+acknowledgement"). For each event, follow the `handling` clauses it names, in
+order; they say what response it needs.
 
 Before working, post your progress line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). Read
@@ -65,7 +67,7 @@ Events keep their stored fields and log order, without the browser's retry key
   turn's final message where its `writer` is `"turn"`; `parent` names the message it
   threads under and `responds` the exact input it answers. A `kind: "markup"` answer is the
   page revision its `handling` names, and a reply does not replace it. Until the
-  answer is written, `leaf status idle` refuses, and the Stop hook holds the turn
+  answer is written, `leaf page close` refuses, and the Stop hook holds the turn
   open unless the turn started the update (`references/conversation-loop.md`,
   "Long-running work"). Events with no `answer` owe nothing: a page action outside
   any obligation, a pick still waiting for the user's Done, or a message followed by a
@@ -99,5 +101,6 @@ to follow. Receipt commands refuse input that no longer belongs to this session.
 ## After the batch
 
 Write every answer still owed, then return to your harness's wait loop. Run
-`leaf status … waiting` once everything is answered and the next step is the
-user's; while you keep working, leave the update or to-do started instead.
+`leaf page open <page>` to put down current starts and leave feedback open.
+When you need an answer, send a thread message with `--obligation`; page availability
+creates no obligation. While you keep working, leave the update or to-do started.

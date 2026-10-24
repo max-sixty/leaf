@@ -23,6 +23,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     reported_browser_errors,
     round_trip,
     select,
@@ -78,9 +79,7 @@ def _said(page):
 
 
 def _thread_row(page, thread):
-    return page.locator(
-        f'.lf-fp-view[data-view="threads"] .lf-fp-thread[data-key="{thread}"]'
-    )
+    return page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{thread}"]')
 
 
 def _select_new_route(page):
@@ -434,7 +433,7 @@ def _open_first_unread(page, child):
     the child's own viewport, so what the containing page shows of the frame is all that
     is left to keep it unread."""
     page.keyboard.press("Enter")
-    expect(child.locator('.lf-fp-view[data-view="threads"]')).to_be_visible()
+    expect(child.locator(panel_view("threads"))).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("u")
     expect(
@@ -943,7 +942,7 @@ ROUTE_LINE = '["app/routes.py","new",201]'
         "replied",
         "started",
         "left",
-        "standing",
+        "focused",
         "selecting",
         "returned",
     ],
@@ -1060,7 +1059,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         assert box.evaluate("""field => field === window.__returnDiffEditor
           && field.selectionStart === 8 && field.selectionEnd === 8""")
         return
-    elif end == "standing":
+    elif end == "focused":
         # A user writing in the margin's card keeps it as they scroll the line away.
         page.keyboard.press("t")
         card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
@@ -1104,7 +1103,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         expect(box).to_be_focused()
         return
     elif end == "selecting":
-        # A selection of the card's words is standing there too, with focus left on a
+        # A selection of the card's words keeps that current location too, with focus left on a
         # control elsewhere.
         page.keyboard.press("t")
         card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')

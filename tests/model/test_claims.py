@@ -377,7 +377,7 @@ cli_model.cli()
         second_out, second_err = second.communicate(timeout=STATED_TIMEOUT)
         assert second.returncode == 0, f"{second_out}{second_err}"
         idled = subprocess.run(
-            [*LEAF_COMMAND, "status", page, "idle"],
+            [*LEAF_COMMAND, "page", "close", page],
             capture_output=True,
             text=True,
             check=False,
@@ -439,7 +439,7 @@ def test_hook_remedies_follow_the_harness_not_the_display_name(
 
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "w1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "leaf codex start" in reason and str(page) in reason
+    assert "leaf page claim" in reason and str(page) in reason
     assert service_model.page_claim(page)["agent"] == "Indexer"
 
 

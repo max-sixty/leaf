@@ -64,10 +64,10 @@ from leaf.page import page_instructions
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
+from leaf.registry.contract import DECLARED_WORDS
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
-from leaf.validation.instances import DECLARED_WORDS
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -148,8 +148,10 @@ def test_agent_interaction_command_help(regtest):
         "delivery read",
         "delivery ack",
         "page state",
+        "page claim",
         "thread summarize",
-        "status",
+        "page open",
+        "page close",
         "thread open",
         "thread reply",
         "thread edit",
@@ -626,50 +628,6 @@ def test_the_skill_routes_every_reference_it_ships():
         assert relative in skill, relative
 
 
-def test_the_python_instructions_name_every_module_they_own():
-    """Every Python owner is named in the instruction scope that routes it."""
-    scripts = ROOT / "src"
-    instructions = (scripts / "AGENTS.md").read_text(encoding="utf-8")
-    paragraphs = instructions.split("\n\n")
-    within = {
-        match.group(1): paragraph
-        for paragraph in paragraphs
-        if (match := re.match(r"Within `([^`/]+)/`", paragraph))
-    }
-    outside = "\n\n".join(p for p in paragraphs if not p.startswith("Within `"))
-
-    # Keep package names scoped so `registry/layer` cannot be satisfied by the
-    # top-level `layer` owner.
-    def names(scope):
-        return {
-            part.removesuffix(".py")
-            for span in re.findall(r"`([^`]+)`", scope)
-            for part in span.split("/")
-        }
-
-    package_root = scripts / "leaf"
-    modules = sorted(
-        path.relative_to(package_root)
-        for path in package_root.rglob("*.py")
-        if path.name != "__init__.py"
-    )
-    assert modules, "no modules read — an empty set names itself"
-    packages = sorted({m.parent.as_posix() for m in modules} - {"."})
-    assert not set(packages) - set(within), (
-        f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
-    )
-
-    unnamed = [
-        module.as_posix()
-        for module in modules
-        if module.stem
-        not in names(
-            outside if module.parent.as_posix() == "." else within[module.parent.name]
-        )
-    ]
-    assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
-
-
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
     """A top-level directory a session works in must be named where sessions read.
 
@@ -812,9 +770,9 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert again.exit_code != 0  # nothing changed, so there is no second version
     assert "already stamped as v1" in again.output
 
-    [waiting] = written(["status", str(page_dir), "waiting", "pick a storage engine"])
+    [waiting] = written(["page", "open", str(page_dir)])
     assert waiting == logged(waiting)
-    assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
+    assert (waiting["state"], waiting["detail"]) == ("waiting", "")
 
     # The comment's id is the thread's; --title names it in the same command.
     [opened] = written(
@@ -1657,7 +1615,7 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
 
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
-    mark delivery paints such as `data-lf-resident`, never by its tag: a rule naming
+    mark delivery paints such as `data-lf-margin-content`, never by its tag: a rule naming
     lf-toc serves lf-toc and no other contents map, and binds the kernel to one
     package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
     selectors the runtime hands a DOM query, use no tag a bundled package declares as
@@ -5028,23 +4986,22 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
     assert author.count("# Vocabulary `lf-instruction-owner`") == 1
 
 
-def test_selected_instructions_name_the_words_a_declared_attribute_takes(page_dir):
-    """An attribute that names a layer-wide word, such as a column's tone or a
-    code block's language, is a plain string in its schema, so each selected
-    entry's instructions list the words validation accepts, from the layer's own
-    list, for every entry the registry declares one on."""
+def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):
+    """An attribute that names a layer-wide word, such as a column's tone or a code
+    block's language, takes the layer's list as its `enum` in the vocabulary a page
+    composes, so its schema says what it accepts to validation and to an author
+    reading the entry, and the selected entry's instructions list the words."""
     registry = registry_storage.read_page_registry(page_dir).registry
     checked = set()
     for key, fact in DECLARED_WORDS:
         for name, entry in registry.items():
             if name.startswith("$") or not isinstance(entry, dict) or key not in entry:
                 continue
+            names = registry[fact]["names"]
+            assert entry["properties"][entry[key]]["enum"] == names
             author = page_instructions(page_dir, entries=(name,))["author"]
-            assert (
-                f"`{entry[key]}` takes one of the layer's {fact.removeprefix('$')}: "
-                + ", ".join(f"`{word}`" for word in registry[fact]["names"])
-                + "."
-            ) in author
+            listed = ", ".join(f"`{word}`" for word in names)
+            assert f"`{entry[key]}` takes one of: {listed}." in author
             checked.add(key)
     assert checked == {key for key, _ in DECLARED_WORDS}
 

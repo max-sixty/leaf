@@ -42,8 +42,9 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 - Check `quoted()` before wiring anything that sends input back ("Upgrade").
 - Read the page's words with `says()` or `wrote()`, never `textContent`
   (`module-reading.md`, "Reading the page").
-- Build injected controls with `offer()`, `offered` or `selectableOffer()` and label
-  them with `relabel()` ("Generated controls").
+- Build injected controls with `offer()`, `offered` or `selectableOffer()`, label
+  them with `relabel()`, and mark other words the widget writes with
+  `generatedElement()` or `generated` ("Generated controls").
 - Keep the box the widget has at first paint ("First paint").
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
@@ -164,8 +165,8 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
   values (`module-state.md`, "Tab-local working state") goes in `x-initial`: the path of
   a committed classic script that calls
   `document.documentElement.lfInitial.register(tag, render)`. Delivery calls
-  `render(host, {tabStore, offer, offerElement, keeps})` as soon as each host's markup
-  arrives, so the widget first appears whole. It must be synchronous, fetch nothing and
+  `render(host, {tabStore, offer, offerElement, generatedElement, keeps})` as soon as
+  each host's markup arrives, so the widget first appears whole. It must be synchronous, fetch nothing and
   read nothing from the log; it may move authored nodes within the host, and returns the
   node references the module needs. The module calls `initialRender(host)` to get that
   result, drawn on demand for a host that arrived later, and adds behavior to those
@@ -305,8 +306,13 @@ file, with `el`.
 `relabel(node, label, {says})` writes a generated control's label. Set `says: true`
 where the label is the page speaking, as a pick mark reading "chosen" does, `false` for an
 action word, and `"echo"` for a copy of words the page shows elsewhere, such as a
-worker's name. In a template, write `data-lf-gen="1"` plus `data-lf-said` or
-`data-lf-echo` instead.
+worker's name.
+
+Mark every other element whose words the widget writes, and every box it fills, with
+`generatedElement(node, {says})`, which takes the same answers; in a template, write
+`<h2 ${generated({ says: true })}>`. The version diff then looks past those words
+rather than reading them as a change nobody wrote. Don't write the `data-lf-gen`,
+`data-lf-said` or `data-lf-echo` attributes yourself.
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a

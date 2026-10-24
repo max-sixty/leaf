@@ -273,7 +273,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     first_document = page.evaluate("performance.timeOrigin")
     page.evaluate("window.__pageModuleState.oldDocumentOnly = true")
 
-    write(page_comment(page), "Keep this recoverable draft in the page instance.")
+    write(page_comment(page), "Keep this recoverable draft in the page.")
     page.keyboard.press("Escape")
 
     page.locator("#live-reading").evaluate(
@@ -281,9 +281,9 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     )
     page.locator("#activation-go .lf-pick").click()
     holding(page, held, 1, "the unresolved option pick")
-    standing = page.locator("#standing-control")
-    standing.click()
-    expect(standing).to_be_focused()
+    focused_control = page.locator("#focused-control")
+    focused_control.click()
+    expect(focused_control).to_be_focused()
     reading_top = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -300,7 +300,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
         assert page.evaluate("performance.timeOrigin") == first_document
         expect(page).to_have_title("Live first")
-        expect(standing).to_be_focused()
+        expect(focused_control).to_be_focused()
         assert len(held) == 1
 
         # The explicit door may release a composition hold, but it cannot release the
@@ -332,7 +332,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     )
     assert abs(restored_top - reading_top) < 2, (reading_top, restored_top)
     expect(page_comment(page)).to_have_js_property(
-        "value", "Keep this recoverable draft in the page instance."
+        "value", "Keep this recoverable draft in the page."
     )
 
     historical = open_page(browser, version_url, pin=True)
@@ -611,10 +611,11 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
-    # One reply answers both questions. Counts include them, while the
-    # compact answer summary names only widget choices instead of repeating words.
+    # One reply answers both questions; the separate proofread task remains due.
+    # Counts include them, while the compact answer summary names only widget
+    # choices instead of repeating words.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 waiting on me · 3 answered · Email"
+        "1 waiting on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
@@ -734,7 +735,9 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         "async () => await api.threadActions.open('nested-question-key', {message:'nested-question-key'}) !== null"
     )
     expect(workspace.locator('.lf-msg[data-event="nested-question"]')).to_be_focused()
-    assert page.evaluate("api.standingIn(document.querySelector('#workspace').reader)")
+    assert page.evaluate(
+        "api.currentLocationIn(document.querySelector('#workspace').reader)"
+    )
     assert page.evaluate(
         "typeof api.holdFocus(document.querySelector('#workspace').reader) === 'function'"
     )

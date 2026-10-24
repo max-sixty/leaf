@@ -16,7 +16,7 @@ import {
   nativeLayerHolding,
   nativeLayerKind,
   nextRender,
-  onStanding,
+  onCurrentLocation,
   releaseFocus,
   renderedParent,
   renderedUnder,
@@ -953,11 +953,10 @@ var clampedRow = (rows, current, dir, entry = dir > 0 ? 0 : rows.length - 1) => 
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
 };
 var cycledRow = (rows, current, dir) => {
-  if (!rows.length) return { row: void 0, wrapped: false };
+  if (!rows.length) return void 0;
   const at = rows.indexOf(current);
   const next = at < 0 ? dir > 0 ? 0 : rows.length - 1 : at + dir;
-  const wrapped = next < 0 || next >= rows.length;
-  return { row: rows[(next + rows.length) % rows.length], wrapped };
+  return rows[(next + rows.length) % rows.length];
 };
 
 // runtime/keyboard/text-entry.js
@@ -1292,7 +1291,7 @@ var frame = 0;
 var movePage = false;
 function mountRepaint(slots) {
   painters = slots;
-  onStanding(requestFrame);
+  onCurrentLocation(requestFrame);
   requestFrame();
 }
 function requestFrame() {
@@ -1304,7 +1303,7 @@ function requestFrame() {
     const p = painters;
     p.reflectFirstScopes?.();
     p.markHere?.();
-    p.paintStanding?.();
+    p.paintCurrentLocation?.();
     p.paintSelectedMarginEntries?.();
     p.paintTouchControls?.();
     p.paintStatusContext?.();
@@ -2128,9 +2127,9 @@ function seatModal(dialog, source) {
 function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
   if (dialog ? !layer.open : !isNativeLayer(layer)) return;
-  const standing = focused();
+  const currentLocation = focused();
   const returnTo = entries.find((entry) => entry.root === layer)?.opener;
-  const returnLocally = document.documentElement.lfSample && standing && renderedUnder(standing, layer);
+  const returnLocally = document.documentElement.lfSample && currentLocation && renderedUnder(currentLocation, layer);
   const inhibited = document.documentElement.lfSample ? [
     document.documentElement,
     ...nativeLayers().filter((entry) => entry.kind === "modal").map((entry) => entry.root)
@@ -2744,6 +2743,7 @@ var ICONS = {
   down: '<path d="m4 6.25 4 4 4-4"/>',
   edit: '<path d="m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2"/>',
   expand: '<path d="M9.5 3H13v3.5M13 3 9.25 6.75M6.5 13H3V9.5M3 13l3.75-3.75"/>',
+  collapse: '<path d="M13 3 9.25 6.75M9.25 3.25v3.5h3.5M3 13l3.75-3.75M3.25 9.25h3.5v3.5"/>',
   fit: '<path d="M6 3H3v3M10 3h3v3M3 10v3h3M13 10v3h-3"/>',
   fold: '<path d="M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
@@ -2967,14 +2967,10 @@ document.addEventListener(
   },
   true
 );
+var generatedElement = (...args) => document.documentElement.lfInitial.generatedElement(...args);
+var generated = elementDirective("generated", generatedElement);
 function relabel(node, label, { says } = {}) {
-  if (typeof says !== "boolean" && says !== "echo")
-    throw new TypeError(
-      `Say whether this label is the page speaking: true, false, or "echo" for a copy of words it says elsewhere`
-    );
-  keeps(node, "data-lf-gen", "1");
-  node.toggleAttribute("data-lf-said", says === true);
-  node.toggleAttribute("data-lf-echo", says === "echo");
+  generatedElement(node, { says });
   keepsText(node, label);
 }
 function closeControl({ name, title = name, className = "" }) {
@@ -3635,6 +3631,8 @@ export {
   selectableOffered,
   PRESSABLE,
   reachedForWords,
+  generatedElement,
+  generated,
   relabel,
   closeControl,
   responseAction,

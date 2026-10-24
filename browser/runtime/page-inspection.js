@@ -14,7 +14,7 @@ import {
   handBack,
   openLayer,
   openerOf,
-  standingIn,
+  currentLocationIn,
 } from "./focus.js";
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { requestJson, sessionIsActive } from "./layer-client.js";
@@ -218,7 +218,7 @@ async function loadSource() {
   request = attempt;
   sourceError = null;
   loading = true;
-  if (standingIn(body)) focusDestination(close, "move");
+  if (currentLocationIn(body)) focusDestination(close, "move");
   present();
   try {
     const source = await requestJson(

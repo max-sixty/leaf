@@ -24,6 +24,7 @@ from render_harness import (
     PANEL,
     open_page,
     panel_settled,
+    panel_view,
     shown,
     ticked,
     told,
@@ -157,9 +158,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     # The agent finishes the earlier task and waits on the user.
     end_work(d)
-    latent_waiting = CliRunner().invoke(
-        cli_model.cli, ["status", str(d), "waiting", "review the answer"]
-    )
+    latent_waiting = CliRunner().invoke(cli_model.cli, ["page", "open", str(d)])
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
     expect(held_workflow).to_have_text("Delivered")
@@ -303,7 +302,7 @@ def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_le
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
-    this_page = page.locator(".lf-fp-view[data-view=leaves] .lf-fp-page").first
+    this_page = page.locator(f"{panel_view('leaves')} .lf-fp-page").first
     expect(this_page).to_contain_text("This page")
     # The row names the page; what its agent is doing is said whole on hover.
     expect(this_page).to_have_attribute(

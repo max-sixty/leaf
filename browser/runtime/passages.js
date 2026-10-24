@@ -54,15 +54,15 @@
    `data-lf-said` is nearer than `.lf-ui` and declares that a label inside
    chrome-looking structure is still one of the page's words. This lets a tab label or
    draft heading remain quotable while runtime controls stay outside the passage.
-   `relabel` writes the said marker; `offer` writes the control marker. They are
-   independent facts and neither clears the other.
+   `generatedElement` writes the said marker; `offer` writes the control marker. They
+   are independent facts and neither clears the other.
 
    A label copied off another element on the page is a route to those words rather
    than a second place the page says them. Say it once: a contents link, a roster row
    naming a worker, any generated index entry stays chrome, and the passage lives where
    the page speaks it. Two copies of one label carry the same text and, being fenced,
    the same empty context, so neither can be told from the other and a drag across
-   either detaches. (`relabel`'s third answer, `says: "echo"`, is what such a route
+   either detaches. (The third answer of `says`, `"echo"`, is what such a route
    declares; widget-elements.js says how.)
 
    Use `inChrome` when the question is whether an element belongs to the runtime's
@@ -695,7 +695,7 @@ export const elementFromPointAcross = (x, y) => {
 // write, and `elementById` above is what widened that: a mark placed on a staged element
 // sits in a tree `document.querySelectorAll` never enters, so the clear would miss it and
 // the mark outlive the reason for it. The runtime's own marks are read back this way, and
-// so is a control the user can stand on, for the same reason: both are wherever the
+// so is a control the user can focus, for the same reason: both are wherever the
 // markup ended up. Which widgets the page holds is a different question and still the
 // document's:
 // a widget staged inside another's tree is a nesting the registry's x-owners contract

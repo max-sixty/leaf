@@ -16,7 +16,7 @@ import {
   materializeContributionControls,
   presentContributionReceipts,
 } from "./contribution-controls.js";
-import { declareSide } from "./standing-target.js";
+import { declareSide } from "./current-target.js";
 import { under } from "./shadow.js";
 import { annotationItems, entryControls } from "./margin-model.js";
 

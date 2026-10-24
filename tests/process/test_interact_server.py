@@ -1750,7 +1750,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
     )
     assert stamped.exit_code == 0, stamped.output
     revision = files_model.latest_revision(page_dir)
-    marker = f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+    marker = f'<meta name="lf-revision" content="{revision}" data-lf-runtime>'
     artifact_root = (
         f"/revisions/{files_model.revision_path(page_dir, revision).stem}"
         f"/{serving_runtime().identity}"
@@ -1825,7 +1825,7 @@ def test_state_and_delivery_agree_on_a_revisions_executable_identity(server, pag
         return fetch(server + address)[1].decode()
 
     def meta(digest):
-        return f'<meta name="lf-executable" data-lf-runtime content="{digest}">'
+        return f'<meta name="lf-executable" content="{digest}" data-lf-runtime>'
 
     active = served_state()
     captured = artifact_model.read_artifact(page_dir, active["revision"])
@@ -5573,7 +5573,7 @@ def test_a_different_key_does_not_replace_a_page_cookie(page_dir):
 
 def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server):
     """A claimed page whose agent has declared nothing yet, such as a copy served
-    before any `leaf status`, answers `/api/state` as a page waiting on its
+    before any `leaf page open`, answers `/api/state` as a page waiting on its
     user."""
     publish(page_dir)
     service_model.claim_page(page_dir)
@@ -5624,16 +5624,16 @@ def test_the_live_document_keeps_its_revision_and_version_in_one_transaction(
     status, body = fetch(f"{server}/")
     assert status == 200
     document = body.decode()
-    assert '<meta name="lf-revision" data-lf-runtime content="1">' in document
-    assert '<meta name="lf-version" data-lf-runtime content="1">' in document
+    assert '<meta name="lf-revision" content="1" data-lf-runtime>' in document
+    assert '<meta name="lf-version" content="1" data-lf-runtime>' in document
     assert "<title>t</title>" in document
     assert published
 
     status, body = fetch(f"{server}/")
     assert status == 200
     document = body.decode()
-    assert '<meta name="lf-revision" data-lf-runtime content="2">' in document
-    assert '<meta name="lf-version" data-lf-runtime content="2">' in document
+    assert '<meta name="lf-revision" content="2" data-lf-runtime>' in document
+    assert '<meta name="lf-version" content="2" data-lf-runtime>' in document
     assert "<title>New title</title>" in document
 
 
@@ -5971,12 +5971,9 @@ def test_test_teardown_ends_detached_delivery_before_removing_state(
     its detached adapter releases its leases before temporary state disappears.
     """
     page = codex_claimed_page
-    program = Path(codex_queue["PATH"].split(os.pathsep)[0]) / "codex"
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
-        shlex.join(
-            [*LEAF_COMMAND, "codex", "start", str(page), "--codex-path", str(program)]
-        ),
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)]),
         codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
         finished=finished,
         stdout=subprocess.PIPE,

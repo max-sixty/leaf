@@ -68,8 +68,9 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     panel_settled,
+    panel_view,
     regions_side_by_side,
     resized,
     round_trip,
@@ -2384,7 +2385,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(page.locator(".lf-inspect")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel = page.locator('.lf-fp-view[data-view="threads"]')
+    panel = page.locator(panel_view("threads"))
     panel_settled(page, view="threads")
     expect(panel).to_be_visible()
     panel.hover()
@@ -2764,7 +2765,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
 def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, serve):
     """The package's update signal rebuilds a contour even when its box does not move.
 
-    The contour is the one standing in the part's thread raises; at rest a thread draws
+    The contour is the one entering the part's thread raises; at rest a thread draws
     nothing on its element."""
     url = serve(
         GENERIC_VISUAL_PAGE,
@@ -3126,7 +3127,7 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     )
     told(page)
     expect(diamond).to_have_class(re.compile(r"\blf-mark-el\b"))
-    # Standing in the thread raises the contour; at rest the thread draws none.
+    # Located in the thread raises the contour; at rest the thread draws none.
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
     expect(diamond).to_have_class(re.compile(r"\blf-projected-mark\b"))
@@ -3163,7 +3164,7 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     )
     page.evaluate(
         """() => {
-          window.__lfStandingContour = document.querySelector(
+          window.__lfCurrentLocationContour = document.querySelector(
             '.lf-visual-mark-shape > g > *'
           );
         }"""
@@ -3183,7 +3184,7 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
     )
     assert page.evaluate(
-        """() => window.__lfStandingContour === document.querySelector(
+        """() => window.__lfCurrentLocationContour === document.querySelector(
           '.lf-visual-mark-shape > g > *'
         )"""
     )
@@ -3374,7 +3375,7 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
         ),
     )
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#aim-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#aim-pane"), "bounded")
     target = page.locator("#pane-target").bounding_box()
     page.mouse.move(target["x"] + 40, target["y"] + 130)
     page.keyboard.down("Alt")
@@ -3417,7 +3418,7 @@ graph LR
         ),
     )
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#aim-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#aim-pane"), "bounded")
     if subject == "words":
         page.locator("#pane-words").hover()
         page.keyboard.down("Alt")
@@ -4064,7 +4065,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     page = open_page(browser, serve(source, events=events if mode == "ink" else []))
     resized(page, 1280, 720)
     if scroller == "pane":
-        pane_posture(page, page.locator("#design-pane"), "bounded")
+        pane_scroll_behavior(page, page.locator("#design-pane"), "bounded")
     _paint_mode(page, mode, "finding" if scroller == "pane" else "Paragraph 3")
     if mode == "design":
         named = ["pane-target", "pane-later"] if scroller == "pane" else ["p3", "p4"]
@@ -4164,7 +4165,7 @@ def test_saved_ink_is_cut_where_its_pane_cuts_what_it_marks(browser, serve):
         browser, serve(DESIGN_PANE_PAGE, events=[_drawn_on("pane-target")])
     )
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#design-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#design-pane"), "bounded")
     mark = page.locator(".lf-drawing-posted")
     expect(mark).to_have_count(1)
     page.evaluate("() => document.querySelector('#design-pane > div').scrollBy(0, 150)")
@@ -4206,7 +4207,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
         ),
     )
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#design-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#design-pane"), "bounded")
     _design_mode(page)
     target = page.locator("#pane-target").bounding_box()
     page.mouse.move(target["x"] + 40, target["y"] + 130)

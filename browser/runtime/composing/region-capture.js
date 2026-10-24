@@ -14,7 +14,7 @@ import { offlineInteractive } from "../context.js";
 import { retainUserIntent } from "../user-intent.js";
 import { leafSurface, closestAcross } from "../passages.js";
 import { pressIsKeyboardActivation } from "../pointer.js";
-import { onStanding } from "../focus.js";
+import { onCurrentLocation } from "../focus.js";
 import { raiseError } from "../errors.js";
 
 export function createRegionCapture({
@@ -83,7 +83,7 @@ export function createRegionCapture({
     );
 
   // Native editing elsewhere is a new task. Keep the focus the user just chose.
-  onStanding((node) => {
+  onCurrentLocation((node) => {
     if (
       selector &&
       node &&
@@ -109,7 +109,7 @@ export function createRegionCapture({
     title: "Capture area",
     touch: "Capture area",
     menu: "annotate",
-    retainStanding: true,
+    retainCurrentLocation: true,
     when: () => anchoringIsReady() && !offlineInteractive && !opening,
     run: async () => {
       const intent = retainUserIntent();

@@ -1082,9 +1082,10 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     assert len(quote) < 2 * len(covered), (
         f"the drag out of the document stored {len(quote)} characters as its passage"
     )
-    assert quote and quote in page.evaluate(
-        "() => document.querySelector('main').textContent"
-    ), f"the composer quotes something the document does not hold: {quote!r}"
+    document_words = page.evaluate("() => document.querySelector('main').textContent")
+    assert quote and quote in " ".join(document_words.split()), (
+        f"the composer quotes something the document does not hold: {quote!r}"
+    )
     # The three readings of one passage: what the box says it is about, what the page
     # paints, and what the field is called. A capture that ran past the document moved
     # all three together, so any one of them alone would pass on a page it had ruined.
@@ -2008,9 +2009,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return {
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
-        // The row draws its own triangle, since a flex row draws no native marker.
+        // A flex row draws no native marker, so it wears Leaf's, turned its own way.
         disclosure: getComputedStyle(d.querySelector('summary'), '::before').content
-          .startsWith(d.open ? '"\u25bc"' : '"\u25b6"'),
+          .includes(d.open ? 'disclosure-open' : 'disclosure-closed'),
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({
@@ -2604,7 +2605,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
 
     The staged control is the one the register could not reach at all.
     `document.activeElement` retargets to the host, so the scope walk started at the
-    widget and never saw the control the user was standing on."""
+    widget and never saw the control the user was located on."""
     url = serve(
         NATIVE_CONTROL_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -2653,12 +2654,12 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
 
 
-def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
+def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_current_location(
     browser, serve
 ):
     """A component that makes its own shadow root, as a Web Awesome control does, moves
     focus between its own controls with no event reaching any root focus.js listens on.
-    Where the user stands is still read once the key's task ends, so every reader of it
+    The current location is still read once the key's task ends, so every reader of it
     hears the move as the Tab it was."""
     page = open_page(browser, serve(DIFF_PAGE))
     page.evaluate(
@@ -2668,9 +2669,9 @@ def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
           host.attachShadow({ mode: "open" }).innerHTML =
             "<button id=one>one</button><button id=two>two</button>";
           document.querySelector("main").append(host);
-          const { onStanding } = await window.__lfCheckApi();
+          const { onCurrentLocation } = await window.__lfCheckApi();
           window.heard = [];
-          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          onCurrentLocation((node, cause) => window.heard.push([node?.id ?? null, cause]));
           host.shadowRoot.getElementById("one").focus();
         }"""
     )
@@ -2721,9 +2722,9 @@ def test_internal_focus_moves_publish_before_old_markup_is_collected(
             dialog.replaceWith(layer);
             layer.showPopover();
           }
-          const {onStanding} = await window.__lfCheckApi();
+          const {onCurrentLocation} = await window.__lfCheckApi();
           window.heard = [];
-          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          onCurrentLocation((node, cause) => window.heard.push([node?.id ?? null, cause]));
           host.shadowRoot.getElementById('one').focus();
         }""",
         removed,
@@ -2810,10 +2811,10 @@ def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, arriva
           const root = host.attachShadow({mode: 'open'});
           root.innerHTML = '<button id="one">First</button><button id="two">Next</button>';
           document.querySelector('main').append(host);
-          const {onStanding} = await window.__lfCheckApi();
+          const {onCurrentLocation} = await window.__lfCheckApi();
           const {focusDestination} = await window.__lfWidgetApi();
           window.heard = [];
-          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          onCurrentLocation((node, cause) => window.heard.push([node?.id ?? null, cause]));
           const one = root.getElementById('one');
           one.addEventListener('focus', () => root.getElementById('two').focus(), {once: true});
           if (arrival === 'return') focusDestination(one, 'return');
@@ -3086,11 +3087,11 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
 
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
-    click lands back in the thread. Nothing that says where the user stands may look
+    click lands back in the thread. Nothing that marks the current location may look
     deselected in that gap: not the element's contour, which the pointer on the page no
     longer raises, and not the margin entry's selection.
 
-    So standing holds across the whole press, every frame from mouse-down until after
+    So the current location holds across the whole press, every frame from mouse-down until after
     the click. The reaction beside the comment is the case that first showed the gap.
     """
     url = serve(INLINE_PAGE)
@@ -3164,7 +3165,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     frames = page.evaluate("() => window.lfFrames.splice(0)")
     lost = [frame for frame in frames if not frame["contour"] or frame["entry"] != 1]
     assert not lost, (
-        f"standing blinked during the press: {lost} of {len(frames)} frames"
+        f"the current location blinked during the press: {lost} of {len(frames)} frames"
     )
 
 

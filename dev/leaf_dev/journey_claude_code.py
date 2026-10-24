@@ -86,10 +86,14 @@ from pathlib import Path
 import click
 import psutil
 
-from leaf.delivery import DELIVERY, pickup_receipts
+from leaf.delivery import DELIVERY, delivery_pointer_prompt, pickup_receipts
 from leaf.event_log import read_events
-from leaf.harness import ClaudeCodeHarness
-from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING, POINTED_OPENING
+from leaf.harness import (
+    ClaudeCodeHarness,
+    claude_code_live_turn,
+    claude_code_registry,
+)
+from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -106,7 +110,9 @@ from leaf_dev.commands.journey import Isolation, Terminal, User, isolated, user_
 from leaf_dev.reply_phases import (
     claude_code_debug_records,
     claude_code_records,
+    ends_turn,
     instant,
+    transcript_records,
 )
 from leaf_dev.review_scenario import (
     REQUEST,
@@ -118,6 +124,9 @@ from leaf_dev.review_scenario import (
     require,
     settled,
 )
+
+# How a hook context that hands a delivery over by its pointer begins.
+POINTER_OPENING = delivery_pointer_prompt("00000000").partition(" id=")[0]
 
 # The user's own turn, which leaves a comment handed to it unanswered.
 DEFERRING_TURN = USER_TURN.replace(
@@ -209,8 +218,18 @@ class ClaudeCode(Terminal):
         raise click.ClickException(f"the turn went on after Escape\n{self.screen()}")
 
     def state(self) -> str | None:
-        """The turn's state in Claude Code's own record (`live_turn`)."""
-        turn = ClaudeCodeHarness(session=self.session, agent="Claude").live_turn()
+        """The turn's state in Claude Code's own record (`claude_code_live_turn`),
+        read now. Leaf's hooks and server reuse a registry listing for up to
+        `REGISTRY_READ_S` (`claude_code_session_records`), longer than some states
+        the journey checks last: Claude Code reads idle for about 50 ms between an
+        Escape and the wake it submits again (measured at 2.1.309)."""
+        turn = claude_code_live_turn(
+            [
+                record
+                for record in claude_code_registry()
+                if record.get("sessionId") == self.session
+            ]
+        )
         return None if turn is None else turn["state"]
 
     def idle(self) -> bool:
@@ -325,7 +344,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             not any(
                 (attachment := record.get("attachment", {})).get("hookEvent") == "Stop"
                 and any(
-                    content.startswith((INLINE_OPENING, POINTED_OPENING))
+                    content.startswith((INLINE_OPENING, POINTER_OPENING))
                     for content in attachment.get("content") or []
                 )
                 for record in native_records(cc.home, cc.session)
@@ -492,28 +511,18 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         cc.tmux("send-keys", "-t", cc.pane, "Escape")
         return held
 
-    def delivered(update: str, since: int) -> int:
-        """How many inline deliveries a hook put in the conversation, from record
-        `since` on, carry `update`: a reminder naming it does not."""
-        return sum(
-            event["id"] == update
-            for record in native_records(cc.home, cc.session)[since:]
-            if (attachment := record.get("attachment", {})).get("type")
-            == "hook_additional_context"
-            for content in attachment.get("content") or []
-            if content.startswith(INLINE_OPENING + "\n")
-            for batch in json.loads(content.split("\n")[1])["batches"]
-            for event in batch["events"]
-        )
+    def since(held: int) -> list[dict]:
+        """The conversation's records from record `held` on."""
+        return native_records(cc.home, cc.session)[held:]
 
     started = time.monotonic()
     dropped = user.comment("dropped")
-    since = drop(dropped)
+    held = drop(dropped)
     # Claude Code submits the queued wake again, and that attempt's prompt hook hands
     # the comment over anew.
     cc.until(answered("dropped"), "dropped: the comment was not answered", 120)
     require(
-        delivered(dropped, since) > 0,
+        bool(deliveries(since(held), dropped)),
         "dropped: no hook delivered the comment again after Escape",
     )
     step("dropped", started, "dropped")
@@ -529,9 +538,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         for event in resolve["events"]
         if event.get("attempt") == attempt("resolve")
     )
-    since = drop(resolved)
+    held = drop(resolved)
     cc.until(
-        lambda: delivered(resolved, since) > 0 and cc.idle(),
+        lambda: delivery_ended(since(held), resolved),
         "withdrawn: the resolve Escape dropped never reached the agent",
         120,
     )
@@ -658,7 +667,7 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
         ):
             count("hook error")
         elif attachment.get("type") == "hook_additional_context" and any(
-            str(part).startswith((INLINE_OPENING, POINTED_OPENING))
+            str(part).startswith((INLINE_OPENING, POINTER_OPENING))
             or ATTENTION_OPENING in str(part)
             for part in attachment.get("content") or []
         ):
@@ -673,9 +682,42 @@ def slow_prompt(place: Isolation) -> Path:
 
 
 def native_records(home: Path, session: str) -> list[dict]:
-    """The native session record, including hook context attachments."""
+    """The native session record, including hook context attachments
+    (`reply_phases.transcript_records`)."""
     [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
-    return [json.loads(line) for line in path.read_text().splitlines()]
+    return transcript_records(path)
+
+
+def deliveries(records: list[dict], update: str) -> list[int]:
+    """The positions in `records` of the inline deliveries a hook put in the
+    conversation that carry `update`: a reminder naming it carries nothing."""
+    return [
+        position
+        for position, record in enumerate(records)
+        if (attachment := record.get("attachment", {})).get("type")
+        == "hook_additional_context"
+        and any(
+            event["id"] == update
+            for content in attachment.get("content") or []
+            if content.startswith(INLINE_OPENING + "\n")
+            for batch in json.loads(content.split("\n")[1])["batches"]
+            for event in batch["events"]
+        )
+    ]
+
+
+def delivery_ended(records: list[dict], update: str) -> bool:
+    """Whether the turn a hook delivered `update` to has ended: whether the
+    transcript (`records`) holds a record that ends a turn after the last delivery
+    carrying `update`.
+
+    An update that owes no answer leaves no reply to wait for, so the journey waits
+    for the transcript's turn end, which the transcript orders after the delivery
+    itself. An idle reading of Claude Code's record carries no such order: the
+    Escape that dropped the first delivery wrote one just before the wake was
+    submitted again."""
+    found = deliveries(records, update)
+    return bool(found) and any(ends_turn(record) for record in records[found[-1] :])
 
 
 @contextmanager

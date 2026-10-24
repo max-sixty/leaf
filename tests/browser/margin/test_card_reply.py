@@ -14,7 +14,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     resized,
     round_trip,
     scroll_settled,
@@ -170,8 +170,12 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     rendered(page)
     assert header.bounding_box() == pytest.approx(original[0], abs=0.5)
     assert row.bounding_box() == pytest.approx(original[1], abs=0.5)
+    # The clip starts above the first message so its focus ring stays whole.
+    top_room = transcript.evaluate(
+        "list => parseFloat(getComputedStyle(list).paddingTop)"
+    )
     assert header.bounding_box()["y"] == pytest.approx(
-        transcript.bounding_box()["y"], abs=0.5
+        transcript.bounding_box()["y"] + top_room, abs=0.5
     )
     # The scrollport extends under the reply by its bottom padding so a rewrite's
     # outside focus ring stays visible; the scrolling turns stop above the row.
@@ -1088,7 +1092,7 @@ def test_resizing_a_focused_editor_keeps_the_pane_the_reader_scrolled_away(
     focus as permission to bring the surrounding reading pane back."""
     page = open_page(browser, serve(PANE_PIN_PAGE))
     resized(page, 1440, 600)
-    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     page.evaluate("""() => {
       const body = document.querySelector('#pin-pane > div');
       body.style.overflowAnchor = 'none';

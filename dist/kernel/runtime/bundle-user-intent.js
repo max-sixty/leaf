@@ -129,6 +129,7 @@ import {
   elementDeclarations,
   elementsDeclaring,
   exhibits,
+  generatedElement,
   growthAfterIsSeen,
   growthIsSeen,
   headerInset,
@@ -144,6 +145,7 @@ import {
   nearestScrollBy,
   notice,
   offer,
+  offered,
   pagePresented,
   paintKeys,
   passErrorsAt,
@@ -186,12 +188,15 @@ import {
   cancelRender,
   caretAtKey,
   carriedFrom,
+  currentLocationIn,
+  currentLocationNodes,
+  currentLocationTouches,
   deepFocus,
   drawn,
   focusDestination,
   focused,
+  holdCurrentLocation,
   holdFocus,
-  holdStanding,
   inputCount,
   keeps,
   keepsHidden,
@@ -199,8 +204,9 @@ import {
   move,
   nextFrame,
   nextRender,
+  onCurrentLocation,
   onPress,
-  onStanding,
+  onPressAway,
   readCaret,
   recentPlaceInput,
   renderedOrder,
@@ -209,9 +215,6 @@ import {
   ringBox,
   selectsAll,
   sizeObserver,
-  standingIn,
-  standingNodes,
-  standsOn,
   takesLetters,
   under,
   upFrom
@@ -633,7 +636,7 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
   }
   if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
 }
-onStanding((node, cause) => {
+onCurrentLocation((node, cause) => {
   if (cause !== "step" || !node) return;
   nextRender(() => {
     if (deepFocus() !== node) return;
@@ -888,19 +891,23 @@ function capturePlace(region = null, blocks = textBlocks()) {
     revision: runtime.currentRevision,
     [READ_BOX]: new WeakRef(box)
   };
-  const standing2 = focusedInView();
+  const currentLocation2 = focusedInView();
   const body = region?.body ?? pageDocument();
-  const standingBody = readingRegionFor(standing2)?.body ?? body;
+  const currentLocationBody = readingRegionFor(currentLocation2)?.body ?? body;
   const focusPlace = () => ({
-    node: new WeakRef(standing2),
+    node: new WeakRef(currentLocation2),
     body: new WeakRef(body),
-    region: containingReadingRegionFor(standing2)?.id,
-    intent: retainUserIntent({ source: standing2 })
+    region: containingReadingRegionFor(currentLocation2)?.id,
+    intent: retainUserIntent({ source: currentLocation2 })
   });
-  const standsOn2 = recentPlaceInput() === "focus" && standing2 && under(standing2, body) && // Focus on the reading surface itself names its contents, not a landmark.
-  !under(standingBody, standing2);
+  const hasFocusedLandmark = recentPlaceInput() === "focus" && currentLocation2 && under(currentLocation2, body) && // Focus on the reading surface itself names its contents, not a landmark.
+  !under(currentLocationBody, currentLocation2);
   if (region && followingItsEnd(box))
-    return { ...view, ...standsOn2 && { [FOCUSED_PLACE]: focusPlace() }, end: true };
+    return {
+      ...view,
+      ...hasFocusedLandmark && { [FOCUSED_PLACE]: focusPlace() },
+      end: true
+    };
   const bounds = readingBounds(region);
   const column = bounds && readerColumn(bounds, body);
   let named = null;
@@ -971,7 +978,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
       view[DRAWN_PLACE] = { node: new WeakRef(drawn3.box), through: drawn3.through };
     }
   }
-  if (standsOn2 && !(named && under(named, standing2)))
+  if (hasFocusedLandmark && !(named && under(named, currentLocation2)))
     view[FOCUSED_PLACE] = focusPlace();
   return view;
 }
@@ -1013,8 +1020,8 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   const box = region ? effectiveScroller(region) : pageScroller;
   const body = region?.body ?? pageDocument();
   const destination = focusedPlace(view);
-  const standing2 = destination && under(destination, body) ? destination : null;
-  if (!standing2 || !sameScroller(view, box)) {
+  const currentLocation2 = destination && under(destination, body) ? destination : null;
+  if (!currentLocation2 || !sameScroller(view, box)) {
     if (view.end) {
       scrollToEnd(box);
     } else {
@@ -1028,7 +1035,7 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
           box,
           rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop
         );
-      } else if (!standing2) {
+      } else if (!currentLocation2) {
         const found = targetElement(resolveAnchor({ section: view.section }));
         const section = found && drawsLandmark(found) ? found : null;
         if (section) {
@@ -1043,8 +1050,9 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
       }
     }
   }
-  if (standing2) scrollIntoReadingBand(standing2, standing2, "nearest", "instant");
-  placeKept(box, ...standing2 ? scrollersOf(standing2) : []);
+  if (currentLocation2)
+    scrollIntoReadingBand(currentLocation2, currentLocation2, "nearest", "instant");
+  placeKept(box, ...currentLocation2 ? scrollersOf(currentLocation2) : []);
 }
 
 // runtime/obligations/model.js
@@ -1072,7 +1080,7 @@ function obligationsIn(region, items = readObligations().all) {
   });
 }
 
-// runtime/standing-target.js
+// runtime/current-target.js
 var sides = /* @__PURE__ */ new Map();
 function declareSide(bridge, { beside = false } = {}) {
   sides.set(bridge, beside);
@@ -1084,8 +1092,8 @@ function obligationHolding(items, node) {
   let held = null;
   for (const item of items) {
     if (item.source.kind !== "widget") continue;
-    const { source, node: stands } = obligationPlace(item, items);
-    const at = holds(source) ? source : holds(stands) ? stands : null;
+    const { source, node: target } = obligationPlace(item, items);
+    const at = holds(source) ? source : holds(target) ? target : null;
     if (at && (!held || under(at, held.at))) held = { item, at };
   }
   return held?.item ?? null;
@@ -1105,18 +1113,18 @@ function placeFrom(node, visited, countBeside) {
   }
   return inChrome(at) ? null : at;
 }
-function standingOrigin() {
-  for (const node of standingNodes()) {
+function currentLocationOrigin() {
+  for (const node of currentLocationNodes()) {
     const place2 = placeOf(node);
     if (place2) {
       const tab = place2.closest('[role="tab"][aria-selected="true"]');
       const panel = tab?.ariaControlsElements?.[0];
-      return panel ? { place: panel, kind: "enter" } : { place: place2, kind: "standing" };
+      return panel ? { place: panel, kind: "enter" } : { place: place2, kind: "current-location" };
     }
   }
   return null;
 }
-var walkOrigin = () => standingOrigin() ?? { place: pageReadingBlock(), kind: "standing" };
+var walkOrigin = () => currentLocationOrigin() ?? { place: pageReadingBlock(), kind: "current-location" };
 function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   if (!here) return cycledRow(list, null, dir);
   if (kind === "enter") {
@@ -1131,8 +1139,7 @@ function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
     if (!place2) return dir > 0;
     return renderedUnder(here, place2) || Math.sign(renderedOrder(here, place2)) === -dir;
   });
-  const row = dir > 0 ? reach[0] : reach.at(-1);
-  return row ? { row, wrapped: false } : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
+  return (dir > 0 ? reach[0] : reach.at(-1)) ?? (dir > 0 ? list[0] : list.at(-1));
 }
 function heldObligation(node = focused()) {
   const item = obligationHolding(readObligations().all, placeOf(node));
@@ -1265,7 +1272,7 @@ function quietWord(el2, word) {
     className: "lf-ui lf-quiet",
     textContent: word
   });
-  span.dataset.lfGen = "1";
+  generatedElement(span, { says: false });
   move(el2, span, title ? title.nextSibling : el2.firstChild);
 }
 var isExternalPageLink = (link) => document.documentElement.lfInitial.externalLinks.matches(link);
@@ -1314,7 +1321,7 @@ function writePrepaint(root) {
       markup.content.firstElementChild
     );
     written.toggleAttribute("data-lf-prepaint", true);
-    written.dataset.lfGen = "1";
+    generatedElement(written, { says: false });
     for (const el2 of elementsIn(root, tag)) el2.prepend(written.cloneNode(true));
   }
 }
@@ -1333,7 +1340,7 @@ function renderSaid(root) {
         if (text === null) continue;
         const span = document.createElement("span");
         span.dataset.lfSaid = attr;
-        span.dataset.lfGen = "1";
+        generatedElement(span, { says: true });
         span.textContent = text;
         const pastTrailingChrome = [...el2.childNodes].filter(
           (n) => !(n.nodeType === 1 && n.dataset.lfGen)
@@ -1462,7 +1469,7 @@ addEventListener(
     capture: true
   }
 );
-onStanding((node) => {
+onCurrentLocation((node) => {
   for (let at = node; at; at = upFrom(at)) {
     const copy = controls.get(at);
     if (copy) return revealControl(copy, at);
@@ -2238,7 +2245,7 @@ function prepare(video) {
         keys: ["f"],
         title: "full screen",
         control: fullScreen,
-        // The browser's keys reach the video where focus stands on it.
+        // The browser's keys reach the video where focus is on it.
         run: () => {
           focusDestination(video, "move");
           enterFullScreen();
@@ -2985,7 +2992,7 @@ function declareOffFlowSurface(surface, { floats = () => true, away = () => fals
     { capture: true }
   );
 }
-onStanding((node, cause, left) => {
+onCurrentLocation((node, cause, left) => {
   if (!node || !left || cause === "return") return;
   for (const surface of surfaces.keys())
     if (under(node, surface) && under(left, surface))
@@ -3074,13 +3081,13 @@ function sendLanding(input) {
   };
   const reply = replyRowOf(held, input);
   const read = () => ({
-    foot: standingAt(reply, "bottom"),
+    foot: currentLocationAt(reply, "bottom"),
     within: reply.getBoundingClientRect().bottom - held.getBoundingClientRect().top
   });
   const stood = reply && !replyPinned(reply) && !separateTranscript(held) && alreadyShown(reply) ? read() : null;
-  return (standing2 = held) => {
+  return (currentLocation2 = held) => {
     const mayLand = retainUserIntent({
-      source: standing2,
+      source: currentLocation2,
       available: () => held.isConnected
     });
     void whenDocumentPresented().then(() => {
@@ -3089,7 +3096,7 @@ function sendLanding(input) {
         return scrollThreadIntoView(held, input, "instant");
       returnTo(reply, "bottom", stood.foot + read().within - stood.within);
       revealWritingArea(held, input, reply);
-      if (standingAt(reply, "bottom") < stood.foot)
+      if (currentLocationAt(reply, "bottom") < stood.foot)
         returnTo(reply, "bottom", stood.foot);
     }).catch(() => {
     });
@@ -3150,14 +3157,14 @@ function readBoxPlace(input) {
       atTail: atScrollEnd(transcript)
     });
 }
-var standingAt = (node, edge) => {
+var currentLocationAt = (node, edge) => {
   let at = node.getBoundingClientRect()[edge];
   for (const box of scrollersOf(node)) at += box.scrollTop - aimedTop(box);
   return at;
 };
 function returnTo(node, edge, at) {
   for (const box of scrollersOf(node)) {
-    const moved2 = standingAt(node, edge) - at;
+    const moved2 = currentLocationAt(node, edge) - at;
     if (Math.abs(moved2) < 0.5) return;
     moveScrollerBy(box, moved2);
   }
@@ -3166,7 +3173,7 @@ function holdBox(control) {
   const held = control?.closest?.(SAYS_IN);
   if (!held || control !== focusedInView()) return () => {
   };
-  const top = standingAt(control, "top");
+  const top = currentLocationAt(control, "top");
   return () => {
     if (focused() !== control || !control.isConnected || !held.contains(control))
       return;
@@ -3392,18 +3399,18 @@ var MessageEditor = class {
     actions.append(cancel);
     this.foot = document.createElement("span");
     this.foot.className = "lf-msg-edit-foot";
-    this.node.append(this.input, this.foot, actions);
+    this.node.append(this.input, actions);
     this.input.value = loadDraft(ctx) || said2();
-    let opened = this.input.value;
+    const whole = () => sync.value();
+    let opened = null;
     this.#follow = () => {
-      if (base === currentBase() || draftHasContent(ctx) || this.input.value !== opened)
-        return;
+      if (base === currentBase() || draftHasContent(ctx) || whole() !== opened) return;
       base = currentBase();
-      this.input.value = opened = said2();
+      sync.load(opened = said2());
     };
     const unchanged = () => {
-      const words = this.input.value;
-      return !words.trim() || words === said2();
+      const now = whole();
+      return !now.trim() || now === said2();
     };
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land2();
@@ -3428,6 +3435,7 @@ var MessageEditor = class {
       icon: null,
       sendBtn: save,
       submitIn: actions,
+      sentMedia: true,
       save: (value) => {
         saveDraft(ctx, value, { over: base });
         tellDraft(ctx, value, { over: base });
@@ -3471,6 +3479,8 @@ var MessageEditor = class {
         }
       ]
     });
+    opened = whole();
+    this.input.after(this.foot);
     keys(
       this.node,
       "Editing a message",
@@ -3631,10 +3641,7 @@ var ReactionStripView = class {
     this.node.classList.toggle("lf-open", model.latest);
     render(
       html` <button
-          type="button"
-          class="lf-msg-control lf-react-trigger lf-ui"
-          data-lf-gen="1"
-          data-lf-offer="button"
+          ${offered("lf-msg-control lf-react-trigger")}
           aria-expanded="false"
           aria-controls=${this.#paletteId}
           aria-label="Add reaction"
@@ -3657,10 +3664,7 @@ var ReactionStripView = class {
         model.choices,
         (choice) => choice.name,
         (choice) => html` <button
-                type="button"
-                class="lf-react ${HOLDS_WORD} lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
+                ${offered(`lf-react ${HOLDS_WORD}`)}
                 data-token=${choice.name}
                 title=${choice.label}
                 aria-label=${choice.label}
@@ -3909,7 +3913,7 @@ var MessageView = class {
       this.node.dataset.message = model.key;
       this.#header.className = "lf-msg-head";
       this.node.classList.add("lf-ui");
-      this.node.dataset.lfGen = "1";
+      generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
       this.node.addEventListener("dblclick", (event) => {
         if (
@@ -4005,11 +4009,8 @@ var MessageView = class {
       this.#header
     );
     const rewrite = model.editable && !editing ? html`<button
-            type="button"
-            class="lf-msg-control lf-msg-edit lf-ui"
+            ${offered("lf-msg-control lf-msg-edit")}
             tabindex="-1"
-            data-lf-gen="1"
-            data-lf-offer="button"
             aria-label="Edit message"
             title="Edit message"
             @click=${() => this.openEdit()}
@@ -4171,8 +4172,8 @@ var STACK = [
   "region capture",
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
-  "standing",
-  // A to-do on the user that the walk stands on, whose Done this scope carries.
+  "current-location",
+  // A to-do on the user at the walk’s current location, whose Done this scope carries.
   "todo",
   "versions",
   "composer",
@@ -4537,9 +4538,8 @@ function snapSelection() {
 }
 
 // runtime/walk-position.js
-var BOUNDARY_MS = 900;
+var HOLD_MS = 900;
 var walking = null;
-var boundaryTimer = 0;
 function walkPositionLabel(noun, position, total, qualifier = "") {
   if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
   return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");
@@ -4555,15 +4555,14 @@ function walkPosition() {
   if (!walking) return null;
   const position = walking.read();
   if (!position || position.target !== walking.target) {
-    clearTimeout(boundaryTimer);
-    boundaryTimer = 0;
     walking = null;
     return null;
   }
   return {
-    boundary: walking.boundary,
     kind: walking.key,
     target: position.target,
+    position: position.position,
+    total: position.total,
     text: walkPositionLabel(
       walking.noun,
       position.position,
@@ -4619,32 +4618,15 @@ function rowWalk({
     }
   ];
 }
-function beginWalk(key, noun, read, wrapped = false) {
+function beginWalk(key, noun, read) {
   const position = read();
   if (!position) {
-    clearTimeout(boundaryTimer);
-    boundaryTimer = 0;
     walking = null;
     return null;
   }
   walkPositionLabel(noun, position.position, position.total, position.qualifier);
-  const boundary = wrapped || walking?.key === key && walking.target === position.target;
-  clearTimeout(boundaryTimer);
-  const arrived = {
-    boundary,
-    key,
-    noun,
-    read,
-    target: position.target
-  };
-  walking = arrived;
-  holdStatus(BOUNDARY_MS);
-  boundaryTimer = boundary ? setTimeout(() => {
-    if (walking !== arrived) return;
-    arrived.boundary = false;
-    boundaryTimer = 0;
-    repaint();
-  }, BOUNDARY_MS) : 0;
+  walking = { key, noun, read, target: position.target };
+  holdStatus(HOLD_MS);
   const shown2 = walkPosition();
   repaint();
   return shown2?.text ?? null;
@@ -4748,15 +4730,13 @@ function dismissContext(context) {
   session.owner?.changed();
 }
 var dismissReply = (key) => dismissContext(replyContext(key));
-document.addEventListener(
-  "click",
-  (event) => {
-    if (pressIsKeyboardActivation(event)) return;
-    const within2 = replyDraftContext(event.composedPath()[0]);
-    for (const context of compositions.keys())
-      if (context !== within2) dismissContext(context);
-  },
-  true
+onPressAway(
+  ([node]) => [...compositions.keys()].some((context) => context !== replyDraftContext(node)),
+  ([node], [from]) => {
+    const kept = [replyDraftContext(node), replyDraftContext(from)];
+    for (const context of [...compositions.keys()])
+      if (!kept.includes(context)) dismissContext(context);
+  }
 );
 var dismissReplyAt = (node) => {
   const context = replyDraftContext(node);
@@ -4821,7 +4801,7 @@ function sendReply(draftCtx, key, text, owns, actions) {
   );
   return sent && { flight };
 }
-function wireReply(key, row, input, send, wireInput, { hint, accessibleName, busy }) {
+function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessibleName, busy }) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
@@ -4836,6 +4816,7 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
     hint,
+    hintAside,
     accessibleName,
     busy,
     sends: "send",
@@ -4850,7 +4831,7 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
     // sent from, read before the send draws, around wherever the send left them
-    // standing. A view whose box stays for the next turn lands the send itself (`sent`),
+    // current location. A view whose box stays for the next turn lands the send itself (`sent`),
     // told whether the log takes it.
     send: (_text, raw, owns) => {
       const { actions, landSent, sent } = composition.binding;
@@ -4914,7 +4895,7 @@ var replyCompositionHasDraft = (node) => {
 };
 var replyIsEditing = (key) => compositions.has(replyContext(key));
 var writingIn = (field, sending2) => Boolean(
-  field?.checkVisibility() && (standingIn(field.closest(".lf-thread-reply")) || field.value !== "" || sending2)
+  field?.checkVisibility() && (currentLocationIn(field.closest(".lf-thread-reply")) || field.value !== "" || sending2)
 );
 var replyAvailable = (thread) => !thread.resolved || replyIsEditing(threadKey(thread));
 async function restoreReplyEditing(editing, land2) {
@@ -4934,6 +4915,7 @@ function createReplyView(key, commands2, redraw, {
   },
   editLast = null,
   hint = "Reply",
+  hintAside = () => "",
   accessibleName = "Reply",
   busy = () => false,
   sent = null
@@ -4946,6 +4928,7 @@ function createReplyView(key, commands2, redraw, {
     row.append(input, send);
     return wireReply(key, row, input, send, commands2.wireInput, {
       hint,
+      hintAside,
       accessibleName,
       busy
     });
@@ -4960,7 +4943,7 @@ function createReplyView(key, commands2, redraw, {
     return redraw;
   };
   binding.take = (owner) => {
-    if (standingIn(composition.row)) focused().blur();
+    if (currentLocationIn(composition.row)) focused().blur();
     detach();
     composition.retired = true;
     composition = owner;
@@ -5045,7 +5028,7 @@ onPress((start) => {
   pressed = heldThreadId();
   return releasePress;
 });
-var standingThreadId = () => heldThreadId() ?? pressed;
+var currentLocationThreadId = () => heldThreadId() ?? pressed;
 var mayReplyTo = (id, intent) => restrictUserIntent(intent, () => {
   const thread = allThreads().find((candidate) => candidate.id === id);
   return Boolean(thread && replyAvailable(thread));
@@ -5072,7 +5055,7 @@ var carrying = null;
 var carryingThreadPlace = (node) => Boolean(node) && carrying?.node === node && (carrying.reply ? carrying.may() : carrying.intent() && allThreads().some((thread) => thread.id === carrying.id && !thread.resolved));
 function holdThreadPlace(open2, { threadAt, seated }) {
   carrying = null;
-  const held = holdStanding();
+  const held = holdCurrentLocation();
   const node = held?.node;
   if (!node || carried.has(node)) return null;
   const destination = replyControlDestination(node);
@@ -5313,9 +5296,9 @@ function newsNotice(header = false) {
   });
   let open2 = () => null;
   const show = () => {
-    const standing2 = focused() === node;
+    const currentLocation2 = focused() === node;
     const landing = open2();
-    if (standing2 && landing) focusThread(landing, "move");
+    if (currentLocation2 && landing) focusThread(landing, "move");
   };
   keys(node, "On news waiting in a thread", [
     {
@@ -5362,13 +5345,13 @@ function everySeat(id, show) {
   for (const held of holders) shown2 = show(held, thread) || shown2;
   return shown2;
 }
-var standing = null;
-onStanding((node, cause) => {
+var currentLocation = null;
+onCurrentLocation((node, cause) => {
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
   const id = drawnThreadId(thread);
-  const arrived = id !== null && id !== standing && (cause === "move" || cause === "step");
-  standing = id;
+  const arrived = id !== null && id !== currentLocation && (cause === "move" || cause === "step");
+  currentLocation = id;
   if (arrived) showHeld(id);
 });
 var HeldNews = class {
@@ -5679,15 +5662,15 @@ var HeldArrivals = class {
     }
   }
   // Releases what `which` picks for a reason other than a gesture of the user's. A
-  // thread the user stands in (`standingNodes`), by focus or by a selection of its
+  // thread the user is in (`currentLocationNodes`), by focus or by a selection of its
   // words, in the margin's card, stays there with them, since its
   // release would take the card, and the reply they may be writing, away; it shows
   // when they press its marker, or the next time its datum's growth goes unseen.
   #lapse(which) {
-    const standing2 = new Set(
-      standingNodes().map((node) => closestAcross(node, THREAD)?.dataset.thread)
+    const currentLocation2 = new Set(
+      currentLocationNodes().map((node) => closestAcross(node, THREAD)?.dataset.thread)
     );
-    return this.#release((held) => which(held) && !standing2.has(held.id));
+    return this.#release((held) => which(held) && !currentLocation2.has(held.id));
   }
   // One watch for each datum holding a thread, on the node it stands at now.
   #watch(threads) {
@@ -6143,17 +6126,17 @@ var Transcript = class _Transcript {
    * card's does (`data-lf-reflow`, tests/shift_watch.js). `notice` is a node the reader
    * stands at the head of the transcript's first message in sight, as a primary
    * reader's thread notice (primary-reader.js). Returns the disclosure that took over
-   * the one the user stood on, where this draw replaced it, as the answer's head takes
+   * the one the user was on, where this draw replaced it, as the answer's head takes
    * progress over from the working message.
    * @returns {HTMLElement | null}
    */
   present(model, { arrived = false, appends = false, notice: notice2 = null } = {}) {
     const prior = this.#model;
-    const standing2 = focused();
+    const currentLocation2 = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
       const heldMessage = prior.messages.find(
-        ({ key }) => this.#messages.get(key)?.node.contains(standing2)
+        ({ key }) => this.#messages.get(key)?.node.contains(currentLocation2)
       )?.id;
       const clips = /* @__PURE__ */ new Map();
       const beingRead = new Set(
@@ -6192,7 +6175,7 @@ var Transcript = class _Transcript {
     this.#pendingCovers = new Map(
       describedRanges.filter((range) => range.summary?.pending).map((range) => [range.summary.id, range.summary.covers])
     );
-    const standingToggle = this.node.querySelector(".lf-summary-expand:focus");
+    const currentLocationToggle = this.node.querySelector(".lf-summary-expand:focus");
     const rangeState = describedRanges.map((range) => {
       if (range.kind === "message") return range;
       const forced = Boolean(range.summary.protected?.length);
@@ -6293,11 +6276,11 @@ var Transcript = class _Transcript {
     }
     keeps(this.node, "data-lf-reflow", appends ? "append" : null);
     setChildren(this.node, transcript);
-    if (!standingToggle || standingToggle.isConnected) return null;
+    if (!currentLocationToggle || currentLocationToggle.isConnected) return null;
     const toggleFor = (id) => this.node.querySelector(
       `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`
     );
-    const succeeded = standingToggle.dataset.summaryToggle;
+    const succeeded = currentLocationToggle.dataset.summaryToggle;
     return [succeeded, ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)].map(toggleFor).find(Boolean) ?? null;
   }
   // A progress run's face (`workingView`), retained while its run stands, and named
@@ -6351,13 +6334,12 @@ var Transcript = class _Transcript {
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
+      class="lf-thread-disclosure lf-disclosure-marker lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${iconTemplate("down", "lf-disclosure-icon")}
       <span data-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
@@ -6583,7 +6565,7 @@ var ThreadView = class {
     this.node.tabIndex = -1;
     this.node.classList.add("lf-page-thread", "lf-ui");
     this.node.dataset.lfRuntime = "";
-    this.node.dataset.lfGen = "1";
+    generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
     this.#actions.className = "lf-thread-meta-actions";
   }
@@ -6646,7 +6628,7 @@ var ThreadView = class {
     if (lands && growthIsSeen(lands)) return true;
     if (this.#fold) return false;
     const pinned = replyPinned(this.#reply?.node);
-    const foot = footFold && !folds.messages.some((key) => standsOn(this.#messageNode(key)));
+    const foot = footFold && !folds.messages.some((key) => currentLocationTouches(this.#messageNode(key)));
     if (this.#model?.surface === "margin") {
       if (news.settled) return false;
       const last = this.#model.messages.at(-1);
@@ -6936,7 +6918,7 @@ var ThreadView = class {
       const place2 = this.#fold?.querySelector(":scope > summary") ?? this.node;
       if (!may()) return false;
       if (reverse) may.handoff(() => focusDestination(place2, "return"));
-      if (!standingIn(place2)) return false;
+      if (!currentLocationIn(place2)) return false;
       scrollThreadIntoView(place2, focused());
       return true;
     };
@@ -6995,9 +6977,9 @@ var ResolvedThreads = class {
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = "";
-    this.node.dataset.lfGen = "1";
+    generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
-    this.summary.className = "lf-resolved-summary";
+    this.summary.className = "lf-resolved-summary lf-disclosure-marker";
     new MutationObserver(() => {
       if (this.node.open) {
         opened();
@@ -7049,13 +7031,13 @@ var ThreadSeat = class {
   present(model, batch = activeBatch) {
     if (batch && !batch.seats.has(this)) batch.seats.set(this, holdFocus(this.node));
     const restoreFocus = holdFocus(this.node);
-    const standing2 = focused();
-    const restoreBox = this.node.contains(standing2) ? holdBox(standing2) : () => {
+    const currentLocation2 = focused();
+    const restoreBox = this.node.contains(currentLocation2) ? holdBox(currentLocation2) : () => {
     };
     const stoodIn = [...this.#views.values()].find(
-      ({ node }) => standingIn(node)
+      ({ node }) => currentLocationIn(node)
     )?.node;
-    const gathered = this.#resolved && standingIn(this.#resolved.summary) ? [
+    const gathered = this.#resolved && currentLocationIn(this.#resolved.summary) ? [
       ...[...this.#resolved.node.children].slice(1),
       ...[...this.#folding.values()].map(({ node }) => node)
     ] : [];
@@ -7068,7 +7050,7 @@ var ThreadSeat = class {
       );
     const prior = this.#shown;
     const box = model.surface === "page" ? this.#response() : null;
-    const row = Boolean(box) && prior.response && !box.contains(standing2);
+    const row = Boolean(box) && prior.response && !box.contains(currentLocation2);
     const shown2 = this.#held ? this.#held.hold(model, { row }) : model;
     let foot = shown2.response ? this.#response() : null;
     if (shown2.news) {
@@ -7182,7 +7164,7 @@ var ThreadSeat = class {
       ...gathered
     );
     const now = focused();
-    if (fold2 && !fold2.node.open && (fold2.node.contains(stoodIn ?? null) || [...this.#folding.values()].some(({ node }) => node === stoodIn)) && (!now || now === document.body || standingIn(stoodIn) || standingIn(fold2.node) && now !== fold2.summary)) {
+    if (fold2 && !fold2.node.open && (fold2.node.contains(stoodIn ?? null) || [...this.#folding.values()].some(({ node }) => node === stoodIn)) && (!now || now === document.body || currentLocationIn(stoodIn) || currentLocationIn(fold2.node) && now !== fold2.summary)) {
       focusDestination(fold2.summary, "return");
       passOn(stoodIn, fold2.summary);
     }
@@ -7697,7 +7679,7 @@ export {
   obligationHolding,
   placeOf,
   arrivalOf,
-  standingOrigin,
+  currentLocationOrigin,
   walkOrigin,
   stepFrom,
   heldObligation,
@@ -7848,7 +7830,7 @@ export {
   focusedThreadTarget,
   heldThread,
   heldThreadId,
-  standingThreadId,
+  currentLocationThreadId,
   replyDestination,
   carryingThreadPlace,
   holdThreadPlace,

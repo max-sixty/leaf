@@ -8,7 +8,7 @@ body.lf-over-mark {
 }
 /* An element holding threads draws no contour at rest: its margin entry says so, and a
    box means "this, now". A contour appears for a moment — a draft on it, the pointer
-   on its row in Threads, the thread the user stands in — and is one hollow line.
+   on its row in Threads, the thread the user is in — and is one hollow line.
    Unlike a text highlight, an element mark is projected above everything the target
    draws, so any interior paint can obscure the target's own words or picture. The
    target painter keeps the contour above those descendants; the declarations below
@@ -39,7 +39,7 @@ body.lf-over-mark {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-/* The thread the user stands in draws the same accent contour. Focus on the element
+/* The thread the user is in draws the same accent contour. Focus on the element
    itself is the separate outer ring above. */
 .lf-mark-el.lf-mark-here {
   outline: 2px solid var(--accent);
@@ -360,6 +360,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     pointer-events: auto;
     border-radius: 9px;
   }
+  /* The transcript's focus-ring room reaches into this top band. The grip still
+     takes presses there; its clipped centre leaves the messages and controls free. */
+  .lf-margin-preview > .lf-surface-grip {
+    z-index: 1;
+  }
   :is(
     .lf-margin-preview:is(:has(> .lf-surface-grip:hover), [data-lf-carried]),
     .lf-fab-bar:is(:has(> .lf-surface-grip:hover), [data-lf-carried])
@@ -499,8 +504,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     --lf-transcript-room: max(var(--focus-ring-room), var(--lf-group-ring-end));
     padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-room))
       var(--lf-transcript-room);
+    padding-block-start: var(--lf-transcript-room);
     padding-block-end: var(--lf-transcript-room);
     margin-inline: calc(-1 * var(--lf-transcript-room));
+    margin-block-start: calc(-1 * var(--lf-transcript-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
   }
   /* The field stands at the card's inset; words stand one inset inside it. */
@@ -625,7 +632,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      in the row, whole (thread-card.js); the card keeps its width while it holds news
      (thread-preview.js), so the notice takes its room from the heads' track, and the
      actions after it keep their places. */
+  /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
+     Resolve was. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
+    --lf-line: var(--lf-msg-head-height);
     grid-column: 2;
     grid-row: 2;
     align-self: start;

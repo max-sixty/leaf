@@ -71,7 +71,7 @@ import {
 } from "./bundle-frame-visibility.js";
 
 // runtime/annotation-overlay/margin-placement.js
-function rowPosture({
+function rowPlacement({
   railStands: railStands2,
   besideRail,
   blockRight,
@@ -358,7 +358,7 @@ function samePassage(passage, words) {
   if (!range || !words) return !passage && !words;
   return range.startContainer === words.startContainer && range.startOffset === words.startOffset && range.endContainer === words.endContainer && range.endOffset === words.endOffset;
 }
-function syncMarginResidency(changed) {
+function syncMarginContentLayout(changed) {
   if (changed) scheduleMarginLayout();
 }
 var labelRect = (name, left, top, label) => ({
@@ -766,14 +766,8 @@ function registerMarginRow(row, options = {}) {
 function unregisterMarginRow(row) {
   rows.delete(row);
   anchors.delete(row);
-  if (row) {
-    row.classList.toggle("lf-withheld", false);
-    row.removeAttribute("data-lf-place");
-    for (const property of ["--lf-margin-x", "--lf-margin-y"])
-      setStyle(row, property, null);
-    pushes.delete(row);
-    folded.delete(row);
-  }
+  pushes.delete(row);
+  folded.delete(row);
   if (!rows.size) {
     observer?.disconnect();
     observer = null;
@@ -916,7 +910,7 @@ function layoutMarginRows() {
     const level = line ? top : box.top;
     const besideRail = railBeside(scroller);
     const size = stands && besideRail ? railEntrySize() : 0;
-    const place = rowPosture({
+    const place = rowPlacement({
       railStands: stands,
       besideRail,
       blockRight: reach(anchor, box, main, reaches),
@@ -1987,7 +1981,7 @@ export {
   THREAD_CARD,
   marginColumn,
   marginSpot,
-  syncMarginResidency,
+  syncMarginContentLayout,
   scheduleMarginEntryLabels,
   mountMarginLayer,
   standsFolded,

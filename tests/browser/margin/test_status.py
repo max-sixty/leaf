@@ -23,6 +23,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     panel_settled,
+    panel_view,
     resized,
     select,
     sending,
@@ -768,7 +769,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
     page.locator(".lf-floating-panel .lf-fp-filters button").nth(1).click()
-    queue = page.locator('.lf-fp-view[data-view="queue"]:not([data-leaving])')
+    queue = page.locator(panel_view("queue"))
     owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
     expect(owed).to_have_count(1)
     expect(owed.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(named)
@@ -1151,7 +1152,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     go_to_address(page, "Margin entry", address_target)
     expect(marker).to_be_focused()
 
-    # Standing there is not the same as being the way in. A repaint under the user
+    # Located there is not the same as being the way in. A repaint under the user
     # leaves the rail's one stop on a margin entry that acts, and the status without one.
     page.evaluate("() => window.dispatchEvent(new Event('resize'))")
     page.evaluate(

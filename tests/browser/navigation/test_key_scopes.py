@@ -32,6 +32,7 @@ from render_harness import (
     open_versions,
     panel_field,
     panel_settled,
+    panel_view,
     resized,
     told,
     write,
@@ -46,7 +47,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def offered(page):
-    """Every key the dispatcher would answer where the user stands."""
+    """Every key the dispatcher would answer at the current location."""
     return {key for keys in available_commands(page).values() for key in keys}
 
 
@@ -104,7 +105,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
         "() => document.activeElement.closest('.lf-margin-projection')"
     )
 
-    # From a heading the user stood on, the same way out: the landing is the element
+    # From a heading the user was located on, the same way out: the landing is the element
     # the thread is about rather than the heading the walk left.
     heading = page.locator("main h2").first
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
@@ -113,8 +114,8 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     expect(threads[0]).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator("#p")).to_be_focused()
-    # The element and the card beside it are one place, so standing there is standing
-    # at its thread: the line names it, and the walk goes on from the thread rather than
+    # The element and the card beside it are one place, so that current location names
+    # its thread: the line names it, and the walk goes on from the thread rather than
     # back into it.
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
@@ -206,7 +207,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     out_through("#p")
 
-    # And from the keyboard, standing on the marker itself: the same way out, to the
+    # And from the keyboard, focused on the marker itself: the same way out, to the
     # same place. The marker is Leaf's own control beside the words it marks, so it is
     # where the user came from rather than where they are put back.
     marker.focus()
@@ -266,7 +267,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     page.wait_for_function(
         "view => view.contains(document.activeElement)", arg=threads.element_handle()
     )
@@ -314,7 +315,7 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     tabs.first.focus()
     reveal_other()
 
-    # The line names the press, and the press re-selects the tab the user is standing on.
+    # The line names the press, and the press re-selects the tab the user is located on.
     page.keyboard.press("Enter")
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
@@ -337,7 +338,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     follows one that changed something, since a box nobody has touched passes that
     assertion however dead the scope is.
 
-    Both spellings of a folded section, because a user standing on one cannot see which
+    Both spellings of a folded section, because a user located on one cannot see which
     it is: the platform's <details>, and a settled option group, which is a span the
     widget wrote `aria-expanded` onto. One scope answers for both, and the press goes
     through the element's own click either way, so the keyboard leaves the page in the
@@ -457,7 +458,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
         },
     )
     told(page)
-    # Opened, because standing somewhere is where focus is and a shut panel has nowhere to
+    # Opened, because the current location is where focus is and a shut panel has nowhere to
     # stand: without this the summary took no focus, the user was still on the page's own
     # row, and the line went on describing that one — an assertion that would have passed
     # for the wrong reason had the two been in the same state.
@@ -467,7 +468,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     staged.focus()
     expect(staged).to_be_focused()
     # Every live row rather than the two hints that fit: the panel's own rows win the line
-    # where the user is standing in it, and what is asked here is what the register
+    # where the user is located in it, and what is asked here is what the register
     # answers, not which two chips got the room.
     said = offered(page)
     assert "ArrowLeft" not in said and "ArrowRight" not in said, said
@@ -1244,7 +1245,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.evaluate(press, ["m", True])  # the same grammar repeats for obligations
     expect(page.locator("#sug-refill[data-lf-obligation]")).to_have_count(1)
 
-    leaves = page.locator('.lf-fp-view[data-view="leaves"]')
+    leaves = page.locator(panel_view("leaves"))
     page.keyboard.press("g")
     page.evaluate(press, ["l", True, True])  # a panel destination does not repeat
     expect(leaves).to_be_hidden()
@@ -1283,8 +1284,8 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     branch inside the typing scope's own row, restating another scope's word.
 
     Which rung the press reaches is the ladder's own business, and it unwinds from
-    where the user is: standing out on the page, the first thing they are in is
-    the control they are standing on, and the panel behind them is a layer they are
+    where the user is: located out on the page, the first thing they are in is
+    the control they are located on, and the panel behind them is a layer they are
     not in. So the press takes two — and the panel closing on the second is the
     whole of what this test is about, the control having had every chance to
     swallow the first."""
@@ -1308,10 +1309,10 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
 
 def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):
     """A margin marker is placed in the document beside the words it marks, outside
-    `.lf-chrome`, and the standing floor used to read that container to tell a
+    `.lf-chrome`, and the current-location floor used to read that container to tell a
     destination from a control. So a marker reached by Tab wore the let-go of an obligation
     or a heading — "let go" — where the Threads toggle beside it, which is a control
-    of the same standing, backs out onto the page. The floor asks `inUi` now, the one
+    of the same current location, backs out onto the page. The floor asks `inUi` now, the one
     reading of which layer a node is in, and a marker gets the same word as the toggle.
     A folded cluster is the case: an unfolded one has the Page Map's own rung over it,
     which answered before either word."""
@@ -1353,7 +1354,7 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     claim the lot: the typing scope stood wherever focus was in a form control, on the
     reading that a letter is a keystroke there — true of a text box, false of a radio, a
     checkbox and a slider, none of which the platform ever hands a letter. So a user
-    standing on a screenshot's before/after switch lost c, the walks, the version keys and
+    focusing a screenshot's before/after switch lost c, the walks, the version keys and
     the reference itself, and the line went blank rather than wrong, which is how it
     reaches its author as "the keyboard stopped working".
 
@@ -1383,7 +1384,7 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     page.keyboard.press("Space")
     expect(page.locator("#flip")).to_be_checked()
     # The letter reaches the page, which is the whole claim; where it then goes is the
-    # standing's business — a user on the radio is standing on it, so the box that
+    # the current location's business — a user on the radio is focused on it, so the box that
     # opens is about it rather than about the page. Named in full, because "comment on
     # the" matches every destination this key has and would assert nothing about which.
     # The box names the radio by its label, as a screen reader does.
@@ -1407,8 +1408,8 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     expect(page.locator(".lf-command-reference")).to_be_hidden()
 
 
-def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
-    """Leaf treats a label's native activation as one keyboard standing.
+def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, serve):
+    """Leaf treats a label's native activation as one keyboard location.
 
     Chromium moves focus through body between mousedown and native label activation.
     That intermediate state must not repaint focus-derived surfaces. The native click
@@ -1447,7 +1448,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     control = page.locator("#frame")
     words = page.locator("#frame-label span")
     first.focus()
-    standing = offered_routes(page)
+    current_location = offered_routes(page)
     expect(page.locator("#first-question-decision[data-lf-obligation]")).to_have_count(
         1
     )
@@ -1471,7 +1472,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         }))"""
     )
     first.focus()
-    assert offered_routes(page) == standing
+    assert offered_routes(page) == current_location
     focus_paint = """control => { const s = getComputedStyle(control); return {
       style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
       offset: s.outlineOffset
@@ -1492,13 +1493,13 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
           dispatchEvent(new PointerEvent('pointerup', init));
         }"""
     )
-    assert offered_routes(page) == standing
+    assert offered_routes(page) == current_location
     held_obligation = page.locator("#first-question-decision[data-lf-obligation]")
     expect(held_obligation).to_have_count(1)
     assert "[data-lf-obligation]" in ring_rule(held_obligation)
     # Native label activation temporarily blurs the radio. Its logical input
     # destination remains in place until the label's click transfers focus. The
-    # pointer press removes its keyboard cue without moving that standing.
+    # pointer press removes its keyboard cue without moving that location.
     assert not first.evaluate("control => control.matches(':focus')")
     assert first.evaluate(focus_paint)["style"] == "none"
     assert not ring_faults(rings_drawn(page), "while the label press holds focus")
@@ -1605,7 +1606,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
 @pytest.mark.parametrize("entry", ["walk", "option", "aim"])
 def test_comment_escape_returns_to_its_authored_parent(browser, serve, entry):
     """Closing a comment removes one layer: composer, then its authored subject.
-    The same obligation is the parent when walking, standing on an option, or aiming at
+    The same obligation is the parent when walking, focusing an option, or aiming at
     its heading; entry history cannot change its Escape route."""
     page = open_page(browser, serve(WHERE_I_STAND_PAGE))
     item = page.locator("#shape-decision")

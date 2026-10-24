@@ -23,7 +23,7 @@
    opaque hint has no meaning once its face is hidden, so collisions are spread rather
    than removed. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through its callers. */
-import { bindingEnabled, spell } from "./bindings.js";
+import { bindingEnabled, cycledRow, spell } from "./bindings.js";
 import { html, render } from "/vendor/browser-runtime.js";
 import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
@@ -358,13 +358,8 @@ export function createHintSession({
     const targets = hinted();
     if (!targets.length) return;
     // Nothing heard yet, the walk starts at whichever end it walks from.
-    at =
-      at < 0
-        ? direction > 0
-          ? 0
-          : targets.length - 1
-        : (at + direction + targets.length) % targets.length;
-    const target = targets[at];
+    const target = cycledRow(targets, targets[at], direction);
+    at = targets.indexOf(target);
     beginWalk(walkKey, "Target", () =>
       listWalkPosition(hinted(), hinted()[at], { identity }),
     );

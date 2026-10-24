@@ -171,6 +171,10 @@ import {
   widgetDescriptor
 } from "./bundle-keyboard~disclosure.js";
 import {
+  isCanonicalMediaUrl,
+  scopedMediaUrl
+} from "./bundle-media.js";
+import {
   scrollBehavior
 } from "./bundle-motion.js";
 import {
@@ -178,7 +182,7 @@ import {
   commitPoint,
   livePoint,
   registerPageControl,
-  settleResidency,
+  settleMarginContentLayout,
   visibleTargetParts
 } from "./bundle-page-controls.js";
 import {
@@ -218,10 +222,10 @@ import {
   pageScroller,
   placeKept,
   reachScrollers,
-  readingPosture,
   readingRegionFor,
   readingRegions,
   recentReadingRegion,
+  regionScrollBehavior,
   regionsSettled,
   saidNow,
   scrollChainOf,
@@ -281,9 +285,11 @@ import {
   commandRoutes,
   completeData,
   countTraffic,
+  cycledRow,
   dataHeaders,
   el,
   frameFor,
+  generatedElement,
   growthIsSeen,
   hasArea,
   holdingError,
@@ -364,8 +370,8 @@ import {
   move,
   nextAnimation,
   nextRender,
+  onCurrentLocation,
   onFrameVisibility,
-  onStanding,
   onUserInput,
   openLayer,
   openerOf,
@@ -851,6 +857,7 @@ import {
   EditorState as EditorState2,
   StateEffect as StateEffect2,
   Compartment as Compartment2,
+  WidgetType,
   Decoration,
   LanguageSupport,
   ViewPlugin,
@@ -879,12 +886,16 @@ sheet.replaceSync(`
      that builds the editor. */
   .lf-field-rest { min-height: 1lh; outline: none; }
   .cm-line { padding: 0; }
+  /* CodeMirror's caret stops beside a widget hang from the text's top, which stands
+     above a line set tighter than its type, as a heading's is, and would make that
+     line taller than the heading it draws. The field's caret is the platform's. */
+  .cm-widgetBuffer { vertical-align: top; }
   /* The placeholder is a layer under the words, as a textarea's is, never content in
      the line: a widget in an empty line is what the platform would draw the caret
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
-  /* An owner moving the field's edges can carry the words from where they stood with
+  /* An owner moving the field's edges can carry the words from where they were with
      them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
      --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
      its layout. The field's content box cuts off what the field doesn't hold yet,
@@ -932,15 +943,19 @@ sheet.replaceSync(`
   :host([data-scrolls][data-lf-end-room-glued]) .cm-line.lf-field-last::after {
     content: none;
   }
-  /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
-     elements themselves, which the platform dresses here as it does in the message;
-     the rest read the theme's tokens, since its element rules stop at this root. A
-     heading is bold, as the platform draws one, at the size of the words around it. A
-     block is drawn line by line, so a code block's frame is each line's sides, closed
-     above its first line and below its last. Syntax that holds its room while the
-     caret is away, as a code fence's line does, is there unseen and unspoken. */
+  /* A draft wears the sent message's faces, or where it stands in place, those its
+     display gives each block (\`standBlocks\`), written on its lines over these. Strong,
+     emphasis and strikethrough are the elements themselves, which the platform dresses
+     here as it does in the message; the rest read the theme's tokens, since its element
+     rules stop at this root. A heading is bold, as the platform draws one, at the size
+     of the words around it. A block is drawn line by line, so a code block's frame is
+     each line's sides, closed above its first line and below its last. Syntax that holds
+     its room while the caret is away, as a code fence's line does, is there unseen and
+     unspoken. Its glyphs go unfilled while its colour stays the words', because the
+     caret can stand at the end of unseen text, as just past a new item's marker, and the
+     browser draws it in that text's colour. */
   .lf-md-mark { color: var(--muted); }
-  .lf-md-unseen { color: transparent; }
+  .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
     background: var(--code-bg); border-radius: var(--code-inline-r);
     padding: var(--code-inline-pad); box-decoration-break: slice; }
@@ -975,6 +990,15 @@ sheet.replaceSync(`
   .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
     border-end-start-radius: var(--r); border-end-end-radius: var(--r);
     padding-block-end: 8px; }
+  /* A picture fits the field as media fits its container on the page, centred on its
+     line (theme.css), and the mark after a link that leaves the page is the page's
+     own (surfaces.css). */
+  .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
+  .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
+    margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
+    fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
+    stroke-linejoin: round; overflow: visible; user-select: none;
+    -webkit-user-select: none; }
   /* Code with no fence lines takes the message's padding at its ends instead. */
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
@@ -1010,6 +1034,98 @@ var touches = (state, from, to) => state.selection.ranges.some((range) => range.
 var read = (state) => {
   return placedMarkdownTokens(state.doc.toString());
 };
+var FACE_PROBE = "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre><blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
+var collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
+var GAP = "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
+function readFaces(field, display) {
+  const probe = (
+    /** @type {HTMLElement} */
+    display.cloneNode(false)
+  );
+  probe.removeAttribute("id");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText = "position: absolute; visibility: hidden; inline-size: 0; display: block";
+  probe.innerHTML = FACE_PROBE;
+  field.after(probe);
+  const face = {};
+  const own = getComputedStyle(field);
+  const TYPE = ["font-size", "line-height", "font-weight", "letter-spacing"];
+  for (const node of probe.querySelectorAll(":scope > :not(div), li + li")) {
+    const s = getComputedStyle(node);
+    const px = (value) => Number.parseFloat(value) || 0;
+    face[node.localName] = {
+      type: TYPE.filter(
+        (name) => s.getPropertyValue(name) !== own.getPropertyValue(name)
+      ).map((name) => `${name}: ${s.getPropertyValue(name)}`).join("; "),
+      start: px(s.marginTop),
+      end: px(s.marginBottom),
+      padStart: px(s.paddingTop),
+      padEnd: px(s.paddingBottom),
+      inset: s.paddingInlineStart,
+      indent: s.marginInlineStart
+    };
+  }
+  probe.remove();
+  const { li, pre, blockquote: quote } = face;
+  const rules = [];
+  for (const [tag, { type, start, end }] of Object.entries(face)) {
+    const list = tag === "ul" || tag === "ol";
+    rules.push(
+      `.lf-face-${tag} { ${type} }`,
+      `.lf-starts-${tag} { --lf-gap-start: ${list ? collapsed(start, li.start) : start}px }`,
+      `.lf-ends-${tag} { --lf-gap-end: ${list ? collapsed(end, li.end) : end}px }`
+    );
+  }
+  rules.push(
+    `.lf-face-gap { line-height: ${GAP} }`,
+    `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`,
+    `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`,
+    `.lf-face-rule { line-height: 0 }`,
+    `.lf-face-gap-above { padding-block-start: ${GAP} }`,
+    `.lf-face-fence-open { line-height: ${pre.padStart}px }`,
+    `.lf-face-fence-close { line-height: ${pre.padEnd}px }`,
+    `.lf-face-code { padding-inline: ${pre.inset} }`,
+    `.lf-face-quote { margin-inline-start: ${quote.indent}; padding-inline-start: ${quote.inset}; --lf-marker-inset: ${quote.inset} }`,
+    `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`,
+    `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`,
+    `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`,
+    `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`,
+    `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`,
+    `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`
+  );
+  return rules.join("\n");
+}
+var Picture = class extends WidgetType {
+  constructor(src, alt) {
+    super();
+    this.src = isCanonicalMediaUrl(src) ? scopedMediaUrl(src) : src;
+    this.alt = alt;
+  }
+  eq(other) {
+    return other.src === this.src && other.alt === this.alt;
+  }
+  toDOM(view) {
+    const img = document.createElement("img");
+    img.className = "lf-md-picture";
+    img.alt = this.alt;
+    img.src = this.src;
+    img.addEventListener("load", () => view.requestMeasure(), { once: true });
+    return img;
+  }
+  ignoreEvent() {
+    return false;
+  }
+};
+var ExternalMark = class extends WidgetType {
+  eq() {
+    return true;
+  }
+  toDOM() {
+    return document.documentElement.lfExternalLink.mark();
+  }
+};
+var externalMark = Decoration.widget({ widget: new ExternalMark(), side: -1 });
+var opensElsewhere = (href) => document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
 function decorate(state, placed) {
   const out = [];
   const lists = [];
@@ -1035,17 +1151,27 @@ function decorate(state, placed) {
     contentTo,
     escapes,
     markers,
-    contentLines
+    contentLines,
+    words: said
   } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
     if (token.type === "code_inline" || contentFrom !== void 0) {
       const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
       if (words[0] > words[1]) continue;
       if (INLINE[token.type]) add(from, to, INLINE[token.type]);
-      else if (token.type === "link_open" && token.meta.linked)
+      else if (token.type === "link_open" && token.meta.linked) {
         add(words[0], words[1], link);
+        if (opensElsewhere(token.attrGet("href")))
+          out.push(externalMark.range(words[1]));
+      }
       add(from, words[0], syntax);
       add(words[1], to, syntax);
+    } else if (token.type === "image") {
+      if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
+      const widget = new Picture(token.attrGet("src"), token.content);
+      out.push(
+        touches(state, from, to) ? Decoration.widget({ widget, side: 1 }).range(to) : Decoration.replace({ widget }).range(from, to)
+      );
     } else if (token.type === "text") {
       for (const at of escapes ?? [])
         add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
@@ -1053,8 +1179,11 @@ function decorate(state, placed) {
       lines(...contentLines, (each) => {
         out.push(line("lf-md-heading").range(each.from));
       });
-      for (const [a, b] of markers)
-        add(a, b, token.markup.startsWith("#") ? syntax : dim);
+      for (const [a, b] of markers) {
+        const rule = state.doc.lineAt(a);
+        const shown = touches(state, rule.from, rule.to) ? dim : unseen;
+        add(a, b, token.markup.startsWith("#") ? syntax : shown);
+      }
     } else if (token.type === "fence" || token.type === "code_block") {
       code.push([from, to]);
       const body = token.content.split("\n");
@@ -1071,8 +1200,10 @@ function decorate(state, placed) {
         const lead = each.text.match(/^[ \t]*/)[0].length;
         add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
       });
-      const fence = touches(state, from, to - 1) ? dim : unseen;
-      for (const [a, b] of markers ?? []) add(a, b, fence);
+      for (const [a, b] of markers ?? []) {
+        const fence = state.doc.lineAt(a);
+        add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
+      }
     } else if (token.type === "blockquote_open") {
       lines(from, to, (each) => {
         out.push(line("lf-md-quote").range(each.from));
@@ -1111,7 +1242,91 @@ function decorate(state, placed) {
     if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
     add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
   }
+  standBlocks(state, placed, out);
   return Decoration.set(out, true);
+}
+var blockTag = (token) => token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
+function standBlocks(state, placed, out) {
+  const lines = (from, to, each) => {
+    for (let at = from; at < to; ) {
+      const current = state.doc.lineAt(at);
+      each(current);
+      at = current.to + 1;
+    }
+  };
+  const named = (from, cls) => out.push(line(cls).range(from));
+  const gapLines = (from, to, gap) => {
+    const runs = state.doc.lineAt(to).number - state.doc.lineAt(from).number;
+    const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
+    lines(from, to, (each) => named(each.from, `lf-face-gap${share} ${gap}`));
+  };
+  const lineTouched = (at) => {
+    const { from, to } = state.doc.lineAt(at);
+    return touches(state, from, to);
+  };
+  const before = [];
+  const open = [];
+  let item = null;
+  const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
+  for (const { token, from, to, markers, contentLines } of placed) {
+    if (!token.block) continue;
+    const tag = blockTag(token);
+    if (token.type === "heading_open") {
+      lines(...contentLines, (each) => named(each.from, `lf-face-${tag}`));
+      if (!token.markup.startsWith("#")) {
+        for (const [at] of markers)
+          if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
+      }
+    } else if (token.type === "fence" || token.type === "code_block") {
+      lines(from, to, (each) => named(each.from, "lf-face-code"));
+      const opener = state.doc.lineAt(from).number;
+      for (const [at] of token.type === "fence" ? markers : []) {
+        const fence = state.doc.lineAt(at);
+        if (lineTouched(at)) continue;
+        const side = fence.number === opener ? "open" : "close";
+        named(fence.from, `lf-face-fence-${side}`);
+      }
+    }
+    while (open.at(-1)?.to <= from) before.length = open.pop().level + 1;
+    const within = open.at(-1)?.type;
+    if (token.type === "list_item_open" && within !== "list_item_open") {
+      if (item?.to === from) named(from, "lf-face-item");
+      item = { to };
+    }
+    const container = /^(blockquote|bullet_list|ordered_list|list_item)_open$/.test(
+      token.type
+    );
+    if (container) open.push({ type: token.type, to, level: token.level });
+    if (token.type === "list_item_open" || within === "list_item_open") continue;
+    const level = token.level;
+    if (!FACE_PROBE.includes(`<${tag}>`)) {
+      before[level] = null;
+      continue;
+    }
+    const list = tag === "ul" || tag === "ol";
+    if (list && from === 0) named(0, "lf-face-list-lead");
+    if (list && to >= state.doc.length)
+      named(state.doc.lineAt(state.doc.length).from, "lf-face-list-tail");
+    const prior = before[level];
+    const gap = `lf-ends-${prior?.tag} lf-starts-${tag}`;
+    if (prior && prior.to < from) gapLines(prior.to, from, gap);
+    else if (prior) named(from, `lf-face-gap-above ${gap}`);
+    let end = to;
+    while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
+    before[level] = { tag, to: end };
+    before.length = level + 1;
+    if (token.type === "paragraph_open" && level === 0)
+      lines(from, to, (each) => named(each.from, "lf-face-p"));
+    else if (token.type === "blockquote_open" && level === 0) {
+      lines(from, end, (each) => named(each.from, "lf-face-quote"));
+      named(from, "lf-face-quote-first");
+      named(state.doc.lineAt(Math.max(from, end - 1)).from, "lf-face-quote-last");
+    }
+  }
+  const last = state.doc.line(state.doc.lines);
+  const final = before[0];
+  if (final && final.to < last.from)
+    gapLines(final.to, last.from, `lf-ends-${final.tag} lf-starts-p`);
 }
 var livePreview = ViewPlugin.fromClass(
   class {
@@ -1165,11 +1380,26 @@ var LeafText = class extends HTMLElement {
   #editable = new Compartment2();
   #history = new Compartment2();
   #attributes = new Compartment2();
+  /** The element whose blocks a field editing words where they are shown shows them
+   * as, such as a draft's prose; unset, the field draws a sent message's faces.
+   * @type {Element | null} */
+  facesOf = null;
+  // The rules that draw the words in its blocks' faces (`readFaces`), as last read.
+  #faces = new CSSStyleSheet();
+  #facesRead = "";
+  #readFaces() {
+    if (!this.facesOf?.isConnected || !this.isConnected) return;
+    const rules = readFaces(this, this.facesOf);
+    if (rules === this.#facesRead) return;
+    this.#facesRead = rules;
+    this.#faces.replaceSync(rules);
+  }
   #placeholderLayer = document.createElement("div");
   #placeholderText = document.createTextNode("");
   #frame = document.createElement("div");
   #readOnly = false;
   #sizes = sizeObserver(() => {
+    this.#readFaces();
     const view = this.#view;
     if (view?.hasFocus)
       view.requestMeasure({
@@ -1352,7 +1582,7 @@ var LeafText = class extends HTMLElement {
       this.setAttribute("aria-multiline", "true");
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.#internals ??= this.attachInternals();
-    this.#root.adoptedStyleSheets = [sheet];
+    this.#root.adoptedStyleSheets = [sheet, this.#faces];
     if (this.#model.doc.length) this.#build();
     else this.#describe();
     this.#paintEmpty();
@@ -1384,6 +1614,7 @@ var LeafText = class extends HTMLElement {
   // the user types lands in them. A page holding many fields, such as one under each
   // list of options, builds none of them to show itself.
   #build() {
+    this.#readFaces();
     this.#view = new LeafEditorView({
       root: this.#root,
       parent: this.#frame,
@@ -1804,10 +2035,8 @@ function createSelectionComposer({
   function stepResponseOptions(binding) {
     const choices = responseOptionButtons();
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp"].includes(binding);
-    const next = at < 0 ? backward ? choices.length - 1 : 0 : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk(
       "response-option",
       "Response",
@@ -2095,7 +2324,7 @@ function createSelectionComposer({
     fabOptions.addEventListener("toggle", () => {
       if (!isNativeLayer(fabOptions)) setResponseOptions(false);
     });
-    onStanding((node) => {
+    onCurrentLocation((node) => {
       if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);
     });
@@ -2280,18 +2509,18 @@ function createAnchorTravel({
     const intent = ++travelIntent;
     return restrictUserIntent(retained, () => intent === travelIntent);
   };
-  const journeyPrefix = `${performance.timeOrigin}:`;
-  let trips = 0;
-  let journey = null;
+  const navigationGroupPrefix = `${performance.timeOrigin}:`;
+  let navigationSteps = 0;
+  let navigationGroup = null;
   onReadingInput((node) => {
-    if (!journey || closestAcross(node, `${PRESSES},${PRESSABLE}`) || typesText(node))
+    if (!navigationGroup || closestAcross(node, `${PRESSES},${PRESSABLE}`) || typesText(node))
       return;
     const passage = passageBlock(node);
     if (!passage) return;
-    if (passage !== journey.passage()) journey = null;
+    if (passage !== navigationGroup.passage()) navigationGroup = null;
   });
   function stillLanded() {
-    const where = journey && history.state?.lfJourney === journey.token && journey.landing();
+    const where = navigationGroup && history.state?.lfNavigationGroup === navigationGroup.token && navigationGroup.landing();
     return Boolean(where && seenOf(where));
   }
   async function arrive(resolve, { intent, present = null, departure = null }) {
@@ -2357,7 +2586,7 @@ function createAnchorTravel({
     const destination = resolve();
     const source = anchor.datum && sectionOf(anchor);
     if (!destination && !source) return false;
-    const departure = prepareTrip({
+    const departure = prepareNavigationStep({
       intent: mayArrive,
       landing: () => resolve()?.where
     });
@@ -2375,7 +2604,7 @@ function createAnchorTravel({
     const mayArrive = retainTravel(intent);
     const destination = resolve();
     if (!destination?.where) return null;
-    const departure = prepareTrip({
+    const departure = prepareNavigationStep({
       intent: mayArrive,
       landing: () => resolve()?.where
     });
@@ -2421,7 +2650,7 @@ function createAnchorTravel({
     if (typeof release === "function") release();
     return mayArrive() ? resolve()?.input() ?? null : void 0;
   }
-  function prepareTrip({ landing = null, url, intent }) {
+  function prepareNavigationStep({ landing = null, url, intent }) {
     const write2 = prepareEntry();
     const continuing = landing && stillLanded();
     const arrival = landing && {
@@ -2437,16 +2666,16 @@ function createAnchorTravel({
       commit() {
         if (moving === void 0) return;
         if (!moving) {
-          if (continuing) Object.assign(journey, arrival);
+          if (continuing) Object.assign(navigationGroup, arrival);
           return;
         }
-        journey = arrival && {
-          token: journeyPrefix + ++trips,
+        navigationGroup = arrival && {
+          token: navigationGroupPrefix + ++navigationSteps,
           ...arrival
         };
         write2(
           url ?? window.location.href,
-          journey && { lfJourney: journey.token },
+          navigationGroup && { lfNavigationGroup: navigationGroup.token },
           continuing
         );
       }
@@ -2454,13 +2683,13 @@ function createAnchorTravel({
   }
   function followFragment(url) {
     const where = fragmentTarget(url.hash);
-    return where && fragmentTrip(url, true);
+    return where && fragmentNavigationStep(url, true);
   }
   function returnToFragment(url) {
     const where = fragmentTarget(url.hash);
-    return where && !where.checkVisibility() ? fragmentTrip(url, false) : null;
+    return where && !where.checkVisibility() ? fragmentNavigationStep(url, false) : null;
   }
-  function fragmentTrip(url, focus) {
+  function fragmentNavigationStep(url, focus) {
     const mayArrive = retainTravel();
     return () => arrive(
       () => {
@@ -2486,7 +2715,7 @@ function createAnchorTravel({
     }
     const url = new URL(window.location.href);
     url.hash = source.id;
-    const departure = prepareTrip({ url, intent: mayArrive });
+    const departure = prepareNavigationStep({ url, intent: mayArrive });
     const hydration = revealAddressed(source, key);
     if (hydration?.then) await hydration;
     if (!mayArrive()) return false;
@@ -2576,7 +2805,7 @@ function createAnchorTravel({
     const hydrating = anchor?.datum && status !== "outdated" || anchor?.visual;
     const destination = threadDestination(id);
     const landing = () => threadDestination(id);
-    const departure = prepareTrip({ landing, intent: mayArrive });
+    const departure = prepareNavigationStep({ landing, intent: mayArrive });
     if (destination || hydrating) departure.plan(destination);
     if (hydrating) {
       const source = sectionOf(anchor);
@@ -2611,7 +2840,7 @@ function createAnchorTravel({
     );
   }
   return {
-    prepareTrip,
+    prepareNavigationStep,
     arrive,
     arriveEditor,
     restoreSelection,
@@ -3240,10 +3469,10 @@ function createVersionController({
   hasPending,
   readAndApply,
   syncLayout,
-  captureRetainedStanding = () => null,
-  restoreRetainedStanding = () => false,
-  captureObligationStanding = () => null,
-  restoreObligationStanding = () => {
+  captureRetainedCurrentLocation = () => null,
+  restoreRetainedCurrentLocation = () => false,
+  captureObligationCurrentLocation = () => null,
+  restoreObligationCurrentLocation = () => {
   },
   // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
   versions
@@ -3413,9 +3642,9 @@ function createVersionController({
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
-      // Obligation standing is the fallback for unnamed controls. An exact editor already
+      // Obligation location is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent obligation does not also own focus.
-      obligationStanding: draftEditing ? null : captureObligationStanding()
+      obligationCurrentLocation: draftEditing ? null : captureObligationCurrentLocation()
     };
   }
   async function landContinuity(land) {
@@ -3427,8 +3656,8 @@ function createVersionController({
   }
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, obligationStanding } = continuity;
-    restoreObligationStanding(obligationStanding);
+    const { draftEditing, replyThread, replyInView, obligationCurrentLocation } = continuity;
+    restoreObligationCurrentLocation(obligationCurrentLocation);
     const mayRestore = restrictUserIntent(
       currentIntent,
       () => draftEditingStands(draftEditing)
@@ -3448,7 +3677,7 @@ function createVersionController({
   async function activateRevision(doc, target) {
     const currentIntent = retainUserIntent();
     const view = captureView();
-    const retainedStanding = captureRetainedStanding();
+    const retainedCurrentLocation = captureRetainedCurrentLocation();
     const editingContinuity = captureEditingContinuity();
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
@@ -3565,11 +3794,11 @@ function createVersionController({
       // This continuation never enters the semantic document snapshot.
       land: () => landContinuity(async () => {
         releaseHolds();
-        settleResidency();
+        settleMarginContentLayout();
         syncLayout();
         if (currentIntent()) {
           restoreView(view, currentIntent);
-          restoreRetainedStanding(retainedStanding);
+          restoreRetainedCurrentLocation(retainedCurrentLocation);
           restoreCarryScroll();
           await restoreEditingContinuity(editingContinuity, currentIntent);
         }
@@ -3623,7 +3852,7 @@ function createVersionController({
         revision: target.revision,
         url: location.href,
         view,
-        retainedStanding: captureRetainedStanding(),
+        retainedCurrentLocation: captureRetainedCurrentLocation(),
         ...editingContinuity,
         carry: captureCarry(pageDocument(), authoredSource).records,
         comparison: selectedBase(),
@@ -3652,7 +3881,7 @@ function createVersionController({
     });
     for (const region of readingRegions()) {
       if (!shownRegionBounds(region)) continue;
-      if (readingPosture(region) === "bounded" || region.id === active?.id)
+      if (regionScrollBehavior(region) === "bounded" || region.id === active?.id)
         view.regions[region.id] = capturePlace(region, blocks);
     }
     return view;
@@ -3764,7 +3993,7 @@ function createVersionController({
     ) ?? innermost;
   };
   const regionForBox = (box) => box === pageScroller ? null : readingRegions().find(
-    (region) => region.body === box && readingPosture(region) === "bounded"
+    (region) => region.body === box && regionScrollBehavior(region) === "bounded"
   );
   const boxOf = (node) => effectiveScroller(containingReadingRegionFor(node));
   const dropGonePlaces = () => {
@@ -3772,7 +4001,7 @@ function createVersionController({
     for (const map of [places2, subjectPlaces])
       for (const id of map.keys()) if (id !== PAGE && !present.has(id)) map.delete(id);
   };
-  function recordPlaces(boxes, { standing = false } = {}) {
+  function recordPlaces(boxes, { currentLocation = false } = {}) {
     if (shifting || compositionChanges.size || !regionsSettled()) return;
     dropGonePlaces();
     for (const box of boxes) {
@@ -3781,7 +4010,7 @@ function createVersionController({
       if (region && !(under(region.host, pageDocument()) && shownRegionBounds(region)))
         continue;
       const before = places2.get(region ? region.id : PAGE);
-      const acted = standing || readerChose(box, before?.choices ?? 0) || inputSince(box, before?.inputs ?? 0);
+      const acted = currentLocation || readerChose(box, before?.choices ?? 0) || inputSince(box, before?.inputs ?? 0);
       if (before && !acted) continue;
       const reading = capturePlace(region);
       places2.set(reading.scroller, {
@@ -3900,7 +4129,7 @@ function createVersionController({
   }
   const compositionChanges = /* @__PURE__ */ new Map();
   const ownBoxes = (owner) => readingRegions().filter(
-    (region) => readingPosture(region) === "bounded" && under(region.body, owner) && shownRegionBounds(region)
+    (region) => regionScrollBehavior(region) === "bounded" && under(region.body, owner) && shownRegionBounds(region)
   ).map((region) => region.body);
   function showSubject(phase, region) {
     const box = region.body;
@@ -4012,17 +4241,17 @@ function createVersionController({
       { capture: true, passive: true }
     );
     for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
-    const recordStanding = () => {
+    const recordCurrentLocation = () => {
       const at = focused();
       if (!at || !under(at, pageDocument())) return;
       const box = boxOf(at);
-      recordPlaces([box], { standing: true });
-      nextRender(() => recordPlaces([box], { standing: true }));
+      recordPlaces([box], { currentLocation: true });
+      nextRender(() => recordPlaces([box], { currentLocation: true }));
     };
-    onStanding(recordStanding);
-    onReadingInput(recordStanding);
+    onCurrentLocation(recordCurrentLocation);
+    onReadingInput(recordCurrentLocation);
     onUserInput((event) => {
-      if (event.type === "keydown" || event.type === "input") recordStanding();
+      if (event.type === "keydown" || event.type === "input") recordCurrentLocation();
       if (!["wheel", "touchstart", "keydown", "pointerdown"].includes(event.type))
         return;
       const at = event.type === "keydown" ? focused() : event.composedPath()[0];
@@ -4034,7 +4263,7 @@ function createVersionController({
     nextRender(
       () => recordPlaces([
         pageScroller,
-        ...readingRegions().filter((region) => readingPosture(region) === "bounded").map((region) => region.body)
+        ...readingRegions().filter((region) => regionScrollBehavior(region) === "bounded").map((region) => region.body)
       ])
     );
   }
@@ -4072,7 +4301,7 @@ function createVersionController({
       if (handoff) {
         restorePointer(handoff.pointer);
         restoreView(handoff.view, currentIntent);
-        restoreRetainedStanding(handoff.retainedStanding);
+        restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
         restoreCarryScroll();
         await restoreEditingContinuity(handoff, currentIntent);
         if (handoff.comparison !== null && stamped(handoff.comparison))
@@ -4621,8 +4850,8 @@ function createReactionController({
   showFab,
   showFabOptions,
   updateFab,
-  standingThread: standingThread2,
-  standingTarget
+  currentLocationThread: currentLocationThread2,
+  currentTarget
 }) {
   const surfaces = /* @__PURE__ */ new WeakMap();
   const marginSurface = /* @__PURE__ */ Symbol("margin reactions");
@@ -4697,12 +4926,12 @@ function createReactionController({
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
   const pickerFor = (surface) => surfaces.get(surface);
   function reactionTarget() {
-    const said = standingThread2();
+    const said = currentLocationThread2();
     const strip = said && latestAgentStrip(said.held);
     if (strip) return { kind: "surface", surface: strip };
     if (fabAnchorAt()) return { kind: "anchor" };
     if (hasPageSelectionTarget()) return { kind: "selection" };
-    const target = standingTarget();
+    const target = currentTarget();
     return target ? { kind: "target", target } : null;
   }
   const hasReactionTarget = () => Boolean(reactionTarget());
@@ -4864,12 +5093,10 @@ function createReactionController({
   function stepResponse(binding) {
     const choices = responseChoices(reactSurface);
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding
     );
-    const next = at < 0 ? backward ? choices.length - 1 : 0 : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk(
       "reaction",
       "Reaction",
@@ -6172,7 +6399,7 @@ function createInlineContributions({ targetPath }) {
       let seat = hosts.get(target);
       if (!seat) {
         const host2 = el("div", "lf-ui lf-margin-inline");
-        host2.dataset.lfGen = "1";
+        generatedElement(host2, { says: false });
         host2.setAttribute("role", "group");
         seat = { host: host2, offers: [] };
         hosts.set(target, seat);
@@ -6219,7 +6446,7 @@ function createThreadDestinations({
   threadIdsAt,
   scrollToThread,
   arrive,
-  prepareTrip,
+  prepareNavigationStep,
   preview = null
 }) {
   let presentation = null;
@@ -6253,14 +6480,14 @@ function createThreadDestinations({
     ].filter((thread) => thread && ids.includes(drawnThreadId(thread)));
     return drawn2.length === 1 ? drawn2[0] : null;
   };
-  const threadAtStanding = () => {
+  const threadAtCurrentLocation = () => {
     const here = drawnThreadId(threadHere());
     if (here) return here;
     const active = focused();
     return (active && threadIdsAt(active)[0]) ?? null;
   };
-  const replyThreadAtStanding = () => {
-    const id = threadAtStanding();
+  const replyThreadAtCurrentLocation = () => {
+    const id = threadAtCurrentLocation();
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread && replyAvailable(thread) ? id : null;
   };
@@ -6277,7 +6504,7 @@ function createThreadDestinations({
     origin = null
   } = {}) {
     if (!intent()) return null;
-    const trip = travel2 && scroll;
+    const navigationStep = travel2 && scroll;
     const selected = presentation?.owner.isConnected ? presentation : null;
     const thread = threadNamed(id);
     if (selected && (!thread || !discussed(thread))) return null;
@@ -6299,7 +6526,7 @@ function createThreadDestinations({
       };
       const mayPresent = () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
-      const departure = focus !== false && trip ? prepareTrip({
+      const departure = focus !== false && navigationStep ? prepareNavigationStep({
         landing: () => selected.reader.destination(thread.key, request),
         intent: arriving
       }) : null;
@@ -6330,7 +6557,7 @@ function createThreadDestinations({
               return current && {
                 where: current,
                 focus: current,
-                scroll: trip ? [{ at: current, block: "nearest" }] : []
+                scroll: navigationStep ? [{ at: current, block: "nearest" }] : []
               };
             },
             { intent: arriving, departure }
@@ -6345,7 +6572,7 @@ function createThreadDestinations({
       if (part === "message") showHeld(id);
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
-        if (trip) {
+        if (navigationStep) {
           if (!await scrollToThread(id, { part: localPart, focus, intent }))
             return null;
         } else if (focus === false) {
@@ -6368,7 +6595,7 @@ function createThreadDestinations({
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
       if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
-      const place = preview && !trip ? threadTarget(id) : null;
+      const place = preview && !navigationStep ? threadTarget(id) : null;
       const placeDrawn = () => visibleTargetParts(place).length > 0;
       if (place && scroll && !placeDrawn()) {
         await reveal(place, intent).ready;
@@ -6380,7 +6607,7 @@ function createThreadDestinations({
           opened = preview.open(id, { origin });
         });
       if (opened) {
-        if (trip) {
+        if (navigationStep) {
           if (!await scrollToThread(id, {
             part: part ?? "thread",
             focus,
@@ -6464,8 +6691,8 @@ function createThreadDestinations({
     holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,
     threadHere,
-    threadAtStanding,
-    replyThreadAtStanding,
+    threadAtCurrentLocation,
+    replyThreadAtCurrentLocation,
     threadTarget,
     threadPlace: threadPlace2
   };
@@ -6800,7 +7027,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
           node.dataset.lfPart = item.kind;
           node.tabIndex = -1;
           node.dataset.lfRuntime = "";
-          node.dataset.lfGen = "1";
+          generatedElement(node, { says: false });
           node.dataset.lfOffer = "";
           if (item.kind === "transcript") {
             const transcript = new Transcript({
@@ -6866,7 +7093,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
             };
           } else {
             let joined2 = false;
-            const { hint, accessibleName, busy, sent } = item.options;
+            const { hint, hintAside, accessibleName, busy, sent } = item.options;
             const redraw = () => {
               for (const row of node.querySelectorAll(":scope > .lf-thread-reply"))
                 if (row !== reply.node) row.remove();
@@ -6879,6 +7106,7 @@ function createPrimaryReader(owner, render2, commands, update, { answersAtOnce =
               },
               editLast: rewritesOf(item.key).editLast,
               hint,
+              hintAside,
               accessibleName,
               busy,
               sent
@@ -7900,7 +8128,7 @@ function mountApplication(dependencies) {
     placedAt: dependencies.anchorPlacement.placedAt,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
     arrive: dependencies.anchorTravel.arrive,
-    prepareTrip: dependencies.anchorTravel.prepareTrip,
+    prepareNavigationStep: dependencies.anchorTravel.prepareNavigationStep,
     preview: overlay?.threadPreview
   });
   threadPresenter = createThreadPresentation({
@@ -8192,7 +8420,7 @@ function threadInput(node) {
   return threadReplyInput(held);
 }
 var heldThreadOrSeat = () => focused() && closestAcross(focused(), SAYS_IN);
-var standingThread = () => {
+var currentLocationThread = () => {
   const held = heldThreadOrSeat();
   const box = threadReplyInput(held);
   return box ? { held: wholeThread(held), box } : null;
@@ -8235,12 +8463,12 @@ pageScope("text entry", {
           scrollIntoView(target, { block: "nearest" });
           return;
         }
-        standOnThread(target);
+        returnToThread(target);
       }
     }
   ]
 });
-function standOnThread(thread) {
+function returnToThread(thread) {
   const shown = alreadyShown(thread);
   if (!fitsWhole(thread) && shown) {
     focusThread(thread, "return");
@@ -8275,7 +8503,7 @@ function createThreadLanding() {
     return true;
   };
   const landInThread2 = (box, route = null) => landIn({ box, route });
-  const landSent = standOnThread;
+  const landSent = returnToThread;
   return { landIn, landInThread: landInThread2, landSent };
 }
 function declareThreadKeys(landIn, threadHere) {
@@ -9049,7 +9277,7 @@ export {
   queueActions,
   wireInput,
   threadInput,
-  standingThread,
+  currentLocationThread,
   leavesBox,
   createThreadLanding,
   declareThreadKeys,

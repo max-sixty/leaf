@@ -13,7 +13,7 @@
  * presentation held when the user opened it (history.js, `readPlace`). A row that is a
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
- * An `exit` row is the way out of the stance the user stands in, such as page search or
+ * An `exit` row is the way out of the stance the user is in, such as page search or
  * Draw mode (keyboard/touch-controls.js), which stands at the row's end beside its
  * counts. No other row stands in the panel's row: what a gesture does next, a finger
  * does on what the gesture acts on (keyboard/AGENTS.md, "Touch routes").
@@ -43,7 +43,7 @@ export const PAGE_CONTROL_RANK = Object.freeze({
   blanket: 80,
   versions: 90,
   keyboard: 95,
-  // The way out of the stance the user stands in.
+  // The way out of the stance the user is in.
   exit: 120,
 });
 

@@ -30,6 +30,7 @@ from render_harness import (
     page_comment,
     panel_menu,
     panel_settled,
+    panel_view,
     refuse,
     round_trip,
     select_words,
@@ -68,7 +69,7 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
         "Which map should the sample team carry?"
     )
     frame.locator(".lf-fp-threads").click()
-    expect(frame.locator('.lf-fp-view[data-view="threads"]')).to_be_visible()
+    expect(frame.locator(panel_view("threads"))).to_be_visible()
     frame.goto(frame.url)
     wait_until_ready(frame)
     assert urlparse(frame.url).path == "/versions/v2.html"

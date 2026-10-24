@@ -785,7 +785,7 @@ function resolveAnchor(anchor) {
 var fragmentTarget = (fragment) => fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;
 
 // runtime/marks.js
-var marks = { "x-content": { "paint": "data-lf-content", "message": true }, "x-verbatim": { "paint": "data-lf-verbatim", "message": true }, "x-space": { "paint": "data-lf-space", "authored": "data-width", "authored_on": "content", "message": false }, "x-inline": { "paint": "data-lf-inline", "message": true }, "x-exhibit": { "paint": "data-lf-exhibit", "message": true }, "x-bound": { "paint": "data-lf-bound", "authored": "data-bound", "authored_on": "content", "message": true }, "x-height": { "paint": "data-lf-height", "authored": "data-height", "authored_on": "declared", "message": true }, "x-reading-role": { "paint": "data-lf-reading-role", "message": true }, "x-resident": { "paint": "data-lf-resident", "message": false }, "x-views": { "paint": "data-lf-views", "message": true }, "x-visual": { "paint": "data-lf-visual", "presence": true, "message": true }, "x-awaits": { "paint": "data-lf-awaits", "presence": true, "message": true } };
+var marks = { "x-content": { "paint": "data-lf-content", "message": true }, "x-verbatim": { "paint": "data-lf-verbatim", "message": true }, "x-space": { "paint": "data-lf-space", "authored": "data-width", "authored_on": "content", "message": false }, "x-inline": { "paint": "data-lf-inline", "message": true }, "x-exhibit": { "paint": "data-lf-exhibit", "message": true }, "x-bound": { "paint": "data-lf-bound", "authored": "data-bound", "authored_on": "content", "message": true }, "x-height": { "paint": "data-lf-height", "authored": "data-height", "authored_on": "declared", "message": true }, "x-reading-role": { "paint": "data-lf-reading-role", "message": true }, "x-margin-content": { "paint": "data-lf-margin-content", "message": false }, "x-views": { "paint": "data-lf-views", "message": true }, "x-visual": { "paint": "data-lf-visual", "presence": true, "message": true }, "x-awaits": { "paint": "data-lf-awaits", "presence": true, "message": true } };
 
 // runtime/bounds.js
 var BOUND = marks["x-bound"].paint;
@@ -824,6 +824,7 @@ function holdBlock(bounded) {
   };
   let stopRegion = null;
   const onScroll = () => {
+    if (bounded.hasAttribute("hidden")) return;
     hold.left = !atScrollEnd(hold.box);
     if (!hold.left) hold.pinned = hold.box.scrollTop;
   };
@@ -850,8 +851,9 @@ function holdBlock(bounded) {
   const sync = (observed) => {
     hold.bound = bounded.getAttribute(BOUND);
     if (!bounded.isConnected || hold.bound === null) return letGo();
-    if (skipped(bounded)) {
+    if (bounded.hasAttribute("hidden") || skipped(bounded)) {
       if (!hold.box) adopt(bounded);
+      hold.pinned = null;
       if (!observed) {
         resize.unobserve(bounded);
         resize.observe(bounded);
@@ -870,7 +872,14 @@ function holdBlock(bounded) {
   hold.sync = () => sync(false);
   const resize = sizeObserver(() => sync(true));
   resize.observe(bounded);
-  new MutationObserver(hold.sync).observe(bounded, {
+  new MutationObserver((records) => {
+    if (records.some(
+      (record) => record.type !== "attributes" || record.target === bounded
+    ))
+      hold.sync();
+  }).observe(bounded, {
+    attributes: true,
+    attributeFilter: ["hidden"],
     childList: true,
     characterData: true,
     subtree: true

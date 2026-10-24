@@ -2,7 +2,6 @@
 fixtures:
   reading:
     stamp: Plan as authored
-    status: Pick a cutover mode
   resume:
     initial_stamp: First plan
     rerun_comment:
@@ -13,7 +12,6 @@ fixtures:
     rerun_answer:
       "Reran it on 18 September after the mapping change: 4.3 million documents in 3
       h 05 min. The page shows the new figure."
-    status: Pick how traffic moves to the new index
     batch_comment:
       Batches of 500 saturate the replica's disk queue. Drop to 200 and say why on the
       page.
@@ -25,10 +23,8 @@ fixtures:
     draft: |
       Release 4.2 moves card tokenization to the new vault. Merchants need no code changes. Rollout starts 12 November.
     stamp: Release 4.2 review
-    status: Edit the release note
   board:
     stamp: Key rotation board
-    status: Move cards as work changes
     moves:
       - unit: card-docs
         value: col-doing
@@ -45,14 +41,12 @@ fixtures:
     stamp: Parser workers
   mixed:
     stamp: Backfill plan
-    status: Pick how the copy runs
   elided:
     stamp: Backfill schedule
   plan:
     stamp: Rollout draft
   plan-resume:
     stamp: This week's latency
-    status: Pick which region goes first
     latency:
       191 ms: 182 ms
       214 ms: 205 ms
@@ -788,7 +782,7 @@ cases:
 
           watch_left_to_leaf (the complete native trace): Throughout this live scenario, the agent left watching for later user input to Leaf rather than launching its own background wait or polling loop. Judge what the tools actually started, including renamed launchers, variables and wrappers. Reading help, quoting a wait command, and failed attempts that started nothing are allowed.
 
-          detail_names_item (the final canonical page, state and agent replies): This status, shown while the page waits on the user, says what it waits for: their choice of how the backfill copy runs.
+          decision_is_owed (the final canonical page and state): The choice of how the backfill copy runs remains an open user obligation in queues.on_user. A status detail or prose saying the agent is waiting does not substitute for the registered decision.
 
           gesture_named (the final canonical page, state and agent replies): The message tells the user how to make the decision on the page: by picking, choosing or selecting one of its options.
 

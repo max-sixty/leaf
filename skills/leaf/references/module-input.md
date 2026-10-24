@@ -89,6 +89,10 @@ its `keys`. `rowArrows(node)` returns `[back, ahead]` arrow keys for the text di
 and `PRESS` is Enter and Space. `labelOf(row)` is the key text a row shows, for a
 tooltip, and `saying(rows)` words what a set of rows answers, for an announcement.
 
+A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
+the `lf-disclosure-marker` class, and it shows the one every disclosure on the page
+shows, as its `::before`, turning with its state; the widget's own rules place it.
+
 ### Decisions and forwarded keys
 
 `keys` work inside the widget. `contextKeys` work there too, and Leaf also forwards them
@@ -122,8 +126,8 @@ keeps the page still.
 A widget that steps through something itself, such as a diff's hunks, calls
 `beginWalk(key, noun, read)` at each step and announces what it returns, such as
 `Hunk 3 of 7`. `read()` returns the position, usually from
-`listWalkPosition(items, current, {identity})`. A step that lands where the last one did
-shows the walk has reached its end.
+`listWalkPosition(items, current, {identity})`. A walk that comes round at its ends
+steps with `cycledRow(items, current, direction)`, which returns the item it lands on.
 
 ### Go-to targets
 
@@ -159,17 +163,17 @@ user lands on the same item, or the nearest survivor.
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
 
-`focused()` is the focused element across shadow trees, and `standingIn(scope)` says
+`focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
 whether focus is in a scope. `whenLeft(element, leave)` runs `leave` once when focus
 leaves an element. A group the user moves through with arrow keys offers one Tab stop
 with `rove(items, stop)`.
 
-`onStanding(read)` calls `read(node, cause, left)` synchronously when focus changes,
+`onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus changes,
 including inside a declared shadow root, and returns its unsubscribe function. Register
 it inside `whileConnected` and call that function in the connection's cleanup. The
 causes are `return`, `press`, `step`, `move`, and `drop`; a dropped place is `null`.
 
-Logical standing is marked by `data-lf-focus` and its composed ancestry by
+The current location is marked by `data-lf-focus` and its composed ancestry by
 `data-lf-focus-within`. Use `data-lf-focus-visible` and
 `data-lf-focus-visible-within` for focus rings; the same names without `data-`
 are public shadow parts. Controls and reading destinations follow the browser's

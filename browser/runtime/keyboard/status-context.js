@@ -1,6 +1,6 @@
 /* What the page says between notices about where the keyboard has the user: the Go-to
  * filter's word while a `g` sequence holds one, a walk's position ("1 of 3 threads")
- * after a list walk, and the title of the stance the user stands in ("In Draw mode",
+ * after a list walk, and the title of the stance the user is in ("In Draw mode",
  * dispatch.js, `innermostStance`). The floating panel reads this signal for its empty
  * field, where a stance heads the current walk or Go-to words in the page status's
  * place (floating-panel.js, `fieldReading`). A retired walk's retained reading has
@@ -24,8 +24,7 @@ const same = (a, b) =>
   a.goTo === b.goTo &&
   a.stance === b.stance &&
   shownWalk(a)?.text === shownWalk(b)?.text &&
-  shownWalk(a)?.target === shownWalk(b)?.target &&
-  shownWalk(a)?.boundary === shownWalk(b)?.boundary;
+  shownWalk(a)?.target === shownWalk(b)?.target;
 
 /** Read the context again, `goToStatus` the Go-to sequence's word or null. */
 export function paintStatusContext(goToStatus) {
@@ -35,8 +34,9 @@ export function paintStatusContext(goToStatus) {
     lastWalk = Object.freeze({
       kind: position.kind,
       target: position.target,
+      position: position.position,
+      total: position.total,
       text: position.text,
-      boundary: position.boundary,
     });
   const next = Object.freeze({
     goTo,

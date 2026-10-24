@@ -130,7 +130,7 @@
    while drafting raised the head row they pressed in by the news's height, and opening
    an answer's progress carried the disclosure down 296px. Rejected: keeping the draft
    still on that press, which moved the row pressed; and counting the draft only while
-   the user stood in the reply row, which held for later changes too, so a resolve
+   the user was in the reply row, which held for later changes too, so a resolve
    arriving after the press moved the draft.
 
    Every box here is a client rectangle. Floating UI works in the surface's positioning

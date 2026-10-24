@@ -14,7 +14,7 @@ from render_cases_interaction import (
     executable_revision,
     live_url,
 )
-from render_cases_layout import standing_ring
+from render_cases_layout import current_location_ring
 from render_harness import (
     PANEL,
     PANEL_THREAD,
@@ -316,7 +316,7 @@ HIDDEN_TAB_PAGE = leaf_page(
 def test_opening_a_thread_reveals_its_closed_tab(browser, serve, options):
     """Opening a thread reveals its passage whether or not the page travels to it: its
     card stands beside the passage's margin row, which a closed tab hides. Opened where
-    the user stands (`travel: false`), the card never placed and the opening never
+    the user is located (`travel: false`), the card never placed and the opening never
     answered."""
     page = open_page(
         browser, serve(HIDDEN_TAB_PAGE, events=[_comment_on("closed-words")])
@@ -890,7 +890,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
 ):
     """The send lands on its thread, and each press takes off one level.
 
-    `c` opens the box on whatever the user is standing in without moving them off it,
+    `c` opens the box on whatever the user is located in without moving them off it,
     and the send leaves them on the card it puts up, whether or not the panel's Threads
     view stood open. The thread hands them to the page it is about. The control `c` was
     pressed from is not a landing.
@@ -924,7 +924,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_standing_on_a_commented_element_shows_its_thread_beside_it(browser, serve):
+def test_arriving_on_a_commented_element_shows_its_thread_beside_it(browser, serve):
     """A thread belongs to the element it is about, so both stand together.
 
     Arriving at the element by keyboard puts its card up without taking the user off
@@ -963,7 +963,7 @@ def test_standing_on_a_commented_element_shows_its_thread_beside_it(browser, ser
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # A pointer on the passage the card is about is standing there too, holding
+    # A pointer on the passage the card is about keeps the current location there too, holding
     # nothing, and Escape takes the card from there.
     passage.evaluate("node => node.removeAttribute('tabindex')")
     marker = page.locator('[data-lf-margin-for="mounts-p"] .lf-margin-marker')
@@ -975,7 +975,7 @@ def test_standing_on_a_commented_element_shows_its_thread_beside_it(browser, ser
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
 
-    # A press elsewhere on the page is standing somewhere else.
+    # A press elsewhere on the page moves the current location elsewhere.
     marker.click()
     expect(card).to_be_focused()
     page.locator("h1").click()
@@ -988,7 +988,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
 
     `t` walks the card on to the next thread without adding a level, so the way out is
     still the thread's target and then the page: neither the note nor the control `c`
-    was pressed from is standing any more, and the margin entry the card now hangs from
+    was pressed from is current any more, and the margin entry the card now hangs from
     is one the user never stood on.
     """
     page = open_page(browser, serve(OBLIGATION_PAGE))
@@ -1024,8 +1024,8 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
 def test_a_comment_raised_inside_a_card_s_target_takes_the_card_down(browser, serve):
     """A new comment box stands clear of the thread card the user moved on from.
 
-    The card stays up while the user stands at its target, and an aimed comment inside
-    that target is still standing there. The card is drawn above the page-level comment
+    The card stays up while the user is located at its target, and an aimed comment inside
+    that target keeps the same current location. The card is drawn above the page-level comment
     box and covers the margin beside the target, so leaving it up hid the field the
     user was typing into. The box on a new target takes the card down instead.
     """
@@ -1058,7 +1058,7 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     stays open as `t` walks the card on to a thread on a different entry. Landing on the
     entry the card now hangs from would hand the next press a fold belonging to an entry
     somewhere else, so the card lands on its target and the cluster answers next, at the
-    entry the user actually unfolded. Standing there is standing at another target,
+    entry the user actually unfolded. Located there means another current target,
     which takes the card.
     """
     page = open_page(
@@ -1148,7 +1148,7 @@ def test_a_second_press_into_an_open_card_leaves_one_level_to_take_off(
 
     The card shows one thread, so the second note or marker changes its contents and
     leaves one card open. Its way out is the target it is anchored to and then the
-    page: neither note nor marker is a place the user was standing.
+    page: neither note nor marker is a place the user was located.
     """
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
@@ -1421,6 +1421,6 @@ def test_resolving_a_cells_thread_rings_the_whole_cell(browser, serve):
     expect(preview).to_be_hidden()
     cell = page.locator("#phase-2 > td").last
     expect(cell).to_be_focused()
-    ring = standing_ring(page)
-    assert ring, "the cell the user stands on wears no ring"
+    ring = current_location_ring(page)
+    assert ring, "the cell the user is located on wears no ring"
     assert ring["cuts"] == [], ring["cuts"]

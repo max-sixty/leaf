@@ -176,7 +176,7 @@ function prepare(video) {
   });
   on(time, "input", () => (video.currentTime = Number(time.value)));
 
-  // The bar shows for a pointer over the recording, and for the keyboard standing on
+  // The bar shows for a pointer over the recording, and for the current keyboard location on
   // it: focus a key brought, or a command a key ran there. A press that focused the
   // picture leaves a playing recording whole.
   const show = (flag, force) => {
@@ -234,7 +234,7 @@ function prepare(video) {
             keys: ["f"],
             title: "full screen",
             control: fullScreen,
-            // The browser's keys reach the video where focus stands on it.
+            // The browser's keys reach the video where focus is on it.
             run: () => {
               focusDestination(video, "move");
               enterFullScreen();

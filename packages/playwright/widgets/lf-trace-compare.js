@@ -6,6 +6,7 @@
  * Each direct child that holds a trace is one view, including its caption. */
 import {
   el,
+  generatedElement,
   keepView,
   keeps,
   layoutChanged,
@@ -36,7 +37,7 @@ customElements.define(
       }
       this.#selected = this.#views.indexOf(openingView(this, this.#views));
       const header = el("div", "lf-trace-compare-controls");
-      header.dataset.lfGen = "1";
+      generatedElement(header, { says: false });
       /** @type {any} Web Awesome's radio group exposes form properties. */
       const choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
       choices.label = "Recording";

@@ -23,6 +23,7 @@ from render_harness import (
     open_page,
     page_comment,
     panel_settled,
+    panel_view,
     resized,
     select,
     selection_field,
@@ -194,27 +195,30 @@ KEEP_ROOTS = """(() => {
   };
 })()"""
 
-# How far past the caret's offset the boxes clipping the field's words let paint run.
-CARET_ROOM = """box => {
+# The caret's node and offset in the field. An offset between elements has no box; the
+# caret after them ends their text, which is the text the browser draws it beside.
+CARET_AT = """
   const root = window.__lfRoots.get(box);
   let [{startContainer: at, startOffset: offset}] = document
     .getSelection().getComposedRanges({shadowRoots: [root]});
-  // An offset between elements has no box; the caret after them ends their text.
   while (at.nodeType === Node.ELEMENT_NODE && offset > 0) {
     at = at.childNodes[offset - 1];
     offset = at.nodeType === Node.TEXT_NODE ? at.length : at.childNodes.length;
-  }
+  }"""
+
+# How far past the caret's offset the boxes clipping the field's words let paint run.
+CARET_ROOM = f"""box => {{{CARET_AT}
   const caret = document.createRange();
   caret.setStart(at, offset);
   let clip = Infinity;
-  for (let node = at.parentElement; node; node = node.parentElement) {
+  for (let node = at.parentElement; node; node = node.parentElement) {{
     const style = getComputedStyle(node);
     if (style.overflowX !== 'clip') continue;
     const margin = parseFloat(style.overflowClipMargin) || 0;
     clip = Math.min(clip, node.getBoundingClientRect().right + margin);
-  }
+  }}
   return clip - caret.getBoundingClientRect().right;
-}"""
+}}"""
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -249,6 +253,48 @@ def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     page.keyboard.press("Space")
     rendered(page)
     assert field.evaluate(CARET_ROOM) >= 1
+
+
+# The ink the browser draws the caret in, beside the ink of the field's words.
+CARET_INK = f"""box => {{{CARET_AT}
+  const holder = at.nodeType === Node.TEXT_NODE ? at.parentElement : at;
+  return [getComputedStyle(holder).caretColor,
+    getComputedStyle(holder.closest('.cm-content')).color];
+}}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_caret_after_a_list_bullet_is_drawn(engine, request, serve):
+    """A new list item shows its bullet with the caret just past the hidden source
+    marker, so the browser places the caret inside the marker's text. The caret takes
+    that text's ink, so hiding the marker's glyphs must leave the ink alone, however
+    the caret arrived: continuing the list, deleting the marker's space, or arrows."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page("Compact comment", '<p id="passage">A passage to comment on.</p>')
+        ),
+        init_script=KEEP_ROOTS,
+    )
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("- one")
+    page.keyboard.press("Shift+Enter")
+    expect(field).to_have_js_property("value", "- one\n- ")
+    rendered(page)
+    caret, words = field.evaluate(CARET_INK)
+    assert caret == words
+    page.keyboard.press("Backspace")
+    expect(field).to_have_js_property("value", "- one\n-")
+    rendered(page)
+    caret, words = field.evaluate(CARET_INK)
+    assert caret == words
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowRight")
+    rendered(page)
+    caret, words = field.evaluate(CARET_INK)
+    assert caret == words
 
 
 # Two threads put the card's navigation on the row too, which a finger's larger
@@ -775,7 +821,7 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
       };
     }"""
     before = page.evaluate(shape)
-    region = page.locator(f'.lf-fp-view[data-view="{surface}"]')
+    region = page.locator(panel_view(surface))
 
     toggle_surface(page, surface)
     expect(region).to_be_visible()
@@ -928,7 +974,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_visible()
+    expect(page.locator(panel_view("threads"))).to_be_visible()
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

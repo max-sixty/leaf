@@ -1,5 +1,5 @@
 """Which passage an unsent comment belongs to as the user selects, retargets, revisits
-or moves to another standing, and whose words a transfer carries."""
+or moves to another location, and whose words a transfer carries."""
 
 import re
 
@@ -40,7 +40,7 @@ def test_completed_page_selection_opens_its_own_comment(browser, serve):
                 "Selection gestures",
                 '<p id="earlier">Earlier subject.</p>'
                 '<p id="later">A later passage keeps native selection.</p>'
-                '<p id="later-box" style="height:72px;overflow:auto">'
+                '<p id="later-box" class="scroll" style="height:72px;overflow:auto">'
                 "A later boxed passage keeps native selection.<br>"
                 + "Another line of evidence.<br>" * 40
                 + "</p>",
@@ -245,7 +245,9 @@ def _draft_attachment_boxes(field, passage):
     )
 
 
-def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, serve):
+def test_comment_follows_a_new_current_location_instead_of_an_earlier_draft(
+    browser, serve
+):
     """The earlier draft keeps its subject while a later keyboard landing names
     the next comment. Resume recovers the editor that followed its earlier passage."""
     source = LONG_PAGE.replace(
@@ -317,12 +319,12 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
     ("existing_reply", "resume_before_scroll"),
     [("", True), ("", False), ("This thread already holds a reply.", False)],
 )
-def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
+def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
     browser, serve, existing_reply, resume_before_scroll
 ):
     """A chrome thread is a destination; an earlier draft follows its own passage.
 
-    Resume returns its words and caret before Comment answers the standing thread.
+    Resume returns its words and caret before Comment answers the current thread.
     """
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     if not resume_before_scroll:

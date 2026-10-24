@@ -662,9 +662,9 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     markup = page.evaluate(
         "() => fetch('../versions/v1.html').then(response => response.text())"
     )
-    assert '<meta name="lf-version" data-lf-runtime content="1">' in markup
+    assert '<meta name="lf-version" content="1" data-lf-runtime>' in markup
     assert (
-        f'<meta name="lf-revision" data-lf-runtime content="{mappings[1]}">' in markup
+        f'<meta name="lf-revision" content="{mappings[1]}" data-lf-runtime>' in markup
     )
     pinned = page.evaluate("() => fetch('../api/state').then(r => r.json())")
     assert pinned["versions"] == versions
@@ -1535,7 +1535,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     # Painted, not merely resolved: the mark is what puts the user at the passage.
     assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
     # The question Claude asks in that thread is a widget, upgraded from the
-    # same canonical state a user can answer where they are standing.
+    # same canonical state a user can answer where they are located.
     item = page.locator("#off-slip")
     expect(item).to_be_visible()
     assert item.locator("[data-lf-offer]").count() > 0, (

@@ -46,6 +46,7 @@ from render_harness import (
     Traffic,
     _until,
     any_draft_control,
+    expect_panel_says,
     held_frames,
     holding,
     leaf_page,
@@ -55,7 +56,9 @@ from render_harness import (
     page_comment,
     panel_field,
     panel_menu,
+    panel_says,
     panel_settled,
+    panel_view,
     resized,
     root_overflow,
     round_trip,
@@ -66,7 +69,6 @@ from render_harness import (
     write,
 )
 
-from journeys import expect_panel_says, panel_says
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import presence as presence_model
@@ -223,7 +225,7 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 )
 
 
-LEAVES = '.lf-fp-view[data-view="leaves"]:not([data-leaving])'
+LEAVES = panel_view("leaves")
 
 
 # The rendered control mechanisms whose rows must keep their geometry across a press.
@@ -377,7 +379,7 @@ RING_CASES = (
     # The Tab in front of both sequences is a stop, not a gesture in the mode: target hints
     # claim Tab for browsing themselves, so the sample below moves nothing once the mode
     # is open, and with the document under it the sample would stand on nothing and read no
-    # page at all. Standing on a control first leaves the hint the keyboard is browsing on
+    # page at all. Located on a control first leaves the hint the keyboard is browsing on
     # screen for the sweep, which is where its band is read — the chips are a layer nothing
     # can focus, so the user's place in that mode is not a stop.
     (
@@ -437,7 +439,7 @@ RING_CASES = (
     ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, PANEL_RING),)}),
     # The leaf's menu, opened by its press; the walk's step lands on a row.
     ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, PANEL_RING),)}),
-    # The menu's Versions, which `g V` opens standing on the version being read; the
+    # The menu's Versions, which `g V` opens focused on the version being read; the
     # walk's step lands on the earlier one.
     (
         "the versions menu",
@@ -941,7 +943,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "resolved": page.frame_locator("#resolved-sample iframe"),
         "summary": page.frame_locator("#summary-sample iframe"),
     }
-    threads = '.lf-fp-view[data-view="threads"]:not([data-leaving])'
+    threads = panel_view("threads")
     for name in ("overview", "resolved"):
         expect(views[name].locator(PANEL)).to_have_attribute("data-open", "threads")
         expect(views[name].locator(f"{threads} .lf-fp-thread").first).to_be_visible()
@@ -2073,7 +2075,7 @@ def test_a_recorded_move_is_acknowledged_in_the_panel_and_nowhere_else(browser, 
     round_trip(page)
 
     # The field's own words come back once the notice has had its moment.
-    expect_panel_says(page, "Moved to Done", shown=False)
+    expect_panel_says(page, "Moved to Done", says=False)
 
 
 def test_all_pages_opens_a_neighbour_in_a_tab_of_its_own(
@@ -2264,7 +2266,7 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
     for _ in range(6):
         page.keyboard.press("ArrowDown")
     title = threads.locator(".lf-fp-thread").nth(5)
@@ -2373,12 +2375,12 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # Read mid-slide, the panel's words stand past the window's edge, where axe reads no
     # contrast for them and the sweep passes them unread.
     panel_settled(page, view="threads")
-    sweep("standing in Threads")
+    sweep("focused in Threads")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
     panel_settled(page, view="thread")
     expect(panel_field(page)).to_be_focused()
-    sweep("standing in a thread's reply box")
+    sweep("focused in a thread's reply box")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -2386,7 +2388,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # The page comment, which `c` puts the user in with nothing on the page to comment on.
     page.keyboard.press("c")
     expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
-    sweep("standing in the page comment")
+    sweep("focused in the page comment")
     page.keyboard.press("Escape")
 
     # All pages and On me, the panel's other views. Waited out rather than pressed past:
@@ -2395,13 +2397,13 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
-    sweep("standing in All pages")
+    sweep("focused in All pages")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    sweep("standing in On me")
+    sweep("focused in On me")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 

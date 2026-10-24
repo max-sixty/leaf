@@ -23,6 +23,7 @@ from render_harness import (
     open_page,
     page_comment,
     panel_settled,
+    panel_view,
     primed,
     refuse,
     round_trip,
@@ -100,7 +101,7 @@ Two classic models.</pre></lf-code>
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
-    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
     expect(rows).to_have_count(0)
@@ -471,7 +472,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
-    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     expect(rows.filter(has_text="Older")).to_have_count(1)
     expect(rows.filter(has_text="Newest")).to_have_count(1)
 

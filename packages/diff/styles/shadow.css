@@ -44,8 +44,8 @@
    to `--lf-top` and to the room a landing leaves above them. A path too long for the
    line gives way from its folders first, which end in an ellipsis, and the file's own
    name is cut only where it alone is too long; the path's title then holds it whole.
-   A flex row draws no disclosure marker, so the triangle is the row's own first mark.
-   File and conversation labels have different type sizes; their triangles share one size. */
+   Both rows wear Leaf's disclosure marker (controls.css), at one size though the file
+   and conversation labels have different type sizes. */
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
 :scope:host(.lf-rendered)
   .lf-diff-file-thread-outlet
@@ -64,16 +64,8 @@
   .lf-diff-file-thread-outlet
   > .lf-resolved-threads
   > .lf-resolved-summary::before {
-  content: "▶" / "";
   flex: none;
-  font-size: calc(0.7 * var(--t-5));
-}
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before,
-:scope:host(.lf-rendered)
-  .lf-diff-file-thread-outlet
-  > .lf-resolved-threads[open]
-  > .lf-resolved-summary::before {
-  content: "▼" / "";
+  font-size: var(--t-5);
 }
 /* Source paths may change with new evidence; their region gives way while the
    statistics and adjacent actions keep their trailing columns. */
@@ -280,13 +272,16 @@
                    down the name it starts. Both are said here because the pull below is
                    the same distance in the other direction: the bar is laid out above the
                    file's body and the body is drawn back over it, so a number restated
-                   there would put the presses off the name the moment either changed. A
-                   finger raises the floor and the pull follows on its own. */
-  --lf-diff-action-h: max(26px, var(--aim-floor));
-  --lf-diff-action-top: 6px;
+                   there would put the presses off the name the moment either changed.
+                   A finger's floor is each press's reach, which the bar starts low
+                   enough to hold inside the row. */
+  --lf-diff-action-h: 26px;
+  --lf-diff-action-top: max(6px, (var(--aim-floor) - var(--lf-diff-action-h)) / 2);
   --lf-diff-actions: var(--lf-diff-action-h);
   /* The file's row: 7px above and below a path's line, 35px in all, or the
-                   bar of presses where that stands taller, as under a finger. */
+                   bar of presses where that stands taller. Closed files stand one row on
+                   the next with no room between for a reach, so a row is at least the aim
+                   floor, and the bar stands in its middle. */
   --lf-diff-head-h: 35px;
 }
 .lf-diff-run-start {
@@ -299,7 +294,8 @@
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: max(
     35px,
-    calc(var(--lf-diff-action-top) + var(--lf-diff-action-h))
+    calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)),
+    var(--aim-floor)
   );
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
@@ -323,14 +319,14 @@
   display: none;
 }
 .lf-diff-file-comment {
-  --lf-icon-action-hit: var(--lf-diff-action-h);
+  --lf-icon-action-face: var(--lf-diff-action-h);
 }
 /* An auxiliary control of the filter field, like its Clear: the field's frame carries
    the focus band for the group, and the press shows it is the one focused by its fill.
-   It is no taller than the count, so the field keeps the height it has without it, and
-   a finger's floor raises it as it does every other press. */
+   It is no taller than the count, so the field keeps the height it has without it,
+   and a finger's floor is its reach, as it is every other press's. */
 .lf-diff-fold-all {
-  --lf-icon-action-hit: max(24px, var(--aim-floor));
+  --lf-icon-action-face: 24px;
   margin-inline-end: -3px;
 }
 .lf-diff-fold-all[data-lf-focus-visible] {
@@ -409,6 +405,11 @@
 /* The filter field is not listed here. It is a vendored text field, whose Tab stop and
    ringed box are both inside its own shadow root, so a rule on this host would reach
    neither; the shared Web Awesome theme draws that band once for every package. */
+/* A line's press stands in a stack of lines, one above the next, so it reaches no
+   further than its own line: a reach would lie over the press on the next. */
+.lf-diff-line-comment::after {
+  content: none;
+}
 .lf-diff-comment[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 1px;

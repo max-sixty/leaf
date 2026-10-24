@@ -44,7 +44,7 @@ import {
   composedParentNode,
   focusDestination,
   focused,
-  onStanding,
+  onCurrentLocation,
   onUserInput,
   recoveredLabelFocus,
   renderedUnder,
@@ -89,10 +89,12 @@ if (child) {
   let upgraded = false;
   let arriving = false;
   let height = null;
-  let standing2 = null;
-  onStanding((node) => {
-    if (node && node !== document.body) standing2 = node;
-    sampleNotice("standing", { focused: Boolean(node && node !== document.body) });
+  let currentLocation2 = null;
+  onCurrentLocation((node) => {
+    if (node && node !== document.body) currentLocation2 = node;
+    sampleNotice("current-location", {
+      focused: Boolean(node && node !== document.body)
+    });
   });
   let gestures = 0;
   const input = (event) => {
@@ -103,9 +105,9 @@ if (child) {
   };
   onUserInput(input);
   window.addEventListener("click", input, { capture: true, passive: true });
-  registerSampleCommand("restore-standing", () => {
-    if (!standing2?.isConnected || !canPlaceFocus()) return false;
-    focusDestination(standing2, "return");
+  registerSampleCommand("restore-current-location", () => {
+    if (!currentLocation2?.isConnected || !canPlaceFocus()) return false;
+    focusDestination(currentLocation2, "return");
     return document.hasFocus();
   });
   const measure = () => {
@@ -177,8 +179,8 @@ var userIn = (scope) => {
   if (excludedByInert(scopeRoot(scope))) return false;
   return !scope.at || scope.at();
 };
-var standing = (scope) => userIn(scope) && pageHas(scope);
-var innermostStance = () => stances().find(({ scope }) => standing(scope)) ?? null;
+var currentLocation = (scope) => userIn(scope) && pageHas(scope);
+var innermostStance = () => stances().find(({ scope }) => currentLocation(scope)) ?? null;
 var nativeBoundary = (claims) => ({
   get rows() {
     const reference = universalCommandReference();
@@ -249,7 +251,7 @@ function stack(binding = null) {
     return scope;
   });
   const ordered = (scopes) => {
-    const activeScopes = scopes.filter(standing);
+    const activeScopes = scopes.filter(currentLocation);
     return binding === "Escape" ? escapeOrder(activeScopes, active) : activeScopes;
   };
   const layers = nativeLayers();

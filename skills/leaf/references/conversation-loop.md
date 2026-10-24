@@ -7,12 +7,12 @@ event's `handling`. A chat response does not change the page.
 
 The user follows your work on the page:
 
-| Surface                   | What it shows                                                                                                                                                           | Written by                                                              |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Leaf's panel              | one sentence for the whole page, in the empty comment field: the line of the item you started last, or what you want back; the leaf beside it takes the status's colour | `leaf task start`, `leaf status <page> waiting "<detail>"`              |
-| Beside a thread or widget | **Working** and your line: the thread's working message, where you posted it, or on the control the work answers                                                        | `leaf thread reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread                    | your answer to the user's message, replacing the progress before it                                                                                                     | the response operation named by delivered `handling`                    |
-| Page                      | the revised content in place, and a stamp's changelog                                                                                                                   | saving `index.html`, `leaf page stamp`                                  |
+| Surface                   | What it shows                                                                                                                                                                 | Written by                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Leaf's panel              | one sentence for the whole page, in the empty comment field: the line of the item you started last, or an invitation to comment; the leaf beside it takes the status's colour | `leaf task start`, `leaf page open <page>`                              |
+| Beside a thread or widget | **Working** and your line: the thread's working message, where you posted it, or on the control the work answers                                                              | `leaf thread reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
+| Thread                    | your answer to the user's message, replacing the progress before it                                                                                                           | the response operation named by delivered `handling`                    |
+| Page                      | the revised content in place, and a stamp's changelog                                                                                                                         | saving `index.html`, `leaf page stamp`                                  |
 
 Leaf's panel floats at the foot of the window. Leaf marks each update **Sent**,
 **Queued**, and **Delivered** by itself. Your harness may add its current step to the
@@ -35,7 +35,8 @@ the page at its last report, `freshness` turns `stale` after 45 seconds without 
 and `matches_active_revision` says whether it shows your latest revision. Each
 entry's `checks` lists layout problems that browser measured, such as sideways
 overflow, with their own `freshness` and `matches_view`. They are context, not a
-substitute for `leaf page check --render`. An empty list means no browser has
+substitute for `leaf page check --render`, which reads the desktop at the latest
+entry's viewport. An empty list means no browser has
 reported, and a region on screen does not mean the user read it.
 
 ## When to write
@@ -74,7 +75,7 @@ leaf task start <page> <todo> "drafting the glossary entries"
 leaf task end <page> <todo> done "<where the result is>"
 ```
 
-`leaf task open` prints the to-do's `id`. Until you end it, `leaf status … idle`
+`leaf task open` prints the to-do's `id`. Until you end it, `leaf page close …`
 refuses. Housekeeping such as re-vendoring, restarting the server, or merging needs
 no to-do.
 
@@ -110,26 +111,30 @@ When input arrives:
 Reply about a page revision as soon as it is saved; the reply checks it (the main
 skill's "Check the page").
 
-## Status and handoff
+## Page availability and handoff
 
-Before handing over, reconcile both lists ("The On lists"), then say what you want
-back:
+Before handing over, reconcile both lists ("The On lists"). Put questions that need
+an answer in a thread message with `--obligation`, so the user can open the thread
+from On me and reply there. Page availability does not ask the user for anything.
+
+Leave the page available for optional feedback, putting down your current starts:
 
 ```bash
-leaf status <page> waiting "<what you want back>"
+leaf page open <page>
 ```
 
-Name the answer or decision, not the fact that you are waiting. On an informational
-page with nothing on On me, leave it empty; the panel's status then invites the user to
-comment. Tell the user what they can do on the page, and hand over as your harness
-contract says.
-From the first handoff on, every turn's final response includes the exact page URL;
-progress messages don't repeat it.
-An export hands over its file URL, and a harness that already shows the page uses
-its own handoff surface.
+Your to-dos stay open. An informational page with nothing on On me simply invites
+comments. Tell the user what they can do on the page, and hand over as your harness
+contract says. From the first handoff on, every turn's final response includes the
+exact page URL; progress messages don't repeat it. An export hands over its file URL,
+and a harness that already shows the page uses its own handoff surface.
 
-`waiting` ends all your earlier starts; your to-dos stay open. Your reply ends an
-update's start, or, for an answer owed in markup, the stamped version that records
+When the page's work and conversation are finished, `leaf page close <page>` stops
+watching it. It refuses while updates are unread, answers are owed or agent to-dos
+remain open; closing settles no obligation.
+
+Your reply ends an update's start, or, for an answer owed in markup, the stamped
+version that records
 the user's press. A to-do's start ends with the to-do, through `leaf task end` or a
 stamped version that completes its widget:
 

@@ -5,7 +5,11 @@ from pathlib import Path
 
 from .schema import RENDER_CHECKS_DIR
 
-RENDER_VIEWPORT = {"width": 1200, "height": 900}
+# The fixed desktop window, sized as a laptop's, since many readers get a window about
+# 540-730px tall. The suite reads pages here, and so does `page check --render` where
+# the user's own window is unknown or the caller pins this one
+# (`render_gate.command.desktop_viewport`).
+RENDER_VIEWPORT = {"width": 1280, "height": 720}
 
 # The bound on one probe or request, sized for an oversubscribed host rather than an idle
 # one: it separates a wedged preview, which it turns into a useful failure rather than

@@ -647,12 +647,12 @@ OBLIGATION_IN_A_CARD_PAGE = leaf_page(
 {"".join(f"<p id='ac-tail-{i}'>Later note {i}. " + "Background. " * 14 + "</p>" for i in range(6))}
 """,
 )
-# The decision the walk is standing on. One decision wears the mark, on however many boxes it
+# The decision at the current location. One decision wears the mark, on however many boxes it
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the On panel's row mirrors the same fact in the chrome.
-STANDING_OBLIGATION = (
+CURRENT_OBLIGATION = (
     "main [data-lf-obligation]:not([data-lf-obligation] [data-lf-obligation])"
 )
 # The shipped board measures its grip from a live box. Author it into the page and
@@ -1054,6 +1054,8 @@ IN_FORCE_PAGE = leaf_page(
   <lf-test-worker id="ab-wren" state="working"><strong>wren</strong> The importer.</lf-test-worker>
 </lf-test-roster>
 <lf-draft id="ab-email"><pre>The words as this version authored them.</pre></lf-draft>
+<lf-approval id="ab-approve"><h2>Publish the cutover?</h2>
+  <p>Publish the migration notes to the team workspace.</p></lf-approval>
 <lf-suggestion id="ab-sug-410">
   <lf-old><p id="ab-404">The retired response is a plain 404.</p></lf-old>
   <lf-new><p>The retired response is a 410 Gone.</p></lf-new>
@@ -1111,6 +1113,7 @@ ACTIONS_IN_FORCE = [
     ("ab-work", "move", {"unit": "ab-importer", "value": "ab-done", "rank": "0i"}),
     ("ab-work", "move", {"unit": "ab-notes", "value": "ab-done", "rank": "09"}),
     ("ab-email", "edit", {"value": "The words as the user rewrote them."}),
+    ("ab-approve", "approve", {}),
     ("ab-sug-410", "decide", {"outcome": "accept"}),
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
     ("ab-triage", "choose", {"value": ["ab-capacity"]}),

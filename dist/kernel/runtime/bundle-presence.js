@@ -24,7 +24,7 @@ import {
   keeps,
   nextFrame,
   nextRender,
-  onStanding,
+  onCurrentLocation,
   pressing,
   renderedParent,
   renderedUnder,
@@ -247,7 +247,23 @@ var reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box)
 
 // runtime/reach.js
 var SCROLL_SURFACE = ".scroll";
-var seenClasses = /* @__PURE__ */ new WeakMap();
+var seenDeclarations = /* @__PURE__ */ new WeakMap();
+var scrollAncestors = /* @__PURE__ */ new WeakSet();
+var styleRoots = /* @__PURE__ */ new WeakSet();
+var ancestorStyles = new MutationObserver((records) => {
+  for (const { target } of records) if (scrollAncestors.has(target)) reread(target);
+});
+function watchAncestorStyles(scope) {
+  const tree = scope.getRootNode();
+  const root = tree.nodeType === Node.DOCUMENT_NODE ? tree.documentElement : tree;
+  if (!root || styleRoots.has(root) || !root.isConnected) return;
+  styleRoots.add(root);
+  ancestorStyles.observe(root, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style", "dir"]
+  });
+}
 var watchingSurfaces = false;
 var overflows = (el) => !el.hasAttribute("hidden") && (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
 var holdsOwnStop = (el) => tabStops(el).length > 0;
@@ -279,10 +295,10 @@ function returnStop(el, authored) {
   if (el.getAttribute("tabindex") === "0")
     keeps(el, "tabindex", wearsLentStop(el) ? -1 : authored);
 }
-var sideways = /* @__PURE__ */ new Set();
+var sideways = /* @__PURE__ */ new Map();
 var downwards = /* @__PURE__ */ new Map();
 var readingScrolled = (event) => paintReadingReach(event.currentTarget);
-var sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
+var sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget, true);
 function reachReadingScroller(el, paintContinuation) {
   el.classList.toggle("scroll", true);
   downwards.set(el, paintContinuation);
@@ -333,12 +349,14 @@ function reachScrollers(root) {
   paintReach();
   if (watchingSurfaces) return;
   watchingSurfaces = true;
-  watchArrivals(SCROLL_SURFACE, ["class"], {
+  watchArrivals(SCROLL_SURFACE, ["class", "style"], {
     arriveBatch(surfaces) {
       for (const el of surfaces) {
         const classes = el.getAttribute("class");
-        if (seenClasses.get(el) === classes) continue;
-        seenClasses.set(el, classes);
+        const style = el.getAttribute("style");
+        const previous = seenDeclarations.get(el);
+        if (previous?.classes === classes && previous?.style === style) continue;
+        seenDeclarations.set(el, { classes, style });
         reread(el);
       }
     },
@@ -352,6 +370,7 @@ var wait = (el) => {
 function sweep(root) {
   const scopes = [root];
   for (const scope of scopes) scopes.push(...shadowRootsIn(scope));
+  for (const scope of scopes) watchAncestorStyles(scope);
   const surfaces = scopes.flatMap((scope) => [
     ...scope.nodeType === Node.ELEMENT_NODE && scope.matches(SCROLL_SURFACE) ? [scope] : [],
     ...scope.querySelectorAll(SCROLL_SURFACE)
@@ -359,7 +378,10 @@ function sweep(root) {
   const read = [];
   const containers = /* @__PURE__ */ new Set();
   for (const el of surfaces) {
-    seenClasses.set(el, el.getAttribute("class"));
+    seenDeclarations.set(el, {
+      classes: el.getAttribute("class"),
+      style: el.getAttribute("style")
+    });
     if (skipped(el)) {
       wait(el);
       continue;
@@ -370,10 +392,12 @@ function sweep(root) {
       {
         overflowX: style.overflowX,
         overflowY: style.overflowY,
-        position: style.position
+        position: style.position,
+        direction: style.direction
       }
     ]);
     for (let node = el; node?.nodeType === Node.ELEMENT_NODE; node = upFrom(node)) {
+      scrollAncestors.add(node);
       if (containers.has(node)) break;
       containers.add(node);
     }
@@ -391,7 +415,7 @@ function sweep(root) {
   asked.add(root);
 }
 function forgetSurface(el) {
-  seenClasses.delete(el);
+  seenDeclarations.delete(el);
   if (mayScroll.has(el)) {
     const authored = mayScroll.get(el);
     mayScroll.delete(el);
@@ -428,10 +452,12 @@ function classify(el, style) {
     if (!watched(el)) unwatchReach(el);
     return;
   }
-  if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX) && !sideways.has(el)) {
-    sideways.add(el);
-    watchReach(el);
-    el.addEventListener("scroll", sidewaysScrolled, { passive: true });
+  if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX)) {
+    if (!sideways.has(el)) {
+      watchReach(el);
+      el.addEventListener("scroll", sidewaysScrolled, { passive: true });
+    }
+    sideways.set(el, style.direction);
   }
   if (!mayScroll.has(el)) {
     if (el.tabIndex >= 0 && !claimedStops.has(el)) return;
@@ -479,15 +505,16 @@ var depth = (el) => {
 };
 var watched = (el) => mayScroll.has(el) || sideways.has(el) || downwards.has(el) || waiting.has(el);
 var reachSizes = sizeObserver(() => paintReach());
-function paintSidewaysReach(el) {
+function paintSidewaysReach(el, readStyle = false) {
   afterScript(() => {
     if (!sideways.has(el) || unpainted(el)) return;
-    const style = getComputedStyle(el);
-    const scrolling = userScrollport(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
+    const direction = readStyle ? getComputedStyle(el).direction : sideways.get(el);
+    if (readStyle) sideways.set(el, direction);
+    const scrolling = el.scrollWidth > el.clientWidth + 1;
     const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
     const raw = Math.abs(el.scrollLeft);
     const position = Math.min(maximum, Math.max(0, raw));
-    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
+    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? direction : null);
     el.toggleAttribute(
       PAGE_PAINT_ATTRIBUTE.moreBefore,
       scrolling && position > SCROLL_SLACK
@@ -523,7 +550,7 @@ function paintReachNow() {
     if (overflows(el) && !holdsOwnStop(el)) lendStop(el);
     else returnStop(el, authored);
   }
-  for (const el of sideways) paintSidewaysReach(el);
+  for (const el of sideways.keys()) paintSidewaysReach(el);
   for (const el of downwards.keys()) paintReadingReach(el);
 }
 var rereads = /* @__PURE__ */ new Set();
@@ -728,7 +755,7 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     },
     { capture: true, passive: true }
   );
-onStanding((node, cause) => {
+onCurrentLocation((node, cause) => {
   if (node) actedAt(node, true);
   if (node && cause === "step") readingInput(node);
 });
@@ -755,14 +782,14 @@ var containingReadingRegionFor = (node) => {
 };
 var asRegion = (regionOrNode) => typeof regionOrNode === "string" ? regions.get(regionOrNode) : regions.get(regionOrNode?.id) ?? regions.get(readingRegionFor(regionOrNode)?.id);
 var scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
-var readingPosture = (regionOrNode) => {
+var regionScrollBehavior = (regionOrNode) => {
   const region = asRegion(regionOrNode);
   return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
 };
 function effectiveScroller(regionOrNode) {
   const region = asRegion(regionOrNode);
   if (!region) return pageScroller;
-  if (readingPosture(region) === "bounded") return region.body;
+  if (regionScrollBehavior(region) === "bounded") return region.body;
   const containing = [...regions.values()].filter(
     (candidate) => candidate !== region && live(candidate) && renderedUnder(region.host, candidate.body)
   ).sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
@@ -922,7 +949,7 @@ export {
   pageReadingRegion,
   userReadingRegion,
   containingReadingRegionFor,
-  readingPosture,
+  regionScrollBehavior,
   effectiveScroller,
   scrollerFor,
   scrollersOf,

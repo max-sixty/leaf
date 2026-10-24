@@ -151,8 +151,8 @@ PINNED_IN_BOX = """async (id) => {
 
 
 def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve):
-    """A diff's file header pins at the top of the box that scrolls it, whoever made the
-    box scroll: a page rule, an inline style, `overflow: hidden`, and a column's sticky
+    """A diff's file header pins at the top of its declared scroll box, whether a
+    page rule, an inline style, `overflow: hidden`, or a column's sticky
     sidebar each start `--lf-top` again, where each pinned the header the root's slot
     below the box's top. The root keeps its slot though a page rule makes it scroll,
     and a page's sticky box keeps the slot it met though another rule makes it scroll,
@@ -165,10 +165,10 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
             leaf_page(
                 "Scrolling boxes",
                 f'<aside class="sidebar" id="side">{long_diff("in-side")}</aside>'
-                f'<h1>Scrolling boxes</h1><div id="box">{long_diff("in-box")}</div>'
-                '<div id="inline" style="max-height: 320px; overflow: auto">'
+                f'<h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
+                '<div id="inline" class="scroll" style="max-height: 320px; overflow: auto">'
                 f"{long_diff('in-inline')}</div>"
-                '<div id="hidden" style="max-height: 320px; overflow: hidden">'
+                '<div id="hidden" class="scroll" style="max-height: 320px; overflow: hidden">'
                 f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
                 + "<p>Filler.</p>"
@@ -731,7 +731,7 @@ def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
     data_model.cmd_data_set(serve.page_dir, "review-patch", value(next_patch))
     told(page)
     rendered(page)
-    # The editor the user stands in. Chromium leaves an editor carried through a hidden
+    # The editor the user is located in. Chromium leaves an editor carried through a hidden
     # node unmatched by its own native `:focus-within` (notes/browser-support.md).
     current = page.locator(".lf-thread-reply leaf-text:focus")
     expect(current).to_have_js_property("value", draft)
@@ -1161,7 +1161,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     # (theme.css), where outset on the body the workspace body clipped its right and
     # lower runs.
     # The selected row retargets document focus to this host. Leave it first so
-    # focusing the host itself publishes a new standing and its pane band.
+    # focusing the host itself publishes a new location and its pane band.
     host = page.locator("lf-diff")
     host.evaluate("node => { node.blur(); node.focus(); }")
     expect(host).to_have_attribute("data-lf-focus", "")
@@ -1283,7 +1283,7 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(
     browser, serve
 ):
-    """The mirror of the first `]` above, from the same standing: nothing focused inside
+    """The mirror of the first `]` above, from the same current location: nothing focused inside
     the diff. That is where an in-page link to the diff's own id leaves a user, since
     `focusDestination` focuses the host, and the diff's keys answer there because the
     scope climb starts at the focused node itself.
@@ -1324,7 +1324,7 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
             "() => document.querySelector('lf-diff').shadowRoot.activeElement"
         )
         is None
-    ), "the standing this test is about is nothing focused inside the diff"
+    ), "the current location in this test has no focus inside the diff"
 
     page.keyboard.press("[")
     page.wait_for_function(
@@ -1425,7 +1425,7 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     browser, serve
 ):
     """A file's row gives way from its folders, and its title reaches only a pointer
-    resting on it. The keyboard standing on the row, and a finger held on it, read the
+    resting on it. The keyboard location on the row, and a finger held on it, read the
     whole path in a box under the row, a folded file's too, over the next file's row.
     Releasing the hold folds the file, as a tap does. Touch focus keeps the path
     visible until it leaves. A row that shows its whole path at the width it has
@@ -1482,17 +1482,17 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
 
     page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
     head.focus()
-    standing = head.evaluate(read)
-    assert standing == {
+    focused = head.evaluate(read)
+    assert focused == {
         "open": True,
         "word": whole,
         "shown": True,
         "below": True,
         "fits": True,
         "onTop": True,
-    }, standing
+    }, focused
     page.keyboard.press("Enter")
-    assert head.evaluate(read) == {**standing, "open": False}
+    assert head.evaluate(read) == {**focused, "open": False}
     page.keyboard.press("Enter")
     head.evaluate("head => head.blur()")
 

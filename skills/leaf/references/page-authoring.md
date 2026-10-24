@@ -238,4 +238,5 @@ When that title starts a section with an id, the `<section>` carries the address
 instead. An id a heading needs for `aria-labelledby` is not the section's address.
 
 Threads, reading position and version comparison all find a block by its id, so a
-rewritten paragraph keeps its id.
+rewritten paragraph keeps its id. A heading offers the reader a link to that address, so
+a heading with no id on it, its `<hgroup>` or the section it opens offers none.

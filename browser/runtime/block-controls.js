@@ -1,5 +1,6 @@
 /* A control the runtime stands over one of the page's blocks: Copy at a code block's
-   corner (code-copy.js) and a recording's play bar (video-controls.js).
+   corner (code-copy.js), a heading's link (heading-links.js) and a recording's play bar
+   (video-controls.js).
 
    A document block's control stands in chrome, so the page's own sibling and child
    selectors keep matching what the page wrote. CSS anchors keep it on the block without
@@ -136,6 +137,21 @@ export function tabFromBlock(control, block, signal) {
     { signal },
   );
 }
+
+// A tap that stands the user on a block reveals its control before the tap's click is
+// aimed, so the click lands on a control the press never touched. Only a press that
+// began on a shown control presses it; Enter's click carries no press (`detail` 0).
+// The last press may have been on markup a revision removes before another press, so
+// the path is held weakly.
+let pressedPath = new WeakSet();
+addEventListener(
+  "pointerdown",
+  (event) => (pressedPath = new WeakSet(event.composedPath())),
+  { capture: true },
+);
+/** Whether a click on `control` comes from a press that began elsewhere. */
+export const pressedElsewhere = (event, control) =>
+  event.detail > 0 && !pressedPath.has(control);
 
 /** Take a document control and its frames out of chrome once its block has left. */
 export function releaseControl(control) {

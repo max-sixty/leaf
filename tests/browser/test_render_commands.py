@@ -970,24 +970,14 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     colors = patch.locator(".lf-shotpixels .lf-shotplane > span").evaluate_all(
         "nodes => nodes.map(node => getComputedStyle(node).backgroundColor)"
     )
-    assert len(set(colors)) == 3
+    assert len(colors) == 1
     options = patch.get_by_role("group", name="Image options", exact=True)
     expect(options).not_to_be_visible()
     patch.get_by_role("button", name="Image options").click()
-    expect(options.locator(".lf-shot-key-item")).to_have_text(
-        ["Before only", "After only", "Recolored"]
+    expect(options.locator(".lf-shot-pixel-key")).to_have_text("Changed pixels")
+    expect(options.locator(".lf-shot-key-swatch")).to_have_css(
+        "background-color", colors[0]
     )
-    key_colors = options.locator(".lf-shot-key-swatch").evaluate_all(
-        "nodes => Object.fromEntries(nodes.map(node => [node.dataset.lfShotSide, getComputedStyle(node).backgroundColor]))"
-    )
-    mask_colors = patch.locator(".lf-shotpixels .lf-shotplane > span").evaluate_all(
-        "nodes => Object.fromEntries(nodes.map(node => [node.dataset.lfShotSide, getComputedStyle(node).backgroundColor]))"
-    )
-    assert key_colors == mask_colors
-    for side in ("before", "after"):
-        expect(
-            patch.locator(f'.lf-shot-toolbar > [data-lf-state="{side}"]')
-        ).to_have_css("color", key_colors[side])
     expect(options.get_by_role("link")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(options).not_to_be_visible()

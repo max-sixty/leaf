@@ -98,9 +98,7 @@ export function standInChrome(control, block, levels) {
   placed.set(control, block);
   if (!wired.has(control)) {
     wired.add(control);
-    control.addEventListener("pointerenter", () =>
-      setActiveControl("hover", control),
-    );
+    control.addEventListener("pointerenter", () => setActiveControl("hover", control));
     control.addEventListener("pointerleave", () => {
       if (hoveredControl === control) setActiveControl("hover", null);
     });

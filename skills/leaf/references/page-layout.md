@@ -196,9 +196,10 @@ works on column and sidebar pages:
 - `data-width="wide"` is for a block slightly wider than the column, such as code up
   to 100 columns, a diff or a table of a few more columns. The block starts at the
   prose's left edge and extends right to `--wide`, as far as the window allows.
-- `data-width="available"` is for a surface that uses every pixel, such as a large
-  drawing or a playground. It takes all the width Leaf's chrome and the margin leave
-  free, into both margins, stopping short of a margin sidebar or the contents map.
+- `data-width="available"` is for a surface that uses every pixel, such as a board, a
+  large drawing or a playground. It takes all the width Leaf's chrome and the margin
+  leave free, into both margins, stopping short of a margin sidebar or the contents
+  map.
 
 A `table` with either value is only as wide as its columns need, up to that width. A
 block inside an `lf-ask` or callout breaks out only with its own `data-width`; the

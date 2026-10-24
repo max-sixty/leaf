@@ -1283,11 +1283,13 @@ graph LR
 def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     browser, serve
 ):
-    """A board's columns are as wide as what they hold and prose is set to a measure, so
-    a page carrying both used to be a cramped board or a page widened past its own
-    measure for one exhibit. x-space declares the capacity a widget needs, and the theme spends
-    the room the layout measured — so the exhibit grows, the prose does not move, and the
-    left edge they share is what keeps a page that mixes widths reading as one design.
+    """A board's columns are as wide as what they hold, a diff's lines are as long as its
+    files', and prose is set to a measure, so a page carrying all three used to be a
+    cramped board or a page widened past its own measure for one exhibit. x-space
+    declares the capacity a widget needs, and the theme spends the room the layout
+    measured, so each exhibit grows and the prose does not move. The board, a surface,
+    takes all the room; the diff, slightly wider than the column, starts at the prose's
+    edge and stops at the shared cap.
 
     The code block is the half that says the declaration is doing this. It is a widget
     too, and declares nothing, so it stays in the column: a rule that reached every
@@ -1296,47 +1298,48 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     page = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
 
     wide = page.evaluate(ROOM_GEOMETRY)
-    assert wide["board"]["width"] > wide["column"]["width"], (
-        "a widget declaring width must take more than the column: board "
-        f"{wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
-    )
-    # Room to spare at this viewport, so a board stopping short of it is the shared cap
-    # binding rather than the window — one width for the vocabulary, not each widget's own.
-    assert wide["board"]["width"] < wide["room"]["width"], (
-        "the breakout must stop at one stated width, not fill whatever is there"
-    )
-    assert wide["board"]["left"] >= wide["room"]["left"] - 1, (
-        "past the page on the left"
-    )
-    assert wide["board"]["right"] <= wide["room"]["right"] + 1, "past the page, right"
-    assert abs(wide["board"]["left"] - wide["column"]["left"]) <= 1, (
+    board, patch, column = wide["board"], wide["widePatch"], wide["column"]
+    # The room is the body's box; a breakout stops at the shell's 24px gutter.
+    for edge, inset in (("left", 24), ("right", -24)):
+        assert board[edge] == pytest.approx(wide["room"][edge] + inset, abs=1), (
+            f"an available board fills the room: its {edge} edge is at "
+            f"{board[edge]:.0f}px, the room's at {wide['room'][edge]:.0f}px"
+        )
+    assert patch["left"] == pytest.approx(column["left"], abs=1), (
         "a wide exhibit starts where the prose starts, or it reads as one that slipped: "
-        f"board at {wide['board']['left']:.0f}, column at {wide['column']['left']:.0f}"
+        f"diff at {patch['left']:.0f}, column at {column['left']:.0f}"
     )
-    assert abs(wide["diff"]["width"] - wide["column"]["width"]) <= 1, (
+    # Room to spare at this viewport, so a diff stopping short of it is the shared cap
+    # binding rather than the window: one width for the vocabulary, not each widget's own.
+    assert column["width"] < patch["width"] < wide["room"]["width"], (
+        "the wide breakout must stop at one stated width, not fill whatever is there: "
+        f"diff {patch['width']:.0f}px, room {wide['room']['width']:.0f}px"
+    )
+    assert abs(wide["diff"]["width"] - column["width"]) <= 1, (
         "a widget that declares nothing keeps the column: code block "
-        f"{wide['diff']['width']:.0f}px against {wide['column']['width']:.0f}px"
+        f"{wide['diff']['width']:.0f}px against {column['width']:.0f}px"
     )
-    assert abs(wide["prose"]["width"] - wide["column"]["width"]) <= 1, (
+    assert abs(wide["prose"]["width"] - column["width"]) <= 1, (
         "prose keeps its measure whatever the exhibits beside it do"
     )
     assert root_overflow(page) == 0, "the page must not scroll sideways"
 
     # Under the column's own width there is no room to take, and the rule has to come out
-    # as the layout the page already had — the same edge, not an inset approximation of it.
+    # as the layout the page already had: the same edge, not an inset approximation of it.
     resized(page, 700, 900)
     narrow = page.evaluate(ROOM_GEOMETRY)
     assert narrow["column"]["width"] < 720, (
         "the narrow half proves nothing unless the window is under the column"
     )
-    assert abs(narrow["board"]["left"] - narrow["column"]["left"]) <= 1, (
-        "a board on a narrow window must start where the prose starts: board at "
-        f"{narrow['board']['left']:.0f}, column at {narrow['column']['left']:.0f}"
-    )
-    assert abs(narrow["board"]["width"] - narrow["column"]["width"]) <= 1, (
-        "and be the column exactly: board "
-        f"{narrow['board']['width']:.0f}px, column {narrow['column']['width']:.0f}px"
-    )
+    for name in ("board", "widePatch"):
+        assert abs(narrow[name]["left"] - narrow["column"]["left"]) <= 1, (
+            f"the {name} on a narrow window must start where the prose starts: at "
+            f"{narrow[name]['left']:.0f}, column at {narrow['column']['left']:.0f}"
+        )
+        assert abs(narrow[name]["width"] - narrow["column"]["width"]) <= 1, (
+            f"and be the column exactly: {name} "
+            f"{narrow[name]['width']:.0f}px, column {narrow['column']['width']:.0f}px"
+        )
     assert root_overflow(page) == 0, "nor scroll sideways on a narrow window"
 
 
@@ -2380,8 +2383,8 @@ def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, se
     toward the right margin reaches the rail's markers.
 
     Nothing Leaf draws moves the page's content, so a comment arriving on a board cannot
-    narrow it: both boards grow right from the prose's edge at every width. The change
-    inside the near board belongs to the board, which reaches past the rail's inner edge, so its row
+    narrow it: both boards grow both ways at every width. The change inside the near
+    board belongs to the board, which reaches past the rail's inner edge, so its row
     stands on the board as a pin at the top-right of the change it decides, where it
     lands on what it is about. The change above the board keeps the rail. Either way
     the controls stay pressable: they stand over the page, not under it.
@@ -2407,7 +2410,7 @@ def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, se
         )
         for name in ("plan", "later"):
             b = at[name]
-            assert abs(b["left"] - at["column"]["left"]) <= 1, (width, name, at)
+            assert b["left"] < at["column"]["left"] - 1, (width, name, at)
             assert b["right"] > at["column"]["right"] + 1, (
                 f"at {width}px the {name} board is held to the column's right edge, so "
                 f"a row in the margin took room from the page's content: {at}"

@@ -610,9 +610,9 @@ DRAWING_PLACEMENT = """() => {
              rail: acts.getBoundingClientRect().left,
              small: at('small'), flow: at('flow') };
 }"""
-# A widget that declares width beside one that doesn't, so what the assertions turn on is
-# the declaration and not the tag: both are widgets, both hold more than the column shows
-# comfortably, and only one of them is entitled to more of the window than the prose gets.
+# Widgets that declare each width beside one that declares none, so what the assertions
+# turn on is the declaration and not the tag: the board takes all the room, the diff the
+# capped width from the prose's edge, and the code block keeps the column.
 WIDE_AND_NARROW_PAGE = leaf_page(
     "room",
     """
@@ -628,6 +628,15 @@ WIDE_AND_NARROW_PAGE = leaf_page(
   <lf-column id="col-review" label="Review"></lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
+<lf-diff id="wide-patch"><pre>
+diff --git a/feeders/mount.py b/feeders/mount.py
+--- a/feeders/mount.py
++++ b/feeders/mount.py
+@@ -1,2 +1,2 @@
+ def bracket():
+-    return "plastic"
++    return "steel"
+</pre></lf-diff>
 <lf-code id="patch" language="python"><pre>
 def bracket():
     return "steel"
@@ -856,6 +865,7 @@ ROOM_GEOMETRY = (
     + SHELL_BOX
     + """,
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
+             widePatch: box('wide-patch'),
              note: box('note'), later: box('later') };
 }"""
 )

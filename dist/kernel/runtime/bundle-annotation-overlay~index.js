@@ -69,12 +69,10 @@ import {
   rowWalk,
   selectionAnchor,
   showLatestTurn,
-  strongestWorkflow,
   tabStore,
   threadFocusDestination,
   threadIdNamed,
-  threadNamed,
-  writingIn
+  threadNamed
 } from "./bundle-user-intent.js";
 import {
   setChildLists,
@@ -293,6 +291,126 @@ function surfaceGrip({ surface, bounds, dropped }) {
   return { grip, placed };
 }
 
+// runtime/thread/card-anchor.js
+var CardAnchor = class {
+  /** @type {HTMLElement} */
+  #surface;
+  /** @type {string | null} */
+  #sent = null;
+  /** @type {Press | null} */
+  #press = null;
+  /** @type {Seat["side"] | null} */
+  #side = null;
+  /** @param {HTMLElement} surface */
+  constructor(surface) {
+    this.#surface = surface;
+  }
+  // Called by the reply action before its optimistic publication changes any boxes.
+  /** @param {string} attempt */
+  sending(attempt) {
+    this.#sent = attempt;
+  }
+  // Entering or editing the native reply starts a new writing place, even while
+  // an earlier send remains in flight. Its later receipt cannot borrow it again.
+  writing() {
+    this.#sent = null;
+  }
+  // Own words may reveal held news with them: that whole presentation is the send's
+  // result. Later arriving words release its foot; receipt alone adds no words.
+  // Both news admission and actual presentation read the same canonical change.
+  /** @param {Set<string> | undefined} joined */
+  #keepsSend(joined) {
+    return this.#sent !== null && (!joined?.size || joined.has(this.#sent));
+  }
+  /** @param {Set<string> | undefined} joined */
+  presented(joined) {
+    if (!this.#keepsSend(joined)) this.#sent = null;
+  }
+  /** @param {Event} event @param {number} input */
+  pressed(event, input) {
+    if (!["pointerdown", "touchstart", "keydown"].includes(event.type)) return;
+    const path = event.composedPath();
+    if (!path.includes(this.#surface)) return;
+    const top = this.#surface.getBoundingClientRect().top;
+    this.#press = {
+      input,
+      path: path.filter(
+        (node) => node instanceof Element && node !== this.#surface && this.#surface.contains(node)
+      ).map((node) => ({
+        node: (
+          /** @type {Element} */
+          node
+        ),
+        offset: (
+          /** @type {Element} */
+          node.getBoundingClientRect().top - top
+        )
+      })),
+      extent: this.#extent(),
+      edge: null
+    };
+  }
+  #field() {
+    return (
+      /** @type {(HTMLElement & {value: string}) | null} */
+      this.#surface.querySelector(`.lf-thread-reply ${TEXT_FIELD}`)
+    );
+  }
+  #writing() {
+    const field = this.#field();
+    return Boolean(
+      field?.checkVisibility() && (currentLocationIn(field.closest(".lf-thread-reply")) || field.value !== "")
+    );
+  }
+  // A press measures its own before/after, not an unrelated earlier landing.
+  #extent() {
+    const transcript = this.#surface.querySelector(".lf-thread-transcript");
+    return transcript ? parseFloat(getComputedStyle(transcript).height) + transcript.scrollHeight - transcript.clientHeight : 0;
+  }
+  /** @param {Seat} seat */
+  prepare(seat) {
+    if (seat.fresh) this.forget();
+    this.#side = seat.side;
+    if (this.#field()?.value) this.writing();
+    const writing = this.#writing();
+    const captured = this.#press;
+    let press = captured?.input === inputCount() ? captured : null;
+    if (press) {
+      const extent = this.#extent();
+      if (Math.abs(extent - press.extent) > 0.5) {
+        const reference = press.path.find(({ node }) => node.checkVisibility());
+        if (press.edge) press = null;
+        else if (reference) {
+          const offset = reference.node.getBoundingClientRect().top - this.#surface.getBoundingClientRect().top;
+          press = {
+            ...press,
+            edge: seat.side === "top" || Math.abs(offset - reference.offset) > 0.5 ? "foot" : "top",
+            extent
+          };
+        }
+      }
+    }
+    const attachment = seat.side === "top" ? "foot" : "top";
+    const ordinary = this.#sent || (writing ? seat.floored && seat.side !== "top" && seat.side !== "bottom" : seat.side === "top") ? "foot" : "top";
+    return {
+      edge: seat.adopted ? attachment : press?.edge ?? ordinary,
+      commit: () => {
+        if (this.#press === captured) this.#press = press;
+      }
+    };
+  }
+  // Asking is read-only: held news has not advanced the displayed conversation.
+  /** @param {Set<string> | undefined} joined */
+  newsMoves(joined) {
+    return this.#writing() || this.#side === "top" || this.#keepsSend(joined);
+  }
+  forget() {
+    this.#sent = null;
+    this.#press = null;
+    this.#side = null;
+  }
+};
+
 // runtime/annotation-overlay/thread-preview.js
 var REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
 var CUT_EDGES = [
@@ -401,18 +519,10 @@ function createThreadPreview({
       run: () => focusDestination(preview, "return")
     }
   ];
-  onUserInput((event) => {
-    if (!previewSession || !["pointerdown", "touchstart", "keydown"].includes(event.type))
-      return;
-    const path = event.composedPath();
-    if (!path.includes(preview)) return;
-    const top = preview.getBoundingClientRect().top;
-    previewSession.pressed = {
-      input: inputCount(),
-      path: path.filter(
-        (node) => node instanceof Element && node !== preview && preview.contains(node)
-      ).map((node) => ({ node, offset: node.getBoundingClientRect().top - top }))
-    };
+  onUserInput((event) => previewSession?.anchor.pressed(event, inputCount()));
+  preview.addEventListener("lf-before-edit", (event) => {
+    if (event.composedPath().some((node) => node instanceof Element && node.matches(".lf-thread-reply")))
+      previewSession?.anchor.writing();
   });
   let previewRegionMounted = false;
   function syncPreviewTranscript() {
@@ -468,6 +578,7 @@ function createThreadPreview({
     cancelRender(previewSession.positionFrame);
     previewSession.positionFrame = 0;
     previewSession.side.forget();
+    previewSession.anchor.forget();
     previewSession.away = false;
   }
   function retirePreviewSession() {
@@ -523,9 +634,6 @@ function createThreadPreview({
     if (!session.sent) return showLatestTurn(session.transcript);
     scrollToEnd(session.transcript);
     moveScrollerBy(session.transcript, -session.sent.fromEnd);
-  }
-  function measureTranscript() {
-    return previewSession.transcript ? parseFloat(getComputedStyle(previewSession.transcript).height) + previewSession.transcript.scrollHeight - previewSession.transcript.clientHeight : 0;
   }
   function threadCardCluster(session) {
     const row = session.control.closest("[data-lf-margin-for]") ?? session.control;
@@ -584,11 +692,6 @@ function createThreadPreview({
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const thread = threadCardThread(session);
-    const latest = thread && turns(thread).at(-1);
-    const replyEditor = previewList.querySelector(REPLY_BOX);
-    const sending = latest?.author === "user" && strongestWorkflow(latest.workflows)?.stage === "sending";
-    const drafting = writingIn(replyEditor, sending);
     const boundary = commentBoundary({ region: place.region });
     session.region = place.region;
     if (!boundary.width || !boundary.height) {
@@ -596,7 +699,7 @@ function createThreadPreview({
       return false;
     }
     const scroller = place.scroller;
-    const { side, fresh, hold } = session.side.choose({
+    const seat = session.side.choose({
       clear: place.clear,
       row: place.row,
       column: place.column,
@@ -605,23 +708,11 @@ function createThreadPreview({
       scroller,
       coarse: coarsePointer.matches
     });
-    const pressed = session.pressed?.input === inputCount() ? session.pressed.path.find(({ node }) => node.checkVisibility()) : null;
-    const held = session.side.holding({
-      fresh,
-      hold,
-      transcript: measureTranscript(),
-      drafting,
-      latest,
-      draftText: replyEditor?.value ?? "",
-      pressed: pressed && {
-        input: session.pressed.input,
-        moved: Math.abs(
-          pressed.node.getBoundingClientRect().top - preview.getBoundingClientRect().top - pressed.offset
-        ) > 0.5
-      }
-    });
+    const { side, fresh } = seat;
+    let anchored;
     void floatingUi().then((ui) => {
       if (!stillCurrent()) return null;
+      anchored = session.anchor.prepare(seat);
       const { reference, placement: placement3, middleware, plane } = session.side.options(ui, {
         clear: place.clear,
         row: place.row,
@@ -651,7 +742,7 @@ function createThreadPreview({
             placeThreadPreview();
           }
         },
-        hold: () => session.side.heldAt(held)
+        edge: anchored.edge
       });
       watch(ui);
       return placementDriver.position(
@@ -665,6 +756,7 @@ function createThreadPreview({
       if (!position || !stillCurrent()) return;
       session.arriving = false;
       const { scale } = session.side.landed(position);
+      anchored.commit();
       placementDriver.stand(position);
       session.width ??= preview.getBoundingClientRect().width;
       carry.placed();
@@ -740,14 +832,13 @@ function createThreadPreview({
       place: null,
       stopRegion: null,
       side: commentPlacement(),
+      anchor: new CardAnchor(preview),
       // The width the card stands at for this selection, in client pixels: the box's
       // Send replaced, so the two are one rectangle, else the one it first stood at, or
       // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
       // comment's card 13px wider than its box.
       width: origin?.box.width ?? null,
-      region: null,
-      // The user's latest press in the card, while it is their latest input (`holding`).
-      pressed: null
+      region: null
     };
     if (origin) previewSession.side.adopt(origin);
     return previewSession;
@@ -833,8 +924,7 @@ function createThreadPreview({
       {
         nav: previewNav.hidden ? null : previewNav,
         close: previewClose,
-        // The edge news would grow the card from (comment-placement.js, `edgeFor`).
-        heldEdge: (turn) => previewSession?.side.edgeFor(turn) ?? "top",
+        anchor: previewSession.anchor,
         // A resolved thread with no draft has no margin card, so resolving closes it and
         // hands the user to its target, and a resolve that no longer stands opens the
         // card on the thread again, while the margin is still where threads open.
@@ -966,6 +1056,10 @@ function createThreadPreview({
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
     onCurrentLocation((node, cause, left) => {
+      if (node && under(node, preview) && closestAcross(node, ".lf-thread-reply") && cause !== "return" && cause !== "drop") {
+        previewSession?.anchor.writing();
+        scheduleThreadPreviewPosition();
+      }
       const row = left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
       if (row && !(node && under(node, row)) && !row.querySelector(REPLY_BOX)?.value)
         scheduleThreadPreviewPosition();

@@ -4918,9 +4918,6 @@ var replyCompositionHasDraft = (node) => {
   return ctx ? loadDraft(ctx) !== null : null;
 };
 var replyIsEditing = (key) => compositions.has(replyContext(key));
-var writingIn = (field, sending2) => Boolean(
-  field?.checkVisibility() && (currentLocationIn(field.closest(".lf-thread-reply")) || field.value !== "" || sending2)
-);
 var replyAvailable = (thread) => !thread.resolved || replyIsEditing(threadKey(thread));
 async function restoreReplyEditing(editing, land2) {
   if (!editing?.mirrored || !draftEditingStands(editing)) return null;
@@ -5159,7 +5156,7 @@ function messageChange(prior, message) {
   if (!reworded) return null;
   return rewritten(prior) === rewritten(message) ? "grew" : "rewritten";
 }
-function difference(was, now, { progressOpen = false } = {}) {
+function threadChange(was, now, { progressOpen = false } = {}) {
   const drawn3 = new Map(was.messages.map((message) => [message.key, message]));
   const settled = Boolean(was.resolved) === Boolean(now.resolved) ? null : now.resolved ? "Resolved" : "Reopened";
   const news = {
@@ -5173,10 +5170,12 @@ function difference(was, now, { progressOpen = false } = {}) {
     appended: false
   };
   const changed2 = /* @__PURE__ */ new Set();
+  const joined = /* @__PURE__ */ new Set();
   const arrived = /* @__PURE__ */ new Set();
   for (const message of now.messages) {
     const prior = drawn3.get(message.key);
     const change = messageChange(prior, message);
+    if (change === "joined") joined.add(message.key);
     if (!prior || prior.provisional) arrived.add(message.id);
     if (change === "joined" && message.progress && !progressOpen && !now.resolved) {
       news.progress += 1;
@@ -5243,7 +5242,7 @@ function difference(was, now, { progressOpen = false } = {}) {
   );
   const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
   const answers = turn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed2, ...folds.messages].some((key) => asked.has(key));
-  return { news, changed: changed2, folds, appendedAtEnd, footFold, answers };
+  return { news, changed: changed2, joined, folds, appendedAtEnd, footFold, answers };
 }
 function withheld(was, now) {
   const current = new Map(now.msgs.map((message) => [messageKey(message), message]));
@@ -5458,7 +5457,7 @@ var HeldNews = class {
     const threads = reading.threads.filter(({ key }) => !this.#threads.has(key)).map((thread) => {
       const was = drawn3.get(thread.key);
       const shown2 = thread.visible !== false && !thread.folding;
-      const held = was && shown2 && !this.#released.has(thread.key) ? difference(was, thread, {
+      const held = was && shown2 && !this.#released.has(thread.key) ? threadChange(was, thread, {
         progressOpen: this.#view(thread.key)?.progressOpen ?? false
       }) : null;
       if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
@@ -6648,7 +6647,7 @@ var ThreadView = class {
   // would move visible words. Existing-message changes and active compositions
   // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
   // absorb changes above it or settlement replacing the reply itself.
-  newsMoves({ news, changed: changed2, folds, appendedAtEnd, footFold }) {
+  newsMoves({ news, changed: changed2, joined, folds, appendedAtEnd, footFold }) {
     const lands = news.settled ? this.#settlesAt?.() : null;
     if (lands && growthIsSeen(lands)) return true;
     if (this.#fold) return false;
@@ -6662,12 +6661,7 @@ var ThreadView = class {
       const atEnd = (!news.appended || appendedAtEnd) && !news.summaries && [...changed2].every(
         (key) => key === last?.key && (last.provisional || follows)
       ) && (foot || !folds.messages.length && !folds.summaries.length);
-      const writing = writingIn(
-        this.#reply?.node.querySelector(TEXT_FIELD),
-        last?.author === "user" && last.pending
-      );
-      const turn = news.appended || news.progress > 0 || footFold;
-      return growthIsSeen(this.node) && (!atEnd || writing || this.#marginControls?.heldEdge(turn) === "foot");
+      return growthIsSeen(this.node) && (!atEnd || this.#marginControls?.anchor.newsMoves(joined));
     }
     const followed = pinned && !news.settled ? this.#foot : null;
     return this.#transcript.newsMoves({ news, changed: changed2, folds }, { followed }) || Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow));
@@ -6714,6 +6708,8 @@ var ThreadView = class {
     const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
+    if (marginControls && prior)
+      marginControls.anchor.presented(threadChange(prior, model)?.joined);
     const settlementPlace = marginControls ? "margin" : "head";
     const notice2 = this.#news;
     if (model.news) notice2.set(model.news);
@@ -6740,8 +6736,8 @@ var ThreadView = class {
     const body = html`
       ${this.#transcript.node}
       ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
-                ${news}${threadActions}
-              </div>` : nothing}
+              ${news}${threadActions}
+            </div>` : nothing}
     `;
     render(
       html`
@@ -6959,10 +6955,28 @@ var ThreadView = class {
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
-    return createReplyView(model.key, this.#commands.reply, () => this.repaint(), {
-      onChange: replyChanged,
-      editLast: this.#rewrites.editLast
-    });
+    const commands2 = this.#commands.reply;
+    return createReplyView(
+      model.key,
+      {
+        ...commands2,
+        actions: {
+          ...commands2.actions,
+          reply: (key, text, options) => {
+            const anchor = this.#marginControls?.anchor;
+            anchor?.sending(options.attempt);
+            const flight = commands2.actions.reply(key, text, options);
+            if (!flight) anchor?.writing();
+            return flight;
+          }
+        }
+      },
+      () => this.repaint(),
+      {
+        onChange: replyChanged,
+        editLast: this.#rewrites.editLast
+      }
+    );
   }
   commit() {
     this.#transcript.commit();
@@ -7841,7 +7855,6 @@ export {
   releaseReplies,
   replyCompositionHasDraft,
   replyIsEditing,
-  writingIn,
   replyAvailable,
   restoreReplyEditing,
   createReplyView,

@@ -1654,15 +1654,9 @@ function commentPlacement() {
   let pending2 = null;
   let carriedInline = null;
   let initialHold = null;
-  let quoted = false;
   let moved = false;
   let held2 = null;
-  let reading = null;
   let tallest = null;
-  let edge = "top";
-  let unpressed = "top";
-  let pressHeld = null;
-  let pressAnswered = null;
   const forget = () => {
     side = null;
     inline = null;
@@ -1672,18 +1666,9 @@ function commentPlacement() {
     initialHold = null;
     moved = false;
     held2 = null;
-    reading = null;
     tallest = null;
-    edge = "top";
-    unpressed = "top";
-    pressHeld = null;
-    pressAnswered = null;
   };
-  const line = (clear, row) => quoted ? row : side === "bottom" ? clear?.bottom ?? row : side === "top" ? clear?.top ?? row : row;
   return {
-    get side() {
-      return side;
-    },
     // Mechanical handoff between the editor's frame and its sent card.
     capture() {
       return { side, boundary: input?.slice(1, 5) ?? null, moved };
@@ -1693,57 +1678,9 @@ function commentPlacement() {
       pending2 = frame;
     },
     forget,
-    // Which edge this placement holds, `top` or `foot`, from what the caller reports:
-    // the transcript's extent, whether the user is drafting, the latest turn
-    // (`{ key, author }`), the draft's words, and, while it is the user's latest
-    // input, their press in the surface (`{ input, moved }`: which input it was, and
-    // whether what it changed stands above the spot pressed). `fresh` and `hold` are
-    // `choose`'s.
-    holding({
-      fresh,
-      hold,
-      transcript,
-      drafting,
-      latest = null,
-      draftText = "",
-      pressed = null
-    }) {
-      if (hold) held2 = { ...hold, transcript };
-      if (fresh) held2 = null;
-      const turned = held2 && Math.abs(transcript - held2.transcript) > 0.5;
-      const own = Boolean(pressed) && pressAnswered?.input === pressed.input;
-      const answered = own && Math.abs(transcript - pressAnswered.transcript) <= 0.5;
-      if (!pressed || turned && own && !answered) pressHeld = null;
-      else if (turned && !own && side !== "top") {
-        pressHeld = pressed.moved ? "foot" : "top";
-        pressAnswered = { input: pressed.input, transcript };
-      }
-      const newDraft = drafting && !held2?.drafting;
-      const continuedDraft = drafting && draftText && draftText !== held2?.draftText;
-      const keepReplyLine = Boolean(
-        latest && !newDraft && !continuedDraft && (held2?.replyTurn && held2.replyTurn === latest.key || turned && (drafting || held2?.drafting && latest.author === "user"))
-      );
-      reading = {
-        transcript,
-        drafting,
-        replyTurn: keepReplyLine ? latest.key : null,
-        draftText
-      };
-      unpressed = hold ? side === "top" ? "foot" : "top" : keepReplyLine || (drafting ? held2?.floored && !vertical(side) : side === "top") ? "foot" : "top";
-      edge = hold ? unpressed : pressHeld ?? unpressed;
-      return edge;
-    },
-    // The edge a change the user did not make would hold, read before it is drawn: a
-    // turn joining while they read releases a hold on their own reply's line, so it
-    // holds the foot only where the surface stands above what it is about; any other
-    // change keeps the edge held now, but for a press's hold, which that change ends.
-    edgeFor: (turn) => turn ? side === "top" ? "foot" : "top" : unpressed,
-    // The held edge's offset for `options`' `hold`.
-    heldAt: (edge2) => held2 && { [edge2]: held2[edge2] },
     scrolled() {
       input = null;
     },
-    line,
     choose({
       clear,
       extent = clear,
@@ -1753,7 +1690,6 @@ function commentPlacement() {
       scroller,
       coarse
     }) {
-      quoted = column !== null;
       const unanchored = !clear;
       extent ??= boundary;
       const key = [Number(unanchored), ...boundary.key, extent.left, extent.right];
@@ -1766,7 +1702,8 @@ function commentPlacement() {
         ({ side, moved } = frame.placement);
         if (side !== "left" || moved)
           carriedInline = frame.box.left - (column ?? clear?.left ?? boundary.left);
-        const top = frame.box.top - line(clear, row);
+        const line = column !== null ? row : side === "bottom" ? clear?.bottom ?? row : side === "top" ? clear?.top ?? row : row;
+        const top = frame.box.top - line;
         initialHold = { top, foot: top + frame.box.height };
       } else if (input && key.some((value, index) => Math.abs(value - input[index]) > 0.5)) {
         forget();
@@ -1784,7 +1721,8 @@ function commentPlacement() {
       return {
         side,
         fresh,
-        ...initialHold ? { hold: initialHold } : {}
+        adopted: initialHold !== null,
+        floored: held2?.floored ?? false
       };
     },
     options(ui, {
@@ -1795,7 +1733,7 @@ function commentPlacement() {
       margin = null,
       boundary,
       fit,
-      hold = null
+      edge = side === "top" ? "foot" : "top"
     }) {
       const minimumWidth = cardMinimum();
       const across = vertical(side);
@@ -1843,7 +1781,7 @@ function commentPlacement() {
       };
       const measure = (state) => state.middlewareData.scaled;
       const spot = held2 ?? initialHold;
-      const heldEdge = hold ? hold() : spot && (side === "top" ? { foot: spot.foot } : { top: spot.top });
+      const heldEdge = spot && { [edge]: spot[edge] };
       const holding = (heldEdge || carriedInline !== null) && {
         name: "hold",
         fn(state) {
@@ -1852,12 +1790,12 @@ function commentPlacement() {
             edge: heldEdge && ("foot" in heldEdge ? "bottom" : "top"),
             inline: carriedInline !== null ? "left" : null
           };
-          const { line: line2, attachmentInline, scale } = measure(state);
+          const { line, attachmentInline, scale } = measure(state);
           const position = {};
           if (carriedInline !== null)
             position.x = attachmentInline + carriedInline / scale.x;
           if (edge2)
-            position.y = "foot" in edge2 ? line2 + edge2.foot / scale.y - state.rects.floating.height : line2 + edge2.top / scale.y;
+            position.y = "foot" in edge2 ? line + edge2.foot / scale.y - state.rects.floating.height : line + edge2.top / scale.y;
           const spot2 = { x: state.x, y: state.y, ...position };
           return { ...position, data: { ...data, spot: spot2 } };
         }
@@ -1865,10 +1803,10 @@ function commentPlacement() {
       const size = ui.size({
         ...overflow,
         apply(state) {
-          const { scale, line: line2 } = measure(state);
+          const { scale, line } = measure(state);
           const stood2 = held2 ? Math.max(
             held2.foot - held2.top,
-            tallest && Math.abs(tallest.line - line2) < 0.5 ? tallest.height : 0
+            tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0
           ) / scale.y : 0;
           const lane = carriedInline !== null ? boundary.right - (column ?? clear.left) - carriedInline : across ? boundary.right - (inlineStart + (inline ?? 0) * scale.x) : side === "right" ? boundary.right - box.right - COMMENT_GAP : clear.left - boundary.left - COMMENT_GAP;
           fit({
@@ -1957,19 +1895,18 @@ function commentPlacement() {
     },
     landed({ x, y, middlewareData }) {
       initialHold = null;
-      const { scale, column, attachmentInline, line: line2, foot } = middlewareData.scaled;
+      const { scale, column, attachmentInline, line, foot } = middlewareData.scaled;
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
-      const top = (y - (middlewareData.shift?.y ?? 0) - line2) * scale.y;
+      const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
       const height = middlewareData.held.height * scale.y;
       const spot = { top, foot: top + height };
       tallest = {
-        height: tallest && Math.abs(tallest.line - line2) < 0.5 ? Math.max(tallest.height, height) : height,
-        line: line2
+        height: tallest && Math.abs(tallest.line - line) < 0.5 ? Math.max(tallest.height, height) : height,
+        line
       };
       held2 = {
         ...spot,
-        ...reading,
         floored: y + middlewareData.held.height >= foot - 0.5
       };
       return { scale };

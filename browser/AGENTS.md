@@ -117,8 +117,10 @@ representative desktop viewport.
   `append` region's growth, by no more than it, carrying its name
   (`appendGrowth` in `tests/shift_watch.js`).
 - **A box floating over the page grows inside the window.** The comment box and the
-  thread card grow toward the window edge that has room, and never scroll the page to
-  make room (`annotation-overlay/comment-placement.js`). A box a scroll carried away
+  thread card grow toward the window edge that has room. Sending and later growth
+  never scroll the page to make room. A freshly opened card above or below its target
+  may scroll to open clear of it. `annotation-overlay/comment-placement.js` owns the
+  attachment and bounds; `thread/card-anchor.js` owns what each interaction preserves. A box a scroll carried away
   comes back when the user types into it (`off-flow.js`). Only a field in flow
   scrolls to keep its controls in view (`thread/reply-landing.js`).
 - **A widget paints its final box before it upgrades.** The theme sizes each widget

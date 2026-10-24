@@ -207,8 +207,7 @@
         --try-says: "Padding 32px, from the page's <style>";
       }
 
-      /* Architecture uses containment for composition and arrows for interfaces.
-         The separate live sample owns the concrete page example. */
+      /* Captions for the ownership and package-interface diagrams. */
       .owner-map {
         margin-block: var(--sp-4);
         font: 15px/1.5 var(--sans);
@@ -218,78 +217,14 @@
         color: var(--muted);
         font: 14px/1.5 var(--sans);
       }
-      .owner-user {
-        padding-block: 12px;
-        border-block: 1px solid var(--rule);
-        text-align: center;
-      }
-      .owner-user strong,
-      .owner-boundary > strong,
-      .owner-boundary > span,
       .contract-data-node > :is(strong, code, span),
       .contract-action-flow :is(strong, span, code) {
         display: block;
       }
-      .owner-user span,
-      .owner-boundary > span,
       .contract-data-node > span,
       .contract-action-flow span {
         color: var(--muted);
         margin-top: 3px;
-      }
-      .owner-architecture {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 76px minmax(0, 2.1fr);
-        align-items: center;
-      }
-      .owner-direction {
-        padding-block: 12px;
-        text-align: center;
-        font-size: 13px;
-        color: var(--muted);
-      }
-      .owner-direction + .owner-direction {
-        grid-column: 3;
-      }
-      .owner-boundary {
-        padding: 16px;
-        border: 1px solid var(--rule);
-        background: var(--field);
-      }
-      .owner-author {
-        grid-column: 3;
-        border-color: var(--ink);
-        background: var(--paper);
-      }
-      .owner-widget {
-        margin-top: 18px;
-        border-style: dashed;
-      }
-      .owner-theme-link {
-        text-align: center;
-        color: var(--muted);
-        font-size: 13px;
-        line-height: 1.35;
-      }
-      .owner-theme-link::after {
-        content: "→";
-        display: block;
-        font-size: 24px;
-      }
-      .owner-state-link {
-        grid-column: 3;
-        display: flex;
-        justify-content: space-evenly;
-        gap: 8px;
-        padding-block: 14px;
-        font-size: 13px;
-        color: var(--muted);
-      }
-      .owner-core {
-        grid-column: 3;
-      }
-      .owner-example-link {
-        margin-block: var(--sp-4);
       }
       .contract-data-flow {
         display: grid;
@@ -376,26 +311,6 @@
         overflow-wrap: anywhere;
       }
       @media (width <= 600px) {
-        .owner-architecture {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        .owner-direction {
-          display: none;
-        }
-        .owner-theme {
-          margin-top: 16px;
-        }
-        .owner-theme-link {
-          padding-block: 8px;
-        }
-        .owner-theme-link::after {
-          content: "↓";
-        }
-        .owner-author,
-        .owner-state-link,
-        .owner-core {
-          grid-column: 1;
-        }
         .contract-data-flow {
           grid-template-columns: minmax(0, 1fr);
           gap: 0;
@@ -2212,43 +2127,33 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               the shared record of what the user does.
             </p>
             <figure id="ownership-anatomy" class="owner-map">
-              <div class="owner-user" id="ownership-user">
-                <strong>User</strong>
-                <span
-                  >Sets the goal · chooses a theme · makes decisions on the page</span
-                >
-              </div>
-              <div class="owner-architecture">
-                <div class="owner-direction">↓ Theme preference</div>
-                <div class="owner-direction">↓ Goal and instructions</div>
-                <div class="owner-boundary owner-theme" id="ownership-theme">
-                  <strong>Theme package</strong>
-                  <span>Color, type, spacing and shared styles</span>
-                </div>
-                <div class="owner-theme-link">Visual<br />inputs</div>
-                <div class="owner-boundary owner-author" id="ownership-author">
-                  <strong>Authored page · page author</strong>
-                  <span>Content, layout and initial values</span>
-                  <div class="owner-boundary owner-widget" id="ownership-package">
-                    <strong>Widget · widget package</strong>
-                    <span>Controls, rendering and what each action means</span>
-                  </div>
-                </div>
-                <div class="owner-state-link">
-                  <span>Actions ↓</span><span>↑ Current state</span>
-                </div>
-                <div class="owner-boundary owner-core" id="ownership-kernel">
-                  <strong>Shared record · Leaf core</strong>
-                  <span>Event admission, event log, shared state and Undo</span>
-                </div>
-              </div>
+              <lf-diagram id="ownership-architecture" data-height="702" parts="all">
+                <pre>
+flowchart TD
+  accTitle: Ownership boundaries in a Leaf page
+  accDescr: The user gives the author a goal and selects a theme. Within the authored page, the author owns content and layout, and the widget package owns controls and action meaning. Theme inputs style both. Widgets send actions to Leaf core, which owns the record, current state and Undo.
+  User([User])
+  Theme["Theme package&lt;br/&gt;Color, type and spacing"]
+  subgraph Page["Authored page"]
+    Content["Page author&lt;br/&gt;Content and layout"]
+    Widget["Widget package&lt;br/&gt;Controls and action meaning"]
+    Content -->|places and configures| Widget
+  end
+  Core["Leaf core&lt;br/&gt;Record, state and Undo"]
+  User -->|goal| Page
+  User -->|theme preference| Theme
+  Theme -.->|visual inputs| Page
+  Widget -->|actions| Core
+  Core -->|current state| Widget
+</pre>
+              </lf-diagram>
               <figcaption id="responsibilities-example">
                 Ownership architecture. The author places widgets inside the page; each
                 package owns its widget’s behavior. Theme inputs style the page and its
                 controls. Leaf core owns the record behind them.
               </figcaption>
             </figure>
-            <p id="ownership-example-link" class="owner-example-link">
+            <p id="ownership-example-link">
               <a href="#options-demo">Try the separate example: a release review.</a>
               Choose an audience and undo a choice to see these responsibilities at
               work.

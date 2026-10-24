@@ -29,7 +29,7 @@
     "runtime/annotation-view.js": "2333dd0ba948921b37d05741c49a4c10a330d9c2a2b3fd97e44f9b0aad76c925",
     "runtime/application.js": "f4041f686adc1daafdb0b24708d10c64bd50d0e37a2271069daae0b19580eb99",
     "runtime/arrivals.js": "29b1ecb3181cf7f2a34b453a118adc832fc5ca74a9e9cc0cd9109a48ab429484",
-    "runtime/block-controls.js": "a4f27f18f16f7c1651a5bf7a8dbfc30fab73867b1ded42ada184f55ba209b175",
+    "runtime/block-controls.js": "26890dc4196f2b648461e3846e67249b9fecd3bc82493b7e62c5edbd4957a163",
     "runtime/bootstrap.js": "24abb79f4de34d581bb7d8adf0e0fb2730cff878e210795154a615f124b91451",
     "runtime/bounds.js": "952e969d28f586f62bfb8193f9db88160c74d3745d7032077a958649675ee4da",
     "runtime/box-motion.js": "8303438c669902dd1599ba6e5acb4e38a161c7d4d36791c93bc6a2ff7eb48cb9",

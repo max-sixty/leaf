@@ -559,19 +559,23 @@ export class ThreadView {
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     const body = html`
       ${this.#transcript.node}
-      ${threadActions
-        ? marginControls
-          ? html`<div class="lf-margin-thread-controls">${threadActions}</div>`
-          : html`<div class="lf-thread-controls" data-lf-reflow="text">
-              ${news}${threadActions}
-            </div>`
-        : nothing}
+      ${
+        threadActions
+          ? marginControls
+            ? html`<div class="lf-margin-thread-controls">${threadActions}</div>`
+            : html`<div class="lf-thread-controls" data-lf-reflow="text">
+                ${news}${threadActions}
+              </div>`
+          : nothing
+      }
     `;
     render(
       html`
-        ${model.surface === "margin"
-          ? body
-          : html`<div class="lf-thread-content">${body}</div>`}
+        ${
+          model.surface === "margin"
+            ? body
+            : html`<div class="lf-thread-content">${body}</div>`
+        }
         ${reply ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : nothing}
       `,

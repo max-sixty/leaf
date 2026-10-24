@@ -43,10 +43,10 @@ function card(t) {
       controlOffset = offset;
     },
     press() {
-      control.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      control.dispatchEvent(new window.PointerEvent("pointerdown", { bubbles: true }));
     },
     scroll() {
-      control.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+      control.dispatchEvent(new window.WheelEvent("wheel", { bubbles: true }));
     },
   };
 }
@@ -87,7 +87,7 @@ test("Send owns its result and receipt, then arriving words resume ordinary read
   // Send also owns held news revealed together with its optimistic words.
   assert.equal(place(), "foot");
   anchor.presented(threadChange(sent, accepted)?.joined);
-  window.dispatchEvent(new WheelEvent("wheel"));
+  window.dispatchEvent(new window.WheelEvent("wheel"));
   assert.equal(place(), "foot");
   const arrived = threadChange(accepted, growing)?.joined;
   assert.equal(anchor.newsMoves(arrived), false);

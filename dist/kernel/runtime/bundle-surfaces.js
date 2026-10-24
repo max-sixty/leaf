@@ -5950,8 +5950,8 @@ var ThreadView = class {
 		const body = html`
       ${this.#transcript.node}
       ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
-              ${news}${threadActions}
-            </div>` : nothing}
+                ${news}${threadActions}
+              </div>` : nothing}
     `;
 		render$1(html`
         ${model.surface === "margin" ? body : html`<div class="lf-thread-content">${body}</div>`}

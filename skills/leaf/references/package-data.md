@@ -311,6 +311,3 @@ textual rendering until the file opens. Its contract's schema has a `files` arra
 ```json
 { "records": { "items": "files", "key": "path", "deferred": "patch" } }
 ```
-
-Browser subscriptions and rendering follow [module-state.md, "Bound data and
-projections"](module-state.md#bound-data-and-projections).

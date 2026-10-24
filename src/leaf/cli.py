@@ -1287,9 +1287,8 @@ def thread_reply(
     one that fails for the user arrives as an `error` event.
 
     With a reference, an answer suppresses your turn's final message as a second
-    reply; an --ephemeral line does not. Rerunning a reply that already posted
-    prints the earlier one; give a retried --ephemeral line an --attempt so it
-    posts once. --done, --failure and --attempt require a reference.
+    reply; an --ephemeral line does not. --done, --failure and --attempt require
+    a reference.
     PAGE THREAD accepts --obligation when the message needs the user's next move,
     or --todo for promised work.
     """

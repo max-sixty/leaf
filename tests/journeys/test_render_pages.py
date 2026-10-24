@@ -768,7 +768,7 @@ def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
       }))"""
     for source, cap in (
-        (sidebar_page, 1080),
+        (sidebar_page, 840),
         (workspace_page, None),
         (configured, 900),
     ):

@@ -628,15 +628,10 @@ WIDE_AND_NARROW_PAGE = leaf_page(
   <lf-column id="col-review" label="Review"></lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-<lf-diff id="patch"><pre>
-diff --git a/feeders/mount.py b/feeders/mount.py
---- a/feeders/mount.py
-+++ b/feeders/mount.py
-@@ -1,2 +1,2 @@
- def bracket():
--    return "plastic"
-+    return "steel"
-</pre></lf-diff>
+<lf-code id="patch" language="python"><pre>
+def bracket():
+    return "steel"
+</pre></lf-code>
 """,
 )
 

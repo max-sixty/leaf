@@ -455,12 +455,11 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
 def check(page_dir: Path, render: bool) -> Reported:
     """Check PAGE/index.html.
 
-    Runs deterministic markup checks. --render also checks the drawn page in the
-    host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
-    CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
-    A host with no browser is told why in place of each browser check. Prints one
-    object: the exit status, every finding with its code, element, measured values,
-    severity and words, and what each browser check ran in.
+    Runs the markup checks and, where the page has scripts or widgets only a
+    browser can judge, runs them in the host's browser. --render also checks the
+    drawn page. The browser is whichever executable LEAF_BROWSER_EXECUTABLE,
+    CHROME_PATH, or CHROME_BIN names, else the installed Chrome, else the first
+    browser on PATH; a host with none is told why in place of each browser check.
     """
     from leaf.validation.command import cmd_check
 
@@ -670,8 +669,7 @@ def report(page_dir: Path, widget: str, verb: str, fields: tuple) -> dict:
     VERB is one of the widget's agent-written x-state verbs, and each NAME=VALUE one of
     its fields: `leaf page report <page> t-parser status value=review text="Ready for
     review"` moves a task. The page shows the report at once, marked provisional,
-    until a stamped version writes it into the markup or overrules it. The page's
-    watcher wakes so the agent can do that.
+    until a stamped version writes it into the markup or overrules it.
     """
     from leaf.thread import cmd_report
 
@@ -815,9 +813,7 @@ def delivery_read(delivery_id: str, part: int) -> dict:
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 def delivery_ack(delivery_id: str) -> None:
     """Confirm that every part of DELIVERY_ID is in your context, so its updates
-    read Delivered. Reread any part whose output is missing first. Where an
-    earlier turn already picked it up, a note says so and names what its updates
-    still owe."""
+    read Delivered."""
     from leaf.delivery import cmd_delivery_ack
 
     cmd_delivery_ack(delivery_id)
@@ -1284,17 +1280,15 @@ def thread_reply(
     in --markup can also register its own obligation. A progress line
     (--ephemeral) or a failure (--failure) takes none of them.
 
-    The reply can also set frozen HTML, the thread's title and a new anchor. It
-    publishes your saved page edits with it, checking them as `page check` does
-    without a browser: an error refuses the reply, and the first reply on a revision
-    notes the advice `page check` gives on its source. Nothing runs in a browser,
-    where `page check` runs a page's scripts and data widgets; one that fails for
-    the user arrives as an `error` event.
+    The reply publishes your saved page edits with it, checking them as `page
+    check` does without a browser: an error refuses the reply, and the first reply
+    on a revision notes the advice `page check` gives on its source. It runs none
+    of the page's scripts or data widgets, which `page check` runs in a browser;
+    one that fails for the user arrives as an `error` event.
 
     With a reference, an answer suppresses your turn's final message as a second
-    reply; an --ephemeral line does not. Rerunning a reply that already posted
-    prints the earlier one; give a retried --ephemeral line an --attempt so it
-    posts once. --done, --failure and --attempt require a reference.
+    reply; an --ephemeral line does not. --done, --failure and --attempt require
+    a reference.
     PAGE THREAD accepts --obligation when the message needs the user's next move,
     or --todo for promised work.
     """
@@ -1368,9 +1362,8 @@ def thread_edit(
     or with --title rename the thread MESSAGE is in, whoever opened it. --title
     alone leaves the text as it is.
 
-    The original and every revision remain in the append-only event log. Frozen
-    markup is not editable. Keep a title stable unless the thread's
-    subject changes.
+    Frozen markup is not editable. Keep a title stable unless the thread's subject
+    changes.
     """
     from leaf.thread import cmd_edit
 
@@ -1386,7 +1379,7 @@ def thread_resolve(page_dir: Path, thread: str) -> dict:
     """Close THREAD, by any message in it, as the agent.
 
     The user ordinarily closes a thread; the Leaf skill's
-    references/threads.md says when the agent does. The panel names who resolved it.
+    references/threads.md says when the agent does.
     """
     from leaf.thread import cmd_resolve
 

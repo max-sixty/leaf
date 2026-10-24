@@ -1,6 +1,8 @@
 # Theme packages
 
-Read with [packages.md](packages.md), which holds the package contract and how styles compose.
+Read with [packages.md](packages.md), which holds the package contract and how styles
+compose. Page-wide rules and idioms belong in a theme package, one that declares no
+widgets; its rules outrank the Layouts and every widget package's defaults.
 
 ## A theme change
 
@@ -11,15 +13,12 @@ pattern the project reuses across pages, such as a callout, is an idiom: declare
 under its CSS selector in the package's `registry.json`, with a `description`, an
 `x-example` and optional `x-instructions`, and style it in the package's `theme.css`.
 
-Page-wide rules and idioms belong in a theme package, one that declares no widgets. A
-package that declares widgets has its stylesheet scoped to them, below the Layouts,
-while a theme package's rules take priority over the Layouts and every widget package's
-defaults (`packages.md`, "Styles and composition"). Where a Layout reads a geometry
+Where a Layout reads a geometry
 input (the override table's "Theme inputs"), set that input rather than overriding the
 Layout.
 
 A widget's rules depend only on the box it is given and the theme's tokens, never on
-the Layout around it, so it behaves the same on any page that gives it the same box. A
+the Layout around it. A
 size query on its own container gives its width. What a width can't say arrives as a
 token from the box that knows it: `--lf-full-height` where the widget has a definite
 height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
@@ -66,8 +65,7 @@ Choose vertical bounds as `page-layout.md`, "Bounds and widths", describes. Wher
 bounded widget should scroll a box inside it, such as a listing under a caption that
 stays in view, move the bound to that box under `[data-lf-bound]` and declare
 `--lf-bound-box: 1` there, making it the box Leaf scrolls and keeps the user's place in,
-and `--lf-holds-height: 1`, which tells the render check the box keeps its height on
-purpose (`packages.md`, "Seeing it", `grows-with-content`). A box that scrolls sideways
+and `--lf-holds-height: 1` (`packages.md`, "Seeing it", `grows-with-content`). A box that scrolls sideways
 needs nothing: Leaf fades its content at any edge with more beyond.
 
 A rule that draws a control's focus ring on a box around it, such as a choice's face

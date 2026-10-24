@@ -56,6 +56,9 @@
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);
   --wa-form-control-value-color: var(--ink);
+  /* A line tall (`--lf-line`) whatever its type would make it, restated on each
+     control so a place that sets the line sets it here too. */
+  --wa-form-control-height: var(--lf-line);
 }
 
 /* The vendor's native input sits in a shadow

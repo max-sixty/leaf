@@ -9,6 +9,7 @@ import { MessageView, messageReading } from "./messages.js";
 import { Transcript } from "./transcript.js";
 import { createReplyView, replyAvailable } from "./replies.js";
 import { keeps, keepsHidden } from "../keeps.js";
+import { generatedElement } from "../widget-elements.js";
 import { focusDestination } from "../focus.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";
@@ -316,7 +317,7 @@ export function createPrimaryReader(
           node.dataset.lfPart = item.kind;
           node.tabIndex = -1;
           node.dataset.lfRuntime = "";
-          node.dataset.lfGen = "1";
+          generatedElement(node, { says: false });
           node.dataset.lfOffer = "";
           if (item.kind === "transcript") {
             // A press on a reply's reactions is the user acting in this thread, so
@@ -388,7 +389,7 @@ export function createPrimaryReader(
             let joined = false;
             // What the box reads, when it holds its sends and how a send lands are the
             // presentation's (replies.js, `createReplyView`), given with its nomination.
-            const { hint, accessibleName, busy, sent } = item.options;
+            const { hint, hintAside, accessibleName, busy, sent } = item.options;
             // The part draws whichever row the view holds: its own, or the session's
             // row it takes from a view that can draw the thread no more, the user
             // still in it (replies.js, `carry`).
@@ -403,6 +404,7 @@ export function createPrimaryReader(
               },
               editLast: rewritesOf(item.key).editLast,
               hint,
+              hintAside,
               accessibleName,
               busy,
               sent,

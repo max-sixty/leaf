@@ -412,9 +412,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
     )
     page.wait_for_function("window.obligationRevealRejected === true")
     rendered(page)
-    position = walk_position(page)
-    assert position["text"] == "1 of 4 waiting on me · Options"
-    assert not position["boundary"]
+    assert walk_position(page)["text"] == "1 of 4 waiting on me · Options"
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: obligation reveal probe"

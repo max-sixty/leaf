@@ -15,6 +15,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     resized,
     round_trip,
     scroll_settled,
@@ -727,7 +728,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     panel_settled(page, view="queue")
     cards = page.locator('.lf-fp-on-item[data-list="you"]')
     expect(cards).to_have_count(1)
-    note = page.locator('.lf-fp-view[data-view="queue"] .lf-fp-empty')
+    note = page.locator(f"{panel_view('queue')} .lf-fp-empty")
     expect(note).to_have_count(0)
 
     stamp_page(

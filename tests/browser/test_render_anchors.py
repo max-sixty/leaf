@@ -1082,9 +1082,10 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     assert len(quote) < 2 * len(covered), (
         f"the drag out of the document stored {len(quote)} characters as its passage"
     )
-    assert quote and quote in page.evaluate(
-        "() => document.querySelector('main').textContent"
-    ), f"the composer quotes something the document does not hold: {quote!r}"
+    document_words = page.evaluate("() => document.querySelector('main').textContent")
+    assert quote and quote in " ".join(document_words.split()), (
+        f"the composer quotes something the document does not hold: {quote!r}"
+    )
     # The three readings of one passage: what the box says it is about, what the page
     # paints, and what the field is called. A capture that ran past the document moved
     # all three together, so any one of them alone would pass on a page it had ruined.
@@ -2008,9 +2009,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return {
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
-        // The row draws its own triangle, since a flex row draws no native marker.
+        // A flex row draws no native marker, so it wears Leaf's, turned its own way.
         disclosure: getComputedStyle(d.querySelector('summary'), '::before').content
-          .startsWith(d.open ? '"\u25bc"' : '"\u25b6"'),
+          .includes(d.open ? 'disclosure-open' : 'disclosure-closed'),
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({

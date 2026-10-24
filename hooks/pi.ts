@@ -47,9 +47,8 @@ import { WatchOwner } from "./watch.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const LEAF = path.join(ROOT, "bin", "leaf");
-// `hooks.json`'s timeouts for the prompt and Stop hooks, and for SessionEnd. The
-// prompt and Stop hooks confirm what they hand over only well inside the first
-// (`CONFIRM_WITHIN` in `hook_transport.py`).
+// The prompt and Stop hooks' timeout (`HOOK_TIMEOUT_S` in `hook_transport.py`, which
+// a test holds this to), and SessionEnd's (`hooks.json`).
 const HOOK_TIMEOUT_MS = 20_000;
 const SESSION_END_TIMEOUT_MS = 3_000;
 const CUSTOM_TYPE = "leaf";

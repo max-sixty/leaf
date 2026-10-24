@@ -26,17 +26,19 @@
    Rejected: Escape keeping them as an unsaved edit, as a reply box keeps its draft,
    which left the user a draft to find and drop that the message could barely show.
 
-   The editor takes the message's words' place, and is the thread's comment box, the
-   field its reply box is, at the reply box's width and padding (shadow.css,
-   `.lf-msg-editor`). Its Discard and Save stand at the message's head, where the
-   message's own control stood (`.lf-msg-edit-actions`), so opening it grows the
-   message by the box's padding alone. In a margin card the editor is the comment box
-   the card grew from instead, whose frame and padding fit the room each of the card's
-   lines already keeps, so opening it on plain words moves nothing there
-   (response.css). Rejected: a
-   box painted around the words where they were, with no padding of its own, so
-   opening it moved nothing; beside the reply box it read as a thinner, narrower field
-   (the user's decision, 2026-10-13).
+   The editor stands where the message stood and as it read (browser/AGENTS.md,
+   "Editing in place"): a comment box over the message's body, every line of its words
+   where it stood and broken where it broke, its pictures under them as the message
+   draws them (`sentMedia`), each with the removal mark a rewrite adds, and the field's
+   frame and padding in the room around them (response.css, `.lf-msg-editor`). Discard
+   and Save stand at the message's head, where its own control stood
+   (`.lf-msg-edit-actions`), beside its author and time, so opening it moves nothing,
+   except that a message of pictures alone gains the line the caret needs for words.
+   Rejected, by the user on 2026-10-22: the thread's reply box at its own width and
+   padding, which they chose on 2026-10-13, with the pictures in a draft's cropped shelf
+   over it, which pushed the words down by the pictures' height and rewrapped them in
+   the panel. Rejected before that: a box painted around the words with no padding of
+   its own, which read as a thinner field than the reply box beside it.
 
    A double click on the message or a press on its Edit control opens it. The keyboard
    opens it with ↑: from the thread's empty reply box, the user's latest message, and
@@ -302,7 +304,7 @@ export class MessageEditor {
     // in a closed tree, so a mark of no size after it is what a reveal can aim at.
     this.foot = document.createElement("span");
     this.foot.className = "lf-msg-edit-foot";
-    this.node.append(this.input, this.foot, actions);
+    this.node.append(this.input, actions);
     // The words a closed rewrite left, or the message's own. An empty draft is none.
     this.input.value = loadDraft(ctx) || said();
     // Until the user changes them, the words are the message's, so a rewrite the view
@@ -310,18 +312,20 @@ export class MessageEditor {
     // opened, carries them and its revision with it: Save then writes over what the
     // message says, rather than sending the old words over the new revision, which
     // the log refuses.
-    let opened = this.input.value;
+    // The rewrite whole, its words and its pictures, as the box holds it: `.value` is
+    // the words alone (input.js, `sync.value`), so a picture taken off changes only this.
+    const whole = () => sync.value();
+    let opened = null;
     this.#follow = () => {
-      if (base === currentBase() || draftHasContent(ctx) || this.input.value !== opened)
-        return;
+      if (base === currentBase() || draftHasContent(ctx) || whole() !== opened) return;
       base = currentBase();
-      this.input.value = opened = said();
+      sync.load((opened = said()));
     };
-    // Words the message already says, exactly, and no words, are no change. Leading and
-    // trailing space is part of what a rewrite sends, as a suggestion's newline is.
+    // What the message already says, exactly, and nothing at all, are no change. Leading
+    // and trailing space is part of what a rewrite sends, as a suggestion's newline is.
     const unchanged = () => {
-      const words = this.input.value;
-      return !words.trim() || words === said();
+      const now = whole();
+      return !now.trim() || now === said();
     };
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land();
@@ -357,6 +361,7 @@ export class MessageEditor {
       icon: null,
       sendBtn: save,
       submitIn: actions,
+      sentMedia: true,
       save: (value) => {
         saveDraft(ctx, value, { over: base });
         tellDraft(ctx, value, { over: base });
@@ -411,6 +416,9 @@ export class MessageEditor {
     // Escape answers on the editor's controls as in its words, so it is the editor's
     // own scope, around both, rather than a row of the text box alone; closing is a step
     // ahead of the ladder's way out of a text box.
+    opened = whole();
+    // The foot follows the words, ahead of the message's pictures under them.
+    this.input.after(this.foot);
     keys(
       this.node,
       "Editing a message",

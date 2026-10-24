@@ -1,5 +1,5 @@
 /* @noformat Generated from browser/styles/theme.css by build/styles.mjs. */
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/layers.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/layers.css */
 @layer lf-vendor {
   @layer wa-native, wa-base, wa-utilities, wa-color-palette, wa-color-variant, wa-theme, wa-theme-dimension, wa-theme-overrides;
   @layer wa-base {
@@ -16,7 +16,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/brand.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/brand.css */
 @layer lf-vendor {
   @layer wa-color-variant {
     :where(:root),
@@ -173,7 +173,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/neutral.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/neutral.css */
 @layer lf-vendor {
   @layer wa-color-variant {
     :where(:root),
@@ -330,7 +330,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/success.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/success.css */
 @layer lf-vendor {
   @layer wa-color-variant {
     :where(:root),
@@ -487,7 +487,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/warning.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/warning.css */
 @layer lf-vendor {
   @layer wa-color-variant {
     :where(:root),
@@ -644,7 +644,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/danger.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants/danger.css */
 @layer lf-vendor {
   @layer wa-color-variant {
     :where(:root),
@@ -801,10 +801,10 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/variants.css */
 @layer lf-vendor;
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/palettes/base.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/palettes/base.css */
 @layer lf-vendor {
   :where(:root),
   :host {
@@ -831,7 +831,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/palettes/default.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/color/palettes/default.css */
 @layer lf-vendor {
   @layer wa-color-palette {
     :where(:root),
@@ -970,7 +970,7 @@
   }
 }
 
-/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.4_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/themes/default.css */
+/* node_modules/.pnpm/@awesome.me+webawesome@3.14.0_@floating-ui+utils@0.2.12_@types+node@26.6.5_@types+react@19.3.0/node_modules/@awesome.me/webawesome/dist/styles/themes/default.css */
 @layer lf-vendor {
   @layer wa-theme {
     :where(:root),
@@ -1259,9 +1259,8 @@
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
-  --lf-fp-line: 32px;
   --lf-fp-row-pad: 6px;
-  --lf-floating-row: calc(var(--lf-fp-line) + 2 * var(--lf-fp-row-pad));
+  --lf-floating-row: calc(var(--lf-line) + 2 * var(--lf-fp-row-pad));
   --lf-floating-gap: 14px;
   --lf-head-room: var(--lf-safe-top);
   --lf-foot-room: calc( var(--lf-floating-row) + 2 * var(--lf-floating-gap) + var(--lf-safe-bottom) );
@@ -1299,6 +1298,8 @@
   --sp-3: 16px;
   --sp-4: 24px;
   --aim-floor: 24px;
+  --lf-line: 32px;
+  --lf-reach-room: max(0px, (var(--aim-floor) - var(--lf-line)) / 2);
   --entry-floor: 0px;
   --margin-entry: max(32px, var(--aim-floor));
   --corner-mark: 20px;
@@ -1318,10 +1319,9 @@
   --page-pad-end: 96px;
   --pane-bar-pad: 10px 14px;
   --pane-inset: 14px;
-  --wide: 1080px;
+  --wide: 840px;
   --wide-page-max: 1600px;
   --lf-ui-lh: 1.45;
-  --lf-control-compact: max(30px, var(--aim-floor));
   --details-margin-block: 18px;
   --h2-start: 48px;
   --h3-start: 32px;
@@ -1381,7 +1381,6 @@
   --tip-ink: var(--paper);
   --tip-pad: 4px 7px;
   --tip-r: 4px;
-  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   --code-bg: light-dark(#ecebe5, #2b2b29);
   --pre-bg: light-dark(#fff, #1b1b1a);
   --code-chrome: light-dark(#f6f8fa, #222220);
@@ -1402,6 +1401,9 @@
   --offer-hover-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent);
   --focus-ring-w: 2px;
   --focus-ring: var(--focus-ring-w) solid var(--accent);
+  @media (forced-colors: active) {
+    --focus-ring: var(--focus-ring-w) solid Highlight;
+  }
   --focus-ring-gap: 3px;
   --focus-ring-room: calc(var(--focus-ring-w) + var(--focus-ring-gap));
   --focus-ring-landing: calc(var(--focus-ring-room) + 2px);
@@ -1409,7 +1411,6 @@
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
-  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
@@ -1435,6 +1436,10 @@
   --series-4: light-dark(#6c489a, #7a4faf);
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
+:is(:root, .density-working) {
+  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
+}
 html:not([data-lf-live]) {
   --lf-head-room: 0px;
   --lf-foot-room: 0px;
@@ -1443,7 +1448,7 @@ html:not([data-lf-live]) {
   :root {
     --aim-floor: 44px;
     --entry-floor: 16px;
-    --lf-fp-line: 34px;
+    --lf-line: 34px;
     --lf-fp-row-pad: 7px;
     --rail-hang: 10px;
   }
@@ -1595,7 +1600,7 @@ html[data-lf-interactive] [data-lf-arriving] {
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field) {
   --lf-field-pad-inline: 8px;
   box-sizing: border-box;
-  min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
+  min-height: var(--lf-line);
   padding: 4px var(--lf-field-pad-inline);
   border: 1px solid var(--border-2);
   border-radius: var(--r);
@@ -1744,8 +1749,6 @@ p {
   --sp-4: 14px;
   --code-size: 12px;
   --code-line: 17px;
-  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
-  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   --pane-bar-pad: 6px 12px;
   --pane-inset: 12px;
   --h2-start: 18px;
@@ -1784,7 +1787,7 @@ figcaption {
   margin-top: 8px;
 }
 img,
-svg,
+svg:where(:not([data-lf-icon])),
 video {
   max-width: 100%;
   height: auto;
@@ -2228,10 +2231,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 .lf-margin-entry-glyph {
   line-height: 1;
-}
-.lf-margin-entry-icon {
-  inline-size: 16px;
-  block-size: 16px;
 }
 .lf-margin-entry > .lf-margin-entry-space {
   display: none;

@@ -510,9 +510,13 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
 TITLING_PI = """\
 #!{python}
 import json, os, sys, time
+argv = sys.argv[1:]
+with open(argv[argv.index("--system-prompt") + 1]) as prompt:
+    system_prompt = prompt.read()
 with open(os.environ["TITLING_RECORD"], "a") as record:
     call = {{
-        "argv": sys.argv[1:],
+        "argv": argv,
+        "system_prompt": system_prompt,
         "stdin": sys.stdin.read(),
         "env": dict(os.environ),
         "cwd": os.getcwd(),
@@ -526,10 +530,16 @@ failed = {{
 }}
 answer = {{
     "role": "assistant",
-    "content": [{{"type": "text", "text": " Export speed "}}],
+    "content": [{{"type": "text", "text": '{{"title": " Export speed "}}'}}],
     "provider": "openai-codex",
     "model": "gpt-6.1-sol",
-    "usage": {{"input": 200, "output": 7, "cost": {{"total": 0.00048}}}},
+    "usage": {{
+        "input": 200,
+        "output": 7,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "cost": {{"total": 0.00048}},
+    }},
     "stopReason": "stop",
 }}
 for record in (
@@ -562,7 +572,7 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
     monkeypatch.setenv("PI_SESSION_ID", "pi-session")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     # Only the answer, never Pi's exit, can end the request within the wait below.
-    monkeypatch.setattr(thread_titles, "TIMEOUT", 3600)
+    monkeypatch.setattr(inference, "TIMEOUT", 3600)
 
     status, body = endpoint_model.accept_event(
         page_dir,
@@ -593,7 +603,9 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
     assert "LEAF_PI_PID" not in call["env"]
     assert Path(call["cwd"]).resolve() == page_dir.resolve()
     argv = call["argv"]
-    assert argv[argv.index("--system-prompt") + 1] == thread_titles.INSTRUCTIONS
+    # Pi has no answer schema, so the system prompt carries it.
+    assert call["system_prompt"].startswith(thread_titles.INSTRUCTIONS + "\n\n")
+    assert json.dumps(thread_titles.OUTPUT_SCHEMA) in call["system_prompt"]
     # Pi's hooks are extensions, Leaf's own among them.
     for switch in ("--print", "--no-session", "--no-tools", "--no-extensions"):
         assert switch in argv

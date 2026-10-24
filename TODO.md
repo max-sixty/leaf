@@ -156,7 +156,7 @@ has tried; settle that before building it.
 ## Next
 
 - **Add a host-owned widget LLM allowance.** The initial `/api/llm` endpoint
-  uses the host's Codex or Claude login and bounds input size, but does not bound
+  uses the claimant harness's login and bounds input size, but does not bound
   cumulative usage. Define an explicitly granted allowance shared across page
   servers, with accounting appropriate to the login's quota or billing model.
   Establish per-request output bounds before promising a hard ceiling, and retain
@@ -511,6 +511,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
   and needs no second copy — the same SVG with its fill set — but only an icon whose
   outline is a closed shape fills cleanly. Trigger: a user misreads what a pin holds.
+- **Revisit the reaction tokens' meanings or glyphs if they confuse.** A reaction
+  shows only its glyph (👍, ❌, ✂️ …), in the margin and the picker, with its name in
+  the accessible label. Max rejected visible text labels on 23 October 2026 as too
+  heavy, so a fix changes which tokens `$reactions` declares or how each looks.
+  Trigger: a user misreads what a reaction says or picks the wrong one.
 - **#30 — Try a feed of ready-to-approve actions.** An agent pass prepares
   actions, such as a drafted email, and the user approves, edits, dismisses or
   discusses each. Every verb exists as an item; Leaf lacks an agent that runs

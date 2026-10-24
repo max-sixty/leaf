@@ -2692,8 +2692,10 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 edge as the text.
               </li>
               <li id="width-wide">
-                <code>wide</code> extends up to 1080px. Wide blocks share this width so
-                they align with one another.
+                <code>wide</code> starts at the edge the text starts from (the left, in
+                a left-to-right page) and extends toward its end, up to 840px, enough
+                for 100 columns of code. Wide blocks share this width so they align with
+                one another.
               </li>
               <li id="width-available">
                 <code>available</code> uses the window's width after subtracting the
@@ -2704,13 +2706,13 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               The <a href="/registry/">registry</a>, which declares each element's
               behavior, also gives it a default width. For example,
               <code>lf-options</code> uses <code>column</code>,
-              <code>lf-board</code> uses <code>wide</code>, and
-              <code>lf-diagram</code> uses <code>available</code>. A
+              <code>lf-diff</code> uses <code>wide</code>, and
+              <code>lf-board</code> uses <code>available</code>. A
               <code>data-width</code> attribute asks for <code>wide</code> or
               <code>available</code> on any block, overriding the default. If the
-              margins have unequal space, the block extends farther into the wider
-              margin. A table given a width takes its columns' natural width up to that
-              room rather than spreading across it.
+              margins have unequal space, an <code>available</code> block extends
+              farther into the wider margin. A table given a width takes its columns'
+              natural width up to that room rather than spreading across it.
             </p>
 
             <figure class="fig small" id="vocabulary-attribute">
@@ -5031,10 +5033,7 @@ EOF</code></pre>
                   </tr>
                   <tr>
                     <td>At the first or last thread</td>
-                    <td>
-                      The next step comes round to the other end, and the walk's count
-                      flashes to mark it.
-                    </td>
+                    <td>The next step comes round to the other end.</td>
                   </tr>
                   <tr>
                     <td>Arrive at a long thread</td>

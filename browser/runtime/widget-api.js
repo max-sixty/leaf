@@ -112,7 +112,7 @@ export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { isNativeLayer } from "./shadow-tree.js";
 export { HOLDS_WORD } from "./held-word.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
-export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
+export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";
 export {
   commandScope,
   commandsOn,
@@ -250,6 +250,8 @@ export {
   LAYOUT,
   dragging,
   el,
+  generated,
+  generatedElement,
   layoutChanged,
   measure,
   motionPreview,

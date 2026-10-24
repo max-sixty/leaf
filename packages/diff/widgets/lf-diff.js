@@ -35,6 +35,8 @@ import {
   failSoft,
   ensureSyntaxLanguage,
   focusDestination,
+  generated,
+  generatedElement,
   holdFocus,
   html,
   nothing,
@@ -203,6 +205,8 @@ function renderedLines(file, content) {
     );
   return records.map((record, index) => {
     const node = nodes[index];
+    // Pierre represents an empty source row with a newline placeholder.
+    if (node.textContent === "\n") node.replaceChildren();
     const key = diffDatumKey(record);
     node.setAttribute(LINE_KEY, key);
     const row = document.createElement("div");
@@ -338,7 +342,7 @@ function paintSummary(details, record, verified = true) {
       filePathTemplate(verified ? record : { path }),
     )}${
       verified
-        ? html`<span class="lf-diff-stat" data-lf-gen="1"
+        ? html`<span class="lf-diff-stat" ${generated({ says: false })}
             ><span class="lf-diff-additions">+${additions}</span>${" "}<span
               class="lf-diff-deletions"
               >−${deletions}</span
@@ -360,7 +364,7 @@ function summaryNode(record, open, verified = true) {
   details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
-  summary.className = `lf-diff-head ${HOLDS_WORD}`;
+  summary.className = `lf-diff-head lf-disclosure-marker ${HOLDS_WORD}`;
   details.append(summary);
   paintSummary(details, record, verified);
   commands(summary, "On a diff", [
@@ -519,7 +523,7 @@ function diffTools(host) {
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
-  progress.dataset.lfGen = "1";
+  generatedElement(progress, { says: false });
   progress.slot = "end";
   const count = document.createElement("span");
   progress.append(count);
@@ -578,7 +582,7 @@ function paintFileDetails(details, record) {
   if (!evidence) {
     evidence = document.createElement("div");
     evidence.className = "lf-diff-evidence";
-    evidence.dataset.lfGen = "1";
+    generatedElement(evidence, { says: false });
     details.firstElementChild.after(evidence);
   }
   keepsText(evidence, words);
@@ -587,7 +591,7 @@ function paintFileDetails(details, record) {
 function metadataNode(record) {
   const row = document.createElement("div");
   row.className = "lf-diff-metadata";
-  row.dataset.lfGen = "1";
+  generatedElement(row, { says: false });
   render(
     html`${filePathTemplate(record)}<span class="lf-diff-stat"
         >${metadataWords(record)}</span
@@ -782,7 +786,7 @@ function deferredError(details, error, retry) {
   const message = error?.message || error;
   const box = document.createElement("div");
   box.className = "lf-error";
-  box.dataset.lfGen = "1";
+  generatedElement(box, { says: false });
   box.textContent = retry
     ? `That file's diff failed to load: ${message}`
     : `That file's diff cannot be shown: ${message}`;
@@ -1075,7 +1079,7 @@ customElements.define(
               refused: false,
               loading: null,
             });
-            keeps(entry.node, "data-lf-gen", "1");
+            generatedElement(entry.node, { says: false });
             if (metadata) {
               entry.lines = [];
               entry.renderKey = null;
@@ -1262,7 +1266,7 @@ customElements.define(
         outlet.className = `lf-diff-thread-outlet lf-ui${
           file ? " lf-diff-file-thread-outlet" : ""
         }`;
-        outlet.dataset.lfGen = "1";
+        generatedElement(outlet, { says: false });
         outlet.dataset.lfThreadDatum = anchor.datum;
         outlet.setAttribute(
           "aria-label",

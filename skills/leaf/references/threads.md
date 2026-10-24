@@ -14,7 +14,7 @@ leaf thread open <page> --obligation --text "…?"
 ```
 
 For a diagram, percent-encode the entire source id in the part token:
-`node:Line%20Item` names `Line Item`, and `node:%CE%A9` names `Ω`.
+`node:Line%20Item` names `Line Item`.
 
 `leaf thread open` anchors in the active revision as the user sees it. Quote exact
 words from the page's HTML that the user can see, within one widget part. The
@@ -38,7 +38,7 @@ leaf thread open <page> --section <element-id> --title "Afternoon workshop" --te
 leaf thread reply <answer.ref> --done --title "Afternoon workshop" --text "…"
 ```
 
-Titles are plain text, at most 80 characters. Keep a title stable. When it no
+Keep a title stable. When it no
 longer describes the discussion, rename it with
 `leaf thread edit <page> <message-id> --title "<a few words>"`, which adds no
 message.
@@ -67,15 +67,9 @@ the reasoning matters to someone using the result, keep the thread anchored to t
 section.
 
 A reply renders as Markdown. Use `--text` for a one-liner, and `--file`, or a
-heredoc on stdin, for anything longer:
+heredoc on stdin, for anything longer.
 
-```bash
-leaf thread reply <answer.ref> --done --text "…"
-leaf thread reply <answer.ref> --done --file reply.md
-```
-
-A user's message can carry a pasted image or a **Capture area** of the page; the
-delivery says how to read it. To send an image, run `leaf page media <page> <file>`
+To send an image, run `leaf page media <page> <file>`
 and put the `path` it prints in your text as a Markdown image.
 
 `leaf thread reply` takes either a delivered `answer.ref` or a page and message id:
@@ -94,9 +88,8 @@ delivered before the user's newer correction does not answer that correction.
 
 Successful answers check the saved `index.html` and make it the active revision
 with the answer. Progress and failure reports use the active revision without
-checking or publishing an in-progress draft. Failure markup and anchor moves are
-checked against that revision; detaching still checks saved source. Rerunning an
-answer with the same `ref` adds nothing; each `--ephemeral` progress line posts.
+checking or publishing an in-progress draft. Rerunning an
+answer with the same `ref` adds nothing.
 When no answer is coming, `--failure <code>` posts a failure receipt, which settles
 the input without reopening a resolved thread.
 
@@ -110,8 +103,7 @@ it the `answer.ref` as that package's coordinator instructions say.
 When a revision rewrites a quoted passage, check every open thread on it, including
 ones you are not answering this turn. `leaf page check`, and the first successful
 reply on a revision, list each open thread whose anchor no longer resolves and where the
-revision moves it: to its section if that survives, otherwise detached. The move adds no
-message and answers nothing.
+revision moves it: to its section if that survives, otherwise detached.
 
 Where you know what replaced the passage, move the thread onto it in the reply that
 reports the change, with `--section`, narrowed by `--quote` or, in a diagram,
@@ -119,8 +111,6 @@ reports the change, with `--section`, narrowed by `--quote` or, in a diagram,
 
 ```bash
 leaf thread reply <answer.ref> --done --section <element-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
-leaf thread reply <answer.ref> --done --section <element-id> --text "Updated this and moved the thread here."
-leaf thread reply <answer.ref> --done --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
 ```
 
 When the subject itself leaves the page, detach the thread rather than moving it onto
@@ -131,8 +121,7 @@ leaf thread reply <answer.ref> --done --detach --text "Removed this; the thread 
 ```
 
 A detached thread stays open in Threads, its quote marked as gone from this
-version. `page state` shows a null anchor,
-with the old one in `detached_from`. A later reply may move it to a real replacement;
+version. A later reply may move it to a real replacement;
 open a new thread for a different subject. Don't resolve a thread to get rid of an
 anchor you removed: Leaf leaves a resolved thread's anchor as it was, so if the user
 reopens it, it points at something the page no longer shows.
@@ -171,10 +160,8 @@ its text becomes the **Working** status in Leaf's panel, so keep it to one line
 thread that owes no reply, use `leaf thread reply <page> <message-id> --ephemeral`.
 
 The thread shows the latest progress as one dim working message where you posted it,
-with its author and posting time, so a message the user sends after it follows it.
 Progress never counts as unread. Your next ordinary reply replaces the preceding
-progress, including progress the user replied after. It disappears when the answer
-shows, including while the answer streams, with no disclosure to reopen it.
+progress.
 Progress carries only text;
 questions, to-dos, markup, anchor moves and failure receipts each need a reply of
 their own.
@@ -192,9 +179,7 @@ leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
 ```
 
 The page labels it `edited`, and the log keeps every wording. Only the text changes;
-markup stays as it was sent. The user can rewrite their own messages too. That
-arrives as an `edit` event with the new `text` and the `was` it replaced, and you owe
-it an answer like any reply.
+markup stays as it was sent.
 
 An ordinary reply leaves the thread open, or reopens it, so the user can inspect the
 answer; the user usually resolves it. Resolve it yourself only when the user asks,
@@ -235,13 +220,12 @@ The summary replaces the range in the thread, and the originals stay available t
 unfold. It answers nothing. When summarizing again, read the originals rather than
 only the older summary. A recap in an ordinary reply folds nothing.
 
-The fold is labeled “Earlier discussion” unless you set `--label`. To fold messages
+To fold messages
 without a summary, pass an empty `--text`:
 
 ```bash
 leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous progress messages' --text ''
 ```
 
-A summary that overlaps an earlier one replaces it, and summaries of separate ranges
-both stay. Editing a message inside a summary with prose cancels that summary, so
+Editing a message inside a summary with prose cancels that summary, so
 stale prose cannot hide the correction; a fold without prose stays.

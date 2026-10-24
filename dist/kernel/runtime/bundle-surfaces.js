@@ -2727,12 +2727,15 @@ const returnTurn = (transcript, unread) => {
 	const shown = [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")].filter((node) => node.checkVisibility());
 	return (unread && shown.find((node) => node.dataset.message === unread)) ?? shown.at(-1) ?? null;
 };
-function showReturnTurn(transcript, unread = null) {
-	scrollToEnd(transcript);
-	const turn = returnTurn(transcript, unread);
+function showReturnTurn(transcript, thread) {
+	const scroller = scrollerFor(transcript);
+	scrollToEnd(scroller);
+	const unread = thread?.unread[0]?.message;
+	const start = thread?.msgs.find((message) => message.id === unread)?.key;
+	const turn = returnTurn(transcript, start ?? null);
 	if (!turn) return;
-	const over = transcript.getBoundingClientRect().top + transcript.clientTop + parseFloat(getComputedStyle(transcript).paddingTop) - turn.getBoundingClientRect().top;
-	if (over > (turn.firstElementChild?.getBoundingClientRect().height ?? 0)) moveScrollerBy(transcript, -over);
+	const over = scroller.getBoundingClientRect().top + scroller.clientTop + parseFloat(getComputedStyle(scroller).paddingTop) - turn.getBoundingClientRect().top;
+	if (over > (turn.firstElementChild?.getBoundingClientRect().height ?? 0)) moveScrollerBy(scroller, -over);
 }
 function landThread(held, control, behavior, block) {
 	bringBackSurfaceOf(held, behavior);

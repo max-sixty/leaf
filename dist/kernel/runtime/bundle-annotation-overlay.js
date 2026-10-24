@@ -400,12 +400,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		return preview.getBoundingClientRect().height;
 	}
 	function showArrival(session) {
-		if (!session.sent) {
-			const thread = threadCardThread(session);
-			const unread = thread?.unread[0]?.message;
-			const start = thread?.msgs.find((message) => message.id === unread)?.key;
-			return showReturnTurn(session.transcript, start ?? null);
-		}
+		if (!session.sent) return showReturnTurn(session.transcript, threadCardThread(session));
 		scrollToEnd(session.transcript);
 		moveScrollerBy(session.transcript, -session.sent.fromEnd);
 	}

@@ -26,9 +26,9 @@
    surface back first (`off-flow.js`). These landings serve thread navigation,
    sending, and editor growth. Merely entering a reply reveals its writing area
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
-   the turn the user was reading, even when it is not the latest one. A separate
-   transcript opened for reading shows its first unread turn, else its latest
-   (`showReturnTurn`). */
+   the turn the user was reading, even when it is not the latest one. A thread opened
+   for reading, on a card or in the panel's view, shows its first unread turn, else
+   its latest (`showReturnTurn`). */
 import { seenRect, stuckBox, userScrollport } from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -105,27 +105,31 @@ const returnTurn = (transcript, unread) => {
   );
 };
 
-// A separate transcript opened for reading shows the turn the user comes back for: the
-// transcript's end where that turn is still in view there, or else that turn's head at
-// the transcript's top. The turn carries its own head, so it is measured from the
-// transcript's top. `unread` is the key of the thread's first unread message, if any.
-export function showReturnTurn(transcript, unread = null) {
-  scrollToEnd(transcript);
-  const turn = returnTurn(transcript, unread);
+// A thread opened for reading shows the turn the user comes back for: the end of the
+// box scrolling its transcript where that turn is still in view there, or else that
+// turn's head at the box's top. The box is the transcript itself on a card and the
+// view around it in the panel. The turn carries its own head, so it is measured from
+// the box's top.
+export function showReturnTurn(transcript, thread) {
+  const scroller = scrollerFor(transcript);
+  scrollToEnd(scroller);
+  const unread = thread?.unread[0]?.message;
+  const start = thread?.msgs.find((message) => message.id === unread)?.key;
+  const turn = returnTurn(transcript, start ?? null);
   if (!turn) return;
-  // Measured from the transcript's content edge, below the focus-ring room its
-  // padding keeps over the heads: a turn landed in that room would start where read
-  // tracking sees nothing of it (geometry.js, `seenRect`), and never read.
+  // Measured from the box's content edge, below the focus-ring room its padding keeps
+  // over the heads: a turn landed in that room would start where read tracking sees
+  // nothing of it (geometry.js, `seenRect`), and never read.
   const over =
-    transcript.getBoundingClientRect().top +
-    transcript.clientTop +
-    parseFloat(getComputedStyle(transcript).paddingTop) -
+    scroller.getBoundingClientRect().top +
+    scroller.clientTop +
+    parseFloat(getComputedStyle(scroller).paddingTop) -
     turn.getBoundingClientRect().top;
   // A turn only a little taller than its room still shows its head at the end.
   // Keep its trailing reference and metadata there; align to the head only when
   // scrolling to the end would hide that head altogether.
   const headHeight = turn.firstElementChild?.getBoundingClientRect().height ?? 0;
-  if (over > headHeight) moveScrollerBy(transcript, -over);
+  if (over > headHeight) moveScrollerBy(scroller, -over);
 }
 
 function landThread(held, control, behavior, block) {

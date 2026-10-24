@@ -227,6 +227,7 @@ import { afterSettling, holdRendering, nextRender, sizeObserver } from "./render
 import { boxMotion } from "./box-motion.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
+import { showReturnTurn } from "./thread/reply-landing.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { agentName, documentChanged } from "./semantic-state.js";
@@ -607,9 +608,10 @@ export function createFloatingPanel({
   // the field takes its room from the first key (20 October).
   let drafted = false;
   let postureMoved = true;
-  // The thread the reader lands at the end of, once Leaf has drawn more than `after`
-  // of its messages: the whole of it on opening, or past the turn the user just sent.
-  let landAtEnd = null;
+  // The thread the reader lands in once Leaf has drawn more than `after` of its
+  // messages: on opening, the whole of it, at the turn the user comes back for
+  // (`showReturnTurn`); after the user's turn, past it, at its end (`end`).
+  let landing = null;
   const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
 
   // ---------- one native editor per destination ----------
@@ -796,7 +798,7 @@ export function createFloatingPanel({
           // The user's turn lets go of the height a press held (`pressAt`).
           room = null;
           rewriting = false;
-          landAtEnd = { key, after: drawnTurns() };
+          landing = { key, after: drawnTurns(), end: true };
           // The user's turn grows the view to show it and takes New reply away.
           waiting = null;
           queueMicrotask(paint);
@@ -1034,9 +1036,12 @@ export function createFloatingPanel({
       message,
     });
   }
-  // Opening a thread shows it whole, at its end, where the latest turn is.
+  // Opening a thread shows it at its first unread reply, as its card does, else at its
+  // end, where the latest turn is. The user chose that on 23 October over opening at
+  // the end with Next unread, which left a long unread reply's head, with its New,
+  // above the view.
   function arriveAt(key) {
-    landAtEnd = { key: threadByKey(key)?.key ?? key, after: 0 };
+    landing = { key: threadByKey(key)?.key ?? key, after: 0, end: false };
   }
   // Asking to write is asking for the field, so a folded panel unfolds, and the field
   // stands for the page again, with nothing open above it.
@@ -3194,16 +3199,23 @@ export function createFloatingPanel({
     }
     if (draw) void present({ release: true });
   }
-  // A thread the reader opens, or answers, or asks to see the news of, stands at its end,
-  // once the drawing it waits for lands: on the panel's paint, the reader's presentation,
-  // or the outlet's resize (`fit`).
+  // A thread the reader opens, or asks to see the news of, stands at the turn the user
+  // comes back for, and one the user answers at its end, once the drawing it waits for
+  // lands: on the panel's paint, the reader's presentation, or the outlet's resize
+  // (`fit`).
   function landReader() {
     const top = trail.value.at(-1);
-    if (!landAtEnd || top?.thread !== landAtEnd.key) return;
+    if (!landing || top?.thread !== landing.key) return;
     const view = openView();
-    if (!view || drawnTurns() <= landAtEnd.after) return;
-    landAtEnd = null;
-    scrollToEnd(view);
+    if (!view || drawnTurns() <= landing.after) return;
+    const { end } = landing;
+    landing = null;
+    if (end) scrollToEnd(view);
+    else
+      showReturnTurn(
+        outletOf().querySelector(".lf-thread-transcript"),
+        threadByKey(top.thread),
+      );
     decideUnreadSeat();
   }
   function paintNow() {
@@ -3890,7 +3902,7 @@ export function createFloatingPanel({
     if (!thread) return false;
     if (trail.value.at(-1)?.thread === thread.key && openView()) return true;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
-    landAtEnd = null;
+    landing = null;
     void present({ release: true }).then(() => {
       const view = openView();
       if (view && trail.value.at(-1)?.thread === thread.key)

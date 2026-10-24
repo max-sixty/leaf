@@ -380,12 +380,8 @@ export function createThreadPreview({
   // its text column and its foot, so the words the user was reading stay where they
   // were.
   function showArrival(session) {
-    if (!session.sent) {
-      const thread = threadCardThread(session);
-      const unread = thread?.unread[0]?.message;
-      const start = thread?.msgs.find((message) => message.id === unread)?.key;
-      return showReturnTurn(session.transcript, start ?? null);
-    }
+    if (!session.sent)
+      return showReturnTurn(session.transcript, threadCardThread(session));
     scrollToEnd(session.transcript);
     moveScrollerBy(session.transcript, -session.sent.fromEnd);
   }

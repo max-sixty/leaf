@@ -1668,36 +1668,47 @@ def test_a_thread_s_view_hides_completed_progress_as_its_card_does(browser, serv
         assert words.evaluate(face) == leaf
 
 
-def test_a_thread_s_view_marks_unread_replies_and_goes_to_the_next(browser, serve):
-    """A reply the user has not read says New in its head in the thread's view, as on
-    its card, and Next unread among the view's controls goes to the thread's first
-    one, above the end the view opens at, past the long reply after it. Shown whole
-    there, it counts as read, as on a card, and so does the long reply, whose whole
-    extent the view has now shown, so Next unread is no longer offered, though its seat
-    stays."""
+def test_a_thread_s_view_opens_on_its_first_unread_reply(browser, serve):
+    """A thread's view opens on its first unread reply, as its card does, with that
+    reply's head and its New at the view's top rather than above it. A long reply
+    shown only in part stays unread, so Next unread is offered; scrolling the view to
+    its end shows the rest of it, and every reply then counts as read, so Next unread
+    is no longer offered, though its seat stays."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?")
-    agent_said(serve.page_dir, root, "The mounts come first.", responds=root)
     agent_said(
-        serve.page_dir, root, "Then the beds. " + "The frost dates hold them. " * 150
+        serve.page_dir,
+        root,
+        "The mounts come first. " + "The frost dates hold them. " * 150,
+        responds=root,
     )
+    agent_said(serve.page_dir, root, "Then the beds.")
     page = floating(browser, url)
     page.locator("body").focus()
     page.keyboard.press("t")
     view = page.locator(panel_view("thread"))
-    reply = view.locator(".lf-msg", has_text="The mounts come first.")
+    long_reply = view.locator(".lf-msg", has_text="The mounts come first.")
+    new = long_reply.locator(".lf-msg-head .lf-msg-new")
     unread = re.compile(r"(^|\s)lf-unread(\s|$)")
-    expect(reply).to_have_class(unread)
-    expect(reply.locator(".lf-msg-head .lf-msg-new")).to_have_text("New")
-    expect(reply).not_to_be_in_viewport()
+    expect(new).to_have_text("New")
+    expect(new).to_be_in_viewport(ratio=1)
+    settled(page)
+    # Nothing in the view, such as its head, stands over the reply's New.
+    assert new.evaluate(
+        """(tag) => {
+          const box = tag.getBoundingClientRect();
+          return document.elementsFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+            .includes(tag);
+        }"""
+    )
+    expect(long_reply).to_have_class(unread)
     press = page.locator(".lf-fp-controls .lf-fp-next-unread")
     expect(press).to_have_text("Next unread")
 
-    with sending(page, "the reply read"):
-        press.click()
-    expect(reply).to_be_focused()
-    expect(reply).to_be_in_viewport()
-    expect(reply).not_to_have_class(unread)
+    with sending(page, "the replies read"):
+        view.hover()
+        page.mouse.wheel(0, 20000)
+    expect(long_reply).not_to_have_class(unread)
     expect(view.locator(".lf-msg", has_text="Then the beds.")).not_to_have_class(unread)
     expect(press).to_be_hidden()
     expect(press).to_be_disabled()

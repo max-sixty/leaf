@@ -131,7 +131,7 @@
   inline-size: 0.75em;
   block-size: 0.75em;
   flex: none;
-  border-radius: 2px;
+  border-radius: var(--r-s);
 }
 /* The source blocks and controls fit one row down to this width, including
    touch targets. Reserve a second row only below that combined width. */

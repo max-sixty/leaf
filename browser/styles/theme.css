@@ -238,7 +238,18 @@
   --pin-fill: light-dark(var(--accent), #4d74a8);
   /* The user's turn needs a deeper green under a white pin glyph in both schemes. */
   --pin-on-user: light-dark(#2f7d45, #2d8047);
+  /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
+     Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
+     inline code, a tooltip, a checkbox, a corner mark, a word's highlight) takes --r-s.
+     A control or a box in the page's flow (a button, a field, a margin entry, a menu
+     row, a code block, an option list) takes --r. A surface floating over the page
+     that holds controls (the Leaf panel and its menu, a thread card, a dialog) takes
+     --r-l, so the controls inside it stay clear of its corners. Only what is round by
+     meaning is round: a dot, a radio mark, a count's pill. A role's own token, such as
+     --chip-r, names its size here rather than a length. */
+  --r-s: 3px;
   --r: 6px;
+  --r-l: 12px;
   /* The compact label every layer draws a small fact in: .tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --t-6, so a band of chips from different layers stands at one
@@ -246,7 +257,7 @@
      A chip that draws a border adds it outside this geometry. A chip left inline in a
      line of text takes the inset alone: an inline box paints its font's height whatever
      its line-height, which there would only resize the holder's line. */
-  --chip-r: 3px;
+  --chip-r: var(--r-s);
   --chip-pad: 0 8px;
   --chip-lh: 1.6;
   --sp-1: 4px;
@@ -279,7 +290,7 @@
      rail below is sized from the same length, so it is named rather than written into
      each. */
   --margin-entry: max(32px, var(--aim-floor));
-  /* A corner mark's disc (controls.css, `.lf-corner-mark`). A surface that keeps room
+  /* A corner mark's box (controls.css, `.lf-corner-mark`). A surface that keeps room
      for the marks on its corners reads it, so it is named rather than written there. */
   --corner-mark: 20px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
@@ -407,7 +418,7 @@
      sent message. */
   --code-inline-size: 82%;
   --code-inline-pad: 1px 5px;
-  --code-inline-r: 4px;
+  --code-inline-r: var(--r-s);
   --quote-rule: 2px solid var(--rule);
   --quote-style: italic;
   --quote-inset: 18px;
@@ -467,7 +478,7 @@
   --tip-bg: var(--ink);
   --tip-ink: var(--paper);
   --tip-pad: 4px 7px;
-  --tip-r: 4px;
+  --tip-r: var(--r-s);
   /* Inline code's ground is measured against the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over this ivory is 1.01:1, so the chip vanished and its
      side padding read as double spaces around every span. */
@@ -1841,7 +1852,7 @@ lf-suggestion {
 }
 lf-old,
 lf-new {
-  border-radius: 3px;
+  border-radius: var(--r-s);
   padding: 0 3px;
 }
 /* --ink-2, not --muted: the strike and the tint already say retired, and muted on
@@ -2038,7 +2049,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   min-height: var(--margin-entry);
   padding: 0;
   border: 1px solid var(--border-2);
-  border-radius: 50%;
+  border-radius: var(--r);
   background: var(--lf-entry-tint, var(--paper));
   color: var(--lf-entry-ink, var(--ink-2));
   flex: 0 0 auto;
@@ -2055,7 +2066,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 /* A margin entry carries one of three promises on the same paper surface.
    An action's heavier ring and lower shadow say this press acts now; a disclosure's
    firmer single ring says it opens context; read-only status keeps only the page's
-   ghost hairline. All three keep one circular silhouette and one place in the cluster,
+   ghost hairline. All three keep one silhouette and one place in the cluster,
    while the static status alone has no raised or responsive material. */
 .lf-margin-entry[data-lf-behavior="action"] {
   border-width: 2px;
@@ -2189,7 +2200,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   --lf-agent-stage-shadow: var(--lf-entry-lift);
 }
 /* Unread agent content marks the entry the way it marks the Threads toggle: a dot
-   painted inside the box the entry already reserves, so it adds no width. */
+   painted inside the box the entry already reserves, so it adds no width. It sits on
+   the entry's corner, over its border, so a paper ring parts the two. */
 .lf-margin-entry[data-lf-unread]::after {
   content: "";
   position: absolute;
@@ -2199,6 +2211,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 0 2px var(--paper);
 }
 .lf-margin-entry-glyph {
   line-height: 1;

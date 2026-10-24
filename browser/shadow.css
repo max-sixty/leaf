@@ -79,7 +79,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   height: var(--lf-key-badge-size);
   padding: 0 4px;
   border: 1px solid var(--border-2);
-  border-radius: 4px;
+  border-radius: var(--r-s);
   background: var(--chip);
   color: var(--ink-2);
   font-family: var(--mono);
@@ -351,7 +351,7 @@ summary {
   inset-inline-start: calc(anchor(var(--lf-fold-head) start) - 12px);
   inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
   border: 1px solid var(--rule);
-  border-radius: 5px;
+  border-radius: var(--r);
   pointer-events: none;
 }
 .lf-summary-checkpoint {
@@ -1301,7 +1301,7 @@ svg[data-lf-icon] {
   min-block-size: 0;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--r-s);
   font: inherit;
   background: var(--lf-ground);
   color: color-mix(in srgb, var(--ink) 72%, transparent);
@@ -1552,7 +1552,7 @@ button.lf-media-open {
 }
 .lf-media-frame,
 .lf-composer-media-item > .lf-composer-media-open {
-  border-radius: 8px;
+  border-radius: var(--r);
   box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
 }
 .lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
@@ -2077,6 +2077,9 @@ html[data-lf-draw-mode] main {
   --wa-color-brand-fill-loud: var(--accent);
   --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
   --wa-color-focus: var(--accent);
+  --wa-border-radius-s: var(--r-s);
+  --wa-border-radius-m: var(--r);
+  --wa-border-radius-l: var(--r-l);
   --wa-focus-ring-style: none;
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);

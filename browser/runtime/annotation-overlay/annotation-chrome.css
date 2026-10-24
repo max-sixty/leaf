@@ -254,7 +254,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     margin: 0;
     padding: var(--lf-comment-inset);
     border: 1px solid var(--border-2);
-    border-radius: 10px;
+    border-radius: var(--r-l);
     background: var(--paper);
     color: var(--ink);
     box-shadow: var(--raise-3);
@@ -358,7 +358,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     touch-action: none;
     user-select: none;
     pointer-events: auto;
-    border-radius: 9px;
+    border-radius: calc(var(--r-l) - 1px);
   }
   /* The transcript's focus-ring room reaches into this top band. The grip still
      takes presses there; its clipped centre leaves the messages and controls free. */
@@ -383,7 +383,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     inset: calc(var(--lf-comment-frame-top) - var(--lf-grip-out))
       calc(var(--lf-comment-frame-inline) - var(--lf-grip-out))
       calc(var(--lf-comment-frame-bottom) - var(--lf-grip-out));
-    border-radius: calc(6px + var(--lf-grip-out));
+    border-radius: calc(var(--r) + var(--lf-grip-out));
   }
   @media (pointer: coarse) {
     .lf-fab-bar > .lf-surface-grip {

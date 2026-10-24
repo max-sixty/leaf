@@ -535,8 +535,6 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
         page_dir, {"kind": "comment", "author": "user", "text": "Please answer."}
     )
     reference = response_reference(page_dir, asked)
-    # Progress whose retry key spells the receipt's discriminator leaves the
-    # receipt its own attempt.
     progress = CliRunner().invoke(
         cli_model.cli,
         [
@@ -544,8 +542,6 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
             "reply",
             reference,
             "--ephemeral",
-            "--attempt",
-            "failure",
             "--text",
             "Looking into it.",
         ],
@@ -1123,8 +1119,6 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
             earlier,
             "--text",
             "Committed by author",
-            "--attempt",
-            attempt,
         ],
     )
     assert authored.exit_code == 0, authored.output
@@ -1148,8 +1142,6 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
             earlier,
             "--text",
             "Committed by author",
-            "--attempt",
-            attempt,
         ],
     )
     assert retried.exit_code == 0, retried.output

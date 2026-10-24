@@ -30,10 +30,6 @@ $ leaf thread reply /page user-1 --text Follow-up --failure offline
 exit: 2
 {"error": "use an answer reference with --failure; use `leaf thread reply <answer.ref>`", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]"}
 
-$ leaf thread reply /page user-1 --text Follow-up --attempt retry
-exit: 2
-{"error": "use an answer reference with --attempt; use `leaf thread reply <answer.ref>`", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]"}
-
 $ leaf thread reply /page user-1 --text Follow-up --obligation
 exit: 0
 {"kind": "reply", "parent": "user-1"}

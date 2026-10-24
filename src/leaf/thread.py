@@ -845,22 +845,20 @@ def post_response(
                 )
             ]
         )
-    attempt = options.pop("attempt", None)
-    if reservation is None and (attempt is not None or not options.get("ephemeral")):
-        # Public retry keys identify this addressed author's writes, never a
-        # provider's reservation. The disjoint namespaces prevent a progress
-        # retry key from consuming its provider final's append identity too, and
-        # a failure receipt's from standing in for a later answer's.
-        retry = reference if attempt is None else f"{reference}:{attempt}"
+    if reservation is None and not options.get("ephemeral"):
+        # The reference is the retry key of this addressed author's writes; only a
+        # provider's reservation brings its own. The disjoint namespaces keep a
+        # failure receipt's from standing in for a later answer's.
         namespace = "failure" if options.get("failure") is not None else "response"
-        attempt = f"leaf-{namespace}-{sha256(retry.encode()).hexdigest()}"
+        options["attempt"] = (
+            f"leaf-{namespace}-{sha256(reference.encode()).hexdigest()}"
+        )
     return post_reply(
         Path(address["page"]),
         address,
         text,
         markup,
         settlement=REFUSE if reservation is None else ProviderFinal(reservation),
-        attempt=attempt,
         validate_source=True,
         **options,
     )

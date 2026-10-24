@@ -49,17 +49,23 @@ from .state import (
 REVIVAL_CHECK_S = 5
 
 
-def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
+def cmd_waiting(page_dir: Path, detail: str) -> dict:
     """Keep the page open for feedback, which puts down every start that stands
-    (`todos.item_starts`), and return the declaration's record, with the updates
-    still owed an answer, which the page goes on showing over it."""
+    (`todos.item_starts`), and return the declaration's record. The updates still
+    owed an answer, which the page goes on showing over it, are noted with the
+    command that answers each."""
+    from .activity import answer_command
     from .revisioning import activate_source
     from .served_state.context import read_page
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         status = page.set_status("waiting", detail)
-        return status, read_page(page_dir, page.events).work.obligations
+        owed = read_page(page_dir, page.events).work.obligations
+    if owed:
+        answers = [answer_command(item["answer"], page_dir) for item in owed]
+        note(Finding("page-open-owes", values={"answers": answers}, severity="advice"))
+    return status
 
 
 def cmd_idle(page_dir: Path, detail: str) -> dict:
@@ -549,9 +555,9 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     """
     received = []
     if ack is not None:
-        from .delivery import receive_delivery
+        from .delivery import cmd_delivery_ack
 
-        received = receive_delivery(ack)
+        received = cmd_delivery_ack(ack)
     # Leaf's work ends here; the watch that follows is the agent waiting.
     record_command("wait")
     harness = session_harness()

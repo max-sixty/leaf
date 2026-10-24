@@ -2077,11 +2077,8 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     ]
 
 
-def test_response_attempt_is_idempotent(page_dir):
-    """An attempt is an opaque durable key, and the append door holds every
-    writer to the record contract's shape for one — the delivery transports mint
-    theirs from a digest, so a short hand-written label is not a retry key."""
-    attempt = "retry-inferred-reply-1"
+def test_response_reference_is_idempotent(page_dir):
+    """A rerun of an answer with the same reference posts nothing new."""
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
@@ -2097,8 +2094,8 @@ def test_response_attempt_is_idempotent(page_dir):
         )
 
     reference = response_reference(page_dir, comment)
-    first = thread_model.post_response(reference, "Updated.", attempt=attempt)
-    retried = thread_model.post_response(reference, "Updated.", attempt=attempt)
+    first = thread_model.post_response(reference, "Updated.")
+    retried = thread_model.post_response(reference, "Updated.")
 
     assert retried["id"] == first["id"]
     assert (
@@ -2111,32 +2108,6 @@ def test_response_attempt_is_idempotent(page_dir):
         )
         == 1
     )
-
-
-def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
-    append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
-    )
-    reference = response_reference(page_dir, "c1")
-    thread_model.post_response(reference, "Updated.")
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            reference,
-            "--attempt",
-            "distinct-retry-attempt",
-            "--text",
-            "Again.",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert refused_on(result.stderr).code == "superseded-reply"
 
 
 @pytest.mark.parametrize(

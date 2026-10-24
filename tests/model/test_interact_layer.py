@@ -233,7 +233,6 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     for addressed_option in (
         ["--done"],
         ["--failure", "offline"],
-        ["--attempt", "retry"],
     ):
         record(
             [

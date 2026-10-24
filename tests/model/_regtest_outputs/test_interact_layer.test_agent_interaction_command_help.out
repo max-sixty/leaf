@@ -11,7 +11,7 @@ Usage: leaf wait [OPTIONS] PAGE
   page with new input instead, and end.
 
 Options:
-  --ack DELIVERY_ID  Confirm receipt of this complete delivery before waiting.
+  --ack DELIVERY_ID  confirm receipt of this complete delivery before waiting
   --help             Show this message and exit.
 
 ## leaf delivery read --help
@@ -23,7 +23,7 @@ Usage: leaf delivery read [OPTIONS] DELIVERY_ID
   last gives in `acknowledge` how to confirm the delivery.
 
 Options:
-  --part INTEGER RANGE  Read this numbered part of a large delivery.  [x>=1]
+  --part INTEGER RANGE  this numbered part of a large delivery  [x>=1]
   --help                Show this message and exit.
 
 ## leaf delivery ack --help
@@ -81,8 +81,8 @@ Usage: leaf thread summarize [OPTIONS] PAGE
   overlapping summary replaces this one.
 
 Options:
-  --from MESSAGE     [required]
-  --through MESSAGE  [required]
+  --from MESSAGE     the first message folded  [required]
+  --through MESSAGE  the last message folded  [required]
   --text TEXT        the summary's Markdown
   --file PATH        read the summary's Markdown from PATH, - for stdin; with
                      neither option, from piped stdin
@@ -156,13 +156,11 @@ Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]
   one that fails for the user arrives as an `error` event.
 
   With a reference, an answer suppresses your turn's final message as a second
-  reply; an --ephemeral line does not. --done, --failure and --attempt require a
-  reference. PAGE THREAD accepts --obligation when the message needs the user's
-  next move, or --todo for promised work.
+  reply; an --ephemeral line does not. --done and --failure require a reference.
+  PAGE THREAD accepts --obligation when the message needs the user's next move,
+  or --todo for promised work.
 
 Options:
-  --attempt TEXT  retry key: a rerun with the same key posts nothing new
-                  (default: the reference, except with --ephemeral)
   --failure TEXT  failure code when no answer is coming; refused while your
                   turn's final message is to be the reply
   --done          the reply delivers what the message asked for

@@ -840,13 +840,14 @@ def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> dict:
     return delivery_reading(payload, part=part)
 
 
-def cmd_delivery_ack(delivery_id: str) -> None:
-    """Accept the reader's attestation that every part reached its context. A page
+def cmd_delivery_ack(delivery_id: str) -> list[Path]:
+    """Accept the reader's attestation that every part reached its context, and
+    return the pages it named, for `delivery ack` and `wait --ack` alike. A page
     the delivery names that has gone refuses it in the system's own words. A
     delivery an earlier turn already picked up is noted as a repeat
     (`earlier_pickup`)."""
     try:
-        receive_delivery(delivery_id)
+        received = receive_delivery(delivery_id)
     except FileNotFoundError as error:
         raise Refused(str(error)) from error
     harness = session_harness()
@@ -856,6 +857,7 @@ def cmd_delivery_ack(delivery_id: str) -> None:
         from .findings import note
 
         note(repeat)
+    return received
 
 
 def earlier_pickup(payload: dict, session_id: str):

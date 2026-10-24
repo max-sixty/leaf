@@ -514,8 +514,20 @@ def media(page_dir: Path, files) -> list[dict]:
 
 @page.command(short_help="Read selected vocabulary instructions by audience as JSON.")
 @page_argument(renew=False)
-@click.option("--use", "entries", multiple=True, metavar="ENTRY")
-@click.option("--contract", "contracts", multiple=True, metavar="ID")
+@click.option(
+    "--use",
+    "entries",
+    multiple=True,
+    metavar="ENTRY",
+    help="a registry entry you will use, as its key names it; repeat for more",
+)
+@click.option(
+    "--contract",
+    "contracts",
+    multiple=True,
+    metavar="ID",
+    help="a data contract you will produce or read; repeat for more",
+)
 def instructions(
     page_dir: Path, entries: tuple[str, ...], contracts: tuple[str, ...]
 ) -> dict[str, str]:
@@ -560,8 +572,6 @@ def state(
     and reports, its obligations and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
-    if target is None and (after is not None or limit is not None):
-        raise click.UsageError("--after and --limit page a thread; name one as ID")
     return cmd_page_state(page_dir, target, after=after, limit=limit)
 
 
@@ -624,7 +634,7 @@ def stamp(
 )
 @click.option(
     "--version",
-    type=int,
+    type=click.IntRange(min=1),
     metavar="N",
     help="stamped version to export (default: latest)",
 )
@@ -680,7 +690,7 @@ def report(page_dir: Path, widget: str, verb: str, fields: tuple) -> dict:
 @page_argument(renew=False)
 @click.option(
     "--after",
-    type=int,
+    type=click.IntRange(min=0),
     default=0,
     metavar="SEQ",
     help="print events after this sequence",
@@ -705,23 +715,23 @@ def events(page_dir: Path, after: int, follow: bool) -> None:
 @page.command(short_help="Read browser interactions and request diagnostics.")
 @page_argument(renew=False)
 @click.option(
-    "--session", help="Select one browser tab; excludes unassociated server requests."
+    "--session", help="one browser tab's records, without unassociated server requests"
 )
 @click.option(
     "--since",
     metavar="ISO_TIME",
-    help="Include observations at or after this time, with timezone offset.",
+    help="include observations at or after this time, with its timezone offset",
 )
 @click.option(
     "--until",
     metavar="ISO_TIME",
-    help="Exclude observations at or after this time, with timezone offset.",
+    help="exclude observations at or after this time, with its timezone offset",
 )
 @click.option(
     "--type",
     "types",
     multiple=True,
-    help="Select an observation type; repeat to select several.",
+    help="an observation type to include; repeat for more",
 )
 def interactions(
     page_dir: Path,
@@ -797,7 +807,7 @@ def delivery() -> None:
     "--part",
     type=click.IntRange(min=1),
     default=1,
-    help="Read this numbered part of a large delivery.",
+    help="this numbered part of a large delivery",
 )
 def delivery_read(delivery_id: str, part: int) -> dict:
     """Print DELIVERY_ID, or one part of a large one, without confirming it.
@@ -829,8 +839,20 @@ def thread() -> None:
 
 @thread.command("summarize", short_help="Summarize a contiguous message range.")
 @page_argument(renew=True)
-@click.option("--from", "from_message", required=True, metavar="MESSAGE")
-@click.option("--through", "through_message", required=True, metavar="MESSAGE")
+@click.option(
+    "--from",
+    "from_message",
+    required=True,
+    metavar="MESSAGE",
+    help="the first message folded",
+)
+@click.option(
+    "--through",
+    "through_message",
+    required=True,
+    metavar="MESSAGE",
+    help="the last message folded",
+)
 @body_options("the summary's Markdown")
 @click.option("--label", help="disclosure label (default: Earlier discussion)")
 def thread_summarize(
@@ -918,12 +940,26 @@ def connection() -> None:
 @click.option(
     "--credential-env",
     required=True,
-    help="Binding environment variable containing the credential.",
+    help="the environment variable holding the credential, read as you bind",
 )
-@click.option("--header", default="Authorization", show_default=True)
-@click.option("--prefix", default="Bearer ", show_default=True)
 @click.option(
-    "--max-requests", default=200, type=click.IntRange(min=1), show_default=True
+    "--header",
+    default="Authorization",
+    show_default=True,
+    help="the request header that carries the credential",
+)
+@click.option(
+    "--prefix",
+    default="Bearer ",
+    show_default=True,
+    help="text sent before the credential in that header",
+)
+@click.option(
+    "--max-requests",
+    default=200,
+    type=click.IntRange(min=1),
+    show_default=True,
+    help="requests the page may make before it must be bound again",
 )
 def connection_bind(
     page_dir: Path,
@@ -956,6 +992,7 @@ def connection_bind(
 @page_argument(renew=True)
 @click.argument("name")
 def connection_unbind(page_dir: Path, name: str) -> dict:
+    """Withdraw NAME's grant for later requests; one already sent may finish."""
     from leaf.http_connections import unbind
 
     return unbind(page_dir, name)
@@ -1128,15 +1165,9 @@ def page_open(page_dir: Path) -> dict:
     To request an answer, send a thread message with --obligation so the
     question appears in On me. Opening a page creates no obligation.
     """
-    from leaf.activity import answer_command
-    from leaf.findings import Finding, note
     from leaf.session import cmd_waiting
 
-    written, owed = cmd_waiting(page_dir, "")
-    if owed:
-        answers = [answer_command(item["answer"], page_dir) for item in owed]
-        note(Finding("page-open-owes", values={"answers": answers}, severity="advice"))
-    return written
+    return cmd_waiting(page_dir, "")
 
 
 @page.command("close", short_help="Finish a page and stop watching for feedback.")
@@ -1165,7 +1196,7 @@ def page_close(page_dir: Path) -> dict:
 @click.option(
     "--ack",
     metavar="DELIVERY_ID",
-    help="Confirm receipt of this complete delivery before waiting.",
+    help="confirm receipt of this complete delivery before waiting",
 )
 def wait(page_dir: Path | None, ack: str | None) -> int:
     """Confirm a delivery, if given, then wait for the next batch."""
@@ -1246,11 +1277,6 @@ def thread_open(
 @click.argument("destination", metavar="REFERENCE_OR_PAGE")
 @click.argument("thread", required=False)
 @click.option(
-    "--attempt",
-    help="retry key: a rerun with the same key posts nothing new (default: the "
-    "reference, except with --ephemeral)",
-)
-@click.option(
     "--failure",
     help="failure code when no answer is coming; refused while your turn's final "
     "message is to be the reply",
@@ -1276,7 +1302,6 @@ def thread_open(
 def thread_reply(
     destination: str,
     thread: str | None,
-    attempt: str | None,
     failure: str | None,
     done: bool,
     **options,
@@ -1298,8 +1323,8 @@ def thread_reply(
     one that fails for the user arrives as an `error` event.
 
     With a reference, an answer suppresses your turn's final message as a second
-    reply; an --ephemeral line does not. --done, --failure and --attempt require
-    a reference.
+    reply; an --ephemeral line does not. --done and --failure require a
+    reference.
     PAGE THREAD accepts --obligation when the message needs the user's next move,
     or --todo for promised work.
     """
@@ -1312,7 +1337,6 @@ def thread_reply(
             for flag, given in (
                 ("--done", done),
                 ("--failure", failure is not None),
-                ("--attempt", attempt is not None),
             )
             if given
         ]
@@ -1353,8 +1377,6 @@ def thread_reply(
             "when it needs the user's next move (a widget in --markup may also ask)"
         )
     options["asks_back"] = not declared and answers
-    if attempt is not None:
-        options["attempt"] = attempt
     return post_response(destination, text, failure=failure, **options)
 
 
@@ -1425,7 +1447,7 @@ def task() -> None:
     type=click.Choice(["agent", "user"]),
     default="agent",
     show_default=True,
-    help="Whose list the to-do is on: yours, or the user's On me.",
+    help="whose list the to-do is on: yours, or the user's On me",
 )
 def task_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
     """Open a to-do titled TITLE on SUBJECT and print it; its `id` names it later.

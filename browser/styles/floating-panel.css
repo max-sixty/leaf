@@ -55,6 +55,32 @@
        the window while the page still shows over it. */
     --lf-fp-view-height: calc(100dvh - var(--lf-foot-room) - 160px);
   }
+  /* The panel's motion, which its script reads off the panel (floating-panel.js,
+     `followBox` and `showView`) and its menu's arrival here shares. A change of the
+     box's size travels on the panel's tween, the Codex panel's one strong ease-out.
+     The box growing as the words do, a line at a time, takes the tween's full length,
+     which the user singled out as the panel's best motion (15 October). A view the
+     user opened, or put away, is what they asked to see, so it arrives almost at once,
+     as the menu does: its outline in a disclosure's time (`--lf-motion-disclosure`,
+     theme.css), since the user found the full tween slow there (15 October), and its
+     words faded in at once after the leaving view's, which is gone before the arriving
+     one shows, so the two never read through each other. The row gathers into its
+     leaf on a curve of its own before that one object finishes travelling; its layout
+     is already final, so the two visual phases never delay input. The menu rises into
+     place on the panel's curve as it fades in, a little longer than the fade so its
+     last few pixels settle once it reads (`--lf-motion-menu-slide`). The corner mark
+     and the peek fade in and out in a disclosure's time. They stand here, in
+     the runtime's sheet, rather than in the theme a page vendors, since a page served
+     by a later runtime keeps its own theme. */
+  .lf-floating-panel {
+    --lf-motion-panel-ease: cubic-bezier(0.23, 1, 0.32, 1);
+    --lf-motion-panel-resize: 300ms;
+    --lf-motion-panel-fold-ease: cubic-bezier(0.77, 0, 0.175, 1);
+    --lf-motion-panel-fold: 280ms;
+    --lf-motion-view-in: 90ms;
+    --lf-motion-view-out: 60ms;
+    --lf-motion-menu-slide: 200ms;
+  }
 
   /* The surface: a layer over the whole window, cut to the box's outline by the
      panel's script, with a ring a pixel outside it and one soft shadow around both,
@@ -122,82 +148,60 @@
   .lf-fp-inner > :not(.lf-fp-opened) {
     flex-shrink: 0;
   }
-  /* The panel's own controls share one face. It is a default, so it stands in the
-     components' layer (`lf-base`), as the marks sheet's indication default does
-     (runtime/stylesheets.js), at a plain selector's weight: the panel's own rules,
-     unlayered, outrank it, and so does a shared face a panel control wears, as Send
-     wears the composers' accent arrow, while it still outranks the chrome's control
-     reset (chrome.css) and the layer's focus band at no weight (surfaces.css). It
-     stops at the components the panel holds, which bring faces of their own: what
-     Leaf's reader draws in a view's outlet (controls.css), the comment box seated in
-     the row, the attachment shelf (response.css) and the panel's corner mark
-     (controls.css). Unlayered and reaching them, it took the fill off a chosen reaction
-     in a thread, drew the shelf's × as a panel press and stood the seated box's Send on
-     a line under its field. */
+  /* The panel's own controls share one face, which each of them opts into by
+     `lf-fp-face` (floating-panel.js), so a component the panel holds brings its own
+     face: what Leaf's reader draws in a view's outlet (controls.css) and a thread's
+     notice (surfaces.css), the comment box seated in the row and the attachment shelf
+     (response.css), page search's steps and the panel's corner mark (controls.css).
+     Rejected: the face reaching every control under the panel but a list of the
+     components it stopped at, which each component the panel newly seated had to join,
+     or wear the face, as it took the fill off a chosen reaction in a thread, drew the
+     shelf's × as a panel press, stood the seated box's Send on a line under its field
+     and washed a thread's held news on hover, a wash that notice declines. It is a
+     default, so it stands in the components' layer (`lf-base`), as the marks sheet's
+     indication default does (runtime/stylesheets.js), at a plain selector's weight: the
+     panel's own rules, unlayered, outrank it, while it still outranks the chrome's
+     control reset (chrome.css) and the layer's focus band at no weight (surfaces.css).
+     A press reaches the pointer's floor by the shared reach (surfaces.css). */
   @layer lf-base {
-    @scope (.lf-floating-panel) to (.lf-fp-outlet, .lf-fp-response, .lf-composer-media, .lf-corner-mark) {
-      :is(button, input, textarea) {
-        font: inherit;
-        color: inherit;
-      }
-      button {
-        background: none;
-        border: 0;
-        border-radius: var(--r);
-        cursor: pointer;
-        white-space: nowrap;
-        padding: 0 8px;
-        min-height: var(--lf-fp-press);
-      }
-      /* Each press reaches the pointer's floor (`--aim-floor`) above and below a face
-         that can be shorter: the crumb's back is a line of small words, and under a
-         finger the row's presses are its 34px line against a 44px floor. The reach is
-         a box of the press's own that paints nothing, so the line, and the face hover
-         and pressing paint, keep their height, and it lies in the room the row, the
-         head and a menu's rows already keep around their presses. Sideways a press is
-         itself as wide as the floor, since a reach there would lie over its
-         neighbour's. The editor's presses are its own, which it sizes and places
-         itself (response.css). */
-      button:where(:not(.lf-fp-editors *)) {
-        position: relative;
-      }
-      button:where(:not(.lf-fp-editors *))::after {
-        content: "";
-        position: absolute;
-        inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
-      }
-      button:hover {
-        background: var(--lf-fp-hover);
-      }
-      button:is(:disabled, [aria-disabled="true"]) {
-        color: var(--lf-fp-muted);
-        cursor: default;
-        background: none;
-      }
-      /* The On me card the `m` walk stands on wears a focused card's ring, though focus
-         is at its ask on the page (floating-panel.js, `walkedStop`). */
-      :is(button, input, textarea, a, .lf-fp-on-item):focus-visible,
-      .lf-fp-on-item[data-walked] {
-        outline: var(--focus-ring);
-        outline-offset: -2px;
-      }
-      .lf-action-icon {
-        width: 16px;
-        height: 16px;
-      }
+    :is(button, input, textarea):where(.lf-fp-face) {
+      font: inherit;
+      color: inherit;
+    }
+    button:where(.lf-fp-face) {
+      background: none;
+      border: 0;
+      border-radius: var(--r);
+      cursor: pointer;
+      white-space: nowrap;
+      padding: 0 8px;
+      min-height: var(--lf-fp-press);
+    }
+    button:where(.lf-fp-face):hover {
+      background: var(--lf-fp-hover);
+    }
+    button:where(.lf-fp-face):is(:disabled, [aria-disabled="true"]) {
+      color: var(--lf-fp-muted);
+      cursor: default;
+      background: none;
+    }
+    /* The On me card the `m` walk stands on wears a focused card's ring, though focus
+       is at its ask on the page (floating-panel.js, `walkedStop`). */
+    :is(.lf-fp-face, .lf-fp-on-item):focus-visible,
+    .lf-fp-on-item[data-walked] {
+      outline: var(--focus-ring);
+      outline-offset: -2px;
     }
   }
 
   /* ---------- the row ---------- */
   /* One alignment for the whole row: everything in it, the field's presses
-     included, stands on the row's foot and is a line tall (`--lf-fp-line`), so a field
+     included, stands on the row's foot and is a line tall (`--lf-line`), so a field
      grown to several lines keeps them beside its last. The line and the row's padding
      are the theme's, which reserves the row at the window's foot (`--lf-floating-row`).
-     A vendor control seated in the row takes the line through its own sizing token:
-     page search's box once kept the vendor's 38px, set by its type, and stood the row
-     taller than the comment field it took turns with. */
+     Whatever takes the field's place, the editor, page search or the seated comment
+     box, is a line tall by the theme's own rules, so none of them sizes the row. */
   .lf-fp-row {
-    --wa-form-control-height: var(--lf-fp-line);
     display: flex;
     align-items: flex-end;
     gap: 2px;
@@ -214,11 +218,11 @@
     position: absolute;
     inset-block-start: var(--lf-fp-row-pad);
     inset-inline-start: var(--lf-fp-row-pad);
-    width: var(--lf-fp-line);
-    height: var(--lf-fp-line);
+    width: var(--lf-line);
+    height: var(--lf-line);
   }
   .lf-floating-panel[data-expanded] .lf-fp-row:has(> .lf-fp-expand) {
-    min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
+    min-height: calc(2 * var(--lf-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {
     position: relative;
@@ -226,7 +230,7 @@
     display: grid;
     place-items: center;
     width: var(--lf-fp-aim);
-    min-height: var(--lf-fp-line);
+    min-height: var(--lf-line);
     padding: 0;
   }
   .lf-fp-leaf .lf-dot {
@@ -264,7 +268,7 @@
     flex: 1;
     align-items: center;
     min-width: 0;
-    min-height: var(--lf-fp-line);
+    min-height: var(--lf-line);
   }
   .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])) {
     border-radius: var(--r);
@@ -333,17 +337,12 @@
     display: flex;
     flex: none;
     align-items: center;
-    min-height: var(--lf-fp-line);
+    min-height: var(--lf-line);
     gap: 0;
   }
-  /* Search's steps are a line tall, as Send is in the editor's place, and as wide as
-     the pointer's floor, reaching it above and below as the row's presses do (above).
-     The icon action's own hit box, the floor both ways, stood the row 10px taller
-     under a finger. */
+  /* Search's steps are a line tall, as the row's other presses are. */
   .lf-fp-actions .lf-icon-action {
-    --lf-icon-action-hit: var(--lf-fp-line);
-    width: max(var(--lf-fp-line), var(--aim-floor));
-    min-width: max(var(--lf-fp-line), var(--aim-floor));
+    --lf-icon-action-face: var(--lf-line);
   }
   /* More room for a long draft (floating-panel.js, `expand`): past three lines the
      mark stands over the leaf, beside the field's first line, or at the end of an open
@@ -434,12 +433,6 @@
     min-width: 0;
     align-self: center;
   }
-  /* The box is a line tall at rest, as the field it stands in for. Its own resting
-     height is the pointer's floor, which stood the row 10px taller under a finger;
-     Send keeps its floor-sized box, standing past the field into the row's padding. */
-  .lf-fp-response > .lf-fab-bar {
-    --lf-response-height: var(--lf-fp-line);
-  }
   .lf-floating-panel:not([data-open], [data-offers], [data-search])
     .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
     > .lf-fp-field {
@@ -458,7 +451,7 @@
     white-space: nowrap;
     text-overflow: ellipsis;
     margin: 0;
-    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    padding: calc((var(--lf-line) - 22px) / 2) 6px;
     color: var(--lf-fp-quiet);
     font: 14px / 22px var(--sans);
   }
@@ -468,8 +461,8 @@
     border: 0;
     background: none;
     box-shadow: none;
-    padding: calc((var(--lf-fp-line) - 1lh) / 2) 6px;
-    min-height: var(--lf-fp-line);
+    padding: calc((var(--lf-line) - 1lh) / 2) 6px;
+    min-height: var(--lf-line);
     /* Half the window: a long comment reads whole before the field scrolls. */
     max-height: 50dvh;
     box-sizing: border-box;
@@ -532,7 +525,7 @@
     font-weight: 500;
   }
   .lf-fp-field .lf-compose-error {
-    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    padding: calc((var(--lf-line) - 22px) / 2) 6px;
     background: var(--lf-fp-surface);
     font: 500 14px / 22px var(--sans);
     white-space: nowrap;
@@ -591,23 +584,28 @@
      do (response.css), so every line but the last runs the field's whole width and the
      last keeps room for them (text-field.js, `--lf-field-end-room`). The user chose this
      on 15 October over the presses standing beside the words in the row's flow, which
-     kept a press's width empty beside every line. Each is a line square, as the leaf
-     is, standing on the row's foot. */
+     kept a press's width empty beside every line. Each is a line tall, standing on the
+     row's foot, and as wide as the floor, as the row's other presses are. */
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
     inset-inline-end: 0;
     inset-block-end: 0;
     place-items: center;
-    width: var(--lf-fp-line);
+    width: max(var(--lf-line), var(--aim-floor));
     min-width: 0;
-    height: var(--lf-fp-line);
+    height: var(--lf-line);
     min-height: 0;
     padding: 0;
   }
+  /* A thread walk's aside keeps the room drafting reserves for the Send corner, so the
+     placeholder doesn't shrink by that corner's width mid-read. */
   .lf-floating-panel:is([data-writing], [data-drafted])
     .lf-fp-field
     .lf-compose-field
-    > leaf-text {
-    --lf-field-end-room: calc(var(--lf-fp-line) - 6px);
+    > leaf-text,
+  .lf-fp-field
+    .lf-compose-field
+    > leaf-text:has(.lf-compose-placeholder-aside:not(:empty)) {
+    --lf-field-end-room: calc(max(var(--lf-line), var(--aim-floor)) - 6px);
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
      not a press of its own, in Dictate's seat. While the field holds a draft, the
@@ -652,7 +650,7 @@
     justify-content: center;
     gap: 4px;
     min-width: var(--lf-fp-aim);
-    min-height: var(--lf-fp-line);
+    min-height: var(--lf-line);
     padding: 0 7px;
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
@@ -692,7 +690,7 @@
     flex: none;
     display: flex;
     align-items: center;
-    min-height: var(--lf-fp-line);
+    min-height: var(--lf-line);
   }
   /* The field gives the notice its room only while it holds no words: words a notice
      arriving would narrow rewrap, and the field grows up over its line under the
@@ -753,7 +751,7 @@
   /* ---------- folded to the leaf, in the window's corner ---------- */
   .lf-floating-panel[data-rest="mark"] {
     --lf-fp-fold-pad-inline: calc((var(--lf-fp-folded) - var(--lf-fp-aim)) / 2);
-    --lf-fp-fold-pad-block: calc((var(--lf-fp-folded) - var(--lf-fp-line)) / 2);
+    --lf-fp-fold-pad-block: calc((var(--lf-fp-folded) - var(--lf-line)) / 2);
     width: var(--lf-fp-folded);
     left: auto;
     right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
@@ -790,14 +788,14 @@
     opacity: 0;
     visibility: hidden;
     transition:
-      opacity 120ms,
-      visibility 0s 120ms;
+      opacity var(--lf-motion-disclosure),
+      visibility 0s var(--lf-motion-disclosure);
   }
   @media (hover: hover) {
     .lf-floating-panel[data-rest="row"][data-corner] .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
-      transition: opacity 120ms;
+      transition: opacity var(--lf-motion-disclosure);
     }
   }
   /* What waits on the user, on the folded leaf: a count, and a dot for news. */
@@ -861,13 +859,15 @@
     box-sizing: border-box;
   }
   /* The controls stand on the row, which their growing view never moves, set off from
-     what the view holds by a hairline inset as far as the words. */
+     what the view holds by a hairline inset as far as the words. Their reach stops
+     short of the row's own presses' (`--lf-reach-room`), so a press between the two
+     lands on the one the user is nearer. */
   .lf-fp-controls {
     display: flex;
     align-items: center;
     gap: 4px;
     min-height: 40px;
-    padding: 3px 6px 0 calc(6px + var(--lf-fp-inset));
+    padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
     background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
       calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
@@ -943,18 +943,27 @@
     gap: 2px;
   }
   /* Filter strips share the available width with the crumb and fixed actions. Their
-     tabs scroll at full size when space runs out, keeping Search and Close reachable. */
+     tabs scroll at full size when space runs out, keeping Search and Close reachable.
+     The tabs take turns in the controls row with a thread's controls, so they keep
+     their face under a finger too and reach the pointer's floor as the row's other
+     presses do: floor-tall tabs stood the row taller than the thread's controls that
+     replace them. The strip scrolls, which would clip a reach beyond its box, so it
+     keeps the reach's room inside its box and takes none in the row. */
   .lf-fp-filters {
+    --lf-fp-tab: 26px;
+    --lf-fp-filter-reach: max(0px, (var(--aim-floor) - var(--lf-fp-tab)) / 2);
     display: flex;
     min-width: 0;
     overflow-x: auto;
     gap: 2px;
+    padding-block: var(--lf-fp-filter-reach);
+    margin-block: calc(-1 * var(--lf-fp-filter-reach));
   }
   .lf-fp-filters button {
     flex-shrink: 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
-    min-height: max(26px, var(--aim-floor));
+    min-height: var(--lf-fp-tab);
   }
   .lf-fp-filters button:hover,
   .lf-fp-filters [aria-pressed="true"] {
@@ -1274,8 +1283,8 @@
     display: block;
     overflow: visible;
   }
-  /* Its reach (above) lies inside the thread's view, which clips what passes its 8px
-     top padding, so under a finger it stands low enough for the reach above it. */
+  /* Its reach (surfaces.css) lies inside the thread's view, which clips what passes its
+     8px top padding, so under a finger it stands low enough for the reach above it. */
   .lf-fp-quote-head > .lf-quote-expand {
     margin-block-start: max(0px, (var(--aim-floor) - 1lh) / 2 - 8px);
     min-height: 0;
@@ -1439,9 +1448,13 @@
   .lf-fp-show {
     margin-inline-start: auto;
   }
+  /* An answer as short as "A" stands as wide as the floor, so its reach, which meets
+     the floor on each axis the face falls short (surfaces.css), lies over no answer
+     beside it. */
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
     padding-inline: 11px;
+    min-width: var(--aim-floor);
   }
   .lf-fp-answer[aria-pressed="true"] {
     color: var(--ok-ink);
@@ -1471,20 +1484,17 @@
   /* A sent reply keeps the field's reading width, so its list and code lines do
      not reflow merely because they moved above the leaf. The room matches the
      leaf, the field's two 6px edges, and the thread's two text insets. */
+  .lf-fp-messages .lf-msg.user {
+    --lf-msg-text-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
+  }
   .lf-fp-messages .lf-msg.user .lf-msg-text {
     box-sizing: border-box;
-    padding-inline-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
   }
-  /* A rewrite in a thread's view is the reply box of the field below it, at the field's
-     height, frame included: its words keep the message's face, set in the field's
-     line, and its place, the box reaching back over their inset as in a card's
-     transcript (response.css), as far as the quote's rule. */
-  .lf-fp-messages .lf-msg-editor {
-    margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
-  }
-  .lf-fp-messages .lf-msg-editor .lf-compose-field > leaf-text {
-    min-height: calc(var(--lf-fp-line) - 2px);
-    padding-block: calc((var(--lf-fp-line) - 2px - 1lh) / 2);
+  /* A rewrite in a thread's view stands where the message stood (response.css,
+     `.lf-msg-editor`), at the height of the field below it, frame included, its frame
+     reaching back over the words' inset as far as the quote's rule. */
+  .lf-fp-messages .lf-msg-editor > .lf-compose-field {
+    --lf-response-height: var(--lf-line);
   }
 
   /* ---------- the plan ---------- */
@@ -1623,8 +1633,8 @@
       translate: 0 6px;
     }
     transition:
-      opacity 120ms linear,
-      translate 200ms cubic-bezier(0.23, 1, 0.32, 1);
+      opacity var(--lf-motion-disclosure) linear,
+      translate var(--lf-motion-menu-slide) var(--lf-motion-panel-ease);
   }
   /* Versions' notes and Compare want more of a line than the menu's rows. */
   .lf-fp-menu[data-level="versions"] {
@@ -1734,7 +1744,7 @@
     font-size: 12px;
     pointer-events: none;
     display: none;
-    transition: opacity 120ms;
+    transition: opacity var(--lf-motion-disclosure);
   }
   /* It fades in where it stands: a peek that rose into place would move its words
      under nobody's input. */
@@ -1758,7 +1768,7 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
       --lf-fp-aim: var(--aim-floor);
-      --lf-fp-press: var(--lf-fp-line);
+      --lf-fp-press: var(--lf-line);
     }
     .lf-fp-item,
     .lf-fp-thread,

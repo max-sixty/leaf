@@ -24,7 +24,10 @@ function refreshTarget(link, row, write, names) {
   if (href) write(link, "tabindex", null);
 }
 
-export function initialActivity(host, { offerElement, tabStore, keeps }) {
+export function initialActivity(
+  host,
+  { offerElement, generatedElement, tabStore, keeps },
+) {
   const storageKey = ACTIVITY_VIEW + host.id;
   const saved = tabStore.get(storageKey);
   const reading = saved
@@ -48,10 +51,15 @@ export function initialActivity(host, { offerElement, tabStore, keeps }) {
   const target = (row) => {
     if (row.thread)
       return html`<button
-        ${ref((node) => node && offerElement(node, "lf-activity-target"))}
+        ${ref(
+          (node) =>
+            node &&
+            generatedElement(offerElement(node, "lf-activity-target"), {
+              says: "echo",
+            }),
+        )}
         type="button"
         data-lf-carry=${`row-${row.id}`}
-        data-lf-echo
         @click=${
           capabilities.openThread ? () => capabilities.openThread(row.thread) : null
         }
@@ -102,20 +110,18 @@ export function initialActivity(host, { offerElement, tabStore, keeps }) {
         </button>
         <ol
           class="lf-activity-list scroll"
-          data-lf-gen="1"
           ?hidden=${hidden}
           ${ref((node) => {
-            if (node) drawing.list = node;
+            if (node) drawing.list = generatedElement(node, { says: false });
           })}
         >
           ${repeat(rows, (row) => row.id, rowTemplate)}
         </ol>
         <p
           class="lf-activity-empty"
-          data-lf-gen="1"
           ?hidden=${hidden || rows.length > 0}
           ${ref((node) => {
-            if (node) drawing.empty = node;
+            if (node) drawing.empty = generatedElement(node, { says: false });
           })}
         >
           Nothing shown yet.

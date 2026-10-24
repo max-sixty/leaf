@@ -1,5 +1,8 @@
 /* Prose faces reach the document and the layer's reading regions in declared
  * shadow trees. A widget's own source or controls keep its own sheet. */
+:root {
+  --lf-text-scroll-clearance: 8px;
+}
 :where(:root, .lf-thread-transcript) a {
   color: var(--accent);
   text-underline-offset: var(--link-underline-offset);
@@ -104,7 +107,7 @@
     grid-column: 1 / -1;
   }
   :where(:root, .lf-thread-transcript) :is(pre, table)::after {
-    block-size: 8px;
+    block-size: var(--lf-text-scroll-clearance);
   }
 }
 /* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
@@ -333,15 +336,27 @@ leaf-text.lf-fab-input,
   overflow-wrap: anywhere;
   --lf-measure: var(--col);
 }
+/* The user's own words and pictures keep the column of the box they write and rewrite
+   them in, which ends its lines the thread's text inset short of its edge, so a line
+   breaks where it broke as they wrote it and where it will as they rewrite it; a
+   surface whose box ends its words elsewhere says where (`--lf-msg-text-end`). */
+.lf-msg:where(.user) {
+  --lf-msg-text-end: var(--lf-thread-text-inset, 0px);
+}
 .lf-msg-text {
   display: block;
   padding-block: var(--lf-thread-text-pad-block, 0px);
+  padding-inline-end: var(--lf-msg-text-end, 0px);
+}
+.lf-msg-media {
+  padding-inline-end: var(--lf-msg-text-end, 0px);
 }
 .lf-msg-text > :first-child {
   margin-top: 0;
 }
 .lf-msg-body > :last-child,
-.lf-msg-text > :last-child {
+.lf-msg-text > :last-child,
+.lf-msg-media > :last-child {
   margin-bottom: 0;
 }
 .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) {

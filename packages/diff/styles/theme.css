@@ -93,28 +93,15 @@
 }
 
 .lf-call-group > summary {
-  list-style: none;
   cursor: pointer;
 }
 
-.lf-call-group > summary::-webkit-details-marker {
-  display: none;
-}
-
 .lf-call-group > summary::before {
-  content: "›";
   align-self: center;
   grid-column: 1;
   grid-row: 1;
   color: var(--code-muted);
-  font-family: var(--sans);
-  font-weight: 700;
   text-align: center;
-  transition: transform 120ms ease;
-}
-
-.lf-call-group[open] > summary::before {
-  transform: rotate(90deg);
 }
 
 .lf-call-group-body {

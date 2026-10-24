@@ -17,6 +17,7 @@ from .file_changes import FileChanges, target_paths
 from .files import file_stamp
 from .findings import Finding, note
 from .harness import Harness, claim_harness, session_harness
+from .hook_transport import HOOK_TIMEOUT_S
 from .interaction_log import record_command
 from .leases import (
     end_if_terminated,
@@ -46,10 +47,6 @@ from .state import (
 # without a pass on a page whose files have not moved: nothing else a pass reads
 # changes on the clock alone.
 REVIVAL_CHECK_S = 5
-
-# How long a normal turn-end watch gives the concurrent Stop hook to close the turn
-# before waking for input already pending: that hook's timeout (`hooks/hooks.json`).
-STOP_HOOK_S = 20
 
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
@@ -431,14 +428,11 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
 
     def acknowledge(delivery_id: str) -> str:
         return (
-            "Whoever ran the `leaf wait` that printed this delivery acknowledges "
-            "it; until then the user's updates read Sent rather than Delivered. If "
-            f"the output was cut off, reread it with `leaf delivery read {delivery_id}`. "
-            "Follow any `next` commands before confirming. If you handle it, "
-            "acknowledge before any other "
-            "work; if you forward it, acknowledge once it durably arrives there. To "
-            f"acknowledge, {run_ack(delivery_id)}: it confirms this delivery and "
-            "waits for the next."
+            "If the output was cut off, reread it with "
+            f"`leaf delivery read {delivery_id}` and follow any `next` commands. "
+            f"Then, before any other work, {run_ack(delivery_id)}, which confirms "
+            "this delivery and waits for the next. If you forward the delivery "
+            "instead of handling it, acknowledge once it arrives where you sent it."
         )
 
     return acknowledge
@@ -669,7 +663,8 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     # Event timestamps have millisecond precision. Include the startup millisecond
     # in immediate delivery rather than delaying an arrival in that millisecond.
     began = int(time.time() * 1000) / 1000
-    settled = time.monotonic() + STOP_HOOK_S
+    # The concurrent Stop hook has its timeout to close the turn.
+    settled = time.monotonic() + HOOK_TIMEOUT_S
     watch = Watch(harness)
     watch.acquire(supersede=True)
     # The turn this watch follows, and when it saw a later turn closed.
@@ -689,7 +684,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         if claim["turn_closed"] is not None:
             if not later_closed:
                 later_closed.append(time.monotonic())
-            return time.monotonic() > later_closed[0] + STOP_HOOK_S
+            return time.monotonic() > later_closed[0] + HOOK_TIMEOUT_S
         live = harness.live_turn()
         return live is None or live["state"] == "idle"
 

@@ -66,7 +66,7 @@ class Harness:
     - the host, a program that drives App Server and starts every turn itself.
 
     The *transport* is how one delivery enters a turn's context: the hooks
-    (`hook_delivers`, or Codex's tool hook offering a pointer, `offer_at_step`),
+    (`hook_delivers`, or Codex's tool hook, `offer_at_step`),
     the wait's output, Codex's queue, or a turn Leaf starts over App Server. The
     envelope states what the transport decides (`../../skills/leaf/references/event-batches.md`).
     The methods below answer for each harness's watcher and transports:
@@ -106,6 +106,19 @@ class Harness:
     # over waits for a later hook of the same turn to confirm it, and is offered
     # again if the turn ends first (`delivery.confirm_turn`).
     commits_hook_context: ClassVar[bool] = True
+    # The most UTF-8 bytes of hook context the harness shows the model whole, or
+    # None where it shows any size.
+    hook_context_bytes: ClassVar[int | None] = None
+
+    @classmethod
+    def fits_hook_context(cls, context: str) -> bool:
+        """Whether the harness shows `context`, a hook's whole output to the turn,
+        to the model whole. Every hook hands a delivery whose context doesn't fit
+        over as its pointer (`delivery.delivery_pointer_prompt`)."""
+        return (
+            cls.hook_context_bytes is None
+            or len(context.encode("utf-8")) <= cls.hook_context_bytes
+        )
 
     @classmethod
     def from_claim(cls, claim: dict) -> Harness:
@@ -339,6 +352,11 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # was taken, so the turn's next hook confirms it: a tool call or the turn's
     # end means the model read the context.
     commits_hook_context = False
+    # It writes a larger hook context to a file and hands the turn a 2 KB preview
+    # and the path instead: measured at 2.1.283 with ASCII, 9,990 characters
+    # arrived whole and 10,010 did not. Which unit it counts is unmeasured, so the
+    # limit counts UTF-8 bytes, the strictest reading.
+    hook_context_bytes = 9_990
 
     def lifetime(self) -> dict:
         """A session the user sits at is a process, and Claude Code states it
@@ -449,6 +467,12 @@ class CodexHarness(EnvironmentHarness):
     default_agent = "Codex"
     session_variables = ("LEAF_SESSION_ID", "CODEX_THREAD_ID")
     identity_variables = session_variables
+    # Codex 0.160.0 spills hook context above 2,500 approximate tokens, counted as
+    # ceil(UTF-8 bytes / 4), Stop continuations included, and the preview it
+    # shows instead is incomplete JSON.
+    # https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/hooks/src/output_spill.rs
+    # https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/utils/string/src/truncate.rs
+    hook_context_bytes = 10_000
 
     @classmethod
     def process_pid(cls) -> int | None:
@@ -652,6 +676,8 @@ class PiHarness(EnvironmentHarness):
     session_variables = ("PI_SESSION_ID",)
     identity_variables = (*session_variables, "LEAF_PI_PID")
     hook_delivers = True
+    # The extension adds a hook's whole context to the session as text, at any
+    # size, so `hook_context_bytes` stays None.
 
     @classmethod
     def process_pid(cls) -> int | None:
@@ -675,10 +701,10 @@ class PiHarness(EnvironmentHarness):
     def process_runs(self) -> bool:
         return pid_alive(int(os.environ["LEAF_PI_PID"]))
 
-    def title_generator(self) -> Callable[[str, Path], dict]:
-        from leaf.thread_titles import pi_title
+    def inference_generator(self) -> Callable[..., dict]:
+        from leaf.inference import pi_generate
 
-        return pi_title
+        return pi_generate
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's Pi extension puts them in your context at your next turn."

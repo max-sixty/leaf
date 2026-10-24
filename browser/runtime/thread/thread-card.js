@@ -39,7 +39,7 @@ import {
 import { html, render, nothing, share, signal } from "/vendor/browser-runtime.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
-import { offer, measure } from "../widget-elements.js";
+import { generatedElement, offer, measure } from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -339,7 +339,7 @@ export class ThreadView {
     this.node.tabIndex = -1;
     this.node.classList.add("lf-page-thread", "lf-ui");
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
-    this.node.dataset.lfGen = "1";
+    generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
     this.#actions.className = "lf-thread-meta-actions";
   }

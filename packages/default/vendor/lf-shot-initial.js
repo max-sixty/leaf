@@ -5,18 +5,21 @@
     compare: "Pair",
     pixels: "Pixels"
   };
-  var CONTROL = "lf-btn lf-quiet-action lf-compact-control";
+  var CONTROL = "lf-btn lf-quiet-action";
   var nextOptionsId = 0;
   function shotAllocation(host, stage) {
     const style = getComputedStyle(stage);
+    const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
     return {
       available: stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
-      availableHeight: getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1" ? stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) : void 0
+      availableHeight: getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1" ? stage.clientHeight - padding : void 0,
+      screenHeight: document.documentElement.clientHeight - stage.previousElementSibling.offsetHeight - padding
     };
   }
   function fitShotGeometry({
     available,
     availableHeight,
+    screenHeight,
     labelHeight,
     sourceWidth,
     sourceHeight,
@@ -30,17 +33,17 @@
     if (!available || !(crop || sourceWidth && sourceHeight)) return null;
     const width = crop ? focus.width : sourceWidth;
     const height = crop ? focus.height : sourceHeight;
-    const fit = (columns2, rows2, captions = 0) => Math.max(
+    const fit = (columns2, rows2, captions = 0, bound = availableHeight) => Math.max(
       0,
       Math.min(
         1,
         (available - columns2 * 2 - (columns2 - 1) * gap) / (columns2 * width),
-        availableHeight === void 0 ? Infinity : (availableHeight - rows2 * (captions + 2) - (rows2 - 1) * gap) / (rows2 * height)
+        bound === void 0 ? Infinity : (bound - rows2 * (captions + 2) - (rows2 - 1) * gap) / (rows2 * height)
       )
     );
     const side = fit(2, 1);
-    const stack = fit(1, 2, labelHeight);
-    const layout = availableHeight === void 0 ? width + gap + 4 <= available ? "side" : "stack" : side >= stack ? "side" : "stack";
+    const stack = fit(1, 2, labelHeight, availableHeight ?? screenHeight);
+    const layout = side >= stack ? "side" : "stack";
     const pairScale = layout === "side" ? side : stack;
     const fitScale = view === "compare" ? pairScale : fit(1, 1);
     const scale = actual ? 1 : fitScale;
@@ -88,12 +91,11 @@
     keeps(host, "data-lf-shot-focus", geometry.focus);
     const stacked = host.dataset.lfShotMode === "compare" && geometry.layout === "stack";
     for (const caption of host.querySelectorAll(".lf-shotcap"))
-      caption.toggleAttribute(
-        "data-lf-said",
-        caption.parentElement.classList.contains("lf-shot-frame-label") === stacked
-      );
+      document.documentElement.lfInitial.generatedElement(caption, {
+        says: caption.parentElement.classList.contains("lf-shot-frame-label") === stacked
+      });
   }
-  function drawShot(host, { offer, keeps }) {
+  function drawShot(host, { offer, generatedElement, keeps }) {
     const buttons = (label, values, selected) => {
       const group = offer("div", "lf-shot-views");
       group.role = "group";
@@ -171,13 +173,11 @@
     for (const state of ["before", "after"]) {
       const frame = offer("div", "lf-shotframe lf-media-frame");
       frame.dataset.lfState = state;
-      const caption = offer(
-        "span",
-        "lf-shotcap lf-label",
-        state === "before" ? "Before" : "After"
+      const caption = generatedElement(
+        offer("span", "lf-shotcap lf-label", state === "before" ? "Before" : "After"),
+        { says: true }
       );
       caption.dataset.lfState = state;
-      caption.dataset.lfSaid = "";
       const heading = offer("div", "lf-shot-frame-label lf-ui");
       heading.dataset.lfState = state;
       const frameCaption = offer("span", "lf-shotcap lf-label", caption.textContent);

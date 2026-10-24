@@ -14,6 +14,7 @@
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
 import { html, keyed, render, nothing } from "/vendor/browser-runtime.js";
+import { generatedElement, offered } from "../widget-elements.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -349,7 +350,7 @@ export class MessageView {
       this.node.dataset.message = model.key;
       this.#header.className = "lf-msg-head";
       this.node.classList.add("lf-ui");
-      this.node.dataset.lfGen = "1";
+      generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
       // A double click on the user's own words opens them for rewriting, as the word
       // under it would otherwise only be selected. The word it selected goes first: the
@@ -488,11 +489,8 @@ export class MessageView {
     const rewrite =
       model.editable && !editing
         ? html`<button
-            type="button"
-            class="lf-msg-control lf-msg-edit lf-ui"
+            ${offered("lf-msg-control lf-msg-edit")}
             tabindex="-1"
-            data-lf-gen="1"
-            data-lf-offer="button"
             aria-label="Edit message"
             title="Edit message"
             @click=${() => this.openEdit()}

@@ -35,7 +35,7 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
-import { readCaret, focused, currentLocationIn } from "../focus.js";
+import { readCaret, focused, currentLocationIn, onPressAway } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
@@ -43,7 +43,6 @@ import { THREAD, SAY_ROW } from "./selectors.js";
 import { el, offer } from "../widget-elements.js";
 import { move } from "../dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
-import { pressIsKeyboardActivation } from "../pointer.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 
 const REPLY_COMPOSITION = Symbol("reply composition");
@@ -161,17 +160,16 @@ function dismissContext(context) {
   session.owner?.changed();
 }
 export const dismissReply = (key) => dismissContext(replyContext(key));
-// A pointer press elsewhere puts the composition away. Keyboard activation emits
-// click too, but Send, Resolve and the declared leave command own their addressed row.
-document.addEventListener(
-  "click",
-  (event) => {
-    if (pressIsKeyboardActivation(event)) return;
-    const within = replyDraftContext(event.composedPath()[0]);
-    for (const context of compositions.keys())
-      if (context !== within) dismissContext(context);
+// A press away from a composition's row puts the composition away (focus.js,
+// `onPressAway`): a drag into the row or out of it leaves it standing.
+onPressAway(
+  ([node]) =>
+    [...compositions.keys()].some((context) => context !== replyDraftContext(node)),
+  ([node], [from]) => {
+    const kept = [replyDraftContext(node), replyDraftContext(from)];
+    for (const context of [...compositions.keys()])
+      if (!kept.includes(context)) dismissContext(context);
   },
-  true,
 );
 
 export const dismissReplyAt = (node) => {

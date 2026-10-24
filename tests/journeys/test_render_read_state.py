@@ -23,6 +23,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     reported_browser_errors,
     round_trip,
     select,
@@ -78,9 +79,7 @@ def _said(page):
 
 
 def _thread_row(page, thread):
-    return page.locator(
-        f'.lf-fp-view[data-view="threads"] .lf-fp-thread[data-key="{thread}"]'
-    )
+    return page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{thread}"]')
 
 
 def _select_new_route(page):
@@ -434,7 +433,7 @@ def _open_first_unread(page, child):
     the child's own viewport, so what the containing page shows of the frame is all that
     is left to keep it unread."""
     page.keyboard.press("Enter")
-    expect(child.locator('.lf-fp-view[data-view="threads"]')).to_be_visible()
+    expect(child.locator(panel_view("threads"))).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("u")
     expect(

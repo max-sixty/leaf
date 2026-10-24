@@ -34,7 +34,11 @@ def comments(case: str) -> list[dict]:
         else [
             dict(comment, name=str(n + 1), injection=injection)
             for n, (comment, injection) in enumerate(
-                zip(DEFINITION["comments"], inputs["injection"], strict=False)
+                zip(
+                    inputs.get("comments", DEFINITION["comments"]),
+                    inputs["injection"],
+                    strict=False,
+                )
             )
         ]
     )

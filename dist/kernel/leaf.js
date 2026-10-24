@@ -3354,8 +3354,8 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		id: "target.picker.open",
 		keys: ["s"],
 		description: () => bindings(TARGET_HINT_TYPE).length ? "Choose an element by pressing it or typing its hint, then comment" : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
-		title: "select element",
-		touch: "Select element",
+		title: "comment on an element",
+		touch: "Comment on an element",
 		menu: "annotate",
 		when: canChoose,
 		run: (...args) => openTargetPicker(...args)
@@ -5092,8 +5092,7 @@ const GROUPS = Object.freeze({
 });
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
-const PICK = "command:target.picker.open";
-const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && !(entry.key === PICK && advertisesKeys());
+const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key);
 let copyRefused = false;
 const canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
 const groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;

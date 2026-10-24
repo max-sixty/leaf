@@ -247,20 +247,12 @@ const GROUPS = Object.freeze({
   annotate: "Annotations",
   about: "About this page",
 });
-// Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot,
-// or, for picking an element to comment on, by the page itself, where selecting words
-// or pressing `s` already starts it. A finger has no `s`, and selecting words picks no
-// widget or picture, so where no keyboard is there to press it, Annotations lists it
-// (keyboard/AGENTS.md, "Touch routes").
+// Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot.
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
-const PICK = "command:target.picker.open";
 // A row the menu or a group lists: neither held elsewhere nor a stance's way out, at the
 // row's end.
-const listed = (entry) =>
-  !entry.exit &&
-  !HELD_ELSEWHERE.includes(entry.key) &&
-  !(entry.key === PICK && advertisesKeys());
+const listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key);
 // A browser offers the clipboard only to a secure context (https or localhost), so a
 // page read over plain http from another machine has none to copy with; and one that
 // offers it may still refuse a write, after which the page copies nothing more by a

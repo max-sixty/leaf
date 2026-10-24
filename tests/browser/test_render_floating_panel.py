@@ -3504,13 +3504,15 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode stands its ✕ at
     the row's end, beside the counts, and names the mode in the field; the ✕ leaves the
-    mode. Picking an element is left to the page, where selecting words or pressing `s`
-    starts it, so Annotations doesn't list it."""
+    mode. Annotations also lists Comment on an element for a mouse, with the `s` that
+    reaches it from the keyboard, since selecting words picks no widget or picture."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Annotations").click()
     expect(page.locator(".lf-fp-item", has_text="Capture area")).to_be_visible()
-    expect(page.locator(".lf-fp-item", has_text="Select element")).to_have_count(0)
+    pick = page.locator('.lf-fp-item[data-row="command:target.picker.open"]')
+    expect(pick).to_contain_text("Comment on an element")
+    expect(pick.locator("kbd")).to_have_text("s")
     page.locator(".lf-fp-item", has_text="Draw mode").click()
     exit_step = page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]')
     expect(exit_step).to_be_visible()
@@ -3579,7 +3581,9 @@ def test_a_list_the_menu_leads_to_takes_its_place_and_goes_back(browser, serve):
     annotations.focus()
     page.keyboard.press("ArrowRight")
     expect(name).to_have_text("Annotations")
-    expect(menu.locator(".lf-fp-item", has_text="Draw mode")).to_be_focused()
+    expect(
+        menu.locator(".lf-fp-item", has_text="Comment on an element")
+    ).to_be_focused()
     page.keyboard.press("ArrowLeft")
     expect(annotations).to_be_focused()
     page.keyboard.press("Enter")

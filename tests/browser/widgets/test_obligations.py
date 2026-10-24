@@ -141,8 +141,8 @@ def test_options_holding_pictures_lay_across(browser, serve):
     no figure before them, sets the cards side by side, so each picture stands over its
     own pick and the two compare in one row, though each is wrapped in a link. A widget
     whose entry declares it draws a picture (`x-visual`), such as a chart, counts as one.
-    A group given `data-width` lays them across its own width, where each picture draws
-    at the size it was written."""
+    A group given `data-width` lays them across its own width, with each picture
+    growing toward its authored size as the group gains room."""
     page = open_page(
         browser, serve(PICTURED_OBLIGATION_PAGE, layer_registry=PLATE_PACKAGE)
     )
@@ -160,7 +160,8 @@ def test_options_holding_pictures_lay_across(browser, serve):
     for id in ("pictured", "widened", "plated"):
         assert at[id]["tops"][0] == at[id]["tops"][1], at
         assert at[id]["lefts"][0] < at[id]["lefts"][1], at
-    assert at["widened"]["pictures"] == [480, 480], at
+    assert at["widened"]["pictures"][0] == at["widened"]["pictures"][1], at
+    assert at["pictured"]["pictures"][0] < at["widened"]["pictures"][0] < 480, at
 
 
 ACROSS_GEOMETRY = """(id) => {

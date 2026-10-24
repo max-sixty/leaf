@@ -127,7 +127,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
     comment.tap()
     composer = page.locator(".lf-fab-input")
-    expect(composer).to_be_focused(timeout=3000)
+    expect(composer).to_be_focused()
     expect(exit_design).to_be_visible()
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()

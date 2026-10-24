@@ -825,7 +825,7 @@
 }
 :scope:is(lf-options)[settled] > .lf-settled[data-lf-focus-visible] {
   outline: var(--focus-ring);
-  outline-offset: 1px;
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-settled-count {
   margin-left: auto;

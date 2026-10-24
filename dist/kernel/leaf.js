@@ -3755,9 +3755,8 @@ function createAnchorControls({ commentOnTarget, openThread, withdrawReaction, l
 						}
 					}, {
 						key: `reaction:${root.id}:remove`,
-						icon: "cross",
-						label: `Remove ${root.token} reaction`,
-						tone: "negative",
+						icon: "undo",
+						label: `Undo ${root.token} reaction`,
 						rank: "secondary",
 						className: "lf-react-remove",
 						scope: record.scope,

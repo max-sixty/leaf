@@ -69,10 +69,10 @@ function headingAt(node) {
 }
 
 // The heading whose link the user is on: the heading itself or the address it names.
+// A control inside the heading, such as a link, is somewhere else, with its own Enter.
 function headingOn(node) {
   if (node?.nodeType !== Node.ELEMENT_NODE) return null;
-  const heading = headingAt(node);
-  if (heading) return headingAddress(heading) ? heading : null;
+  if (headingAt(node) === node) return headingAddress(node) ? node : null;
   const title = leadingTitle(node);
   return title && headingAt(title) === title && headingAddress(title) === node
     ? title
@@ -92,7 +92,13 @@ function makeLink(heading) {
     Object.assign(iconElement("link", "lf-heading-link-icon"), { slot: "copy-icon" }),
   );
   control.tabIndex = -1;
-  const link = { heading, control, shown: new Set(), events: new AbortController() };
+  const link = {
+    heading,
+    control,
+    shown: new Set(),
+    events: new AbortController(),
+    stop: () => {},
+  };
   // The address is read at the press, since a revision can rename it while it shows.
   control.addEventListener(
     "click",
@@ -110,14 +116,7 @@ function makeLink(heading) {
   tabFromBlock(control, heading, link.events.signal);
   owners.set(control, heading);
   links.set(heading, link);
-  const stop = watchOwner(heading, {
-    disconnect() {
-      stop();
-      link.events.abort();
-      releaseControl(control);
-      links.delete(heading);
-    },
-  });
+  link.stop = watchOwner(heading, { disconnect: () => retire(link) });
   // Read everything before the anchor is named or the control connects.
   const reading = anchorControl(control, heading);
   const levels = headerLevels(heading);
@@ -153,14 +152,24 @@ function writeLine(control, { top, height }) {
   }
 }
 
+// Take a link out once its heading leaves, or loses its address to a revision.
+function retire(link) {
+  link.stop();
+  link.events.abort();
+  releaseControl(link.control);
+  links.delete(link.heading);
+}
+
 // Show or hide the heading's link for one reason; it shows while any reason holds.
 // Returns the link, made on first showing, or null where the heading has no address.
 function show(heading, reason, force) {
   let link = links.get(heading);
-  if (force && !link) {
-    if (!headingAddress(heading)) return null;
-    link = makeLink(heading);
-  } else if (force) {
+  if (force && !headingAddress(heading)) {
+    if (link) retire(link);
+    return null;
+  }
+  if (force && !link) link = makeLink(heading);
+  else if (force) {
     revealControl(link.control, heading);
     writeLine(link.control, firstLine(heading));
   }
@@ -201,14 +210,15 @@ export function watchHeadingLinks() {
     "pointerdown",
     (event) => {
       if (event.pointerType !== "touch") return;
-      const heading = headingOn(headingAt(/** @type {Node} */ (event.target)));
-      if (heading) focusDestination(heading, "move");
+      const heading = headingAt(/** @type {Node} */ (event.target));
+      if (heading && headingAddress(heading)) focusDestination(heading, "move");
     },
     { capture: true },
   );
   let current = null;
   onCurrentLocation((node) => {
-    const heading = headingOn(node);
+    const at = node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null;
+    const heading = at ?? headingOn(node);
     if (heading === current) return;
     if (current) show(current, "current", false);
     current = heading;

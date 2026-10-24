@@ -1,13 +1,15 @@
 """A heading the page gives an address offers a link to it (heading-links.js)."""
 
+import re
+
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page
+from render_harness import leaf_page, open_page, told
 
 LINK = ".lf-chrome .lf-heading-link"
 SOURCE = leaf_page(
     "Heading links",
-    '<section id="rates%2Flimits"><h2>Rate limits</h2>'
+    '<section id="rates%2Flimits"><h2>Rate limits <a id="plans" href="#words">by plan</a></h2>'
     '<p id="words">The limits, by plan.</p></section>'
     "<section><h2>Unaddressed</h2><p>Words.</p></section>",
 )
@@ -62,12 +64,22 @@ def test_a_heading_copies_the_link_to_the_section_it_opens(browser, serve):
     ).click()
     until_copied(page, link)
 
-    # On the words inside the section, Enter is theirs.
+    # On the words inside the section, and on a link in its heading, Enter is theirs.
     page.keyboard.press("Escape")
     page.evaluate("navigator.clipboard.writeText('')")
     page.evaluate("const p = document.getElementById('words'); p.tabIndex = -1; p.focus()")
     page.keyboard.press("Enter")
+    page.locator("#plans").focus()
+    page.keyboard.press("Enter")
+    expect(page).to_have_url(re.compile(r"#words$"))
     assert copied(page) == ""
+
+    # A revision that takes the section's address away takes its link with it.
+    (serve.page_dir / "index.html").write_text(SOURCE.replace(' id="rates%2Flimits"', ""))
+    told(page)
+    page.mouse.move(2, 2)
+    page.locator("h2").first.hover()
+    expect(page.locator(LINK)).to_have_count(0)
 
 
 def test_a_tap_shows_a_headings_link_and_a_second_tap_copies_it(browser, serve):

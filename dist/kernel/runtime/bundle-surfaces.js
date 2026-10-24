@@ -1350,8 +1350,8 @@ const STACK = [
 	"text entry",
 	"thread",
 	"link",
-	"heading",
 	"disclosure",
+	"heading",
 	"draw mode",
 	"design mode",
 	PAGE,
@@ -1532,8 +1532,7 @@ function headingAt(node) {
 }
 function headingOn(node) {
 	if (node?.nodeType !== Node.ELEMENT_NODE) return null;
-	const heading = headingAt(node);
-	if (heading) return headingAddress(heading) ? heading : null;
+	if (headingAt(node) === node) return headingAddress(node) ? node : null;
 	const title = leadingTitle(node);
 	return title && headingAt(title) === title && headingAddress(title) === node ? title : null;
 }
@@ -1550,7 +1549,8 @@ function makeLink(heading) {
 		heading,
 		control,
 		shown: /* @__PURE__ */ new Set(),
-		events: new AbortController()
+		events: new AbortController(),
+		stop: () => {}
 	};
 	control.addEventListener("click", (event) => {
 		const address = headingAddress(heading);
@@ -1564,12 +1564,7 @@ function makeLink(heading) {
 	tabFromBlock(control, heading, link.events.signal);
 	owners.set(control, heading);
 	links.set(heading, link);
-	const stop = watchOwner(heading, { disconnect() {
-		stop();
-		link.events.abort();
-		releaseControl(control);
-		links.delete(heading);
-	} });
+	link.stop = watchOwner(heading, { disconnect: () => retire(link) });
 	const reading = anchorControl(control, heading);
 	const levels = headerLevels(heading);
 	const insets = readInsets(heading);
@@ -1599,12 +1594,20 @@ function writeLine(control, { top, height }) {
 		if (control.style.getPropertyValue(property) !== value) control.style.setProperty(property, value);
 	}
 }
+function retire(link) {
+	link.stop();
+	link.events.abort();
+	releaseControl(link.control);
+	links.delete(link.heading);
+}
 function show(heading, reason, force) {
 	let link = links.get(heading);
-	if (force && !link) {
-		if (!headingAddress(heading)) return null;
-		link = makeLink(heading);
-	} else if (force) {
+	if (force && !headingAddress(heading)) {
+		if (link) retire(link);
+		return null;
+	}
+	if (force && !link) link = makeLink(heading);
+	else if (force) {
 		revealControl(link.control, heading);
 		writeLine(link.control, firstLine(heading));
 	}
@@ -1633,12 +1636,12 @@ function watchHeadingLinks() {
 	}, { capture: true });
 	addEventListener("pointerdown", (event) => {
 		if (event.pointerType !== "touch") return;
-		const heading = headingOn(headingAt(event.target));
-		if (heading) focusDestination(heading, "move");
+		const heading = headingAt(event.target);
+		if (heading && headingAddress(heading)) focusDestination(heading, "move");
 	}, { capture: true });
 	let current = null;
 	onCurrentLocation((node) => {
-		const heading = headingOn(node);
+		const heading = (node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null) ?? headingOn(node);
 		if (heading === current) return;
 		if (current) show(current, "current", false);
 		current = heading;

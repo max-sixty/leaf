@@ -13,9 +13,10 @@
  * A stacked pair labels each frame instead of the header, since left/right
  * bookends cannot identify vertically arranged images. Other views label the header.
  *
- * A bounded pair chooses the orientation that gives the images the larger scale;
- * in ordinary flow, wide frames stack instead of shrinking below half scale.
- * Fit recalculates for that layout; 100% retains the captured CSS
+ * All views share one allocation: the single image's fitted height in ordinary
+ * flow, or the containing host's bounded height. Pair chooses the orientation
+ * that gives both images the larger scale inside that allocation, so changing
+ * views never moves the page below. Fit recalculates for that layout; 100% retains the captured CSS
  * scale, or bitmap pixels when no capture ratio is supplied. Inspection choices
  * belong to this element's lifetime, not the document's application state.
  *
@@ -353,9 +354,7 @@ customElements.define(
 
     #fit() {
       if (!this.#stage || !this.#frames.length) return;
-      // The mode sets the stage's overflow and classic-scrollbar gutter. Apply it
-      // before measuring; fitting the previous mode would resize this observed
-      // stage again during ResizeObserver delivery.
+      // Show the selected presentation before reading its shared allocation.
       keeps(this, "data-lf-shot-mode", this.#view);
       const allocation = shotAllocation(this, this.#stage);
       if (allocation.available <= 0) return; // Hidden cases retain their last inspection until shown.

@@ -137,10 +137,9 @@
   .lf-shot-toolbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "actions actions" "before after";
-  }
-  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
-    .lf-shot-toolbar {
-    grid-template-areas: "actions actions";
+    /* A stacked pair moves the words into its frames, without collapsing their
+       toolbar row or moving the image viewport beneath the reader's pointer. */
+    grid-template-rows: auto var(--lf-shot-label-height);
   }
   .lf-shot-actions {
     justify-content: space-between;
@@ -156,8 +155,9 @@
   /* Keep the shared image frame's shadow inside the scrollport. */
   --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));
   padding: var(--lf-shot-frame-room);
-  /* Grow into a bounded host's allocation; in flow the auto basis keeps the
-     evidence's intrinsic height. The host consumes the parent's height token. */
+  block-size: calc(var(--lf-shot-stage-height) + 2 * var(--lf-shot-frame-room));
+  /* A bounded host owns the final allocation; in flow the fitted single image
+     sets the height shared by every view. */
   flex: 1 1 auto;
   min-inline-size: 0;
   min-block-size: 0;
@@ -169,8 +169,8 @@
   scrollbar-gutter: stable;
 }
 :scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotstage {
-  overflow: clip;
-  scrollbar-gutter: auto;
+  /* Keep the same content width as the other modes on classic-scrollbar hosts. */
+  overflow: hidden;
 }
 .lf-shotcanvas {
   display: grid;
@@ -247,7 +247,6 @@
 .lf-shotcap[data-lf-shot-hidden] {
   background: transparent;
   color: var(--muted);
-  font-weight: 400;
 }
 /* The window onto the capture: a crop to its focus hides the rest of the plane on
    purpose, so the image's coordinates are its own (`--lf-drawing`). */
@@ -385,6 +384,8 @@
 .lf-shotpixels {
   display: none;
   grid-area: 1 / 1;
+  inline-size: calc(var(--lf-shot-frame-width) + 2px);
+  block-size: calc(var(--lf-shot-frame-height) + 2px);
   border: 1px solid transparent;
 }
 :scope:is(lf-shot)[data-lf-shot-mode="pixels"] .lf-shotpixels {

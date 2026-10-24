@@ -30,17 +30,18 @@
     if (!available || !(crop || sourceWidth && sourceHeight)) return null;
     const width = crop ? focus.width : sourceWidth;
     const height = crop ? focus.height : sourceHeight;
+    const stageHeight = availableHeight ?? height * Math.max(0, Math.min(1, (available - 2) / width)) + 2;
     const fit = (columns2, rows2, captions = 0) => Math.max(
       0,
       Math.min(
         1,
         (available - columns2 * 2 - (columns2 - 1) * gap) / (columns2 * width),
-        availableHeight === void 0 ? Infinity : (availableHeight - rows2 * (captions + 2) - (rows2 - 1) * gap) / (rows2 * height)
+        (stageHeight - rows2 * (captions + 2) - (rows2 - 1) * gap) / (rows2 * height)
       )
     );
     const side = fit(2, 1);
     const stack = fit(1, 2, labelHeight);
-    const layout = availableHeight === void 0 ? width + gap + 4 <= available ? "side" : "stack" : side >= stack ? "side" : "stack";
+    const layout = side >= stack ? "side" : "stack";
     const pairScale = layout === "side" ? side : stack;
     const fitScale = view === "compare" ? pairScale : fit(1, 1);
     const scale = actual ? 1 : fitScale;
@@ -51,12 +52,9 @@
       width * scale,
       (available - columns * 2 - (columns - 1) * gap) / columns
     );
-    const viewportHeight = availableHeight === void 0 ? height * (view === "compare" ? pairScale : scale) : Math.min(
+    const viewportHeight = Math.min(
       height * scale,
-      Math.max(
-        0,
-        (availableHeight - rows * (captionHeight + 2) - (rows - 1) * gap) / rows
-      )
+      Math.max(0, (stageHeight - rows * (captionHeight + 2) - (rows - 1) * gap) / rows)
     );
     return {
       layout,
@@ -65,6 +63,7 @@
       crop,
       focus: Boolean(focus),
       vars: {
+        "stage-height": stageHeight,
         "frame-width": width * scale,
         "frame-height": height * scale,
         "viewport-width": viewportWidth,

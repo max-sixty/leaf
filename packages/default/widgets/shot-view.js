@@ -43,28 +43,23 @@ export function fitShotGeometry({
   if (!available || !(crop || (sourceWidth && sourceHeight))) return null;
   const width = crop ? focus.width : sourceWidth;
   const height = crop ? focus.height : sourceHeight;
+  // Every view inspects the same allocation. In flow it is the fitted single
+  // image's height; a bounded host supplies its own. Pair fits both images into
+  // that space instead of growing the document when the reader changes views.
+  const stageHeight =
+    availableHeight ?? height * Math.max(0, Math.min(1, (available - 2) / width)) + 2;
   const fit = (columns, rows, captions = 0) =>
     Math.max(
       0,
       Math.min(
         1,
         (available - columns * 2 - (columns - 1) * gap) / (columns * width),
-        availableHeight === undefined
-          ? Infinity
-          : (availableHeight - rows * (captions + 2) - (rows - 1) * gap) /
-              (rows * height),
+        (stageHeight - rows * (captions + 2) - (rows - 1) * gap) / (rows * height),
       ),
     );
   const side = fit(2, 1);
   const stack = fit(1, 2, labelHeight);
-  const layout =
-    availableHeight === undefined
-      ? width + gap + 4 <= available
-        ? "side"
-        : "stack"
-      : side >= stack
-        ? "side"
-        : "stack";
+  const layout = side >= stack ? "side" : "stack";
   const pairScale = layout === "side" ? side : stack;
   const fitScale = view === "compare" ? pairScale : fit(1, 1);
   const scale = actual ? 1 : fitScale;
@@ -77,16 +72,10 @@ export function fitShotGeometry({
     width * scale,
     (available - columns * 2 - (columns - 1) * gap) / columns,
   );
-  const viewportHeight =
-    availableHeight === undefined
-      ? height * (view === "compare" ? pairScale : scale)
-      : Math.min(
-          height * scale,
-          Math.max(
-            0,
-            (availableHeight - rows * (captionHeight + 2) - (rows - 1) * gap) / rows,
-          ),
-        );
+  const viewportHeight = Math.min(
+    height * scale,
+    Math.max(0, (stageHeight - rows * (captionHeight + 2) - (rows - 1) * gap) / rows),
+  );
   return {
     layout,
     scale,
@@ -94,6 +83,7 @@ export function fitShotGeometry({
     crop,
     focus: Boolean(focus),
     vars: {
+      "stage-height": stageHeight,
       "frame-width": width * scale,
       "frame-height": height * scale,
       "viewport-width": viewportWidth,

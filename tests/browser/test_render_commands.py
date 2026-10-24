@@ -238,27 +238,22 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     shot.get_by_role("button", name="Pair", exact=True).click()
     for index in (0, 1):
         expect(captions.nth(index)).to_have_css("color", label_colors[index])
-    for view in ("Slider", "Pixels", "Pair"):
-        geometry = shot.evaluate(
-            """async (node, view) => {
-              const boxes = () => [...node.querySelectorAll(
-                '.lf-shot-toolbar, .lf-shotstage, .lf-shotcanvas'
-              )].map(box => box.getBoundingClientRect().toJSON());
-              [...node.querySelectorAll('.lf-shot-views button')]
-                .find(button => button.textContent === view).click();
-              const immediate = boxes();
-              await new Promise(requestAnimationFrame);
-              await new Promise(requestAnimationFrame);
-              return {immediate, painted: boxes()};
-            }""",
-            view,
-        )
-        assert geometry["painted"] == geometry["immediate"], (view, geometry)
-        assert_source_words()
-    for width, layout in ((1000, "side"), (390, "stack")):
+    # Mode changes replace the evidence inside one allocation. Checking only
+    # immediate vs painted geometry missed the document jumping between modes.
+    boxes = """node => [node, ...node.querySelectorAll(
+      '.lf-shot-toolbar, .lf-shotstage'
+    )].map(box => box.getBoundingClientRect().toJSON())"""
+    for width in (390, 1000):
         page.set_viewport_size({"width": width, "height": 844})
-        expect(shot).to_have_attribute("data-lf-shot-layout", layout)
-        assert_source_words()
+        shot.get_by_role("button", name="Slider", exact=True).click()
+        toolbar.scroll_into_view_if_needed()
+        allocation = shot.evaluate(boxes)
+        for view in ("Pair", "Pixels", "Slider"):
+            shot.get_by_role("button", name=view, exact=True).click()
+            assert shot.evaluate(boxes) == allocation, view
+            page.evaluate("() => new Promise(requestAnimationFrame)")
+            assert shot.evaluate(boxes) == allocation, view
+            assert_source_words()
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -702,8 +697,12 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
                 shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
             ).to_have_attribute("aria-pressed", "true")
             viewport = shot.locator(".lf-shotpixels") if view == "Pixels" else image
-            assert viewport.bounding_box()["width"] == pytest.approx(100, abs=1)
-            assert viewport.bounding_box()["height"] == pytest.approx(50, abs=1)
+            assert viewport.evaluate(
+                "node => [node.clientWidth, node.clientHeight]"
+            ) == [
+                100,
+                50,
+            ]
             source_box = viewport.locator(".lf-shotplane").bounding_box()
             assert source_box["x"] == pytest.approx(
                 viewport.bounding_box()["x"] - 5, abs=1

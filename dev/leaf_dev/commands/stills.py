@@ -550,6 +550,16 @@ def screenshot_comparison(page: Page) -> None:
     page.locator("#bg-shot-guide").scroll_into_view_if_needed()
 
 
+def screenshot_pair(page: Page) -> None:
+    """Show both images inside the comparison's shared allocation."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.locator(".lf-shot-toolbar").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
+
+
 def screenshot_slider_before(page: Page) -> None:
     """One source fills the slider while change outlines locate its evidence."""
     screenshot_comparison(page)
@@ -1510,6 +1520,12 @@ STATES = (
         "screenshot-comparison",
         "developer/feature-gallery",
         screenshot_comparison,
+        region="#bg-shot",
+    ),
+    State(
+        "screenshot-pair",
+        "developer/feature-gallery",
+        screenshot_pair,
         region="#bg-shot",
     ),
     State(

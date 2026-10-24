@@ -1,3 +1,4 @@
+import { focusDestination, focused } from "./bundle-dom-move.js";
 import { notice, offer, raiseError } from "./bundle-layer-client.js";
 
 //#region runtime/copy-control.js
@@ -5,14 +6,13 @@ function copyThroughSelection(value) {
 	if (!value) return false;
 	const selection = document.getSelection();
 	const ranges = selection ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i)) : [];
-	let focused = document.activeElement;
-	while (focused?.shadowRoot?.activeElement) focused = focused.shadowRoot.activeElement;
+	const before = focused();
 	const field = document.createElement("textarea");
 	field.value = value;
 	field.style.cssText = "position: fixed; left: -9999px; top: 0";
 	document.body.append(field);
 	try {
-		field.focus({ preventScroll: true });
+		focusDestination(field, "return");
 		field.select();
 		return document.execCommand("copy");
 	} catch {
@@ -21,7 +21,7 @@ function copyThroughSelection(value) {
 		field.remove();
 		selection?.removeAllRanges();
 		for (const range of ranges) selection?.addRange(range);
-		if (focused instanceof HTMLElement) focused.focus({ preventScroll: true });
+		if (before?.isConnected) focusDestination(before, "return");
 	}
 }
 function copyControl(className, { label = "", success, error }) {
@@ -33,7 +33,7 @@ function copyControl(className, { label = "", success, error }) {
 	copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
 	copy.addEventListener("wa-error", () => raiseError(error, { announce: false }));
 	queueMicrotask(() => copy.addEventListener("click", (event) => {
-		if (isSecureContext || window !== window.top || navigator.clipboard?.writeText) return;
+		if (window.isSecureContext || window !== window.top || navigator.clipboard?.writeText) return;
 		event.stopPropagation();
 		if (event.defaultPrevented || copy.disabled || copy.isCopying) return;
 		copy.isCopying = true;

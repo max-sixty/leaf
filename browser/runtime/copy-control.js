@@ -9,6 +9,7 @@
 import { offer } from "./widget-elements.js";
 import { notice } from "./notifications.js";
 import { raiseError } from "./errors.js";
+import { focused, focusDestination } from "./focus.js";
 
 // Plain HTTP on a machine name has no Clipboard API. A copy press can still use the
 // browser's selection command there. Embedded samples deliberately cannot write the
@@ -19,15 +20,13 @@ function copyThroughSelection(value) {
   const ranges = selection
     ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i))
     : [];
-  let focused = document.activeElement;
-  while (focused?.shadowRoot?.activeElement)
-    focused = focused.shadowRoot.activeElement;
+  const before = focused();
   const field = document.createElement("textarea");
   field.value = value;
   field.style.cssText = "position: fixed; left: -9999px; top: 0";
   document.body.append(field);
   try {
-    field.focus({ preventScroll: true });
+    focusDestination(field, "return");
     field.select();
     return document.execCommand("copy");
   } catch {
@@ -36,7 +35,7 @@ function copyThroughSelection(value) {
     field.remove();
     selection?.removeAllRanges();
     for (const range of ranges) selection?.addRange(range);
-    if (focused instanceof HTMLElement) focused.focus({ preventScroll: true });
+    if (before?.isConnected) focusDestination(before, "return");
   }
 }
 
@@ -56,7 +55,11 @@ export function copyControl(className, { label = "", success, error }) {
     copy.addEventListener(
       "click",
       (event) => {
-        if (isSecureContext || window !== window.top || navigator.clipboard?.writeText)
+        if (
+          window.isSecureContext ||
+          window !== window.top ||
+          navigator.clipboard?.writeText
+        )
           return;
         event.stopPropagation();
         if (event.defaultPrevented || copy.disabled || copy.isCopying) return;

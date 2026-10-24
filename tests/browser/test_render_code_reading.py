@@ -29,7 +29,9 @@ def test_code_copy_on_plain_http_machine_name(browser, serve, gesture):
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
 
     def fetch_from_loopback(route):
-        response = route.fetch(url=route.request.url.replace(gethostname(), "127.0.0.1"))
+        response = route.fetch(
+            url=route.request.url.replace(gethostname(), "127.0.0.1")
+        )
         route.fulfill(response=response)
 
     context.route(f"http://{gethostname()}:**/*", fetch_from_loopback)

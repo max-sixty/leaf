@@ -11,13 +11,4 @@ const descriptors = new Map([
   ],
 ]);
 
-export const createTheme = ({ name, load, ...metadata }) => ({
-  name,
-  ...metadata,
-  load: async () => {
-    const loaded = await load();
-    return normalizeTheme(loaded?.default ?? loaded);
-  },
-});
-export const pierreThemes = { getThemes: () => [] };
-export const shikiThemes = { getTheme: (name) => descriptors.get(name) };
+export const themes = { getTheme: (name) => descriptors.get(name) };

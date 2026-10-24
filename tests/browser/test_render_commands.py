@@ -264,8 +264,13 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         )
         assert geometry["painted"] == geometry["immediate"], (view, geometry)
         assert_source_words()
-    for width, layout in ((1000, "side"), (390, "stack")):
-        page.set_viewport_size({"width": width, "height": 844})
+    # Pair takes the arrangement that draws the 2:1 captures larger on screen.
+    for width, height, layout in (
+        (1000, 844, "stack"),
+        (1000, 360, "side"),
+        (390, 844, "stack"),
+    ):
+        page.set_viewport_size({"width": width, "height": height})
         expect(shot).to_have_attribute("data-lf-shot-layout", layout)
         assert_source_words()
 
@@ -638,8 +643,8 @@ def test_a_shot_keeps_its_default_slider_stable_while_the_divider_loads(browser,
     reserved = shot.bounding_box()
     views.get_by_role("button", name="Pair", exact=True).click()
     expect(shot).to_have_attribute("data-lf-shot-mode", "compare")
-    paired_width = images.first.bounding_box()["width"]
-    assert paired_width < pending[0]["width"]
+    paired = [image.bounding_box() for image in images.all()]
+    assert paired[1]["y"] >= paired[0]["y"] + paired[0]["height"], paired
     views.get_by_role("button", name="Slider", exact=True).click()
     for route in held:
         route.continue_()

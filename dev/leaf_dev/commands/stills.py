@@ -970,6 +970,12 @@ def diff_source_by_keyboard(page: Page) -> None:
     )
 
 
+def diff_long_lines(page: Page) -> None:
+    """The gallery's long-line patches at the top of the window: Markdown that wraps
+    above code that wraps and code that scrolls."""
+    page.locator("#dfg-prose").evaluate("diff => diff.scrollIntoView({block: 'start'})")
+
+
 def diff_file_reply(page: Page) -> None:
     """A reply to the first of two conversations under a collapsed diff file."""
     threads = page.frame_locator("#dfg-sample iframe").locator(
@@ -1560,6 +1566,8 @@ STATES = (
         visual_review_inspection,
     ),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
+    State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
+    State("worktree-diffs", "developer/worktree-diffs", at_rest),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
     State(
         "diff-file-resolved-closed",

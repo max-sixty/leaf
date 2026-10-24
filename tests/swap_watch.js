@@ -220,12 +220,20 @@
     if (element !== row) observeOnce(element);
     return true;
   };
+  const release = (node) => {
+    if (node.isConnected) return;
+    for (const element of elementsOf(node)) {
+      resizes.unobserve(element);
+      observed.delete(element);
+      flexRows.delete(element);
+    }
+  };
   const take = (records, from) => {
     for (const record of records) {
       // Any write names the input behind the frame; hiding a child is an attribute's.
       if (from) source = from;
       if (record.type === "attributes") {
-        written.add(record.target);
+        if (record.target.isConnected) written.add(record.target);
         if (record.attributeName === "hidden" && record.target.hasAttribute("hidden"))
           for (const child of record.target.children)
             for (const element of elementsOf(child)) {
@@ -242,13 +250,19 @@
       }
       if (record.type !== "childList") continue;
       for (const node of record.removedNodes)
-        if (node.nodeType === Node.ELEMENT_NODE)
-          departed.push({ node, parent: record.target, size: sizes.get(node) });
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          if (flexRows.has(holder(record.target)))
+            departed.push({ node, parent: record.target, size: sizes.get(node) });
+          else release(node);
+        }
       for (const node of record.addedNodes)
         for (const element of elementsOf(node)) {
           if (watchArrival(element)) arrived.add(element);
         }
     }
+    // An attribute changed before its owner left can still be in this batch.
+    // An unrelated detached subtree has no row to judge and must not be kept alive.
+    for (const element of written) if (!element.isConnected) written.delete(element);
   };
 
   const reported = new Set();
@@ -345,13 +359,7 @@
             report(place, before, after, left, came);
         }
       for (const [element, size] of now) sizes.set(element, size);
-      for (const { node } of departed)
-        if (!node.isConnected)
-          for (const element of elementsOf(node)) {
-            resizes.unobserve(element);
-            observed.delete(element);
-            flexRows.delete(element);
-          }
+      for (const { node } of departed) release(node);
     } finally {
       arrived = new Set();
       departed = [];

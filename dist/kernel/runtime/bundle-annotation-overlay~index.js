@@ -67,7 +67,7 @@ import {
   revealHeld,
   rowWalk,
   selectionAnchor,
-  showLatestTurn,
+  showReturnTurn,
   standingThreadId,
   strongestWorkflow,
   tabStore,
@@ -520,7 +520,12 @@ function createThreadPreview({
     return preview.getBoundingClientRect().height;
   }
   function showArrival(session) {
-    if (!session.sent) return showLatestTurn(session.transcript);
+    if (!session.sent) {
+      const thread = threadCardThread(session);
+      const unread = thread?.unread[0]?.message;
+      const start = thread?.msgs.find((message) => message.id === unread)?.key;
+      return showReturnTurn(session.transcript, start ?? null);
+    }
     scrollToEnd(session.transcript);
     moveScrollerBy(session.transcript, -session.sent.fromEnd);
   }

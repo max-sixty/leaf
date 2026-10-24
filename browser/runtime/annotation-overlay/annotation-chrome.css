@@ -685,7 +685,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     }
     :is(
       .lf-margin-thread .lf-thread-transcript .lf-msg-head > :not(b, .lf-msg-meta),
-      .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time)
+      .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new)
     ):not([data-lf-focus]) {
       animation: lf-msg-annotation-exit linear both;
       animation-timeline: --lf-msg-exit;

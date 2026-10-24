@@ -1611,7 +1611,7 @@ def test_a_thread_s_view_hides_completed_progress_as_its_card_does(browser, serv
 
 
 def test_a_thread_s_view_marks_unread_replies_and_goes_to_the_next(browser, serve):
-    """A reply the user has not read wears the unread rail in the thread's view, as on
+    """A reply the user has not read says New in its head in the thread's view, as on
     its card, and Next unread among the view's controls goes to the thread's first
     one, above the end the view opens at, past the long reply after it. Shown whole
     there, it counts as read, as on a card, and so does the long reply, whose whole
@@ -1630,9 +1630,7 @@ def test_a_thread_s_view_marks_unread_replies_and_goes_to_the_next(browser, serv
     reply = view.locator(".lf-msg", has_text="The mounts come first.")
     unread = re.compile(r"(^|\s)lf-unread(\s|$)")
     expect(reply).to_have_class(unread)
-    assert reply.evaluate("(node) => getComputedStyle(node).borderImageSource") != (
-        "none"
-    )
+    expect(reply.locator(".lf-msg-head .lf-msg-new")).to_have_text("New")
     expect(reply).not_to_be_in_viewport()
     press = page.locator(".lf-fp-controls .lf-fp-next-unread")
     expect(press).to_have_text("Next unread")

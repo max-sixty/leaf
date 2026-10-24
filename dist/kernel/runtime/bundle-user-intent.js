@@ -3023,15 +3023,18 @@ var landingTarget = (held, control) => {
   return { node: control };
 };
 var onScreen = (node) => seenRect(node, /* @__PURE__ */ new Map()) !== null;
-var latestTurn = (transcript) => [
-  ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")
-].findLast((node) => node.checkVisibility()) ?? null;
-function showLatestTurn(transcript) {
+var returnTurn = (transcript, unread) => {
+  const shown2 = [
+    ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")
+  ].filter((node) => node.checkVisibility());
+  return (unread && shown2.find((node) => node.dataset.message === unread)) ?? shown2.at(-1) ?? null;
+};
+function showReturnTurn(transcript, unread = null) {
   scrollToEnd(transcript);
-  const latest = latestTurn(transcript);
-  if (!latest) return;
-  const over = transcript.getBoundingClientRect().top + transcript.clientTop - latest.getBoundingClientRect().top;
-  const headHeight = latest.firstElementChild?.getBoundingClientRect().height ?? 0;
+  const turn = returnTurn(transcript, unread);
+  if (!turn) return;
+  const over = transcript.getBoundingClientRect().top + transcript.clientTop - turn.getBoundingClientRect().top;
+  const headHeight = turn.firstElementChild?.getBoundingClientRect().height ?? 0;
   if (over > headHeight) moveScrollerBy(transcript, -over);
 }
 function landThread(held, control, behavior, block) {
@@ -3986,7 +3989,7 @@ var MessageView = class {
       html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
+          ><time datetime=${model.timestamp}>${model.age}</time>${model.unread ? html`<span class="lf-msg-new">New</span>` : nothing} ${receipt}
           ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
           ${model.failure ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>` : nothing}
           ${model.body.kind === "suggestion" ? html`<span class="lf-suggest-label">Suggestion</span>` : nothing}
@@ -7764,7 +7767,7 @@ export {
   drawnThreadId,
   SAYS_IN,
   SAY_BOX,
-  showLatestTurn,
+  showReturnTurn,
   keepThreadLanding,
   scrollThreadIntoView,
   sendLanding,

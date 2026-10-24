@@ -2177,7 +2177,7 @@ export function createFloatingPanel({
   // whose reader its threads then open, and gives the open thread's transcript an outlet
   // here. Leaf draws the messages there as a card on the page draws them
   // (thread/transcript.js): progress folded behind the answer that completed it, work
-  // under way as the dim working message, a rail on each unread reply, with their
+  // under way as the dim working message, New in each unread reply's head, with their
   // reactions, rewrites and agent-authored widgets. The user chose that (2026-10-19)
   // over every message at full size, which stood each progress step as a reply and
   // marked nothing unread. The reader holds news that would move what the user is

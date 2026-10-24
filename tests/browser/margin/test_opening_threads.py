@@ -793,9 +793,18 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
         first.bounding_box()["y"]
         - transcript.evaluate("list => list.getBoundingClientRect().top")
     ) <= 1
-    expect(first).to_have_class(re.compile(r"(^|\s)lf-unread(\s|$)"))
+    # Each unread reply says New in its head, which a screen reader reads with it.
+    expect(transcript.locator(".lf-msg-new")).to_have_count(2)
+    expect(first.locator(".lf-msg-head")).to_contain_text("New")
 
+    # Partway down the long reply, its head has stuck with New in it.
     transcript.hover()
+    page.mouse.wheel(0, 240)
+    page.wait_for_function("list => list.scrollTop > 200", arg=transcript.element_handle())
+    tag = first.locator(".lf-msg-new").bounding_box()
+    top = transcript.evaluate("list => list.getBoundingClientRect().top")
+    assert top - 1 <= tag["y"] <= top + 30, (tag, top)
+
     for _ in range(40):
         if transcript.evaluate(
             "list => list.scrollTop + list.clientHeight >= list.scrollHeight - 1"
@@ -803,9 +812,7 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
             break
         page.mouse.wheel(0, 120)
         page.wait_for_timeout(20)
-    page.wait_for_function(
-        "() => !document.querySelector('.lf-margin-preview .lf-msg.lf-unread')"
-    )
+    expect(transcript.locator(".lf-msg-new")).to_have_count(0)
     marked = {
         item["message"]
         for event in events_model.read_events(serve.page_dir)

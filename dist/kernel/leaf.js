@@ -10,7 +10,7 @@ import { chromeForeground, chromeRoot } from "./runtime/bundle-chrome.js";
 import { COLLAPSE, LEAF_SURFACE, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
 import { ADDRESSABLE, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-css-anchors.js";
 import { fragmentId } from "./runtime/bundle-initial-render.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, snapSelection, stepFrom, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
+import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
 import { copyControl } from "./runtime/bundle-copy-control.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, setChildren, watchDisclosures } from "./runtime/bundle-abort.js";
 import { motionEasing, motionPlays, motionTime, playMotion, reducedMotion, scrollBehavior } from "./runtime/bundle-motion.js";
@@ -5328,7 +5328,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let writing = false;
 	let drafted = false;
 	let postureMoved = true;
-	let landAtEnd = null;
+	let landing = null;
 	const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
 	function sayable() {
 		const input = host.dataset.rest === "mark" ? null : fieldInput();
@@ -5470,9 +5470,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			sent: () => {
 				room = null;
 				rewriting = false;
-				landAtEnd = {
+				landing = {
 					key,
-					after: drawnTurns()
+					after: drawnTurns(),
+					end: true
 				};
 				waiting = null;
 				queueMicrotask(paint);
@@ -5622,9 +5623,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		});
 	}
 	function arriveAt(key) {
-		landAtEnd = {
+		landing = {
 			key: threadByKey(key)?.key ?? key,
-			after: 0
+			after: 0,
+			end: false
 		};
 	}
 	let caretToField = false;
@@ -6988,11 +6990,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function landReader() {
 		const top = trail.value.at(-1);
-		if (!landAtEnd || top?.thread !== landAtEnd.key) return;
+		if (!landing || top?.thread !== landing.key) return;
 		const view = openView();
-		if (!view || drawnTurns() <= landAtEnd.after) return;
-		landAtEnd = null;
-		scrollToEnd(view);
+		if (!view || drawnTurns() <= landing.after) return;
+		const { end } = landing;
+		landing = null;
+		if (end) scrollToEnd(view);
+		else showReturnTurn(outletOf().querySelector(".lf-thread-transcript"), threadByKey(top.thread));
 		decideUnreadSeat();
 	}
 	function paintNow() {
@@ -7443,7 +7447,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			reopen: true,
 			focus: false
 		});
-		landAtEnd = null;
+		landing = null;
 		present({ release: true }).then(() => {
 			const view = openView();
 			if (view && trail.value.at(-1)?.thread === thread.key) moveScrollerBy(view, currentLocation.scroll - view.scrollTop);

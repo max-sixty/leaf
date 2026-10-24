@@ -30,7 +30,6 @@
        (controls.css, `.lf-corner-mark`; response.css, `.lf-composer-media`). */
     --lf-ground: var(--lf-fp-surface);
     --lf-ring: var(--lf-fp-ring);
-    --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
     /* The narrowest a mark or the leaf stands, larger under a finger. A mark with a
        count keeps its count's room besides, which is wider (`.lf-fp-on-user`). */
@@ -134,7 +133,7 @@
     flex-direction: column;
     justify-content: flex-end;
     overflow: clip;
-    border-radius: var(--lf-fp-radius);
+    border-radius: var(--r-l);
     background: var(--lf-fp-surface);
     /* The box never runs past the window's top, where an open view keeps its head and
        Close: a long draft and an open view share the window, the view taking what the
@@ -718,7 +717,7 @@
     gap: 5px;
     min-height: 26px;
     padding: 0 9px;
-    border-radius: 7px;
+    border-radius: var(--r);
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font-size: 12px;
@@ -818,7 +817,7 @@
     height: 17px;
     padding: 0 5px;
     box-sizing: border-box;
-    border-radius: 9px;
+    border-radius: 999px;
     background: var(--pin-fill);
     color: white;
     font: 600 10.5px / 17px var(--sans);
@@ -1013,7 +1012,7 @@
     width: 14px;
     height: 14px;
   }
-  /* Next unread is news's way in, so it wears the accent the unread rail does. */
+  /* Next unread is news's way in, so it wears the accent an unread reply's New does. */
   .lf-fp-next-unread {
     display: inline-flex;
     align-items: center;
@@ -1087,7 +1086,7 @@
     gap: 4px;
     margin: 0 auto;
     padding: 0 12px 0 8px;
-    border-radius: 14px;
+    border-radius: var(--r);
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
@@ -1628,7 +1627,7 @@
     width: 248px;
     padding: 6px;
     box-sizing: border-box;
-    border-radius: var(--lf-fp-radius);
+    border-radius: var(--r-l);
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
@@ -1745,7 +1744,7 @@
     max-width: min(320px, calc(100vw - 32px));
     box-sizing: border-box;
     padding: 6px 10px;
-    border-radius: 8px;
+    border-radius: var(--r);
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),

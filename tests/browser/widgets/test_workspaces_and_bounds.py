@@ -920,6 +920,51 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
 
 
+def test_a_declared_inner_scroller_can_be_rebuilt_without_taking_a_nested_bound(
+    browser, serve
+):
+    """The host names its scrolling box even when a nested bound has a match first.
+    Replacing that box registers its successor and resumes following its end."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Nested bounded listings",
+                '<h1>Logs</h1><div id="outer" data-bound="end">'
+                '<div id="inner" data-bound="start"><div class="listing">'
+                + "<p>Nested entry</p>" * 30
+                + '</div></div><div id="listing" class="listing"></div></div>',
+                head="""<style>
+                  #outer { --lf-bound-box: .listing; max-block-size: none;
+                    overflow: visible; }
+                  #inner, #outer > .listing { max-block-size: 120px; overflow: auto; }
+                </style>""",
+            )
+        ),
+    )
+    regions = """async () => {
+      const { readingRegions } = await window.__lfCheckApi();
+      return Object.fromEntries(readingRegions()
+        .filter(({host}) => ['outer', 'inner'].includes(host.id))
+        .map(({host, body}) => [host.id, body.id]));
+    }"""
+    assert page.evaluate(regions) == {"outer": "listing", "inner": "inner"}
+    page.evaluate(
+        """() => {
+          const box = document.createElement('div');
+          box.id = 'replacement'; box.className = 'listing';
+          box.innerHTML = '<p>Arrived entry</p>'.repeat(60);
+          document.getElementById('listing').replaceWith(box);
+        }"""
+    )
+    page.wait_for_function(
+        """() => { const box = document.getElementById('replacement');
+          return box.scrollHeight > box.clientHeight &&
+            box.scrollHeight - box.scrollTop - box.clientHeight <= 2; }"""
+    )
+    assert page.evaluate(regions) == {"outer": "replacement", "inner": "inner"}
+
+
 def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):
     """A bounded log in a tab the user is not viewing grows, and another arrives,
     without Leaf styling or measuring either while the tab is hidden. Opening the tab

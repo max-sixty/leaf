@@ -156,6 +156,7 @@ def test_agent_interaction_command_help(regtest):
         "thread reply",
         "thread edit",
         "thread resolve",
+        "task end",
         "page report",
         "page check",
         "page stamp",

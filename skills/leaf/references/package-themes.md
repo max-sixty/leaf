@@ -63,9 +63,12 @@ page.
 
 Choose vertical bounds as `page-layout.md`, "Bounds and widths", describes. Where a
 bounded widget should scroll a box inside it, such as a listing under a caption that
-stays in view, move the bound to that box under `[data-lf-bound]` and declare
-`--lf-bound-box: 1` there, making it the box Leaf scrolls and keeps the user's place in,
-and `--lf-holds-height: 1` (`packages.md`, "Seeing it", `grows-with-content`). A box that scrolls sideways
+stays in view, move the bound to that box under `[data-lf-bound]`. On the bounded host,
+declare `--lf-bound-box` as a selector within it, such as `.listing`.
+Leaf scrolls and keeps the user's place in the first match outside nested bounds,
+or in the host while no match exists. The declaration does not inherit. Declare
+`--lf-holds-height: 1` on the scrolling box (`packages.md`, "Seeing it",
+`grows-with-content`). A box that scrolls sideways
 needs nothing: Leaf fades its content at any edge with more beyond.
 
 A rule that draws a control's focus ring on a box around it, such as a choice's face

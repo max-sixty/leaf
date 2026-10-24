@@ -1,0 +1,46 @@
+# Added after the obligations API audit: task end already settles message
+# obligations, but its help described only to-dos and widget questions. This
+# probe checks using that operation without erasing a separate pending decision.
+# At a9b34d60a, Codex base and candidate each passed 1/1 after reading their
+# conversation-loop reference: regression coverage, not a measured improvement.
+description: settle-conversational-obligations
+metadata:
+  purpose: "End questions answered elsewhere or withdrawn, preserving questions still owed."
+  tags:
+    - wait-loop
+vars:
+  prompt: |
+    You drive a Leaf deployment review at ~/.local/state/leaf/pages/deploy-review.
+    Its latest page state has three open items on the user's On me list:
+
+    - message:budget-question, in thread budget-thread: your plain-text question,
+      "What monthly hosting budget should I use?"
+    - message:region-question, in thread region-thread: your plain-text question,
+      "Which region should I deploy the staging copy in?"
+    - widget:production-approval: a required choice between "Approve production"
+      and "Keep reviewing", still unanswered.
+
+    The user now says in this chat: "Use $200/month for the budget. We're dropping
+    the staging copy entirely, so the region question no longer applies. Leave the
+    production decision for me to make on the page. Update what waits on me."
+
+    Read whatever Leaf instructions you need. The page is unreachable in this
+    exercise, so write out the commands you would run and your short closing reply.
+assert:
+  - type: llm-rubric
+    metric: conversational-settlement
+    value: |
+      Pass only if the commands use leaf task end on message:budget-question with
+      outcome done and a detail locating the user's answer in chat, and on
+      message:region-question with outcome dropped and a reason reflecting that
+      staging is cancelled. The page path is ~/.local/state/leaf/pages/deploy-review.
+      Closing threads, editing the page, or merely saying the questions are settled
+      does not replace ending these obligations. It must not forge user-authored
+      replies or conflate the message obligation ids with their thread ids.
+  - type: llm-rubric
+    metric: preserve-pending-decision
+    value: |
+      The production approval remains unanswered and available on On me. No command
+      ends, withdraws, answers, removes or replaces widget:production-approval, and
+      the reply does not claim approval or deployment. The user has decided only
+      the budget and cancellation of staging.

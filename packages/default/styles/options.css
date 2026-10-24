@@ -324,7 +324,7 @@
   border-radius: 50%;
 }
 :scope:is(lf-options)[multiple] > lf-option > .lf-pick::before {
-  border-radius: 3px;
+  border-radius: var(--r-s);
 }
 /* The hand is on the mark exactly while it can take a selection. */
 :scope:is(lf-option) .lf-pick[role="checkbox"] {
@@ -368,7 +368,7 @@
 :scope:is(lf-option) .lf-pick[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
-  border-radius: 4px;
+  border-radius: var(--r-s);
 }
 /* The obligation's action keys, on the cells they bind. The gutter reads status, badge, then
  * prose. A card aligns its digit with its content's top; a row centres it. */

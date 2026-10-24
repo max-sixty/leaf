@@ -466,6 +466,7 @@ floatingPanel = createFloatingPanel({
   placedAt: anchorPlacement.placedAt,
   openThreadSubject: (id, options) =>
     app.threadDestinations.openThreadSubject(id, options),
+  annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
 });
 // The page's general comment box is the floating panel's field.
 const generalComment = floatingPanel.pageComment;

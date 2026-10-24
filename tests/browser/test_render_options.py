@@ -1354,10 +1354,11 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
         "a row nobody can press draws cell edges anyway"
     )
 
-    # The block a row is about, reachable as a link and written as the id it names —
-    # the same way the thread panel writes an element anchor.
+    # The block a row is about, reachable as a link and named by the block's own words
+    # rather than its id; after § the kind word ("section") would say nothing.
     ref = page.locator("#job-mounts .lf-ref")
-    expect(ref).to_have_text("§ sec-mounts")
+    expect(ref).to_have_text("§ The mounts")
+    expect(ref).to_have_attribute("title", "Jump to § The mounts")
     assert ref.get_attribute("href") == "#sec-mounts"
     assert page.locator("#job-camera .lf-ref").count() == 0
 
@@ -1773,6 +1774,44 @@ def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
     page.locator("#job-heater").click()
     expect(mark).to_have_text("selected")
     assert mark.evaluate(box) == before, "the press moved the mark it landed on"
+
+
+@pytest.mark.parametrize("width", [390, 1200])
+def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, width):
+    """A row's § reference rides at the end of the words' last line where it fits, and
+    drops under them where it doesn't, so on a phone the words keep the row's width
+    rather than wrapping into a column beside it."""
+    source = leaf_page(
+        "Block references",
+        """<h1>Follow-up</h1>
+<lf-options id="follow" choose>
+  <lf-option id="short" for="stall">Ship it.</lf-option>
+  <lf-option id="long" for="stall">Ship with the resend and keep chasing the upstream
+  fix until the vendor names a release.</lf-option>
+</lf-options>
+<section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
+</section>""",
+    )
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = open_page(browser, serve(source), context=context)
+    lines = """option => {
+      const words = document.createRange();
+      words.setStartBefore(option.querySelector('.lf-pick').nextSibling);
+      words.setEndBefore(option.querySelector('.lf-ref'));
+      const height = () => words.getBoundingClientRect().height;
+      const ref = option.querySelector('.lf-ref');
+      const withRef = height();
+      ref.style.display = 'none';
+      const without = height();
+      ref.style.display = '';
+      const box = option.getBoundingClientRect(), at = ref.getBoundingClientRect();
+      return {withRef, without, inside: at.right <= box.right && at.bottom <= box.bottom};
+    }"""
+    for option in ("#short", "#long"):
+        reading = page.locator(option).evaluate(lines)
+        assert reading["withRef"] == reading["without"], (option, reading)
+        assert reading["inside"], (option, reading)
+    expect(page.locator("#long .lf-ref")).to_have_text("§ iOS reconnect stall")
 
 
 def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve):
@@ -2217,8 +2256,9 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
             document.getElementById('shadow-card'))"""
     )
     expect(work_button).to_have_css("display", "flex")
-    expect(work_button).to_have_css("border-radius", "50%")
-    expect(work_button).to_have_css("height", "32px")
+    # The page opens with pins (`pin=True`), so the marker wears the pin's face.
+    expect(work_button).to_have_css("border-radius", "6px 6px 6px 0px")
+    expect(work_button).to_have_css("height", "26px")
 
 
 def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):

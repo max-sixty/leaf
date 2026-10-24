@@ -535,6 +535,7 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
     """
     assets = site_build.asset_site(site)
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
+    asset_root = manifest["pages"]["/examples/triage-board"]["assets"]
     board = assets / "examples" / "triage-board"
     historical = [
         document.relative_to(assets).as_posix()
@@ -547,20 +548,17 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
         ("/", "index.html"),
         ("/examples/triage-board/", "examples/triage-board/index.html"),
         (
-            f"/examples/triage-board/{revision}/runtime/check-api.js",
+            f"{asset_root}/{revision}/runtime/check-api.js",
             f"examples/triage-board/{revision}/runtime/check-api.js",
         ),
         *((f"/{relative}", relative) for relative in historical),
     ):
-        with urllib.request.urlopen(f"{hosted}{route}") as response:
-            served = response.read()
+        try:
+            with urllib.request.urlopen(f"{hosted}{route}") as response:
+                served = response.read()
+        except urllib.error.HTTPError as error:
+            pytest.fail(f"{route}: {error}")
         materialized = (assets / relative).read_bytes()
-        page_root = "/examples/triage-board" if route.startswith("/examples/") else ""
-        public_root = page_root or "/"
-        materialized = materialized.replace(
-            manifest["pages"][public_root]["assets"].encode(),
-            page_root.encode(),
-        )
         if relative.endswith(".html"):
             served = re.sub(
                 rb'data-lf-server="[^"]+"', b'data-lf-server="published"', served

@@ -750,9 +750,10 @@ const registered = /* @__PURE__ */ new Set();
 const byBox = /* @__PURE__ */ new WeakMap();
 const THIS_DOCUMENT = `lf-region:bound:${performance.timeOrigin}`;
 let unnamed = 0;
-const declaresBound = (box) => getComputedStyle(box).getPropertyValue("--lf-bound-box").trim() === "1";
 function scrollerOf(bounded) {
-	for (const box of bounded.querySelectorAll("*")) if (declaresBound(box) && box.closest(BOUNDED) === bounded) return box;
+	const selector = getComputedStyle(bounded).getPropertyValue("--lf-bound-box").trim();
+	if (!selector) return bounded;
+	for (const box of bounded.querySelectorAll(selector)) if (box.closest(BOUNDED) === bounded) return box;
 	return bounded;
 }
 const regionId = (bounded) => bounded.id && authoredScope(bounded) === pageDocument() ? compoundReadingRegionId(bounded, "bound") : `${THIS_DOCUMENT}:${unnamed += 1}`;

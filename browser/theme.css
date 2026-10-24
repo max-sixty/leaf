@@ -1289,8 +1289,10 @@
   --danger: light-dark(#b4402f, #d98b7a);
   --pin-fill: light-dark(var(--accent), #4d74a8);
   --pin-on-user: light-dark(#2f7d45, #2d8047);
+  --r-s: 3px;
   --r: 6px;
-  --chip-r: 3px;
+  --r-l: 12px;
+  --chip-r: var(--r-s);
   --chip-pad: 0 8px;
   --chip-lh: 1.6;
   --sp-1: 4px;
@@ -1340,7 +1342,7 @@
   --msg-font: max(var(--entry-floor), var(--t-5)) / 1.5 var(--sans);
   --code-inline-size: 82%;
   --code-inline-pad: 1px 5px;
-  --code-inline-r: 4px;
+  --code-inline-r: var(--r-s);
   --quote-rule: 2px solid var(--rule);
   --quote-style: italic;
   --quote-inset: 18px;
@@ -1380,7 +1382,7 @@
   --tip-bg: var(--ink);
   --tip-ink: var(--paper);
   --tip-pad: 4px 7px;
-  --tip-r: 4px;
+  --tip-r: var(--r-s);
   --code-bg: light-dark(#ecebe5, #2b2b29);
   --pre-bg: light-dark(#fff, #1b1b1a);
   --code-chrome: light-dark(#f6f8fa, #222220);
@@ -1457,6 +1459,7 @@ html:not([data-lf-live]) {
 @property --lf-frame-end { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-holds-edge { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-holds-height { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --lf-bound-box { syntax: "*"; inherits: false; }
 @property --lf-wears-ring { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   * {
@@ -2079,7 +2082,7 @@ lf-suggestion {
 }
 lf-old,
 lf-new {
-  border-radius: 3px;
+  border-radius: var(--r-s);
   padding: 0 3px;
 }
 lf-old {
@@ -2124,7 +2127,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   min-height: var(--margin-entry);
   padding: 0;
   border: 1px solid var(--border-2);
-  border-radius: 50%;
+  border-radius: var(--r);
   background: var(--lf-entry-tint, var(--paper));
   color: var(--lf-entry-ink, var(--ink-2));
   flex: 0 0 auto;
@@ -2228,6 +2231,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 0 2px var(--paper);
 }
 .lf-margin-entry-glyph {
   line-height: 1;

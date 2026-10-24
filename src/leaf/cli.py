@@ -859,9 +859,9 @@ def thread_summarize(
     )
 
 
-@cli.group(short_help="Bind existing local files for editing on a page.")
+@cli.group(short_help="Manage a page's access to local files.")
 def file() -> None:
-    """Grant a page access to an explicitly chosen local text file."""
+    """Grant or withdraw access to explicitly chosen local text files."""
 
 
 @file.command("bind", short_help="Grant a page read/write access to one file.")
@@ -876,6 +876,17 @@ def file_bind(page_dir: Path, binding: str, path: Path) -> dict:
     bind_file(page_dir, binding, path)
     bound = bound_paths(page_dir)[binding]
     return {"binding": binding, "path": str(bound), "bytes": bound.stat().st_size}
+
+
+@file.command("unbind", short_help="Withdraw a page's access to one bound file.")
+@page_argument(renew=True)
+@click.argument("binding", metavar="ID")
+def file_unbind(page_dir: Path, binding: str) -> dict:
+    """Remove ID's grant. The file and its saved edits stay intact; later reads
+    find no file and saves are refused, including from already-open editors."""
+    from leaf.file_bindings import unbind_file
+
+    return unbind_file(page_dir, binding)
 
 
 def json_body(text: str | None, body_file: TextIO | None):
@@ -1449,21 +1460,23 @@ def task_start(page_dir: Path, item: str, text: str) -> dict:
     return cmd_start(page_dir, item, text)
 
 
-@task.command("end", short_help="End a to-do: done, failed, or dropped.")
+@task.command("end", short_help="End a to-do or settle a conversational obligation.")
 @page_argument(renew=True)
-@click.argument("task_id", metavar="TODO")
+@click.argument("task_id", metavar="ID")
 @click.argument("outcome", type=click.Choice(["done", "failed", "dropped"]))
 @click.argument("detail", metavar="[DETAIL]", required=False)
 def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> dict:
-    """End TODO with OUTCOME. DETAIL says where the result is, such as the
-    version or reply holding it, or why there is none. TODO may be yours or the
-    user's.
+    """End the to-do or conversational obligation named by ID in `page state`.
 
-    TODO may also be the id of a question the user answers in words, such as an
-    `lf-ask` in a reply (`widget:<id>`): `done` records that the user answered it
-    elsewhere, DETAIL saying where, and `dropped` withdraws it. Neither records an
-    answer from the user. An obligation a widget's state answers ends through that state
-    or an authored withdrawal."""
+    A to-do, yours or the user's, ends done, failed or dropped. DETAIL says where
+    the result is, such as the version or reply holding it, or why there is none.
+
+    For a message obligation (`message:<id>`) or a question widget answered in
+    words (`widget:<id>`), done records that the user answered elsewhere, DETAIL
+    saying where; dropped withdraws the question. These outcomes record no answer
+    from the user. A widget answered through its controls ends through its state
+    or an authored withdrawal.
+    """
     from leaf.todos import cmd_end
 
     return cmd_end(page_dir, task_id, outcome, detail)

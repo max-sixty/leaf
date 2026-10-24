@@ -361,7 +361,10 @@ def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
 
 
 def test_reading_a_thread_moves_nothing_in_it(browser, serve):
-    """A read receipt moves nothing in the thread's view in the panel."""
+    """A read receipt keeps the thread's reading position and content in place.
+
+    The New mark may close its metadata row sideways when it disappears.
+    """
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir,
@@ -399,7 +402,8 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
       for (const [element, box] of window.__before) {{
         if (!after.has(element) || !element.isConnected) continue;
         const now = after.get(element);
-        if ([0, 1, 2, 3].some(at => now[at] !== box[at]))
+        const kept = element.matches('.lf-msg-meta') ? [0, 1, 3] : [0, 1, 2, 3];
+        if (kept.some(at => now[at] !== box[at]))
           moved.push(`${{element.tagName}}.${{element.className}} ${{box}} -> ${{now}}`);
       }}
       return moved;

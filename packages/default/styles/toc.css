@@ -45,6 +45,9 @@
   margin: 0;
   padding-block: max(7px, (var(--aim-floor) - 1lh) / 2);
 }
+:scope:is(lf-toc) .lf-toc-toggle[data-lf-focus-visible] {
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 :scope:is(lf-toc) .lf-toc-disclosure[open] .lf-toc-toggle {
   margin-bottom: 7px;
 }

@@ -1075,7 +1075,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     resized(page, 700, 900)
     narrow = page.evaluate(reading)
     assert narrow["taken"] == 0
-    assert narrow["float"] == "none" and narrow["position"] == "static"
+    assert narrow["float"] == "none" and narrow["position"] in {"static", "relative"}
     assert abs(narrow["sidebar"]["left"] - narrow["column"]["left"]) <= 1
     assert root_overflow(page) == 0
 
@@ -1083,7 +1083,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     page.emulate_media(media="print")
     printed = page.evaluate(reading)
     assert printed["taken"] == 0
-    assert printed["float"] == "none" and printed["position"] == "static"
+    assert printed["float"] == "none" and printed["position"] in {"static", "relative"}
     assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
 
 

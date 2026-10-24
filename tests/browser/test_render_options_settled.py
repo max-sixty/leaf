@@ -256,7 +256,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     ]
     open_panel_thread(page, root)
     page.locator(".lf-fp-aux").get_by_role(
-        "button", name="On the page", exact=True
+        "button", name="Show on page", exact=True
     ).click()
     expect(page.locator("#opt-strict")).to_be_visible()
 

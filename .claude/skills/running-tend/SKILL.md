@@ -56,6 +56,10 @@ which boundary it belongs at. For a change that can alter browser startup, apply
 `AGENTS.md`'s **Working on the repository** performance rule to the candidate and base
 profiles from CI.
 
+## Report red CI
+
+When reporting a red run or updating its tracker, give a table with one row for each failing test or check. Name the failure, its current status (reproduced, repaired, awaiting verification, or unresolved), the PR or run that supports that status, and what remains to resolve it. Keep a failing case in the table until a focused check passes after its repair; distinguish that result from a full green run. If several failures share a proven cause and outcome, one row may name all of them. Mark uninvestigated failures as such rather than silently omitting them. Update the table as repairs land so a reader can see the remaining failures without reconstructing earlier comments.
+
 ## Reading a red suite
 
 When a change turns a test red, merged or still in a pull request, the change and

@@ -72,8 +72,8 @@ def test_releasing_a_drawing_does_not_read_every_card_before_preview(browser, se
     }""")
     page.mouse.up()
     holding(page, held, 1, "the drawing context renderer")
-    rendered(page)
     before_renderer = page.evaluate("[...window.drawingStyleCards]")
+    rendered(page)
     held[0].continue_()
     expect(page.locator(".lf-composer-drawing canvas")).to_have_attribute(
         "data-lf-drawing-context", "ready"

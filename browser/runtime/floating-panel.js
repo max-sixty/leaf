@@ -1341,7 +1341,7 @@ export function createFloatingPanel({
   // for unseen. Other news in an open thread is still held. A thread's view declares
   // that it stands on its foot (`data-lf-rises`), which the shift watch credits for
   // exactly this growth (tests/shift_watch.js, `appendGrowth`).
-  // Whether this opening of a thread has shown On the page, whose seat then stands
+  // Whether this opening of a thread has shown Show on page, whose seat then stands
   // while the view does, so a revision detaching the thread moves nothing beside it.
   let onPageSeat = false;
   // Whether this opening of a thread offers Next unread, decided once the opening has
@@ -1366,7 +1366,7 @@ export function createFloatingPanel({
     });
   }
   // The threads about a passage the page last drew nowhere, which Leaf's destinations
-  // then handed the panel as their last resort (`reveal`): On the page has nowhere to
+  // then handed the panel as their last resort (`reveal`): Show on page has nowhere to
   // take the user from those.
   const unplaced = new Set();
   // A thread's view stands on its foot, so what grows in it carries its name, and all
@@ -2409,7 +2409,7 @@ export function createFloatingPanel({
 
   // The words a thread is about, as its card's head quotes them (thread-card.js,
   // `quoteReading`), above its messages, in three lines: where they still stand on the
-  // page, On the page goes there; where they no longer do, as for a thread a revision
+  // page, Show on page goes there; where they no longer do, as for a thread a revision
   // detached from its passage, the quotation the thread kept is all that is left of
   // them, so Full quote shows the whole of it here, its press standing above the words
   // it grows so the press never moves itself. It shows only where three lines cut them.
@@ -3058,7 +3058,7 @@ export function createFloatingPanel({
     // Resolving leaves the reply's editing place, as a card's Resolve does, keeping
     // its draft (thread/replies.js), so the thread shows its way back instead.
     // A thread about an element an agent sent in a message stands in that message
-    // (anchor-placement.js), so its way there is In its message, which opens the
+    // (anchor-placement.js), so its way there is Show in message, which opens the
     // message's thread here on that element (thread/destination.js,
     // `openThreadSubject`).
     const inMessage = Boolean(placedAt(thread.id)?.message);
@@ -3105,7 +3105,7 @@ export function createFloatingPanel({
                 );
               }}
             >
-              ${inMessage ? "In its message" : "On the page"}
+              ${inMessage ? "Show in message" : "Show on page"}
             </button>`
           : nothing
       }<button
@@ -3979,7 +3979,7 @@ export function createFloatingPanel({
           if (!last) {
             unplaced.delete(thread.key);
             // The page draws it, so a thread's view here goes, its own or another's, as
-            // On the page puts it away: the thread shows once, and the one the user
+            // Show on page puts it away: the thread shows once, and the one the user
             // arrived at is the one thread open, which the field's reply and a walk's
             // position then name. The panel closes rather than going back to a list
             // the view stood over, since the user has gone on to the page.

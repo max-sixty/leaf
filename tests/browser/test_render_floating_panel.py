@@ -681,7 +681,7 @@ SEATS = """() => {
 def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     """A thread's controls each stand where they stood while the thread changes. Retitled
     long or short, the name over the view gives or takes room at its own end, and Back,
-    On the page, Resolve and Close stay put; detached by a revision, On the page leaves
+    Show on page, Resolve and Close stay put; detached by a revision, Show on page leaves
     its seat empty; resolved by the agent, the thread's Reopen takes Resolve's seat."""
     url = serve(LONG_PAGE, comments=3, anchored=[("p3", "Paragraph 3.")])
     root = events_model.read_events(serve.page_dir)[-1]["id"]
@@ -710,7 +710,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
         settled(page)
         assert page.evaluate(SEATS) == seats
 
-    # A revision that drops the passage detaches the thread: On the page has nowhere
+    # A revision that drops the passage detaches the thread: Show on page has nowhere
     # to go, and its seat stands empty while the view does.
     append_carried_log_record(
         serve.page_dir,

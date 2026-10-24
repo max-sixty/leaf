@@ -286,7 +286,7 @@ def stand_on_thread(page, thread_id):
     stands selected."""
     open_panel_thread(page, thread_id)
     page.locator(".lf-fp-aux").get_by_role(
-        "button", name="On the page", exact=True
+        "button", name="Show on page", exact=True
     ).click()
     panel_settled(page, open=False)
 

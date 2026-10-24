@@ -6909,7 +6909,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}));
 		}}
             >
-              ${inMessage ? "In its message" : "On the page"}
+              ${inMessage ? "Show in message" : "Show on page"}
             </button>` : nothing}<button
         type="button"
         class="lf-fp-face lf-fp-icon-btn lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"

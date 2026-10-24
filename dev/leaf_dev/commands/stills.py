@@ -300,7 +300,7 @@ def open_thread(page: Page, key: str) -> None:
 
 def floating_thread(page: Page) -> None:
     """The floating panel with a thread opened from Threads: the thread's title over
-    its view, and under it, on the row, the way back, On the page, Resolve and Close."""
+    its view, and under it, on the row, the way back, Show on page, Resolve and Close."""
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()

@@ -295,11 +295,10 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     copy.dataset.copyState = "rest";
     for (const [state, text] of COPY_LABELS)
       copy.append(node("span", `lf-playground-copy-label ${state}`, text));
-    submit = offer(
-      "button",
-      "lf-btn primary lf-playground-submit",
-      host.getAttribute("submit-label") ?? "Use these settings",
-    );
+    submit = offer("button", "lf-btn primary lf-playground-submit");
+    const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
+    submit.dataset.room = `${submitLabel}\nUndo choice`;
+    submit.append(node("span", "", submitLabel));
     actions.append(reset, copy, submit);
     if (document.querySelector("script[data-lf-offline]"))
       actions.append(

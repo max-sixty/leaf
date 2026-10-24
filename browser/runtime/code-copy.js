@@ -40,6 +40,20 @@ const wired = new WeakMap();
 // The key this module projects its Copy scope under, beside the block's other owners.
 const COPY_SCOPE = Symbol("code copy");
 
+// Document controls stand outside their source's cascade. Read its face before
+// moving the control into chrome; a block or ancestor may choose its own size.
+function copySize(block) {
+  const style = getComputedStyle(block);
+  const size = style.getPropertyValue("--lf-code-copy-size").trim();
+  const chosen = size || (block.localName === "pre" ? style.lineHeight : "");
+  return CSS.supports("width", chosen) ? chosen : "";
+}
+
+function setCopySize(copy, size) {
+  if (size) copy.style.setProperty("--lf-code-copy-size", size);
+  else copy.style.removeProperty("--lf-code-copy-size");
+}
+
 // A tap on a hidden control's corner stands the user on the block, which reveals the
 // control before the tap's click is aimed, so the click lands on it. Only a press that
 // began on the shown control copies; Enter's click carries no press (`detail` 0).
@@ -110,7 +124,9 @@ function declareCopy(pre, copy, noun) {
 }
 
 export function copyBlock(block, source, noun) {
+  const size = copySize(block);
   const copy = aimControl(prepareCodeBlock(block, source, noun));
+  setCopySize(copy, size);
   declareCopy(block, copy, noun);
   return copy;
 }
@@ -134,7 +150,7 @@ export function watchCodeBlocks() {
         .filter((pre) => pre.getRootNode() === document)
         .map(
           (pre) =>
-            /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>, any[]]} */ ([
+            /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>, any[], string]} */ ([
               pre,
               prepareCodeBlock(
                 pre,
@@ -142,10 +158,12 @@ export function watchCodeBlocks() {
                 "code",
               ),
               headerLevels(pre),
+              copySize(pre),
             ]),
         );
-      for (const [pre, pending, levels] of prepared) {
+      for (const [pre, pending, levels, size] of prepared) {
         const copy = aimControl(pending);
+        setCopySize(copy, size);
         standInChrome(copy, pre, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);

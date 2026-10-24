@@ -1383,6 +1383,33 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
+def test_code_copy_face_follows_a_compact_source_line(browser, serve):
+    url = live_url(
+        serve(
+            leaf_page(
+                "Compact code copy",
+                '<pre id="source" style="font-size:12.5px;line-height:19px;'
+                'padding:7px 10px"><code>echo hello</code></pre>'
+                '<div style="--lf-code-copy-size:27px"><pre id="custom">'
+                "<code>echo custom</code></pre></div>",
+            )
+        )
+    )
+    page = open_page(browser, url)
+    page.locator("#source").hover()
+    face = page.locator(".lf-chrome .lf-code-copy").first.get_by_role("button")
+    expect(face).to_be_visible()
+    assert face.evaluate("el => el.getBoundingClientRect().height") == 19
+    assert face.evaluate(
+        "el => parseFloat(getComputedStyle(el, '::after').height)"
+    ) >= page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+    )
+    page.locator("#custom").hover()
+    custom = page.locator(".lf-chrome .lf-code-copy").last.get_by_role("button")
+    assert custom.evaluate("el => el.getBoundingClientRect().height") == 27
+
+
 def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve):
     blocks = "".join(
         f"<p>Example {i}</p><pre><code>code {i}</code></pre>" for i in range(60)

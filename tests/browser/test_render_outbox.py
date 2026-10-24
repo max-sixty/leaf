@@ -53,7 +53,7 @@ from render_harness import (
     nudge,
     open_page,
     page_comment,
-    pane_posture,
+    pane_scroll_behavior,
     panel_control,
     panel_settled,
     refuse,
@@ -309,8 +309,11 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
     expect(row.locator(".lf-fp-value")).to_have_text("21d ago")
     resolved = "resolved “Rollout safety” · 21d ago"
     expect(row).to_have_attribute("title", f"Undo: {resolved}")
+    # The thread is out of view, so the first press shows it (Show, then take).
+    row.click()
+    expect(page.locator(".lf-live")).to_have_text(f"Press again to undo: {resolved}")
     with sending(page, "the withdrawal"):
-        row.click()
+        panel_control(page, "command:history.undo").click()
     expect(page.locator(".lf-live")).to_have_text(f"Undid: {resolved} — sent")
 
     append_command(
@@ -329,6 +332,308 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
         "title",
         "Undo: chose “Keep the mounts” in “Should we keep the mounts?” · just now",
     )
+
+
+def _undos(page_dir):
+    return [
+        e["undoes"] for e in events_model.read_events(page_dir) if e["kind"] == "undo"
+    ]
+
+
+def _old_resolve_below_the_fold(serve, *, picked_up=False):
+    """A page whose user resolved a thread on its 56th paragraph three weeks ago, in
+    another tab, with the agent's pickup of it when `picked_up`. Returns the page's
+    URL, the thread's id and the resolve's."""
+    url = serve(LONG_PAGE, anchored=(("p55", "Paragraph 55."),))
+    [comment] = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "thread_title",
+            "author": "agent",
+            "thread": comment,
+            "title": "Feeder",
+        },
+    )
+    resolve = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "resolve",
+            "author": "user",
+            "parent": comment,
+            "ts": (datetime.now(UTC) - timedelta(days=21)).isoformat(),
+        },
+    )
+    if picked_up:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "pickup",
+                "author": "page",
+                "attention": False,
+                "events": [resolve["id"]],
+                "phase": "opened",
+                "session": "show-then-take",
+                "turn": "turn-1",
+            },
+        )
+    return url, comment, resolve["id"]
+
+
+def _shown(page, thread):
+    """The thread's transcript, open and in the window."""
+    expect(
+        page.locator(
+            f'.lf-page-thread[data-thread="{thread}"][data-lf-part="transcript"]'
+        )
+    ).to_be_in_viewport()
+
+
+ARMED = "Press again to undo: resolved “Feeder” · 21d ago"
+
+
+def test_z_shows_an_old_resolve_out_of_view_before_taking_it(browser, serve):
+    """A thread resolved weeks ago below the fold is reopened only once the user has
+    seen it: the first `z` opens the thread and says that the next press takes it back,
+    writing nothing; the second press withdraws the resolve."""
+    url, thread, resolve = _old_resolve_below_the_fold(serve)
+    page = open_page(browser, url)
+    undo_offered(page)
+    page.keyboard.press("z")
+    expect(page.locator(".lf-live")).to_have_text(ARMED)
+    _shown(page, thread)
+    told(page)
+    assert _undos(serve.page_dir) == []
+
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
+    assert _undos(serve.page_dir) == [resolve]
+    expect(page.locator(".lf-live")).to_have_text(
+        "Undid: resolved “Feeder” · 21d ago — sent"
+    )
+
+
+def test_a_quick_second_z_waits_for_the_first_to_show_its_gesture(browser, serve):
+    """Two presses of `z` in one task, before the first has opened what it shows, take
+    nothing back: the second press arrives before the gesture reached the screen, so
+    it shows again rather than withdrawing what the user never saw."""
+    url, _thread, _resolve = _old_resolve_below_the_fold(serve)
+    page = open_page(browser, url)
+    undo_offered(page)
+    page.evaluate(
+        """() => {
+          for (let i = 0; i < 2; i++)
+            document.activeElement.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "z", code: "KeyZ", bubbles: true }),
+            );
+        }"""
+    )
+    expect(page.locator(".lf-live")).to_have_text(ARMED)
+    told(page)
+    assert _undos(serve.page_dir) == []
+
+
+def test_z_takes_a_gesture_in_view_the_agent_has_not_picked_up_at_once(browser, serve):
+    """A choice in front of the user, made in another tab and not yet handed to the
+    agent, is taken back by one press, as before."""
+    url = serve(UNDO_PAGE)
+    choice = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["opt-a"]},
+        },
+    )
+    page = open_page(browser, url)
+    undo_offered(page)
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
+    assert _undos(serve.page_dir) == [choice["id"]]
+
+
+def test_z_shows_a_gesture_the_agent_picked_up_even_in_view(browser, serve):
+    """The agent may already have acted on a gesture it picked up, so `z` shows it
+    first wherever it stands: the choice in view is travelled to and outlined, as a
+    link to it would, and only the second press takes it back."""
+    url = serve(UNDO_PAGE)
+    choice = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["opt-a"]},
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "pickup",
+            "author": "page",
+            "attention": False,
+            "events": [choice["id"]],
+            "phase": "opened",
+            "session": "show-then-take",
+            "turn": "turn-1",
+        },
+    )
+    page = open_page(browser, url)
+    undo_offered(page)
+    page.keyboard.press("z")
+    expect(page.locator(".lf-live")).to_have_text(
+        "Press again to undo: chose “Keep the mounts” in “Should we keep the mounts?”"
+        " · just now"
+    )
+    expect(page.locator("#picks")).to_be_focused()
+    told(page)
+    assert _undos(serve.page_dir) == []
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
+    assert _undos(serve.page_dir) == [choice["id"]]
+
+
+FAR_CHOICE_PAGE = leaf_page(
+    "undo-far",
+    """
+<h1 id="h">Far</h1>
+{paras}
+<lf-ask id="picks-decision"><h2>Should we keep the mounts?</h2>
+<lf-options id="picks" choose>
+  <lf-option id="opt-a">Keep the mounts</lf-option>
+  <lf-option id="opt-b" chosen>Replace the mounts</lf-option>
+</lf-options></lf-ask>
+""",
+).format(
+    paras="\n".join(
+        f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(40)
+    )
+)
+
+
+def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
+    browser, serve
+):
+    """The second press takes the gesture back only while the user is still on what
+    the first showed: another key, or scrolling it out of view, means the next `z`
+    shows it again. A modifier alone, or scrolling with it still in view, keeps it."""
+    url = serve(FAR_CHOICE_PAGE)
+    choice = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["opt-a"]},
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "pickup",
+            "author": "page",
+            "attention": False,
+            "events": [choice["id"]],
+            "phase": "opened",
+            "session": "show-then-take",
+            "turn": "turn-1",
+        },
+    )
+    page = open_page(browser, url)
+    undo_offered(page)
+    picks = page.locator("#picks")
+    expect(picks).not_to_be_in_viewport()
+
+    def pressed_without_taking():
+        page.keyboard.press("z")
+        expect(picks).to_be_in_viewport()
+        told(page)
+        assert _undos(serve.page_dir) == []
+
+    pressed_without_taking()
+    page.keyboard.press("Shift")
+    page.keyboard.press("j")
+    # `j` was another key, so this press shows the choice again.
+    pressed_without_taking()
+
+    page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    expect(picks).not_to_be_in_viewport()
+    pressed_without_taking()
+
+    page.mouse.move(400, 300)
+    page.mouse.wheel(0, -20)
+    scroll_settled(page)
+    expect(picks).to_be_in_viewport()
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
+    assert _undos(serve.page_dir) == [choice["id"]]
+
+
+def test_a_quick_second_z_waits_for_a_fragments_trip(browser, serve):
+    """A widget is shown by travelling to it as a fragment, which scrolls after the
+    press returns: a second `z` before the choice is in view shows it again rather
+    than taking back what the user has not seen."""
+    url = serve(FAR_CHOICE_PAGE)
+    choice = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["opt-a"]},
+        },
+    )
+    page = open_page(browser, url)
+    undo_offered(page)
+    expect(page.locator("#picks")).not_to_be_in_viewport()
+    page.evaluate(
+        """async () => {
+          const z = () =>
+            document.activeElement.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "z", code: "KeyZ", bubbles: true }),
+            );
+          z();
+          await Promise.resolve();
+          await Promise.resolve();
+          z();
+        }"""
+    )
+    told(page)
+    assert _undos(serve.page_dir) == []
+    expect(page.locator("#picks")).to_be_in_viewport()
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
+    assert _undos(serve.page_dir) == [choice["id"]]
+
+
+def test_the_menus_undo_shows_then_takes_too(browser, serve):
+    """A finger's way to Undo is the leaf's menu row, and it goes the same two steps:
+    the first press opens the thread, and pressing the row again takes it back, the
+    presses on the leaf to reach it keeping what the first one showed."""
+    url, thread, resolve = _old_resolve_below_the_fold(serve)
+    page = open_page(browser, url)
+    panel_control(page, "command:history.undo").click()
+    expect(page.locator(".lf-live")).to_have_text(ARMED)
+    _shown(page, thread)
+    told(page)
+    assert _undos(serve.page_dir) == []
+    with sending(page, "the withdrawal"):
+        panel_control(page, "command:history.undo").click()
+    assert _undos(serve.page_dir) == [resolve]
 
 
 def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, serve):
@@ -371,7 +676,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
 
     The card is told where it goes rather than the board being rebuilt around it,
     because that state can be stated: the user watches it travel back, and the
-    grip they were standing on is still under their hands."""
+    grip they were located on is still under their hands."""
     page = open_page(browser, live_url(serve(BOARD_PAGE)))
     grip = page.locator("#card-baffle .lf-grip")
     grip.focus()
@@ -2066,7 +2371,7 @@ def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     expect(elsewhere).to_be_focused()
 
 
-def test_undo_leaves_a_user_standing_elsewhere_where_they_are(browser, serve):
+def test_undo_leaves_a_user_located_elsewhere_where_they_are(browser, serve):
     """Undo from elsewhere changes the decision without moving the user's focus."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     suggestion_control(page, "sug-refill", "accept").click()
@@ -2372,7 +2677,7 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     )
     resized(page, 1440, 900)
     if scroller == "pane":
-        pane_posture(page, page.locator("#reading"), "bounded")
+        pane_scroll_behavior(page, page.locator("#reading"), "bounded")
     paragraph = page.locator("#p30")
     paragraph.scroll_into_view_if_needed()
     if target == "passage":
@@ -2420,7 +2725,7 @@ def test_a_comment_field_follows_when_its_pane_scrolls_past_the_target(browser, 
     """A bounded pane carries the field away while retaining its draft and caret."""
     page = open_page(browser, serve(PANED_LONG_PAGE))
     resized(page, 1440, 900)
-    pane_posture(page, page.locator("#reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#reading"), "bounded")
     paragraph = page.locator("#p30")
     paragraph.scroll_into_view_if_needed()
     paragraph.click(modifiers=["Alt"])
@@ -2614,82 +2919,6 @@ customElements.define('lf-preparation', class extends HTMLElement {
     )
 
 
-def approval(page):
-    """The version's approval, in the leaf's menu under Versions, read from a fresh
-    opening of the menu, which holds the rows it opened with."""
-    if page.locator(".lf-floating-panel").get_attribute("data-menu") is not None:
-        page.locator(".lf-fp-leaf").click()
-        expect(page.locator(".lf-floating-panel")).not_to_have_attribute(
-            "data-menu", ""
-        )
-    return panel_control(page, "approval")
-
-
-def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
-    """Approval follows accepted truth even when the reading stamp cannot present."""
-    signoff_page = LONG_PAGE.replace(
-        "<title>long</title>",
-        '<title>long</title><meta name="lf-review" content="sign-off">',
-    )
-    page = open_page(browser, _serve_preparing_thread(serve, signoff_page))
-    expect(approval(page)).to_contain_text("Approve version")
-    long_thread(
-        serve.page_dir, "approval-question", "Please add the supporting detail."
-    )
-    told(page)
-    open_panel_thread(page, "approval-question")
-    before = page.locator("body").get_attribute("data-lf-reading")
-    held_states = []
-    page.route("**/api/state*", lambda route: held_states.append(route))
-    preparations = []
-    page.route("**/preparation-content", lambda route: preparations.append(route))
-
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "approval-question",
-            "text": "Here is the detail.",
-            "markup": '<lf-preparation id="approval-detail"><p>Detail</p></lf-preparation>',
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "done",
-            "author": "user",
-            "version": 1,
-        },
-    )
-    holding(page, held_states, 1, "candidate approval read")
-    candidate = held_states[0].fetch().json()
-    with page.expect_request("**/preparation-content"):
-        held_states.pop(0).fulfill(json=candidate)
-    holding(page, preparations, 1, "approval thread preparation")
-    expect(approval(page)).to_contain_text("✓ Version approved")
-
-    fail_reading_commit(page, candidate["reading"], "injected approval commit fault")
-    with page.expect_console_message(
-        lambda message: "injected approval commit fault" in message.text
-    ):
-        preparations.pop(0).fulfill(status=204)
-
-    expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
-    expect(approval(page)).to_contain_text("✓ Version approved")
-
-    page.unroute("**/api/state*")
-    for route in held_states:
-        route.continue_()
-    nudge(serve.page_dir)
-    expect(approval(page)).to_contain_text("✓ Version approved")
-    reported_browser_errors(
-        page,
-        "leaf: State presentation failed: injected approval commit fault",
-    )
-
-
 def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     browser, serve
 ):
@@ -2737,10 +2966,10 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     )
     holding(page, held_states, 1, "candidate read")
     candidate = held_states[0].fetch().json()
-    assert (
-        candidate["browser"]["views"]["1"]["undo"][0]["event"]["widget"]
-        == "sug-thistle"
-    )
+    head = candidate["browser"]["views"]["1"]["undo"][0]
+    assert head["event"]["widget"] == "sug-thistle"
+    # Picked up, so `z` shows the suggestion first wherever the layout leaves it.
+    head["picked_up"] = True
     with page.expect_request("**/preparation-content"):
         held_states.pop(0).fulfill(json=candidate)
     holding(page, preparations, 1, "thread preparation")
@@ -2761,6 +2990,10 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
     assert not [event for event in posts if event.get("kind") == "undo"]
 
+    # The agent picked the gesture up, so the first press shows it.
+    page.keyboard.press("z")
+    expect(page.locator("#sug-thistle")).to_be_focused()
+    assert not [event for event in posts if event.get("kind") == "undo"]
     undo(page)
     expect(page.locator("#sug-thistle")).not_to_have_attribute(
         "data-lf-state", "accept"

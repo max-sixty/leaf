@@ -25,7 +25,8 @@ assert:
       Pass only if the commands allocate a fresh private Unix socket directory for
       each App Server, rather than sharing a fixed socket or requiring the user to
       allocate fixed ports. Each remote client uses the endpoint printed or passed
-      from its own server shell. The task's `leaf codex start` uses that same
-      endpoint, either through inherited LEAF_CODEX_APP_SERVER or --app-server.
+      from its own server shell. The task connects its Leaf page using the same endpoint through inherited
+      LEAF_CODEX_APP_SERVER (or the baseline codex start --app-server). Each
+      task retains its own transport; a shared endpoint is insufficient.
       The commands must start App Server and the remote terminal client separately,
       as requested. A single leaf codex launch command does not satisfy that request.

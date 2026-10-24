@@ -4,7 +4,9 @@
  * reading asks the composed geometry, including unmarked and shadow scrollers.
  * It reads the content at its vertical end without scrolling or changing styles,
  * so a check neither disturbs the reader nor depends on whether a hidden overlay
- * scrollbar happened to paint in the headless browser. */
+ * scrollbar happened to paint in the headless browser. SVG readings use native
+ * primitive bounds: stroke/filter extents, clip paths and nested SVG viewport
+ * transforms are not reconstructed here. */
 import {
   pageDocument,
   renderedParent,
@@ -18,7 +20,7 @@ const visible = (el) =>
   el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
   !el.closest("[hidden], script, style");
 const px = (value) => parseFloat(value) || 0;
-const controls = 'button, input, select, textarea, [role="button"], a[href], img, svg';
+const controls = 'button, input, select, textarea, [role="button"], a[href], img';
 const scaleY = (el) => el.getBoundingClientRect().height / el.offsetHeight;
 
 // A nested clip's hidden words are not paint in the outer scroller. Keep the
@@ -31,15 +33,22 @@ const paintedBottom = (el, rect, scroller) => {
     if (style.position === "fixed") return -Infinity;
     if (style.overflowY !== "visible") {
       const bounds = node.getBoundingClientRect();
-      const scale = scaleY(node);
-      top = Math.max(top, bounds.top + node.clientTop * scale);
-      bottom = Math.min(
-        bottom,
-        bounds.top + (node.clientTop + node.clientHeight) * scale,
-      );
+      // SVG clips to its viewport and has no HTML offsetHeight/clientTop box.
+      // Dividing by that absent offsetHeight silently discarded all its ink.
+      if (node instanceof SVGElement) {
+        top = Math.max(top, bounds.top);
+        bottom = Math.min(bottom, bounds.bottom);
+      } else {
+        const scale = scaleY(node);
+        top = Math.max(top, bounds.top + node.clientTop * scale);
+        bottom = Math.min(
+          bottom,
+          bounds.top + (node.clientTop + node.clientHeight) * scale,
+        );
+      }
     }
   }
-  return bottom > top ? bottom : -Infinity;
+  return bottom >= top ? bottom : -Infinity;
 };
 
 export function scrollbarClearance() {
@@ -89,7 +98,20 @@ export function scrollbarClearance() {
           for (const rect of range.getClientRects()) take(parent, rect, "words");
         }
         for (const el of scope.querySelectorAll(controls))
-          if (visible(el)) take(el, el.getBoundingClientRect(), "controls");
+          if (!(el instanceof SVGElement) && visible(el))
+            take(el, el.getBoundingClientRect(), "controls");
+        // The SVG viewport includes the drawing's own blank margin. Its painted
+        // primitives carry native transformed bounds; text was read above. A
+        // definition without a rendered instance has no client rectangles.
+        for (const el of scope.querySelectorAll("svg *"))
+          if (
+            (el instanceof SVGGeometryElement ||
+              el instanceof SVGImageElement ||
+              el instanceof SVGUseElement) &&
+            visible(el) &&
+            el.getClientRects().length
+          )
+            take(el, el.getBoundingClientRect(), "controls");
       }
       if (!Number.isFinite(last)) continue;
       const bounds = box.getBoundingClientRect();

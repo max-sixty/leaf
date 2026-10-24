@@ -363,7 +363,7 @@ variants:
         > I fixed the introduction. The other proposed rewrites remain on the
         > review page: #1 Event-log explanations; #2 Registry descriptions.
         > All checks pass. Other rewrites remain proposals.
-        You were about to run `leaf status ~/.local/state/leaf/pages/prose-audit waiting`.
+        You were about to leave the page available for comments and hand it over.
 
         Finish this turn. You can read the installed Leaf instructions, but the
         review page and its services are unreachable here. Write the commands and
@@ -451,7 +451,7 @@ variants:
         the release assessment. I authorized finishing the CI wait; it is running
         in the background. The CI to-do is already open on you as ci-work.
         I still need to try the build on my phone; only I can do that. The page's
-        latest valid stamped version is v6 and requires my sign-off.
+        latest valid stamped version is v6 and contains an unanswered approval widget.
         You need my review and approval of that version before publishing.
         There is also an optional color explorer on the page; no work depends on
         its settings. Before the latest stamp the queue had no user items; you have
@@ -467,7 +467,7 @@ variants:
           Pass only if the agent registers the phone test as a user request in
           the user's On me list and inspects the canonical lists using page state. The
           required review/approval of v6 must appear in the user's On me list: recognize
-          its automatically derived approval obligation. A status line or bare
+          the approval widget’s ordinary obligation. A status line or bare
           prose alone fails. CI stays agent work, with no request for
           authorization to continue an authorized wait. The optional explorer
           creates no required request. The handoff does not equate an empty

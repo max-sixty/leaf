@@ -92,6 +92,7 @@ WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
 SHIFT_WATCH_SOURCE = Path(__file__).with_name("shift_watch.js")
 WORDS_WATCH_SOURCE = Path(__file__).with_name("words_watch.js")
 INPUT_WORK_WATCH_SOURCE = Path(__file__).with_name("input_work_watch.js")
+SWAP_WATCH_SOURCE = Path(__file__).with_name("swap_watch.js")
 WATCH_PLATFORM_SOURCE = Path(__file__).with_name("watch_platform.js")
 
 
@@ -178,7 +179,7 @@ def shift_watch_source():
 
 
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
-EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
+EXAMPLES = sorted(p for p in (ROOT / "examples").glob("*.html") if p.stem != "corpus")
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
 assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
@@ -186,12 +187,8 @@ DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html"))
 # The inputs `leaf-dev corpus` composes. The corpus is a generated presentation of
 # the public pages plus the feature gallery, not another author source. Every authored-
 # content sweep uses this source set, while public-site tests read the top-level glob.
-PUBLIC_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
-assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
-    "expected exactly one generated corpus beside the public examples"
-)
+PUBLIC_EXAMPLES = tuple(EXAMPLES)
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
-CORPUS_PAGE = ROOT / "examples" / "corpus.html"
 
 PASSAGE_SOURCES = (
     FEATURE_GALLERY,
@@ -1055,7 +1052,7 @@ def ticked(page):
 #
 # So the press waits on the fact the page states rather than on the gesture before it
 # having painted: the dispatcher's own reading of which commands a key reaches where the
-# user stands (`available_commands`), the predicate (`live`) the leaf's menu also
+# user is located (`available_commands`), the predicate (`live`) the leaf's menu also
 # greys its Undo row by. Then the trip: the press's own send is not counted at the
 # moment it is made, and a `round_trip` that reads the counters before the browser has
 # reported the request is a wait on a page that has not started moving.
@@ -1069,7 +1066,7 @@ def undo(page):
         page.keyboard.press("z")
 
 
-# Each command the dispatcher would run from where the user stands, by its id, with the
+# Each command the dispatcher would run from the current location, by its id, with the
 # keys that reach it there; a command no key reaches (one only a control presses) lists
 # none. The dispatcher's own reading (keyboard/dispatch.js, `availableCommandRoutes`),
 # which the leaf's menu greys its rows by too. Evaluating it also leaves the reading on
@@ -1091,7 +1088,7 @@ AVAILABLE_COMMANDS = """async () => {
 
 
 def available_commands(page):
-    """What the dispatcher would run from where the user stands now, read once after
+    """What the dispatcher would run from the current location now, read once after
     every repaint the input so far queued: `{command id: [keys]}`.
 
     The bottom key line used to say this as hints; the panel says it nowhere but in a
@@ -1282,8 +1279,9 @@ def clean_browser(test=None):
 
 def judge_watches():
     """Judge every layout shift each watched page makes, once the frames the test's
-    last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
-    loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
+    last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), then every
+    loss of typed words so far (`words_watch.js`, `lfWordsJudged`), and then the swaps
+    in the frame that lays out the last act (`swap_watch.js`, `lfSwapsJudged`).
 
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
@@ -1338,6 +1336,7 @@ def _judge_frame_watches(frame):
             Promise.resolve().then(async () => {
               await window.lfShiftsJudged?.();
               await window.lfWordsJudged?.();
+              await window.lfSwapsJudged?.();
             }).then(() => { judgement.complete = true; },
               error => { judgement.error = error; });
         }"""
@@ -1365,8 +1364,9 @@ def watched(page, *, java_script_enabled=True):
     sensors' findings, which each sensor hands over as a record through the
     `__leafWatchFinding` binding: DOM writes that change nothing (`write_watch.js`),
     layout shifts without input or that carry a field being typed in
-    (`shift_watch.js`), and typed words leaving the screen without a key or press
-    (`words_watch.js`).
+    (`shift_watch.js`), typed words leaving the screen without a key or press
+    (`words_watch.js`), and a row sized by the occupant that took a seat in it
+    (`swap_watch.js`).
     Call before navigation so the init scripts take effect. With scripting disabled,
     retain native console and page errors but install no script-driven sensors and
     await none at judgement.
@@ -1404,8 +1404,9 @@ def watched(page, *, java_script_enabled=True):
         "__leafWatchFinding", lambda _source, found: errors.append(Finding.read(found))
     )
     page.add_init_script(path=WRITE_WATCH_SOURCE)
-    # One init script keeps cause tracking installed before its words subscriber;
-    # Playwright does not promise an order between separately registered scripts.
+    # One init script keeps cause tracking installed before its words and swap
+    # subscribers; Playwright does not promise an order between separately registered
+    # scripts.
     page.add_init_script(
         script="\n".join(
             source.read_text()
@@ -1413,6 +1414,7 @@ def watched(page, *, java_script_enabled=True):
                 WATCH_PLATFORM_SOURCE,
                 INPUT_WORK_WATCH_SOURCE,
                 WORDS_WATCH_SOURCE,
+                SWAP_WATCH_SOURCE,
             )
         )
         + "\n"
@@ -1655,8 +1657,18 @@ def open_versions(page):
 # open view (threads, thread, queue, leaves), `data-menu` marks the menu open and
 # `data-rest="mark"` the panel folded to the leaf.
 PANEL = ".lf-floating-panel"
+
+
+def panel_view(name: str) -> str:
+    """The selector of the panel's `name` view (threads, thread, queue, leaves) that
+    stands open. A view put away keeps its node, marked `data-leaving`, until its
+    exit motion ends, so this never matches one: a selector that did would find two
+    views mid-switch, or a view already on its way out."""
+    return f'.lf-fp-view[data-view="{name}"]:not([data-leaving])'
+
+
 # A view of one thread, which names the thread it shows by id in `data-thread`.
-PANEL_THREAD = '.lf-fp-view[data-view="thread"]:not([data-leaving])'
+PANEL_THREAD = panel_view("thread")
 # Rows the panel's own row holds, rather than its menu.
 PANEL_ROW_CONTROLS = {"threads": ".lf-fp-threads", "queue": ".lf-fp-on-user"}
 
@@ -1697,7 +1709,7 @@ def panel_settled(page, open=True, view=None):
 
 
 def panel_menu(page, at=None):
-    """Open the leaf's menu and return it, standing at its root or at the list `at`
+    """Open the leaf's menu and return it, open at its root or at the list `at`
     names: a group (`navigate`, `annotate`, `about`) or `versions`.
 
     The menu holds the rows it opened with while it stands (floating-panel.js,
@@ -1729,18 +1741,16 @@ def panel_control(page, key, at=None):
     """Return the panel's control for the page's control row `key`, opening the leaf's
     menu, and the list `at` names (`panel_menu`), where the row stands there.
 
-    Threads (`threads`) and On me (`queue`) are the row's marks; the version's approval
-    (`approval`) stands under Versions. Every other row is the menu's, by its key:
+    Threads (`threads`) and On me (`queue`) are the row's marks. Every other row is
+    the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
-    of the stance the user stands in is the `.lf-fp-exit` ✕ named by its `aria-label`,
+    of the current panel view is the `.lf-fp-exit` ✕ named by its `aria-label`,
     and the page comment is `page_comment`'s, offering selected words as
     `selection_field`'s."""
     if key in PANEL_ROW_CONTROLS:
         control = page.locator(PANEL_ROW_CONTROLS[key])
-    elif key == "approval":
-        control = panel_menu(page, "versions").locator(".lf-fp-approval .lf-fp-item")
     else:
         control = panel_menu(page, at).locator(f'.lf-fp-item[data-row="{key}"]')
     expect(control).to_be_visible()
@@ -1788,18 +1798,42 @@ def page_comment(page):
     return box
 
 
+# The words in the panel's one seat for what passes, such as a notice or a walk's
+# position (floating-panel.js, `passing`): the leaf's peek while it shows one over an
+# open view, else the line over the field while it stands, else an error standing
+# over the field's words (composing/input.js), else the empty field's placeholder.
+PANEL_SAYS = """() => {
+  const peek = document.querySelector('.lf-fp-peek');
+  if (peek?.hasAttribute('data-shown')) return peek.textContent.trim();
+  const line = document.querySelector('.lf-fp-context');
+  if (line && !line.hidden && line.textContent.trim()) return line.textContent.trim();
+  const cover = document.querySelector('.lf-fp-field .lf-compose-error:not([hidden])');
+  if (cover) return cover.textContent.trim();
+  return document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder')
+    ?? '';
+}"""
+
+
+def panel_says(page) -> str:
+    """What the panel's seat for passing words says now (`PANEL_SAYS`)."""
+    return page.evaluate(PANEL_SAYS)
+
+
 def expect_panel_says(page, words, *, says=True):
-    """Wait until the panel says, or no longer says, `words` where it says whatever
-    passes, a notice or a walk's position: in the empty field's place, on the line over
-    the field once the caret is in it, or in the leaf's peek over an open view."""
-    page.wait_for_function(
-        """([words, says]) => [
-          document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder'),
-          document.querySelector('.lf-fp-context:not([hidden])')?.textContent,
-          document.querySelector('.lf-fp-peek:not([hidden])')?.textContent,
-        ].some((said) => said?.includes(words)) === says""",
-        arg=[words, says],
-    )
+    """Wait until the panel's seat for passing words says `words`, among others, or,
+    with `says` false, until it no longer does."""
+    try:
+        page.wait_for_function(
+            f"([words, says]) => ({PANEL_SAYS})().includes(words) === says",
+            arg=[words, says],
+        )
+    except PlaywrightTimeout:
+        said = page.locator(".lf-live").text_content()
+        raise AssertionError(
+            f"the panel says {panel_says(page)!r}, "
+            f"{'not' if says else 'still'} {words!r} "
+            f"(the live region last said {said!r})"
+        ) from None
 
 
 def expect_error_waits_in_menu(page, message):
@@ -2341,20 +2375,20 @@ def regions_side_by_side(regions: str, columns: str = "1fr 1fr") -> str:
 </style>"""
 
 
-def pane_posture(page, pane, posture):
+def pane_scroll_behavior(page, pane, behavior):
     """Wait until a pane is `bounded` (its body scrolls) or in `flow` (it does not).
 
     The body is the pane's one element between its optional header and footer. Whether
     it scrolls is the stylesheet's answer to the workspace's size, and the same fact
-    `readingPosture` reads, so this waits on the composed style rather than on any
+    `regionScrollBehavior` reads, so this waits on the composed style rather than on any
     attribute a script would have to keep in step with it."""
     page.wait_for_function(
-        """([node, posture]) => {
+        """([node, behavior]) => {
           const body = [...node.children].find(c => !c.matches('header, footer'));
           const scrolls = /auto|scroll/.test(getComputedStyle(body).overflowY);
-          return (scrolls ? 'bounded' : 'flow') === posture;
+          return (scrolls ? 'bounded' : 'flow') === behavior;
         }""",
-        arg=[pane.element_handle(), posture],
+        arg=[pane.element_handle(), behavior],
     )
 
 

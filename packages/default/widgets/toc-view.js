@@ -24,20 +24,16 @@ export const outlineDocument = (host) => host.closest("[data-lf-views] > *, main
 // The initial drawing keeps the template call sites and root part for its lifetime.
 // Upgrading calls this same closure: importing another compiled copy of a template
 // would make Lit replace the early nodes instead of updating their parts.
-export function drawToc(host) {
+export function drawToc(host, generatedElement) {
   const open = host.hasAttribute("open");
   const href = (destination) => (destination?.id ? `#${destination.id}` : nothing);
   const paint = (start, items) =>
     render(
       html`
-        <nav class="lf-toc-nav lf-ui" data-lf-gen="1" aria-label="On this page">
-          <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>
-            On this page
-          </p>
+        <nav class="lf-toc-nav lf-ui scroll" aria-label="On this page">
+          <p class="lf-toc-heading lf-label">On this page</p>
           <details class="lf-toc-disclosure" ?open=${open}>
-            <summary class="lf-toc-toggle lf-label" data-lf-gen="1" data-lf-said>
-              On this page
-            </summary>
+            <summary class="lf-toc-toggle lf-label">On this page</summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
               <div class="lf-toc-start" data-lf-depth="0">
@@ -63,6 +59,9 @@ export function drawToc(host) {
   host.replaceChildren();
   paint({ label: "Top" }, []);
   const nav = host.querySelector("nav");
+  generatedElement(nav, { says: false });
+  for (const label of nav.querySelectorAll(".lf-toc-heading, .lf-toc-toggle"))
+    generatedElement(label, { says: true });
   const track = nav.querySelector(".lf-toc-rows");
   const startRow = track.querySelector(".lf-toc-start");
   const list = track.querySelector("ol");

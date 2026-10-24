@@ -82,13 +82,13 @@ def codex_start_announcement(process) -> str:
         "Codex start did not report completion"
     )
     line = process.stdout.readline()
-    assert json.loads(line)["task"] == "codex-thread"
+    assert json.loads(line)["session"] == "codex-thread"
     return line
 
 
 def fake_codex_cli(tmp_path: Path) -> tuple[Path, Path]:
     """A process-boundary `codex queue` implementation for adapter tests."""
-    program = tmp_path / "fake-codex"
+    program = tmp_path / "codex"
     log = tmp_path / "fake-codex.jsonl"
     program.write_text(
         f"""#!{sys.executable}
@@ -133,6 +133,19 @@ print("queued")
     return program, log
 
 
+def claim_command(page, program, *, endpoint=None, launcher=LEAF_COMMAND):
+    """Select the external Codex executable and transport as a real shell does."""
+    return [
+        "env",
+        f"PATH={program.parent}{os.pathsep}{os.environ['PATH']}",
+        *([f"LEAF_CODEX_APP_SERVER={endpoint}"] if endpoint is not None else []),
+        *launcher,
+        "page",
+        "claim",
+        str(page),
+    ]
+
+
 def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
     codex_claimed_page, under_codex, codex_env, tmp_path
 ):
@@ -154,19 +167,16 @@ def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
     launcher.chmod(0o755)
     program, log = fake_codex_cli(tmp_path)
     results = tmp_path / "starts.json"
-    first = [
-        str(launcher),
-        "codex",
-        "start",
-        str(codex_claimed_page),
-        "--codex-path",
-        str(program),
-    ]
+    first = claim_command(codex_claimed_page, program, launcher=[str(launcher)])
     select_runtime = (
         "from pathlib import Path; from leaf.session_runtime import select_launcher; "
         f"select_launcher('codex-thread', Path({str(PLUGIN_ROOT / 'bin/leaf')!r}))"
     )
-    calls = [first, [sys.executable, "-c", select_runtime], [*LEAF_COMMAND, *first[1:]]]
+    calls = [
+        first,
+        [sys.executable, "-c", select_runtime],
+        claim_command(codex_claimed_page, program),
+    ]
     runner = PLUGIN_ROOT / "tests/fixtures/programs/codex_starts.py"
     task = under_codex(
         shlex.join([sys.executable, str(runner), json.dumps(calls), str(results)]),
@@ -184,8 +194,6 @@ def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
             failure="delivery runtime replacement did not finish",
         )
         assert all(status == 0 for status, _out, _err in outcomes), outcomes
-        assert json.loads(outcomes[0][1])["started"]
-        assert json.loads(outcomes[2][1])["started"]
         assert codex_adapter_model.running_adapter("codex-thread")["launcher"] == str(
             PLUGIN_ROOT / "bin/leaf"
         )
@@ -697,18 +705,7 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
     session_model.cmd_waiting(page_dir, "Reviewing the page")
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
-        shlex.join(
-            [
-                *LEAF_COMMAND,
-                "codex",
-                "start",
-                str(page_dir),
-                "--codex-path",
-                str(program),
-                "--app-server",
-                endpoint,
-            ]
-        ),
+        shlex.join(claim_command(page_dir, program, endpoint=endpoint)),
         codex_env | {"CODEX_THREAD_ID": "codex-thread"},
         finished=finished,
         stdout=subprocess.PIPE,
@@ -2689,7 +2686,7 @@ def test_a_codex_delivery_queued_twice_tells_its_second_turn_it_repeats(
     assert [args[2] for args in queued] == [pointer, pointer]
 
     assert _ack_in("first-queued-turn", path.stem, capsys) == []
-    owed = f"`leaf response reply {delivered_ref(page_dir, comment['id'])}`"
+    owed = f"`leaf thread reply {delivered_ref(page_dir, comment['id'])}`"
     if answered:
         thread_model.post_reply(
             page_dir, {"parent": comment["id"], "responds": comment["id"]}, "Named it."
@@ -2889,16 +2886,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     cleanup_model.write_json(record_path, queue)
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
-        shlex.join(
-            [
-                *LEAF_COMMAND,
-                "codex",
-                "start",
-                str(page),
-                "--codex-path",
-                str(program),
-            ]
-        ),
+        shlex.join(claim_command(page, program)),
         codex_env
         | {
             "CODEX_THREAD_ID": "codex-thread",
@@ -2933,11 +2921,10 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     )
 
 
-def test_a_later_codex_start_names_the_running_transport(
+def test_a_later_claim_preserves_the_running_transport(
     codex_claimed_page, under_codex, codex_env, tmp_path
 ):
-    """A later start joins the running adapter and names its transport, which is how
-    the harness contracts tell the queue from App Server; one asking for an App Server
+    """A later claim joins the running adapter; one asking for an App Server
     this adapter is not on is refused rather than ignored."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
@@ -2953,16 +2940,13 @@ def test_a_later_codex_start_names_the_running_transport(
     # asking whether another command in this task joins its existing adapter.
     # This transport test uses CLI lifetime; desktop persisted-chat ownership is
     # exercised independently by the detached preview journey.
-    command = [
-        *LEAF_COMMAND,
-        "codex",
-        "start",
-        str(page),
-        "--codex-path",
-        os.path.relpath(program),
-    ]
+    command = claim_command(page, program)
     results = tmp_path / "start-results.json"
-    calls = [command, [*command, "--app-server", "unix:///tmp/elsewhere.sock"], command]
+    calls = [
+        command,
+        claim_command(page, program, endpoint="unix:///tmp/elsewhere.sock"),
+        command,
+    ]
     runner = PLUGIN_ROOT / "tests" / "fixtures" / "programs" / "codex_starts.py"
     try:
         finished = tmp_path / "codex-start-finished"
@@ -2981,19 +2965,11 @@ def test_a_later_codex_start_names_the_running_transport(
             failure="the persistent Codex harness did not finish its three start commands",
         )
         assert status == 0, err
-        assert json.loads(first) == {
-            "task": "codex-thread",
-            "app_server": None,
-            "started": True,
-        }
+        assert json.loads(first) == {"session": "codex-thread"}
         assert refused != 0
         assert "not through App Server unix:///tmp/elsewhere.sock" in refusal
         assert joined == 0
-        assert json.loads(again) == {
-            "task": "codex-thread",
-            "app_server": None,
-            "started": False,
-        }
+        assert json.loads(again) == {"session": "codex-thread"}
         release_held(started)
         out, err = started.communicate(timeout=STATED_TIMEOUT)
         assert started.returncode == 0, f"{out}{err}"
@@ -3152,16 +3128,7 @@ start_server(live, harness=session_harness())
     started = under_codex(
         shlex.join([sys.executable, "-c", prepare, str(live), str(offline)])
         + " && "
-        + shlex.join(
-            [
-                *LEAF_COMMAND,
-                "codex",
-                "start",
-                str(live),
-                "--codex-path",
-                str(program),
-            ]
-        ),
+        + shlex.join(claim_command(live, program)),
         codex_env
         | {
             "CODEX_THREAD_ID": "codex-thread",
@@ -3233,7 +3200,7 @@ start_server(live, harness=session_harness())
 
 
 def spawn_codex_adapter(spawn, program, **options) -> subprocess.Popen:
-    """Run `leaf codex run` as `leaf codex start` does, accepting its announcement,
+    """Run `leaf codex run` as `leaf page claim` does, accepting its announcement,
     so the adapter returns holding its leases with its start committed."""
     caller, end = socket.socketpair()
     adapter = spawn(
@@ -3261,7 +3228,7 @@ def spawn_codex_adapter(spawn, program, **options) -> subprocess.Popen:
 def test_a_codex_adapter_whose_start_was_never_committed_exits(
     codex_claimed_page, spawn, codex_env, tmp_path
 ):
-    """`leaf codex start` gives its claim back when it is interrupted, so an adapter
+    """`leaf page claim` gives its claim back when it is interrupted, so an adapter
     it announced ready to but never committed would carry a page the start reported
     as failed. The adapter waits for the caller's acknowledgement after announcing,
     and a caller that leaves instead ends it with its leases released."""
@@ -3419,9 +3386,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_in_place(
     working(page, "answering the last comment")
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
-        shlex.join(
-            [*LEAF_COMMAND, "codex", "start", str(page), "--codex-path", str(program)]
-        ),
+        shlex.join(claim_command(page, program)),
         codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
         finished=finished,
         stdout=subprocess.PIPE,
@@ -3480,16 +3445,7 @@ def test_failed_codex_delivery_start_restores_the_previous_page_claim(
     record_claim(page_dir, id="previous", pid=os.getpid())
     previous = service_model.page_claim(page_dir)
     failed = under_codex(
-        shlex.join(
-            [
-                *LEAF_COMMAND,
-                "codex",
-                "start",
-                str(page_dir),
-                "--codex-path",
-                str(program),
-            ]
-        ),
+        shlex.join(claim_command(page_dir, program)),
         codex_env
         | {
             "CODEX_THREAD_ID": "codex-thread",

@@ -1,11 +1,12 @@
 /* The chrome a widget injects, the words it labels, and the room it measures.
 
-   A behavior module builds injected controls with `offer`, and uses `relabel` when a
-   control's label is also one of the page's words. A Lit template reaches the same
-   writers through element directives built by `elementDirective`. A behavior module
+   A behavior module builds injected controls with `offer`, marks other words it
+   writes with `generatedElement`, and uses `relabel` when a control's label is also
+   one of the page's words. A Lit template reaches the same writers through element
+   directives built by `elementDirective`. A behavior module
    reads a box from inside `measure`: a widget upgrades wherever the runtime connects
    it, and a shut panel is `display: none`, where every word measures zero. A label
-   whose words change holds one room for all of them with `data-lf-room`, which the
+   whose words change holds one room for all of them with `data-room`, which the
    theme sizes without script and which cuts words past it (controls.css). A module calls
    `layoutChanged(el)` after view state rearranges descendants without resizing its
    outer box — `ResizeObserver` already covers size changes, and geometry consumers
@@ -417,9 +418,7 @@ document.addEventListener(
 // quote. Some are the page speaking: a pick mark reading "chosen" is the only place
 // the page says which option it carries, and a tab's name is the panel's only name
 // once the strip exists. One element wears both over its life, so the kind is
-// restated on every write rather than settled at birth. A template label's kind is
-// fixed by its template, so it writes the same markers as static attributes:
-// `data-lf-gen="1"`, with `data-lf-said` or `data-lf-echo` where they apply.
+// restated on every write rather than settled at birth.
 //
 // This writes the page-speaking marker, data-lf-said. Anchoring takes it over the
 // `.lf-ui` box around it — that box is a look, the chrome face, and it was standing
@@ -450,16 +449,25 @@ document.addEventListener(
 // costs a printed page its words, and silently. Refusing throws where the widget
 // upgrades, which the console reports and the render gate reads back as a finding
 // — the loud direction, in front of whoever wrote the label.
+//
+// `generatedElement(node, {says})` writes those markers without the words: for a box
+// whose contents the widget writes, or words it fills in some other way. prepaint.js
+// holds it so that an initial producer receives it as it receives `offerElement`.
+// A forgotten marker fails silently, as a widget's words read by the version diff as a
+// change nobody wrote, so widgets write the markers only through it, `relabel` and the
+// offers. `generated({says})` is its template form:
+// `<h2 ${generated({ says: true })}>${title}</h2>`. Three writers stand apart because
+// they do something it doesn't: the datum projection (projection/data.js) marks and
+// unmarks authored nodes as their data comes and goes, markdown.js serializes its
+// media button as HTML, and revision_delivery.py writes prepaint faces on the server.
+/** @type {LeafInitial["generatedElement"]} */
+export const generatedElement = (...args) =>
+  document.documentElement.lfInitial.generatedElement(...args);
+export const generated = elementDirective("generated", generatedElement);
+
 /** @param {Element} node @param {string} label @param {{says?: boolean | "echo"}} [options] */
 export function relabel(node, label, { says } = {}) {
-  if (typeof says !== "boolean" && says !== "echo")
-    throw new TypeError(
-      `Say whether this label is the page speaking: ` +
-        `true, false, or "echo" for a copy of words it says elsewhere`,
-    );
-  keeps(node, "data-lf-gen", "1");
-  node.toggleAttribute("data-lf-said", says === true);
-  node.toggleAttribute("data-lf-echo", says === "echo");
+  generatedElement(node, { says });
   keepsText(node, label);
 }
 

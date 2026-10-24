@@ -21,8 +21,8 @@
   interaction mechanisms so each new case does not require another fix.
 - **Reduce the burden of tests.** Tests now take long enough to meaningfully
   slow development. Reduce their runtime and the work needed to run them while
-  preserving useful coverage. `notes/shift-watch-cost.md` records what the
-  Stability sensor costs and when a cheaper gate would be worth revisiting.
+  preserving useful coverage. `notes/shift-watch-cost.md` records the Stability
+  sensor's idle-cost evidence and remaining optimization questions.
   Sharing one page across a test's cases (`tests/AGENTS.md`, "One page for the
   cases that can share it") reaches only cases that leave the log and the page's
   own UI alone, so most of the time spent opening pages needs each opening to
@@ -72,7 +72,7 @@ has tried; settle that before building it.
   review of the desktop design. The phone waits until the desktop design is firm, and
   where a passage thread opens from Threads waits until later.
 - **Say when a held-news notice holds more than it shows.** A notice in a seat's
-  head row keeps the width of the news it first said (`data-lf-room`) and shows each
+  head row keeps the width of the news it first said (`data-room`) and shows each
   fact whole or not at all (`newsNotice`), so "1 new reply" with a message arriving
   after it still reads "1 new reply", with nothing on screen saying more waits; the
   title that names every fact doesn't reach touch. A count growing past that room
@@ -100,6 +100,11 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Wake idle Codex desktop chats without user messages.** Page actions currently
+  arrive as queued `<leaf-delivery>` user messages, which clutter the chat. Expose
+  a route to the desktop-owned App Server or non-user queued input, then use
+  Leaf's existing tool-output delivery
+  ([interface gap](notes/codex-integration.md#delivery-without-user-messages)).
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -124,10 +129,6 @@ has tried; settle that before building it.
   the coordinator's turn ends (#3370); Codex and Pi publish no such record, so their
   status stops reading Working while workers still run
   ([the note](notes/user-feedback-responsiveness.md#proposed-improvements)).
-- **Decide what the reply budget counts.** A small page change takes 21–42 s to
-  reply on every harness against a 7 s target, and Leaf's delivery and tool time is
-  0.3–2.6 s of it ([readings](notes/user-feedback-responsiveness.md#latency-targets-and-readings)).
-  Decide whether the target counts Leaf's share or the whole reply.
 - **#24 — Measure time to an initial reviewable page and the value of review.**
   Retrospective replay now proves one usable Leaf candidate and one usable HTML
   candidate before their authors finished. Their observation triggers differ;
@@ -154,19 +155,20 @@ has tried; settle that before building it.
 
 ## Next
 
+- **Add a host-owned widget LLM allowance.** The initial `/api/llm` endpoint
+  uses the claimant harness's login and bounds input size, but does not bound
+  cumulative usage. Define an explicitly granted allowance shared across page
+  servers, with accounting appropriate to the login's quota or billing model.
+  Establish per-request output bounds before promising a hard ceiling, and retain
+  uncertain usage across timeouts and restarts. Keep grant controls outside page
+  JavaScript; do not treat claimed widget ids as trusted identities.
+
 ### User continuity and mobile access
 
 - **Bring back a rewrite Escape discarded.** Escape drops a rewrite's changed words, as
   in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
   way back, such as `g D` restoring the last discarded rewrite into its editor (the
   user's suggestion, 2026-10-06).
-- **Show what `z` takes before it takes it.** `z` takes back the user's newest
-  gesture however old, so on a page left for weeks it can reopen a thread resolved
-  then, below the fold. The user chose (2026-10-21) to keep the reach unlimited,
-  name the gesture and its age, and spend the first press revealing a target that is
-  out of view or already picked up by the agent. Undo now names the gesture and its
-  age in every tab; the reveal on the first press remains.
-  [The undo-reach note](notes/undo-reach/README.md) has the build.
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -290,7 +292,7 @@ and its chrome coordinate.
   pane is empty, and whether a reader reaches every pane by key. The arrangement
   judge sees only the first screen of a pane that scrolls and is told not to infer
   interaction, so no case yet measures whether a workspace works as a screen.
-- **Layout values that wait for a task:** a selection-and-detail component whose phone
+- **Layout values that wait for a task:** a selection-and-detail widget whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
 - **Make a sidebar built from several blocks stick.** A sidebar's track sticks only
@@ -355,17 +357,10 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 ### Before/after comparison
 
-- **#29 — Make `lf-shot`'s views one coherent comparison.** A pair now offers
-  Plain, Outlines and Pixels, and Pixels paints one picture: red where only the
-  before image drew, blue where only the after image did, amber where both did. A
-  shot with `pixels` alone opens in Pixels, one with `outlines` in Outlines, and
-  any other in Plain. Settle the details as one design: which view a pair opens
-  in, and whether every pair should offer every view rather than the author
-  choosing them per shot; a key for the three colours; the rail's reading
-  ("identical", "only slight changes", "2 areas changed"), which stands among the
-  view buttons in another voice and reads as a view or a warning, as "identical"
-  does over a pair of pin captures whose pins never moved; and the faint amber
-  halo a moved mark's redrawn shadow leaves in Pixels.
+- **#29 — Explain the faint amber halo in Pixels.** The comparison controls,
+  view defaults, colour key and difference summary are settled. A moved mark's
+  redrawn shadow can still leave a faint amber halo in Pixels; establish whether
+  its classification helps the reader distinguish movement from recolouring.
 
 ### Recorded interaction review
 
@@ -480,6 +475,19 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and harness ideas
 
+- **Consider Redo and a Changes panel.** `z` reaches any gesture, names it and its
+  age, and shows one out of view or already picked up before taking it. Nothing puts
+  back what an undo took, and only the newest gesture is in `z`'s reach. Redo on `Z`
+  would be an `undo` naming the user's own undo in force: `taken_back` becomes a
+  parity fold over the chain, a restored gesture still reads at its log position (so
+  the door must refuse a redo that would paint nothing), readers following `undoes`
+  one level follow the chain, and a redo brings back its gesture's answer obligation.
+  A Changes panel would list the user's gestures with Undo each, served the `history`
+  reading past its 50-row `LIMIT`. The undo-reach note
+  (`git show fa3aad5e0:notes/undo-reach/README.md`) has the costs and the readers
+  each touches. Trigger: a user wants back what an undo took, or an older gesture
+  than the newest.
+
 - **Link filenames to their repository context.** When a page or thread knows the
   repository and revision, offer a GitHub source link for a filename such as
   `AGENTS.md` rather than treating it as a web domain. Establish how that context
@@ -503,6 +511,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
   and needs no second copy — the same SVG with its fill set — but only an icon whose
   outline is a closed shape fills cleanly. Trigger: a user misreads what a pin holds.
+- **Revisit the reaction tokens' meanings or glyphs if they confuse.** A reaction
+  shows only its glyph (👍, ❌, ✂️ …), in the margin and the picker, with its name in
+  the accessible label. Max rejected visible text labels on 23 October 2026 as too
+  heavy, so a fix changes which tokens `$reactions` declares or how each looks.
+  Trigger: a user misreads what a reaction says or picks the wrong one.
 - **#30 — Try a feed of ready-to-approve actions.** An agent pass prepares
   actions, such as a drafted email, and the user approves, edits, dismisses or
   discusses each. Every verb exists as an item; Leaf lacks an agent that runs
@@ -730,7 +743,7 @@ export` writes a file that boots the page's own runtime offline, and that file
   `elementById(id, root)` (`passages.js`): about 31 `elementById` and 9
   `getElementById` calls in the runtime and the package widgets' own lookups
   (`lf-board`, `lf-options-addition`). The lookups that arrive with no drawing
-  each need a rule: obligation standing, `m` walks, an anchor on an element in a
+  each need a rule: the current obligation, `m` walks, an anchor on an element in a
   reply, and the presentation regions keyed `widget:<id>:render`. A 2026-10-20
   trial of per-drawing copies without that broke all four (reverted within
   PR #3436). Revisit if seeing a question in the page and the panel at once is

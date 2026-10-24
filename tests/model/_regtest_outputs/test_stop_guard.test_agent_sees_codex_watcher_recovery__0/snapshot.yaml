@@ -4,7 +4,7 @@ no adapter:
   decision: block
   reason: |-
     Leaf needs attention:
-    - <page>: no delivery adapter. Start `leaf codex start <page>` so this turn can finish and later updates start new turns; or run `leaf status <page> idle` if the page is done.
+    - <page>: no delivery adapter. Start `leaf page claim <page>` so this turn can finish and later updates start new turns; or run `leaf page close <page>` if the page is done.
 
 direct wait still running:
   decision: block

@@ -19,10 +19,10 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     post_event,
     resized,
     round_trip,
-    stamp_page,
     told,
 )
 
@@ -31,7 +31,7 @@ from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-ON_ME = '.lf-fp-view[data-view="queue"]:not([data-leaving])'
+ON_ME = panel_view("queue")
 
 
 def open_on_me(page):
@@ -232,8 +232,10 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
 
     page.evaluate(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfCheckApi();
+          const {readApplicationPresentation, presentDocument} =
+            await window.__lfCheckApi();
           window.__lfReadObligationPresentation = readApplicationPresentation;
+          window.__lfPresentDocument = presentDocument;
           const cards = [...document.querySelectorAll(
             '.lf-fp-view[data-view="queue"] .lf-fp-on-item')];
           window.__lfObligationCards = new Map(cards.map(card => [card.dataset.key, card]));
@@ -241,7 +243,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
           document.querySelector('#live-question-decision').before(honored);
           window.__lfObligationCards.get('["widget","widget:sug-refill"]')
             .querySelector('.lf-fp-on-line').focus();
-          document.dispatchEvent(new Event('lf-presentation'));
+          await presentDocument();
         }"""
     )
     page.wait_for_function("__lfReadObligationPresentation().pending.length === 0")
@@ -256,9 +258,9 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
     # keyed card stays, focus with it, and takes the walk's place for an item with no
     # place on the page, after the rest of the list.
     page.evaluate(
-        """() => {
+        """async () => {
           document.querySelector('#sug-refill').remove();
-          document.dispatchEvent(new Event('lf-presentation'));
+          await window.__lfPresentDocument();
         }"""
     )
     page.wait_for_function("__lfReadObligationPresentation().pending.length === 0")
@@ -382,21 +384,15 @@ def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
     browser, serve
 ):
     """Every On me card whose item has somewhere to go offers Show, a question answered
-    on its card included, and Show puts the user where `m` puts them. The version's
-    approval is answered on its own card, so that card offers none."""
-    signed = CHANGE_SHAPES_PAGE.replace(
-        "</head>", '<meta name="lf-review" content="sign-off"></head>'
-    )
-    url = serve(signed)
-    stamp_page(serve.page_dir, signed, "Ready for sign-off")
+    on its card included, and Show puts the user where `m` puts them."""
+    url = serve(CHANGE_SHAPES_PAGE)
     page = open_page(browser, url)
     resized(page, 1440, 900)
-    # Where `m` arrives at the question: the fourth stop in page order, before the
-    # approval, which has no place on the page.
+    # Where `m` arrives at the question: the fourth stop in page order.
     page.locator("#title").click()
     for _ in range(4):
         page.keyboard.press("m")
-    expect_walk_position(page, "4 of 5 waiting on me · Options")
+    expect_walk_position(page, "4 of 4 waiting on me · Options")
     landed = page.evaluate("() => document.activeElement.id")
     page.locator("#title").click()
 
@@ -407,9 +403,6 @@ def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
 
     for at in ("sug-rewrite", "sug-insert", "sug-delete", "shapes-q"):
         expect(show(opened(on_card(page, f"widget:{at}")))).to_have_count(1)
-    approval = page.locator(f"{ON_ME} .lf-fp-on-item[data-approval]")
-    expect(approval).to_have_count(1)
-    expect(show(opened(approval))).to_have_count(0)
 
     show(opened(on_card(page, "widget:shapes-q"))).click()
     expect(page.locator(f"#{landed}")).to_be_focused()

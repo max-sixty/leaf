@@ -78,7 +78,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf.registry.contract import RANK, detail_schema
+from leaf.registry.contract import DECLARED_WORDS, RANK, detail_schema
 from leaf.registry.schema import schema_error
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
@@ -112,7 +112,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
     )
     publishing_model.cmd_stamp(page_dir, "Original")
     previous = publishing_model.authored_files(page_dir / "index.html", authored)
-    expected = publishing_model.authored_digest(previous)
+    expected = state_json(page_dir)["source"]["digest"]
     first = files_model.latest_revision(page_dir)
     log = (page_dir / "events.jsonl").read_bytes()
     candidate = tmp_path / "candidate"
@@ -172,6 +172,91 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
         )
 
 
+def test_page_state_digest_guards_the_complete_authored_tree(page_dir, tmp_path):
+    """CLI authors can publish a candidate without overwriting another file edit."""
+    initial = state_json(page_dir)["source"]["digest"]
+    companion = page_dir / "page" / "nested" / "notes.txt"
+    companion.parent.mkdir(parents=True, exist_ok=True)
+    companion.write_text("Original notes")
+    added = state_json(page_dir)["source"]["digest"]
+    assert added != initial
+
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    shutil.copy2(page_dir / "index.html", candidate / "index.html")
+    shutil.copytree(page_dir / "page", candidate / "page")
+    source = candidate / "index.html"
+    source.write_text(
+        source.read_text().replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
+    )
+    command = [
+        "page",
+        "stamp",
+        str(page_dir),
+        "--from-directory",
+        str(candidate),
+        "--if-source",
+        added,
+        "--text",
+        "Updated plan",
+    ]
+
+    companion.write_text("Another author's notes")
+    edited = state_json(page_dir)["source"]["digest"]
+    assert edited not in {initial, added}
+    refused = CliRunner().invoke(cli_model.cli, command)
+    assert refused.exit_code != 0 and "authored inputs changed" in refused.output
+    assert companion.read_text() == "Another author's notes"
+
+    companion.unlink()
+    deleted = state_json(page_dir)["source"]["digest"]
+    assert deleted == initial
+    refused = CliRunner().invoke(cli_model.cli, command)
+    assert refused.exit_code != 0 and "authored inputs changed" in refused.output
+    assert not companion.exists()
+
+    (candidate / "page" / "nested" / "notes.txt").unlink()
+    command[command.index("--if-source") + 1] = deleted
+    stamped = CliRunner().invoke(cli_model.cli, command)
+    assert stamped.exit_code == 0, stamped.output
+    assert "Updated plan" in (page_dir / "index.html").read_text()
+    assert state_json(page_dir)["source"]["digest"] != deleted
+
+
+@pytest.mark.parametrize("invalid_source", [b"", None])
+def test_page_state_digest_can_repair_invalid_or_missing_source(
+    page_dir, tmp_path, invalid_source
+):
+    source = page_dir / "index.html"
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    shutil.copy2(source, candidate / "index.html")
+    valid = state_json(page_dir)["source"]["digest"]
+    if invalid_source is None:
+        source.unlink()
+    else:
+        source.write_bytes(invalid_source)
+    invalid = state_json(page_dir)["source"]
+    assert invalid["error"] and not invalid["live"]
+    assert invalid["digest"] != valid
+    repaired = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "stamp",
+            str(page_dir),
+            "--from-directory",
+            str(candidate),
+            "--if-source",
+            invalid["digest"],
+            "--text",
+            "Repaired source",
+        ],
+    )
+    assert repaired.exit_code == 0, repaired.output
+    assert state_json(page_dir)["source"]["digest"] == valid
+
+
 def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     authored = page_dir / "page"
     (authored / "nested").mkdir(parents=True)
@@ -205,18 +290,22 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert {
         "/page/app.js",
         "/page/nested/value.js",
-        "/runtime/widget-api.js",
         "/page/value.js",
         "/page/style.css",
         "/page/nested/theme.css",
         "/page/image.svg",
     } <= artifact.resources.keys()
+    # The public module app.js imports is the runtime's, which the delivering Leaf
+    # supplies, so the revision holds none of it.
+    assert "/runtime/widget-api.js" not in artifact.resources
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
     assert artifact.registry == read_page_registry(page_dir).registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
-    assert "/vendor/browser-runtime.LICENSES.txt" in artifact.resources
+    # The vendored layer is captured whole; the runtime is the delivering Leaf's.
+    assert "/vendor/plot.LICENSES.txt" in artifact.resources
+    assert "/leaf.js" not in artifact.resources
     assert artifact_model.read_artifact(page_dir, first.revision) is artifact
     unchanged = revisioning_model.activate_source(page_dir)
     assert not unchanged.created and unchanged.revision == first.revision
@@ -229,17 +318,20 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert changed.digest != artifact.digest
     assert changed.resources["/page/value.js"].data == b"export const value = 2;"
     files_model.replace_files(
-        [(page_dir / "leaf.js", b"// replacement runtime", False)]
+        [(page_dir / "vendor" / "plot.esm.js", b"// replacement module", False)]
     )
     third = revisioning_model.activate_source(page_dir)
     assert third.error is None, third.error
     assert third.created and third.revision == second.revision + 1
     replaced = artifact_model.read_artifact(page_dir, third.revision)
-    assert replaced.resources["/leaf.js"].data == b"// replacement runtime"
+    assert replaced.resources["/vendor/plot.esm.js"].data == b"// replacement module"
     assert replaced.digest != changed.digest
     historical = artifact_model.read_artifact(page_dir, first.revision)
     assert historical.resources["/page/value.js"].data == b"export const value = 1;"
-    assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
+    assert (
+        historical.resources["/vendor/plot.esm.js"].data
+        == artifact.resources["/vendor/plot.esm.js"].data
+    )
 
 
 def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_dir):
@@ -251,7 +343,7 @@ def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_di
         files_model.revision_path(page_dir, first.revision).with_suffix("")
         / "resources"
     )
-    for layer_file in ("leaf.js", "theme.css", "runtime/layer-generation.js"):
+    for layer_file in ("theme.css", "vendor/plot.esm.js", "widgets/lf-options.js"):
         assert (captured / layer_file).stat().st_ino != (
             page_dir / layer_file
         ).stat().st_ino, layer_file
@@ -386,6 +478,13 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "./missing.js";', "dependency-unreadable"),
         ('import "ftp://outside.example/module.js";', "dependency-not-local"),
         ('import "../../outside.js";', "module-outside-page"),
+        ('import "./%2e%2e/%2e%2e/outside.js";', "module-outside-page"),
+        ('import "%2Foutside.js";', "module-not-local"),
+        ('import "page/app.js";', "module-not-local"),
+        ('import " ./app.js";', "module-not-local"),
+        ('import "/page/%2e%2e/outside.js";', "module-outside-page"),
+        ('import "./data.json?variant";', "dependency-not-local"),
+        ('import "./data.json#variant";', "dependency-not-local"),
         ('import "/runtime/events.js";', "module-outside-page"),
         ('import "/vendor/lit.js";', "module-outside-page"),
         ('import "./data.json";', "module-type"),
@@ -1144,33 +1243,11 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     stored.write_text(json.dumps({**publication, "value": ["passing", 3]}))
     [error] = state_json(page_dir)["data"]["errors"]
     assert "builds" in error
-
-
-def test_page_check_and_state_name_a_source_at_an_unreadable_format(page_dir):
-    declare_data_input(
-        page_dir, "builds", {"type": "array", "items": {"type": "string"}}
-    )
-    data_model.cmd_data_set(page_dir, "builds", ["passing"])
-    stored = data_model.source_file(page_dir, "builds")
-    publication = json.loads(stored.read_text())
-    old_format = "leaf-data-source/15"
-    stored.write_text(json.dumps({**publication, "format": old_format}))
-
-    state = state_json(page_dir)
-    assert "builds" in state["data_bindings"]
-    [error] = state["data"]["errors"]
-    assert "data/builds.json" in error
-    assert old_format in error
-    assert data_model.PUBLICATION.format in error
     _, findings = check_findings(page_dir)
     assert any(
         finding.code == "unreadable-data" and error in str(finding)
         for finding in findings
     )
-
-    data_model.cmd_data_set(page_dir, "builds", ["replaced"])
-    assert state_json(page_dir)["data"]["errors"] == []
-    assert not found(check_findings(page_dir)[1], "unreadable-data")
 
 
 def test_sample_templates_bind_the_parents_producer_sources(page_dir):
@@ -1333,7 +1410,9 @@ def test_check_rejects_widget_violations(page_dir):
     # any non-void tag, not only on the vocabulary's.
     assert [f.at for f in found(findings, "self-closing")] == ["<lf-gloss>", "<figure>"]
     assert found(findings, "unknown-widget", "<lf-bogus>")
-    assert found(findings, "unknown-word", "<lf-column>", attr="tone", value="medium")
+    assert found(
+        findings, "attribute-schema", "<lf-column>", keyword="enum", path=["tone"]
+    )
     assert found(findings, "not-member", "<lf-option>", owners=["lf-options"])
     assert found(findings, "attribute-schema", "<lf-option>", keyword="required")
     assert found(
@@ -1362,9 +1441,10 @@ def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
     )
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert [(f.at, f.values["value"]) for f in found(findings, "unknown-word")] == [
-        ("<lf-code>", "pythn")
-    ]
+    assert [
+        (f.at, f.values["path"])
+        for f in found(findings, "attribute-schema", keyword="enum")
+    ] == [("<lf-code>", ["language"])]
 
 
 def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
@@ -1385,12 +1465,7 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     status, findings = check_findings(page_dir)
     assert status == 1
     assert found(
-        findings,
-        "unknown-word",
-        "<lf-gloss>",
-        attr="dialect",
-        value="lisp",
-        declares="x-language",
+        findings, "attribute-schema", "<lf-gloss>", keyword="enum", path=["dialect"]
     )
 
 
@@ -1420,7 +1495,9 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         for sample in document.samples:
             read(sample["document"])
 
-    for path in (Path(__file__).parents[2] / "examples").glob("*.html"):
+    from leaf_dev.commands.corpus import sources
+
+    for path in sources():
         read(structure_model.SourceDocument(path.read_text()))
     missing = []
     for tag, entry in sorted(registry.items()):
@@ -1430,9 +1507,12 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
             if attr in {"restated", "overruled", "resolves"}:
                 continue
             seen = used.get(tag, {}).get(attr)
+            # A declared word's enum is the layer's list, stamped in
+            # (`registry.contract.stamp_words`), not values the widget draws apart.
+            declared = {entry.get(key) for key, _ in DECLARED_WORDS}
             if seen is None:
                 missing.append(f"{tag}[{attr}]")
-            else:
+            elif attr not in declared:
                 missing.extend(
                     f'{tag}[{attr}="{value}"]'
                     for value in spec.get("enum", [])
@@ -1545,7 +1625,9 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_di
     )
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert found(findings, "unknown-word", "<lf-code>", value="python", known=[])
+    assert found(
+        findings, "attribute-schema", "<lf-code>", keyword="enum", path=["language"]
+    )
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
@@ -1699,7 +1781,7 @@ def test_reply_refuses_a_suggestion(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1735,7 +1817,7 @@ def test_response_addresses_one_obligation_and_activates_the_current_source(page
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -1789,7 +1871,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -1835,7 +1917,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", "--text", "Updated."],
+        ["thread", "reply", "--done", "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
     assert "Missing argument" in ambiguous.output
@@ -1844,7 +1926,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
     selected = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c2"),
@@ -1887,7 +1969,7 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
     )
 
     [refused] = command_findings(
-        "response", "reply", "--done", reference, "--text", "Made it blue."
+        "thread", "reply", "--done", reference, "--text", "Made it blue."
     )
     assert refused.code == "superseded-reply"
     assert not any(
@@ -1918,7 +2000,7 @@ def test_response_belongs_to_the_session_with_the_opened_delivery(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "Updated."],
+        ["thread", "reply", "--done", reference, "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -1944,7 +2026,7 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
@@ -2042,7 +2124,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             reference,
@@ -2449,11 +2531,11 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     ]
     assert state["active"]["revision"] == 1 and state["active"]["version"] == 1
     assert state["active"]["file"].startswith("revisions/r1-")
-    assert state["source"] == {
+    assert {
         "file": "index.html",
         "live": True,
         "error": None,
-    }
+    }.items() <= state["source"].items()
     assert state["data"] == {"dir": "data", "errors": []}
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The obligation

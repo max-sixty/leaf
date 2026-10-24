@@ -13,6 +13,7 @@ in a `main` module runs nowhere near the change that breaks it.
 
 import json
 import os
+import re
 import shlex
 import shutil
 import socket
@@ -374,10 +375,12 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
             return fetch(urlsplit(url)._replace(path=path).geturl(), token=None)
 
         def resource(revision):
+            # Beneath the runtime the preview's server runs, which its document names.
+            document = at("/")[1].decode()
+            runtime = re.search(r'data-lf-runtime-identity="([0-9a-f]+)"', document)[1]
             return (
-                "/revisions/"
-                + revision_path(page, revision).stem
-                + "/page/widgets/lf-reading.js"
+                f"/revisions/{revision_path(page, revision).stem}/{runtime}"
+                "/page/widgets/lf-reading.js"
             )
 
         first = latest_revision(page)
@@ -831,7 +834,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             comment["answer"]["ref"],

@@ -46,7 +46,6 @@ from .state import (
     json_bytes,
     now_iso,
     object_schema,
-    stored_record,
 )
 
 PUBLICATION = Record(
@@ -212,19 +211,6 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
         if registry is not None
         else {}
     )
-    unreadable = {}
-    for source, reading in readings.items():
-        if reading is not None:
-            continue
-        # A file at another format is not a publication this Leaf can read. Keep
-        # its value absent while making the skipped file visible to the author.
-        record = stored_record(source_file(page_dir, source))
-        if record is not None and record.get("format") != PUBLICATION.format:
-            unreadable[source] = (
-                f"data/{source}.json has format {record.get('format')!r}; "
-                f"this Leaf reads {PUBLICATION.format}. Set it again with "
-                "`leaf data set`."
-            )
     sources = {
         source: reading for source, reading in readings.items() if reading is not None
     }
@@ -243,19 +229,13 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
     return {
         "version": hashlib.sha256(identity.encode()).hexdigest()[:16],
         "sources": sources,
-        "unreadable": unreadable,
     }
 
 
 def data_errors(stored: dict) -> list[str]:
-    """Why a source's file or value cannot be read."""
+    """Why a published source's value fails its current contract."""
     return [
-        *stored["unreadable"].values(),
-        *(
-            reading["error"]
-            for reading in stored["sources"].values()
-            if "error" in reading
-        ),
+        reading["error"] for reading in stored["sources"].values() if "error" in reading
     ]
 
 

@@ -5,7 +5,11 @@ from pathlib import Path
 
 from .schema import RENDER_CHECKS_DIR
 
-RENDER_VIEWPORT = {"width": 1200, "height": 900}
+# The fixed desktop window, sized as a laptop's, since many readers get a window about
+# 540-730px tall. The suite reads pages here, and so does `page check --render` where
+# the user's own window is unknown or the caller pins this one
+# (`render_gate.command.desktop_viewport`).
+RENDER_VIEWPORT = {"width": 1280, "height": 720}
 
 # The bound on one probe or request, sized for an oversubscribed host rather than an idle
 # one: it separates a wedged preview, which it turns into a useful failure rather than
@@ -79,13 +83,6 @@ def _ensure_driver(page) -> None:
         page.evaluate(DRIVER_SOURCE.read_text(encoding="utf-8"))
 
 
-class ProbesUnlinked(Exception):
-    """The probe modules failed to load with a `SyntaxError`: how a module importing a
-    name the page's runtime lacks fails to link, as on a page another Leaf vendored,
-    and how malformed probe code fails too. Its message is the browser's reason, which
-    tells the two apart (`render-checks/driver.js`)."""
-
-
 def _load_probes(page, timeout_ms: int) -> None:
     """Start the module load and observe its result from a bounded driver wait.
 
@@ -111,8 +108,6 @@ def _load_probes(page, timeout_ms: int) -> None:
                 f"Leaf browser probes did not load from {PROBE_ROUTE} "
                 f"within {timeout_ms}ms"
             ) from error
-    if isinstance(loaded, dict):
-        raise ProbesUnlinked(loaded["unlinked"])
 
 
 def evaluate_probe(page, name: str, *args):

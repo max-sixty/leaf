@@ -802,7 +802,13 @@ ROUTE_ANSWERS = {
     r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
     r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
     r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),
-    r"/api/files/[^/]+": ("FileSnapshot", "null", "StaleFile", "Refusal"),
+    r"/api/files/[^/]+": (
+        "FileSnapshot",
+        "null",
+        "StaleFile",
+        "Refusal",
+        "LayerAnswer",
+    ),
 }
 
 
@@ -830,7 +836,7 @@ def served_thread(browser: dict) -> dict:
 def served_obligations(browser: dict, *, page: bool = False) -> dict:
     """The obligation records the one view `browser` serves for what the page asks, by
     the selections `obligations.collection` makes: the frozen threads' obligations, or
-    with `page` the document's and its sign-off. The records the user's updates publish
+    with `page` the document's obligations. The records the user's updates publish
     are `served_updates`."""
     [view] = browser["views"].values()
     return collection(
@@ -1212,7 +1218,7 @@ def activity_reading(page_dir, now: str | None = None) -> dict:
 
 def owed_answers(page_dir):
     """The answers the page's agent owes (`activity.obligations`), as the hooks and
-    `leaf status idle` read them: each the workflow of the input its record names, with
+    `leaf page close` read them: each the workflow of the input its record names, with
     the record's id as `obligation` and the owed `answer`."""
     from leaf.served_state.context import read_page
 
@@ -1772,12 +1778,8 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     return server_model.page_url("127.0.0.1", port, server_model.host_key())
 
 
-def _status(page_dir, *args):
-    return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), *args])
-
-
 def declare_idle(page_dir):
-    """Write the page's `idle` declaration directly, past `leaf status idle`'s refusal
+    """Write the page's `idle` declaration directly, past `leaf page close`'s refusal
     over unanswered moves, for a test whose subject is what an idle page does."""
     with service_model.PageTransaction(page_dir) as page:
         return page.set_status("idle", "")
@@ -1800,7 +1802,7 @@ def declare(page_dir, state="waiting", detail="", *, ts=None, **voice):
     """Seed the agent's declaration as the log holds it, a `status` event, for a test
     of how a page reads it: `state` with `detail`, dated `ts` (now by default) and
     spoken in `voice` (`agent`, `session`). Raw, so a test can date it in the past;
-    `leaf status` is the command an agent runs."""
+    `leaf page open` is the command an agent runs."""
     return append_carried_log_record(
         page_dir,
         {
@@ -2550,8 +2552,8 @@ def consume_pending_input(session_id):
 def claim_and_wait_command(page: Path) -> str:
     """Explicit ownership handoff followed by its ordinary observing wait."""
     return (
-        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)])
-        + " && "
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page), "--manual-delivery"])
+        + " >/dev/null && "
         + shlex.join([*LEAF_COMMAND, "wait", str(page)])
     )
 

@@ -1,4 +1,8 @@
 (() => {
+  // browser/runtime/motion-icon-paths.js
+  var PLAY = '<path d="m5 3 7 5-7 5z"/>';
+  var PAUSE = '<path d="M5 3v10M11 3v10"/>';
+
   // packages/motion/initial/lf-motion.js
   document.documentElement.lfInitial.register(
     "lf-motion",
@@ -10,11 +14,25 @@
       controls.setAttribute("role", "group");
       controls.setAttribute("aria-label", host.getAttribute("aria-label"));
       const play = offer("button", "lf-btn lf-motion-play");
-      const room = offer("span", "");
-      room.dataset.lfRoom = "Play\nPause\nReplay\nShow end";
-      const playLabel = offer("span", "", "Play");
-      room.append(playLabel);
-      play.append(room);
+      const symbol = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      symbol.setAttribute("viewBox", "0 0 16 16");
+      symbol.setAttribute("aria-hidden", "true");
+      symbol.setAttribute("focusable", "false");
+      play.append(symbol);
+      let lastLabel;
+      let lastPlaying;
+      const paintPlay = (label, playing) => {
+        if (label !== lastLabel) {
+          play.setAttribute("aria-label", label);
+          play.title = label;
+          lastLabel = label;
+        }
+        if (playing !== lastPlaying) {
+          symbol.innerHTML = playing ? PAUSE : PLAY;
+          lastPlaying = playing;
+        }
+      };
+      paintPlay("Play", false);
       const time = offer("input", "lf-motion-time", null, "range");
       time.name = "time";
       time.min = "0";
@@ -39,8 +57,11 @@
       speed.value = String(saved.rate);
       speedLabel.append(speed);
       controls.append(play, time, clock, speedLabel);
-      host.append(controls);
-      return { controls, play, playLabel, time, clock, speed };
+      const body = document.createElement("div");
+      body.className = "lf-motion-body";
+      body.append(...host.childNodes);
+      host.append(controls, body);
+      return { controls, play, paintPlay, time, clock, speed };
     }
   );
 })();

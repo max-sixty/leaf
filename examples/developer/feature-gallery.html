@@ -6,7 +6,6 @@
       name="description"
       content="Leaf's core page vocabulary on one synthetic page, with live examples and its core interactions to try in live samples."
     />
-    <meta name="lf-review" content="sign-off" />
     <style>
       @import url("/page/theme.css");
 
@@ -91,6 +90,13 @@
 
       #bg-metrics {
         margin-block: var(--sp-4);
+      }
+
+      #bg-feedback-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--sp-2);
       }
 
       #bg-charts > * {
@@ -209,6 +215,25 @@
         }
       ]
     </script>
+    <script id="bg-message-obligation-history" type="application/json">
+      [
+        {
+          "id": "bg-message-request",
+          "kind": "comment",
+          "author": "agent",
+          "text": "Which environment should I use for the rehearsal?",
+          "obligation": true
+        },
+        {
+          "id": "bg-message-task",
+          "kind": "todo",
+          "author": "agent",
+          "owner": "user",
+          "subject": { "kind": "thread", "id": "bg-message-request" },
+          "title": "Try the rehearsal build on your phone"
+        }
+      ]
+    </script>
     <script id="bg-window-history" type="application/json">
       [
         {
@@ -240,8 +265,76 @@
       import {
         afterPresentation,
         commands,
+        connection,
+        generate,
+        keepsText,
+        once,
+        PAGE_INTERFACE,
+        quoted,
         readObligations,
+        whileConnected,
       } from "/runtime/widget-api.js";
+
+      document.addEventListener(PAGE_INTERFACE, () => {
+        const section = document.querySelector("#bg-http");
+        if (!section || quoted(section) || !once(section)) return;
+        const button = section.querySelector("button");
+        const output = section.querySelector("[role=status]");
+        whileConnected(section, (signal) => {
+          button.addEventListener(
+            "click",
+            async () => {
+              button.disabled = true;
+              keepsText(output, "Reading…");
+              try {
+                const response = await connection("example").fetch("/items");
+                keepsText(
+                  output,
+                  `HTTP ${response.status}: ${response.body.slice(0, 500)}`,
+                );
+              } catch (error) {
+                keepsText(output, error.message);
+              } finally {
+                button.disabled = false;
+              }
+            },
+            { signal },
+          );
+        });
+      });
+
+      document.addEventListener(PAGE_INTERFACE, () => {
+        const section = document.querySelector("#bg-llm");
+        if (!section || quoted(section) || !once(section)) return;
+        const button = section.querySelector("button");
+        const output = section.querySelector("[role=status]");
+        whileConnected(section, (signal) => {
+          button.addEventListener(
+            "click",
+            async () => {
+              button.disabled = true;
+              keepsText(output, "Generating…");
+              try {
+                const result = await generate({
+                  input: "Write a five-word headline: A library now opens on Sundays.",
+                  schema: {
+                    type: "object",
+                    properties: { headline: { type: "string" } },
+                    required: ["headline"],
+                    additionalProperties: false,
+                  },
+                });
+                keepsText(output, `${result.value.headline} (${result.model})`);
+              } catch (error) {
+                keepsText(output, error.message);
+              } finally {
+                button.disabled = false;
+              }
+            },
+            { signal },
+          );
+        });
+      });
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
         const item = readObligations().all.find((q) => q.id === "widget:bg-choice");
@@ -249,6 +342,22 @@
         output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;
       });
+
+      const feedback = document.querySelector("#bg-changing-text");
+      if (once(feedback))
+        whileConnected(feedback, (signal) => {
+          const output = feedback.querySelector("[role=status] > span");
+          const messages = output.parentElement.dataset.room.split("\n");
+          let current = 0;
+          feedback.querySelector("button").addEventListener(
+            "click",
+            () => {
+              current = (current + 1) % messages.length;
+              keepsText(output, messages[current]);
+            },
+            { signal },
+          );
+        });
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
@@ -391,9 +500,8 @@
                 goes where <kbd>m</kbd> would.
               </li>
               <li>
-                On a stamped page that asks for sign-off, find the version approval
-                among the obligations: its row in On me holds the Approve control,
-                approving answers it, and Undo reopens it.
+                Find the sample picnic approval among the obligations. Its row takes you
+                to the request, where Approve answers it and Undo approval reopens it.
               </li>
               <li>
                 Comment on the map question, then press <kbd>m</kbd> until it lands
@@ -511,6 +619,23 @@
             </p>
           </section>
 
+          <section id="bg-changing-text">
+            <h2>Changing text keeps its space</h2>
+            <p>
+              Cycle the short status messages. The following text stays in place because
+              <code>data-room</code> reserves their width from first paint.
+            </p>
+            <p id="bg-feedback-row">
+              <button class="button" type="button">Next status</button>
+              <span
+                role="status"
+                data-room="Ready&#10;Working…&#10;Finished. Run again."
+                ><span>Ready</span></span
+              >
+              <span>Following text</span>
+            </p>
+          </section>
+
           <section id="bg-changes">
             <p class="eyebrow bg-feature-elements">lf-suggestion · lf-old · lf-new</p>
             <h2>
@@ -598,14 +723,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </h2>
             <p id="bg-reactions-guide">
               Each reaction reaches the agent as feedback on a passage or a reply. The
-              comment field keeps one primary action, Dictate when available or Send, so
-              Suggest and the reactions have no mouse or touch opener there; an agent
-              reply has its own corner control for them.
+              comment field keeps Dictate or Send beside its text. Other responses opens
+              a picker for Suggest and reactions without moving the field; an agent
+              reply has its own corner control for reactions.
             </p>
             <ul id="bg-reactions-steps">
               <li>
-                Select words below and press <kbd>E</kbd>, or focus the comment field
-                and press <kbd>Tab</kbd>: Suggest and the reactions appear.
+                Select words below and press Other responses, press <kbd>E</kbd>, or
+                focus the comment field and press <kbd>Tab</kbd>: the same picker opens.
+                Press Escape to close it and return to the field.
               </li>
               <li>
                 Press and hold a reaction: its word shows. Slide to another to read that
@@ -647,7 +773,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-readings-guide">
               The meeting point is decided. Open <strong>Settled: At reception</strong>
               to inspect the alternatives, then close it. The spacious cards return to
-              one disclosure line, leaving no empty card space before Sign-off.
+              one disclosure line, leaving no empty card space before Approval.
             </p>
             <lf-ask id="bg-outcome-ask">
               <h3>Where should the sample group meet?</h3>
@@ -669,16 +795,20 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </h2>
 
             <section id="bg-signoff">
-              <h3>
-                <strong>Sign-off</strong
-                ><span class="bg-feature-detail">: approve a version</span>
-              </h3>
+              <p class="eyebrow bg-feature-elements">lf-approval</p>
+              <h3>Approval of a stated action</h3>
               <p id="bg-signoff-guide">
-                This gallery deliberately leaves sample obligations unanswered, so
-                <strong>Approve version</strong> remains unavailable. On a settled page
-                it records approval for the current version; <kbd>z</kbd>, or “Undo” in
-                the leaf's menu, takes that approval back.
+                Press Approve on the sample request, then Undo approval to reopen it.
+                Other questions can stay unanswered. The request keeps its approval
+                through unrelated page edits until its author explicitly restates it.
               </p>
+              <lf-approval id="bg-picnic-approval">
+                <h4>Book the covered picnic shelter?</h4>
+                <p>
+                  Reserve the park's covered shelter for the sample group's Saturday
+                  lunch.
+                </p>
+              </lf-approval>
             </section>
 
             <section id="bg-page-comment-card">
@@ -1111,7 +1241,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <li>
                 Choose “Open”, “Unread”, “Drafts” or “Resolved” at the head of Threads
                 to narrow the list, each tab keeping its count, or search the threads'
-                words with the find button beside them.
+                words with the find button beside them. The panel’s main field changes
+                to “Search threads”; closing search brings back the unfinished comment.
               </li>
               <li>
                 Look at a row: its title leads, and a thread waiting on you says so.
@@ -1294,6 +1425,31 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 that thread: the editor stays closed until Reopen recovers the words.
               </li>
             </ul>
+            <section id="bg-message-obligations">
+              <h3>A message waiting on me</h3>
+              <p>
+                Open Full view, then On me, and reply to the environment question. The
+                question leaves On me; the phone test stays until you press Done. Both
+                entries open the same page thread. Reset restores the question and task.
+              </p>
+              <lf-sample
+                id="bg-message-obligation-sample"
+                label="Message and task obligations"
+                window
+              >
+                <template
+                  id="bg-message-obligation-page"
+                  data-sample
+                  data-sample-events="bg-message-obligation-history"
+                >
+                  <h1>Rehearsal handoff</h1>
+                  <p>
+                    The build is ready. The page thread holds the environment question
+                    and the phone test.
+                  </p>
+                </template>
+              </lf-sample>
+            </section>
             <p id="bg-new-thread">
               <strong>A clean passage.</strong> Select some of these words, or
               <kbd>Alt</kbd>-click this paragraph, to start a comment. Type into the
@@ -1382,8 +1538,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               begin a line with <code>#</code> or <code>&gt;</code>: the words take
               their style and the syntax steps aside until the caret enters it, so every
               character stays in reach. <kbd>Shift+Enter</kbd> starts a line and
-              continues a list or quote, and <kbd>Mod+Z</kbd> undoes only what you
-              typed. The message sends exactly what you typed.
+              continues a list or quote. Type <code>- First</code> and press
+              <kbd>Shift+Enter</kbd>: the empty next item already shows a bullet. Move
+              left into its marker to reveal and edit the Markdown source.
+              <kbd>Mod+Z</kbd> undoes only what you typed. The message sends exactly
+              what you typed.
             </p>
           </section>
 
@@ -2894,47 +3053,26 @@ gallery/
                 </audio>
               </section>
               <p id="bg-shot-guide">
-                Sample labels invented content. Choose “Before” or “After” above the
-                image, or press the Shot control or image to flip. The selected label is
-                red for Before and green for After; a split colors both labels without
-                selecting either. Scroll through a tall pair: the Before/After rail
-                stays at the top of the view until the pair ends, below any page tabs.
-                This pair carries
-                <code>outlines</code>, so outlines mark each region where the two images
-                differ, on both sides of the divider. The rail offers three views:
-                Plain, Outlines, and Pixels. Outlines starts selected; Plain hides the
-                outlines, while Pixels shows the after image greyed with every changed
-                pixel painted over it: red where only Before drew something, blue where
-                only After did, and amber where both did. Use the arrow keys to select a
-                view, or choose it directly. Hover or focus Outlines to read the changed
-                and moved counts, or hold it on a phone. Slide off before releasing to
-                leave the current view selected. Clicking the pixel picture returns to
-                the previous comparison view with its divider preserved.
+                Sample labels invented content. Slider starts the comparison; drag its
+                divider to compare the same location. Choose Pair to see both run lists
+                at the same scale, and click either image to open its original. Resize
+                the window to inspect the paired layout. Pixels shows the changed
+                pixels; the … menu holds its color key and the scale choices. Outline
+                marks regions in Pair and Slider. Compare Fit with 100%: scrolling
+                either image in Pair at 100% moves both to the same location. In Slider,
+                a fully hidden image's label loses its shading. Outline preserves the
+                image's colors inside each border. The controls stay in place across
+                views and scales. Tab reaches each control.
               </p>
               <lf-shot
                 id="bg-shot"
-                outlines
-                pixels
-                alt="a sample run list with and without a status column"
-                before="/media/051bee487bfb5d13.png"
-                after="/media/a99a1b63048502d0.png"
-              ></lf-shot>
-              <p id="bg-shot-plain-guide">
-                The same pair without <code>outlines</code> offers Plain and Pixels,
-                starting in Pixels, which shows what each image draws differently in one
-                picture. Selecting Pixels again keeps that view open. Choose Plain,
-                Before or After, or click the pixel picture, to see the comparison.
-              </p>
-              <lf-shot
-                id="bg-shot-plain"
-                pixels
                 alt="a sample run list with and without a status column"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/a99a1b63048502d0.png"
               ></lf-shot>
               <p id="bg-shot-same-guide">
-                This pair is one picture twice. With or without <code>outlines</code>,
-                the rail reads “identical”.
+                This pair is one picture twice. The comparison reports identical images
+                in every view.
               </p>
               <lf-shot
                 id="bg-shot-same"
@@ -3102,6 +3240,35 @@ switch --readers checkout-api,orders-api</code></pre>
         </lf-tab>
 
         <lf-tab id="bg-view-data" label="Data & work">
+          <section id="bg-http">
+            <h2>Authenticated HTTP</h2>
+            <p>
+              Read /items from the host's example connection. A host grants its HTTPS
+              origin and credential with leaf connection bind; this page has no grant by
+              default. Pressing Read reports the missing grant, or displays the upstream
+              status and text once connected. Each read consumes one request from its
+              allowance; the result is not saved.
+            </p>
+            <button id="bg-http-read" class="button" type="button">Read</button>
+            <p id="bg-http-result" role="status">No HTTP read requested.</p>
+            <p>
+              The <a href="/examples/github-discoveries/">GitHub discoveries page</a>
+              composes this capability with LLM generation. Its queries and editorial
+              logic belong to the page; its saved stories work without a connection.
+            </p>
+          </section>
+          <section id="bg-llm">
+            <h2>LLM generation</h2>
+            <p id="bg-llm-guide">
+              Press Generate to ask the host's model for a five-word headline about a
+              library opening on Sundays. The response appears below with the model's
+              name. A page without an active Codex, Claude Code or Pi claim reports that
+              a claim is required. Each press can incur model usage; the result is not
+              saved.
+            </p>
+            <button id="bg-llm-generate" class="button" type="button">Generate</button>
+            <p id="bg-llm-result" role="status">No generation requested.</p>
+          </section>
           <section id="bg-external-data">
             <p class="eyebrow bg-feature-elements">lf-text-document · lf-num</p>
             <h2>
@@ -3331,6 +3498,16 @@ switch --readers checkout-api,orders-api</code></pre>
           </section>
         </lf-tab>
       </lf-tabs>
+      <section id="bg-inline-sample-section">
+        <h2>Interactive sample on this page</h2>
+        <p>These choices use this page's state and Undo.</p>
+        <lf-sample id="bg-inline-sample" interactive label="Delivery choices">
+          <lf-options id="bg-delivery-choice" choose>
+            <lf-option id="bg-delivery-standard">Standard delivery</lf-option>
+            <lf-option id="bg-delivery-express">Express delivery</lf-option>
+          </lf-options>
+        </lf-sample>
+      </section>
     </main>
   </body>
 </html>

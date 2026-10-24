@@ -29,12 +29,13 @@
    contract; a later opening joins as a new layer rather than preserving a hidden entry.
    The platform spares the popovers a modal dialog stands in, reading that nesting from
    the tree where a popover's comes from its `source`. So a modal opened from a control
-   in a popover within the modal's home joins it for that opening (`showNativeLayer`'s
-   `source`), and the popover, with any draft written in it, still stands when the
-   modal closes; the dialog returns to its home as it closes, or as the popover does.
+   in a popover joins it for that opening (`showNativeLayer`'s `source`): runtime
+   chrome carries its styling scope when the popover is authored outside its home.
+   The popover, with any draft written in it, still stands when the modal closes;
+   the dialog returns to its home as it closes, or as the popover does.
    While a modal stands over an owner, the page beneath is inert, so no press then is
    one away from that owner (`nativeModalAdmits`).
-   An owner that reads where the user stands before its modal opens dismisses those same
+   An owner that reads where the user is before its modal opens dismisses those same
    popovers first (`dismissPopoversOutside`), so the reading finds the user already handed
    back from them.
 
@@ -70,6 +71,8 @@ import {
 import { move } from "../dom-move.js";
 import { renderedUnder } from "../shadow.js";
 import { isNativeLayer, nativeLayerHolding, nativeLayerKind } from "../shadow-tree.js";
+import { chromeSheet } from "../stylesheets.js";
+import { watchOwner } from "../arrivals.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -120,7 +123,7 @@ function pushNativeLayer(node, source = null) {
 // so the browser leaves focus on the hidden control it held until the next rendering
 // update drops it, and a key pressed in that frame was dispatched from a control the
 // user can no longer see. Closing such a popover lets go at once, as its opening found
-// the user: standing nowhere. A modal is still modal as it announces its close, with the
+// the user: having no current location. A modal is still modal as it announces its close, with the
 // page behind it inert, so a let-go there lands no one and only takes the body's stop
 // and gives it back; the modal's owner lands the user as it closes it (the Page Map's
 // cancellation returns to its opener or reading position; the command reference closes).
@@ -186,24 +189,55 @@ export function showNativeLayer(layer, { source, modal = true } = {}) {
   }
 }
 
-// A modal dialog stands in the popover holding the control it opened from, where that
-// popover stands within the dialog's home, so the dialog keeps the styles scoped to it,
-// and otherwise at its home: where it stood when first seated, which it returns to as it
-// closes.
+// Native modal entry preserves its source popover only when the modal stands inside
+// it. A runtime dialog can cross from chrome into an authored popover: carry its
+// private styling scope with it, and adopt the same sheet if that popover is in a
+// shadow tree. The source popover and its controls then survive under the modal,
+// without a second reopening or focus-return mechanism. Other dialogs keep the
+// styles of their own home, so only move within that home. A foreign seat can leave
+// with its widget or revision. Native removal keeps a dialog's open attribute and
+// emits no close event, so the shared connection lifetime closes and restores it.
 const modalHomes = new WeakMap();
 function seatModal(dialog, source) {
-  let home = modalHomes.get(dialog);
-  if (!home) {
-    modalHomes.set(dialog, (home = dialog.parentNode));
+  let place = modalHomes.get(dialog);
+  if (!place) {
+    place = {
+      home: dialog.parentNode,
+      chrome: Boolean(dialog.closest(".lf-chrome")),
+      scope: null,
+    };
+    modalHomes.set(dialog, place);
+    const restore = () => {
+      if (dialog.parentNode !== place.home) move(place.home, dialog);
+      place.scope?.remove();
+    };
     dialog.addEventListener("close", () => {
-      if (!dialog.open && dialog.parentNode !== home) move(home, dialog);
+      if (!dialog.open) restore();
+    });
+    watchOwner(dialog, {
+      disconnect() {
+        if (dialog.parentNode === place.home) return;
+        closeNativeLayer(dialog);
+        restore();
+      },
     });
   }
   const holder = nativeLayerHolding(source);
-  const seat =
-    nativeLayerKind(holder) === "popover" && renderedUnder(holder, home)
-      ? holder
-      : home;
+  let seat = place.home;
+  if (nativeLayerKind(holder) === "popover") {
+    if (renderedUnder(holder, place.home)) seat = holder;
+    else if (place.chrome) {
+      if (!place.scope) {
+        place.scope = document.createElement("div");
+        place.scope.className = "lf-chrome";
+      }
+      const root = holder.getRootNode();
+      if (root instanceof ShadowRoot && !root.adoptedStyleSheets.includes(chromeSheet))
+        root.adoptedStyleSheets = [...root.adoptedStyleSheets, chromeSheet];
+      if (place.scope.parentNode !== holder) move(holder, place.scope);
+      seat = place.scope;
+    }
+  }
   if (dialog.parentNode !== seat) move(seat, dialog);
 }
 
@@ -213,10 +247,12 @@ function seatModal(dialog, source) {
 export function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
   if (dialog ? !layer.open : !isNativeLayer(layer)) return;
-  const standing = focused();
+  const currentLocation = focused();
   const returnTo = entries.find((entry) => entry.root === layer)?.opener;
   const returnLocally =
-    document.documentElement.lfSample && standing && renderedUnder(standing, layer);
+    document.documentElement.lfSample &&
+    currentLocation &&
+    renderedUnder(currentLocation, layer);
   const inhibited = document.documentElement.lfSample
     ? [
         document.documentElement,

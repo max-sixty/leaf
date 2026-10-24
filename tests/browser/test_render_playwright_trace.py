@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
-from render_cases_layout import ring_faults, standing_ring
+from render_cases_layout import current_location_ring, ring_faults
 from render_harness import (
     at_rest,
     holding,
@@ -22,6 +22,32 @@ from leaf import data as data_model
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_trace_moments_keep_their_distinguishing_words_on_a_phone(browser, serve):
+    """The before/after result names differ at their ends, which must remain readable."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(
+        browser, serve(ROOT / "examples/review-a-fix.html"), context=context
+    )
+    for recording, label in [("before", "Before the fix"), ("after", "After the fix")]:
+        page.get_by_role("radio", name=label, exact=True).tap()
+        moment = page.locator(f"#fix-{recording} .lf-trace-bookmark").last
+        moment.scroll_into_view_if_needed()
+        measured = moment.evaluate("""row => {
+          const label = row.querySelector('.lf-trace-moment-label');
+          const box = row.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(label);
+          return {horizontal: label.scrollWidth - label.clientWidth,
+            words: [...range.getClientRects()].every(r =>
+              r.left >= box.left && r.right <= box.right &&
+              r.top >= box.top && r.bottom <= box.bottom)};
+        }""")
+        assert measured["horizontal"] <= 1, measured
+        assert measured["words"], measured
 
 
 def test_trace_bookmarks_leave_the_image_allocation(browser, serve):
@@ -477,6 +503,7 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
     expect(before.locator(".lf-trace-phase")).to_have_attribute(
         "data-lf-datum", targets[0]
     )
+    before.get_by_role("button", name="Image scale", exact=True).click()
     before.get_by_role("button", name="Actual size", exact=True).click()
     canvas = before.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
@@ -732,7 +759,18 @@ def test_trace_replaces_captures_without_blank_pixels_or_layout_displacement(
     raster = widget.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
     )
+    scale = widget.get_by_role("button", name="Image scale", exact=True)
+    expect(scale).to_have_text("Fit")
+    scale.focus()
+    scale.press("Enter")
+    expect(widget.get_by_role("button", name="Fit image", exact=True)).to_be_focused()
     widget.get_by_role("button", name="Actual size", exact=True).click()
+    expect(scale).to_have_text("100%")
+    expect(scale).to_be_focused()
+    scale.press("Enter")
+    expect(widget.get_by_role("button", name="Actual size", exact=True)).to_be_focused()
+    widget.get_by_role("button", name="Actual size", exact=True).press("Escape")
+    expect(scale).to_be_focused()
     canvas = widget.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
     )
@@ -1152,6 +1190,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         user.mouse.wheel(0, 300)
         user.wait_for_function("before => scrollY >= before + 250", arg=before_scroll)
         rendered(user)
+        widget.get_by_role("button", name="Image scale", exact=True).click()
         actual = widget.get_by_role("button", name="Actual size", exact=True)
         assert actual.evaluate("""button => {
           const r = button.getBoundingClientRect();
@@ -1206,7 +1245,18 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
       const r = node.getBoundingClientRect();
       return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === node;
     }""")
+    scale = widget.get_by_role("button", name="Image scale", exact=True)
+    expect(scale).to_have_text("Fit")
+    scale.focus()
+    scale.press("Enter")
+    expect(widget.get_by_role("button", name="Fit image", exact=True)).to_be_focused()
     widget.get_by_role("button", name="Actual size", exact=True).click()
+    expect(scale).to_have_text("100%")
+    expect(scale).to_be_focused()
+    scale.press("Enter")
+    expect(widget.get_by_role("button", name="Actual size", exact=True)).to_be_focused()
+    widget.get_by_role("button", name="Actual size", exact=True).press("Escape")
+    expect(scale).to_be_focused()
     canvas = widget.locator(".lf-trace-canvas").filter(visible=True)
     canvas.focus()
     # Leave window above the capture, where the marker goes once panned out of it;
@@ -1231,7 +1281,7 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
         && document.elementFromPoint(x, y) !== node;
     }""")
     expect(canvas).to_be_focused()
-    ring = standing_ring(user)
+    ring = current_location_ring(user)
     assert ring, "the canvas has no focus ring"
     assert not (faults := ring_faults([ring], "the panned trace canvas")), "\n".join(
         faults
@@ -1472,6 +1522,7 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
         expect(user.locator(f"#{label.lower()} .lf-trace-phase")).to_have_attribute(
             "data-lf-datum", targets[-1]
         )
+    after.get_by_role("button", name="Image scale", exact=True).click()
     after.get_by_role("button", name="Actual size", exact=True).click()
     canvas = after.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"

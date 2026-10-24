@@ -502,6 +502,25 @@ def page_search(page: Page) -> None:
     page.get_by_role("searchbox", name="Search page text").fill("review")
 
 
+def accepted_page_search(page: Page) -> None:
+    """The current match remains named after Return accepts the query."""
+    page_search(page)
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("searchbox", name="Search page text")).not_to_be_visible()
+
+
+def selected_passage_responses(page: Page) -> None:
+    """Other responses beside a comment on a selected search match."""
+    page_search(page)
+    expect(page.get_by_role("button", name="Next match", exact=True)).to_be_enabled()
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("searchbox", name="Search page text")).not_to_be_visible()
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    page.keyboard.press("e")
+    expect(page.get_by_role("button", name="Suggest", exact=True)).to_be_visible()
+
+
 def command_reference_search(page: Page) -> None:
     """Help's focused query above its filtered command results."""
     page.keyboard.press("Tab")
@@ -545,6 +564,38 @@ def screenshot_comparison(page: Page) -> None:
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     # Anchor the unchanged guide, so a taller rail does not recenter the entire capture.
     page.locator("#bg-shot-guide").scroll_into_view_if_needed()
+
+
+def screenshot_slider_before(page: Page) -> None:
+    """One source fills the slider while change outlines locate its evidence."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.evaluate("async node => await node.difference")
+    shot.get_by_role("button", name="Slider", exact=True).click()
+    divider = shot.get_by_role("scrollbar")
+    divider.focus()
+    page.keyboard.press("End")
+    shot.get_by_role("button", name="Outline changes", exact=True).click()
+    shot.scroll_into_view_if_needed()
+
+
+def screenshot_pixels(page: Page) -> None:
+    """Pixel evidence occupies the image frame without a separate legend row."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.get_by_role("button", name="Pixels", exact=True).click()
+
+
+def screenshot_options(page: Page) -> None:
+    """Image options keep the pixel color key beside the scale choices."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.locator(".lf-shot-scale").click()
+    # Opening a popover may reveal a taller Pair differently from Slider.
+    shot.locator(".lf-shot-toolbar").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
+    shot.scroll_into_view_if_needed()
 
 
 def image_in_page(page: Page) -> None:
@@ -908,6 +959,39 @@ def diff_path_by_keyboard(page: Page) -> None:
     head.focus()
 
 
+def diff_source_by_pointer(page: Page) -> None:
+    """A click stands on the scrolling source without a keyboard ring."""
+    file = page.locator("#pr-exact-patch .lf-diff-file").filter(
+        has=page.locator("summary", has_text="benches/picker_preview.rs")
+    )
+    file.locator("summary").click()
+    source = file.locator("code[data-code]")
+    source.click(position={"x": 150, "y": 25})
+    expect(source).to_be_focused()
+    page.mouse.move(0, 0)
+
+
+def diff_source_by_keyboard(page: Page) -> None:
+    """Tab returns to the source; its ring stays over shaded, scrolled rows."""
+    diff_source_by_pointer(page)
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    source = page.locator(
+        '#pr-exact-patch code[data-code][aria-label="benches/picker_preview.rs"]'
+    )
+    expect(source).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function(
+        "document.querySelector('#pr-exact-patch').shadowRoot.querySelector('code[data-code][aria-label=\"benches/picker_preview.rs\"]').scrollLeft > 0"
+    )
+
+
+def diff_long_lines(page: Page) -> None:
+    """The gallery's long-line patches at the top of the window: Markdown that wraps
+    above code that wraps and code that scrolls."""
+    page.locator("#dfg-prose").evaluate("diff => diff.scrollIntoView({block: 'start'})")
+
+
 def diff_file_reply(page: Page) -> None:
     """A reply to the first of two conversations under a collapsed diff file."""
     threads = page.frame_locator("#dfg-sample iframe").locator(
@@ -1119,9 +1203,7 @@ def page_end(page: Page) -> None:
 
 def visual_review_inspection(page: Page) -> None:
     """Capture the artifact inspection popover beside the selected comparison."""
-    page.locator('.lf-vr-case[aria-hidden="false"]').get_by_role(
-        "button", name="More inspection"
-    ).click()
+    page.locator('.lf-vr-case[aria-hidden="false"] .lf-vr-inspect').click()
     page.mouse.move(0, 0)
 
 
@@ -1446,7 +1528,30 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    State("screenshot-comparison", "developer/feature-gallery", screenshot_comparison),
+    State(
+        "screenshot-comparison",
+        "developer/feature-gallery",
+        screenshot_comparison,
+        region="#bg-shot",
+    ),
+    State(
+        "screenshot-slider-before",
+        "developer/feature-gallery",
+        screenshot_slider_before,
+        region="#bg-shot",
+    ),
+    State(
+        "screenshot-pixels",
+        "developer/feature-gallery",
+        screenshot_pixels,
+        region="#bg-shot",
+    ),
+    State(
+        "screenshot-options",
+        "developer/feature-gallery",
+        screenshot_options,
+        region="#bg-shot",
+    ),
     State(
         "screenshot-comparison-phone",
         "developer/feature-gallery",
@@ -1477,6 +1582,8 @@ STATES = (
         visual_review_inspection,
     ),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
+    State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
+    State("worktree-diffs", "developer/worktree-diffs", at_rest),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
     State(
         "diff-file-resolved-closed",
@@ -1686,8 +1793,36 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
-    State("page-search", "review-a-plan", page_search),
-    State("page-search-phone", "review-a-plan", page_search, viewport=(390, 844)),
+    State("page-search", "review-a-plan", page_search, region=".lf-floating-panel"),
+    State(
+        "accepted-page-search",
+        "review-a-plan",
+        accepted_page_search,
+        region=".lf-floating-panel",
+    ),
+    State(
+        "accepted-page-search-touch",
+        "review-a-plan",
+        accepted_page_search,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-floating-panel",
+    ),
+    State(
+        "page-search-phone",
+        "review-a-plan",
+        page_search,
+        viewport=(390, 844),
+        region=".lf-floating-panel",
+    ),
+    State("selected-passage-responses", "review-a-plan", selected_passage_responses),
+    State(
+        "selected-passage-responses-phone",
+        "review-a-plan",
+        selected_passage_responses,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("command-reference-search", "review-a-plan", command_reference_search),
     State(
         "command-reference-search-dark",
@@ -2004,6 +2139,20 @@ STATES = (
         "pr-walkthrough",
         diff_path_by_keyboard,
         viewport=(390, 844),
+    ),
+    State(
+        "walkthrough-diff-source-pointer",
+        "pr-walkthrough",
+        diff_source_by_pointer,
+        viewport=(600, 900),
+        region="#pr-exact-patch .lf-diff-file:has(code[data-code])",
+    ),
+    State(
+        "walkthrough-diff-source-keyboard",
+        "pr-walkthrough",
+        diff_source_by_keyboard,
+        viewport=(600, 900),
+        region="#pr-exact-patch .lf-diff-file:has(code[data-code])",
     ),
     State(
         "walkthrough-source-touch",

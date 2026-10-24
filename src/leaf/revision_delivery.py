@@ -1,9 +1,11 @@
 """Deliver a revision's documents and resources for the host serving them.
 
-A document and the captured resources it names use logical page paths: `/page/…` for
-the author's files, `/media/…` for the page's images, and the layer's own files at the
-root (`/icon.svg`, `/runtime/…`). Every host delivers the same captured bytes under an
-address of its own — an HTTP server beneath a revision's URL, a published site beneath
+A document and the resources it names use logical page paths: `/page/…` for the
+author's files, `/media/…` for the page's images, and the layer's own files at the
+root (`/icon.svg`, `/runtime/…`). The resources are the revision's capture with the
+delivering Leaf's runtime beside it (`runtime_selection.executing`), which every
+caller here is handed. Every host delivers the same bytes under an address of its
+own — an HTTP server beneath a revision's URL, a published site beneath
 a release, an offline export through document-lifetime object URLs — so each host
 passes one
 `address` function, from a logical path to the URL it serves that path at, and the
@@ -16,8 +18,8 @@ Over HTTP, media is the page's and everything else a document names is its revis
 the page root serves them in every host, and the runtime resolves the media a message
 or a widget names against that same root (`runtime/media.js`). The layer's own module
 graph imports rooted paths (`/runtime/…`, `/vendor/…`, `/widgets/…`), which the
-document's import map sends to its revision (`layer_import_map`), so layer modules are
-served as captured.
+document's import map sends to where its revision's resources answer
+(`layer_import_map`), so layer modules are served as they are held.
 
 A document is delivered once, by `compose_document`, whoever delivers it: the HTTP
 server and the static live shell, and a standalone export. A
@@ -31,7 +33,6 @@ decodes, or a module once it runs.
 
 import html
 import json
-import posixpath
 import re
 import struct
 from collections.abc import Callable, Mapping
@@ -42,13 +43,14 @@ import turbohtml
 
 from .layer import CASCADE_LAYERS
 from .passages import markdown_markup
-from .registry.contract import is_element_name, prepaint_markup
+from .registry.contract import exhibits, is_element_name, prepaint_markup
 from .registry.kernel import kernel_marks
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
     authored_imports,
     bind_imports,
+    dependency_reference,
     rewrite_css,
 )
 from .schema import (
@@ -58,7 +60,6 @@ from .schema import (
     VENDORED_FILES,
 )
 from .structure import (
-    DELIVERY_ENCODING_META,
     UTF8_BOM,
     SourceDocument,
     annotation_mode,
@@ -93,36 +94,71 @@ def page_path(reference: str, base: str) -> tuple[str, str] | None:
     `data:` URL, a fragment of this document, or a path outside the page's namespace.
     The suffix is the query and fragment, which travel with the path to its address.
     """
-    if not reference or reference.startswith(("#", "data:")):
+    if not reference:
         return None
-    try:
-        parsed = urlsplit(reference)
-    except ValueError:
+    reference = dependency_reference(reference, base)
+    if reference is None or not _PAGE_PATH.fullmatch(reference[0]):
         return None
-    if parsed.scheme or parsed.netloc or not parsed.path:
-        return None
-    path = unquote(parsed.path)
-    resolved = posixpath.normpath(
-        path if path.startswith("/") else posixpath.join(posixpath.dirname(base), path)
-    )
-    if not _PAGE_PATH.fullmatch(resolved):
-        return None
-    suffix = ("?" + parsed.query if parsed.query else "") + (
-        "#" + parsed.fragment if parsed.fragment else ""
-    )
-    return resolved, suffix
+    return reference
 
 
-def _attributes(attributes: Mapping[str, str]) -> str:
+def _attributes(attributes: Mapping[str, str | bool | None]) -> str:
+    """Attributes to write in a start tag, each value escaped: `True` writes the name
+    alone, and `None` leaves the attribute out."""
     return "".join(
-        f' {name}="{html.escape(value, quote=True)}"'
+        f" {name}" if value is True else f' {name}="{html.escape(value, quote=True)}"'
         for name, value in attributes.items()
+        if value is not None
     )
 
 
-def _inline_css(css: str) -> str:
-    """CSS to write inside a style element, which `</style` would otherwise end."""
-    return re.sub(r"</style", r"<\\/style", css, flags=re.IGNORECASE)
+def _raw_text(tag: str, text: str) -> str:
+    """`text` to write inside a `tag` element whose content the parser reads raw, a
+    script or a style, where `</tag` would otherwise end the element."""
+    return re.sub(rf"</{tag}", rf"<\\/{tag}", text, flags=re.IGNORECASE)
+
+
+def runtime_element(
+    tag: str, attributes: Mapping[str, str | bool | None], body: str = ""
+) -> str:
+    """An element a host adds to a document it delivers, marked `data-lf-runtime` as
+    delivery's own: the runtime reads past it as no part of the author's page, and a
+    revision arriving at an open document brings the author's head across without it.
+    Attribute values are escaped (`_attributes`), and a script's or style's `body`
+    cannot end its element early (`_raw_text`); a JSON body comes from `json_script`,
+    which also keeps a comment opener out. A `meta` or `link` is void and takes none.
+    """
+    opening = f"<{tag}{_attributes({**attributes, 'data-lf-runtime': True})}>"
+    if tag in {"meta", "link"}:
+        return opening
+    return f"{opening}{_raw_text(tag, body)}</{tag}>"
+
+
+def runtime_settings(
+    body: str,
+    *,
+    layer: str,
+    page_root: str,
+    entry: str,
+    probe: str,
+    declared: Mapping[str, str | bool | None],
+) -> str:
+    """The script that says how a host delivered a document (`runtime/context.js`):
+    the layer generation it belongs to, its page root, the runtime entry, which is
+    the seam a harness finds either delivery by, and the registry probe, beside what
+    the host `declared` of its own. A served document's runs `bootstrap.js`; an
+    export's holds its payload as JSON (`data-lf-offline`)."""
+    return runtime_element(
+        "script",
+        {
+            **declared,
+            "data-lf-layer": layer,
+            "data-lf-page-root": page_root,
+            "data-lf-entry": entry,
+            "data-lf-probe": probe,
+        },
+        body,
+    )
 
 
 def _rebase(reference: str, base: str, address: Address) -> str:
@@ -218,7 +254,7 @@ def rebase_document(
                         if name not in {"rel", "href", "crossorigin", "integrity"}
                     }
                 )
-                css = _inline_css(inline_stylesheet(located[0]))
+                css = _raw_text("style", inline_stylesheet(located[0]))
                 start, end = span(location.start_tag)
                 edits.append((start, end, f"<style{kept}>{css}</style>"))
                 continue
@@ -393,7 +429,11 @@ def mark_declared(
         )
         marks = {}
         for key, mark in kernel_marks().items():
-            declared = declaration.get(key)
+            declared = (
+                exhibits(attrs, declaration)
+                if key == "x-exhibit"
+                else declaration.get(key)
+            )
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
             if authored in attrs and means[mark["authored_on"]]:
@@ -466,11 +506,12 @@ def mark_declared(
             edits.append(
                 (
                     end,
-                    (
-                        "<script data-lf-runtime data-lf-initial>"
+                    runtime_element(
+                        "script",
+                        {"data-lf-initial": True},
                         "document.documentElement.lfInitial.mount("
                         "document.currentScript.previousElementSibling);"
-                        "document.currentScript.remove();</script>"
+                        "document.currentScript.remove();",
                     ),
                 )
             )
@@ -513,15 +554,7 @@ def initial_script_paths(
 def initial_scripts(paths: list[str], resources: Mapping[str, Resource]) -> str:
     """Inline captured producers and their prerequisites before the body parses."""
     return "".join(
-        "<script data-lf-runtime>"
-        + re.sub(
-            r"</script",
-            r"<\\/script",
-            resources[path].data.decode(),
-            flags=re.IGNORECASE,
-        )
-        + "</script>"
-        for path in paths
+        runtime_element("script", {}, resources[path].data.decode()) for path in paths
     )
 
 
@@ -552,14 +585,14 @@ class DeliveryAddress:
 def layer_import_map(asset_root: str) -> dict:
     """Send the layer's rooted module imports to the revision serving them.
 
-    Every layer module names its dependencies by rooted path, as the page directory
-    lays them out. The map rebinds each directory for the whole document, so a module
-    keeps its captured bytes wherever the revision is served, and a page module or a
-    render probe importing `/runtime/widget-api.js` reaches the runtime's own instance.
+    Every layer module names its dependencies by rooted path, as the layer lays them
+    out. The map rebinds each directory for the whole document, so a module keeps its
+    bytes wherever the revision is served, and a page module or a render probe
+    importing `/runtime/widget-api.js` reaches the runtime's own instance.
     """
     root = asset_root.rstrip("/")
-    # Server-owned passive checks must read this document's runtime instance too.
-    # Their source is server-owned; their captured bytes belong to this revision.
+    # Server-owned passive checks must read this document's runtime instance too,
+    # and are served beside it.
     return {
         "imports": {
             f"/{name}/": f"{root}/{name}/"
@@ -632,16 +665,15 @@ def delivery_identity(
     Every delivered document carries this (`compose_document`). A document that says
     part of it is a document the next reader of the contract has to guess about.
     """
-    return (
-        f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
-        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
-        f'<meta name="lf-widgets" data-lf-runtime '
-        f'content="{html.escape(json.dumps(widgets, separators=(",", ":")), quote=True)}">'
-        + (
-            f'<meta name="lf-version" data-lf-runtime content="{version}">'
-            if version is not None
-            else ""
-        )
+    named = {
+        "lf-revision": str(revision),
+        "lf-executable": executable,
+        "lf-widgets": json.dumps(widgets, separators=(",", ":")),
+        **({"lf-version": str(version)} if version is not None else {}),
+    }
+    return "".join(
+        runtime_element("meta", {"name": name, "content": content})
+        for name, content in named.items()
     )
 
 
@@ -682,9 +714,10 @@ def delivery_sheets(
                 ("marks", "/runtime/annotation-overlay/annotation-marks.css"),
             )
         }
-    return (
-        '<script type="application/json" data-lf-runtime data-lf-sheets>'
-        f"{json_script(sheets)}</script>"
+    return runtime_element(
+        "script",
+        {"type": "application/json", "data-lf-sheets": True},
+        json_script(sheets),
     )
 
 
@@ -710,7 +743,7 @@ def delivery_prelude(
         else '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
     )
     return (
-        DELIVERY_ENCODING_META
+        runtime_element("meta", {"charset": "utf-8"})
         + delivery_identity(revision, version, executable, widgets)
         + viewport
     )
@@ -809,9 +842,16 @@ def compose_document(
     if "head" not in document.authoring.wrapper_tags:
         raise ValueError("document has no explicit <head>")
     theme = (
-        f"<style data-lf-runtime>{_inline_css(delivery.inline_stylesheet('/theme.css'))}</style>"
+        runtime_element("style", {}, delivery.inline_stylesheet("/theme.css"))
         if delivery.inline_stylesheet is not None
-        else f'<link rel="stylesheet" href="{html.escape(delivery.address("/theme.css"), quote=True)}" crossorigin="anonymous" data-lf-runtime>'
+        else runtime_element(
+            "link",
+            {
+                "rel": "stylesheet",
+                "href": delivery.address("/theme.css"),
+                "crossorigin": "anonymous",
+            },
+        )
     )
     # Physical page-side placement keeps the theme's lf-base contract, below package
     # and authored overrides. An adopted sheet would rank after those same defaults.
@@ -824,25 +864,32 @@ def compose_document(
             delivery.address,
         )
         theme = (
-            f"<style data-lf-runtime data-lf-annotation-theme>@layer {', '.join(CASCADE_LAYERS)};\n"
-            f"@layer lf-base {{\n{_inline_css(annotation_theme)}\n}}</style>" + theme
+            runtime_element(
+                "style",
+                {"data-lf-annotation-theme": True},
+                f"@layer {', '.join(CASCADE_LAYERS)};\n"
+                f"@layer lf-base {{\n{annotation_theme}\n}}",
+            )
+            + theme
         )
     head = (
         delivery_prelude(document, revision, version, executable, widgets)
         + (
-            '<script type="importmap" data-lf-runtime>'
-            f"{json_script(import_map)}</script>"
+            runtime_element("script", {"type": "importmap"}, json_script(import_map))
             if import_map is not None
             else ""
         )
         + (
-            f'<link rel="canonical" href="{html.escape(delivery.page_root, quote=True)}/" data-lf-runtime>'
+            runtime_element(
+                "link", {"rel": "canonical", "href": f"{delivery.page_root}/"}
+            )
             if delivery.page_root is not None
             else ""
         )
         + (
-            "<script data-lf-runtime>"
-            f"{resources['/runtime/prepaint.js'].data.decode()}</script>"
+            runtime_element(
+                "script", {}, resources["/runtime/prepaint.js"].data.decode()
+            )
             + initial_scripts(initial, resources)
             if delivery.runtime is not None
             else ""
@@ -856,7 +903,7 @@ def compose_document(
         )
         + delivery.head
         + (
-            f'<script type="module" src="{html.escape(entry, quote=True)}" data-lf-runtime></script>'
+            runtime_element("script", {"type": "module", "src": entry})
             if (entry := delivery.address("/leaf.js")) is not None
             else ""
         )
@@ -866,12 +913,16 @@ def compose_document(
     if delivery.runtime is not None:
         # A classic parser checkpoint waits for every preceding stylesheet, including
         # the author's head overrides. The initial observer then receives styled body
-        # nodes before their first paint, rather than seating residents on CSS load's
-        # later task. It shares the same residency computation used after upgrade.
+        # nodes before their first paint, rather than placing margin content on CSS load's
+        # later task. It shares the same margin layout computation used after upgrade.
         insertions.append(
             (
                 document.authoring.wrapper_tags["body"][1],
-                "<script data-lf-runtime>document.documentElement.lfInitial.residency()</script>",
+                runtime_element(
+                    "script",
+                    {},
+                    "document.documentElement.lfInitial.marginContentLayout()",
+                ),
             )
         )
     root = dict(delivery.html_attributes)

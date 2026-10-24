@@ -53,6 +53,7 @@ from leaf_dev.eval_cases import (
     selected_viewports,
 )
 from leaf_dev.eval_user import COMMAND_LIMIT, cli, comment_on_passage, decide
+from leaf_dev.leaf_assets import pinned_copy
 
 TASKS = ROOT / "evals"
 DEFINITION = definition("arrangement_eval")
@@ -227,6 +228,9 @@ def author(run: Run, cwd: Path) -> None:
     """Run the sample's live session through its phases, preserving each phase's
     page, and stop any server it left running."""
     cwd.mkdir(parents=True, exist_ok=True)
+    fixtures = pinned_copy(TASKS / run.subject)
+    if fixtures is not None and fixtures.is_dir():
+        shutil.copytree(fixtures, cwd / "evals" / run.subject)
     (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
     page = run.authored_page
@@ -242,7 +246,10 @@ def author(run: Run, cwd: Path) -> None:
         timed_out=run.directory / "timed-out",
         dirs=[run.payload] if leaf else [],
         env=(
-            {"LEAF": str(run.payload / "bin/leaf"), "XDG_STATE_HOME": str(run.state)}
+            {
+                "PATH": environment(payload=run.payload)["PATH"],
+                "XDG_STATE_HOME": str(run.state),
+            }
             if leaf
             else {}
         ),
@@ -416,6 +423,16 @@ def judge_pages(
     try:
         evidence.mkdir(parents=True, exist_ok=True)
         with scratch() as cwd, ExitStack() as stack:
+            browser_config = cwd / "browser.json"
+            browser_config.write_text(
+                json.dumps(
+                    {
+                        "browser": {
+                            "launchOptions": {"executablePath": shell_executable()}
+                        }
+                    }
+                )
+            )
             sockets = stack.enter_context(
                 tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp")
             )
@@ -444,7 +461,7 @@ def judge_pages(
                 )
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}
-Open your own headless Chromium with -s=<session> open <URL> --browser=chromium.
+Open your own headless Chromium with -s=<session> open <URL> --config {browser_config}.
 Use --mobile for phone and resize W H for each required viewport. Choose your own
 tabs, navigation, actions and screenshots. Use one browser session
 at a time and close it before opening another. Evaluate the page without editing

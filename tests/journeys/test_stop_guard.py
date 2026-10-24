@@ -1,5 +1,5 @@
 """The guard on a turn's end: the Stop hook holding a turn over a page nothing
-watches or a move the agent still owes, `leaf status idle` refusing over input
+watches or a move the agent still owes, `leaf page close` refusing over input
 nobody answered, and the reminders both write."""
 
 import json

@@ -66,7 +66,7 @@ class Harness:
     - the host, a program that drives App Server and starts every turn itself.
 
     The *transport* is how one delivery enters a turn's context: the hooks
-    (`hook_delivers`, or Codex's tool hook offering a pointer, `offer_at_step`),
+    (`hook_delivers`, or Codex's tool hook, `offer_at_step`),
     the wait's output, Codex's queue, or a turn Leaf starts over App Server. The
     envelope states what the transport decides (`../../skills/leaf/references/event-batches.md`).
     The methods below answer for each harness's watcher and transports:
@@ -106,6 +106,19 @@ class Harness:
     # over waits for a later hook of the same turn to confirm it, and is offered
     # again if the turn ends first (`delivery.confirm_turn`).
     commits_hook_context: ClassVar[bool] = True
+    # The most UTF-8 bytes of hook context the harness shows the model whole, or
+    # None where it shows any size.
+    hook_context_bytes: ClassVar[int | None] = None
+
+    @classmethod
+    def fits_hook_context(cls, context: str) -> bool:
+        """Whether the harness shows `context`, a hook's whole output to the turn,
+        to the model whole. Every hook hands a delivery whose context doesn't fit
+        over as its pointer (`delivery.delivery_pointer_prompt`)."""
+        return (
+            cls.hook_context_bytes is None
+            or len(context.encode("utf-8")) <= cls.hook_context_bytes
+        )
 
     @classmethod
     def from_claim(cls, claim: dict) -> Harness:
@@ -272,14 +285,16 @@ class Harness:
         telling, or gone along with the session it served."""
         return False
 
-    def title_generator(self) -> Callable[[str, Path], dict] | None:
-        """How the page server names a thread a user opens on this session's page,
-        as the comment is admitted (`thread_titles`), or None where it cannot.
-
-        Only a harness whose model any process on the machine can ask has one. The
-        website's host names the thread instead, as the update opening it is
-        dispatched to it, since only it can reach the App Server it owns."""
+    def inference_generator(self) -> Callable[..., dict] | None:
+        """Tool-free structured inference using this harness's login, if supported."""
         return None
+
+    def title_generator(self) -> Callable[[str, Path], dict] | None:
+        """Name threads through this harness's structured inference, if supported."""
+        from leaf.thread_titles import title_generator
+
+        infer = self.inference_generator()
+        return title_generator(infer) if infer is not None else None
 
     def live_turn(self) -> dict | None:
         """What the harness itself says about this session right now, or None where it
@@ -337,6 +352,11 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # was taken, so the turn's next hook confirms it: a tool call or the turn's
     # end means the model read the context.
     commits_hook_context = False
+    # It writes a larger hook context to a file and hands the turn a 2 KB preview
+    # and the path instead: measured at 2.1.283 with ASCII, 9,990 characters
+    # arrived whole and 10,010 did not. Which unit it counts is unmeasured, so the
+    # limit counts UTF-8 bytes, the strictest reading.
+    hook_context_bytes = 9_990
 
     def lifetime(self) -> dict:
         """A session the user sits at is a process, and Claude Code states it
@@ -408,42 +428,14 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return "Leaf's hook puts them in your context at your next turn."
 
     def live_turn(self) -> dict | None:
-        """The session's live status in Claude Code's session registry
-        (`claude_code_session_records`), from the newest record whose process
-        still runs: `waiting` while a turn holds a dialog open (a permission
-        prompt, a question), `idle` once no turn runs (`shell` too, which is idle
-        with a background command running), and `busy` otherwise.
+        """The session's live status (`claude_code_live_turn`) in the registry
+        listing (`claude_code_session_records`)."""
+        return claude_code_live_turn(claude_code_session_records(self.session))
 
-        Its `idle` is the one reading of a turn's end that an interrupt moves:
-        Escape ends a turn without running the Stop hook, and the record turns
-        `idle` at that moment (measured at Claude Code 2.1.283). `busy` is weaker:
-        a background job's record stays `busy` across turn endings while its
-        background work runs, so it does not prove a turn is running; after a turn
-        ends, it says work continues (`activity.Turn.background`). The record
-        belongs to the worker hosting the session's current sitting, so a
-        background job whose worker has retired has none."""
-        stamped = [
-            record
-            for record in claude_code_session_records(self.session)
-            if isinstance(record.get("statusUpdatedAt"), int | float)
-            and isinstance(record.get("pid"), int)
-            and pid_alive(record["pid"])
-        ]
-        record = max(stamped, key=lambda item: item["statusUpdatedAt"], default={})
-        state = {"busy": "busy", "waiting": "waiting", "idle": "idle", "shell": "idle"}
-        if record.get("status") not in state:
-            return None
-        return {
-            "state": state[record["status"]],
-            "since": datetime.fromtimestamp(record["statusUpdatedAt"] / 1000)
-            .astimezone()
-            .isoformat(),
-        }
+    def inference_generator(self) -> Callable[..., dict]:
+        from leaf.inference import claude_code_generate
 
-    def title_generator(self) -> Callable[[str, Path], dict]:
-        from leaf.thread_titles import claude_code_title
-
-        return claude_code_title
+        return claude_code_generate
 
     def nudge(self, page_dir: Path) -> bool:
         """The session's socket, or, for a background job no worker hosts, the job
@@ -475,18 +467,22 @@ class CodexHarness(EnvironmentHarness):
     default_agent = "Codex"
     session_variables = ("LEAF_SESSION_ID", "CODEX_THREAD_ID")
     identity_variables = session_variables
+    # Codex 0.160.0 spills hook context above 2,500 approximate tokens, counted as
+    # ceil(UTF-8 bytes / 4), Stop continuations included, and the preview it
+    # shows instead is incomplete JSON.
+    # https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/hooks/src/output_spill.rs
+    # https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/utils/string/src/truncate.rs
+    hook_context_bytes = 10_000
 
     @classmethod
     def process_pid(cls) -> int | None:
         """The nearest ancestor running the `codex` program (`lifetime`)."""
         return next((pid for pid, program in ancestry() if program == "codex"), None)
 
-    def title_generator(self) -> Callable[[str, Path], dict]:
-        """An App Server of the page server's own, whichever transport carries the
-        task's turns, so Codex is asked in one way: `codex queue` reaches no model."""
-        from leaf.thread_titles import codex_title
+    def inference_generator(self) -> Callable[..., dict]:
+        from leaf.inference import codex_generate
 
-        return codex_title
+        return codex_generate
 
     def ensure_delivery(self) -> None:
         with self.preparing_delivery():
@@ -577,7 +573,7 @@ class CodexHarness(EnvironmentHarness):
         if listening:
             return f"Poll {_POLL_UNIFIED_EXEC}."
         return (
-            f"Start `leaf codex start {page_dir}` so later updates reach this "
+            f"Start `leaf page claim {page_dir}` so later updates reach this "
             "task in new turns."
         )
 
@@ -647,9 +643,9 @@ class CodexHarness(EnvironmentHarness):
                 f"{_POLL_UNIFIED_EXEC}."
             )
         return (
-            f"no delivery adapter. Start `leaf codex start {page_dir}` so this "
+            f"no delivery adapter. Start `leaf page claim {page_dir}` so this "
             "turn can finish and later updates start new turns; or run `leaf "
-            "status <page> idle` if the page is done."
+            "page close <page>` if the page is done."
         )
 
 
@@ -680,6 +676,8 @@ class PiHarness(EnvironmentHarness):
     session_variables = ("PI_SESSION_ID",)
     identity_variables = (*session_variables, "LEAF_PI_PID")
     hook_delivers = True
+    # The extension adds a hook's whole context to the session as text, at any
+    # size, so `hook_context_bytes` stays None.
 
     @classmethod
     def process_pid(cls) -> int | None:
@@ -703,10 +701,10 @@ class PiHarness(EnvironmentHarness):
     def process_runs(self) -> bool:
         return pid_alive(int(os.environ["LEAF_PI_PID"]))
 
-    def title_generator(self) -> Callable[[str, Path], dict]:
-        from leaf.thread_titles import pi_title
+    def inference_generator(self) -> Callable[..., dict]:
+        from leaf.inference import pi_generate
 
-        return pi_title
+        return pi_generate
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's Pi extension puts them in your context at your next turn."
@@ -887,24 +885,55 @@ def claude_code_sessions() -> Path:
     return config / "sessions"
 
 
+def claude_code_live_turn(records: list[dict]) -> dict | None:
+    """A session's live status from its registry `records`, taken from the newest
+    record whose process still runs: `waiting` while a turn holds a dialog open (a
+    permission prompt, a question), `idle` once no turn runs (`shell` too, which
+    is idle with a background command running), and `busy` otherwise.
+
+    Its `idle` is the one reading of a turn's end that an interrupt moves: Escape
+    ends a turn without running the Stop hook, and the record turns `idle` at that
+    moment (measured at Claude Code 2.1.283). `busy` is weaker: a background job's
+    record stays `busy` across turn endings while its background work runs, so it
+    does not prove a turn is running; after a turn ends, it says work continues
+    (`activity.Turn.background`). The record belongs to the worker hosting the
+    session's current sitting, so a background job whose worker has retired has
+    none."""
+    stamped = [
+        record
+        for record in records
+        if isinstance(record.get("statusUpdatedAt"), int | float)
+        and isinstance(record.get("pid"), int)
+        and pid_alive(record["pid"])
+    ]
+    record = max(stamped, key=lambda item: item["statusUpdatedAt"], default={})
+    state = {"busy": "busy", "waiting": "waiting", "idle": "idle", "shell": "idle"}
+    if record.get("status") not in state:
+        return None
+    return {
+        "state": state[record["status"]],
+        "since": datetime.fromtimestamp(record["statusUpdatedAt"] / 1000)
+        .astimezone()
+        .isoformat(),
+    }
+
+
 def claude_code_session_records(session_id: str) -> list[dict]:
     """The registry records Claude Code publishes for a session, found by id.
 
-    Each session writes `sessions/<pid>.json` in its config directory, carrying
-    `sessionId`, `pid`, its live `status` and when it last changed
-    (`statusUpdatedAt`, epoch milliseconds), and `messagingSocketPath`. It is
-    found by session id each time rather than written into the claim, because a
-    background job's worker pid, and the record with it, changes over the job's
-    life; a worker that died without removing its record leaves a second one.
-    Each record is another program's live file, and a session can exit between
-    listing and reading it, so a file that vanished or was caught mid-write is
-    passed over.
+    A session is found by id each time rather than written into the claim,
+    because a background job's worker pid, and the record with it, changes over
+    the job's life; a worker that died without removing its record leaves a
+    second one.
 
-    Every state read asks this of each claimed page, so a listing is reused for
-    at most `REGISTRY_READ_S` while the directory's own stamp holds, well inside the
-    presence cache's interval: a record added, removed or atomically replaced
-    moves the stamp at once. The listing is the machine's rather than a page's, so
-    the process keeps the last one, replaced whole."""
+    Every state read asks this of each claimed page, so the registry listing
+    (`claude_code_registry`) is reused for at most `REGISTRY_READ_S` while the
+    directory's own stamp holds, well inside the presence cache's interval. A
+    record added or removed moves the stamp at once. Claude Code rewrites a
+    record's status in place, which leaves the stamp alone (measured at 2.1.309),
+    so a status read here can be up to `REGISTRY_READ_S` old. The listing is the
+    machine's rather than a page's, so the process keeps the last one, replaced
+    whole."""
     sessions = claude_code_sessions()
     try:
         stamp = sessions.stat().st_mtime_ns
@@ -912,7 +941,7 @@ def claude_code_session_records(session_id: str) -> list[dict]:
         return []
     records = _registry_listing.get(
         (sessions, stamp, time.monotonic() // REGISTRY_READ_S),
-        lambda: _registry_records(sessions),
+        claude_code_registry,
     )
     return [record for record in records if record.get("sessionId") == session_id]
 
@@ -922,9 +951,17 @@ REGISTRY_READ_S = 1.0
 _registry_listing = Slot()
 
 
-def _registry_records(sessions: Path) -> list[dict]:
+def claude_code_registry() -> list[dict]:
+    """Every record in Claude Code's session registry, read now.
+
+    Each session writes `sessions/<pid>.json` in its config directory, carrying
+    `sessionId`, `pid`, its live `status` and when it last changed
+    (`statusUpdatedAt`, epoch milliseconds), and `messagingSocketPath`. Each
+    record is another program's live file, and a session can exit between
+    listing and reading it, so a file that vanished or was caught mid-write is
+    passed over."""
     records = []
-    for record_path in sessions.glob("*.json"):
+    for record_path in claude_code_sessions().glob("*.json"):
         try:
             record = json.loads(record_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):

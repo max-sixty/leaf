@@ -52,6 +52,7 @@ from render_harness import (
     example_media,
     expect_obligations_answered,
     expect_panel_offers,
+    expect_panel_says,
     holding,
     leaf_page,
     names,
@@ -60,6 +61,7 @@ from render_harness import (
     page_registry,
     panel_control,
     panel_field,
+    panel_view,
     resized,
     root_overflow,
     round_trip,
@@ -91,7 +93,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.threads import open_panel_thread
 
-from journeys import expect_panel_says, first_thread_quote
+from journeys import first_thread_quote
 
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
@@ -510,7 +512,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(
         first.locator(f'.lf-page-thread[data-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
-    first.get_by_role("button", name="More inspection").click()
+    first.get_by_role("button", name="Capture details").click()
     for label, href in (
         ("Open before page", "https://base.example/rev/runs?owner=max"),
         ("Open after page", "https://candidate.example/rev/runs?owner=max"),
@@ -521,9 +523,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first.locator(".lf-vr-provenance")).to_contain_text(
         "120, 80 · 640 × 220 CSS px"
     )
-    first.get_by_role("checkbox", name="Full frame").check()
-    first.get_by_role("checkbox", name="Actual size").check()
     page.keyboard.press("Escape")
+    first.get_by_role("button", name="Image options").click()
+    first.get_by_role("checkbox", name="Full frame").check()
+    first.get_by_role("button", name="100%", exact=True).click()
     rendered(page)
     width = first.locator("lf-shot img").first.evaluate(
         "node => node.getBoundingClientRect().width"
@@ -571,7 +574,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
             has_text=record["cases"][1]["result"]
         )
     ).to_have_count(1)
-    second.get_by_role("button", name="More inspection").click()
+    second.get_by_role("button", name="Capture details").click()
     expect(second.locator(".lf-vr-provenance")).to_contain_text(
         "2026-10-08T10:00:00-07:00"
     )
@@ -1019,7 +1022,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     assert all(names(f, "lf-tally") for f in failures), failures
 
 
-def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
+def test_a_widget_current_location_out_of_place_is_a_page_the_gate_reports(
     browser, serve, tmp_path, monkeypatch
 ):
     """The premise the test below rests on, stated where it can fail on its own.
@@ -1628,7 +1631,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     page.locator("#tq-one .lf-pick").first.focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
     expect(threads).to_be_visible()
     page.keyboard.press("1")
     expect(threads).to_be_visible()

@@ -15,13 +15,9 @@
  * keeps travel and activation, which do. Block marks show changes, and
  * `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `comparisonBase` names the current base. `comparisonChanges(owner)` selects
- * changed descendants from the same comparison reading; `watchComparison(owner,
- * callback)` reads it on each comparison change and on each connection, pauses while
- * detached, and returns a function that ends the subscription. Each announced change
- * advances the comparison's generation, which keys the reading, so a return reads
- * again by the one return rule (`readingPaint` in presence.js): only a comparison that
- * changed while away is read, and a reading that threw is reported once and stands
- * without ending the subscription.
+ * changed descendants from the same comparison reading. Its signal advances after
+ * the marked DOM and comparison selection have changed together; a pending picker
+ * choice stays separate from that committed reading.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
@@ -47,10 +43,10 @@
  * use their own stores.
  *
  * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin and panel standing, mechanical carry, and obligation standing. A newer
+ * comparison, pointer, margin and panel location, mechanical carry, and obligation location. A newer
  * revision may consume it, but ordinary reloads and history travel cannot replay it.
  * Explicit historical travel carries reading position and the decision landmark, without
- * mechanical carry or obligation standing. State application serializes responses and remains
+ * mechanical carry or obligation location. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
  *
  * `captureView` records a place (reading-place.js) for the page and each reading
@@ -73,8 +69,7 @@ import {
   renderingState,
   sizeObserver,
 } from "./rendering.js";
-import { frameFor, whileConnected } from "./arrivals.js";
-import { readingPaint } from "./presence.js";
+import { frameFor } from "./arrivals.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
@@ -93,7 +88,7 @@ import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
 import {
   focusDestination,
-  onStanding,
+  onCurrentLocation,
   onUserInput,
   focused,
   inputCount,
@@ -136,7 +131,7 @@ import {
   containingReadingRegionFor,
   effectiveScroller,
   onReadingInput,
-  readingPosture,
+  regionScrollBehavior,
   readingRegionFor,
   readingRegions,
   recentReadingRegion,
@@ -149,14 +144,14 @@ import { PAGE_SCOPE, tabStore } from "./storage.js";
 import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, reveal } from "./widget-elements.js";
-import { settleResidency } from "./content-layout.js";
+import { settleMarginContentLayout } from "./content-layout.js";
 import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
-import { reportPageError } from "./layer-client.js";
+import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
-import { effect, signal } from "/vendor/browser-runtime.js";
+import { batch, effect, signal } from "/vendor/browser-runtime.js";
 
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
@@ -372,20 +367,20 @@ function pickerModel(state) {
     picker: Object.freeze({
       offered,
       token: currentVersionToken(),
-      compared: diffOn || diffPendingBase !== null,
+      compared: diffOn.value || diffPendingBase.value !== null,
       news: behind,
       keyTitle: offered
-        ? diffPendingBase !== null
-          ? `${currentLabel}: loading a comparison with v${diffPendingBase}${newer}`
-          : diffOn
-            ? `${currentLabel}: showing what changed since v${diffBase} — pick a version, or press Compare again to stop${newer}`
+        ? diffPendingBase.value !== null
+          ? `${currentLabel}: loading a comparison with v${diffPendingBase.value}${newer}`
+          : diffOn.value
+            ? `${currentLabel}: showing what changed since v${diffBase.value} — pick a version, or press Compare again to stop${newer}`
             : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
         : currentLabel,
       ariaLabel: offered
-        ? diffPendingBase !== null
-          ? `${currentLabel}: loading comparison with v${diffPendingBase}; open versions${newer}`
-          : diffOn
-            ? `${currentLabel}: comparing with v${diffBase}; open versions${newer}`
+        ? diffPendingBase.value !== null
+          ? `${currentLabel}: loading comparison with v${diffPendingBase.value}; open versions${newer}`
+          : diffOn.value
+            ? `${currentLabel}: comparing with v${diffBase.value}; open versions${newer}`
             : `${currentLabel}: open versions${newer}`
         : currentLabel,
     }),
@@ -408,11 +403,11 @@ function pickerModel(state) {
         ? Object.freeze([])
         : menuRows(state, runtime.browser?.version_notes ?? {}),
     selection: Object.freeze({
-      base: diffPendingBase ?? (diffOn ? diffBase : null),
+      base: diffPendingBase.value ?? (diffOn.value ? diffBase.value : null),
       currentRevision: runtime.currentRevision,
-      on: diffOn,
-      pendingBase: diffPendingBase,
-      baseRevision: stamped(diffBase)?.revision ?? null,
+      on: diffOn.value,
+      pendingBase: diffPendingBase.value,
+      baseRevision: stamped(diffBase.value)?.revision ?? null,
     }),
   });
 }
@@ -432,16 +427,9 @@ function paintPicker() {
   );
   repaint();
 }
-const pickerRevision = signal(0);
-const presentPicker = () => {
-  pickerRevision.value += 1;
-};
 // The picker's reading for another presentation of the same versions, the floating
 // panel's Versions view, derived where it is read so that paint follows its inputs.
-export const versionsReading = () => {
-  pickerRevision.value;
-  return pickerModel(runtime.state);
-};
+export const versionsReading = () => pickerModel(runtime.state);
 // Versions, a list of the floating panel's own, and a newer page to open, as rows of the
 // page's controls.
 registerPageControl({
@@ -506,11 +494,11 @@ const diffOpaqueSel = () =>
 // the pair — the picker's word and paint, each row's press, the rail down the span —
 // comes from the immutable picker model and is read back by nothing. The comparison
 // owns the marked identities; the CSS marks are only their rendering.
-let diffOn = false;
-let diffBase = null;
-// Advanced with each announced change, so a watcher knows which reading it painted.
+const diffOn = signal(false);
+const diffBase = signal(null);
+// Advanced after the marked DOM changes, so tracked readers see its new contents.
 const comparisonGeneration = signal(0);
-let diffPendingBase = null;
+const diffPendingBase = signal(null);
 const diffMarked = new Set();
 // What each marked block said in the base version, and which of those readings the
 // user has open. The marks say a block changed; these say what it changed from, at
@@ -527,7 +515,7 @@ const diffBefore = new Map(); // marked element -> the base version's words, or 
 const inlineOpen = new Map(); // marked element -> its generated nodes and highlight ranges
 // The comparison request that owns the page. Every request takes the next number and every
 // stop takes one too, so a base whose document lands after the user has moved on is
-// dropped rather than painted over the base they are standing on now. Reachable because the
+// dropped rather than painted over the base they are on now. Reachable because the
 // walk asks per row: it is one fetch per press, and the presses come faster than the network.
 let diffRequest = 0;
 // A renderer may format authored words while keeping their source on the formatted
@@ -599,6 +587,8 @@ async function baseReading(baseRevision, throughSeq) {
     through_seq: String(throughSeq),
   });
   const res = await fetch(pageUrl(`api/view?${params}`));
+  // The reading is another revision's, so only its server is held to this document's.
+  if (!admitReading(res)) throw new LayerRefused("Leaf changed while comparing");
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
   return (await res.json()).browser;
 }
@@ -791,14 +781,16 @@ function openInlineComparison(target) {
   const label = el(
     "span",
     "lf-ui lf-quiet lf-version-inline-label",
-    before === null ? `New since v${diffBase}` : `v${diffBase} → ${current}`,
+    before === null
+      ? `New since v${diffBase.value}`
+      : `v${diffBase.value} → ${current}`,
   );
   label.id = inlineId(target);
   label.setAttribute(
     "aria-label",
     before === null
-      ? `New since version ${diffBase}`
-      : `Inline comparison from version ${diffBase} to ${current}`,
+      ? `New since version ${diffBase.value}`
+      : `Inline comparison from version ${diffBase.value} to ${current}`,
   );
 
   const nodes = [label];
@@ -838,8 +830,8 @@ function openInlineComparison(target) {
   paintInlineInsertions();
   layoutChanged(target);
   return before === null
-    ? `v${diffBase} had nothing here`
-    : `showing an inline diff from v${diffBase}`;
+    ? `v${diffBase.value} had nothing here`
+    : `showing an inline diff from v${diffBase.value}`;
 }
 
 function closeInlineComparison(target) {
@@ -849,7 +841,7 @@ function closeInlineComparison(target) {
   for (const node of entry?.nodes ?? []) node.remove();
   paintInlineInsertions();
   layoutChanged(target);
-  return `inline diff from v${diffBase} hidden`;
+  return `inline diff from v${diffBase.value} hidden`;
 }
 
 // What a text-changing marked block holds for the margin's disclosure reading. A pure
@@ -858,25 +850,25 @@ function closeInlineComparison(target) {
 // reading while the margin and Page Map carry that provenance visually, outside the
 // passage whose words are being compared.
 export const inlineComparison = (target) =>
-  diffOn &&
+  diffOn.value &&
   diffBefore.has(target) &&
   (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target))
     ? {
         id: inlineId(target),
         open: inlineOpen.has(target),
-        offer: `v${diffBase} → ${currentVersionToken()}`,
+        offer: `v${diffBase.value} → ${currentVersionToken()}`,
       }
     : null;
 
 // The press, and the sentence to say about it — composed here, where the versions are
-// named. The event is the comparison's, because what changed is its current
-// rendering: the same pass that reads the marks reads the margin entry's relation back.
+// named. The comparison signal also tracks its current rendering: the same pass
+// that reads the marks reads the margin entry's relation back.
 export function toggleInlineComparison(target) {
   if (!inlineComparison(target)) return null;
   const said = inlineOpen.has(target)
     ? closeInlineComparison(target)
     : openInlineComparison(target);
-  announceComparison();
+  comparisonGeneration.value += 1;
   return said;
 }
 
@@ -894,26 +886,22 @@ const comparable = (version) => {
 // waiting on — the only thing that decides it, the marks and the paint being renderings
 // rather than a second copy.
 function setDiff(on, base, pendingBase = null) {
-  diffOn = on;
-  diffPendingBase = pendingBase;
-  if (on) diffBase = base;
-  if (!on) {
-    diffRequest++; // a stop outranks a comparison still on its way
-    // Inline diffs leave with the block marks. Historical words or insertion paint
-    // under a block nothing marks any more would leave half of the comparison behind.
-    for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
-    diffBefore.clear();
-    for (const b of diffMarked) b.classList.remove("lf-ins-block");
-    diffMarked.clear();
-  }
-  presentPicker();
-  // Consumers read the settled comparison projection: on/off and its marks move
-  // together, rather than announcing an applied DOM diff before it is in place.
-  announceComparison();
-}
-function announceComparison() {
-  comparisonGeneration.value += 1;
-  document.dispatchEvent(new CustomEvent("lf-comparison"));
+  batch(() => {
+    diffOn.value = on;
+    diffPendingBase.value = pendingBase;
+    if (on) diffBase.value = base;
+    if (!on) {
+      diffRequest++; // a stop outranks a comparison still on its way
+      // Inline diffs leave with the block marks. Historical words or insertion paint
+      // under a block nothing marks any more would leave half of the comparison behind.
+      for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
+      diffBefore.clear();
+      for (const b of diffMarked) b.classList.remove("lf-ins-block");
+      diffMarked.clear();
+    }
+    // Native effects run after both the selection and its marked DOM have settled.
+    comparisonGeneration.value += 1;
+  });
 }
 // The one way a comparison starts, from a row's press, from the walk through the menu,
 // or from an activation putting back the one it dropped. It states a base rather than
@@ -934,8 +922,7 @@ async function showComparison(base) {
   const baseVersion = stamped(base);
   const baseRevision = baseVersion?.revision;
   if (baseRevision == null) {
-    diffPendingBase = null;
-    presentPicker();
+    diffPendingBase.value = null;
     raiseError(`Couldn't load v${base}`);
     return;
   }
@@ -959,8 +946,7 @@ async function showComparison(base) {
     await prepareDeclaredMarkdown(doc);
   } catch {
     if (mine === diffRequest) {
-      diffPendingBase = null;
-      presentPicker();
+      diffPendingBase.value = null;
       raiseError(`Couldn't load v${base}`);
     }
     return;
@@ -979,34 +965,21 @@ async function showComparison(base) {
 // walk itself — up to the version being read, which is comparable with nothing and so
 // stops rather than re-bases.
 const pressComparison = (base) =>
-  (diffOn && base === diffBase) || diffPendingBase === base
+  (diffOn.value && base === diffBase.value) || diffPendingBase.value === base
     ? setDiff(false)
     : showComparison(base);
 
-export const comparisonBase = () => (diffOn ? diffBase : null);
+export const comparisonBase = () => (diffOn.value ? diffBase.value : null);
 // Selection leads the documents it needs. Menu focus follows that immediate reading,
 // while the public projection above stays paired with the marks that have settled.
-const selectedBase = () => diffPendingBase ?? comparisonBase();
+const selectedBase = () => diffPendingBase.value ?? comparisonBase();
 
 export function comparisonChanges(owner = null) {
   comparisonGeneration.value;
-  const changes = diffOn ? [...diffMarked] : [];
+  const changes = diffOn.value ? [...diffMarked] : [];
   return owner
     ? changes.filter((block) => block !== owner && under(block, owner))
     : changes;
-}
-
-export function watchComparison(owner, callback) {
-  const paint = readingPaint(owner, () => callback());
-  const read = () => paint(comparisonGeneration.peek());
-  const stop = whileConnected(owner, (signal) => {
-    document.addEventListener("lf-comparison", read, { signal });
-    read();
-  });
-  return () => {
-    stop();
-    paint.stop();
-  };
 }
 
 // ---------- another version's document ----------
@@ -1044,10 +1017,10 @@ function revisionDocument(revision) {
  *   hasPending: any,
  *   readAndApply: any,
  *   syncLayout: any,
- *   captureRetainedStanding?: () => unknown,
- *   restoreRetainedStanding?: (standing: unknown) => boolean,
- *   captureObligationStanding?: () => unknown,
- *   restoreObligationStanding?: (standing: unknown) => void,
+ *   captureRetainedCurrentLocation?: () => unknown,
+ *   restoreRetainedCurrentLocation?: (currentLocation: unknown) => boolean,
+ *   captureObligationCurrentLocation?: () => unknown,
+ *   restoreObligationCurrentLocation?: (currentLocation: unknown) => void,
  *   versions: { press: () => void },
  * }} controller */
 export function createVersionController({
@@ -1058,10 +1031,10 @@ export function createVersionController({
   hasPending,
   readAndApply,
   syncLayout,
-  captureRetainedStanding = () => null,
-  restoreRetainedStanding = () => false,
-  captureObligationStanding = () => null,
-  restoreObligationStanding = () => {},
+  captureRetainedCurrentLocation = () => null,
+  restoreRetainedCurrentLocation = () => false,
+  captureObligationCurrentLocation = () => null,
+  restoreObligationCurrentLocation = () => {},
   // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
   versions,
 }) {
@@ -1303,9 +1276,11 @@ export function createVersionController({
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
-      // Obligation standing is the fallback for unnamed controls. An exact editor already
+      // Obligation location is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent obligation does not also own focus.
-      obligationStanding: draftEditing ? null : captureObligationStanding(),
+      obligationCurrentLocation: draftEditing
+        ? null
+        : captureObligationCurrentLocation(),
     };
   }
 
@@ -1322,8 +1297,9 @@ export function createVersionController({
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, obligationStanding } = continuity;
-    restoreObligationStanding(obligationStanding);
+    const { draftEditing, replyThread, replyInView, obligationCurrentLocation } =
+      continuity;
+    restoreObligationCurrentLocation(obligationCurrentLocation);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
     );
@@ -1349,7 +1325,7 @@ export function createVersionController({
   async function activateRevision(doc, target) {
     const currentIntent = retainUserIntent();
     const view = captureView();
-    const retainedStanding = captureRetainedStanding();
+    const retainedCurrentLocation = captureRetainedCurrentLocation();
     const editingContinuity = captureEditingContinuity();
     // A pending selection counts too: cancel its old-document request before the
     // authored page changes, then restore that base against the arriving revision.
@@ -1516,11 +1492,11 @@ export function createVersionController({
           // A revision ends every hold, whether or not the reader's intent lets the
           // view be restored: its own handoff places the reader.
           releaseHolds();
-          settleResidency();
+          settleMarginContentLayout();
           syncLayout();
           if (currentIntent()) {
             restoreView(view, currentIntent);
-            restoreRetainedStanding(retainedStanding);
+            restoreRetainedCurrentLocation(retainedCurrentLocation);
             restoreCarryScroll();
             await restoreEditingContinuity(editingContinuity, currentIntent);
           }
@@ -1607,7 +1583,7 @@ export function createVersionController({
         revision: target.revision,
         url: location.href,
         view,
-        retainedStanding: captureRetainedStanding(),
+        retainedCurrentLocation: captureRetainedCurrentLocation(),
         ...editingContinuity,
         carry: captureCarry(pageDocument(), authoredSource).records,
         comparison: selectedBase(),
@@ -1644,7 +1620,7 @@ export function createVersionController({
     });
     for (const region of readingRegions()) {
       if (!shownRegionBounds(region)) continue;
-      if (readingPosture(region) === "bounded" || region.id === active?.id)
+      if (regionScrollBehavior(region) === "bounded" || region.id === active?.id)
         view.regions[region.id] = capturePlace(region, blocks);
     }
     return view;
@@ -1727,7 +1703,7 @@ export function createVersionController({
   // every word outside a box that scrolls on its own, flowing regions included
   // (reading-place.js, `capturePlace`), and each bounded region's from its body. It is
   // recorded when a scroll the reader made comes to rest or ends in that scroller, and
-  // where the user stands or steps, in the scroller holding them (`recordPlaces`). A
+  // where the user is or steps, in the scroller holding them (`recordPlaces`). A
   // place whose scroller is gone goes with the next record.
   //
   // After a shift, each scroller it touched takes the newest place that speaks for it,
@@ -1883,7 +1859,7 @@ export function createVersionController({
     box === pageScroller
       ? null
       : readingRegions().find(
-          (region) => region.body === box && readingPosture(region) === "bounded",
+          (region) => region.body === box && regionScrollBehavior(region) === "bounded",
         );
   const boxOf = (node) => effectiveScroller(containingReadingRegionFor(node));
   const dropGonePlaces = () => {
@@ -1894,10 +1870,10 @@ export function createVersionController({
 
   // A place is the reader's when they chose a scroll in its box since it was last
   // recorded (scrolling.js, `chosenSince`), acted since, as a wheel does before its
-  // scroll ends, or stand in the box (`standing`). Only those records rank (`at`): a
+  // scroll ends, or stand in the box (`currentLocation`). Only those records rank (`at`): a
   // scroll layout made, a clamp or an anchoring adjustment, records nothing, and a box's
   // first place, taken as the page arrives, ranks below every one the reader made.
-  function recordPlaces(boxes, { standing = false } = {}) {
+  function recordPlaces(boxes, { currentLocation = false } = {}) {
     if (shifting || compositionChanges.size || !regionsSettled()) return;
     dropGonePlaces();
     for (const box of boxes) {
@@ -1907,7 +1883,7 @@ export function createVersionController({
         continue;
       const before = places.get(region ? region.id : PAGE);
       const acted =
-        standing ||
+        currentLocation ||
         readerChose(box, before?.choices ?? 0) ||
         inputSince(box, before?.inputs ?? 0);
       if (before && !acted) continue;
@@ -2066,7 +2042,7 @@ export function createVersionController({
     readingRegions()
       .filter(
         (region) =>
-          readingPosture(region) === "bounded" &&
+          regionScrollBehavior(region) === "bounded" &&
           under(region.body, owner) &&
           shownRegionBounds(region),
       )
@@ -2214,19 +2190,19 @@ export function createVersionController({
     // Arriving or editing changes the place even when no scroller moves. Keep the intact
     // place now: an immediate resize can invalidate geometry before a later record runs.
     // Record again after any seat or layout commits.
-    const recordStanding = () => {
+    const recordCurrentLocation = () => {
       const at = focused();
       if (!at || !under(at, pageDocument())) return;
       const box = boxOf(at);
-      recordPlaces([box], { standing: true });
-      nextRender(() => recordPlaces([box], { standing: true }));
+      recordPlaces([box], { currentLocation: true });
+      nextRender(() => recordPlaces([box], { currentLocation: true }));
     };
-    onStanding(recordStanding);
-    onReadingInput(recordStanding);
+    onCurrentLocation(recordCurrentLocation);
+    onReadingInput(recordCurrentLocation);
     // Caret and selection keys are work in the same focused destination even
     // when they change no text and produce no input or focus event.
     onUserInput((event) => {
-      if (event.type === "keydown" || event.type === "input") recordStanding();
+      if (event.type === "keydown" || event.type === "input") recordCurrentLocation();
       if (!["wheel", "touchstart", "keydown", "pointerdown"].includes(event.type))
         return;
       const at = event.type === "keydown" ? focused() : event.composedPath()[0];
@@ -2239,7 +2215,7 @@ export function createVersionController({
       recordPlaces([
         pageScroller,
         ...readingRegions()
-          .filter((region) => readingPosture(region) === "bounded")
+          .filter((region) => regionScrollBehavior(region) === "bounded")
           .map((region) => region.body),
       ]),
     );
@@ -2297,7 +2273,7 @@ export function createVersionController({
         if (handoff) {
           restorePointer(handoff.pointer);
           restoreView(handoff.view, currentIntent);
-          restoreRetainedStanding(handoff.retainedStanding);
+          restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
           restoreCarryScroll();
           await restoreEditingContinuity(handoff, currentIntent);
           if (handoff.comparison !== null && stamped(handoff.comparison))
@@ -2356,11 +2332,7 @@ export function createVersionController({
       compare: pressComparison,
       latest: goActive,
     });
-    effect(() => {
-      pickerRevision.value;
-      paintPicker();
-    });
-    presentPicker();
+    effect(paintPicker);
   }
 
   return {

@@ -27,6 +27,7 @@ from leaf_dev.arms import (
     run_directory,
     run_leaf,
 )
+from leaf_dev.example_data import named_source
 
 OUT = ROOT / ".tmp" / "bench-check"
 RUNS = 3
@@ -55,9 +56,7 @@ def bench_check(base_ref: str | None) -> None:
         for name in PAGES:
             page = pages[arm, name] = out / "pages" / arm / name
             page.parent.mkdir(parents=True, exist_ok=True)
-            build_source(
-                arm_dir, out / "state" / arm, ROOT / "examples" / f"{name}.html", page
-            )
+            build_source(arm_dir, out / "state" / arm, named_source(name), page)
     before = load_average()
     walls = {key: [] for key in pages}
     for run in range(RUNS):

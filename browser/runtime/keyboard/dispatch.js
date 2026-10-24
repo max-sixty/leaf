@@ -3,7 +3,7 @@
 
    Scopes nest by focus. `scopesFor` produces the active stack and element scopes are
    spliced where their elements stand. The dispatcher walks innermost first. A scope owns
-   every ordinary binding it declares while the user stands in that scope, whether or
+   every ordinary binding it declares while the user is in that scope, whether or
    not the command is currently live. A live command runs and prevents the platform
    default; an unavailable command suppresses outer Leaf meanings but leaves any browser
    default intact. Escape instead continues to the next live semantic unwind. A `native`
@@ -108,7 +108,7 @@ import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
-// is standing in it, while the dispatcher wants both at once. Spelled `!x || x()`
+// is in it, while the dispatcher wants both at once. Spelled `!x || x()`
 // in three places before, which is a rule written three times and named nowhere.
 const pageHas = scopeAvailable;
 export const userIn = (scope) => {
@@ -121,17 +121,17 @@ export const userIn = (scope) => {
 // Where the user is first, and what the page has second: both are pure and the and is
 // the same either way round, but `at` is a class check and a `when` may be the whole event
 // log folded — so the walk asks the cheap question of every scope and the dear one only of
-// the scopes it is already standing in. That is the rule the dispatcher's row loop already
+// the scopes containing the current location. That is the rule the dispatcher's row loop already
 // keeps and the control scope's own comment already claims ("`at` is asked first and answers
 // false wherever this could be in doubt, so a paint never reaches it"), and the scope walk
 // was the one place it was not true. The sequence is what made it bite: its `when` reaches the
 // decisions fold and then every link on the page, once per keydown, from the first keystroke of
 // the first comment.
-const standing = (scope) => userIn(scope) && pageHas(scope);
-/** The stance the user stands in, innermost, with its way out (register.js, `stances`),
+const currentLocation = (scope) => userIn(scope) && pageHas(scope);
+/** The stance the user is in, innermost, with its way out (register.js, `stances`),
  * or null. */
 export const innermostStance = () =>
-  stances().find(({ scope }) => standing(scope)) ?? null;
+  stances().find(({ scope }) => currentLocation(scope)) ?? null;
 const nativeBoundary = (claims) => ({
   get rows() {
     const reference = universalCommandReference();
@@ -147,7 +147,7 @@ const scopeRoot = (scope) => {
   return typeof declared === "function" ? declared() : declared;
 };
 const innerEscape = (scope, active) => scope.escape === "inner" || scope.el === active;
-// Every scope the user is standing in, innermost first. The whole list: what a nearer
+// Every scope the user is in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
 // the list here instead was the same statement made where only one of the two shadowings
@@ -180,7 +180,7 @@ const escapeOrder = (scopes, active) => {
   const outer = layer.filter((scope) => !inner.includes(scope));
   const root = new Map(outer.map((scope) => [scope, scopeRoot(scope)]));
   const depth = new Map(outer.map((scope) => [scope, above(root.get(scope), active)]));
-  // The innermost surface the user is standing in, among the ones offering a step. A
+  // The innermost surface the user is in, among the ones offering a step. A
   // scope rooted at the user's own focus, or at the document, names no surface: the
   // first is wherever they are and the second is everywhere.
   let surface = null;
@@ -229,11 +229,11 @@ export function stack(binding = null) {
     return scope;
   });
   const ordered = (scopes) => {
-    const activeScopes = scopes.filter(standing);
+    const activeScopes = scopes.filter(currentLocation);
     return binding === "Escape" ? escapeOrder(activeScopes, active) : activeScopes;
   };
   // One tier per layer the browser holds, newest first. Everything below the newest modal
-  // is inert, so those layers are the only ones a scope can still be standing in.
+  // is inert, so those layers are the only ones a scope can still be active in.
   const layers = nativeLayers();
   const modalAt = layers.findLastIndex((layer) => layer.kind === "modal");
   const visible = modalAt < 0 ? layers : layers.slice(modalAt);

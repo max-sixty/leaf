@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://leaf.page/schema/served-state.json",
   "title": "Served state",
-  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`) and holds it to the schema pages vendored at the current protocol read (`build/browser/protocol.mjs`). `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to an x-state verb, as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
+  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`). It is not part of the page protocol: the runtime that reads it comes from the Leaf that serves it (`runtime_selection.py`), so a change needs no bump. `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to an x-state verb, as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
   "$ref": "#/$defs/Reading",
   "properties": {
     "others": {
@@ -743,8 +743,7 @@
             "unresolve",
             "action",
             "report",
-            "note",
-            "done"
+            "note"
           ]
         },
         "author": { "type": "string" },
@@ -806,11 +805,6 @@
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/View" }
         },
-        "approval_history": {
-          "description": "Approvals in force across every stamp, for Threads' event timeline. Current-version approval state lives only in its obligation.",
-          "type": "array",
-          "items": { "$ref": "leaf:event/done", "unevaluatedProperties": false }
-        },
         "todos": {
           "description": "Every to-do, open and ended, the one record the browser reads each from.",
           "type": "array",
@@ -853,7 +847,6 @@
       "required": [
         "basis",
         "views",
-        "approval_history",
         "todos",
         "plan",
         "receipts",
@@ -895,7 +888,7 @@
           "additionalProperties": false
         },
         "obligations": {
-          "description": "Every obligation record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row and `approval_blocking` name an obligation by `id`.",
+          "description": "Every obligation record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row names an obligation by `id`.",
           "type": "array",
           "items": { "$ref": "#/$defs/Obligation" }
         },
@@ -944,7 +937,7 @@
           }
         },
         "undo": {
-          "description": "The user's gestures this document can take back, newest first (`served_state.document.browser_undo_candidates`); `newest` marks the user's newest gesture, and `gesture` says what that one did when it is an action.",
+          "description": "The user's gestures this document can take back, newest first (`served_state.document.browser_undo_candidates`); `newest` marks the user's newest gesture, `gesture` says what that one did when it is an action, and `picked_up` marks a gesture a delivery handed into an agent's turn.",
           "type": "array",
           "items": {
             "type": "object",
@@ -952,7 +945,8 @@
               "event": { "$ref": "#/$defs/Event" },
               "coordinate": { "type": "array", "items": { "type": "string" } },
               "newest": { "const": true },
-              "gesture": { "$ref": "#/$defs/Gesture" }
+              "gesture": { "$ref": "#/$defs/Gesture" },
+              "picked_up": { "const": true }
             },
             "required": ["event"],
             "additionalProperties": false
@@ -987,11 +981,6 @@
           },
           "required": ["on_user", "on_agent", "done"],
           "additionalProperties": false
-        },
-        "approval_blocking": {
-          "description": "The obligations approving this version waits on (`obligations.approval_blocking`).",
-          "type": "array",
-          "items": { "type": "string" }
         }
       },
       "required": [
@@ -1003,8 +992,7 @@
         "undo",
         "coverage",
         "published_at",
-        "queues",
-        "approval_blocking"
+        "queues"
       ],
       "additionalProperties": false
     },
@@ -1070,7 +1058,7 @@
       "additionalProperties": false
     },
     "Obligation": {
-      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a widget or a version's sign-off waits on the user for, or what an update the user handed over is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
+      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message, user task, or widget waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -1091,19 +1079,29 @@
               "additionalProperties": false
             },
             {
-              "type": "object",
-              "properties": {
-                "kind": { "const": "approval" },
-                "version": { "type": "integer" }
-              },
-              "required": ["kind", "version"],
-              "additionalProperties": false
-            },
-            {
               "description": "An update the user handed over: `id` is the input's event, `subject` the thread or widget it stands on.",
               "type": "object",
               "properties": {
                 "kind": { "const": "update" },
+                "id": { "type": "string" },
+                "subject": { "$ref": "#/$defs/Subject" }
+              },
+              "required": ["kind", "id", "subject"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "message" },
+                "id": { "type": "string" }
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "todo" },
                 "id": { "type": "string" },
                 "subject": { "$ref": "#/$defs/Subject" }
               },
@@ -1119,7 +1117,7 @@
           "properties": {
             "text": { "type": ["string", "null"] },
             "target": {
-              "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for an approval, which asks about the version as a whole.",
+              "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message or page-wide task, whose source and thread supply navigation.",
               "type": ["string", "null"]
             }
           },
@@ -1185,7 +1183,7 @@
       "additionalProperties": false
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its to-do by `id`, whose record is the page's `todos` entry.",
+      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and an agent to-do row names its record in the page's `todos` entry.",
       "anyOf": [
         { "$ref": "#/$defs/ObligationRow", "unevaluatedProperties": false },
         { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false }
@@ -1197,7 +1195,7 @@
       "properties": {
         "kind": {
           "description": "The record's `source.kind`.",
-          "enum": ["widget", "approval", "update"]
+          "enum": ["widget", "update", "message", "todo"]
         },
         "id": {
           "description": "The obligation, whose record is the view's `obligations` entry.",
@@ -1220,7 +1218,7 @@
       "required": ["kind", "id", "owner", "subject", "thread", "live"]
     },
     "TodoRow": {
-      "description": "A to-do's row in On me or On <agent> (`served_state.queues`).",
+      "description": "An agent to-do's row in On <agent> (`served_state.queues`).",
       "type": "object",
       "properties": {
         "kind": { "const": "todo" },
@@ -1230,7 +1228,7 @@
         },
         "owner": {
           "description": "The list the row stands on.",
-          "enum": ["agent", "user"]
+          "const": "agent"
         },
         "subject": { "$ref": "#/$defs/Subject" },
         "thread": {
@@ -1350,7 +1348,7 @@
           "type": "object",
           "properties": {
             "kind": { "const": "needs_user" },
-            "reason": { "enum": ["widget", "resend"] },
+            "reason": { "enum": ["obligation", "resend"] },
             "workflow": { "type": ["string", "null"] }
           },
           "required": ["kind", "reason", "workflow"],

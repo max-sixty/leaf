@@ -119,7 +119,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     page.keyboard.press("m")
     mark = page.locator("#storage-evict .lf-pick")
     # The obligation's own numbered actions are what the keys reach, under the one context the
-    # question owns, with Escape's way out of the standing beside them as it is
+    # question owns, with Escape's way out of the current location beside them as it is
     # anywhere the user is holding something.
     assert active_digit_bindings(page) == "1–3"
     assert "Escape" in available_commands(page)["navigation.release"]
@@ -132,7 +132,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     expect(write_hint).to_be_visible()
 
     # Enter has no invented meaning on the obligation or an option mark. Tab enters the real
-    # controls, while the same obligation-owned numbers and binding badges remain standing there.
+    # controls, while the same obligation-owned numbers and binding badges remain visible there.
     page.keyboard.press("Enter")
     expect(page.locator("#storage-decision")).to_be_focused()
     page.keyboard.press("3")

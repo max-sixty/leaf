@@ -112,7 +112,7 @@
 }
 .lf-vr-detail {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   min-inline-size: 0;
   min-block-size: 0;
   --lf-full-height: inherit;
@@ -120,7 +120,7 @@
 .lf-vr-case {
   anchor-scope: --review-inspect, --review-threads;
   display: grid;
-  grid-area: 1 / 1 / span 5 / 2;
+  grid-area: 1 / 1 / span 4 / 2;
   grid-template-rows: subgrid;
   min-inline-size: 0;
   min-block-size: 0;
@@ -173,28 +173,6 @@
 .lf-vr-approval input {
   margin: 0;
 }
-.lf-vr-tools {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-block: 1px solid var(--rule);
-  min-block-size: 40px;
-}
-.lf-vr-view {
-  display: flex;
-  align-items: stretch;
-  gap: 16px;
-}
-.lf-vr-mode-button {
-  border-radius: 0;
-  border-block-end: 1px solid transparent;
-  margin-block-end: -1px;
-}
-.lf-vr-mode-button[aria-pressed=true] {
-  color: var(--ink);
-  border-block-end-color: var(--ink);
-}
 .lf-vr-inspect {
   anchor-name: --review-inspect;
 }
@@ -228,18 +206,6 @@
 .lf-vr-details::backdrop {
   background: transparent;
 }
-.lf-vr-inspection {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 20px;
-  margin-block: 12px;
-}
-.lf-vr-inspection label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-block-size: var(--aim-floor);
-}
 .lf-vr-provenance {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -268,31 +234,33 @@
   border-radius: 0;
 }
 .lf-vr-evidence > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   padding: 10px 12px;
   border-block-end: 1px solid var(--rule);
   background: var(--paper);
 }
-.lf-vr-evidence-note,
-.lf-vr-pan-hint {
+.lf-vr-evidence-note {
+  flex: 1 1 20rem;
   margin: 0;
   color: var(--muted);
   font: 12px/1.4 var(--sans);
 }
-.lf-vr-pan-hint {
-  margin-block-start: 4px;
-}
-.lf-vr-pan-hint[hidden] {
-  display: none;
-}
 .lf-vr-capture {
+  display: grid;
+  grid-template-rows: minmax(12rem, 1fr) auto;
   min-inline-size: 0;
-  padding: 0;
-  overflow: auto;
-  --lf-top: 0px;
-  scrollbar-gutter: stable;
+  min-block-size: 0;
+  --lf-full-height: inherit;
 }
 .lf-vr-capture > lf-shot {
-  margin: 0 auto;
+  min-inline-size: 0;
+  min-block-size: 0;
+  margin: 0;
+  --lf-full-height: inherit;
 }
 .lf-vr-discussion {
   display: grid;
@@ -371,15 +339,6 @@
   .lf-vr-decision {
     gap: 8px;
   }
-  .lf-vr-tools {
-    gap: 8px;
-  }
-  .lf-vr-view {
-    gap: 12px;
-  }
-  .lf-vr-capture {
-    padding: 0;
-  }
 }
 @container style(--lf-full-height:1) {
   .lf-vr-dashboard {
@@ -389,7 +348,7 @@
 }
 @media print {
   .lf-vr-queue,
-  .lf-vr-tools,
+  .lf-vr-inspect,
   .lf-vr-decision {
     display: none !important;
   }
@@ -402,9 +361,6 @@
   .lf-vr-case[aria-hidden=true] {
     visibility: visible;
     opacity: 1;
-  }
-  .lf-vr-capture {
-    overflow: visible;
   }
 }
 .lf-vr-inspection-heading {

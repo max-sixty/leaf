@@ -29,6 +29,7 @@ from render_harness import (
     panel_field,
     panel_menu,
     panel_settled,
+    panel_view,
     refuse,
     reported_browser_errors,
     selection_field,
@@ -364,7 +365,7 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the Markdown renderer"
 
-    rows = page.locator(".lf-fp-view[data-view='threads'] .lf-fp-thread")
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
     expect(rows).to_have_count(0)
@@ -478,11 +479,7 @@ def test_invalid_visual_part_ids_report_the_package_error(browser, serve):
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
     """Malformed state leaves authored content readable but interaction unresolved."""
-    url = serve(
-        SHORT_SUGGESTION.replace(
-            "</title>", '</title><meta name="lf-review" content="sign-off">', 1
-        )
-    )
+    url = serve(SHORT_SUGGESTION)
     append_command(
         serve.page_dir,
         {
@@ -513,7 +510,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
         expect(page.locator("#sug lf-old")).to_be_visible()
-        # Versions, where the approval stands, is out of reach until state applies.
+        # Versions is out of reach until state applies.
         expect(
             panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
         ).to_be_disabled()
@@ -537,35 +534,39 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
     consume_browser_errors(page, "read failed: Unexpected token")
 
 
-def test_a_layer_mismatch_signals_startup_failure_on_window(browser, serve):
-    """Bootstrap listeners hear a document/runtime generation mismatch."""
-    url = serve(leaf_page("Mismatched layer", "<h1>Readable authored content</h1>"))
-    page = browser.new_page()
-    page.add_init_script(
-        """
-        window.__leafStartupFailures = 0;
-        window.addEventListener(
-          "lf-startup-failed",
-          () => window.__leafStartupFailures++,
-        );
-        """
+def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve):
+    """A server restarted under another Leaf runs another runtime, whose state the
+    tab's code may misread. The tab refuses that server's answer, asks its source, and
+    reloads onto the document the server now serves (`runtime_selection.py`)."""
+    page = open_page(
+        browser, serve(leaf_page("Restarted", "<h1>Readable authored content</h1>"))
     )
+    page.evaluate("() => { window.lfSameDocument = true; }")
+    restarted = {"answers": True}
 
-    # Generation is deliberately a native module in the compiled distribution.
-    # Replace its declared value, without depending on its source serialization.
-    page.route(
-        "**/runtime/layer-generation.js",
-        lambda route: route.fulfill(
-            body='export const layerGeneration = "mismatched-runtime";',
-            content_type="application/javascript",
-        ),
-    )
-    page.goto(url, wait_until="domcontentloaded")
-    expect(page.get_by_role("status")).to_have_text(
-        "Leaf couldn't start. Waiting for the server to update."
-    )
-    assert page.evaluate("() => window.__leafStartupFailures") == 1
-    consume_browser_errors(page, "belong to different layers")
+    # The server's answers name another runtime until its source has said so once,
+    # which is the reading the reload lands on.
+    def another_runtime(route):
+        if not restarted["answers"]:
+            route.continue_()
+            return
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+        if route.request.url.endswith("/registry.json"):
+            restarted["answers"] = False
+
+    page.route("**/api/state", another_runtime)
+    page.route("**/registry.json", another_runtime)
+    with page.expect_navigation():
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    wait_until_ready(page)
+    assert page.evaluate("() => window.lfSameDocument") is None
 
 
 def test_a_root_module_failure_leaves_authored_document_readable(browser, serve):

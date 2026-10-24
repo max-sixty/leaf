@@ -20,7 +20,7 @@ from render_harness import (
 )
 
 from leaf import data as data_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 
 def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
@@ -399,7 +399,7 @@ def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, ser
           const fold = [...document.getElementById('patch').shadowRoot
             .querySelectorAll('.lf-diff-fold')].find(node => node.checkVisibility());
           const summary = fold?.querySelector('summary');
-          const firstLine = fold?.querySelector('[data-content] > [data-line]');
+          const firstLine = fold?.querySelector('.lf-diff-line > [data-line]');
           if (!summary || !firstLine?.textContent.includes('old line 0')) return false;
           const top = summary.getBoundingClientRect().top;
           const edge = body.getBoundingClientRect().top + body.clientTop;
@@ -426,8 +426,8 @@ def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, ser
 def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, bound):
     """A refusal stands while its patch is unchanged: a diff that leaves the page and
     returns, as document reconciliation moves it, renders its patch again only when
-    the departure cut that rendering short, and does not tell the author twice. A bound
-    patch returns through its data subscription, an inline one through the widget."""
+    the departure cut that rendering short, and does not tell the author twice.
+    Both inline and bound patches use the widget's render lifecycle."""
     one = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n+y\n"
     diff = (
         '<lf-diff id="d-bad" source="bad-patch"><pre></pre></lf-diff>'
@@ -453,6 +453,47 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     assert returned, "the returning diff rendered its refused patch again"
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
     assert len(errors) == 1, errors
+
+
+def test_an_inline_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
+    browser, serve
+):
+    """A departure cuts short preparation, but a settled return keeps its native rows."""
+    patch = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n"
+    url = serve(
+        leaf_page("Returning diff", f'<lf-diff id="patch"><pre>{patch}</pre></lf-diff>')
+    )
+    page = browser.new_page()
+    held = []
+    page.route("**/vendor/pierre-parser.esm.js", lambda route: held.append(route))
+    page.goto(url)
+    holding(page, held, 1, "the inline patch parser")
+    page.evaluate("""async () => {
+        const diff = document.getElementById('patch');
+        const parent = diff.parentNode;
+        const next = diff.nextSibling;
+        diff.remove();
+        // Cross the departure task boundary; preparation stays held by the route.
+        await new Promise((resolve) => setTimeout(resolve));
+        parent.insertBefore(diff, next);
+        await diff.updateComplete;
+    }""")
+    held[0].continue_()
+    wait_until_ready(page)
+    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
+    assert page.evaluate("""async () => {
+        const diff = document.getElementById('patch');
+        const row = diff.shadowRoot.querySelector('[data-line]');
+        const parent = diff.parentNode;
+        const next = diff.nextSibling;
+        diff.remove();
+        // A separate task makes this a departure and return, not an in-page move.
+        await new Promise((resolve) => setTimeout(resolve));
+        parent.insertBefore(diff, next);
+        await diff.updateComplete;
+        await diff.sourceRendering;
+        return row !== null && row === diff.shadowRoot.querySelector('[data-line]');
+    }"""), "a completed inline patch replaced its rows on return"
 
 
 def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serve):
@@ -909,6 +950,17 @@ def test_resolved_file_threads_share_the_file_disclosure_edge(browser, serve):
         ), geometry
         assert geometry["file"]["size"] == geometry["resolved"]["size"], geometry
         assert geometry["file"]["content"] == geometry["resolved"]["content"], geometry
+    # Paper has nothing to turn, so neither row draws its marker there.
+    page.emulate_media(media="print")
+    printed = summary.evaluate("""summary => [
+      summary.closest('.lf-diff-file').querySelector(':scope > details > summary'),
+      summary,
+    ].map(node => {
+      const arrow = getComputedStyle(node, '::before');
+      return arrow.display === 'none' || arrow.visibility === 'hidden';
+    })""")
+    assert printed == [True, True], printed
+    page.emulate_media(media="screen")
     summary.click()
     expect(thread).to_be_visible()
     reopen = thread.get_by_role("button", name="Reopen", exact=True)

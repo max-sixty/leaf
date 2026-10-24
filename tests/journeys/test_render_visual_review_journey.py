@@ -12,6 +12,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    panel_view,
     resized,
     scroll_settled,
     sending,
@@ -225,7 +226,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert first_images.evaluate_all(
         "images => images.every(image => image.complete && image.naturalWidth > 0)"
     )
-    details_button = first.get_by_role("button", name="More inspection")
+    details_button = first.get_by_role("button", name="Capture details")
     go_to(user, details_button)
     expect(first.locator(".lf-vr-details")).to_be_visible()
     user.keyboard.press("Escape")
@@ -278,7 +279,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     # The composer returns to the reviewed case; Threads opens over it in the panel and
     # Escape puts it away, leaving the page to the reader.
     expect(second).to_be_focused()
-    threads = user.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = user.locator(panel_view("threads"))
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
     expect(threads).to_be_visible()
@@ -344,7 +345,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("Escape")
     user.keyboard.press("Escape")
     assert user.evaluate("() => document.activeElement === document.body")
-    compare = second.get_by_role("button", name="Before & after")
+    compare = second.get_by_role("button", name="Pair", exact=True)
     go_to(user, compare)
     assert_keyboard_focus(user, compare)
     corrected = shifted | {

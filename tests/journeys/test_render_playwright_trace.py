@@ -406,7 +406,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         )
     ).not_to_have_attribute("data-lf-datum", captured)
     expect(posted).to_have_count(0)
-    # The drawing is the last thread before the timeline the user stands on.
+    # The drawing is the last thread before the timeline the user is located on.
     user.keyboard.press("Shift+t")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
     expect(posted).to_have_count(1)
@@ -1568,6 +1568,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
         resized(user, 500 if touch else 1000, 900)
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
+        widget.get_by_role("button", name="Image scale", exact=True).click()
         widget.get_by_role("button", name="Fit image", exact=True).click()
         rendered(user)
         fitted = user.evaluate("inspectionView()")

@@ -192,7 +192,6 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "LEAF_REPLY_TOKEN" not in launched["options"]["env"]
     assert launched["options"]["cwd"] == str(site_root)
     assert launched["options"]["env"][APP_SERVER_ENV] == harness.endpoint
-    assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
     assert (
         launched["options"]["env"]["LEAF_HOST_LAUNCHER"] == website_server.LEAF_COMMAND
     )
@@ -206,7 +205,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # run a closing `resolve` and never reply, which `leaf-dev journey website-adapter`
     # caught. The hosted page's sentence comes from the steps App Server watches
     # instead, which the activity fold prefers over Leaf's own claim wording for
-    # exactly this reason. The shared contract describes `leaf status`, so what the
+    # exactly this reason. The shared contract describes `leaf page open`, so what the
     # agent receives has to hand the status to the harness.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "Leave status to the harness" in instructions

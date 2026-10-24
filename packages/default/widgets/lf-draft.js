@@ -27,6 +27,13 @@
  * document, so Draw and Design modes leave them operable while the saved reading
  * remains the page's to draw on or comment on.
  *
+ * The editor opens where the prose stood and in its faces: its field takes each
+ * block's type and the gaps between blocks from the draft's place on the page, and
+ * draws a picture as the picture, under its source once the caret reaches it
+ * (`facesOf`, composing/text-field.js), so no word moves as it opens. Rejected:
+ * drawing drafts in a sent message's face, which the editor already wore, since drafts
+ * would lose their document type, chosen by the user on 2026-10-23.
+ *
  * The editor reads as an ordinary text box: its words stand in the field until Save
  * or Discard, and the field's own undo walks them back. Save submits one absolute edit
  * through the shared send generation; Discard and Escape close the editor, throwing away
@@ -360,6 +367,8 @@ customElements.define(
       if (this.#available()) this.#resumeProjection ??= this.controller.defer();
       const editor = offer(TEXT_FIELD, "lf-draft-edit");
       editor.dataset.lfRuntime = "";
+      // It stands where the prose did, so it reads in the prose's faces.
+      editor.facesOf = this.#body;
       // Words another tab's open editor holds outrank the current text: they are the
       // same unsent edit.
       const effective = this.controller.read().state.edit.value;
@@ -406,7 +415,7 @@ customElements.define(
           returnDuration(),
         );
       if (discard) clearEdit(this.id);
-      // Only where the user was standing in it. A close this tab's own gesture made
+      // Only where the user was in it. A close this tab's own gesture made
       // has focus in the box that is going, and the draft's one persistent control is
       // where it lands so a keyboard user isn't dropped back at the page top; a close
       // another tab's settlement brings takes focus from wherever they actually are.

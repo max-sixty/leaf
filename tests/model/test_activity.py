@@ -925,7 +925,7 @@ def test_the_state_payload_says_when_it_was_taken(page_dir):
 
 
 def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
-    """`leaf status` reads its transition back so a silent success cannot pass for a
+    """`leaf page open` reads its transition back so a silent success cannot pass for a
     no-op. Canonical activity keeps showing an unanswered user move over a `waiting`
     written ahead of it, so the status the agent believes it set is not the one the
     user sees. The readback names the move; once it has an answer the line stands
@@ -934,23 +934,23 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
     )
     comment = events_model.read_events(claimed)[0]["id"]
-    waiting = ["status", str(claimed), "waiting", "pick one"]
+    waiting = ["page", "open", str(claimed)]
 
     early = CliRunner().invoke(cli_model.cli, waiting)
     assert early.exit_code == 0, early.output
-    assert json.loads(early.stdout)["detail"] == "pick one"
+    assert json.loads(early.stdout)["detail"] == ""
     [owed] = said(early.stderr)
-    assert owed["code"] == "waiting-owes"
+    assert owed["code"] == "page-open-owes"
     assert owed["text"] == (
-        "1 user update with no answer (`leaf response reply <answer.ref>` with "
+        "1 user update with no answer (`leaf thread reply <answer.ref>` with "
         f"the `answer.ref` that `leaf wait {claimed}` delivers for {comment}); "
-        "the page reads waiting once each has one"
+        "opening the page does not answer them"
     )
 
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(claimed, comment),
@@ -964,7 +964,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     assert json.loads(settled.stdout)["state"] == "waiting"
     snapshot.check(
         yaml_document(
-            "The waiting status command names unanswered work until the reply settles it.",
+            "Opening a page names unanswered work until the reply settles it.",
             _interaction_prompt_evidence(
                 claimed,
                 {
@@ -1316,9 +1316,7 @@ def test_an_ended_pickup_keeps_the_invitation_the_agent_declared(page_dir):
         with service_model.PageTransaction(page_dir) as transaction:
             delivery_model.record_pickup(transaction, [comment])
             cleanup_model.close_session_turn(claim["id"])
-        result = CliRunner().invoke(
-            cli_model.cli, ["status", str(page_dir), "waiting", "pick a storage engine"]
-        )
+        result = CliRunner().invoke(cli_model.cli, ["page", "open", str(page_dir)])
         assert result.exit_code == 0, result.output
         state = page_state(page_dir)
     finally:
@@ -1326,7 +1324,7 @@ def test_an_ended_pickup_keeps_the_invitation_the_agent_declared(page_dir):
     activity = state["activity"]
     assert (activity["kind"], activity["detail"]) == (
         "listening",
-        "pick a storage engine",
+        "",
     )
     assert (activity["counts"]["pending"], activity["counts"]["queued"]) == (0, 0)
     [view] = state["browser"]["views"].values()

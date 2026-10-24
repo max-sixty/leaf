@@ -1,6 +1,6 @@
 """Run usability tasks and give one Promptfoo agent their canonical evidence.
 
-This module owns fixture setup, native resumed/live execution and user-input
+This module owns fixture setup, continuous native sessions and user-input
 injection. It retains page state, active markup, data, events, delivery envelopes
 and the full native trace for the judge, less the images the agent read. Task
 correctness belongs to one YAML llm-rubric per case, not a parallel Python grader or
@@ -40,10 +40,8 @@ from leaf_dev.arms import (
     read_page_state,
     read_trace,
     resumed,
-    run_agent,
     run_leaf,
     scratch,
-    trace_result,
     trace_summary,
 )
 from leaf_dev.eval_cases import definition
@@ -96,7 +94,18 @@ class Run:
         return run_leaf(self.payload, self.state, *args, **kwargs)
 
     def traces(self) -> list[list[dict]]:
-        return [read_trace(path) for path in sorted(self.dir.glob("stream-*.jsonl"))]
+        """Keep each chat phase distinct within the continuous native session."""
+        phases = []
+        for path in sorted(self.dir.glob("stream-*.jsonl")):
+            phase = []
+            for record in read_trace(path):
+                if record["type"] == "eval_phase" and phase:
+                    phases.append(phase)
+                    phase = []
+                phase.append(record)
+            if phase:
+                phases.append(phase)
+        return phases
 
     def usable(self) -> bool:
         """Whether the native author finished the requested phases."""
@@ -172,9 +181,6 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
         FIXTURE_INPUTS["reading"]["stamp"],
         check=True,
     )
-    run.leaf(
-        "status", str(page), "waiting", FIXTURE_INPUTS["reading"]["status"], check=True
-    )
     if 'id="cutover-mode"' in html:
         for move in READING_FIXTURE["moves"]:
             if move.get("undoes") == "previous":
@@ -226,10 +232,6 @@ def build_resume(run: Run, page: Path) -> None:
         rerun,
         inputs["rerun_answer"],
     )
-    run.leaf(
-        "status", str(page), "waiting", inputs["status"],
-        check=True,
-    )  # fmt: skip
     admit(run, page, {"kind": "resolve", "parent": rerun})
     admit(run, page, {
         "kind": "action", "revision": 2, "widget": "rollout", "action": "choose",
@@ -272,13 +274,6 @@ def build_constructs(run: Run, page: Path) -> None:
         FIXTURE_INPUTS["constructs"]["stamp"],
         check=True,
     )
-    run.leaf(
-        "status",
-        str(page),
-        "waiting",
-        FIXTURE_INPUTS["constructs"]["status"],
-        check=True,
-    )
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "release-note", "action": "edit",
         "detail": {'value': FIXTURE_INPUTS["constructs"]["draft"]},
@@ -297,9 +292,6 @@ def build_board(run: Run, page: Path) -> None:
         "--text",
         FIXTURE_INPUTS["board"]["stamp"],
         check=True,
-    )
-    run.leaf(
-        "status", str(page), "waiting", FIXTURE_INPUTS["board"]["status"], check=True
     )
     for detail in FIXTURE_INPUTS["board"]["moves"]:
         admit(run, page, {
@@ -370,9 +362,6 @@ def build_mixed(run: Run, page: Path) -> None:
         FIXTURE_INPUTS["mixed"]["stamp"],
         check=True,
     )
-    run.leaf(
-        "status", str(page), "waiting", FIXTURE_INPUTS["mixed"]["status"], check=True
-    )
 
 
 def build_elided(run: Run, page: Path) -> None:
@@ -391,7 +380,6 @@ def build_elided(run: Run, page: Path) -> None:
         FIXTURE_INPUTS["elided"]["stamp"],
         check=True,
     )
-    run.leaf("status", str(page), "waiting", "", check=True)
 
 
 def build_plan(run: Run, page: Path) -> None:
@@ -419,7 +407,6 @@ def build_plan_resume(run: Run, page: Path) -> None:
     run.leaf(
         "task", "plan", str(page), input_text=json.dumps(inputs["plan"]), check=True
     )
-    run.leaf("status", str(page), "waiting", inputs["status"], check=True)
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "first-region", "action": "choose",
         "detail": {"value": [inputs["choice"]]},
@@ -473,8 +460,8 @@ def build_fixture(run: Run, name: str, page: Path) -> None:
 
 
 def execute(run: Run, work: Path) -> None:
-    """One run: build the case's fixture, then run each phase, resuming the first
-    phase's session, or the live session. The caller keeps `work` alive through
+    """One run: build the case's fixture, then play chat or page inputs in a live
+    session. The caller keeps `work` alive through
     evidence capture; this function archives pages before returning or raising."""
     case = CASES[run.case]
     run.state.mkdir(parents=True)
@@ -491,6 +478,7 @@ def execute(run: Run, work: Path) -> None:
     finally:
         for found in pages(work, run.state):
             shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
+            run.leaf("server", "stop", str(found))
 
 
 # How long a finished session stays open for a trailing turn.
@@ -505,7 +493,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     An idle injection pauses so Leaf's watcher can take its lease. The session closes
     once the last round's turn ends or the session reaches TURN_LIMIT. Each turn's
     end records the page's status."""
-    prompt = case.prompts[0].replace("{page}", str(page))
+    prompt = case.prompts[0].replace("{page}", str(page)).replace("{work}", str(work))
     (run.dir / "prompt-1.txt").write_text(prompt)
     closing: threading.Timer | None = None
     posted, delivered = 0, 0
@@ -524,7 +512,10 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                     limit=TURN_LIMIT,
                     timed_out=run.dir / "timed-out",
                     dirs=[run.payload],
-                    env={"XDG_STATE_HOME": str(run.state)},
+                    env={
+                        "PATH": environment(payload=run.payload)["PATH"],
+                        "XDG_STATE_HOME": str(run.state),
+                    },
                     harness=run.harness,
                 ),
                 run.dir / "stream-1.jsonl",
@@ -612,7 +603,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     finally:
         if closing is not None:
             closing.cancel()
-        run.leaf("server", "stop", str(page))
 
 
 def observed_active_turn(run: Run, page: Path, child) -> str | None:
@@ -683,27 +673,43 @@ def posted_event(page: Path, key: str) -> dict:
 
 
 def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
-    """Run each of the case's prompts as a headless phase, resuming the first
-    phase's session."""
-    session = None
-    for phase, template in enumerate(case.prompts, 1):
-        prompt = template.replace("{page}", str(page)).replace("{work}", str(work))
+    """Send ordinary chat turns through one session, allowing normal page handoff.
+
+    The driver ends after the last answer settles; the author need not suppress
+    serving or change its handoff to make the experiment finish.
+    """
+    prompts = [
+        template.replace("{page}", str(page)).replace("{work}", str(work))
+        for template in case.prompts
+    ]
+    for phase, prompt in enumerate(prompts, 1):
         (run.dir / f"prompt-{phase}.txt").write_text(prompt)
-        trace = run_agent(
+    with LiveSession(
+        LiveChild(
             work,
-            prompt,
+            prompts[0],
             "--plugin-dir",
             str(run.payload),
-            *(("--resume", session) if session else ()),
-            out=run.dir / f"stream-{phase}.jsonl",
-            err=run.dir / f"err-{phase}.txt",
+            stderr=run.dir / "err-1.txt",
+            limit=TURN_LIMIT,
+            timed_out=run.dir / "timed-out",
             dirs=[run.payload],
-            env={"XDG_STATE_HOME": str(run.state)},
+            env={
+                "PATH": environment(payload=run.payload)["PATH"],
+                "XDG_STATE_HOME": str(run.state),
+            },
             harness=run.harness,
-        )
-        session = trace_result(trace).get("session_id")
-        if not session:
-            break
+        ),
+        run.dir / "stream-1.jsonl",
+        watch=(run.payload, run.state, page),
+    ) as live:
+        for phase, prompt in enumerate(prompts, 1):
+            live.note({"type": "eval_phase", "phase": phase, "received_at": now()})
+            since = live.answered
+            if phase > 1:
+                live.send(prompt)
+            if not live.settle(since, grace=GRACE, wake=TURN_LIMIT):
+                break
 
 
 def ignore(directory, names):

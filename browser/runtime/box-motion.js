@@ -13,10 +13,11 @@
  * - A part that kept its size is carried: drawn where it stood, and moved by a
  *   transform to where it stands.
  * - A part that changed size and holds parts of its own leaves each of them to these
- *   rules. If it paints, a face or a ring, that grows from where it stood with it: a
- *   ring drawn by the surface, a face by cutting the part to its outline growing,
- *   unless the part holds something placed against the window, which any cut on it
- *   would cut too.
+ *   rules. A ring is drawn by the surface. A painted face travels by its start
+ *   corner, clipped in that moving frame; its children subtract that carry from
+ *   their own translation, so the face never clips children travelling independently
+ *   from another place. A part holding something placed against the window cannot
+ *   carry or clip it, so leaves its face at rest.
  * - A part that changed size and holds only its own content, such as words, carries
  *   that content by its start corner, cut to its outline growing from where it stood.
  *   An editor carries its words inside its own box (`--lf-field-carry`,
@@ -36,6 +37,13 @@
  *   placed against the window has its parts revealed one by one, as a part holding one
  *   is never carried whole.
  *
+ * Translation and clips are animated through registered properties so they paint
+ * together. Direct translate or clip-path animations can advance independently on the
+ * compositor and leave content outside its focus ring despite identical clocks.
+ * Translation's consumer stays in ordinary style: Firefox can composite even a
+ * constant translate keyframe that reads an animated property. Restore that temporary
+ * declaration when its part stops moving, retaining it across a reversal.
+ *
  * Whose change it is decides what travels. The user's own change, a key, a press or
  * typing, owns what it sets going until that rendering settles, and carries what it
  * moved, so the eye follows it. News, such as an answer arriving, moves nothing the
@@ -49,13 +57,17 @@
  * ancestor's transform, so a part holding one is never carried whole: its parts are
  * placed one by one. The motion is presentation only: each part's layout is where it
  * stands from the change on, and a part's motion ends with the tween, so nothing it
- * leaves behind needs undoing.
+ * leaves behind needs undoing. Each part's motion plays through motion.js's `playMotion`,
+ * so reduced motion and the presentation boundary are answered there: while motion
+ * does not play, each reading takes the box as it stands, and a user asking for
+ * stillness mid-tween finishes what is moving.
  *
  * The platform's own way to move a layout change, a view transition, draws the old
  * state as a picture, sends every press to the root while it runs, and abandons a
  * running one when the next change starts, as each keystroke would; here every part
  * stays live and pressable, which takes reading where each was drawn. */
 import { keeps } from "./keeps.js";
+import { motionPlays, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { nextRender } from "./rendering.js";
 
@@ -85,6 +97,10 @@ const shifted = (box, dx, dy) => ({
 });
 const insetOf = ([top, right, bottom, left], radius = 0) =>
   `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
+const clipFrame = (sides, radius = 0) => ({
+  clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
+  "--lf-box-cut": sides.map((side) => `${side}px`).join(" "),
+});
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 const paints = (style) =>
   !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) ||
@@ -116,6 +132,29 @@ export function boxMotion({
   // Each part moving, from the box it was drawn at to its rest, on one clock.
   let motions = new Map();
   let running = [];
+  // Folding finishes the change of size while the compact object is still travelling.
+  // Keep that path here too when a new gesture interrupts it: the next motion starts
+  // from the shape on screen, not the rectangle a simultaneous resize would draw.
+  let shapeUntil = 1;
+  let rtl = false;
+  const interpolate = (from, to, progress) => {
+    const rect = between(from, to, progress);
+    const shape = Math.min(1, progress / shapeUntil);
+    const w = width(from) + (width(to) - width(from)) * shape;
+    const h = height(from) + (height(to) - height(from)) * shape;
+    if (rtl) rect.left = rect.right - w;
+    else rect.right = rect.left + w;
+    rect.top = rect.bottom - h;
+    return rect;
+  };
+  const translations = new Map();
+  const restoreTranslations = (keep = new Set()) => {
+    for (const [element, { value, priority }] of translations) {
+      if (keep.has(element)) continue;
+      element.style.setProperty("translate", value, priority);
+      translations.delete(element);
+    }
+  };
   let observed = new Set();
   // The parts read whole, whose insides no reading reads.
   let wholes = new WeakSet();
@@ -125,28 +164,22 @@ export function boxMotion({
     return false;
   };
 
-  // How far the parts carrying an element have it drawn from its rest now, it among
-  // them, on the clock every motion shares.
+  // The nearest carrier's global offset includes every carrying ancestor: each
+  // nested translation subtracts its parent's offset, so the local offsets telescope.
   function carriedBy(progress) {
     const offsets = new Map();
     const offset = (carrier) => {
       if (!offsets.has(carrier)) {
-        const { from, to } = motions.get(carrier);
+        const { from, to, carries: edge } = motions.get(carrier);
         const now = between(from, to, progress);
-        offsets.set(carrier, [now.left - to.left, now.top - to.top]);
+        offsets.set(carrier, [now[edge] - to[edge], now.top - to.top]);
       }
       return offsets.get(carrier);
     };
     return (element) => {
-      let dx = 0;
-      let dy = 0;
       for (let up = element; up && up !== root; up = up.parentElement)
-        if (motions.get(up)?.carries) {
-          const [x, y] = offset(up);
-          dx += x;
-          dy += y;
-        }
-      return [dx, dy];
+        if (motions.get(up)?.carries) return offset(up);
+      return [0, 0];
     };
   }
 
@@ -158,6 +191,9 @@ export function boxMotion({
       return;
     }
     if (!element.checkVisibility()) return;
+    // CSS-anchored surfaces already follow their anchor's painted position. Reading
+    // that travel as a layout change would retarget the anchor on every frame.
+    if (style.positionAnchor.startsWith("--")) return;
     const [dx, dy] = carried(element);
     const part = {
       element,
@@ -190,12 +226,12 @@ export function boxMotion({
   function drawn(progress, carried) {
     const at = new Map();
     for (const [element, rest] of rests) {
-      const motion = motions.get(element);
-      if (motion?.revealed && progress < 1) continue;
+      const moving = motions.get(element);
+      if (moving?.revealed && progress < 1) continue;
       at.set(
         element,
-        motion
-          ? between(motion.from, motion.to, progress)
+        moving
+          ? (element === box ? interpolate : between)(moving.from, moving.to, progress)
           : shifted(rest, ...carried(element)),
       );
     }
@@ -231,7 +267,7 @@ export function boxMotion({
     watch();
   }).observe(root, { subtree: true, childList: true, attributeFilter: ["hidden"] });
 
-  function follow(timing) {
+  function follow({ duration, easing }, compact = false) {
     const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     const parts = [];
@@ -258,58 +294,93 @@ export function boxMotion({
     // A box not drawn at all, as in print, has nothing to move, and its next reading
     // takes it as it stands.
     if (!next.has(box)) {
+      restoreTranslations();
       rests = null;
       motions = new Map();
       return;
     }
-    const was = timing && rests ? drawn(progress, carried) : null;
+    // The first reading, and any while motion does not play, is taken as it stands.
+    const was = motionPlays() && rests ? drawn(progress, carried) : null;
     const gesture = theirs();
     // A part holding parts of its own that was growing is drawn at a size of its own,
     // so its parts are placed again from where each is drawn.
     const framed = new Set(
-      [...motions].filter(([, motion]) => motion.frames).map(([element]) => element),
+      [...motions].filter(([, moving]) => moving.frames).map(([element]) => element),
     );
     const before = rests;
     motions = new Map();
     rests = next;
 
     const space = boxOf(room.getBoundingClientRect());
-    const outline = (at, grow, radius) =>
-      insetOf(
-        [
-          at.top - space.top - grow,
-          space.right - at.right - grow,
-          space.bottom - at.bottom - grow,
-          at.left - space.left - grow,
-        ],
-        radius + grow,
-      );
+    const outline = (at, grow, radius) => [
+      [
+        at.top - space.top - grow,
+        space.right - at.right - grow,
+        space.bottom - at.bottom - grow,
+        at.left - space.left - grow,
+      ],
+      radius + grow,
+    ];
     const boxAt = rests.get(box);
     const boxRadius = radiusOf(getComputedStyle(box));
     for (const [layer, reach] of surface())
-      keeps(layer, "style", `clip-path: ${outline(boxAt, reach, boxRadius)}`);
-    if (!was?.has(box)) return;
+      keeps(
+        layer,
+        "style",
+        `clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`,
+      );
+    if (!was?.has(box)) {
+      restoreTranslations();
+      return;
+    }
     const boxFrom = was.get(box);
-
-    const rtl = getComputedStyle(box).direction === "rtl";
+    shapeUntil = compact ? 0.55 : 1;
+    rtl = getComputedStyle(box).direction === "rtl";
+    // Every part moves on one clock, through the one door for motion; it plays here,
+    // since this reading found that it does.
     const start = (element, keyframes) =>
-      running.push(element.animate(keyframes, timing));
+      running.push(playMotion(element, keyframes, { duration, easing }));
+    const contour = (from, to, grow, radius, compact = false) => {
+      const frames = [clipFrame(...outline(from, grow, radius))];
+      if (compact)
+        frames.push({
+          ...clipFrame(...outline(interpolate(from, to, shapeUntil), grow, radius)),
+          offset: shapeUntil,
+        });
+      frames.push(clipFrame(...outline(to, grow, radius)));
+      return frames;
+    };
     const hold = (element, property, value) =>
       start(element, [{ [property]: value }, { [property]: value }]);
-    const move = (element, dx, dy) =>
-      start(element, [{ translate: `${dx}px ${dy}px` }, { translate: "0px 0px" }]);
-    const cutFrom = (element, cut, radius = 0) =>
+    const translated = new Set();
+    const move = (element, dx, dy) => {
+      // From/to stay in window coordinates; nested translations are relative to the
+      // nearest carrying ancestor, so their local offsets add to this global one.
+      const [carriedX, carriedY] = carriedBy(0)(element.parentElement);
+      dx -= carriedX;
+      dy -= carriedY;
+      if (!translations.has(element))
+        translations.set(element, {
+          value: element.style.getPropertyValue("translate"),
+          priority: element.style.getPropertyPriority("translate"),
+        });
+      translated.add(element);
+      element.style.setProperty("translate", "var(--lf-box-carry)");
       start(element, [
-        { clipPath: insetOf(cut, radius) },
-        { clipPath: insetOf([0, 0, 0, 0], radius) },
+        { "--lf-box-carry": `${dx}px ${dy}px` },
+        { "--lf-box-carry": "0px 0px" },
       ]);
+    };
+    const cutFrom = (element, cut, radius = 0) =>
+      start(element, [clipFrame(cut, radius), clipFrame([0, 0, 0, 0], radius)]);
 
     // Moved whole, from where it was drawn.
     function carry(part, from) {
       const dx = from.left - part.box.left;
       const dy = from.top - part.box.top;
-      if (near(dx, 0) && near(dy, 0)) return;
-      motions.set(part.element, { from, to: part.box, carries: true });
+      const [carriedX, carriedY] = carriedBy(0)(part.element.parentElement);
+      if (near(dx, carriedX) && near(dy, carriedY)) return;
+      motions.set(part.element, { from, to: part.box, carries: "left" });
       move(part.element, dx, dy);
     }
 
@@ -320,8 +391,10 @@ export function boxMotion({
       if (part.scrolls && !part.element.matches(TEXT_FIELD)) return grow(part, from);
       let dx = rtl ? from.right - to.right : from.left - to.left;
       let dy = from.top - to.top;
-      const end = Math.max(0, width(to) - width(from));
-      const foot = Math.max(0, height(to) - height(from));
+      // A shrinking frame starts outside its final box, so children remain visible
+      // in the larger outline they occupied before the change.
+      const end = width(to) - width(from);
+      const foot = height(to) - height(from);
       const cut = rtl ? [0, 0, foot, end] : [0, end, foot, 0];
       // The editor's own box cuts its words off at its edges, so it carries them
       // inside itself only as far as that box holds them. Where its start moved up or
@@ -330,9 +403,9 @@ export function boxMotion({
       const editor = part.element.matches(TEXT_FIELD);
       const inside = (rtl ? dx <= 0 : dx >= 0) && dy >= 0;
       if (!editor || (!inside && gesture !== "typing")) {
-        motions.set(part.element, { from, to, carries: true });
+        motions.set(part.element, { from, to, carries: rtl ? "right" : "left" });
         move(part.element, dx, dy);
-        cutFrom(part.element, cut);
+        cutFrom(part.element, cut, radiusOf(part.style));
         return;
       }
       motions.set(part.element, { from, to });
@@ -375,30 +448,31 @@ export function boxMotion({
         for (const inner of part.parts) reveal(inner, frame, siblings);
         return;
       }
+      const carriedTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
       const side = (inset, beyond) => (beyond ? 0 : Math.max(0, inset));
       /** @type {[number, number, number, number]} */
       const from = [
-        side(frame.from.top - to.top, to.top < frame.to.top - 0.5),
-        side(to.right - frame.from.right, to.right > frame.to.right + 0.5),
-        side(to.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
-        side(frame.from.left - to.left, to.left < frame.to.left - 0.5),
+        side(frame.from.top - carriedTo.top, to.top < frame.to.top - 0.5),
+        side(carriedTo.right - frame.from.right, to.right > frame.to.right + 0.5),
+        side(carriedTo.bottom - frame.from.bottom, to.bottom > frame.to.bottom + 0.5),
+        side(frame.from.left - carriedTo.left, to.left < frame.to.left - 0.5),
       ];
       /** @type {[number, number, number, number]} */
       const end = [0, 0, 0, 0];
       const overlaps = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
       for (const sibling of siblings) {
-        const motion = motions.get(sibling.element);
-        if (!motion || motion.revealed) continue;
-        const { from: then, to: at } = motion;
+        const moving = motions.get(sibling.element);
+        if (!moving || moving.revealed) continue;
+        const { from: then, to: at } = moving;
         const across = overlaps(at, to, "top", "bottom");
         const along = overlaps(at, to, "left", "right");
         // On each side the part stands beside it, how far in it reaches, then and at
         // rest.
         [
-          along && { then: then.bottom - to.top, rest: at.bottom - to.top },
-          across && { then: to.right - then.left, rest: to.right - at.left },
-          along && { then: to.bottom - then.top, rest: to.bottom - at.top },
-          across && { then: then.right - to.left, rest: at.right - to.left },
+          along && { then: then.bottom - carriedTo.top, rest: at.bottom - to.top },
+          across && { then: carriedTo.right - then.left, rest: to.right - at.left },
+          along && { then: carriedTo.bottom - then.top, rest: to.bottom - at.top },
+          across && { then: then.right - carriedTo.left, rest: at.right - to.left },
         ].forEach((reach, index) => {
           if (reach && reach.rest <= 0.5 && reach.then > from[index]) {
             from[index] = reach.then;
@@ -408,7 +482,7 @@ export function boxMotion({
       }
       if (from.every((inset) => near(inset, 0))) return;
       motions.set(part.element, { from: to, to, revealed: true });
-      start(part.element, [{ clipPath: insetOf(from) }, { clipPath: insetOf(end) }]);
+      start(part.element, [clipFrame(from), clipFrame(end)]);
     }
 
     function place(part, frame, siblings = []) {
@@ -429,22 +503,21 @@ export function boxMotion({
         if (!same(from, to)) within = { from, to };
         if (!sized && rings(style)) {
           // The surface draws the ring while it moves, in the ring's own colour.
-          const reach =
-            Number.parseFloat(style.outlineWidth) +
-            Number.parseFloat(style.outlineOffset);
+          const offset = Number.parseFloat(style.outlineOffset);
+          const reach = Number.parseFloat(style.outlineWidth) + offset;
           const radius = radiusOf(style);
           keeps(ringLayer, "style", `background: ${style.outlineColor}`);
           hold(element, "outlineColor", "transparent");
           for (const [layer, grown] of [
             [ringLayer, reach],
-            [ringFill, 0],
+            // The fill meets the outline's inner edge, including an inward ring.
+            [ringFill, offset],
           ])
-            start(layer, [
-              { clipPath: outline(from, grown, radius) },
-              { clipPath: outline(to, grown, radius) },
-            ]);
-        } else if (!sized && paints(style) && !part.holdsWindow) grow(part, from);
-        if (!same(from, to)) motions.set(element, { from, to, frames: true });
+            start(layer, contour(from, to, grown, radius));
+        } else if (!sized && paints(style) && !part.holdsWindow)
+          carries ? carryContent(part, from) : grow(part, from);
+        if (!same(from, to))
+          motions.set(element, { ...motions.get(element), from, to, frames: true });
       }
       // What carries is placed first, so what is new beside it is revealed from it.
       const placed = [...part.parts].sort(
@@ -454,17 +527,19 @@ export function boxMotion({
     }
 
     for (const part of parts) place(part, { from: boxFrom, to: boxAt });
+    restoreTranslations(translated);
     if (running.length === 0 && same(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach] of surface())
-      start(layer, [
-        { clipPath: outline(boxFrom, reach, boxRadius) },
-        { clipPath: outline(boxAt, reach, boxRadius) },
-      ]);
+      start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
     // The box stands transparent over the surface's own fill while everything moves,
     // and lets what it carries stand past its rest outline on the way.
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
+    const animations = running;
+    animations.at(-1).onfinish = () => {
+      if (running === animations) restoreTranslations();
+    };
   }
 
   return {

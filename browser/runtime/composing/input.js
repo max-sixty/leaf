@@ -77,6 +77,8 @@ import { applicationState } from "../semantic-state.js";
 import { errorsReading, passErrorsAt, raiseError } from "../errors.js";
 import { repaint } from "../repaint.js";
 import { sizeObserver } from "../rendering.js";
+import { scrollIntoView } from "../landing-scroll.js";
+import { retainUserIntent } from "../user-intent.js";
 
 const inputDrafts = new WeakMap();
 
@@ -100,6 +102,8 @@ class AttachedMediaShelf extends LitElement {
     super();
     this.model = { drawing: null, media: [] };
     this.actions = null;
+    // Whether the pictures are a sent message's, drawn in its face (`sentMedia`).
+    this.sent = false;
     this.undoIcon = iconElement("undo", "lf-corner-mark-icon");
     this.removeIcon = iconElement("cross", "lf-corner-mark-icon");
     // The picture is rebuilt only when the drawing changes, so a repaint that changes
@@ -197,28 +201,40 @@ class AttachedMediaShelf extends LitElement {
             </span>
           `
         : null,
-      media.map(
-        ({ index, url }) => html`
-          <span class="lf-composer-media-item">
-            <button
-              type="button"
-              class="lf-media-open lf-composer-media-open"
-              data-lf-media-url=${url}
-              aria-label=${`View attached image ${index + 1}`}
-            >
-              <img src=${url} alt="" />
-            </button>
-            <button
-              type="button"
-              class="lf-corner-mark lf-composer-media-remove"
-              aria-label=${`Remove attached image ${index + 1}`}
-              @click=${() => this.actions.removeMedia(index)}
-            >
-              ${iconTemplate("cross", "lf-corner-mark-icon")}
-            </button>
-          </span>
-        `,
-      ),
+      media.map(({ index, url }) => {
+        const remove = html`<button
+          type="button"
+          class="lf-corner-mark lf-composer-media-remove"
+          aria-label=${`Remove attached image ${index + 1}`}
+          @click=${() => this.actions.removeMedia(index)}
+        >
+          ${iconTemplate("cross", "lf-corner-mark-icon")}
+        </button>`;
+        // A sent message's picture is the one its message draws (markdown.js, the image
+        // rule), in a paragraph of its own as the message sets it, with the removal mark
+        // a rewrite adds.
+        return this.sent
+          ? html`<p class="lf-composer-media-item">
+              <button
+                type="button"
+                class="lf-media-open lf-message-media"
+                data-lf-media-url=${url}
+                aria-label=${`View attached image ${index + 1}`}
+              >
+                <img src=${url} alt="" /></button
+              >${remove}
+            </p>`
+          : html`<span class="lf-composer-media-item">
+              <button
+                type="button"
+                class="lf-media-open lf-composer-media-open"
+                data-lf-media-url=${url}
+                aria-label=${`View attached image ${index + 1}`}
+              >
+                <img src=${url} alt="" /></button
+              >${remove}
+            </span>`;
+      }),
     ];
   }
 }
@@ -297,6 +313,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // A structured visual hint can mark the exact words its owner observes. It
       // shares the existing placeholder slot and send key; null keeps the plain hint.
       hintParts = null,
+      // Words that pass while the hint stands, said at the empty box's far end after
+      // the hint and its key, where they move none of the box's controls.
+      hintAside = () => "",
       accessibleName = null,
       save,
       send,
@@ -322,10 +341,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // Where the submit control stands: in the field beside the words, or in a group of
       // the caller's that holds it elsewhere, as a rewrite's stands at its message's head.
       submitIn = null,
-      // The attachment shelf stands on the side the box grows toward, so attaching never
-      // moves the words being written. A box held by its top takes it below the field; one held by its foot, as a
-      // reply pinned to its scroller's foot, above.
-      mediaBelow = false,
+      // A box rewriting a sent message, whose attachments are the message's: they stand
+      // where and as the message draws them (`.lf-msg-media`), in the field under its
+      // words and each whole, rather than in a new draft's shelf over the field.
+      sentMedia = false,
     },
   ) {
     const field = document.createElement("div");
@@ -340,7 +359,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const hintLabel = document.createElement("span");
     const hintKey = document.createElement("kbd");
     hintKey.className = "lf-key-badge";
-    visibleHint.append(hintLabel, hintKey);
+    const hintAsideWords = document.createElement("span");
+    hintAsideWords.className = "lf-compose-placeholder-aside";
+    visibleHint.append(hintLabel, hintKey, hintAsideWords);
     field.append(ta);
     (submitIn ?? field).append(sendBtn);
     // Firefox lacks speech recognition; WebKit has it only under its prefix.
@@ -403,10 +424,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       sendBtn.replaceChildren(word.charAt(0).toUpperCase() + word.slice(1));
     }
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
-    mediaShelf.className = "lf-composer-media";
+    mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
+    mediaShelf.sent = sentMedia;
     mediaShelf.setAttribute("role", "group");
     mediaShelf.setAttribute("aria-label", "Attachments");
-    if (mediaBelow) field.after(mediaShelf);
+    if (sentMedia) field.append(mediaShelf);
     else field.before(mediaShelf);
     let attachedMedia = [];
     const draftValue = () => writeAttachedMedia(ta.value, attachedMedia);
@@ -520,12 +542,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // what stands: a text node replaced inside the chrome restyles far more than the node.
     const paint = (contextualHint) => {
       // Read the shared logical focus so this hint agrees with the key chips and rings.
-      const standing = focused() === ta;
+      const currentLocation = focused() === ta;
       const advertising = advertisesKeys();
       const sendKeys = advertising ? submitLabel() : "";
       const suffix = !advertising
         ? ""
-        : standing
+        : currentLocation
           ? sendKeys
           : contextualHint?.box === ta
             ? contextualHint.label
@@ -536,9 +558,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       const parts = status ? null : hintParts?.();
       if (hintParts) renderHint(parts ?? word, hintLabel);
-      if ((suffix && !status) || (parts !== null && parts !== undefined)) {
+      const aside = status ? "" : hintAside();
+      if ((suffix && !status) || (parts !== null && parts !== undefined) || aside) {
         if (!hintParts) keepsText(hintLabel, word);
         keepsText(hintKey, suffix);
+        keepsText(hintAsideWords, aside);
         if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();
       const ariaLabel = name();
@@ -663,7 +687,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     };
     inputDrafts.set(ta, sync);
     // The box's first paint names its send button and placeholder, and keeps the focus
-    // bookkeeping if a caller wires one the user already stands in.
+    // bookkeeping if a caller wires one the user is already in.
     refresh();
     const submit = async (sender) => {
       if (sending || uploading || held()) return;
@@ -817,6 +841,18 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         attachedMedia.push(...paths);
         renderMedia();
         draftChanged();
+        // A sent message's pictures stand under its words, where a new one can arrive out
+        // of view: it is the attachment's result, so it comes into view once it has its
+        // size, unless the user has moved on meanwhile.
+        if (sentMedia) {
+          const added = mediaShelf.lastElementChild;
+          const mayReveal = retainUserIntent();
+          void added
+            ?.querySelector("img")
+            ?.decode()
+            .catch(() => {})
+            .then(() => mayReveal() && scrollIntoView(added, { block: "nearest" }));
+        }
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
@@ -877,7 +913,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // send hands them on to, as a reply does to its thread (`landSent`), never on the
     // control, where the next letters would fall on nothing. A pointer press never takes
     // the focus (moving it is mousedown's default), so the box keeps it until the send
-    // moves it. A keyboard press on the control, or a pointer press while the user stood
+    // moves it. A keyboard press on the control, or a pointer press while the user was
     // elsewhere, puts the user in the box before the submission, so what the send does
     // next starts from the state Enter starts it from.
     //

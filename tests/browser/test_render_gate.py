@@ -62,6 +62,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
+    ROOT,
     TOKEN,
     _traffic,
     _until,
@@ -72,7 +73,7 @@ from render_harness import (
     live_counts,
     names,
     open_page,
-    pane_posture,
+    pane_scroll_behavior,
     panel_control,
     panel_menu,
     plant_quiet_word,
@@ -138,7 +139,7 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
     the page in the light scheme at each width where its margin content changes. A
     sidebar and a sidenote stand in the margin only where the room beside the column
     holds them, which is above the desktop viewport for a sidebar beside a note, so
-    the gate finds each width where the page's own residents change, the sidebar's and
+    the gate finds each width where the page's own margin content change, the sidebar's and
     the note's, and renders the page there too, where each has the least room it will
     ever have. The rail holds only Leaf's markers, so its width is not one of them.
 
@@ -151,7 +152,7 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
     arm goes on before any route the gate adds and is never taken away, so the list
     the browser consults is never empty and no such transition is sent at all."""
     source = leaf_page(
-        "margin residents in the gate",
+        "margin content in the gate",
         """
 <h1>Migration plan</h1>
 <aside class="sidebar" id="route"><nav aria-label="Route"><a href="#move">Move</a></nav></aside>
@@ -192,11 +193,11 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
     assert len(reading.margin_widths) == 2, reading.margin_widths
     assert reading.margin_widths == sorted(reading.margin_widths)
     assert seen == [
-        (1200, 900, "light"),
-        (1200, 900, "dark"),
+        (1280, 720, "light"),
+        (1280, 720, "dark"),
         (540, 720, "light"),
         (540, 720, "dark"),
-        *((width, 900, "light") for width in reading.margin_widths),
+        *((width, 720, "light") for width in reading.margin_widths),
     ]
     arm = render_gate_scheme.INTERCEPTION_ARM
     assert len(per_page) == len(seen)
@@ -276,7 +277,8 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     the decision's controls under the card's clip: a press nobody can reach, which only
     the sweep's narrowest widths see. A card as tall as the window holds its decision
     below 600px of plan, so a window 720px tall clips it and one 900px tall does not:
-    only the phone render's sweep, at its own height, sees it. A card whose rule for the
+    read at a user's 900px-tall desktop window, only the phone render's sweep, at its
+    own height, sees it. A card whose rule for the
     dark scheme pushes its decision under the clip is clipped only in the two dark
     renders, which each read the geometry once."""
     source = leaf_page(
@@ -318,7 +320,9 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     )
 
     reading = render_gate_model.render_version(
-        browser, serve(source, packages=("default",))
+        browser,
+        serve(source, packages=("default",)),
+        desktop={"width": 1280, "height": 900},
     )
 
     clipped = [f for f in reading.failures if f.code == "clipped-control"]
@@ -326,7 +330,7 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     assert {(f.values["by"], f.widths) for f in clipped} == {
         ("<div id=card>", (360, 440)),
         ("<div id=short>", (360, 540)),
-        ("<div id=dusk>", (1200, 1200)),
+        ("<div id=dusk>", (1280, 1280)),
         ("<div id=dusk>", (540, 540)),
     }, clipped
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
@@ -761,7 +765,7 @@ def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
     page = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
     resized(page, 1200, 700)
     upper = page.locator("#upper")
-    pane_posture(page, upper, "bounded")
+    pane_scroll_behavior(page, upper, "bounded")
     boxes = page.evaluate(
         """() => {
           const box = selector => document.querySelector(selector).getBoundingClientRect();
@@ -775,7 +779,7 @@ def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
     assert abs(boxes["upper"]["height"] - boxes["lower"]["height"]) <= 1, boxes
 
     resized(page, 1200, 420)
-    pane_posture(page, upper, "flow")
+    pane_scroll_behavior(page, upper, "flow")
     flow = page.evaluate(
         """() => {
           const box = selector => document.querySelector(selector).getBoundingClientRect();
@@ -1517,9 +1521,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
     to the reader."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
-    declared = CliRunner().invoke(
-        cli_model.cli, ["status", str(serve.page_dir), "waiting", "Pick a shard."]
-    )
+    declared = CliRunner().invoke(cli_model.cli, ["page", "open", str(serve.page_dir)])
     assert declared.exit_code == 0, declared.output
     claim = service_model.page_claim(serve.page_dir)
     lease = leases_model.take_lease(
@@ -1529,9 +1531,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
         # The leaf names the agent's status.
-        assert "Pick a shard." in page.locator(".lf-fp-leaf").get_attribute(
-            "aria-label"
-        )
+        assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
 
@@ -3478,7 +3478,8 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
     block or table that scrolls sideways keeps 15px clear under its last line, and the
     room costs it none of its width: a block child dropped the code block's inline-end
     padding from what it scrolls, enough to stop a block that overflowed by less than
-    that and loop. One that fits keeps its padding, with no bar to make room for."""
+    that and loop. One that fits keeps the same clearance, so becoming scrollable
+    never moves the following content a frame after layout."""
     url = serve(WIDE_TABLE_PAGE)
     wide = "word " * 60
     root = panel_comment(
@@ -3514,7 +3515,155 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
         assert measured[name]["clear"] >= 15, measured
     assert not measured["fits"]["scrolls"], measured
     assert measured["width"] == measured["bareWidth"], measured
-    assert measured["fits"]["clear"] <= measured["fitsPad"] + 3, measured
+    assert (
+        measured["fitsPad"] + 8 <= measured["fits"]["clear"] <= measured["fitsPad"] + 11
+    ), measured
+
+
+def test_horizontal_scrollbar_clearance_does_not_change_after_layout(
+    browser, serve, subtests
+):
+    """The track's clearance is already present when a box gains horizontal overflow.
+
+    A scroll-state query added it on the next frame, shifting the following control
+    after both the first layout and the layout caused by a resize.
+    """
+    words = "0123456789" * 6
+    boxes = {
+        "code": f"<pre>{words}</pre>",
+        "table": f"<table><tr><td>{words}</td></tr></table>",
+        "widget": f'<div style="overflow:auto hidden;white-space:pre">{words}</div>',
+    }
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Stable scrollbar clearance",
+                "".join(
+                    f'<section id="{name}" style="width:1000px">{box}'
+                    "<button>Following control</button></section>"
+                    for name, box in boxes.items()
+                ),
+            )
+        ),
+    )
+    page.locator("#widget > div").evaluate(
+        "element => element.classList.add('lf-text-scroller')"
+    )
+    for name in boxes:
+        with subtests.test(box=name):
+            readings = page.locator(f"#{name}").evaluate("""async section => {
+              const box=section.firstElementChild, following=section.lastElementChild;
+              const read=()=>({height:box.getBoundingClientRect().height,
+                following:following.getBoundingClientRect().top,
+                scrolls:box.scrollWidth>box.clientWidth});
+              const readings=[read()];
+              section.style.width='200px';
+              readings.push(read());
+              for(let i=0;i<3;i++) {
+                await new Promise(requestAnimationFrame);
+                readings.push(read());
+              }
+              return readings;
+            }""")
+            assert not readings[0]["scrolls"], readings
+            assert all(reading["scrolls"] for reading in readings[1:]), readings
+            assert all(
+                reading["height"] == readings[0]["height"]
+                and reading["following"] == readings[0]["following"]
+                for reading in readings
+            ), readings
+
+
+@pytest.mark.parametrize(
+    ("browser_fixture", "track"),
+    [("browser", 0), ("scrollbar_browser", 15), ("scrollbar_browser", 20)],
+)
+def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
+    request, serve, browser_fixture, track
+):
+    """The diagram fits standard tracks; a wider native track grows without clipping.
+
+    An ample authored reservation is stable through startup on either platform's
+    font metrics. Removing it exposes the natural drawing and native track sizes;
+    the overlay and classic track share the drawing's own blank bottom padding.
+    """
+    source = (ROOT / "examples" / "security-boundary.html").read_text()
+    source = source.replace(
+        'id="security-before-flow" data-height="77"',
+        'id="security-before-flow" data-height="200"',
+    )
+    if track:
+        source = source.replace(
+            "</head>",
+            f"<style>lf-diagram::-webkit-scrollbar {{ height:{track}px }}</style></head>",
+        )
+    page = request.getfixturevalue(browser_fixture).new_page(
+        viewport={"width": 678, "height": 900}
+    )
+    page.add_init_script("""window.diagramFrames = [];
+      function read() {
+        const box = document.querySelector('#security-before-flow');
+        const following = document.querySelector('#security-counterexample');
+        if(box && following) {
+          const svg=box.querySelector('svg');
+          const ink=svg?.getBBox({stroke:true});
+          const bottom=ink && new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
+          window.diagramFrames.push({drawn:!!svg,
+            height:box.getBoundingClientRect().height,
+            following:following.getBoundingClientRect().top,
+            track:box.offsetHeight-box.clientHeight,
+            clear:svg ? box.getBoundingClientRect().bottom-bottom : null});
+        }
+        if(!window.diagramFramesDone) requestAnimationFrame(read);
+      }
+      requestAnimationFrame(read);
+    """)
+    render_checks_model.install_driver(page)
+    assert not render_gate_scheme.start_with_pre_upgrade_proof(page, serve(source))
+    wait_until_ready(page)
+    frames = page.evaluate("""async () => {
+      for(let i=0;i<3;i++) await new Promise(requestAnimationFrame);
+      window.diagramFramesDone=true;
+      return window.diagramFrames;
+    }""")
+    assert any(not frame["drawn"] for frame in frames), frames
+    assert frames[-1]["drawn"], frames
+    assert frames[-1]["track"] == track, frames
+    assert frames[-1]["clear"] >= max(15, track + 1), frames
+    assert {frame["height"] for frame in frames} == {200}, frames
+    assert len({frame["following"] for frame in frames}) == 1, frames
+    # A missing or underestimated reservation must not sacrifice content to the bar;
+    # extra reserved room must not stretch the drawing into it.
+    reservations = page.locator("#security-before-flow").evaluate("""box => {
+      const svg=box.querySelector('svg');
+      const natural=svg.getBoundingClientRect().height;
+      return ['', String(natural - 16), String(natural + 100)].map(height=>{
+        box.setAttribute('data-lf-height',height);
+        const bounds=box.getBoundingClientRect(), ink=svg.getBBox({stroke:true});
+        const bottom=new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
+        return {height:bounds.height,svg:svg.getBoundingClientRect().height,
+          clear:bounds.bottom-bottom};
+      });
+    }""")
+    natural = reservations[0]["svg"]
+    height = natural + max(0, track - 15)
+    assert 0 < height < 200, reservations
+    assert [reading["height"] for reading in reservations] == [
+        height,
+        height,
+        natural + 100,
+    ]
+    assert {reading["svg"] for reading in reservations} == {natural}
+    assert all(reading["clear"] >= max(15, track + 1) for reading in reservations), (
+        reservations
+    )
+    page.emulate_media(media="print")
+    printed = page.locator("#security-before-flow").evaluate("""box => ({
+      height:box.getBoundingClientRect().height,
+      svg:box.querySelector('svg').getBoundingClientRect().height
+    })""")
+    assert printed["height"] == printed["svg"], printed
 
 
 def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
@@ -3610,6 +3759,46 @@ def test_scrollbar_clearance_accepts_room_allocated_to_a_classic_track(
                      track: box.offsetHeight - box.clientHeight})"""
     )
     assert allocated["scrolls"] and allocated["track"] == 20, allocated
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+
+
+def test_scrollbar_clearance_reads_svg_ink_inside_its_scaled_viewport(browser, serve):
+    """SVG has no offsetHeight; its viewport clips ink without erasing it from the
+    reading. Empty space inside that viewport can clear the track just like padding."""
+    source = leaf_page(
+        "Drawing clearance",
+        '<h1 id="t">Drawing clearance</h1>'
+        '<div id="drawing"><svg width="600" height="100" viewBox="0 0 300 50">'
+        '<defs><rect width="300" height="50"/></defs>'
+        '<rect id="ink" width="300" height="50"/></svg></div>',
+        head="""<style>
+          #drawing { width:240px; overflow:auto; transform:scale(.75);
+                     transform-origin:top left; }
+          #drawing svg { display:block; max-width:none; }
+        </style>""",
+    )
+    page = open_page(browser, serve(source))
+    assert page.locator("#drawing").evaluate(
+        "box => box.scrollWidth > box.clientWidth && box.offsetHeight === box.clientHeight"
+    ), "the positive control needs horizontal overflow without a classic track"
+    findings = render_checks_model.evaluate_probe(page, "scrollbarClearance")
+    assert len(findings) == 1, findings
+    assert findings[0]["at"] == "<div id=drawing>", findings
+    assert findings[0]["clear"] == 0, findings
+    # The SVG viewport still reaches the bottom; only its drawing gains 20 CSS px
+    # of room through the viewBox's 2x scale (15 screen pixels after the CSS scale).
+    page.locator("#ink").evaluate("rect => rect.setAttribute('height', '40')")
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+    # A nested clip can hide the same lower ink without adding space to the SVG.
+    page.locator("#drawing").evaluate("""box => {
+      const svg = box.querySelector('svg');
+      svg.querySelector('#ink').setAttribute('height', '50');
+      const clip = document.createElement('div');
+      clip.style.cssText = 'width:600px; height:80px; overflow:hidden';
+      box.style.height = '100px';
+      box.append(clip);
+      clip.append(svg);
+    }""")
     assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
 
 
@@ -3849,18 +4038,18 @@ def test_a_quiet_word_inside_a_scrolling_table_leaves_the_page_its_own_width(
 def test_a_hidden_scroller_is_reached_once_it_is_shown(browser, serve, shape):
     """Reach leaves content the browser skips unasked, since asking about any box in
     it forces the browser to style the whole of it, and sweeps it once it is drawn.
-    So a scrolling box in a closed disclosure or a tab not chosen carries nothing of
-    reach's until it is shown — the holds mark would say it had been read — and once
-    shown it owes what reach owes any overflowing box: a tab stop, the holds mark,
-    and the sideways paint."""
+    So a scrolling box in a closed disclosure or a tab not chosen carries no
+    borrowed stop or continuation cue until it is shown. Once shown it owes both."""
     html, show = HIDDEN_SCROLLERS[shape]
     page = open_page(browser, serve(html))
     box = page.locator("#unfolded")
-    assert box.evaluate("(box) => box.hasAttribute('data-lf-holds')") is False, (
-        "reach read a box in skipped content"
+    assert box.evaluate("(box) => box.tabIndex") == -1
+    assert (
+        box.evaluate("(box) => box.hasAttribute('data-lf-scroll-direction')") is False
     )
     show(page)
-    expect(box).to_have_attribute("data-lf-holds", "1")
+    expect(box).to_have_attribute("tabindex", "0")
+    expect(box).to_have_attribute("data-lf-scroll-direction", "ltr")
     reached = box.evaluate(
         """(box) => ({
             scrolls: box.scrollWidth > box.clientWidth,
@@ -3882,21 +4071,21 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
 ):
     """The column's readings, put on one page beside their controls.
 
-    Content set past the column: the window is the wider of the two boxes, 1200px
+    Content set past the column: the window is the wider of the two boxes, 1280px
     against a 720px column, so content can stand out in the margin with the document
     still not scrolling sideways, and the static lint reads pinned pixels, which a vw
     width is not. The failure names the element and how far out it is.
 
-    Floats: what tells a margin resident from a spill is where its box sits, clear of
+    Floats: what tells a margin content from a spill is where its box sits, clear of
     the column on the side it floats to or across the edge it started inside.
     Exempting floats outright would retire the check for every element that happens to
-    carry one. Both readings run up the ancestors, because a resident answers for what
+    carry one. Both readings run up the ancestors, because an element in the margin answers for what
     it holds, and the side is resolved rather than string-matched, so `inline-start`
     is the same left edge. A float carried off the window's leading edge is drawn
     outside the root scrollport, which never scrolls before that edge, so only the
     clipping reading sees it. Fixed placement answers for a box wholly outside the
     column, not one crossing it; only the desktop leaves an outer gutter wider than
-    the 174px the fixed resident takes.
+    the 174px the fixed margin content takes.
 
     Words no mark can be shown on: an element with `display: contents` generates no
     box, and the runtime hangs a mark on the boxes it shows through instead. `#veiled`
@@ -3907,7 +4096,7 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     A scrolled box, which the runtime scrolls to bring an anchor into view, is read
     from its content rather than from rects that say where it is scrolled to; the
     stand-in `primed` holds the scroll each frame for the whole of the gate's read.
-    A right-margin resident would shift the column and carry the left-margin floats
+    A right-margin content would shift the column and carry the left-margin floats
     off the window, so the clipped sidenote stands on the container-clip page."""
     fixed = """
 <style>
@@ -3970,7 +4159,7 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
         "a float whose own margin carried it clear of the column is where it meant to be"
     )
     assert not naming("inner-word"), (
-        "a resident's own words were named for standing where their parent put them"
+        "an element in the margin's own words were named for standing where their parent put them"
     )
     assert [
         f
@@ -3980,7 +4169,7 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
         f"a float carried off the edge of the window went out with the handover: {failures}"
     )
     assert not naming("fixed-margin"), (
-        f"the fixed margin resident was reported for standing where it was put: {failures}"
+        f"the fixed margin content was reported for standing where it was put: {failures}"
     )
     assert reported("past-column", "<div id=fixed-half>"), (
         f"a fixed box crossing the column escaped the gate: {failures}"
@@ -4037,8 +4226,8 @@ def test_misplaced_boxes_checks_page_overflow_but_not_an_authored_scroller(
 
 def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serve):
     """A breakout's margins move it out past its holder and its width is the room's,
-    so an iframe granted `wide` covers the prose evenly where it had collapsed to its
-    borders at the room's left edge. A page rule sizing it keeps the margins and
+    so an iframe granted `wide` covers the prose and the room past its end where it had
+    collapsed to its borders at the room's left edge. A page rule sizing it keeps the margins and
     replaces the width: the frame stood out in the left margin and stopped short of
     the prose's right edge, and the gate read it as clean. A width past the prose's
     edge but short of the room is off the axis too, and a room inside a scroller is
@@ -4054,7 +4243,7 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
 <p id="prose">Prose sets the column the frames break out of.</p>
 <iframe id="granted" title="Granted" data-width="wide" style="display: block"></iframe>
 <iframe id="sized" class="sized" title="Sized" data-width="wide" style="display: block"></iframe>
-<iframe id="wider" title="Wider" data-width="wide" style="display: block; width: 130%"></iframe>
+<iframe id="wider" title="Wider" data-width="wide" style="display: block; width: 110%"></iframe>
 <a href="#prose"><iframe id="linked" title="Linked" data-width="wide" style="display: block"></iframe></a>
 <style>#gutter::-webkit-scrollbar { width: 15px; height: 15px; }</style>
 <div id="gutter" style="overflow: scroll; scrollbar-gutter: stable">
@@ -4077,9 +4266,9 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()
 
-    grown = at["prose"]["left"] - at["granted"]["left"]
+    grown = at["granted"]["right"] - at["prose"]["right"]
     assert grown > 100, at
-    assert at["granted"]["right"] - at["prose"]["right"] == pytest.approx(grown, abs=1)
+    assert at["granted"]["left"] == pytest.approx(at["prose"]["left"], abs=1), at
     off = [m["at"] for m in misplaced if m["code"] == "off-axis"]
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
 
@@ -4116,7 +4305,7 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     grown = page.evaluate("""() => {
       const ask = document.getElementById('ask').getBoundingClientRect();
       const prose = document.querySelector('main > p').getBoundingClientRect();
-      return prose.left - ask.left;
+      return ask.right - prose.right;
     }""")
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()
@@ -4131,7 +4320,7 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
-    """Both residents of the right margin stand level with what they belong to — the
+    """Both elements in the right margin stand level with what they belong to — the
     controls with the change they decide, the note with the block it annotates — so the
     controls of a change beside a note would be drawn over the note's first line. The
     note holds the rail's strip there, so the controls stand as a pin on the change
@@ -4167,7 +4356,7 @@ def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
 
 def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve):
     """The other half of the exemption above, put back as a bug: a control the widget
-    hangs out of the flow is answered for, and one standing in the flow is a resident
+    hangs out of the flow is answered for, and one standing in the flow is an element in the margin
     like any other. Written against a control the page positions itself, because the
     predicate is the computed position rather than any widget's name.
 

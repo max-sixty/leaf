@@ -338,7 +338,7 @@ export function createDesignMode({
     designModeOn = false;
   }
 
-  // A page mode the user stands in for a batch of design remarks. The press the mode
+  // A page mode the user is in for a batch of design remarks. The press the mode
   // is made of is not a key at all, so that row binds nothing and says nothing on the
   // line, the way the ⌥ aim's row does.
   pageScope("design mode", {

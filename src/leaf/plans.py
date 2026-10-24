@@ -171,7 +171,6 @@ def _working_since(plans: list[dict], title: str) -> str:
 def cmd_plan(page_dir: Path, steps: list) -> dict:
     """Write `steps` as the page's plan; the record."""
     from .event_contracts import append_admitted
-    from .harness import message_identity
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
@@ -185,7 +184,6 @@ def cmd_plan(page_dir: Path, steps: list) -> dict:
                 {
                     "kind": "plan",
                     "author": "agent",
-                    **message_identity(),
                     "steps": steps,
                 },
             )

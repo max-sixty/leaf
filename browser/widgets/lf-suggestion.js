@@ -36,7 +36,7 @@ import {
   shownParts,
   textNodesUnder,
   notice,
-  standingIn,
+  currentLocationIn,
 } from "/runtime/widget-api.js";
 
 const WORDS = { accept: "Accept", reject: "Reject" };
@@ -306,7 +306,7 @@ customElements.define(
 
     #refreshMargin({ immediate = false, focus = null } = {}) {
       if (!this.#margin) return;
-      const held = standingIn(this.#margin);
+      const held = currentLocationIn(this.#margin);
       this.#margin.update({
         immediate,
         focus: focus ?? (held ? this.#focusKey() : null),
@@ -636,7 +636,10 @@ customElements.define(
       // until that adapter applies the new state: the next complete reading can hand
       // focus directly to its semantic replacement instead of losing the user's place
       // when this draw removes it first.
-      if (standingIn(this.#margin) && outcomeOf(state) !== this.#presentedOutcome)
+      if (
+        currentLocationIn(this.#margin) &&
+        outcomeOf(state) !== this.#presentedOutcome
+      )
         return nothing;
       this.#refreshMargin();
       return nothing;

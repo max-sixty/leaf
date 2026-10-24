@@ -2,6 +2,7 @@
 durable answer, the working message while the agent works, what an answer's head says it
 leaves, and the widgets its markup carries."""
 
+import json
 import re
 
 import pytest
@@ -20,10 +21,12 @@ from render_cases_interaction import (
 )
 from render_harness import (
     holding,
+    leaf_page,
     open_page,
     panel_settled,
     resized,
     sending,
+    stamp_page,
     told,
     write,
 )
@@ -59,6 +62,180 @@ def open_margin_card(page, section):
     """Open the margin card of the thread on `section`, by its marker."""
     page.locator(f'[data-lf-margin-for="{section}"] .lf-margin-marker').click()
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_visible()
+
+
+@pytest.mark.parametrize("section", [None, "title"], ids=["page", "title"])
+def test_a_plain_agent_question_can_be_opened_and_answered(browser, serve, section):
+    """A plain question works both on the whole page and on its title."""
+    url = serve(
+        leaf_page(
+            "Rehearsal report",
+            '<h1 id="title">Rehearsal report</h1>'
+            '<p id="result">The backfill copied 310 million rows without errors.</p>',
+        )
+    )
+    question = "Which meeting should the invitation be for?"
+    opened = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "open",
+            str(serve.page_dir),
+            "--title",
+            "Meeting details",
+            "--text",
+            question,
+            *(["--section", section] if section else []),
+        ],
+    )
+    assert opened.exit_code == 0, opened.output
+    root = json.loads(opened.output)
+    page = open_page(browser, url)
+    if section:
+        assert root["anchor"]["section"] == section
+        open_margin_card(page, section)
+        card = page.locator(card_of(root["id"]))
+        reply = card.locator(".lf-thread-reply leaf-text")
+    else:
+        assert "anchor" not in root
+        expect(page.locator('[data-lf-margin-for="title"]')).to_have_count(0)
+        card = open_panel_thread(page, root["id"])
+        reply = page.locator(PANEL_REPLY)
+    expect(card.get_by_text(question, exact=True)).to_be_visible()
+    write(reply, "Thursday's review")
+    expect(reply).to_have_js_property("value", "Thursday's review")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+
+    page.keyboard.press("Shift+t")
+    expect(card.get_by_text(question, exact=True)).to_be_visible()
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Thursday's review")
+    with sending(page, "the meeting answer"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(card.get_by_text("Thursday's review", exact=True)).to_be_visible()
+    answer = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reply" and event["author"] == "user"
+    )
+    assert answer["parent"] == root["id"]
+
+
+@pytest.mark.parametrize("anchor", ["page", "title", "removed"])
+def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
+    browser, serve, anchor
+):
+    """On me reaches the exact question, even when its thread has lost its passage."""
+    source = leaf_page(
+        "Rehearsal report",
+        '<h1 id="title">Rehearsal report</h1>'
+        '<p id="result">The backfill copied 310 million rows without errors.</p>',
+    )
+    url = serve(source)
+    runner = CliRunner()
+    opened = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "open",
+            str(serve.page_dir),
+            "--text",
+            "The rehearsal is complete.",
+            *(["--section", "title"] if anchor != "page" else []),
+        ],
+    )
+    assert opened.exit_code == 0, opened.output
+    root = json.loads(opened.output)
+    question = "Which production maintenance window did you book?"
+    asked = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(serve.page_dir),
+            root["id"],
+            "--obligation",
+            "--text",
+            question,
+        ],
+    )
+    assert asked.exit_code == 0, asked.output
+    message = json.loads(asked.output)
+    if anchor == "removed":
+        stamp_page(
+            serve.page_dir,
+            source.replace('<h1 id="title">Rehearsal report</h1>', ""),
+            "Remove the old heading",
+        )
+    page = open_page(browser, url)
+    mark = page.locator(".lf-fp-on-user")
+    expect(mark).to_have_attribute("aria-label", "On me: 1")
+    mark.click()
+    row = page.locator('.lf-fp-on-item[data-list="you"]')
+    # A press on its line opens the question in place.
+    row.locator(".lf-fp-on-line").click()
+    expect(row).to_contain_text(question)
+    expect(row.get_by_role("button", name="Reply", exact=True)).to_be_visible()
+    row.get_by_role("button", name="Show", exact=True).click()
+    shown = page.locator(
+        f'.lf-page-thread:visible .lf-msg[data-event="{message["id"]}"]'
+    )
+    expect(shown).to_be_visible()
+    expect(shown).to_contain_text("Waiting on me")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    page.keyboard.press("m")
+    expect(shown).to_be_visible()
+    page.keyboard.press("c")
+    reply = page.locator("leaf-text:focus")
+    expect(reply).to_be_focused()
+    write(reply, "02:00–02:40 UTC on Thursday")
+    with sending(page, "the maintenance window"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(mark).to_have_attribute("aria-label", "On me")
+    assert any(
+        event["kind"] == "reply"
+        and event["author"] == "user"
+        and event["text"] == "02:00–02:40 UTC on Thursday"
+        for event in events_model.read_events(serve.page_dir)
+    )
+
+
+def test_a_thread_task_stays_on_me_until_done(browser, serve):
+    """Discussion of outside work is not completion; Done and Undo are explicit."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Can you check the mobile build?")
+    todo = todos_model.cmd_open(
+        serve.page_dir, root, "Try the build on your phone", "user"
+    )
+    assert todo["subject"] == {"kind": "thread", "id": root}
+    page = open_page(browser, url)
+    mark = page.locator(".lf-fp-on-user")
+    expect(mark).to_have_attribute("aria-label", "On me: 1")
+    mark.click()
+    row = page.locator(f'.lf-fp-on-item[data-obligation="{todo["id"]}"]')
+    expect(row).to_contain_text("Try the build on your phone")
+    row.locator(".lf-fp-on-line").click()
+    row.get_by_role("button", name="Discuss", exact=True).click()
+    reply = page.locator(PANEL_REPLY)
+    write(reply, "Which phone should I use?")
+    with sending(page, "the device clarification"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(mark).to_have_attribute("aria-label", "On me: 1")
+    mark.click()
+    row.locator(".lf-fp-on-line").click()
+    with sending(page, "the completed phone check"):
+        row.get_by_role("button", name="Done", exact=True).click()
+    expect(mark).to_have_attribute("aria-label", "On me")
+    expect(row.locator(".lf-fp-said")).to_have_text("Done")
+    with sending(page, "undo the phone check"):
+        row.get_by_role("button", name="Undo", exact=True).click()
+    expect(mark).to_have_attribute("aria-label", "On me: 1")
+    expect(row.get_by_role("button", name="Done", exact=True)).to_be_visible()
 
 
 def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
@@ -201,7 +378,7 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
 
     On a real Codex App Server turn the card drew an empty agent bubble as the turn
     started, held the opening's first words as an edit of it behind "1 new reply", and
-    the answer, written by `leaf response reply` under a retry key of its own, took the
+    the answer, written by `leaf thread reply` under a retry key of its own, took the
     bubble away and appended itself. The provisional reply now joins the thread with
     its first words, its words join it as they come, and the answer to the same input
     is the same message.
@@ -672,7 +849,7 @@ def test_held_news_shows_every_fact_its_notice_first_said(browser, serve):
     notice = thread.get_by_role(
         "button", name="1 new reply · 1 new message", exact=True
     )
-    expect(notice).to_have_attribute("data-lf-room", "1 new reply · 1 new message")
+    expect(notice).to_have_attribute("data-room", "1 new reply · 1 new message")
     rendered(page)
     words = notice.locator(":scope > span")
     assert words.evaluate(
@@ -971,7 +1148,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
             "--done",
             response_reference(serve.page_dir, root),

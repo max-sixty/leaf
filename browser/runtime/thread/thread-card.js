@@ -33,13 +33,13 @@ import {
   holdFocus,
   focusDestination,
   focused,
-  standsOn,
-  standingIn,
+  currentLocationTouches,
+  currentLocationIn,
 } from "../focus.js";
 import { html, render, nothing, share, signal } from "/vendor/browser-runtime.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
-import { offer, measure } from "../widget-elements.js";
+import { generatedElement, offer, measure } from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -49,9 +49,7 @@ import {
   replyAvailable,
   dismissReply,
   threadHoldsDraft,
-  writingIn,
 } from "./replies.js";
-import { TEXT_FIELD } from "../control-selectors.js";
 import { atScrollEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
 import { iconTemplate } from "../icons.js";
@@ -63,7 +61,7 @@ import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, replyPinned } from "./reply-landing.js";
 import { threadRewrites } from "./message-edit.js";
-import { newsNotice } from "./held-news.js";
+import { newsNotice, threadChange } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 import { Transcript } from "./transcript.js";
 
@@ -341,7 +339,7 @@ export class ThreadView {
     this.node.tabIndex = -1;
     this.node.classList.add("lf-page-thread", "lf-ui");
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
-    this.node.dataset.lfGen = "1";
+    generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";
     this.#actions.className = "lf-thread-meta-actions";
   }
@@ -412,7 +410,7 @@ export class ThreadView {
   // would move visible words. Existing-message changes and active compositions
   // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
   // absorb changes above it or settlement replacing the reply itself.
-  newsMoves({ news, changed, folds, appendedAtEnd, footFold }) {
+  newsMoves({ news, changed, joined, folds, appendedAtEnd, footFold }) {
     // Settling moves the card between the seat's open threads and its Resolved
     // disclosure, so it grows the seat where the card lands as well as where it stood.
     const lands = news.settled ? this.#settlesAt?.() : null;
@@ -422,12 +420,13 @@ export class ThreadView {
     if (this.#fold) return false;
     const pinned = replyPinned(this.#reply?.node);
     // An answer's own fold of the progress run at the thread's end changes only the
-    // thread's foot, as the answer's arrival does, unless the user stands on a message
+    // thread's foot, as the answer's arrival does, unless the user is on a message
     // the fold would put away, by focus or by a selection reaching into it.
     const foot =
-      footFold && !folds.messages.some((key) => standsOn(this.#messageNode(key)));
+      footFold &&
+      !folds.messages.some((key) => currentLocationTouches(this.#messageNode(key)));
     // The margin's floating card grows at one of its own edges: the one its placement
-    // does not hold (comment-placement.js, `edgeFor`, which a turn joining may change).
+    // does not hold (card-anchor.js, whose send hold arriving words end).
     // News shows at once only where it changes the thread's end and the card holds its
     // top for it with the user not writing in it: the card grows down, moving its reply
     // row and nothing above. A change to the last message is such news where it is a
@@ -447,14 +446,9 @@ export class ThreadView {
           (key) => key === last?.key && (last.provisional || follows),
         ) &&
         (foot || (!folds.messages.length && !folds.summaries.length));
-      const writing = writingIn(
-        this.#reply?.node.querySelector(TEXT_FIELD),
-        last?.author === "user" && last.pending,
-      );
-      const turn = news.appended || news.progress > 0 || footFold;
       return (
         growthIsSeen(this.node) &&
-        (!atEnd || writing || this.#marginControls?.heldEdge(turn) === "foot")
+        (!atEnd || this.#marginControls?.anchor.newsMoves(joined))
       );
     }
     const followed = pinned && !news.settled ? this.#foot : null;
@@ -519,6 +513,8 @@ export class ThreadView {
     const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
+    if (marginControls && prior)
+      marginControls.anchor.presented(threadChange(prior, model)?.joined);
     // Where the settlement stands, decided once: the container it renders in and the
     // face it wears both follow from it.
     // - "margin": a margin card's own controls row, which also stands the notice,
@@ -592,7 +588,7 @@ export class ThreadView {
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
-    // A progress disclosure the user stood on that this render replaced hands them to
+    // A progress disclosure the user was on that this render replaced hands them to
     // its successor (transcript.js).
     restoreFocus?.(
       handedOn
@@ -607,7 +603,7 @@ export class ThreadView {
     if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
     this.#observedHeader = null;
     this.#releaseHeaderItems();
-    this.#news.node.removeAttribute("data-lf-room");
+    this.#news.node.removeAttribute("data-room");
   }
 
   #releaseHeaderItems() {
@@ -707,8 +703,8 @@ export class ThreadView {
     if (this.#model.news) {
       // While news stands, the notice keeps the width of the words it first showed, so
       // later news never narrows or widens it under the pointer; longer news is cut.
-      if (!this.#news.node.hasAttribute("data-lf-room"))
-        this.#news.node.dataset.lfRoom = this.#model.news.label;
+      if (!this.#news.node.hasAttribute("data-room"))
+        this.#news.node.dataset.room = this.#model.news.label;
       const line = controls.getBoundingClientRect();
       const shown = shownRect(controls, new Map());
       if (shown)
@@ -716,7 +712,7 @@ export class ThreadView {
           "--lf-thread-news-visible-end",
           layoutPx(Math.max(0, shown.right - line.left)),
         );
-    } else this.#news.node.removeAttribute("data-lf-room");
+    } else this.#news.node.removeAttribute("data-room");
   }
 
   // Whether the progress behind the working message stood open when last drawn
@@ -815,7 +811,7 @@ export class ThreadView {
       // An existing resolved group survives when this card returns. Its summary
       // cannot hand focus back by disappearing, so the reversal owns that handoff.
       if (reverse) may.handoff(() => focusDestination(place, "return"));
-      if (!standingIn(place)) return false;
+      if (!currentLocationIn(place)) return false;
       scrollThreadIntoView(place, focused());
       return true;
     };
@@ -832,10 +828,29 @@ export class ThreadView {
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
-    return createReplyView(model.key, this.#commands.reply, () => this.repaint(), {
-      onChange: replyChanged,
-      editLast: this.#rewrites.editLast,
-    });
+    const commands = this.#commands.reply;
+    return createReplyView(
+      model.key,
+      {
+        ...commands,
+        actions: {
+          ...commands.actions,
+          reply: (key, text, options) => {
+            // The operation owns this promise before it publishes the local turn.
+            const anchor = this.#marginControls?.anchor;
+            anchor?.sending(options.attempt);
+            const flight = commands.actions.reply(key, text, options);
+            if (!flight) anchor?.writing();
+            return flight;
+          },
+        },
+      },
+      () => this.repaint(),
+      {
+        onChange: replyChanged,
+        editLast: this.#rewrites.editLast,
+      },
+    );
   }
 
   commit() {

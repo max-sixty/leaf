@@ -1,11 +1,12 @@
 /* Response composition owns the shared field, actions and attachment shelf.
  * Presentation owners allocate and position this control, in the document or a
  * declared shadow tree; they do not restate its typography, focus or face. */
-/* An icon action's hit box, and the height of an empty composer field, which stands
-   that action inside its action inset on either side. Stated at the root, where a widget
-   that seats a composer in its own content reads the height to hold its room before the
-   composer is drawn, and again on each field and action, so a field whose context sizes
-   its action (lf-options' Add row) derives its height from that size. */
+/* An icon action's face; its hit box, the face or the aim floor where that is larger
+   (the box is that wide, and its reach stands out to it above and below, surfaces.css);
+   and the height of an empty composer field, which stands the face inside its action
+   inset on either side. Stated at the root, where a widget holds a composer's room
+   before it is drawn, and again on each field and action, so a context that sizes its
+   action (lf-diff's file presses) resizes its hit box with it. */
 :root {
   --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;
@@ -17,7 +18,7 @@
 }
 :root,
 .lf-compose-field {
-  --lf-compose-h: calc(var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset));
+  --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
@@ -50,6 +51,17 @@
 }
 .lf-compose-placeholder > kbd {
   flex: none;
+}
+/* Words passing at the empty box's far end (composing/input.js, `hintAside`), after
+   the hint and its key, inside the hint's layer, so they move none of the box's
+   controls as they come and go. */
+.lf-compose-placeholder > .lf-compose-placeholder-aside {
+  max-width: 40%;
+  margin-inline-start: auto;
+  padding-inline-start: 0.75em;
+}
+.lf-compose-placeholder-aside:empty {
+  display: none;
 }
 .lf-compose-placeholder .lf-key-badge {
   background: transparent;
@@ -100,9 +112,9 @@
 .lf-icon-action {
   box-sizing: border-box;
   width: var(--lf-icon-action-hit);
-  height: var(--lf-icon-action-hit);
+  height: var(--lf-icon-action-face);
   min-width: var(--lf-icon-action-hit);
-  min-height: var(--lf-icon-action-hit);
+  min-height: var(--lf-icon-action-face);
   padding: 0;
   display: grid;
   place-items: center;
@@ -111,13 +123,11 @@
 .lf-action-icon {
   position: relative;
   z-index: 1;
-  inline-size: 16px;
-  block-size: 16px;
   pointer-events: none;
 }
 /* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
    whose ::before is the action's disc that stays clear at rest and takes its tint
-   on hover. The hit box around the disc is the icon-action floor above. The glyph's
+   on hover. The hit box around the disc is the icon action's above. The glyph's
    ink outranks the .lf-ui face by coming later. Reopen standing in Resolve's place
    is the same glyph drawn done, on every surface that seats a thread. */
 :is(.lf-compose-submit, .lf-compose-dictate),
@@ -234,8 +244,12 @@
    stands 120px tall (`--lf-media-h`), enough to tell a pasted screenshot by its
    content, which 56px was not. A surface whose ground is not the paper sets the
    ground and ring its pictures meet it with. */
-.lf-composer-media {
+/* How far a picture's corner marks stand out past it, in a draft's shelf and on a
+   rewrite's pictures alike. */
+:is(.lf-composer-media, .lf-msg-media) {
   --lf-media-mark-overhang: 6px;
+}
+.lf-composer-media {
   --lf-media-room: max(
     calc(var(--raise-1-drop) + var(--raise-1-blur)),
     calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--corner-mark)) / 2)
@@ -285,6 +299,7 @@ button.lf-media-open {
    shelf wears it, so a surface states only where its shelf stands. An image stands at
    the shelf's height in its own proportions, from three quarters as wide as tall, so a
    tall screenshot is more than a sliver, up to twice as wide. */
+.lf-media-frame,
 .lf-composer-media-item > .lf-composer-media-open {
   border-radius: 8px;
   box-shadow:
@@ -303,9 +318,6 @@ button.lf-media-open {
   max-width: calc(2 * var(--lf-media-h));
   object-fit: cover;
   border-radius: inherit;
-  /* The press draws the picture's ring and shadow, so the frame the theme gives a
-     page's images (theme.css, `img`) would draw them twice. */
-  box-shadow: none;
 }
 /* Every press in an item besides its picture is a corner mark (controls.css) on a top
    corner: removal on the right, and a drawing's Undo last stroke on the left. A mark
@@ -332,6 +344,14 @@ button.lf-media-open {
   .lf-composer-media-item > .lf-composer-media-open:not([data-lf-focus-visible]) {
     outline: 1px solid CanvasText;
   }
+}
+/* A rewrite's pictures are its message's (`sentMedia`, input.js), each a paragraph
+   holding the picture the message draws (`.lf-message-media`, integration.css), below
+   the words: the item fits its picture, so the removal mark stands on the picture's
+   corner. */
+.lf-msg-media > .lf-composer-media-item {
+  inline-size: fit-content;
+  max-inline-size: 100%;
 }
 /* A drawing's picture is its canvas over the page it was drawn on, at the shelf's
    height and half again as wide, on the paper the canvas letterboxes onto so the page
@@ -407,16 +427,59 @@ button.lf-media-open {
 :is(.lf-thread-reply, .lf-fab-bar, .lf-msg-editor) .lf-compose-field {
   --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
 }
-/* A message's rewrite is a comment box, the field the thread's reply box is, as wide as
-   the reply box: in a transcript, which insets its messages, it reaches back over that
-   inset, so its words keep the message's. Discard and Save stand at the message's head
-   (`.lf-msg-edit-actions`). */
+/* A message's rewrite is a comment box standing where the message stood (browser/
+   AGENTS.md, "Editing in place"): every line of its words keeps its place and its
+   breaks, its pictures stand under them as the message draws them (`sentMedia`,
+   input.js), and the field's frame goes around both, in the room around the message's
+   content. The frame reaches back over the words' inset, and past their column's end
+   (`--lf-msg-text-end`) to the message's edge, or by the inset where the words keep
+   less room than that; and past their first line and last line or picture by
+   its padding and frame, a comment box line's (`--lf-response-height`), less the room
+   those lines already keep (`--lf-thread-text-pad-block`, as a margin card's do). So
+   opening it adds nothing to the message's height. Discard and Save stand at the
+   message's head (`.lf-msg-edit-actions`). Rejected by the user on 2026-10-22: the
+   reply box's own field, its padding inside the words' box, under a draft's cropped
+   shelf of the pictures, which moved and rewrapped the words. */
 .lf-msg-editor {
   display: block;
   min-width: 0;
+  /* The message's face, whose line its frame's room is reckoned in. */
+  font: var(--msg-font);
 }
-.lf-thread-transcript .lf-msg-editor {
-  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
+/* The body holds the field's reach past it, so the message's box is the room it takes. */
+.lf-msg-body:has(> .lf-msg-editor) {
+  display: flow-root;
+}
+.lf-msg-editor > .lf-compose-field {
+  --lf-compose-pad-block: calc(
+    (var(--lf-response-height, var(--lf-line)) - 2px - 1lh) / 2
+  );
+  --lf-msg-edit-past-end: max(
+    var(--lf-thread-text-inset) - var(--lf-msg-text-end, 0px),
+    0px
+  );
+  margin-inline: calc(-1 * var(--lf-thread-text-inset))
+    calc(-1 * var(--lf-msg-edit-past-end));
+  margin-block: calc(
+    var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px
+  );
+}
+.lf-msg-editor > .lf-compose-field > leaf-text {
+  min-height: 0;
+  padding-inline-end: calc(
+    var(--lf-msg-text-end, 0px) + var(--lf-msg-edit-past-end) - 1px
+  );
+}
+.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
+  margin-block-end: calc(-1 * var(--lf-compose-pad-block) - 1px);
+}
+.lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) > leaf-text {
+  padding-block-end: var(--lf-thread-text-pad-block, 0px);
+}
+.lf-msg-editor > .lf-compose-field > .lf-msg-media {
+  margin-inline: calc(var(--lf-thread-text-inset) - 1px)
+    calc(var(--lf-msg-edit-past-end) - 1px);
+  padding-block-end: var(--lf-compose-pad-block);
 }
 /* Its foot stands for its last line, whose height a reveal clears above it. */
 .lf-msg-edit-foot {
@@ -438,13 +501,19 @@ button.lf-media-open {
   gap: var(--lf-msg-edit-gap);
 }
 .lf-msg-edit-actions > .lf-msg-control {
-  position: static;
+  position: relative;
+  inset: auto;
   translate: none;
   opacity: 1;
-  block-size: max(24px, var(--aim-floor));
+  block-size: 24px;
   min-width: 0;
   min-height: 0;
   font: 600 var(--t-6)/1 var(--sans);
+}
+/* The rewrite's field stands just below its head, so Discard and Save reach the floor
+   upward, over the head and the room above it, rather than over the field's top. */
+.lf-msg-edit-actions > .lf-msg-control::after {
+  inset: min(0px, 100% - var(--aim-floor)) 0 0;
 }
 .lf-msg-edit-actions > .lf-msg-edit-cancel {
   inline-size: var(--lf-msg-edit-cancel);
@@ -460,7 +529,7 @@ button.lf-media-open {
 }
 
 :is(.lf-fab-bar, .lf-margin-preview) {
-  --lf-response-height: max(32px, var(--aim-floor));
+  --lf-response-height: var(--lf-line);
 }
 /* The comment box and the card its words become share one text column, so Send
      moves no word: both start the words `--lf-thread-text-inset` inside the field's or
@@ -470,32 +539,24 @@ button.lf-media-open {
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-comment-send-inset: calc(
-    (var(--lf-response-height) - var(--lf-icon-action-hit)) / 2
+    (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
   );
   --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
 }
-.lf-margin-preview .lf-msg-text {
-  padding-inline-end: var(--lf-comment-text-end);
+.lf-margin-preview .lf-msg {
+  --lf-msg-text-end: var(--lf-comment-text-end);
 }
-/* A rewrite in the card is the comment box the card grew from: its words keep the card's
-     text column, and its frame and padding stand in the room each line of the message
-     already keeps, so opening it on plain words moves none of them and changes no
-     height; Markdown still opens as its longer source. Rejected: the
-     reply box's taller field, with the message keeping its height from first paint
-     (#2985), which made every short card taller than the box it came from for a rewrite
-     the user may never open. */
-.lf-margin-preview .lf-msg-editor .lf-compose-field > leaf-text {
-  min-height: 0;
-  padding-inline-end: calc(var(--lf-comment-text-end) - 1px);
-}
+/* A rewrite in the card is the comment box the card grew from, its frame and padding in
+   the room each line of the message already keeps (`.lf-msg-editor`). Rejected: the
+   reply box's taller field, with the message keeping its height from first paint
+   (#2985), which made every short card taller than the box it came from for a rewrite
+   the user may never open. */
 .lf-fab-bar .lf-compose-field,
-.lf-margin-preview .lf-msg-editor .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
 }
-/* The field and its choices are one anchored response control. This primitive owns
-     their height, vertical padding and type. Tab extends
-     the control at its trailing edge without replacing or moving the field.
+/* The field and its choices share height, vertical padding and type. Tab opens
+     the anchored picker without replacing or moving the field.
      The field can grow with its words without changing its corner. The shared UI
      supplies the thread’s 14px face and line height; vertical padding keeps
      that face in the 32px resting box. */
@@ -551,22 +612,41 @@ leaf-text.lf-fab-input {
   > :is(.lf-response-action-space, .lf-response-action-label) {
   display: none;
 }
-.lf-fab-bar:not([data-lf-target-only]) > .lf-fab,
-.lf-fab-bar:not(.lf-response-open) > .lf-response-options {
+.lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
   display: none !important;
 }
-.lf-fab-bar.lf-response-open {
-  flex-wrap: wrap;
+.lf-response-trigger {
+  anchor-name: --lf-response-trigger;
+  flex: none;
+  min-height: var(--lf-response-height);
 }
-/* A side is chosen for the field, which can be narrower than Suggest and six
-     reactions at their resting 38px. The reactions give up spare inline padding
-     before the choices wrap; each response action keeps its minimum width. */
-.lf-fab-bar.lf-response-open > .lf-response-options {
-  display: inline-flex;
+/* The native top layer keeps this picker out of each composer's layout and clipping.
+   CSS anchors follow its trigger across floating, panel and widget seats. The row has
+   no backing box: each choice's own button face stands on the page, as the field and
+   trigger beside it do. Max removed the box, a bordered, shadowed card behind the row,
+   on 23 October 2026 as unneeded. The padding stays, clear, as room for each choice's
+   focus ring inside the popover's scrollport. */
+.lf-response-options {
+  position: fixed;
+  position-anchor: --lf-response-trigger;
+  position-visibility: anchors-visible;
+  position-area: block-start span-all;
+  position-try-fallbacks: flip-block;
+  justify-self: anchor-center;
+  inset: auto;
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  margin: 4px 8px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+.lf-response-options:popover-open {
+  display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-  max-width: 100%;
 }
 .lf-response-options .lf-response-action {
   min-height: var(--lf-response-height);
@@ -629,9 +709,6 @@ leaf-text.lf-fab-input {
   max-height: 50vh;
   margin: 0;
 }
-.lf-fab-bar[data-lf-presentation="inline"].lf-response-open > .lf-response-options {
-  flex-basis: 100%;
-}
 /* Only a floating box is carried (surface-grip.js), so a seated one shows no grip. */
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-surface-grip {
   display: none;
@@ -639,15 +716,5 @@ leaf-text.lf-fab-input {
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] {
     display: none !important;
-  }
-}
-
-/* Forced-colour palettes suppress elevation shadows. The same control keeps a
- * visible platform ring when seated outside the private chrome scope as well. */
-@media (forced-colors: active) {
-  .lf-response-control[data-lf-focus-visible] {
-    outline: var(--focus-ring-w) solid Highlight;
-    outline-offset: 2px;
-    filter: none;
   }
 }

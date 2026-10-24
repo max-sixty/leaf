@@ -11,7 +11,7 @@
  *
  * RUNG_LADDER orders sibling fallback steps. `rung` selects the step inside the focused
  * surface first and exposes it as one navigation.back command, so dispatch and every
- * presentation describe the same available step. The standing scope handles letting go
+ * presentation describe the same available step. The current scope handles letting go
  * of a page destination before the fallback ladder.
  */
 import {
@@ -54,8 +54,8 @@ const STACK = [
   "region capture",
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
-  "standing",
-  // A to-do on the user that the walk stands on, whose Done this scope carries.
+  "current-location",
+  // A to-do on the user at the walk’s current location, whose Done this scope carries.
   "todo",
   "versions",
   "composer",
@@ -75,7 +75,7 @@ const STACK = [
 ];
 
 // Each rung names what the press takes off, innermost first. This is the order among
-// siblings; `rung` reads containment over it, so the surface the user is standing in
+// siblings; `rung` reads containment over it, so the surface the user is in
 // comes off before one they are not.
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured

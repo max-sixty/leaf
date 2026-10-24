@@ -35,7 +35,7 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
-import { readCaret, focused, standingIn } from "../focus.js";
+import { readCaret, focused, currentLocationIn, onPressAway } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
@@ -43,7 +43,6 @@ import { THREAD, SAY_ROW } from "./selectors.js";
 import { el, offer } from "../widget-elements.js";
 import { move } from "../dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
-import { pressIsKeyboardActivation } from "../pointer.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 
 const REPLY_COMPOSITION = Symbol("reply composition");
@@ -116,7 +115,7 @@ export function holdReplyCompositions(threads, realize) {
       for (const { context, owner, intent } of displaced) {
         if (available(owner) || !intent()) continue;
         const destination = await realize(current.get(context).id, intent);
-        // Native Tab may move standing while this route paints. The session still
+        // Native Tab may move the current location while this route paints. The session still
         // owns its caret; only focus and scroll require the older placement intent.
         if (!intent.available()) continue;
         const replacement =
@@ -161,17 +160,16 @@ function dismissContext(context) {
   session.owner?.changed();
 }
 export const dismissReply = (key) => dismissContext(replyContext(key));
-// A pointer press elsewhere puts the composition away. Keyboard activation emits
-// click too, but Send, Resolve and the declared leave command own their addressed row.
-document.addEventListener(
-  "click",
-  (event) => {
-    if (pressIsKeyboardActivation(event)) return;
-    const within = replyDraftContext(event.composedPath()[0]);
-    for (const context of compositions.keys())
-      if (context !== within) dismissContext(context);
+// A press away from a composition's row puts the composition away (focus.js,
+// `onPressAway`): a drag into the row or out of it leaves it standing.
+onPressAway(
+  ([node]) =>
+    [...compositions.keys()].some((context) => context !== replyDraftContext(node)),
+  ([node], [from]) => {
+    const kept = [replyDraftContext(node), replyDraftContext(from)];
+    for (const context of [...compositions.keys()])
+      if (!kept.includes(context)) dismissContext(context);
   },
-  true,
 );
 
 export const dismissReplyAt = (node) => {
@@ -275,7 +273,14 @@ function sendReply(draftCtx, key, text, owns, actions) {
 // after the draft began. The typed action resolves that target from the current reading.
 // What the row does for a view, its actions, `onChange` and `editLast`, is the binding
 // of whichever view holds it now (`attach`).
-function wireReply(key, row, input, send, wireInput, { hint, accessibleName, busy }) {
+function wireReply(
+  key,
+  row,
+  input,
+  send,
+  wireInput,
+  { hint, hintAside, accessibleName, busy },
+) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
@@ -290,6 +295,7 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
     hint,
+    hintAside,
     accessibleName,
     busy,
     sends: "send",
@@ -304,7 +310,7 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
     // sent from, read before the send draws, around wherever the send left them
-    // standing. A view whose box stays for the next turn lands the send itself (`sent`),
+    // current location. A view whose box stays for the next turn lands the send itself (`sent`),
     // told whether the log takes it.
     send: (_text, raw, owns) => {
       const { actions, landSent, sent } = composition.binding;
@@ -389,16 +395,6 @@ export const replyCompositionHasDraft = (node) => {
 // Persisted words alone never reopen an editor after settlement or reload.
 export const replyIsEditing = (key) => compositions.has(replyContext(key));
 
-// Whether the user is writing in the reply row `field` stands in: standing anywhere in
-// the row, Send included, holding words in it, or `sending` a turn of theirs. A
-// floating card holds the edge its placement keeps still by this (thread-preview.js),
-// and the news it would move waits by it (thread-card.js, `newsMoves`).
-export const writingIn = (field, sending) =>
-  Boolean(
-    field?.checkVisibility() &&
-    (standingIn(field.closest(".lf-thread-reply")) || field.value !== "" || sending),
-  );
-
 // Every reply renderer and route shares the same admission: open conversation,
 // or a settled conversation whose native editing session still owns its words.
 export const replyAvailable = (thread) =>
@@ -423,7 +419,8 @@ export async function restoreReplyEditing(editing, land) {
 
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
-// A presentation may say what its empty box reads (`hint`) and is named
+// A presentation may say what its empty box reads (`hint`), what passes at its end
+// (`hintAside`), and is named
 // (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
 // where its box stays for the next turn, as the floating panel's field does, land a
 // send itself (`sent`) rather than stand on the thread. The view draws its row again
@@ -436,6 +433,7 @@ export function createReplyView(
     onChange = () => {},
     editLast = null,
     hint = "Reply",
+    hintAside = () => "",
     accessibleName = "Reply",
     busy = () => false,
     sent = null,
@@ -449,6 +447,7 @@ export function createReplyView(
     row.append(input, send);
     return wireReply(key, row, input, send, commands.wireInput, {
       hint,
+      hintAside,
       accessibleName,
       busy,
     });
@@ -467,7 +466,7 @@ export function createReplyView(
   binding.take = (owner) => {
     // The row going holds no place of the user's: whoever carries the owner's row
     // puts them in it (focus.js, `replyDestination`), not the redraw's focus hold.
-    if (standingIn(composition.row)) focused().blur();
+    if (currentLocationIn(composition.row)) focused().blur();
     detach();
     // The row given up is gone for good, so no later hand-off carries it back.
     composition.retired = true;

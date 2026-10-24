@@ -5,7 +5,7 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE, panel_comment
-from render_cases_layout import ring_faults, ring_rule, rings_drawn
+from render_cases_layout import SHOT_SRC, SHOTS, ring_faults, ring_rule, rings_drawn
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     BINDING_BADGE_PAGE,
@@ -32,6 +32,7 @@ from render_harness import (
     open_versions,
     panel_field,
     panel_settled,
+    panel_view,
     resized,
     told,
     write,
@@ -46,7 +47,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def offered(page):
-    """Every key the dispatcher would answer where the user stands."""
+    """Every key the dispatcher would answer at the current location."""
     return {key for keys in available_commands(page).values() for key in keys}
 
 
@@ -104,7 +105,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
         "() => document.activeElement.closest('.lf-margin-projection')"
     )
 
-    # From a heading the user stood on, the same way out: the landing is the element
+    # From a heading the user was located on, the same way out: the landing is the element
     # the thread is about rather than the heading the walk left.
     heading = page.locator("main h2").first
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
@@ -113,8 +114,8 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     expect(threads[0]).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator("#p")).to_be_focused()
-    # The element and the card beside it are one place, so standing there is standing
-    # at its thread: the line names it, and the walk goes on from the thread rather than
+    # The element and the card beside it are one place, so that current location names
+    # its thread: the line names it, and the walk goes on from the thread rather than
     # back into it.
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
@@ -194,8 +195,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(preview).to_be_visible()
     expect(threads[0]).to_be_focused()
     rendered(page)
-    # A pointer route to a reading destination still names where it landed.
-    assert preview.evaluate("node => getComputedStyle(node).outlineStyle") == "solid"
+    # The pointer route keeps keyboard standing without showing a keyboard ring.
+    assert preview.evaluate("node => getComputedStyle(node).outlineStyle") == "none"
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     out_through("#p2")
@@ -206,7 +207,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     out_through("#p")
 
-    # And from the keyboard, standing on the marker itself: the same way out, to the
+    # And from the keyboard, focused on the marker itself: the same way out, to the
     # same place. The marker is Leaf's own control beside the words it marks, so it is
     # where the user came from rather than where they are put back.
     marker.focus()
@@ -268,7 +269,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     page.wait_for_function(
         "view => view.contains(document.activeElement)", arg=threads.element_handle()
     )
@@ -316,7 +317,7 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     tabs.first.focus()
     reveal_other()
 
-    # The line names the press, and the press re-selects the tab the user is standing on.
+    # The line names the press, and the press re-selects the tab the user is located on.
     page.keyboard.press("Enter")
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
@@ -339,7 +340,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     follows one that changed something, since a box nobody has touched passes that
     assertion however dead the scope is.
 
-    Both spellings of a folded section, because a user standing on one cannot see which
+    Both spellings of a folded section, because a user located on one cannot see which
     it is: the platform's <details>, and a settled option group, which is a span the
     widget wrote `aria-expanded` onto. One scope answers for both, and the press goes
     through the element's own click either way, so the keyboard leaves the page in the
@@ -459,7 +460,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
         },
     )
     told(page)
-    # Opened, because standing somewhere is where focus is and a shut panel has nowhere to
+    # Opened, because the current location is where focus is and a shut panel has nowhere to
     # stand: without this the summary took no focus, the user was still on the page's own
     # row, and the line went on describing that one — an assertion that would have passed
     # for the wrong reason had the two been in the same state.
@@ -469,7 +470,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     staged.focus()
     expect(staged).to_be_focused()
     # Every live row rather than the two hints that fit: the panel's own rows win the line
-    # where the user is standing in it, and what is asked here is what the register
+    # where the user is located in it, and what is asked here is what the register
     # answers, not which two chips got the room.
     said = offered(page)
     assert "ArrowLeft" not in said and "ArrowRight" not in said, said
@@ -631,6 +632,69 @@ def test_radio_and_slider_keys_stay_with_the_control_inside_a_modal(browser, ser
     expect(host).not_to_have_attribute("data-fired")
 
 
+@pytest.mark.parametrize("shadow", [False, True])
+def test_shared_image_viewer_survives_its_source_popover_removal(
+    browser, serve, shadow
+):
+    """A shared chrome dialog keeps its style and returns home when its seat leaves."""
+    page = open_page(
+        browser,
+        serve(NOTED_PAGE, media={SHOT_SRC[key]: data for key, data in SHOTS.items()}),
+    )
+    # Native layer lifetime must not depend on the optional image renderer's cleanup.
+    held = []
+    page.route("**/vendor/photoswipe.esm.js", lambda route: held.append(route))
+    page.evaluate(
+        """async ({shadow, image}) => {
+          const {shadowStage} = await window.__lfWidgetApi();
+          const host = document.createElement('section');
+          host.id = 'image-options-owner';
+          const opener = document.createElement('button');
+          opener.textContent = 'Image options';
+          const popover = document.createElement('div');
+          popover.id = 'image-options';
+          popover.popover = 'auto';
+          const original = document.createElement('a');
+          original.className = 'lf-media-open';
+          original.href = image;
+          original.dataset.lfMediaUrl = image;
+          original.textContent = 'Open original';
+          const another = original.cloneNode(true);
+          another.textContent = 'Open another image';
+          popover.append(original);
+          opener.popoverTargetElement = popover;
+          document.querySelector('main').append(host, another);
+          if (shadow) shadowStage(host, [opener, popover]);
+          else host.append(opener, popover);
+        }""",
+        {"shadow": shadow, "image": SHOT_SRC["before"]},
+    )
+    page.get_by_role("button", name="Image options", exact=True).click()
+    original = page.get_by_role("link", name="Open original", exact=True)
+    original.click()
+    viewer = page.get_by_role("dialog", name="Image preview", exact=True)
+    expect(viewer).to_be_visible()
+    expect(page.locator("#image-options")).to_be_visible()
+    assert viewer.evaluate("node => getComputedStyle(node).display") == "grid"
+    assert viewer.bounding_box()["width"] == page.viewport_size["width"]
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+    expect(original).to_be_focused()
+    original.click()
+    expect(viewer).to_be_visible()
+    retained = viewer.element_handle()
+    page.locator("#image-options-owner").evaluate("node => node.remove()")
+    page.wait_for_function("node => node.isConnected && !node.open", arg=retained)
+    page.get_by_role("link", name="Open another image", exact=True).click()
+    expect(viewer).to_be_visible()
+    assert viewer.evaluate("(node, previous) => node === previous", retained)
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("link", name="Open another image")).to_be_focused()
+    for route in held:
+        route.continue_()
+    page.unroute("**/vendor/photoswipe.esm.js")
+
+
 def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     """Native layer ownership blocks ancestors and survives nesting and light dismiss."""
     url = serve(NOTED_PAGE)
@@ -638,7 +702,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commands, showNativeLayer } = await window.__lfWidgetApi();
           const { shadowStage } = await window.__lfWidgetApi();
           const host = document.createElement('section');
           host.id = 'around-native-layer';
@@ -651,6 +715,14 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           popover.id = 'shadow-popover';
           popover.popover = 'auto';
           popover.textContent = 'Nested popover';
+          const shared = document.createElement('dialog');
+          shared.id = 'shared-modal';
+          shared.textContent = 'A shared inspection surface';
+          document.body.append(shared);
+          const inspect = document.createElement('button');
+          inspect.textContent = 'Inspect from popover';
+          inspect.onclick = () => showNativeLayer(shared, {source: inspect});
+          popover.append(inspect);
           trigger.popoverTargetElement = popover;
           shadowStage(shadowHost, [trigger, popover]);
           dialog.append(shadowHost);
@@ -678,6 +750,22 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(modal).to_be_visible()
     expect(popover).to_be_visible()
 
+    # A shared modal joins its source popover across the shadow boundary for one
+    # opening, so closing it leaves the source controls and outer modal in hand.
+    inspect = popover.get_by_role("button", name="Inspect from popover")
+    inspect.click()
+    shared = page.locator("#shared-modal")
+    expect(shared).to_be_visible()
+    expect(popover).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(shared).to_be_hidden()
+    expect(popover).to_be_visible()
+    expect(modal).to_be_visible()
+    expect(inspect).to_be_focused()
+    page.wait_for_function(
+        "node => node.parentElement === document.body", arg=shared.element_handle()
+    )
+
     # The global reference applies the same native modal rule across a shadow boundary:
     # the contextual auto popover closes and is not reconstructed afterwards.
     page.keyboard.press("?")
@@ -690,7 +778,9 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
 
     # Reopened over the same modal, so the stack order below is read on the scene that
     # rule describes rather than on what the reference left behind.
-    page.locator("#nested-modal button").click()
+    page.locator("#nested-modal").get_by_role(
+        "button", name="Open nested popover"
+    ).click()
     expect(popover).to_be_visible()
 
     # The popover is nonmodal, but the modal below it remains a hard floor. A page
@@ -1157,7 +1247,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.evaluate(press, ["m", True])  # the same grammar repeats for obligations
     expect(page.locator("#sug-refill[data-lf-obligation]")).to_have_count(1)
 
-    leaves = page.locator('.lf-fp-view[data-view="leaves"]')
+    leaves = page.locator(panel_view("leaves"))
     page.keyboard.press("g")
     page.evaluate(press, ["l", True, True])  # a panel destination does not repeat
     expect(leaves).to_be_hidden()
@@ -1196,8 +1286,8 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     branch inside the typing scope's own row, restating another scope's word.
 
     Which rung the press reaches is the ladder's own business, and it unwinds from
-    where the user is: standing out on the page, the first thing they are in is
-    the control they are standing on, and the panel behind them is a layer they are
+    where the user is: located out on the page, the first thing they are in is
+    the control they are located on, and the panel behind them is a layer they are
     not in. So the press takes two — and the panel closing on the second is the
     whole of what this test is about, the control having had every chance to
     swallow the first."""
@@ -1221,10 +1311,10 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
 
 def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):
     """A margin marker is placed in the document beside the words it marks, outside
-    `.lf-chrome`, and the standing floor used to read that container to tell a
+    `.lf-chrome`, and the current-location floor used to read that container to tell a
     destination from a control. So a marker reached by Tab wore the let-go of an obligation
     or a heading — "let go" — where the Threads toggle beside it, which is a control
-    of the same standing, backs out onto the page. The floor asks `inUi` now, the one
+    of the same current location, backs out onto the page. The floor asks `inUi` now, the one
     reading of which layer a node is in, and a marker gets the same word as the toggle.
     A folded cluster is the case: an unfolded one has the Page Map's own rung over it,
     which answered before either word."""
@@ -1266,7 +1356,7 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     claim the lot: the typing scope stood wherever focus was in a form control, on the
     reading that a letter is a keystroke there — true of a text box, false of a radio, a
     checkbox and a slider, none of which the platform ever hands a letter. So a user
-    standing on a screenshot's before/after switch lost c, the walks, the version keys and
+    focusing a screenshot's before/after switch lost c, the walks, the version keys and
     the reference itself, and the line went blank rather than wrong, which is how it
     reaches its author as "the keyboard stopped working".
 
@@ -1296,7 +1386,7 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     page.keyboard.press("Space")
     expect(page.locator("#flip")).to_be_checked()
     # The letter reaches the page, which is the whole claim; where it then goes is the
-    # standing's business — a user on the radio is standing on it, so the box that
+    # the current location's business — a user on the radio is focused on it, so the box that
     # opens is about it rather than about the page. Named in full, because "comment on
     # the" matches every destination this key has and would assert nothing about which.
     # The box names the radio by its label, as a screen reader does.
@@ -1320,8 +1410,8 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     expect(page.locator(".lf-command-reference")).to_be_hidden()
 
 
-def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
-    """Leaf treats a label's native activation as one keyboard standing.
+def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, serve):
+    """Leaf treats a label's native activation as one keyboard location.
 
     Chromium moves focus through body between mousedown and native label activation.
     That intermediate state must not repaint focus-derived surfaces. The native click
@@ -1360,7 +1450,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     control = page.locator("#frame")
     words = page.locator("#frame-label span")
     first.focus()
-    standing = offered_routes(page)
+    current_location = offered_routes(page)
     expect(page.locator("#first-question-decision[data-lf-obligation]")).to_have_count(
         1
     )
@@ -1384,7 +1474,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         }))"""
     )
     first.focus()
-    assert offered_routes(page) == standing
+    assert offered_routes(page) == current_location
     focus_paint = """control => { const s = getComputedStyle(control); return {
       style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
       offset: s.outlineOffset
@@ -1405,13 +1495,13 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
           dispatchEvent(new PointerEvent('pointerup', init));
         }"""
     )
-    assert offered_routes(page) == standing
+    assert offered_routes(page) == current_location
     held_obligation = page.locator("#first-question-decision[data-lf-obligation]")
     expect(held_obligation).to_have_count(1)
     assert "[data-lf-obligation]" in ring_rule(held_obligation)
     # Native label activation temporarily blurs the radio. Its logical input
     # destination remains in place until the label's click transfers focus. The
-    # pointer press removes its keyboard cue without moving that standing.
+    # pointer press removes its keyboard cue without moving that location.
     assert not first.evaluate("control => control.matches(':focus')")
     assert first.evaluate(focus_paint)["style"] == "none"
     assert not ring_faults(rings_drawn(page), "while the label press holds focus")
@@ -1518,7 +1608,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
 @pytest.mark.parametrize("entry", ["walk", "option", "aim"])
 def test_comment_escape_returns_to_its_authored_parent(browser, serve, entry):
     """Closing a comment removes one layer: composer, then its authored subject.
-    The same obligation is the parent when walking, standing on an option, or aiming at
+    The same obligation is the parent when walking, focusing an option, or aiming at
     its heading; entry history cannot change its Escape route."""
     page = open_page(browser, serve(WHERE_I_STAND_PAGE))
     item = page.locator("#shape-decision")

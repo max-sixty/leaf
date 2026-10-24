@@ -27,7 +27,7 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
+import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { runtime } from "../context.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
@@ -78,7 +78,7 @@ export function createThreadPresentation({
   // offline export does) owes no reading at all.
   const presenter = applicationPresenter({
     region: "thread",
-    order: PRESENTATION_ORDER.thread,
+    after: PRESENTATION_DOM.projection,
     reading: () =>
       !available
         ? null
@@ -112,7 +112,7 @@ export function createThreadPresentation({
     read.begin();
     const current = () => generation === surfaceGeneration && presenting();
     const batch = beginThreadSeats();
-    // Where the user stands on a thread, which this pass may take off the surface drawing
+    // Where the user is on a thread, which this pass may take off the surface drawing
     // it (thread/focus.js, `holdThreadPlace`).
     const restorePlace = holdThreadPlace(openThread, {
       threadAt,
@@ -146,7 +146,7 @@ export function createThreadPresentation({
       const paintPrepared = (primaryCandidate) => {
         if (!current()) return;
         renderSeats(listed, inlineView);
-        // Capture every core message and approval age before yielding to a package.
+        // Capture every core message age before yielding to a package.
         // Their shared clock refreshes this whole presentation, including its outlets.
         // Register the cohort's commit before yielding: its synchronous writes belong
         // to this requested reading, while preparation and continuity remain separate.

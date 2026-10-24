@@ -9,7 +9,6 @@ and reports its check errors. A page with no active revision stays unactivated.
 from __future__ import annotations
 
 import contextlib
-import json
 import secrets
 from collections.abc import Callable
 from pathlib import Path
@@ -35,7 +34,6 @@ from .locations import located, locations_overlap, path_is_within, path_location
 from .refusals import Refused
 from .registry.storage import RegistryError, layer_metadata, layer_packages
 from .schema import (
-    LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
@@ -118,7 +116,7 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     `leaf page init` the refusal names. That re-vendor keeps the page's log, and so
     its threads and decisions, and its source, so it asks nothing of the agent's
     judgment, and the first Leaf to act for the page's session makes it instead: a
-    write command naming the page (`cli.resolve_dir`) or a prompt or Stop hook
+    write command naming the page (`cli.page_argument`) or a prompt or Stop hook
     (`hook_transport.read_plans`). Only the session holding the page renews it, or
     any caller while no live session does: another session may still run the Leaf
     that vendored the page, which a re-vendor would lock out of it, and its own
@@ -386,15 +384,10 @@ def _stamp_layer(
     )
     metadata = previous if same else {"generation": secrets.token_hex(16), **metadata}
     incoming = {**composition.registry, "$layer": metadata}
-    generation = metadata["generation"]
     top_files = dict(composition.top_files)
     directory_files = {
         name: dict(files) for name, files in composition.directory_files.items()
     }
-    client = directory_files["runtime"]["layer-generation.js"]
-    directory_files["runtime"]["layer-generation.js"] = client.replace(
-        LAYER_PLACEHOLDER, json.dumps(generation).encode()
-    )
     # The registry makes the theme and modules live, so it commits last.
     top_files["registry.json"] = json_bytes(incoming)
     return _VendoredLayer(top_files, directory_files, same)

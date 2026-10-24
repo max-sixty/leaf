@@ -69,27 +69,12 @@
   min-block-size: max(4rem, var(--aim-floor));
   padding: var(--sp-2) var(--sp-3);
   border-radius: var(--r);
-  list-style: none;
   font-weight: 400;
 }
 
-.lf-worktree-summary::-webkit-details-marker {
-  display: none;
-}
-
 .lf-worktree-summary::before {
-  content: "";
-  width: 0.4rem;
-  height: 0.4rem;
   justify-self: center;
-  border-block-start: 1.5px solid currentColor;
-  border-inline-end: 1.5px solid currentColor;
-  transform: rotate(45deg);
   color: var(--muted);
-}
-
-.lf-worktree-disclosure[open] > .lf-worktree-summary::before {
-  transform: rotate(135deg);
 }
 
 .lf-worktree-summary:hover {

@@ -275,7 +275,7 @@ export function markdownSourceOffset(body, node, offset) {
   return sourceEnd;
 }
 
-// Whether a rendering taken now is the parser's or the escaped source standing in for
+// Whether a rendering taken now is the parser's or the escaped source location in for
 // it. A caller that keeps what it painted needs to know which it kept, so the words can
 // be given their Markdown once the import lands.
 export const markdownReady = () => render !== escapedSource;

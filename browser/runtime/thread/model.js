@@ -91,7 +91,7 @@ export const turns = (thread) =>
   );
 // The name for a thread that the log's answer does not change: the user's own attempt
 // where their gesture opened the thread, else the id the log gave it. Anything
-// that has to outlive that transition with the user standing in it — a reply draft, a
+// that has to outlive that transition with the user in it — a reply draft, a
 // margin row — keys itself by this rather than by the id, which changes when the log
 // answers.
 /** @param {{id: string, root: {attempt?: string}}} thread */

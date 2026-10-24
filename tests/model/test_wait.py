@@ -220,18 +220,18 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessi
 
     progress = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", first_ref, "--ephemeral", "--text", "Checking"],
+        ["thread", "reply", first_ref, "--ephemeral", "--text", "Checking"],
     )
     assert progress.exit_code == 0, progress.output
     assert json.loads(progress.output)["parent"] == event["id"]
     answered = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", "--done", retry_ref, "--text", "Hello"]
+        cli_model.cli, ["thread", "reply", "--done", retry_ref, "--text", "Hello"]
     )
     assert answered.exit_code == 0, answered.output
     reply = json.loads(answered.output)
     assert reply["responds"] == event["id"]
     retried = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", "--done", retry_ref, "--text", "Hello"]
+        cli_model.cli, ["thread", "reply", "--done", retry_ref, "--text", "Hello"]
     )
     assert retried.exit_code == 0, retried.output
     assert json.loads(retried.output) == reply
@@ -365,7 +365,7 @@ def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
     page_dir, tmp_path
 ):
     """A claimed page whose agent has declared nothing, such as a copy served
-    before any `leaf status`, reads as waiting on its user: the session's wait
+    before any `leaf page open`, reads as waiting on its user: the session's wait
     passes over it and still delivers a sibling page's comment, and the copy's
     own state reads as listening. The copy sorts ahead of the page, so a pass
     that stumbled on it would end before reaching the comment."""
@@ -575,8 +575,8 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
     session_model.cmd_waiting(page, "comment on the prototype")
     selected = page.parent / "selected"
     first = under_codex(
-        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)])
-        + " && "
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page), "--manual-delivery"])
+        + " >/dev/null && "
         + shlex.join(held_selection(selected, page, "wait", str(page))),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
         stdin=subprocess.PIPE,
@@ -1629,8 +1629,8 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     session_model.cmd_waiting(page, "comment on the prototype")
     selected = page.parent / "waiter-selected-page"
     first = under_codex(
-        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)])
-        + " && "
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page), "--manual-delivery"])
+        + " >/dev/null && "
         + shlex.join(held_selection(selected, page, "wait", str(page))),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
         stdin=subprocess.PIPE,
@@ -1731,7 +1731,7 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
     claim = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
     assert claim.exit_code == 0, claim.output
     refused = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", "--done", stale, "--text", "Here."]
+        cli_model.cli, ["thread", "reply", "--done", stale, "--text", "Here."]
     )
     assert "no longer matches its delivery" in refused.output
 
@@ -1743,7 +1743,7 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
         assert delivery_model.deliverable(page) == []
     reply = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", event["answer"]["ref"], "--text", "Here."],
+        ["thread", "reply", "--done", event["answer"]["ref"], "--text", "Here."],
     )
     assert reply.exit_code == 0, reply.output
     assert owed_answers(page_dir) == []

@@ -40,14 +40,17 @@ from render_harness import (
     command_reference_rows,
     expect_comment_notes,
     expect_obligations_answered,
+    expect_panel_says,
     leaf_page,
     margins_laid_out,
     navigate,
     open_page,
     opened_tab,
-    pane_posture,
+    pane_scroll_behavior,
     panel_control,
+    panel_says,
     panel_settled,
+    panel_view,
     resized,
     round_trip,
     scroll_settled,
@@ -68,7 +71,7 @@ from browser.navigation import (
 )
 from browser.threads import open_panel_thread
 
-from journeys import expect_panel_says, expect_showing, panel_says
+from journeys import expect_showing
 
 
 def go_to_passage(page, page_dir, words):
@@ -132,14 +135,12 @@ def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
     reading = """async () => (await window.__lfCheckApi()).userReadingRegion()?.host.id ?? null"""
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     resized(page, 1440, 900)
-    pane_posture(page, page.locator("#left-reading"), "bounded")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
 
     page.locator("#right-head").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(
-        page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
-    ).to_be_focused()
+    expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(reading) == "right-reading"
@@ -272,7 +273,7 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
         ),
     )
     resized(page, 1600, 700)
-    pane_posture(page, page.locator("#comparison-current"), "bounded")
+    pane_scroll_behavior(page, page.locator("#comparison-current"), "bounded")
     current = page.locator("#comparison-current > :not(header, footer)")
     proposed = page.locator("#comparison-proposed > :not(header, footer)")
     expect(page.locator(".lf-mark-note")).to_have_count(2)
@@ -706,7 +707,7 @@ def test_an_external_link_says_and_opens_where_it_goes(
 def test_an_addressed_link_leaves_the_user_at_its_destination(
     browser, serve, other_leaf, one_user
 ):
-    """A generated link hint completes the trip it names.
+    """A generated link hint completes the navigation step it names.
 
     A fragment lands focus on its target, so the user does not remain at the place they
     left. An external link keeps its new-tab behavior and names that context change even
@@ -724,7 +725,7 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
 <p><a id="external" href="{destination}" aria-label="Leaf guide">Open the guide</a>.</p>
 <div style="height: 1600px"></div>
 <h2 id="arrival">Conclusion</h2>
-<p>The internal trip ends here.</p>
+<p>The internal navigation step ends here.</p>
 """,
             )
         ),
@@ -754,11 +755,11 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
     panel_comment(serve.page_dir, "Another panel thread.")
     page = open_page(browser, url)
     view = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
 
     page.keyboard.press("t")
     expect(view).to_be_focused()
-    # Threads, from the thread the user stands in, opens on that thread's row.
+    # Threads, from the thread the user is located in, opens on that thread's row.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(threads.locator(f'.lf-fp-thread[data-key="{root}"]')).to_be_focused()
@@ -790,7 +791,7 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
 
 
 def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
-    """Page standing unwinds before the panel view around it.
+    """The current page location unwinds before the panel view around it.
 
     An Ask stood on while On me stands lets go first, then On me; a thread's Ask
     reached by `m` with Threads open leaves through the panel's own step."""
@@ -1118,7 +1119,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # A panel mnemonic completes the sequence and leaves the user in that view of the
     # panel, where its own scoped keys are immediately available.
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
     page.keyboard.press("Shift+t")
     expect(threads).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
@@ -1131,7 +1132,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    expect(page.locator('.lf-fp-view[data-view="queue"]')).to_be_focused()
+    expect(page.locator(panel_view("queue"))).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("ArrowDown")
     expect(page.locator(".lf-fp-on-line").first).to_be_focused()
@@ -1283,7 +1284,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(page.locator("#dsc-head")).to_be_focused()
     expect(page.locator("#dsc")).to_have_attribute("open", "")
 
-    # Standing there, Enter and Space both toggle it, as a summary answers both.
+    # Located there, Enter and Space both toggle it, as a summary answers both.
     page.keyboard.press("Enter")
     expect(page.locator("#dsc")).not_to_have_attribute("open", "")
     page.keyboard.press(" ")
@@ -1367,7 +1368,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     page.keyboard.press("Shift+l")
 
     panel_settled(page, view="leaves")
-    leaves = page.locator('.lf-fp-view[data-view="leaves"]:not([data-leaving])')
+    leaves = page.locator(panel_view("leaves"))
     expect(leaves).to_be_focused()
     expect(leaves.locator(".lf-fp-page[href]")).to_have_count(2)
     page.keyboard.press("ArrowDown")
@@ -1530,7 +1531,7 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     )
     page.close()
 
-    # The same standing with only the board's next-item cue left in view. The
+    # The same current location with only the board's next-item cue left in view. The
     # sliver still supplies an attachment, so opening Comment preserves the board.
     page = open_page(browser, url)
     page.locator("#card0 a").focus()
@@ -1548,7 +1549,7 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     assert now == was
     page.close()
 
-    # Carried out of its own scroller after the user stood on it — focus first, because
+    # Carried out of its own scroller after the user was located on it — focus first, because
     # focusing a card is itself a scroll and would undo the carrying it is meant to survive.
     page = open_page(browser, url)
     page.locator("#card0 a").focus()
@@ -1855,7 +1856,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     # The Threads tab's presets each open a thread in a sample's panel, and the one
     # chosen survives its Reset.
     frame = page.frame_locator("#bg-panel-sample iframe")
-    shown = frame.locator('.lf-fp-view[data-view="thread"]:not([data-leaving])')
+    shown = frame.locator(panel_view("thread"))
     expect(shown).to_have_count(0)
     page.locator('#bg-panel-presets [data-view="overview"]').click()
     expect(shown).to_have_attribute("data-thread", "72e031c5bf0d485ba9054628e09869d4")

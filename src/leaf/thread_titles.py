@@ -3,16 +3,16 @@ through the harness the page's agent runs in.
 
 An opening or reply may carry its untitled thread's first title atomically;
 `thread_title` names one independently or renames it. An agent answering with
-`leaf response reply` can supply a title even when the provider owns final commit.
+`leaf thread reply` can supply a title even when the provider owns final commit.
 That reply comes when the agent's work does, which can be minutes, so Leaf also
 asks for a title as soon as it can reach the harness's model:
 
 - a page server, as the user's comment or reply in the untitled thread is admitted
   (`name_admitted_thread`), through the generator the claimant's harness supplies
-  (`Harness.title_generator`): a `claude -p` Haiku request for Claude Code
-  (`claude_code_title`), an App Server of its own for Codex (`codex_title`),
-  whichever transport carries the task's turns, and a `pi --print` run on the
-  model the user configured for Pi (`pi_title`);
+  (`Harness.title_generator`), which is the harness's widget inference
+  (`inference`): a `claude -p` Haiku request for Claude Code, an App Server of
+  its own for Codex, whichever transport carries the task's turns, and a
+  `pi --print` run on the model the user configured for Pi;
 - the website's host, as the Worker dispatches the user's update in the untitled
   thread to it (`name_thread`), through an ephemeral thread on the App Server it owns
   (`app_server_title`), whether the update starts a turn or waits for a running one
@@ -24,7 +24,7 @@ task whose App Server Leaf cannot reach, is named as promptly as one opened whil
 is idle. The page server asks an App Server of its own rather than running `codex
 exec`, so Codex is asked in one way wherever it is reached (`app_server_title`), and
 the server says which MCP servers to turn off by name (`config/read`). Every Codex
-title is asked of `CODEX_TITLE_MODEL`, whatever model the user's tasks, or the
+title is asked of `inference.CODEX_MODEL`, whatever model the user's tasks, or the
 website's, run on.
 
 A Codex title starts a private App Server when asked and stops it after the answer.
@@ -51,21 +51,17 @@ first ask; asked back to back, all twelve were written, one 20 s late. On every
 harness the record counts the refusals and how long they held the title up. A
 refusal for any other reason, or past the cap, fails as before.
 
+Titles share every harness's tool-free JSON transport with widgets (`inference`).
+The title wrappers own their prompt, schema and rate-limit retry policy.
+
 Every harness is sent the same request (`title_request`): a system prompt saying to
 title the thread, then the passage the thread is on and its first spoken message,
 each between tags of its own, and a last line asking for the title. That is the
 request's whole context: none of the task's transcript, and none of the tools or
 the context the harness loads by default, except the AGENTS.md in Codex's home,
-which no App Server setting leaves out (codex-cli 0.160). Claude Code and Codex
-answer in the same schema; Pi has no answer schema, so its title is the answer's
-text, and on its
-`openai-codex` provider 24 of 24 answers were titles, to messages asking for a fix,
-a shell command, a poem or a sum among them. The request runs beside the agent's
-work and never delays it.
-
-A Pi title took 2.0–4.1 s from the request to the answer, at a load average of 270
-to 330 on this machine, and cost $0.0005 at Pi's catalog price for gpt-6.1-sol, some
-200 tokens in and 10 out (Pi 1.0.4).
+which no App Server setting leaves out (codex-cli 0.160). Every harness answers in
+the same schema, which Pi is told in its system prompt (`inference.pi_generate`).
+The request runs beside the agent's work and never delays it.
 
 The title is written as the session that holds the page's claim, and only while the
 thread is still untitled (`thread.name_untitled`), so a name the agent gave first
@@ -77,25 +73,15 @@ stays untitled until the user's next message in it asks again. The retry above m
 that rare: only a refusal past its cap, or a failure of another kind, leaves one.
 """
 
-import json
-import os
-import shutil
-import subprocess
-import tempfile
 import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
 
-from .codex import (
-    app_server_connect,
-    app_server_handshake,
-    app_server_request,
-    private_app_server,
-)
+from . import inference
 from .event_log import EventRefused
 from .events import build_threads, spoken_turns
-from .harness import IDENTITY_VARIABLES
+from .inference import RateLimited
 from .interaction_log import append_interactions
 from .revision_artifact import active_enclosing
 from .service import PageTransaction
@@ -123,123 +109,16 @@ OUTPUT_SCHEMA = {
     "required": ["title"],
     "additionalProperties": False,
 }
-# Past this the thread keeps its placeholder rather than holding a request open.
-TIMEOUT = 60
 # A title refused for rate limits is asked again this often, until this long after
 # its first ask (module docstring).
 RETRY_INTERVAL = 5
 RETRY_FOR = 120
-# App Server: a title needs no tools either, and the working directory's AGENTS.md
-# says nothing about one. With a shell, the model sometimes acted on a message that
-# asks for work instead of naming it. Nor does it run the user's hooks: with the
-# feature on, a title thread ran a config's UserPromptSubmit and Stop hooks, which
-# here retitle the user's terminal tab.
-#
-# Codex titles run at the least effort gpt-6-luna accepts. Its API takes `none`,
-# though the App Server's model list starts at `low`, and refuses `minimal`
-# (codex-cli 0.160). An account without the model fails the title's turn.
-CODEX_TITLE_MODEL = "gpt-6-luna"
-APP_SERVER_EFFORT = "none"
-TITLE_CONFIG = {
-    "features": {
-        feature: False
-        for feature in (
-            "apps",
-            "browser_use",
-            "computer_use",
-            "goals",
-            "image_generation",
-            "in_app_browser",
-            "memories",
-            "multi_agent",
-            "plugins",
-            "skill_mcp_dependency_install",
-            "skill_search",
-            "tool_suggest",
-            "workspace_dependencies",
-            "code_mode_host",
-            "hooks",
-            "shell_tool",
-            "sleep_tool",
-            "unified_exec",
-            "view_image",
-        )
-    },
-    "skills": {"include_instructions": False, "max_context_tokens": 1},
-    "web_search": "disabled",
-    "include_apply_patch_tool": False,
-    "agents": {"enabled": False},
-    "project_doc_max_bytes": 0,
-    "model_reasoning_effort": APP_SERVER_EFFORT,
-}
-# A Codex title server: with plugins on, a server syncs every plugin marketplace the
-# user configured as it starts, which here ran `git ls-remote` on four repositories
-# and cloned one into the user's Codex home for every title. The thread turns
-# plugins off too (`TITLE_CONFIG`), but that reaches no further than the thread.
-TITLE_SERVER_ARGUMENTS = ("--disable", "plugins")
-# Claude Code: the command Worktrunk gives for commit messages
-# (https://worktrunk.dev/llm-commits/), which also runs with MAX_THINKING_TOKENS=0.
-# Safe mode leaves out the user's CLAUDE.md, plugins, hooks, MCP servers and skills
-# and keeps their auth, and reading user settings alone keeps a project's settings
-# from overriding that auth. Thinking took Haiku's request from 1–2 s to 3–7 s, for
-# no better titles. Worktrunk's empty system prompt becomes `INSTRUCTIONS`, and its
-# plain-text answer the schema.
-#
-# The model answers in 1–2 s, and the rest of a request is `claude` starting and
-# exiting, which a busy machine stretches many times over. Without the nonessential
-# traffic Claude Code makes for an interactive session, the request took 8.4 s
-# rather than 15.8 s at a load average of 200, the median of four interleaved pairs.
-CLAUDE_CODE_COMMAND = (
-    "-p",
-    "--no-session-persistence",
-    "--model=haiku",
-    "--tools=",
-    "--safe-mode",
-    "--setting-sources=user",
-)
-CLAUDE_CODE_ENVIRONMENT = {
-    "MAX_THINKING_TOKENS": "0",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-}
-
-# Pi: a print-mode run of the model the user configured, with no tools, and none of
-# the extensions (Leaf's own among them, and every hook, since Pi's hooks are
-# extensions), MCP servers, skills, prompt templates or context files the user
-# installed. An empty appended prompt stands in for the APPEND_SYSTEM.md Pi would
-# otherwise add to `INSTRUCTIONS`. Offline skips the version check and catalog
-# refresh a start makes.
-# Pi has no answer schema, so the title is the answer's text. Thinking off is the
-# least a model accepts: `minimal` on gpt-6.1-sol, which reasoned on no title.
-PI_COMMAND = (
-    "--print",
-    "--mode",
-    "json",
-    "--no-session",
-    "--no-tools",
-    "--no-extensions",
-    "--no-mcp",
-    "--no-skills",
-    "--no-prompt-templates",
-    "--no-context-files",
-    "--append-system-prompt",
-    "",
-    "--no-themes",
-    "--offline",
-    "--thinking",
-    "off",
-)
-
 Record = Callable[..., None]
 # How much of the passage and of the message a request carries: the first this many
 # characters of each, which name the subject if any do.
 EXCERPT_LIMIT = 2000
 # A request for one title: its text, and the page directory it is about.
 Generate = Callable[[str, Path], dict]
-
-
-class RateLimited(RuntimeError):
-    """The model refused a title for rate limits, with a 429, so asking again later
-    can succeed (`_name_thread`)."""
 
 
 def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
@@ -266,257 +145,27 @@ def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
     return thread_id, "\n\n".join([*parts, ASK]) if parts else ""
 
 
-def claude_code_title(request: str, page_dir: Path) -> dict:
-    """Ask Haiku for a title through the `claude` on PATH, on the user's own login
-    and provider.
-
-    The page server's environment is that of whichever session started it, so the
-    child is given none of that session's identity and starts as a session of its
-    own. The request goes on stdin, out of the process table."""
-    executable = shutil.which("claude")
-    if executable is None:
-        raise FileNotFoundError("no `claude` on PATH")
-    started = time.monotonic()
-    env = {
-        name: value
-        for name, value in os.environ.items()
-        if name not in IDENTITY_VARIABLES
-    }
-    finished = subprocess.run(
-        [
-            executable,
-            *CLAUDE_CODE_COMMAND,
-            "--system-prompt",
-            INSTRUCTIONS,
-            "--json-schema",
-            json.dumps(OUTPUT_SCHEMA),
-            "--output-format",
-            "json",
-        ],
-        env=env | CLAUDE_CODE_ENVIRONMENT,
-        input=request,
-        capture_output=True,
-        text=True,
-        timeout=TIMEOUT,
-        check=False,
-    )
-    if finished.returncode != 0:
-        raise RuntimeError(
-            f"claude exited {finished.returncode}: {finished.stderr.strip()[-300:]}"
-        )
-    answer = json.loads(finished.stdout)
-    # Haiku sometimes answers in prose rather than calling for the structured one;
-    # the prose echoes the user's words, so it stays out of the record.
-    if "structured_output" not in answer:
-        raise RuntimeError(f"no title in the answer ({answer.get('stop_reason')})")
-    usage = answer["usage"]
-    return {
-        "title": answer["structured_output"]["title"].strip(),
-        "durationMs": round((time.monotonic() - started) * 1000),
-        # The model's share of `durationMs`; the rest is `claude` starting and
-        # exiting, which a busy machine stretches and the model does not.
-        "apiDurationMs": answer["duration_api_ms"],
-        "inputTokens": usage["input_tokens"],
-        "outputTokens": usage["output_tokens"],
-    }
+def title_reading(reading: dict) -> dict:
+    """Turn a structured inference result into title diagnostics."""
+    value = reading.pop("value")
+    usage = reading.pop("usage")
+    return {"title": value["title"].strip(), **reading, **usage}
 
 
-def pi_title(request: str, page_dir: Path) -> dict:
-    """Ask Pi's configured model for a title through the `pi` on PATH, on the user's
-    own login and Pi home, run in the page directory.
-
-    The page server's environment is that of whichever Pi session started it, so the
-    child is given none of that session's identity. The request goes on stdin, out of
-    the process table.
-
-    Pi exits some 3 s after it answers (Pi 1.0.4 on its `openai-codex` provider,
-    where the model took 1–2 s), so the answer is read as Pi prints it, and the
-    process is killed once it has, with no session to save."""
-    executable = shutil.which("pi")
-    if executable is None:
-        raise FileNotFoundError("no `pi` on PATH")
-    started = time.monotonic()
-    env = {
-        name: value
-        for name, value in os.environ.items()
-        if name not in IDENTITY_VARIABLES
-    }
-    with (
-        tempfile.TemporaryFile("w+") as errors,
-        subprocess.Popen(
-            [executable, *PI_COMMAND, "--system-prompt", INSTRUCTIONS],
-            cwd=page_dir,
-            env=env,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=errors,
-            text=True,
-        ) as process,
-    ):
-        deadline = threading.Timer(TIMEOUT, process.kill)
-        deadline.start()
-        try:
-            process.stdin.write(request)
-            process.stdin.close()
-            settled = next(
-                (
-                    record
-                    for record in map(json.loads, process.stdout)
-                    # A run that failed and that Pi will retry ends first.
-                    if record["type"] == "agent_end" and not record["willRetry"]
-                ),
-                None,
-            )
-        finally:
-            deadline.cancel()
-            process.kill()
-            process.wait()
-        if settled is None:
-            if time.monotonic() - started >= TIMEOUT:
-                raise TimeoutError(f"no title within {TIMEOUT} s")
-            errors.seek(0)
-            raise RuntimeError(
-                f"pi exited {process.returncode} without an answer: "
-                f"{errors.read().strip()[-300:]}"
-            )
-    answer = settled["messages"][-1]
-    if answer["role"] != "assistant" or answer["stopReason"] != "stop":
-        raise RuntimeError(
-            f"the title run ended {answer.get('stopReason')}: "
-            f"{answer.get('errorMessage')}"
-        )
-    usage = answer["usage"]
-    return {
-        "title": "".join(
-            part["text"] for part in answer["content"] if part["type"] == "text"
-        ).strip(),
-        "durationMs": round((time.monotonic() - started) * 1000),
-        "model": f"{answer['provider']}/{answer['model']}",
-        "inputTokens": usage["input"],
-        "outputTokens": usage["output"],
-        # Pi prices each answer from its model catalog.
-        "costUsd": usage["cost"]["total"],
-    }
-
-
-def open_title_thread(socket, page_dir: Path) -> str:
-    """Open the ephemeral thread one title is asked on, on `CODEX_TITLE_MODEL`, over
-    a new connection to an App Server, run in the page directory, and return its
-    id."""
-    app_server_handshake(socket, 0, "leaf-thread-titles", "Leaf thread titles")
-    # A thread starts every MCP server the user configured, its project's included,
-    # and an override replacing the table leaves them configured, so each is turned
-    # off by name, read from the directory the thread runs in.
-    configured = app_server_request(socket, "config/read", 1, {"cwd": str(page_dir)})
-    servers = configured["config"].get("mcp_servers") or {}
-    thread = app_server_request(
-        socket,
-        "thread/start",
-        2,
-        {
-            "model": CODEX_TITLE_MODEL,
-            "cwd": str(page_dir),
-            "ephemeral": True,
-            "approvalPolicy": "never",
-            # A sandbox confines only the tools a turn runs, and this one has none,
-            # so the request also works where Codex cannot start one, as in the
-            # website's container.
-            "sandbox": "read-only",
-            "baseInstructions": INSTRUCTIONS,
-            "config": {
-                **TITLE_CONFIG,
-                "mcp_servers": {name: {"enabled": False} for name in servers},
-            },
-        },
-    )
-    return thread["thread"]["id"]
-
-
-def ask_title(socket, thread_id: str, request: str, deadline: float) -> dict:
-    """Ask for a title in one turn on the thread `open_title_thread` opened, and read
-    the answer by `deadline` (`time.monotonic`)."""
-    # A thread that took longer to open than the request waits asks nothing.
-    if time.monotonic() >= deadline:
-        raise TimeoutError(f"no title within {TIMEOUT} s")
-    app_server_request(
-        socket,
-        "turn/start",
-        3,
-        {
-            "threadId": thread_id,
-            "input": [{"type": "text", "text": request}],
-            "effort": APP_SERVER_EFFORT,
-            "outputSchema": OUTPUT_SCHEMA,
-        },
-    )
-    answer = None
-    usage = None
-    while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise TimeoutError(f"no title within {TIMEOUT} s")
-        message = json.loads(socket.recv(timeout=remaining))
-        params = message.get("params") or {}
-        if params.get("threadId") != thread_id:
-            continue
-        method = message.get("method")
-        if method == "item/completed" and params["item"]["type"] == "agentMessage":
-            answer = params["item"]["text"]
-        elif method == "thread/tokenUsage/updated":
-            usage = params["tokenUsage"]["last"]
-        elif method == "turn/completed":
-            turn = params["turn"]
-            if turn["status"] != "completed" or answer is None:
-                # Each variant of a failure's `codexErrorInfo` that has an HTTP
-                # status carries it as `httpStatusCode`.
-                info = (turn.get("error") or {}).get("codexErrorInfo")
-                limited = isinstance(info, dict) and any(
-                    variant.get("httpStatusCode") == 429 for variant in info.values()
-                )
-                raise (RateLimited if limited else RuntimeError)(
-                    f"the title turn ended {turn['status']}: {turn.get('error')}"
-                )
-            return {
-                "title": json.loads(answer)["title"].strip(),
-                "inputTokens": usage and usage["inputTokens"],
-                "outputTokens": usage and usage["outputTokens"],
-            }
-
-
-def app_server_title(endpoint: str) -> Generate:
-    """A request for one title as an ephemeral thread on the App Server at
-    `endpoint`, run in the page directory."""
+def title_generator(infer: Callable[..., dict]) -> Generate:
+    """Apply the title prompt and schema to a harness's structured inference."""
 
     def generate(request: str, page_dir: Path) -> dict:
-        started = time.monotonic()
-        socket = app_server_connect(endpoint)
-        try:
-            thread_id = open_title_thread(socket, page_dir)
-            reading = ask_title(socket, thread_id, request, started + TIMEOUT)
-        finally:
-            socket.close()
-        return {**reading, "durationMs": round((time.monotonic() - started) * 1000)}
+        return title_reading(
+            infer(request, page_dir, schema=OUTPUT_SCHEMA, instructions=INSTRUCTIONS)
+        )
 
     return generate
 
 
-def codex_title(request: str, page_dir: Path) -> dict:
-    """Ask Codex on demand; no server remains idle between title requests."""
-    started = time.monotonic()
-    executable = shutil.which("codex")
-    if executable is None:
-        raise FileNotFoundError("no `codex` on PATH")
-    env = {
-        name: value
-        for name, value in os.environ.items()
-        if name not in IDENTITY_VARIABLES
-    }
-    with private_app_server(executable, env=env, arguments=TITLE_SERVER_ARGUMENTS) as (
-        endpoint,
-        _process,
-    ):
-        reading = app_server_title(endpoint)(request, page_dir)
-    return {**reading, "durationMs": round((time.monotonic() - started) * 1000)}
+def app_server_title(endpoint: str) -> Generate:
+    """Name threads on the website host's existing App Server."""
+    return title_generator(inference.app_server_generate(endpoint))
 
 
 def write_title(page_dir: Path, thread: str, title: str, session_id: str) -> bool:

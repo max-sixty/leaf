@@ -416,9 +416,10 @@ def test_a_playground_reports_a_contributor_view_that_cannot_draw_its_edit(
     consume_browser_errors(page, report)
 
 
-def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_short_workspace(
-    browser, serve
-):
+def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, serve):
+    """With its controls on the stage, a playground in a short workspace keeps at least
+    half the window for the stage, and the workspace scrolls to the whole instruction
+    and its actions below it rather than either scrolling inside a squeezed box."""
     source = leaf_page(
         "Short alert workspace",
         '<lf-ask id="short-ask"><h1>Tune alert policies</h1>'
@@ -442,11 +443,14 @@ def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_sh
     expect(playground.locator(".lf-playground-controls-region")).to_have_count(0)
     split = playground.locator(".lf-playground-split").bounding_box()
     assert preview.bounding_box()["width"] == pytest.approx(split["width"], abs=1)
-    assert instruction.evaluate("node => node.scrollHeight > node.clientHeight")
-    instruction.evaluate("node => { node.scrollTop = node.scrollHeight; }")
-    body = instruction.bounding_box()
-    last = page.locator("#instruction-end").bounding_box()
-    assert body["y"] <= last["y"] < body["y"] + body["height"]
+    stage = playground.locator(".lf-playground-preview-region").bounding_box()
+    assert stage["height"] >= 500 / 2 - 0.5
+    assert instruction.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
+    workspace = page.locator("#short-ask")
+    assert workspace.evaluate("node => node.scrollHeight > node.clientHeight + 1")
+    end = page.locator("#instruction-end")
+    end.scroll_into_view_if_needed()
+    expect(end).to_be_in_viewport()
     slider = playground.get_by_role("slider", name="Latency window")
     slider.press("ArrowRight")
     expect(slider).to_have_value("6")
@@ -599,8 +603,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         controlsId: region(controls).id,
         previewId: region(preview).id,
         instructionId: region(instruction).id,
-        postures: [controls, preview, instruction].map((body) =>
-          leaf.readingPosture(region(body))),
+        scroll_behaviors: [controls, preview, instruction].map((body) =>
+          leaf.regionScrollBehavior(region(body))),
         scrollers: [controls, preview, instruction].map((body) =>
           leaf.scrollerFor(body) === body ? 'own' :
           leaf.scrollerFor(body) === document.scrollingElement ? 'page' :
@@ -610,7 +614,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
           && controlsBox.left >= previewBox.right
           && Math.abs(instructionBox.left - controlsBox.left) < 1
           && instructionBox.top >= controlsBox.bottom,
-        stacked: controlsBox.top >= previewBox.bottom - 1,
+        stacked: controlsBox.bottom <= previewBox.top + 1,
         presetsHeadControls: controls.previousElementSibling
           === playground.querySelector('.lf-playground-presets'),
         controlsSize: [controls.clientHeight, controls.scrollHeight],
@@ -629,7 +633,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "controlsId": "lf-region:notification-playground:controls",
         "previewId": "lf-region:notification-playground:preview",
         "instructionId": "lf-region:notification-playground:instruction",
-        "postures": ["bounded", "bounded", "bounded"],
+        "scroll_behaviors": ["bounded", "bounded", "bounded"],
         "scrollers": ["own", "own", "own"],
         "sideBySide": True,
         "presetsHeadControls": True,
@@ -738,8 +742,12 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         assert flow["stacked"] is (width < 1100), (width, height, flow)
         assert flow == {
             **flow,
-            "postures": ["flow", "flow", "flow"],
-            "scrollers": ["page", "page", "page"],
+            "scroll_behaviors": ["flow", "flow", "flow"]
+            if width == 1100
+            else ["bounded", "flow", "flow"],
+            "scrollers": ["page", "page", "page"]
+            if width == 1100
+            else ["own", "page", "page"],
             "pageScrolls": True,
             "obligationDisplay": "block",
         }, (width, height)
@@ -1000,7 +1008,7 @@ def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     budget, the instruction and the submit button, stays in the window, so the user
     sends what they set where they set it. In a window shorter than 480px the rail
     flows with the page, which scrolls to its submit button, and stacked at phone width
-    it flows after the stage, as a sidebar page's stacked track does."""
+    its shared controls stay above the stage while the instruction follows it."""
     page = open_page(browser, serve(ROOT / "examples" / "alert-thresholds.html"))
     resized(page, 1024, 768)
     playground = page.locator("#alert-playground")
@@ -1037,7 +1045,15 @@ def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     page.evaluate("document.scrollingElement.scrollTop = 0")
     rail = playground.locator(".lf-playground-controls-region").bounding_box()
     shown = stage.bounding_box()
-    assert rail["y"] >= shown["y"] + shown["height"]
+    assert rail["y"] + rail["height"] <= shown["y"]
+    last.scroll_into_view_if_needed()
+    floor = page.locator(".lf-fp-row").bounding_box()["y"]
+    assert within_window(budget)
+    last_box = last.bounding_box()
+    controls_box = playground.locator(".lf-playground-controls-region").bounding_box()
+    assert last_box["y"] >= controls_box["y"] + controls_box["height"]
+    budget.press("ArrowRight")
+    expect(budget).to_have_value("12")
 
 
 def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serve):
@@ -1222,3 +1238,73 @@ def test_playground_labels_can_be_selected_without_changing_the_controls(
     expect(toggle).to_be_checked()
     toggle.press("Space")
     expect(toggle).not_to_be_checked()
+
+
+def test_playground_candidates_keep_previews_operable_and_submit_one_choice(
+    browser, serve
+):
+    source = leaf_page(
+        "Choose the notification",
+        """<lf-playground id="candidates">
+  <lf-playground-control name="radius" label="Corner radius" kind="range"
+    value="10" min="0" max="24"></lf-playground-control>
+  <lf-playground-preview>
+    <lf-playground-control name="format" label="Notification" kind="choice" value="banner">
+      <lf-playground-choice value="banner" label="Banner">
+        <p>Checkout deployed.</p>
+      </lf-playground-choice>
+      <lf-playground-choice value="strip" label="Status strip">
+        <p>Checkout · deployed · 18 checks passed</p>
+        <label>Preview title <input id="preview-title" value="Checkout"></label>
+        <details><summary>Open preview</summary><p>Preview details</p></details>
+      </lf-playground-choice>
+    </lf-playground-control>
+  </lf-playground-preview>
+  <lf-playground-output>Build the <lf-playground-value for="format"></lf-playground-value>.</lf-playground-output>
+</lf-playground>""",
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#candidates")
+    preview = page.locator("#preview-title")
+    before = len(events_model.read_events(serve.page_dir))
+    page.get_by_text("Open preview", exact=True).click()
+    expect(page.get_by_text("Preview details", exact=True)).to_be_visible()
+    preview.fill("Release complete")
+    assert playground.evaluate("root => root.values") == {
+        "radius": 10,
+        "format": "banner",
+    }
+    page.get_by_role("radio", name="Banner", exact=True).press("ArrowRight")
+    expect(page.get_by_role("radio", name="Status strip", exact=True)).to_be_checked()
+    expect(preview).to_have_value("Release complete")
+    assert len(events_model.read_events(serve.page_dir)) == before
+    page.reload()
+    wait_until_ready(page)
+    expect(page.get_by_role("radio", name="Status strip", exact=True)).to_be_checked()
+    page.get_by_role("button", name="Reset", exact=True).click()
+    expect(page.get_by_role("radio", name="Banner", exact=True)).to_be_checked()
+    page.get_by_text("Checkout · deployed · 18 checks passed", exact=True).click()
+    expect(page.get_by_role("radio", name="Status strip", exact=True)).to_be_checked()
+    expect(page.get_by_role("radio", name="Status strip", exact=True)).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    expect(page.get_by_role("radio", name="Banner", exact=True)).to_be_checked()
+    page.keyboard.press("ArrowRight")
+    with sending(page, "the selected candidate"):
+        page.get_by_role("button", name="Use these settings").click()
+    choice = events_model.read_events(serve.page_dir)[-1]
+    assert choice["detail"] == {
+        "values": {"radius": 10, "format": "strip"},
+        "instruction": "Build the strip.",
+    }
+    quoted = source.replace(
+        '<lf-playground id="candidates">',
+        '<lf-sample id="quoted-candidates" label="Notification comparison">'
+        '<lf-playground id="candidates">',
+    ).replace("</lf-playground>", "</lf-playground></lf-sample>")
+    page = open_page(browser, serve(quoted))
+    expect(page.get_by_role("radio")).to_have_count(0)
+    expect(page.get_by_text("Banner", exact=True)).to_be_visible()
+    expect(page.get_by_text("Status strip", exact=True)).to_be_visible()
+    expect(
+        page.get_by_text("Checkout · deployed · 18 checks passed", exact=True)
+    ).to_be_visible()

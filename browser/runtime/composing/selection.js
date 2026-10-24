@@ -28,6 +28,7 @@ import {
   clearDraft,
   draftContexts,
   loadDraft,
+  loadDraftPayload,
   saveDraft,
   sendMessage,
   transferDraft,
@@ -41,10 +42,16 @@ import { pageSelection } from "./capture.js";
 import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
+import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
 import { pageScope } from "../keyboard/register.js";
-import { PRESS, rowArrows, savedReadingSettled } from "../keyboard/bindings.js";
 import {
-  onStanding,
+  PRESS,
+  cycledRow,
+  rowArrows,
+  savedReadingSettled,
+} from "../keyboard/bindings.js";
+import {
+  onCurrentLocation,
   takesLetters,
   focusDestination,
   focused,
@@ -64,17 +71,12 @@ import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 import { raiseError } from "../errors.js";
+import { isNativeLayer } from "../shadow-tree.js";
 
-// The floating field immediately accepts a comment on the target the user named.
-// Tab from the field, or `e` while it stands unfocused, unfolds every other response
-// the target offers. The field is the group's stable primary control; reaction
-// vocabulary changes the choices, not the disclosure or the field's place.
-// The comment field deliberately has one primary action: Dictate when available while empty,
-// Send with words, including on phones. Suggest and
-// reactions retain keyboard routes; reconsidering a pointer or touch disclosure is
-// a product decision ("Touch routes" in keyboard/AGENTS.md).
-// One affordance, raised only where the user has already pointed: a native text
-// selection or an explicit Comment target gesture on an item or visual part.
+// The comment field keeps Send or Dictate as its primary action. Other responses
+// open in one anchored picker from the adjacent button, Tab, or e. The same picker
+// follows the composer between the floating panel, a passage, and a widget outlet;
+// opening it never changes the field's size or position.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (passages.js, leafSurface)
 fabBar.setAttribute("role", "group");
@@ -93,6 +95,7 @@ fab.id = "lf-comment-button";
 fab.title = "Comment";
 export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
+fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
@@ -101,7 +104,19 @@ const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   collapse: true,
 });
 fabOptions.append(fabSuggest);
-fabBar.append(fab, fabOptions);
+export const fabOptionsTrigger = responseAction(
+  el("button", "lf-ui lf-response-trigger"),
+  {
+    icon: "more",
+    label: "Other responses",
+    collapse: true,
+    behavior: "disclosure",
+  },
+);
+fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
+fabOptionsTrigger.setAttribute("aria-expanded", "false");
+fabOptionsTrigger.popoverTargetElement = fabOptions;
+fabBar.append(fab, fabOptionsTrigger, fabOptions);
 
 const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
@@ -187,41 +202,24 @@ export function createSelectionComposer({
   let pendingRevision = null;
   // The draft owns its mode; the response action and editor hint present it.
   let suggestionMode = false;
-  const composerDraftValue = (text = syncComposer.value()) =>
-    JSON.stringify({
-      format: DRAFT_FORMAT,
-      text,
-      anchor: pendingAnchor,
-      revision: pendingRevision,
-      suggest: suggestionMode,
-      about: pendingAbout,
-      drawing: pendingDrawing,
-      touched: Date.now(),
-    });
+  const composerDraftPayload = () => ({
+    format: DRAFT_FORMAT,
+    anchor: pendingAnchor,
+    revision: pendingRevision,
+    suggest: suggestionMode,
+    about: pendingAbout,
+    drawing: pendingDrawing,
+    touched: Date.now(),
+  });
   const saveComposerDraft = (text = syncComposer.value()) =>
-    saveDraft(composerCtx(pendingAnchor), composerDraftValue(text));
-  // One passage's draft record, or null when it holds none. Parsed under its own guard: a
-  // record that no longer parses costs the user that one draft, where throwing would
-  // cost them the page, at module top level. The page's ink reads every draft on each
-  // paint, scroll frames included, so a record is parsed again only when its stored
-  // words change; readers take it as read-only.
-  const parsedRecords = new Map();
+    saveDraft(composerCtx(pendingAnchor), text, composerDraftPayload());
+  // Words and their submission metadata belong to the shared draft generation.
+  // The draft store parses and caches it once for every reader, including parked ink.
   const composerRecord = (ctx) => {
-    const stored = loadDraft(ctx);
-    const known = parsedRecords.get(ctx);
-    if (known?.stored === stored) return known.record;
-    let record = null;
-    try {
-      record = JSON.parse(stored);
-      if (!Number.isInteger(record?.revision)) record = null;
-      // A draft at another format keeps its words, which are only text, and loses its
-      // drawing, whose shape this runtime may not draw.
-      else if (record.format !== DRAFT_FORMAT) record = { ...record, drawing: null };
-    } catch {
-      record = null;
-    }
-    parsedRecords.set(ctx, { stored, record });
-    return record;
+    const payload = loadDraftPayload(ctx);
+    return payload?.format === DRAFT_FORMAT
+      ? { ...payload, text: loadDraft(ctx) }
+      : null;
   };
   // The drawing a passage's draft holds, whether or not its box is up: putting the box
   // away keeps the draft, strokes included.
@@ -257,8 +255,9 @@ export function createSelectionComposer({
     }
     const record = composerRecord(ctx);
     if (!record) return;
-    if (!record.text && !drawing) clearDraft(ctx);
-    else saveDraft(ctx, JSON.stringify({ ...record, format: DRAFT_FORMAT, drawing }));
+    const { text, ...payload } = record;
+    if (!text && !drawing) clearDraft(ctx);
+    else saveDraft(ctx, text, { ...payload, drawing });
   }
   // News of any passage's draft, whose ink the page shows whether or not its box is up.
   const watchHeldDrawings = (callback) => watchDrafts(COMPOSER_KEY, callback);
@@ -335,24 +334,13 @@ export function createSelectionComposer({
   function stepResponseOptions(binding) {
     const choices = responseOptionButtons();
     if (!choices.length) return;
-    const at = choices.indexOf(focused());
     const backward = [rowArrows(choices[0])[0], "ArrowUp"].includes(binding);
-    const next =
-      at < 0
-        ? backward
-          ? choices.length - 1
-          : 0
-        : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    focusDestination(choices[next], "move");
+    focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
     beginWalk("response-option", "Response", () =>
       listWalkPosition(responseOptionButtons(), focused()),
     );
   }
 
-  // The other responses have the same contract as a target's margin disclosure: unfold
-  // the remaining local actions and keep the group's primary control in place.
-  // The composer supplies a field instead of a primary margin entry, so it owns this layout
-  // adapter rather than borrowing the margin's target aggregation and spill machinery.
   const focusResponseOption = (focus) => {
     // The bar may place a frame or more later; a newer input meanwhile keeps the user
     // where it put them.
@@ -369,7 +357,7 @@ export function createSelectionComposer({
     });
   };
 
-  function setResponseOptions(open, { focus = null, place = true } = {}) {
+  function setResponseOptions(open, { focus = null } = {}) {
     const next = Boolean(open && fabAnchorAt() && responseOptionsAvailable());
     if (next === responseOptionsOpen) {
       if (next && focus) focusResponseOption(focus);
@@ -377,8 +365,9 @@ export function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
-    fabBar.classList.toggle("lf-response-open", next);
-    if (place && fabAnchorAt()) showFab(fabAnchorAt());
+    keeps(fabOptionsTrigger, "aria-expanded", String(next));
+    if (next) showNativeLayer(fabOptions, { source: fabOptionsTrigger });
+    else closeNativeLayer(fabOptions);
     if (next && focus) focusResponseOption(focus);
     paintKeys();
     return next;
@@ -393,12 +382,12 @@ export function createSelectionComposer({
         (!composerOpen || (!pendingAbout && !pendingDrawing))
       ),
     );
-    if (responseOptionsOpen && !responseOptionsAvailable())
-      setResponseOptions(false, { place: false });
+    keepsHidden(fabOptionsTrigger, !responseOptionsAvailable());
+    if (responseOptionsOpen && !responseOptionsAvailable()) setResponseOptions(false);
   }
 
   function resetResponseOptions() {
-    setResponseOptions(false, { place: false });
+    setResponseOptions(false);
   }
 
   // Whether the composer is up, and the only thing that decides it. The stylesheet renders
@@ -540,7 +529,8 @@ export function createSelectionComposer({
     watchComposer();
     // Programmatic carrying fires no input event, so persist that one move explicitly.
     // An automatically opened empty field has no draft to save; its first edit does.
-    if (carriedDraft) transferDraft(previousCtx, ctx, composerDraftValue());
+    if (carriedDraft)
+      transferDraft(previousCtx, ctx, syncComposer.value(), composerDraftPayload());
     else if (
       drawingSupplied &&
       JSON.stringify(composerRecord(ctx)?.drawing ?? null) !==
@@ -659,6 +649,7 @@ export function createSelectionComposer({
     const record = composerRecord(ctx);
     if (!record) return null;
     return {
+      hasContent: Boolean(record.text || record.drawing),
       // A detached draft's destination is its native editor, not a guessed passage.
       // Arrival clears covering surfaces before this same field is materialized.
       where: anchorTravelAt(record.anchor) ?? composerInput,
@@ -769,8 +760,14 @@ export function createSelectionComposer({
         }
       },
     });
-    fabSuggest.onclick = () => setSuggestionMode(!suggestionMode);
-    onStanding((node) => {
+    fabSuggest.onclick = () => {
+      setResponseOptions(false);
+      setSuggestionMode(!suggestionMode);
+    };
+    fabOptions.addEventListener("toggle", () => {
+      if (!isNativeLayer(fabOptions)) setResponseOptions(false);
+    });
+    onCurrentLocation((node) => {
       if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);
     });

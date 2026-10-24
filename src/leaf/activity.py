@@ -1,7 +1,7 @@
 """Canonical page availability and agent work projected from durable evidence.
 
-Status is the agent's waiting or idle declaration, the newest `status` event in the
-log (`declaration`), a start in the log is the item it has in hand (`todos`), claims
+Status is the page's open (`waiting`) or closed (`idle`) declaration, the newest
+`status` event in the log (`declaration`), a start in the log is the item it has in hand (`todos`), claims
 prove ownership and turn lifetime, and pickup events prove delivery. Delivery remains
 interaction evidence rather than becoming the page's execution state. This module is
 the one fold that orders those facts and supplies every reader — browser chrome,
@@ -38,8 +38,8 @@ BACKGROUND_DETAIL = "in the background"
 
 def undeclared() -> dict:
     """The status of a page whose agent has declared nothing, such as one before any
-    `leaf status` or a copy a host serves: no work under way and nothing ended, so
-    the page waits on its user and a wait keeps watching it."""
+    `leaf page open` or a copy a host serves: no work under way and nothing ended, so
+    the page is open for feedback and a wait keeps watching it."""
     return {"state": "waiting", "detail": ""}
 
 
@@ -195,7 +195,7 @@ def answer_command(answer: dict, page_dir: Path) -> str:
 
 
 def reply_command(answer: dict, page_dir: Path) -> str:
-    """The `leaf response reply` that answers a reply `answer`.
+    """The `leaf thread reply` that answers a reply `answer`.
 
     It names the exact `ref` its update's receipt recorded where the page's owner can
     still use it (`_receipt_bindings`). An update the owner holds no ref for, as one
@@ -206,7 +206,7 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     its receipt needs where this command's session does not hold the page
     (`service.may_receive`)."""
     if "ref" in answer:
-        return f"`leaf response reply {answer['ref']}`"
+        return f"`leaf thread reply {answer['ref']}`"
     from .harness import session_harness
     from .service import may_receive, page_claim
 
@@ -218,7 +218,7 @@ def reply_command(answer: dict, page_dir: Path) -> str:
         "not hold the page)"
     )
     return (
-        "`leaf response reply <answer.ref>` with the `answer.ref` that "
+        "`leaf thread reply <answer.ref>` with the `answer.ref` that "
         f"`leaf wait {page_dir}` delivers for {answer['responds']}{claim}"
     )
 
@@ -272,7 +272,7 @@ def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
     """The owed answers that keep the agent from idling the page, and from which
     the Stop hook takes the ones that hold its turn (`turn_obligations`).
 
-    `leaf status idle` refuses over exactly these: the acknowledged updates nothing
+    `leaf page close` refuses over exactly these: the acknowledged updates nothing
     else is set to answer. An update the adapter queued is answered by the later turn
     the queue opens, where the prompt hook records it `opened` and it blocks from
     then on. A provider reply the open turn has finished is committed by the

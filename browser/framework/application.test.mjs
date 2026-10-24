@@ -110,7 +110,6 @@ const state = (taken, events = []) => ({
     receipts: events,
     thread_memberships: {},
     todos: [],
-    approval_history: [],
     views: {
       1: {
         basis: { revision: 1, through_seq: events.length },
@@ -121,7 +120,6 @@ const state = (taken, events = []) => ({
         reports: [],
         published_at: null,
         queues: { on_user: [], on_agent: [], done: [] },
-        approval_blocking: [],
         document: {
           projection: {
             entries: events.map((event) => ({
@@ -277,10 +275,10 @@ test("one synchronous immutable reading combines authored, accepted, and later p
   assert.equal(decision(app), "accept");
 });
 
-test("the public Thread collection contains conversations while approvals stay page-wide", () => {
+test("the public Thread collection contains conversations while page widgets stay page-wide", () => {
   const app = capture();
   const reading = state(1);
-  const item = servedReading("approval").browser.views["1"].obligations[0];
+  const item = servedReading("suggestion accepted").browser.views["1"].obligations[0];
   reading.browser.views[1].obligations = [item];
   app.adopt(reading);
 
@@ -550,7 +548,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
           text: "Second",
         },
       ],
-      { attention: { kind: "needs_user", reason: "widget", workflow: null } },
+      { attention: { kind: "needs_user", reason: "obligation", workflow: null } },
     ),
   ];
   reading.workflows = [
@@ -568,7 +566,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
   );
   assert.deepEqual(thread.attention, {
     kind: "needs_user",
-    reason: "widget",
+    reason: "obligation",
     workflow: null,
   });
   assert.equal(thread.workflows.length, 2);
@@ -738,10 +736,7 @@ test("a local send's workflow takes the served workflow's shape", () => {
     [{ kind: "widget", id: "choice" }, null, "update:rejected:move", coordinate],
   );
   app.release(new Set(["move"]));
-  for (const event of [
-    { kind: "done", version: 1 },
-    { kind: "resolve", parent: "root" },
-  ]) {
+  for (const event of [{ kind: "resolve", parent: "root" }]) {
     app.enqueue({ ...event, attempt: "other" }, "now");
     app.refuse("other");
     assert.deepEqual(app.read().effective.workflows, []);
@@ -1295,7 +1290,7 @@ for (const resolved of [null, { author: "user" }]) {
         resolved,
         attention: resolved
           ? null
-          : { kind: "needs_user", reason: "widget", workflow: null },
+          : { kind: "needs_user", reason: "obligation", workflow: null },
       }),
     ];
     app.adopt(accepted);
@@ -1401,7 +1396,7 @@ test("a pending gesture leaves obligations and On me as served until the log ans
   answeredUndo.browser.views[1].queues = obligationQueues([reopened]);
   answeredUndo.browser.views[1].thread.threads = [
     servedThread([item], {
-      attention: { kind: "needs_user", reason: "widget", workflow: null },
+      attention: { kind: "needs_user", reason: "obligation", workflow: null },
     }),
   ];
   app.adopt(answeredUndo);
@@ -1530,61 +1525,6 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
 
   app.adopt(accepted);
   assert.equal(app.read().effective.thread.all[0].attention, null);
-});
-
-test("approval leaves On me in its sending turn and undo restores the exact version", () => {
-  const adopt = (name) => {
-    const app = createSemanticApplication();
-    app.identify(1);
-    app.adopt(servedReading(name));
-    return app;
-  };
-  const app = adopt("approval");
-  const onUser = () => app.read().effective.queues.on_user;
-  const record = () => app.read().effective.obligations.all[0];
-  const item = record();
-  assert.equal(item.source.kind, "approval");
-  assert.equal(onUser()[0].id, item.id);
-  assert.equal(onUser()[0].kind, "approval");
-  assert.equal(onUser()[0].offers.done, false);
-  app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
-  assert.equal(onUser().length, 1);
-  app.refuse("other-version");
-  const pending = app.enqueue(
-    { kind: "done", version: 1, attempt: "approve" },
-    "queued-at",
-  );
-  assert.equal(onUser().length, 0);
-  assert.equal(app.read().effective.queues.done[0].id, item.id);
-  assert.deepEqual(record().answer, { value: true, event: null });
-  assert.equal(record().status, "answered");
-  assert.deepEqual(app.read().effective.thread.approvalHistory, [
-    {
-      kind: "done",
-      version: 1,
-      attempt: "approve",
-      id: pending.localId,
-      ts: "queued-at",
-    },
-  ]);
-  app.refuse("approve");
-  assert.deepEqual(app.read().effective.thread.approvalHistory, []);
-  assert.equal(onUser().length, 1);
-  assert.equal(record().answer, null);
-
-  const approved = adopt("approved");
-  const approval = approved.read().effective.obligations.all[0].answer.event;
-  assert.deepEqual(
-    approved.read().effective.thread.approvalHistory.map(({ id }) => id),
-    [approval.id],
-  );
-  assert.equal(approved.read().effective.queues.on_user.length, 0);
-  approved.enqueue({ kind: "undo", undoes: approval.id, attempt: "undo" }, "now");
-  assert.equal(approved.read().effective.queues.on_user[0].id, item.id);
-  assert.equal(approved.read().effective.queues.done.length, 0);
-  assert.equal(approved.read().effective.obligations.all[0].answer, null);
-  assert.equal(approved.read().effective.obligations.all[0].status, "open");
-  assert.deepEqual(approved.read().effective.thread.approvalHistory, []);
 });
 
 test("a revision preserves pending delivery while replacing incompatible speculative state", () => {

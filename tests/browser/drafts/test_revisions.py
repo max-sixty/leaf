@@ -281,7 +281,9 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     assert after == before
 
 
-def test_executable_revision_preserves_non_editor_thread_standing(browser, serve):
+def test_executable_revision_preserves_non_editor_thread_current_location(
+    browser, serve
+):
     page = editing_reply_page(browser, serve)
     page.keyboard.press("Escape")
     captured = page.evaluate(
@@ -429,8 +431,28 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     def hold_later_readings(route):
         later_readings.append(route)
 
+    # The interface event can precede Lit's editor paint. Hold its preparation until
+    # that editor exists so the mechanical caret failure is installed before landing.
     page.evaluate(
-        "() => document.addEventListener('lf-page-interface',event=>{\n      event.detail.present(Promise.resolve().then(()=>{\n        const editor=document.querySelector('#draft-root leaf-text');\n        if(!editor)throw new Error('failure arrangement did not create its editor');\n        editor.setSelectionRange=()=>{window.__mechanicalCaretFailure=true;throw new Error('mechanical caret fixture failed')};\n      }));\n    },{once:true})"
+        """() => document.addEventListener('lf-page-interface', event => {
+          event.detail.present(new Promise(resolve => {
+            const install = () => {
+              const editor = document.querySelector('#draft-root leaf-text');
+              if (!editor) return false;
+              editor.setSelectionRange = () => {
+                window.__mechanicalCaretFailure = true;
+                throw new Error('mechanical caret fixture failed');
+              };
+              resolve();
+              return true;
+            };
+            if (install()) return;
+            const observer = new MutationObserver(() => {
+              if (install()) observer.disconnect();
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+          }));
+        }, { once: true })"""
     )
     stamp_page(
         serve.page_dir,

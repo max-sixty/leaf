@@ -10,6 +10,7 @@
  * stamped with its text before awaiting the frame's presentation. */
 import {
   failSoft,
+  generatedElement,
   projectData,
   ensureSyntaxLanguage,
   inBaseLayer,
@@ -48,7 +49,7 @@ async function sourceListing(source, language) {
     number.setAttribute("data-number", number.textContent);
     number.textContent = "";
     number.classList.add("lf-ui");
-    number.setAttribute("data-lf-gen", "1");
+    generatedElement(number, { says: false });
     number.setAttribute("aria-hidden", "true");
   }
   // Pierre uses block rows without source newlines. Retain the exact input in the
@@ -172,7 +173,7 @@ customElements.define(
       figure.className = "lf-text-document-view";
       this.caption = document.createElement("figcaption");
       this.listing = document.createElement("div");
-      this.listing.className = "lf-text-document-listing";
+      this.listing.className = "lf-text-document-listing scroll";
       figure.append(this.caption);
       if (!preview) {
         figure.append(this.listing);
@@ -181,7 +182,7 @@ customElements.define(
       const tabs = document.createElement("lf-tabs");
       tabs.id = `${this.id}--views`;
       // Its members are this document's data readings, not authored page content.
-      tabs.setAttribute("data-lf-gen", "1");
+      generatedElement(tabs, { says: false });
       const bound = this.getAttribute("data-lf-bound") ?? "start";
       const rendered = document.createElement("lf-tab");
       rendered.id = `${this.id}--preview`;

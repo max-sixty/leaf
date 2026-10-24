@@ -204,15 +204,16 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(bar.locator(".lf-fab-input")).to_have_attribute(
         "aria-label", re.compile(r"^Comment")
     )
-    # The other responses open by key, so no control stands beside the field.
-    expect(bar.locator(":scope > button:visible")).to_have_count(0)
+    expect(
+        bar.get_by_role("button", name="Other responses", exact=True)
+    ).to_be_visible()
     expect(bar.locator(".lf-react:visible")).to_have_count(0)
     expect(bar.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
     surface = bar
     expect(bar).to_be_visible()
     expect(bar.locator(".lf-fab-input")).to_be_visible()
-    expect(surface).to_have_class(re.compile("lf-response-open"))
+    expect(surface.locator(".lf-response-options")).to_be_visible()
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     assert surface.locator(
         ".lf-react:visible > .lf-response-action-glyph"
@@ -300,7 +301,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     mark = receipt_item.get_by_role(
         "button", name="shorten reaction actions", exact=True
     )
-    remove = page.locator('[aria-label="Remove shorten reaction"]:visible')
+    remove = page.locator('[aria-label="Undo shorten reaction"]:visible')
     face = """button => {
       const style = getComputedStyle(button);
       return [style.color, style.backgroundColor, style.borderTopColor, style.boxShadow];
@@ -345,7 +346,7 @@ def test_e_immediately_opens_the_selection_s_reactions_and_digit_chooses(
     page.keyboard.press("e")
 
     surface = page.locator(".lf-fab-bar")
-    expect(surface).to_have_class(re.compile(r"\blf-response-open\b"))
+    expect(surface.locator(".lf-response-options")).to_be_visible()
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
 
     with sending(page, "the reaction 2 chose"):
@@ -464,8 +465,8 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     )
 
 
-def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
-    """Tab adds reactions after the compact field without moving or replacing it.
+def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, serve):
+    """Tab opens reaction choices without moving or replacing the compact field.
 
     Each declared emoji is its own margin entry, with its token in the accessible name.
     Digits remain optional accelerators in declaration order. Once the surface has been
@@ -754,186 +755,25 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
     ), ring
 
 
-def test_the_response_choices_stay_reachable_in_a_narrow_bar(browser, serve):
-    """A narrow side can wrap the choices while keeping every action whole and
-    inside the comment bar."""
-    page = open_page(browser, serve(PANEL_PAGE))
-    resized(page, 1024, 768)
-    select_paragraph(page, "#how-cap")
-    bar = page.locator(".lf-fab-bar")
-    expect(bar).to_be_visible()
-    page.keyboard.press("c")
-    page.keyboard.press("Tab")
-    choices = bar.locator(":scope > .lf-response-options .lf-response-action:visible")
-    expect(choices).to_have_count(7)
-    bar.evaluate("""element => {
-      element.style.minWidth = element.style.maxWidth = '280px';
-    }""")
-    rendered(page)
-    row = bar.evaluate("""bar => {
-      const box = bar.getBoundingClientRect();
-      const choices = [...bar.querySelectorAll(
-        ':scope > .lf-response-options .lf-response-action')]
-        .filter((choice) => choice.checkVisibility())
-        .map((choice) => choice.getBoundingClientRect());
-      return {
-        bar: [box.left, box.right],
-        vertical: [box.top, box.bottom],
-        left: Math.min(...choices.map((choice) => choice.left)),
-        right: Math.max(...choices.map((choice) => choice.right)),
-        top: Math.min(...choices.map((choice) => choice.top)),
-        bottom: Math.max(...choices.map((choice) => choice.bottom)),
-        narrowest: Math.min(...choices.map((choice) => choice.width)),
-      };
-    }""")
-    assert row["bar"][1] - row["bar"][0] < 288, (
-        f"the bar has room for the resting row, so this proves nothing: {row}"
-    )
-    assert row["bar"][0] - 0.5 <= row["left"] and row["right"] <= row["bar"][1] + 0.5
-    assert (
-        row["vertical"][0] - 0.5 <= row["top"]
-        and row["bottom"] <= row["vertical"][1] + 0.5
-    )
-    assert row["narrowest"] >= 30, row
-
-
 @pytest.mark.parametrize("width", [390, 1280])
-def test_comment_response_choices_expand_in_place(browser, serve, width):
-    """Tab extends one placed rectangle without moving its left edge."""
-    # Leave a wide rail on desktop so the same field exercises both a horizontal
-    # extension and the narrow viewport's wrapped choices.
-    source = PANEL_PAGE.replace(
-        "</head>",
-        "<style>body > main { max-width: 320px; margin-inline: 24px; }</style></head>",
-    )
-    page = open_page(browser, serve(source))
+def test_suggestion_picker_preserves_the_comment_draft(browser, serve, width):
+    """Changing response mode closes the picker and keeps the same native editor."""
+    page = open_page(browser, serve(PANEL_PAGE))
     resized(page, width, 900)
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
     field = bar.locator(".lf-fab-input")
-    expect(bar).to_be_visible()
     write(field, "Keep this draft")
-    before = bar.bounding_box()
-    bar.evaluate(
-        """bar => {
-          const xs = [bar.getBoundingClientRect().x];
-          const observer = new MutationObserver(() =>
-            xs.push(bar.getBoundingClientRect().x));
-          observer.observe(bar, {
-            attributes: true, subtree: true,
-            attributeFilter: ['class', 'style', 'hidden', 'aria-expanded']
-          });
-          window.lfCommentExpansion = {xs, observer};
-        }"""
-    )
-    page.keyboard.press("Tab")
-    rendered(page)
-    expect(bar).to_be_visible()
-    expect(field).to_be_visible()
-    expect(field).to_have_js_property("value", "Keep this draft")
-    choices = bar.locator(":scope > .lf-response-options .lf-response-action:visible")
-    expect(choices).to_have_count(7)
-    expect(bar.locator(":scope > .lf-response-options")).to_have_attribute(
-        "aria-keyshortcuts",
-        "1 2 3 4 5 6 ArrowLeft ArrowRight ArrowUp ArrowDown Enter Space Escape",
-    )
-    suggest = bar.locator(".lf-fab-suggest")
-    expect(suggest).to_be_focused()
-    assert suggest.get_attribute("aria-expanded") is None
-    expect(bar.locator(".lf-react:visible")).to_have_count(6)
-    route = bar.evaluate(
-        """bar => new Promise(done => requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            const {xs, observer} = window.lfCommentExpansion;
-            observer.disconnect();
-            delete window.lfCommentExpansion;
-            done(xs);
-          })))"""
-    )
-    after = bar.bounding_box()
-    assert all(abs(x - before["x"]) <= 1 for x in route), route
-    assert abs(after["x"] - before["x"]) <= 1, (before, after)
-    assert after["x"] + after["width"] <= width - 8, after
-    target = page.locator("#how-cap").bounding_box()
-    assert (
-        after["x"] + after["width"] <= target["x"]
-        or after["x"] >= target["x"] + target["width"]
-        or after["y"] + after["height"] <= target["y"]
-        or after["y"] >= target["y"] + target["height"]
-    ), (target, after)
-    field_box = field.bounding_box()
-    choice_boxes = [choice.bounding_box() for choice in choices.all()]
-    assert all(abs(choice_box["height"] - 32) <= 1 for choice_box in choice_boxes)
-    for choice_box in choice_boxes:
-        assert (
-            choice_box["x"] >= field_box["x"] + field_box["width"]
-            or choice_box["y"] >= field_box["y"] + field_box["height"]
-        ), (field_box, choice_box)
-    write(field, "Keep this draft, still anchored")
-    rendered(page)
-    assert abs(bar.bounding_box()["x"] - before["x"]) <= 1
-    suggest.click()
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "Keep this draft, still anchored")
-    expect(bar.locator(".lf-fab-suggest")).to_have_attribute("aria-label", "Comment")
-    assert suggest.get_attribute("aria-expanded") is None
-    bar.locator(".lf-fab-suggest").click()
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "Keep this draft, still anchored")
-    expect(bar.locator(".lf-fab-suggest")).to_have_attribute("aria-label", "Suggest")
-    assert suggest.get_attribute("aria-expanded") is None
-    field.click()
-    field.press("ControlOrMeta+a")
-    field.press("ArrowRight")
-    expect(bar).to_have_class(re.compile("lf-response-open"))
-    expect(choices).to_have_count(7)
-    # Tab is the browser's while the choices stand open: on from the field through its
-    # send control to the first choice, and back the same way.
-    send = bar.locator(".lf-compose-submit")
-    page.keyboard.press("Tab")
-    expect(send).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(suggest).to_be_focused()
-    page.keyboard.press("Shift+Tab")
-    expect(send).to_be_focused()
-    page.keyboard.press("Shift+Tab")
-    expect(field).to_be_focused()
-    count = len(events_model.read_events(serve.page_dir))
-    page.keyboard.type(" 3 lines")
-    expect(field).to_have_js_property(
-        "value", "Keep this draft, still anchored 3 lines"
-    )
-    page.wait_for_timeout(100)
-    assert len(events_model.read_events(serve.page_dir)) == count
-    if width == 1280:
-        resized(page, 500, 900)
-        rendered(page)
-        expect(bar).to_be_visible()
-        expect(bar).to_have_class(re.compile("lf-response-open"))
-        expect(field).to_have_js_property(
-            "value", "Keep this draft, still anchored 3 lines"
-        )
-        narrowed = bar.bounding_box()
-        assert narrowed["x"] + narrowed["width"] <= 492, narrowed
-        narrowed_target = page.locator("#how-cap").bounding_box()
-        assert (
-            narrowed["x"] + narrowed["width"] <= narrowed_target["x"]
-            or narrowed["x"] >= narrowed_target["x"] + narrowed_target["width"]
-            or narrowed["y"] + narrowed["height"] <= narrowed_target["y"]
-            or narrowed["y"] >= narrowed_target["y"] + narrowed_target["height"]
-        ), (narrowed_target, narrowed)
-    page.keyboard.press("Tab")
-    expect(send).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(suggest).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(bar.locator(":scope > .lf-response-options")).not_to_have_attribute(
-        "aria-keyshortcuts", re.compile(r".+")
-    )
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property(
-        "value", "Keep this draft, still anchored 3 lines"
-    )
+    original = field.element_handle()
+    for label in ["Suggest", "Comment"]:
+        field.press("Tab")
+        choice = bar.get_by_role("button", name=label, exact=True)
+        expect(choice).to_be_focused()
+        choice.click()
+        expect(bar.locator(".lf-response-options")).to_be_hidden()
+        expect(field).to_be_focused()
+        expect(field).to_have_js_property("value", "Keep this draft")
+        assert field.evaluate("(field, original) => field === original", original)
     page.keyboard.press("Escape")
     expect(bar).to_be_hidden()
 
@@ -954,7 +794,7 @@ def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_respons
     write(field, "Keep this draft")
     page.keyboard.press("Tab")
     bar = page.locator(".lf-fab-bar")
-    expect(bar).to_have_class(re.compile("lf-response-open"))
+    expect(bar.locator(".lf-response-options")).to_be_visible()
     expect(field).to_be_visible()
     expect(field).to_have_js_property("value", "Keep this draft")
     expect(bar.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
@@ -986,14 +826,13 @@ FLOAT_ROOM = """async () => {
 }"""
 
 
-def test_the_response_field_grows_as_a_rectangle_and_spans_the_bar(browser, serve):
+def test_the_response_field_grows_beside_its_picker_trigger(browser, serve):
     """A one-line note uses the shared action corner. A longer one uses the width of
     its chosen rail and then wraps, growing through the room placement states — a dozen
     lines shows them all, and only one taller than the window the page shows scrolls,
     standing inside that band — and the corner stays fixed through all of that. On a
-    narrow screen the same room caps the bar and the field is what gives. With nothing
-    beside it, the field spans the bar, so the sent message spans the card as
-    its reply does."""
+    narrow screen the same room caps the bar and the field leaves room for its picker
+    trigger. The sent message spans the card as its reply does."""
     page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -1057,9 +896,14 @@ def test_the_response_field_grows_as_a_rectangle_and_spans_the_bar(browser, serv
         "bar => bar.getBoundingClientRect().right"
         " - parseFloat(getComputedStyle(bar).paddingRight)"
     )
-    assert narrow_field["x"] + narrow_field["width"] == pytest.approx(
-        content_right, abs=1
-    ), (narrow_field, bounds)
+    trigger = bar.get_by_role(
+        "button", name="Other responses", exact=True
+    ).bounding_box()
+    assert narrow_field["x"] + narrow_field["width"] <= trigger["x"], (
+        narrow_field,
+        trigger,
+    )
+    assert trigger["x"] + trigger["width"] == pytest.approx(content_right, abs=1)
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
@@ -1534,7 +1378,7 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve, entr
 
 
 def landed(page):
-    """What the user is standing on, named by whatever identifies it: a leaf class, an
+    """What the user is located on, named by whatever identifies it: a leaf class, an
     authored id, or the tag. `body` is the page itself, where a landing lets go."""
     return page.evaluate(
         """() => {
@@ -1609,9 +1453,7 @@ def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
     expect(page.locator(".lf-fab-bar")).to_be_visible()
 
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-fab-bar")).to_have_class(
-        re.compile(r"\blf-response-open\b")
-    )
+    expect(page.locator(".lf-response-options")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
 
@@ -1658,7 +1500,9 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(part).to_be_in_viewport()
 
 
-def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, serve):
+def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
+    browser, serve
+):
     """A keyed proxy retains a held press and focus while its label and order change."""
     page = open_page(
         browser,
@@ -1732,7 +1576,7 @@ def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, ser
 
 def test_visual_proxies_keep_focus_when_one_shadow_host_is_repainted(browser, serve):
     """Several visuals staged in one declared shadow root share a stable proxy holder.
-    Repainting anchors must not detach and blur the control the user is standing on."""
+    Repainting anchors must not detach and blur the control the user is located on."""
     page_markup = leaf_page(
         "shadow pictures",
         """
@@ -2132,7 +1976,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     )
 
     # The keyboard's route in is the focus opening a thread puts on its view; e opens
-    # the latest agent reply in that thread without disturbing the standing mark on an
+    # the latest agent reply in that thread without disturbing the current-location mark on an
     # older reply.
     open_panel_thread(page, root).focus()
     page.keyboard.press("e")
@@ -2179,7 +2023,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
 ):
     """Reaction belongs to its own header, including an agent-authored root, and
     stands clear of the view's Resolve. Both actions stay reachable, and a touch
-    trigger takes its floor without covering the message's first line."""
+    trigger reaches its floor without its face covering the message's first line."""
     url = serve(PANEL_PAGE)
     text = (
         "Step three now requires the supervisor to reap every process "
@@ -2229,7 +2073,10 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
             return control.contains(document.elementFromPoint(
               rect.left + rect.width / 2, rect.top + rect.height / 2));
           };
-          return {width: box.width, height: box.height, covered: covered.length,
+          // The face is the head's control; a finger's floor is its reach (surfaces.css).
+          const reach = getComputedStyle(trigger, '::after');
+          return {width: box.width, aim: Math.max(box.height, parseFloat(reach.height) || 0),
+            covered: covered.length,
             opacity: getComputedStyle(trigger).opacity,
             metadataClear: metadata.every(words => words.right <= box.left ||
               words.left >= box.right || words.bottom <= box.top || words.top >= box.bottom),
@@ -2241,7 +2088,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
         floor = 44 if touch else 26
         assert reading == {
             "width": floor,
-            "height": floor,
+            "aim": floor,
             "covered": 0,
             "opacity": "1",
             "metadataClear": True,
@@ -2265,7 +2112,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     under the finger shows its word for as long as the press lasts, sliding onto its
     neighbour reads that one, and the release reacts with the choice it ends on. A
     release off the list reacts with nothing, so a finger that read the wrong word
-    slides away first. The keyboard reads the same word by standing on a choice, and
+    slides away first. The keyboard reads the same word by focusing a choice, and
     its press still reacts."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
@@ -2355,7 +2202,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     assert reading() == []
     assert tokens() == ["clarify"]
 
-    # The keyboard reads the word by standing on the choice: the list opened from its
+    # The keyboard reads the word by focusing the choice: the list opened from its
     # trigger stands on its first choice, whose word shows, and Enter reacts, once.
     trigger = strip.get_by_role("button", name="Add reaction", exact=True)
     page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
@@ -2478,7 +2325,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 ):
     """The reply strip offers the tokens under the agent's message. One press records a
     reply carrying the token, on that message; `ok` — the shipped token declaring
-    `settles` — standing on the latest agent message takes the thread out of "waiting
+    `settles` — focusing the latest agent message takes the thread out of "waiting
     on you" without a second event, and taking the ok back brings the wait back, the
     narrowing being a reading of the log. A token without the flag settles nothing."""
     url = serve(PANEL_PAGE)

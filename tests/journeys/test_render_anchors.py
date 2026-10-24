@@ -24,6 +24,7 @@ from render_harness import (
     command_reference_rows,
     compare_with,
     expect_panel_offers,
+    expect_panel_says,
     leaf_page,
     open_page,
     panel_field,
@@ -54,7 +55,6 @@ from browser.threads import open_panel_thread
 
 from journeys import (
     detached_threads,
-    expect_panel_says,
     first_thread_quote,
     listed_threads,
 )
@@ -941,20 +941,13 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     )
     alignment = inline.evaluate(
         """outlet => {
-          const root = outlet.getRootNode();
-          const gutter = root.querySelector('.lf-diff-thread-gutter');
-          const contentBox = outlet.getBoundingClientRect();
-          const gutterBox = gutter.getBoundingClientRect();
-          return {
-            top: Math.abs(contentBox.top - gutterBox.top),
-            bottom: Math.abs(contentBox.bottom - gutterBox.bottom),
-            contentRows: getComputedStyle(outlet.parentElement).gridRow,
-            gutterRows: getComputedStyle(gutter.parentElement).gridRow,
-          };
+          const reader = outlet.closest('code[data-code]').getBoundingClientRect();
+          const box = outlet.getBoundingClientRect();
+          return {left: Math.abs(box.left - reader.left),
+                  width: Math.abs(box.width - reader.width)};
         }"""
     )
-    assert alignment["top"] < 0.5 and alignment["bottom"] < 0.5, alignment
-    assert alignment["contentRows"] == alignment["gutterRows"], alignment
+    assert alignment["left"] < 0.5 and alignment["width"] < 0.5, alignment
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     details.evaluate("element => { element.open = false; }")
     expect(inline).to_have_count(0)

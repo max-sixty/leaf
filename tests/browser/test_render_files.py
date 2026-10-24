@@ -6,8 +6,10 @@ from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    consume_browser_errors,
     leaf_page,
     open_page,
+    primed,
     rendered,
 )
 
@@ -217,3 +219,102 @@ def test_file_editor_keeps_the_user_typing_through_a_move(browser, serve, tmp_pa
     expect(editor).to_be_focused()
     page.keyboard.type("X")
     expect(editor).to_have_text("Original.HaXlf")
+
+
+def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
+    browser, serve, tmp_path
+):
+    """Undo belongs to the adopted version; the save shortcut retries failed writes."""
+    file = tmp_path / "notes.md"
+    file.write_text("Baseline notes.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(primed(browser, lambda page: page.clock.install()), live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+
+    def receipt(text):
+        return page.expect_response(
+            lambda response: (
+                response.request.method == "POST"
+                and response.url.endswith("/api/files/notes")
+                and response.status == 200
+                and response.request.post_data_json["text"] == text
+            )
+        )
+
+    def fail_write(route):
+        route.abort() if route.request.method == "POST" else route.continue_()
+
+    page.route("**/api/files/notes", fail_write)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    page.clock.run_for(600)
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(retry).to_be_visible()
+    page.unroute("**/api/files/notes", fail_write)
+    with receipt("Baseline notes.\nDraft."):
+        page.keyboard.press("ControlOrMeta+s")
+    expect(retry).to_be_hidden()
+
+    # A clean refresh replaces earlier acknowledged editing history too.
+    file.write_text("Latest file version.\n")
+    page.clock.resume()
+    expect(editor).to_contain_text("Latest file version.")
+    page.keyboard.press("ControlOrMeta+z")
+    rendered(page)
+    expect(editor).to_have_text("Latest file version.")
+    assert file.read_text() == "Latest file version.\n"
+
+    # Editing after adoption still has its ordinary undo and redo.
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("New draft.")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(editor).to_have_text("Latest file version.")
+    with receipt("Latest file version.\nNew draft."):
+        page.keyboard.press("ControlOrMeta+Shift+z")
+        page.keyboard.press("ControlOrMeta+s")
+    page.evaluate("lfWordsJudged()")
+    consume_browser_errors(
+        page,
+        "Failed to load resource: net::ERR_FAILED",
+        {"code": "words-left-screen", "words": "Baseline notes.Draft."},
+    )
+
+
+def test_file_editor_long_filename_keeps_the_phone_editable(browser, serve, tmp_path):
+    """The full filename scrolls within its line, leaving the editor its room."""
+    file = tmp_path / ("research-notes-" * 16 + ".md")
+    file.write_text("Editable on a phone.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(
+        primed(
+            browser, lambda page: page.set_viewport_size({"width": 320, "height": 740})
+        ),
+        live_url(url),
+    )
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    name = widget.locator(".lf-file-editor-name")
+    expect(name).to_have_text(file.name)
+    expect(name).to_have_attribute("tabindex", "0")
+    assert widget.locator(".lf-file-editor-edit").bounding_box()["height"] > 300
+    assert widget.locator(".lf-file-editor-head").bounding_box()["width"] < 320
+    editor.click()
+    expect(editor).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(name).to_be_focused()

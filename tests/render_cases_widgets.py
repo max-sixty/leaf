@@ -324,8 +324,8 @@ graph LR
 """,
 )
 # A drawing wider than the column on purpose — six nodes across lay out near 1150px
-# against 720 — and a board beside it, so what the assertions turn on is which kind each
-# widget declares rather than that both are widgets.
+# against 720 — and a board beside it held to `wide` by its own `data-width`, so what the
+# assertions turn on is the width each declares rather than that both are widgets.
 WIDE_DIAGRAM_PAGE = leaf_page(
     "wide diagram",
     """
@@ -340,7 +340,7 @@ graph LR
   C -->|no| L[login]
   H --> O[write response]
 </pre></lf-diagram>
-<lf-board id="plan">
+<lf-board id="plan" data-width="wide">
   <lf-column id="d1" label="Todo"><lf-card id="dk1"><strong>One</strong></lf-card></lf-column>
   <lf-column id="d2" label="Doing"></lf-column>
   <lf-column id="d3" label="Done"></lf-column>
@@ -610,9 +610,9 @@ DRAWING_PLACEMENT = """() => {
              rail: acts.getBoundingClientRect().left,
              small: at('small'), flow: at('flow') };
 }"""
-# A widget that declares width beside one that doesn't, so what the assertions turn on is
-# the declaration and not the tag: both are widgets, both hold more than the column shows
-# comfortably, and only one of them is entitled to more of the window than the prose gets.
+# Widgets that declare each width beside one that declares none, so what the assertions
+# turn on is the declaration and not the tag: the board takes all the room, the diff the
+# capped width from the prose's edge, and the code block keeps the column.
 WIDE_AND_NARROW_PAGE = leaf_page(
     "room",
     """
@@ -628,7 +628,7 @@ WIDE_AND_NARROW_PAGE = leaf_page(
   <lf-column id="col-review" label="Review"></lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-<lf-diff id="patch"><pre>
+<lf-diff id="wide-patch"><pre>
 diff --git a/feeders/mount.py b/feeders/mount.py
 --- a/feeders/mount.py
 +++ b/feeders/mount.py
@@ -637,6 +637,10 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
+<lf-code id="patch" language="python"><pre>
+def bracket():
+    return "steel"
+</pre></lf-code>
 """,
 )
 
@@ -726,7 +730,7 @@ MANIFEST_DIFF_PAGE = leaf_page(
 # the patch however many line boxes it takes, and neither box in play is the line: the
 # row is sized to the longest line in its file so its fill reaches the end of it, and the
 # code box is the scrollport. So the room is measured out here — the code box's own width
-# less the gutter standing in front of the content column — and the line is measured by a
+# less the source row's gutter and edge padding — and the line is measured by a
 # Range over the row's contents, which is what `_SELECT_IN_ROW` reads for the same reason.
 # Reading the row's own box instead gives every row in a file the file's overhang, which
 # is how this last went wrong: 18 of 24 rows counted cut where one line overflowed, and
@@ -738,10 +742,10 @@ DIFF_CLIPPING = """() => {
     const diff = document.querySelector('lf-diff');
     const rows = [];
     for (const code of diff.shadowRoot.querySelectorAll('code[data-code]')) {
-        const gutter = code.querySelector('[data-gutter]');
-        const room = code.clientWidth - (gutter ? gutter.getBoundingClientRect().width : 0);
         const range = document.createRange();
-        for (const row of code.querySelectorAll('[data-content] [data-line]')) {
+        for (const row of code.querySelectorAll('.lf-diff-line > [data-line]')) {
+            const style = getComputedStyle(row);
+            const room = code.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
             range.selectNodeContents(row);
             rows.push({ row, over: Math.round(range.getBoundingClientRect().width - room) });
         }
@@ -769,10 +773,9 @@ DIFF_ROW_FILL = """() => {
     for (const code of diff.shadowRoot.querySelectorAll('code[data-code]')) {
         out.files += 1;
         if (code.scrollWidth > code.clientWidth) out.scrolls += 1;
-        const gutter = code.querySelector('[data-gutter]');
-        const room = code.clientWidth - (gutter ? gutter.getBoundingClientRect().width : 0);
-        for (const row of code.querySelectorAll('[data-content] [data-line]')) {
-            const painted = row.getBoundingClientRect().width;
+        const room = code.clientWidth;
+        for (const row of code.querySelectorAll('.lf-diff-line > [data-line]')) {
+            const painted = row.parentElement.getBoundingClientRect().width;
             out.rows += 1;
             const gap = Math.round(row.scrollWidth - painted);
             if (gap > 1) { out.short += 1; out.gap = Math.max(out.gap, gap); }
@@ -862,6 +865,7 @@ ROOM_GEOMETRY = (
     + SHELL_BOX
     + """,
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
+             widePatch: box('wide-patch'),
              note: box('note'), later: box('later') };
 }"""
 )
@@ -986,7 +990,7 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# How far the exhibit stands into the room a margin resident states it takes
+# How far the exhibit stands into the room margin content states it takes
 # (`--lf-taken-l`, `--lf-taken-r`, layouts.css), on both edges, since a room read too
 # wide spends itself on whichever side is free. The room the page states comes with it,
 # so a test waiting for the box to be read again has the reading it is waiting to see
@@ -1244,7 +1248,7 @@ SCROLLED = "() => document.scrollingElement.scrollTop > 0"
 WHERE_I_STAND_PAGE = leaf_page(
     "where i stand",
     """
-<h1 id="t">Standing</h1>
+<h1 id="t">Current location</h1>
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not a decision.</p>
 <lf-ask id="shape-decision"><h2>Which material?</h2>

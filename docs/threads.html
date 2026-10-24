@@ -403,8 +403,8 @@
         <h2>Widgets in messages</h2>
         <p id="message-widgets-markup">
           An agent's reply can carry a small widget, typically a question with options
-          (<code>--markup</code> on <code>leaf response reply</code>). Leaf validates
-          the markup when it is posted and stores it in the log with the reply, so the
+          (<code>--markup</code> on <code>leaf thread reply</code>). Leaf validates the
+          markup when it is posted and stores it in the log with the reply, so the
           thread shows the same widget in every version of the page. A later
           <code>leaf page init</code> refuses a vocabulary that could no longer render
           it.
@@ -524,7 +524,7 @@
           progress message or a failure notice does not.
         </p>
         <p id="withdrawing">
-          A reaction is the only message the user can take back. Its mark's remove
+          A reaction is the only message the user can take back. Its mark's undo
           control, or <kbd>z</kbd> while it is the user's latest action, withdraws it:
           the log gains an <code>undo</code> naming it, and the mark and any thread it
           started leave the page. This works only while the thread is open and nothing,

@@ -11,13 +11,15 @@
  * Comments stay bound to the capture's source revision: callee keys do not identify
  * persistent invocation instances. Rows are keyed by call and placed with setChildren rather than a Lit repeat per root:
  * a capture can move a call under another root, and a row leaving one repeat list
- * for another is recreated, which would drop the focus of a user standing on it. */
+ * for another is recreated, which would drop the focus of a user on it. */
 import {
   announce,
   html,
-  iconElement,
+  iconTemplate,
   render,
   el,
+  generated,
+  generatedElement,
   keeps,
   keepsText,
   LeafElement,
@@ -105,8 +107,7 @@ function updateDisclosureControl(owner) {
   if (!button) return;
   const expand = groups.some((group) => !group.open);
   const icon = expand ? "unfold" : "fold";
-  if (button.firstElementChild?.dataset.lfIcon !== icon)
-    button.replaceChildren(iconElement(icon, "lf-action-icon"));
+  render(iconTemplate(icon, "lf-action-icon"), button);
   const label = `${expand ? "Expand" : "Collapse"} all ${groups.length} call-tree ${groups.length === 1 ? "root" : "roots"}`;
   keeps(button, "aria-label", label);
   keeps(button, "title", label);
@@ -119,7 +120,7 @@ function buildToolbar(owner) {
   // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
   // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
   const summary = el("p", "lf-call-summary");
-  summary.dataset.lfGen = "1";
+  generatedElement(summary, { says: false });
   // `offer`, not a bare button: the disclosure control is chrome this widget injected,
   // and `offer` gives it the press markers the theme and the keyboard read.
   const button = offer(
@@ -146,9 +147,9 @@ function buildGroup(owner, key, open) {
   // datum, and its source control beside it rather than around the whole call tree.
   const location = el("div", "lf-call-root-location");
   const summary = buildLine("summary");
-  const body = el("div", "lf-call-group-body lf-text-scroller");
+  const body = el("div", "lf-call-group-body lf-text-scroller scroll");
   group.dataset.callGroup = key;
-  summary.classList.add("lf-call-group-summary");
+  summary.classList.add("lf-call-group-summary", "lf-disclosure-marker");
   group.append(summary, body);
   group.addEventListener("toggle", () => updateDisclosureControl(owner));
   return { body, group, location, summary };
@@ -212,7 +213,9 @@ function renderLine(record, line, owner, count = null) {
       }${
         count === null
           ? ""
-          : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`
+          : html`<span class="lf-call-group-count" ${generated({ says: false })}
+              >${count}</span
+            >`
       }`,
     line,
   );
@@ -317,10 +320,12 @@ customElements.define(
       });
       // Placed at once, a row changing groups, even to a newly arriving root, moves
       // straight across and keeps its controls live; its group opens to show it.
-      const standing = focused(this.getRootNode());
+      const currentLocation = focused(this.getRootNode());
       for (const { group, body, children } of placements)
         if (
-          children.some((node) => node.parentNode !== body && node.contains(standing))
+          children.some(
+            (node) => node.parentNode !== body && node.contains(currentLocation),
+          )
         )
           if (!group.open) group.open = true;
       setChildLists([

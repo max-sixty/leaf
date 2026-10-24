@@ -1,7 +1,8 @@
 """A stamped version as one HTML file that opens offline.
 
-The export packages the captured revision, its resources, and the page's authoritative
-state reading into one file. Neighboring live pages are omitted: their access URLs
+The export packages the captured revision, its resources, the exporting Leaf's
+runtime (`runtime_selection`), and the page's authoritative state reading, which that
+runtime reads, into one file. Neighboring live pages are omitted: their access URLs
 grant machine-wide server access and have no place in an offline record.
 Its resource owner allocates one object URL per embedded body before handing the
 composed document to the native HTML parser; Leaf's normal
@@ -44,7 +45,9 @@ from leaf.revision_delivery import (
     initial_script_paths,
     json_script,
     rebase_css,
+    runtime_settings,
 )
+from leaf.runtime_selection import executing
 from leaf.served_state.service import PageStateService
 from leaf.structure import UTF8_BOM, SourceDocument
 from leaf.thread_context import logged_fragment
@@ -339,10 +342,16 @@ def export_document(
                     f"leaf:{path}": url for path, url in sorted(modules.items())
                 }
             },
-            runtime=(
-                '<script type="application/json" data-lf-runtime data-lf-offline '
-                'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
-                f"{payload}</script>"
+            # The generation the revision was captured at, which the runtime holds
+            # the embedded registry and reading to (`layer-client.js`), as it holds a
+            # served document's.
+            runtime=runtime_settings(
+                payload,
+                layer=str(artifact.registry["$layer"]["generation"]),
+                page_root="",
+                entry="leaf:/leaf.js",
+                probe="",
+                declared={"type": "application/json", "data-lf-offline": True},
             ),
         ),
     )
@@ -405,7 +414,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> dict:
         raise Refused(
             f"{page_dir} has no stamped version to export; run `leaf page stamp` first"
         )
-    version = version if version else published[-1]
+    version = published[-1] if version is None else version
     if version not in published:
         raise Refused(
             f"v{version} is not stamped — stamped: "
@@ -419,7 +428,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> dict:
             "Live samples need a server, so a page that declares one "
             "cannot be exported."
         )
-    artifact = read_artifact(page_dir, revision)
+    artifact = executing(read_artifact(page_dir, revision))
     snapshot = capture_page_snapshot(
         page_dir, document, revision, url=f"/versions/{name}", artifact=artifact
     )

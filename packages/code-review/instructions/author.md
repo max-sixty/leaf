@@ -1,6 +1,5 @@
 This package has no widgets. Select it together with the packages for the evidence the
-review needs. Its suggestions help a user judge a code change, and leave the page's form
-to you.
+review needs.
 
 Lead with the finding, the behavior that changes, and any unresolved risks. Name the
 revision you reviewed, and keep the change author's description apart from your own

@@ -110,9 +110,8 @@
    escape the box it sits in, which it did — an out-of-flow box with no positioned
    ancestor is positioned against the page, so a word on a cell of a table scrolling
    inside itself stood three hundred pixels past the window with the page scrolling
-   sideways to reach it. The scroller answers for it, and the runtime sees to that:
-   reachScrollers marks every static box that scrolls, and the theme positions the
-   mark ([data-lf-holds]).
+   sideways to reach it. The scroll surface contains it: the shared `scroll` primitive positions
+   the surface without moving it.
 
    Here and not in runtime/chrome.css, because content widgets write it into the page
    and into declared trees, and the chrome's sheet is the one an exported page never
@@ -206,7 +205,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   color: var(--ink-2);
   font-family: var(--mono);
   font-size: var(--t-6);
-  line-height: 1.478;
+  /* The line box the size token is built from: the badge less its border. */
+  line-height: calc(var(--lf-key-badge-size) - 2px);
   text-align: center;
   white-space: nowrap;
   display: inline-flex;
@@ -305,9 +305,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
 /* A visible focus destination wears the layer's band unless its own rule supplies
-   a carrier. Ordinary controls follow the browser's focus-visible reading; an
-   explicit reading destination also shows where a route landed. Logical standing
-   remains separate, so pointer focus can reveal controls without drawing a ring.
+   a carrier. Controls and reading destinations follow browser focus visibility.
+   Current location remains separate, so pointer focus can reveal controls without
+   drawing a ring.
    At no weight, each control's own band wins. Retargeting shadow hosts and a
    label press's intermediate nodes get no band. */
 :where([data-lf-focus-visible]) {
@@ -325,7 +325,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :where(*) {
   scroll-margin-top: max(0px, var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
 }
-/* Where the user stands wears a ring outside its box, so a scroll that brings the focus
+/* Where the user is wears a ring outside its box, so a scroll that brings the focus
    into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
    room at the scroller's edge: an item landed at the top of a scrolling pane stood flush
    with it, the top of its ring cut off under the pane's header rule. On every side,
@@ -345,14 +345,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    So the margin is read from the slot. `--lf-top` less what the band covers whole
    (`--lf-top-covered`, theme.css) is the headers stacked over the focused box that the
    band does not count, so a landing clears them. A box in a header that sticks at its
-   top (reach.js marks it, `paintSlot`) stands at its own slot when stuck, so its margin
+   top (its sticky rule sets `--lf-head-inset: 0px`) stands at its own slot when stuck, so its margin
    also takes the band's room back (`--lf-head-inset`, none) and a control focused there
    counts as shown; anywhere else the margin keeps the focus ring's landing room. A page tab
    strip, which the band covers whole, comes out negative by its height, so its names
    count as shown too. */
-:where([data-lf-sticks]) {
-  --lf-head-inset: 0px;
-}
 :where(:focus, [data-lf-focus]) {
   scroll-margin-top: calc(
     var(--lf-top) - var(--lf-top-covered, var(--lf-top)) +
@@ -405,16 +402,17 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    capped at the window's height crushed its 30px .lf-btn rows to the 24px floor rather
    than scrolling. A control that stands in such a container states its block floor as
    padding instead, max(its padding, (the floor - 1lh) / 2), less its border, in the
-   rule that gives it its padding: .lf-btn below, the version menu's rows and Compare
-   (chrome.css). A one-line control rests at the same height either way, and one whose
-   words run longer keeps them. The members left on min-height stand in rows or in
+   rule that gives it its padding, as the version menu's rows and Compare do
+   (floating-panel.css), or meets it with a reach (below), as a button does. A one-line
+   control rests at the same height either way, and one whose words run longer keeps
+   them. The members left on min-height stand in rows or in
    flow, or state their own height.
 
    Declared pressables join by their offer, rather than by adding their class here.
    A resting skip control is transparent and has no pointer route; it takes its aim
    size from chrome.css only when focus reveals it.
-   Native and selectable choice marks keep their enclosing labelled target; squeezing-prone button
-   faces and version rows keep the padding floor described above. Inline offered words
+   Native and selectable choice marks keep their enclosing labelled target; a button's
+   face takes its reach (below) and version rows the padding floor described above. Inline offered words
    remain inline: like links in prose, their words determine their target. */
 [data-lf-offer]:where(
   :not(
@@ -428,7 +426,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .button,
 .lf-thread-notice:is(button),
 .lf-react,
-.lf-msg-control,
 .lf-margin-entry,
 .lf-thread-action,
 .lf-command-reference-command,
@@ -441,17 +438,43 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     [data-lf-offer="checkbox"],
     [data-lf-offer="radio"],
     .lf-mark-note,
-    .lf-btn
+    .lf-btn,
+    .lf-msg-control
   )
 ),
-.lf-thread-notice:is(button),
 .lf-react,
-.lf-msg-control,
 .lf-margin-entry,
-.lf-thread-action,
 .lf-command-reference-command,
 .lf-quote {
   min-height: var(--aim-floor);
+}
+/* A control a line tall or shorter meets the aim floor with a reach: a box of its own
+   that paints nothing, standing out from its face to the floor on each axis the face
+   is shorter, so a finger's floor grows no place the control stands in. The reach lies
+   in the room a place keeps around its controls, at least `--lf-reach-room` where
+   something else takes presses, and the aim sweeps (tests/page_scripts/aims.js) press
+   its ends to find one cut short or lying over another control. Sideways these
+   controls are floor-wide boxes, so a place keeps room by the box's width, not the
+   face's. A native field, picker or range can draw no box, so it stands at the line;
+   a row of a stack, such as a group's Done, has no room for a reach and keeps the
+   floor as its face. */
+:where(
+  .lf-btn,
+  .button,
+  .lf-icon-action,
+  .lf-msg-control,
+  .lf-thread-action,
+  .lf-thread-notice:is(button),
+  .lf-draft-action,
+  .lf-corner-mark,
+  button.lf-fp-face
+) {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, (100% - var(--aim-floor)) / 2);
+  }
 }
 /* A native summary retains its list marker and centers its content within the
    target floor. Extra hit area surrounds the label rather than trailing it. */
@@ -497,7 +520,8 @@ summary {
 .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
-  background: var(--focus-surface);
+  --lf-ground: var(--focus-surface);
+  background: var(--lf-ground);
 }
 /* The thread itself holding focus wears the ring, inset over the quiet
    ground its containing state paints; chrome.css says the same of the panel's card.
@@ -518,11 +542,12 @@ summary {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
+/* A forced palette paints every ground in Canvas, so the quiet ground of a thread
+   holding focus would vanish; the thread wears the ring instead. */
 @media (forced-colors: active) {
   .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
-    box-shadow: none;
+    outline: var(--focus-ring);
+    outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
 .lf-say {
@@ -574,12 +599,13 @@ summary {
 .lf-fab-bar {
   --lf-thread-text-inset: 13px;
   --lf-group-ring-end: 6px;
-  --lf-msg-head-height: max(28px, var(--aim-floor));
+  --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
   /* A message's control, and the Discard and Save an open rewrite stands in its place:
      the head keeps their room (controls.css), and so does the thread's own controls'
      row beside a first message (below). */
-  --lf-msg-control-size: max(26px, var(--aim-floor));
+  --lf-msg-control-size: 26px;
+  --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
   --lf-msg-edit-cancel: max(52px, var(--aim-floor));
   --lf-msg-edit-save: max(40px, var(--aim-floor));
   --lf-msg-edit-gap: 4px;
@@ -597,12 +623,15 @@ summary {
   min-width: 0;
   padding-inline: var(--lf-thread-text-inset) 0;
 }
-/* Conversation flow is separate from the outer flex body that retains reply room. */
+/* Conversation flow is separate from the outer flex body that retains reply room.
+   The positioning parent stays outside the transcript's scroll clip, so a message
+   control's focus ring can extend past the transcript's top edge. */
 .lf-thread-content {
   display: flow-root;
+  position: relative;
   min-width: 0;
   anchor-scope: --lf-thread-headline;
-  --lf-thread-action-room: var(--lf-msg-head-height);
+  --lf-thread-action-room: max(var(--lf-msg-head-height), var(--aim-floor));
   --lf-thread-notice-room: var(--lf-msg-head-height);
   --lf-thread-message-control-room: 0px;
 }
@@ -666,7 +695,7 @@ summary {
   border-radius: var(--r);
 }
 .lf-primary-part[data-lf-part="reply"] {
-  padding-block-start: max(28px, var(--aim-floor));
+  padding-block-start: 28px;
 }
 .lf-primary-news {
   position: absolute;
@@ -714,10 +743,7 @@ summary {
    so opening a group moves none of their words: an answer folding the progress a
    reader is on keeps it open in place (held-news.js). It spans siblings, from the
    checkpoint's head to the foot of its last message, so it is anchored to both, in the
-   transcript that holds them and scrolls them. Collapsed disclosures stay inline. */
-.lf-thread-transcript {
-  position: relative;
-}
+   thread content outside the scrolling transcript. Collapsed disclosures stay inline. */
 .lf-thread-checkpoint[data-expanded="true"]::before {
   content: "";
   position: absolute;
@@ -835,7 +861,7 @@ summary {
    — the state ending, or the shared reduced-motion guard's single near-instant pass —
    the words are left in their own face with nothing to undo. The words keep their
    fill, so a line cut short keeps its ellipsis: Firefox drew no ellipsis under the
-   glyph-clipped background this replaced (notes/browser-support.md). Forced colours
+   glyph-clipped background. Forced colours
    drop the mask but keep the animation, so there the words stay whole. */
 @keyframes lf-sheen {
   from,
@@ -925,7 +951,7 @@ summary {
       > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
       > :is(.lf-react-strip, .lf-msg-control)
   ) {
-  --lf-thread-message-control-room: calc(var(--lf-msg-control-size) + var(--sp-2));
+  --lf-thread-message-control-room: calc(var(--lf-msg-control-width) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(
     > .lf-thread-transcript
@@ -1047,7 +1073,7 @@ button.lf-thread-notice[data-lf-focus-visible] {
 /* A room measures its news as one line and the facts measure it in pieces, which can
    sum a fraction of a pixel wider, so the news the room was made for would drop its
    last fact. The first fact yields a pixel of the line to keep them on it. */
-.lf-thread-news[data-lf-room] > span > :first-child {
+.lf-thread-news[data-room] > span > :first-child {
   margin-inline-end: -1px;
 }
 /* While facts are dropped, the notice counts them on the words' line, in a room just

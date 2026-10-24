@@ -14,6 +14,26 @@ from ..findings import Finding, Rejected, element_at
 from .kernel import verb_writers
 
 
+def matches_when(attrs: dict, when: dict) -> bool:
+    """Every attribute `when` names holds one of the matching values, a flag's
+    two values being its presence and its absence."""
+    return all(
+        any(
+            (attr in attrs) == value
+            if isinstance(value, bool)
+            else attrs.get(attr) == value
+            for value in values
+        )
+        for attr, values in (when or {}).items()
+    )
+
+
+def exhibits(attrs: dict, entry: dict) -> bool:
+    """Whether this occurrence quotes its descendants."""
+    rule = entry.get("x-exhibit", False)
+    return matches_when(attrs, rule["when"]) if isinstance(rule, dict) else rule
+
+
 def is_element_name(name: str) -> bool:
     """Whether a vocabulary key names one Leaf custom element rather than a selector.
 
@@ -472,6 +492,31 @@ def stamp_states(registry: dict) -> dict:
         for tag, entry in registry.items()
         if is_element_name(tag) and entry.get("x-state")
     }
+    return registry
+
+
+# A word a widget declares that its layer has to know, as two things: the x- key
+# naming the attribute that carries it, and the layer-wide fact listing the words the
+# layer has. A misspelt language colors nothing and a misspelt tone paints nothing,
+# and each renders as a page that otherwise looks perfectly well, so the attribute's
+# schema has to refuse any other word. The list is the layer's ($languages, $tones)
+# rather than any widget's, and which attribute carries the word is the entry's to
+# say, so a new tag that takes a tone needs only its x-tone. A third such word is a
+# row here.
+DECLARED_WORDS = (("x-language", "$languages"), ("x-tone", "$tones"))
+
+
+def stamp_words(registry: dict) -> dict:
+    """Write into a validated vocabulary each declared attribute's words
+    (`DECLARED_WORDS`) as its schema's `enum`, so the attribute's schema is complete:
+    validation refuses any other word, and an author reading the entry sees which it
+    may write.
+
+    Each composition stamps it (`registry.layer.stamp_composition`)."""
+    for key, fact in DECLARED_WORDS:
+        for tag, entry in registry.items():
+            if is_element_name(tag) and (attr := entry.get(key)):
+                entry["properties"][attr]["enum"] = list(registry[fact]["names"])
     return registry
 
 

@@ -136,7 +136,9 @@ Omit `--session` to include server requests and raw event records. The raw `<pag
 which `tail -F` follows live while you reproduce a problem, is in arrival order and
 still holds retries. Browser wall time stays in `observed_at`; order alone does not
 prove cause. The user's decisions are in `leaf page events <page>`, and
-[page-storage.md](../../../src/leaf/page-storage.md) defines the file.
+[`interaction-batch.schema.json`](../../../src/leaf/interaction-batch.schema.json) defines
+the fields every browser row carries, and [page-storage.md](../../../src/leaf/page-storage.md)
+names the file's other owners.
 
 ## Temporary test servers
 

@@ -79,7 +79,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   height: var(--lf-key-badge-size);
   padding: 0 4px;
   border: 1px solid var(--border-2);
-  border-radius: 4px;
+  border-radius: var(--r-s);
   background: var(--chip);
   color: var(--ink-2);
   font-family: var(--mono);
@@ -351,7 +351,7 @@ summary {
   inset-inline-start: calc(anchor(var(--lf-fold-head) start) - 12px);
   inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
   border: 1px solid var(--rule);
-  border-radius: 5px;
+  border-radius: var(--r);
   pointer-events: none;
 }
 .lf-summary-checkpoint {
@@ -783,7 +783,7 @@ leaf-text.lf-fab-input,
   --lf-measure: var(--col);
 }
 .lf-msg:where(.user) {
-  --lf-msg-text-end: var(--lf-thread-text-inset, 0px);
+  --lf-msg-text-end: calc(var(--lf-compose-send-end) + 1px);
 }
 .lf-msg-text {
   display: block;
@@ -806,7 +806,7 @@ leaf-text.lf-fab-input,
 }
 .lf-msg-text > p {
   font: inherit;
-  white-space: break-spaces;
+  white-space: pre-wrap;
   margin-block: 1lh;
 }
 .lf-msg-body :is(th, td) {
@@ -1137,6 +1137,16 @@ svg[data-lf-icon] {
 .lf-msg-meta > time {
   flex: none;
 }
+.lf-msg-new {
+  flex: none;
+  align-self: center;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font: 600 10.5px/1.3 var(--sans);
+  letter-spacing: 0.02em;
+  color: var(--paper);
+  background: var(--accent);
+}
 :where(.scroll) {
   position: relative;
 }
@@ -1301,7 +1311,7 @@ svg[data-lf-icon] {
   min-block-size: 0;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--r-s);
   font: inherit;
   background: var(--lf-ground);
   color: color-mix(in srgb, var(--ink) 72%, transparent);
@@ -1329,6 +1339,10 @@ svg[data-lf-icon] {
 :root {
   --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;
+}
+:root,
+.lf-compose-field {
+  --lf-compose-send-end: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) );
 }
 :root,
 .lf-compose-field,
@@ -1409,7 +1423,7 @@ svg[data-lf-icon] {
   padding-inline-end: var(--lf-compose-pad-inline-start);
 }
 .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
-  --lf-field-end-room: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) - var(--lf-compose-pad-inline-start) );
+  --lf-field-end-room: calc( var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start) );
 }
 .lf-icon-action {
   box-sizing: border-box;
@@ -1552,7 +1566,7 @@ button.lf-media-open {
 }
 .lf-media-frame,
 .lf-composer-media-item > .lf-composer-media-open {
-  border-radius: 8px;
+  border-radius: var(--r);
   box-shadow: 0 0 0 1px var(--lf-ring, var(--border-2)), var(--raise-1);
 }
 .lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
@@ -2077,6 +2091,9 @@ html[data-lf-draw-mode] main {
   --wa-color-brand-fill-loud: var(--accent);
   --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
   --wa-color-focus: var(--accent);
+  --wa-border-radius-s: var(--r-s);
+  --wa-border-radius-m: var(--r);
+  --wa-border-radius-l: var(--r-l);
   --wa-focus-ring-style: none;
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);

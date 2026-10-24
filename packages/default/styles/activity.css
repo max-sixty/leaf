@@ -41,6 +41,7 @@
    at its top. */
 @media screen {
   :scope:is(lf-activity)[data-lf-bound] {
+    --lf-bound-box: .lf-activity-list;
     max-block-size: none;
     overflow: visible;
     --lf-top: inherit;
@@ -48,7 +49,6 @@
   :scope:is(lf-activity)[data-lf-bound] > .lf-activity-list {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
-    --lf-bound-box: 1;
     --lf-holds-height: 1;
     --lf-top: 0px;
   }

@@ -300,7 +300,7 @@ def open_thread(page: Page, key: str) -> None:
 
 def floating_thread(page: Page) -> None:
     """The floating panel with a thread opened from Threads: the thread's title over
-    its view, and under it, on the row, the way back, On the page, Resolve and Close."""
+    its view, and under it, on the row, the way back, Show on page, Resolve and Close."""
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
@@ -550,6 +550,16 @@ def screenshot_comparison(page: Page) -> None:
     page.locator("#bg-shot-guide").scroll_into_view_if_needed()
 
 
+def screenshot_pair(page: Page) -> None:
+    """Show both images inside the comparison's shared allocation."""
+    screenshot_comparison(page)
+    shot = page.locator("#bg-shot")
+    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.locator(".lf-shot-toolbar").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
+
+
 def screenshot_slider_before(page: Page) -> None:
     """One source fills the slider while change outlines locate its evidence."""
     screenshot_comparison(page)
@@ -654,7 +664,7 @@ def page_comment_resting(page: Page) -> None:
 
 
 def composer_space(page: Page) -> None:
-    """A narrow comment whose trailing space still fits beside Send."""
+    """A narrow comment ending in a space, beside Send."""
     composer(page)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
@@ -1519,6 +1529,12 @@ STATES = (
         region="#bg-shot",
     ),
     State(
+        "screenshot-pair",
+        "developer/feature-gallery",
+        screenshot_pair,
+        region="#bg-shot",
+    ),
+    State(
         "screenshot-slider-before",
         "developer/feature-gallery",
         screenshot_slider_before,
@@ -1534,6 +1550,13 @@ STATES = (
         "screenshot-options",
         "developer/feature-gallery",
         screenshot_options,
+        region="#bg-shot",
+    ),
+    State(
+        "screenshot-comparison-compact",
+        "developer/feature-gallery",
+        screenshot_comparison,
+        viewport=(544, 844),
         region="#bg-shot",
     ),
     State(

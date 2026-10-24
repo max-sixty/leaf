@@ -132,7 +132,7 @@ export function createRegionCapture({
         });
         document.documentElement.setAttribute("data-lf-region-capture", "");
         removeScope = pageScope("region capture", {
-          title: "In area capture",
+          title: "Drag an area to capture",
           escape: "inner",
           at: () => Boolean(selector),
           claims: allButCommandReference,

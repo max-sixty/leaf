@@ -717,19 +717,19 @@ def end_harness_instance(session_id: str) -> None:
     """End a process-backed session, or suspend an instance its owner outlives.
 
     Desktop unloads an idle Codex instance while its chat remains available to
-    resume or receive queued input, and a Claude Code background job's daemon
+    resume or receive queued input, a Claude Code background job's daemon
     retires the job's worker between sittings and resumes the job on its next
-    prompt. Their claims keep their generation while the native source or job
-    record exists (`service.lifetime_is_live`); the instance's end closes only
-    turn and hook observations.
+    prompt, and the Claude desktop app stops a session's process to update and
+    resumes it when the user opens the session. Each lifetime but a pid names
+    such an owner, so its claims keep their generation while that owner lives
+    (`service.lifetime_is_live`); the instance's end closes only turn and hook
+    observations.
     """
     if not session_id or not _session_paths(session_id):
         return
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record and (
-            "job" in record["lifetime"] or record["lifetime"] == {"chat": True}
-        ):
+        if record and record["lifetime"] and "pid" not in record["lifetime"]:
             if record["ended"] is None and record["turn_closed"] is None:
                 advance_turn(session_id, record["turn"], running=False)
             session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)

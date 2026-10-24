@@ -94,7 +94,7 @@ vars:
         unchanged. Deletes `choicesOf` and the copied buttons. Two live elements then
         share one id; you haven't checked the four runtime lookups that resolve an
         obligation by id, browser-local state such as a draft, or heavy widgets. Size
-        unknown: prototype it on `lf-options`, `lf-approval` and `lf-ask` first.
+        unknown: prototype it on `lf-options` and `lf-ask` first.
     - You recommend C: each widget keeps one renderer and decides its own look in both
       places.
 

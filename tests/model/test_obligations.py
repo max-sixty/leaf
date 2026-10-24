@@ -61,19 +61,20 @@ def test_context_changes_prompt_target_without_changing_obligation_identity_or_v
     assert state["todos"] == []
 
 
-def test_approval_is_independent_and_survives_revision_until_restated():
-    """Approval answers its own request, and a completion stamp does not ask again."""
-    document = model.leaf_page(
-        "Permission",
-        '<lf-approval id="permit"><h2>Publish the report?</h2></lf-approval>'
-        + OPTIONS.format(attrs="choose"),
+def test_a_decision_is_independent_and_survives_revision_until_restated():
+    """A permission is an ordinary decision: it answers its own request, and a
+    completion stamp does not ask again."""
+    permit = (
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options>'
     )
+    document = model.leaf_page("Permission", permit + OPTIONS.format(attrs="choose"))
     approved = {
         "kind": "action",
         "id": "approval",
         "widget": "permit",
-        "action": "approve",
-        "detail": {},
+        "action": "choose",
+        "detail": {"value": ["publish"]},
     }
     state = model.reading(document, [approved])
     items = {item["id"]: item for item in page_obligations(state)["all"]}
@@ -85,7 +86,10 @@ def test_approval_is_independent_and_survives_revision_until_restated():
         for item in state["views"]["1"]["queues"]["on_agent"]
     )
 
-    revised = document.replace("Permission", "Permission and progress")
+    # The stamp that records the pick in the markup settles the agent's update.
+    revised = document.replace("Permission", "Permission and progress").replace(
+        '<lf-option id="publish">', '<lf-option id="publish" chosen>'
+    )
     stamp = {
         "kind": "note",
         "author": "agent",
@@ -102,7 +106,8 @@ def test_approval_is_independent_and_survives_revision_until_restated():
     items = {item["id"]: item for item in page_obligations(state)["all"]}
     assert items["widget:permit"]["status"] == "open"
 
-    changed = revised.replace('id="permit"', 'id="permit" restated')
+    # Restating asks again, so the new version carries no pick.
+    changed = document.replace('id="permit" choose', 'id="permit" choose restated')
     state = model.reading(
         {1: document, 2: changed}, [approved, {**stamp, "restated": ["permit"]}]
     )

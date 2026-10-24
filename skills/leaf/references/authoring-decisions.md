@@ -1,4 +1,4 @@
-# Decisions and approval
+# Decisions
 
 Put every decision waiting on the user on their list, On me. A widget records a
 structured answer; a thread message with `--obligation` requests an answer in words. Recommending an answer doesn't make the decision. `conversation-loop.md`,
@@ -76,29 +76,31 @@ How to build an alternative waits for the user's pick.
 
 The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
 
-## Approval
+## Permission
 
-Use `lf-approval` when the user must explicitly permit a stated action. Put the exact
-subject and the evidence they need in its heading and prose:
+When the user must permit an action, ask for it as a decision whose options keep
+things as they are and take the action, so declining is an answer too. Put the exact
+action and the evidence the user needs in the `lf-ask` heading and prose:
 
 ```html
-<lf-approval id="publish-report">
+<lf-ask id="publish-report-decision">
   <h2>Publish this report to the team workspace?</h2>
-  <p>Publish the report shown above, including the revised cost estimate.</p>
-</lf-approval>
+  <p>The report shown above, including the revised cost estimate.</p>
+  <lf-options id="publish-report" choose>
+    <lf-option id="publish-report-keep"><strong>Keep it private</strong></lf-option>
+    <lf-option id="publish-report-publish"
+      ><strong>Publish it to the team workspace</strong></lf-option
+    >
+  </lf-options>
+</lf-ask>
 ```
 
-The widget registers an ordinary obligation on On me. Approve records permission;
-Undo approval takes it back and reopens the request. Other unanswered questions do
-not block it. When permission depends on an earlier choice, resolve that choice
-first, then present the resulting action for approval. Use `lf-options` when the
-user needs to choose between outcomes, including an explicit rejection.
+Other unanswered questions do not block it. When permission depends on an earlier
+choice, resolve that choice first, then ask for the resulting action.
 
-Approval belongs to the request with that id. Unrelated edits and page stamps keep
-it approved. If the action or evidence changes enough to invalidate the permission,
-explain the change and mark the widget `restated` before asking again
-(`authoring-revisions.md`, "Honor user state"). Distinguish approved wording from
-later edits to a draft. A new stamp neither requests nor renews approval.
-
-Process approval through the ordinary widget-action workflow (`event-batches.md`).
-It does not end the page or report that the approved work has been done.
+The pick belongs to the group with that id. Unrelated edits and page stamps keep it.
+If the action or evidence changes enough to invalidate the permission, explain the
+change and mark the group `restated` before asking again (`authoring-revisions.md`,
+"Honor user state"). Distinguish approved wording from later edits to a draft. A new
+stamp neither requests nor renews permission, and recording it does not end the page
+or report that the permitted work has been done.

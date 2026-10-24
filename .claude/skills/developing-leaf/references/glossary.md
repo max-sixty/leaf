@@ -42,8 +42,8 @@ saying *you* or *my*: “The draft is kept”, “New messages”. Text addresse
 agent, such as `x-instructions` and event handling, uses the second person, as does
 the website's prose to a visitor.
 
-Name an update's kind where it is known: a **comment**, **reply**, **choice**,
-**reaction** or **approval**; in protocol text a widget's is an **action**, after its
+Name an update's kind where it is known: a **comment**, **reply**, **choice**
+or **reaction**; in protocol text a widget's is an **action**, after its
 event kind. Don't call an update a *move* or *feedback*, or an *input* as a count noun;
 *input* stays as a mass noun (“waiting for input”). Only the user's input is an update:
 a worker's news is a **report**, and the agent's interim thread message a **progress

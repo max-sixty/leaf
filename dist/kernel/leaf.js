@@ -22,31 +22,24 @@ import {
   MAX_DRAWING_STROKES,
   acceptData,
   beginRead,
-  commandSteps,
   composerOpen,
   composerQuote,
-  createAnchorTravel,
   createReactionController,
   createSelectionComposer,
   createThreadLanding,
-  createVersionController,
   currentLocationThread,
   declareThreadKeys,
   fabBar,
   fabInput,
   fabOptionsTrigger,
   inPageOrder,
-  initializeServedDocument,
-  keepPageRulesOffLayer,
   leavesBox,
   mountApplication,
-  mountHistory,
   notifyDataSubscribers,
   obligationEnding,
   obligationWord,
   ownedObligationControl,
   paintBarReactions,
-  paintCoreControls,
   pendingAbout,
   pendingAnchor,
   pendingDrawing,
@@ -54,16 +47,12 @@ import {
   queueTitle,
   reactionAvailable,
   reactionTokens,
-  readPlace,
   readPlan,
   readQueues,
-  returnPlace,
   sendReaction,
   textField,
-  threadInput,
-  versionPicker,
-  versionsReading
-} from "./runtime/bundle-document-identity.js";
+  threadInput
+} from "./runtime/bundle-editor-view.js";
 import "./runtime/bundle-dress.js";
 import {
   KINDS,
@@ -94,7 +83,19 @@ import {
 import {
   restoreUserView
 } from "./runtime/bundle-restore-state.js";
-import "./runtime/bundle-projection~presentation.js";
+import {
+  commandSteps,
+  createAnchorTravel,
+  createVersionController,
+  initializeServedDocument,
+  keepPageRulesOffLayer,
+  mountHistory,
+  paintCoreControls,
+  readPlace,
+  returnPlace,
+  versionPicker,
+  versionsReading
+} from "./runtime/bundle-document-identity.js";
 import {
   DESIGN_MODE_KEY,
   ELEMENTS,
@@ -206,20 +207,11 @@ import {
   scrollBehavior
 } from "./runtime/bundle-motion.js";
 import {
-  PAGE_CONTROL_RANK,
-  livePoint,
-  openMarginContentLayout,
-  pageControls,
-  pageControlsChanged,
-  placePoints,
-  pointInto,
-  railStands,
-  registerPageControl,
-  scheduleMarginContentLayout,
   visibleTargetParts
-} from "./runtime/bundle-page-controls.js";
+} from "./runtime/bundle-visible-target-parts.js";
 import {
   ADDRESSABLE,
+  PAGE_CONTROL_RANK,
   addressableSays,
   addressableWord,
   aimTargetAt,
@@ -234,9 +226,18 @@ import {
   holdArrivingBounds,
   isAddressable,
   lightSeat,
+  livePoint,
+  openMarginContentLayout,
+  pageControls,
+  pageControlsChanged,
+  placePoints,
+  pointInto,
+  railStands,
+  registerPageControl,
   resolveAnchor,
   resolvedInMessage,
   revealAddressed,
+  scheduleMarginContentLayout,
   sectionLabel,
   sectionOf,
   setAnchoringReady,

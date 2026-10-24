@@ -124,7 +124,9 @@ is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
 declarations honored; no undeclared text nodes under widget chrome;
-and current state that replays without conflict and idempotently.
+current state that replays without conflict and idempotently; and a version that,
+compared with itself, marks nothing, which a module's words written without
+`generatedElement` would (`version.js`, `selfComparison`).
 Words a stylesheet paints with `content` have no text node and are outside these readings.
 `render_gate/readings.py` is the list. A message's widgets render only where its thread
 is drawn, so each thread whose messages carry markup is then opened in turn, where a

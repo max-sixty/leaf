@@ -572,6 +572,13 @@ _TEXT = {
         " widget's styles or module show it anyway, and the user can select words no"
         " comment can anchor to"
     ),
+    "read-as-changed": lambda at, v: (
+        f"{at} reads as changed when this version is compared with itself: a module"
+        f" wrote {_json(v['words'])} there without marking it, so every version"
+        " comparison marks it though nobody changed it. Mark the element the module"
+        " fills with generatedElement(node, {says}), or generated({says}) in a"
+        " template, from /runtime/widget-api.js"
+    ),
     "render-threw": lambda at, v: (
         f"{at} render() threw when the complete state was rendered a second time:"
         f" {v['error']}"

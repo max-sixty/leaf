@@ -453,9 +453,10 @@ document.addEventListener(
 // `generatedElement(node, {says})` writes those markers without the words: for a box
 // whose contents the widget writes, or words it fills in some other way. prepaint.js
 // holds it so that an initial producer receives it as it receives `offerElement`.
-// A forgotten marker fails silently, as a widget's words read by the version diff as a
-// change nobody wrote, so widgets write the markers only through it, `relabel` and the
-// offers. `generated({says})` is its template form:
+// A forgotten marker shows as a widget's words read by the version diff as a change
+// nobody wrote, which only the render gate's comparison of a version with itself
+// reports (`version.js`, `selfComparison`), so widgets write the markers only through
+// it, `relabel` and the offers. `generated({says})` is its template form:
 // `<h2 ${generated({ says: true })}>${title}</h2>`. Three writers stand apart because
 // they do something it doesn't: the datum projection (projection/data.js) marks and
 // unmarks authored nodes as their data comes and goes, markdown.js serializes its

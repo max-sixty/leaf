@@ -2,8 +2,6 @@ import {
   LeafEditorView,
   LeafElement,
   answerWords,
-  claimTraversals,
-  comparisonChanges,
   consumeAnnotations,
   currentProjection,
   landInThread,
@@ -13,21 +11,17 @@ import {
   placePageThreads,
   projectData,
   publishOutput,
-  pushEntry,
   queueActions,
   queueItemKey,
   queueTitle,
   readQueues,
-  referencedProjection,
   registerThreadPresentation,
-  replaceEntry,
-  requireReference,
   threadActions,
   threadBox,
   threadInput,
   widgetController,
   wireInput
-} from "./bundle-document-identity.js";
+} from "./bundle-editor-view.js";
 import {
   dressSamples,
   wear
@@ -40,7 +34,14 @@ import {
   presentContributionReceipts,
   registerContribution
 } from "./bundle-contribution-model.js";
-import "./bundle-projection~presentation.js";
+import {
+  claimTraversals,
+  comparisonChanges,
+  pushEntry,
+  referencedProjection,
+  replaceEntry,
+  requireReference
+} from "./bundle-document-identity.js";
 import {
   HOLDS_WORD,
   HeldReading,
@@ -118,7 +119,7 @@ import {
   returnDuration,
   scrollBehavior
 } from "./bundle-motion.js";
-import "./bundle-page-controls.js";
+import "./bundle-visible-target-parts.js";
 import {
   addressableLabel,
   addressableName,

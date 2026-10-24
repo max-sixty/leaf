@@ -1,5 +1,5 @@
 import { declarationFor, inChrome } from "/runtime/widget-api.js";
-import { upFrom } from "/runtime/check-api.js";
+import { servedElements, upFrom } from "/runtime/check-api.js";
 import { at, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -268,9 +268,12 @@ export function splitEdges() {
 // is not this.
 export function apparatusAmongAuthored() {
   const found = [];
+  // An element the page wrote stays the page's, whatever words a module fills it with.
+  const served = servedElements();
   for (const el of document.querySelectorAll(`main :is(${generated})`)) {
     const parent = el.parentElement;
     if (
+      served.has(el) ||
       parent.closest(generated) ||
       inChrome(parent) ||
       declared(parent) ||

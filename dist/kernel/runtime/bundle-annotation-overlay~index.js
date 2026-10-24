@@ -107,12 +107,11 @@ import {
   syncMarginContentLayout,
   unregisterMarginRow
 } from "./bundle-annotation-overlay~margin-placement.js";
-import {
-  pointBand
-} from "./bundle-page-controls.js";
+import "./bundle-visible-target-parts.js";
 import {
   exactTarget,
   passageGeometry,
+  pointBand,
   rangeGeometry,
   targetElement,
   targetParts,

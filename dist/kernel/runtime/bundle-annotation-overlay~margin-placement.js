@@ -1,8 +1,6 @@
 import {
-  pointBand,
-  railStands,
   visibleTargetParts
-} from "./bundle-page-controls.js";
+} from "./bundle-visible-target-parts.js";
 import {
   anchorBox,
   anchorElement,
@@ -15,6 +13,8 @@ import {
   headerLevels,
   nameAnchor,
   passageBoxes,
+  pointBand,
+  railStands,
   scrollAxes,
   scrollsWith,
   targetRange,

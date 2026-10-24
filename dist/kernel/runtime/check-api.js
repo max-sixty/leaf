@@ -8,8 +8,10 @@ import {
   USER_VIEW_RESTORE_CASES
 } from "./bundle-restore-state.js";
 import {
+  selfComparison,
+  servedElements,
   shallowSigs
-} from "./bundle-projection~presentation.js";
+} from "./bundle-document-identity.js";
 import {
   PAGE_SCOPE,
   SAY_BOX,
@@ -246,7 +248,9 @@ export {
   seenRect,
   segmentsIn,
   selectionAnchor,
+  selfComparison,
   sentenceUnits,
+  servedElements,
   settledAway,
   shallowSigs,
   shownBand,

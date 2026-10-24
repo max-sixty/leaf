@@ -478,6 +478,11 @@ const bundles = {
       'export { diffArrays } from "diff/lib/diff/array.js";\n',
   }),
 
+  blazediff: () => ({
+    out: `${assets}/vendor/blazediff.js`,
+    entry: 'export { default } from "@blazediff/core";\n',
+  }),
+
   // DBSCAN groups screenshot fragments by their original neighborhoods.
   "density-clustering": () => ({
     out: `${assets}/vendor/density-clustering.esm.js`,

@@ -113,12 +113,6 @@
   border-block-start: 1px solid var(--rule);
   margin-block-start: var(--sp-2);
   padding-block-start: var(--sp-2);
-}
-.lf-shot-key-label {
-  color: var(--muted);
-  margin-block-end: var(--sp-1);
-}
-.lf-shot-key-item {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -365,14 +359,9 @@
   inset: 0;
   mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100% no-repeat;
 }
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=both] {
+.lf-shot-pixel-mask,
+.lf-shot-key-swatch {
   background: var(--warn);
-}
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=before] {
-  background: var(--danger-ink);
-}
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=after] {
-  background: var(--ok-ink);
 }
 @container style(--lf-full-height:1) {
   :scope:is(lf-shot) {

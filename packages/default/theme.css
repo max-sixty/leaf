@@ -113,12 +113,6 @@
   border-block-start: 1px solid var(--rule);
   margin-block-start: var(--sp-2);
   padding-block-start: var(--sp-2);
-}
-.lf-shot-key-label {
-  color: var(--muted);
-  margin-block-end: var(--sp-1);
-}
-.lf-shot-key-item {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -365,14 +359,9 @@
   inset: 0;
   mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100% no-repeat;
 }
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=both] {
+.lf-shot-pixel-mask,
+.lf-shot-key-swatch {
   background: var(--warn);
-}
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=before] {
-  background: var(--danger-ink);
-}
-:is(.lf-shotpixels, .lf-shot-pixel-key) [data-lf-shot-side=after] {
-  background: var(--ok-ink);
 }
 @container style(--lf-full-height:1) {
   :scope:is(lf-shot) {
@@ -1080,10 +1069,9 @@
   }
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-ref {
-  display: table-cell;
-  width: 0;
-  white-space: nowrap;
-  vertical-align: middle;
+  float: inline-end;
+  margin-inline-start: var(--lf-row-gap);
+  line-height: 1lh;
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-pick {
   position: absolute;
@@ -3225,30 +3213,6 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     opacity: 1;
     pointer-events: auto;
   }
-}
-
-/* packages/default/styles/approval.css */
-:scope:is(lf-approval) {
-  display: block;
-  padding: var(--sp-4);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-}
-:scope:is(lf-approval) > :is(h2, h3, h4, p) {
-  margin-block: 0 var(--sp-3);
-}
-:scope:is(lf-approval) .lf-approval-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3);
-  font-family: var(--sans);
-}
-:scope:is(lf-approval) .lf-approval-status {
-  color: var(--muted);
-}
-:scope:is(lf-approval) .lf-approval-actions button {
-  min-block-size: var(--aim-floor);
 }
 
 /* packages/default/styles/theme.css */

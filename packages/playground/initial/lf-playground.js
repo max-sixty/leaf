@@ -21,11 +21,6 @@ const ownControls = (host, preview) => [
     belongsTo(host, control),
   ),
 ];
-const COPY_LABELS = [
-  ["rest", "Copy instruction"],
-  ["success", "Copied"],
-  ["error", "Copy failed"],
-];
 
 function render(host, { tabStore, offer, generatedElement, keeps }) {
   const presets = own(host, "lf-playground-preset");
@@ -207,7 +202,6 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     }),
   );
   let submit = null,
-    copy = null,
     reset = null;
   if (interactive) {
     const railed = controls.filter((control) => control.parentElement === host);
@@ -290,17 +284,11 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     }
     const actions = node("footer", "lf-playground-actions");
     reset = offer("button", "lf-btn lf-playground-reset", "Reset");
-    copy = offer("button", "lf-btn lf-playground-copy-trigger");
-    copy.id = `${host.id}-copy`;
-    copy.dataset.copyState = "rest";
-    for (const [state, text] of COPY_LABELS)
-      copy.append(node("span", `lf-playground-copy-label ${state}`, text));
-    submit = offer(
-      "button",
-      "lf-btn primary lf-playground-submit",
-      host.getAttribute("submit-label") ?? "Use these settings",
-    );
-    actions.append(reset, copy, submit);
+    submit = offer("button", "lf-btn primary lf-playground-submit");
+    const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
+    submit.dataset.room = `${submitLabel}\nUndo choice`;
+    submit.append(node("span", "", submitLabel));
+    actions.append(reset, submit);
     if (document.querySelector("script[data-lf-offline]"))
       actions.append(
         node(
@@ -424,7 +412,6 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     output,
     preview,
     submit,
-    copy,
     reset,
     regions,
     presetButtons,

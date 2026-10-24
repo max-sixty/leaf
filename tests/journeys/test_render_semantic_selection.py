@@ -174,7 +174,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
 
     # Picking an element has no `s` under a finger, and selecting words picks no
-    # widget, so Annotations holds Select element; its ✕ closes it, and a tap on an
+    # widget; Annotations holds Comment on an element, whose ✕ closes it, and a tap on an
     # element chooses it for a comment.
     panel_control(page, "command:target.picker.open", at="annotate").tap()
     cancel = leave("Close picker")

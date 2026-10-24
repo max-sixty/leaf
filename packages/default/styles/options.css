@@ -767,14 +767,17 @@
     }
   }
 }
-/* The reference takes a zero-width cell, so the free width goes to the words and the
- * line ends at one column whether or not a row names a block. Apparatus centres on the
- * row, not its first line, so a wrapped label carries it down. */
+/* The reference floats to the end of the words' last line where it fits there and
+ * drops under them where it doesn't, so the words keep the row's whole width and never
+ * lose a line to it; its line is the words' (`1lh`), so it stands level with them. On
+ * 23 October 2026 the user chose this over a zero-width table cell beside the words,
+ * which centred the reference on the row and ended every row's words at one column,
+ * but, once the reference named its block, squeezed a phone's words into a column five
+ * lines tall. */
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-ref {
-  display: table-cell;
-  width: 0;
-  white-space: nowrap;
-  vertical-align: middle;
+  float: inline-end;
+  margin-inline-start: var(--lf-row-gap);
+  line-height: 1lh;
 }
 /* The mark stands out of flow in the group's column, so the words open at one place on
  * every row whatever the row holds, centred on the row. The height is stated because an

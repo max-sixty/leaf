@@ -5321,6 +5321,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			}) : null;
 			const result = selected.open(thread.key, request);
 			if (result === false && !drawn) return mayPresent() ? DECLINED : null;
+			if (result !== false && preview) intent.handoff(preview.close);
 			return taken(result);
 			async function taken(result) {
 				const selectedLayout = result?.then ? await whileCurrent(result) : result;

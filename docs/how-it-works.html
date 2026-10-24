@@ -950,7 +950,7 @@
               </thead>
               <tbody>
                 <tr>
-                  <td><a href="#loop">Workflow</a></td>
+                  <td><a href="#workflow">Workflow</a></td>
                   <td>
                     How does an agent publish, receive an update, answer, and finish?
                     How do the harnesses differ?
@@ -958,7 +958,7 @@
                 </tr>
                 <tr>
                   <td>
-                    <a href="#page">Pages</a> · <a href="#styling">Styles</a> ·
+                    <a href="#pages">Pages</a> · <a href="#styles">Styles</a> ·
                     <a href="#layout">Layout</a>
                   </td>
                   <td>
@@ -968,11 +968,11 @@
                 </tr>
                 <tr>
                   <td>
-                    <a href="#data">State</a> · <a href="#revisions">Revisions</a>
+                    <a href="#state">State</a> · <a href="#revisions">Revisions</a>
                   </td>
                   <td>
                     What is recorded, what is derived, and what survives edits, Undo,
-                    reloads, and approval requests?
+                    reloads, and permission requests?
                   </td>
                 </tr>
                 <tr>
@@ -996,8 +996,8 @@
             </table>
           </section></lf-tab
         >
-        <lf-tab id="loop" label="Workflow"
-          ><details class="topic-outline" id="loop-outline">
+        <lf-tab id="workflow" label="Workflow"
+          ><details class="topic-outline" id="workflow-outline">
             <summary>In this topic</summary>
             <nav aria-label="Workflow sections">
               <ul>
@@ -1039,7 +1039,7 @@
                 <code>leaf page init</code> installs the page’s
                 <a href="#layer">runtime and selected packages</a>. The agent then
                 authors its content using the HTML and Leaf elements described in
-                <a href="#page">Pages</a>.
+                <a href="#pages">Pages</a>.
               </p>
               <p id="handoff-serving">
                 <code>leaf server start</code> starts the page’s HTTP server and claims
@@ -1777,18 +1777,18 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
           </section>
         </lf-tab>
 
-        <lf-tab id="page" label="Pages"
-          ><details class="topic-outline" id="page-outline">
+        <lf-tab id="pages" label="Pages"
+          ><details class="topic-outline" id="pages-outline">
             <summary>In this topic</summary>
             <nav aria-label="Pages sections">
               <ul>
-                <li><a href="#pages">Parts of a page</a></li>
+                <li><a href="#pages-parts">Parts of a page</a></li>
                 <li><a href="#layer">Runtime and packages</a></li>
                 <li><a href="#widgets">Widgets</a></li>
               </ul>
             </nav>
           </details>
-          <section id="pages">
+          <section id="pages-parts">
             <h2>Parts of a page</h2>
             <p id="scaffold">
               The agent writes an HTML document containing the page's title,
@@ -1975,19 +1975,19 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             </p>
           </section>
         </lf-tab>
-        <lf-tab id="styling" label="Styles"
-          ><details class="topic-outline" id="styling-outline">
+        <lf-tab id="styles" label="Styles"
+          ><details class="topic-outline" id="styles-outline">
             <summary>In this topic</summary>
             <nav aria-label="Styles sections">
               <ul>
-                <li><a href="#styles">Styles and overrides</a></li>
+                <li><a href="#styles-overrides">Styles and overrides</a></li>
                 <li><a href="#styles-try-title">Which rule wins</a></li>
                 <li><a href="#styles-tiers">The tiers</a></li>
                 <li><a href="#styles-packages">Writing a package&#x27;s styles</a></li>
               </ul>
             </nav>
           </details>
-          <section id="styles">
+          <section id="styles-overrides">
             <h2>Styles and overrides</h2>
             <p id="styles-lede">
               A page’s <code>&lt;style&gt;</code> changes that page; a theme package
@@ -3428,8 +3428,8 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             </figure>
           </section>
         </lf-tab>
-        <lf-tab id="data" label="State"
-          ><details class="topic-outline" id="data-outline">
+        <lf-tab id="state" label="State"
+          ><details class="topic-outline" id="state-outline">
             <summary>In this topic</summary>
             <nav aria-label="State sections">
               <ul>
@@ -3652,7 +3652,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   <div id="relations-obligation-sources">
                     <strong>A request for an answer</strong>
                     <ul>
-                      <li>A widget question, decision or approval</li>
+                      <li>A widget question or decision</li>
                       <li>An update handed to the agent</li>
                     </ul>
                   </div>
@@ -3689,7 +3689,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   </div>
                 </div>
                 <figcaption>
-                  The page-wide lists include widget approvals alongside other
+                  The page-wide lists include widget decisions alongside other
                   obligations. The same records supply each thread’s attention and the
                   page’s lists.
                 </figcaption>
@@ -3940,31 +3940,40 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               disappears. If neither can be identified, the thread detaches rather than
               choosing unrelated text.
             </p>
-            <p id="approval-requests">
-              An <code>lf-approval</code> widget requests permission for the action its
-              heading and prose describe. Its <code>approve</code> action answers an
-              ordinary widget obligation on On me; Undo approval reopens it. Each
-              request is independent of other unanswered widgets and page stamps.
-              Approval persists with the widget's id across unrelated edits. When the
-              action or evidence changes enough to invalidate that permission, the
-              author explains the change and marks the widget <code>restated</code>. A
-              request that depends on another decision is presented after that decision,
-              once the action to authorize is concrete.
+            <p id="permission-requests">
+              A request to permit an action is an ordinary decision: an
+              <code>lf-options</code> group whose options take the action its heading
+              and prose describe or keep things as they are, so declining is an answer
+              too. Its pick answers the widget's obligation on On me, and choosing it
+              again reopens it. Each request is independent of other unanswered widgets
+              and page stamps, and the pick persists with the widget's id across
+              unrelated edits. When the action or evidence changes enough to invalidate
+              that permission, the author explains the change and marks the widget
+              <code>restated</code>. A request that depends on another decision is
+              presented after that decision, once the action to permit is concrete.
             </p>
-            <p id="approval-sample-guide">
-              Try Approve, then Undo approval. The request changes immediately, and the
-              activity feed records the action and its withdrawal.
+            <p id="permission-sample-guide">
+              Choose Publish the report, then choose it again. The request changes
+              immediately, and the activity feed records the pick and its withdrawal.
             </p>
             <lf-sample
-              id="approval-sample"
-              label="Approval of a sample report"
+              id="permission-sample"
+              label="Permission for a sample report"
               interactive
             >
-              <lf-approval id="sample-publish-report">
+              <lf-ask id="sample-publish-report-decision">
                 <h2>Publish the sample report?</h2>
-                <p>Publish the park survey to the sample team's shared workspace.</p>
-              </lf-approval>
-              <lf-activity id="sample-approval-history"></lf-activity>
+                <p>The park survey would go to the sample team's shared workspace.</p>
+                <lf-options id="sample-publish-report" choose>
+                  <lf-option id="sample-publish-report-keep"
+                    ><strong>Keep it private</strong></lf-option
+                  >
+                  <lf-option id="sample-publish-report-publish"
+                    ><strong>Publish the report</strong></lf-option
+                  >
+                </lf-options>
+              </lf-ask>
+              <lf-activity id="sample-permission-history"></lf-activity>
             </lf-sample>
           </section>
 
@@ -5262,8 +5271,8 @@ EOF</code></pre>
               </p>
               <p id="phone-panel-menu">
                 The leaf’s menu includes Search page and Page Map under Navigate, Undo,
-                and Select element, Draw mode, Design mode and Hide annotations under
-                Annotations. Approval requests appear in On me and in their widgets. An
+                and Comment on an element, Draw mode, Design mode and Hide annotations
+                under Annotations. Decisions appear in On me and in their widgets. An
                 active mode or search names itself in the panel and provides a ✕ exit.
                 Search arrows stand beside the match count; tapping the marked match
                 selects it.
@@ -5274,7 +5283,7 @@ EOF</code></pre>
               <p id="phone-comments-select">
                 Select words to quote them in the panel’s field; tap the field to open a
                 comment below the block. For a whole table, figure or other element, use
-                <a href="#phone-gap-element">Select element</a>.
+                <a href="#phone-gap-element">Comment on an element</a>.
               </p>
               <p id="phone-comments-pins">
                 Where the margin cannot hold a rail, markers appear as pins on their
@@ -5292,8 +5301,8 @@ EOF</code></pre>
               <ul id="phone-gaps-list">
                 <li id="phone-gap-element">
                   <strong>Whole elements.</strong> Open the leaf’s menu → Annotations →
-                  Select element, then tap the target. This opens its comment composer
-                  without activating the target’s controls.
+                  Comment on an element, then tap the target. This opens its comment
+                  composer without activating the target’s controls.
                 </li>
                 <li id="phone-gap-keys">
                   <strong>Commands.</strong> Menu commands and direct controls provide

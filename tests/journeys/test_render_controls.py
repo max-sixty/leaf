@@ -246,10 +246,10 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-tabs .lf-tab-btn:nth-child(2)",
     },
     {
-        # The playground's action row: Reset, Copy instruction, and the send beside each
-        # other under the controls. The send is the press with something to prove — it
-        # posts the configuration and comes back disabled, and a control that changes its
-        # own paint on the press is where a neighbour moves.
+        # The playground's action row: Reset and the send beside each other under the
+        # controls. The send is the press with something to prove — it posts the
+        # configuration and turns to Undo choice, and a control that changes its own
+        # words on the press is where a neighbour moves.
         "name": "playground-actions",
         "target": "#stable-playground .lf-playground-submit",
     },
@@ -1150,14 +1150,14 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
           behavior: 'instant'})"""
     )
     child = frame.element_handle().content_frame()
-    # The thread's view goes to the passage it quotes with On the page.
-    on_the_page = child.locator(".lf-fp-controls").get_by_role(
-        "button", name="On the page"
+    # The thread's view goes to the passage it quotes with Show on page.
+    show_on_page = child.locator(".lf-fp-controls").get_by_role(
+        "button", name="Show on page"
     )
-    on_the_page.scroll_into_view_if_needed()
+    show_on_page.scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
     root_before = child.evaluate("scrollY")
-    on_the_page.click()
+    show_on_page.click()
     scroll_settled(child)
     landing = child.evaluate(
         """() => {

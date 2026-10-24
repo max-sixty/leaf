@@ -70,8 +70,8 @@ holds the page. Run it too when you want a newer runtime, theme or package:
 leaf page init <page>
 ```
 
-A page vendored by a newer Leaf than the one you run is refused as well, and `page init`
-won't take it back to an older protocol; the refusal says how to load a newer Leaf.
+A page vendored by a newer Leaf than the one you run is refused as well;
+the refusal says how to load a newer Leaf.
 
 While Leaf is in alpha, an update can also break an older page without a protocol
 change. `page check` and the leaf's menu in the page's panel name the Leaf that
@@ -81,8 +81,7 @@ its age alone, since that reloads the user's open tabs.
 
 `page init` changes nothing if it refuses. When the layer, server code, dependencies,
 package selection or installed files changed, it restarts a running server at the same
-URL and reloads open tabs; a stopped server stays stopped. For a session page, it
-refuses a change while another live session holds the page. If the holding session
+URL and reloads open tabs; a stopped server stays stopped. If the holding session
 has ended, it leaves the server stopped, and you serve it from your session.
 
 Versions saved before a protocol change stay in the history but no longer open. If
@@ -118,9 +117,8 @@ leaf page state <page>
 Read the active revision's HTML (`active.file`) and the `state` over it, then the open
 obligations, the threads, and `measurement_lag` for figures whose sources have run again, as
 `authoring-revisions.md`, "Read before editing", describes. Then run
-`leaf page claim <page>`, which moves the page to your session and stops another
-session's watcher from watching it. Claiming prepares delivery for your harness before
-ownership moves; it does not start or stop the page's server.
+`leaf page claim <page>`, which moves the page to your session and prepares delivery
+for your harness; it does not start or stop the page's server.
 
 ## Inspecting interactions
 
@@ -134,20 +132,13 @@ leaf page interactions <page> --session TAB \
   --type keydown --type command --type focusin
 ```
 
-Omit `--session` to include server requests and raw event records. Each line is one JSON record:
-`leaf page interactions` sorts records by host receipt time, removes retried duplicates
-and retains gap diagnostics under type filters. The raw `<page>/observations.jsonl`,
+Omit `--session` to include server requests and raw event records. The raw `<page>/observations.jsonl`,
 which `tail -F` follows live while you reproduce a problem, is in arrival order and
 still holds retries. Browser wall time stays in `observed_at`; order alone does not
 prove cause. The user's decisions are in `leaf page events <page>`, and
-[page-storage.md](../../../src/leaf/page-storage.md) defines the file. The public site
-stores its browser batches in Workers Observability; `worker/README.md` describes
-lookup by session reference.
-
-Raw events retain native session context. `leaf-dev response-times` uses the
-current application readers to measure
-progress and answers, preserving missing observations and distinguishing native
-harness turns from turns Leaf created. Its module header owns the measurements.
+[`interaction-batch.schema.json`](../../../src/leaf/interaction-batch.schema.json) defines
+the fields every browser row carries, and [page-storage.md](../../../src/leaf/page-storage.md)
+names the file's other owners.
 
 ## Temporary test servers
 

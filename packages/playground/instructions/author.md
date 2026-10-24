@@ -4,7 +4,6 @@ inside an `lf-playground-choice` in the preview, so the user selects the actual 
 rather than a second selector elsewhere. `lf-options` remains useful for a fixed choice
 that needs no playground controls or composed preview.
 
-A playground holds exactly one `lf-playground-preview` and one `lf-playground-output`.
 Frame the question with `lf-ask` when its context lives outside the playground. Keep
 behavior that one page uses in that page's module, which can define custom elements, add
 state to the playground and derive its output. Behavior several pages reuse belongs in a
@@ -16,8 +15,7 @@ rail beside the preview, above the instruction. When the preview holds several i
 that each take their own settings, such as alerts that each need a threshold, write each
 item's controls inside `lf-playground-preview` beside that item, and leave only the
 settings every item shares in the rail. A control in the preview still belongs to the
-playground. Its value is submitted, and presets and Reset set it. With every control
-in the preview, presets precede the full-width preview and the instruction follows it.
+playground. Its value is submitted, and presets and Reset set it.
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
@@ -41,8 +39,7 @@ lines it wraps to. Each drawing keeps its own height.
 Start from the real artifact. Wrap the existing component, document or generated output
 rather than redrawing it in page markup. A companion package can carry browser-ready
 code and fixtures under `vendor/`, and page images go through `leaf page media`
-(`references/authoring-evidence.md`). Load these assets from the page's own origin, and
-import from Leaf's runtime only `/runtime/widget-api.js`.
+(`references/authoring-evidence.md`). Load these assets from the page's own origin.
 
 Show each candidate as the interface being decided, so the user can judge it as they
 would use it: its content, its controls where they are proposed to go, the context
@@ -67,12 +64,6 @@ production entry point, or build and serve each candidate's source revision, rat
 wiring substitute handlers onto copied DOM.
 
 ## Controls, samples, and output
-
-A control's `kind` is `range`, `toggle`, `choice`, `color` or `text`, and its `name` is
-its key in the map of typed values the final `choose` action sends. A range needs `max`;
-`min` defaults to 0 and `step` to 1. A range's `unit` is appended to its value in its
-CSS custom property and in `lf-playground-value`, while its data attribute and its entry
-in `values` stay plain numbers.
 
 Keep the configuration the user is choosing apart from the cases used to inspect it.
 Controls and presets describe what to build. Give preview cases and inspection settings
@@ -166,8 +157,7 @@ beside the selectable alternatives when the decision changes an existing interfa
 
 Apply shared parameters with page CSS. From first paint, Leaf sets each control's value
 on the `lf-playground` as a custom property, `--playground-NAME`, and an attribute,
-`data-playground-NAME`. A text control's custom property is a quoted CSS string, and its
-attribute holds the unquoted text:
+`data-playground-NAME`:
 
 ```css
 .notification-candidate {
@@ -182,12 +172,8 @@ To study Leaf's own live interface, embed each candidate in an `lf-sample window
 the preview, and keep comparison labels and design controls outside the samples.
 Comments on which design to build go on the outer page and reach you. Comments and
 decisions the user tries inside a candidate stay in that sample's own log, and Reset
-returns it to its starting history.
-
-Start fictional threads or decisions with `data-sample-events`, which names one inert
-JSON history in the parent page; several samples can share it without sharing later
-gestures (`references/live-samples.md`). Keep fixture anchors in the child's template.
-Don't copy fictional history into the outer page's log or post it with a setup script.
+returns it to its starting history. Start fictional threads or decisions inside the
+samples, as `references/live-samples.md` describes, never in the outer page's log.
 
 A candidate that restyles a whole page or uses a global stylesheet also needs a live
 sample; a static sketch or snippet can go directly in the preview. Put each candidate's
@@ -198,7 +184,7 @@ playground's properties and attributes from its first paint, including after Res
 The output is the instruction the agent receives. Write a complete task that names the
 object, where the change goes, and the evidence you want back. Use `lf-playground-value`
 only where a selected value makes the task more precise; the action sends every control
-in `detail.values` anyway, including those the prose leaves out.
+in `detail.values` anyway.
 
 ## Stateful previews
 
@@ -235,42 +221,23 @@ makes sense without the preview.
 
 When both candidates draw from shared state, keep dynamic rows under stable keys, apply
 each add, remove, reorder or edit once, and derive both candidates' rows and counts from
-that state. A canvas or SVG explorer uses one Pointer Events controller with pointer
-capture and a keyboard route; it converts the input to model coordinates once and draws
-both candidates and their measurements from them. Call `layoutChanged` after a gesture
-changes geometry.
+that state. Rows the user is choosing, such as a query's filters, are one contributor in
+the submitted configuration. Give each node or item a stable element id, so the user can
+point at it in Design mode, and keep one decision per id. Filtering and ordering change
+what is shown, never which items or decisions exist, and the instruction reports each
+item's decision (accepted, rejected or undecided) in an order that doesn't depend on the
+display. Store a map's nodes and relations as ids and endpoints, never as positions or
+colors alone. To critique a document or source, use Leaf's comments, suggestions,
+`lf-diff` or `lf-visual-review` rather than a playground. A canvas or SVG explorer uses
+one Pointer Events controller with pointer capture and a keyboard route; it converts the
+input to model coordinates once and draws both candidates and their measurements from
+them. Call `layoutChanged` after a gesture changes geometry.
 
 Before handoff, exercise the user's comparison and submission journey through the states
 that change its result. Check that the preview and measurements reflect the chosen
 values, the copied or submitted instruction stands alone, and the controls remain
-reachable where the layout changes. Verify Reset, reload and export for state or
-behavior the page adds to them; live samples need a server.
-
-## Task-shaped recipes
-
-### Data and query explorer
-
-Keep filter rows in one contributor, such as
-`filters: {rows: [{id, field, operator, value}], order: [id]}`. Add, remove, edit and
-reorder rows by stable id through labeled native controls and buttons, and derive the
-result table from the snapshot. The instruction turns the rows and their order into a
-query task. Check where keyboard focus lands after adding or removing a row.
-
-### Concept or code map
-
-Store nodes and relations as ids and endpoints, never as positions or colors alone.
-Dragging uses pointer capture and has a keyboard equivalent. Give elements stable ids so
-the user can point at them in Leaf's Design mode. The instruction lists the changed
-nodes and relations. To critique a document or source, use Leaf's comments, suggestions,
-`lf-diff` or `lf-visual-review` rather than rebuilding that review in a map.
-
-### Multi-change decision sweep
-
-Keep proposed changes under stable ids, with one decision per id, each reachable by
-keyboard. Filtering and ordering change what is shown, never which decisions exist, and
-the output summarizes the accepted, rejected and undecided changes in an order that
-doesn't depend on the display. Verify a decision survives filter, reorder, restore, and
-reset.
-
-Capture any real fixture the playground needs when you build the page, so reopening and
-exporting it need no network.
+reachable where the layout changes. Check that focus lands where the user expects after
+adding or removing a row, and that a decision survives filtering, reordering, Reset and
+reload. Verify Reset, reload and export for state or behavior the page adds to them;
+live samples need a server. Capture any real fixture the playground needs when you build
+the page, so reopening and exporting it need no network.

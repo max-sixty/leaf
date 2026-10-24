@@ -4,7 +4,7 @@
       "playwright-trace": {
         "description": "A review index derived from one immutable Playwright format-9 or format-10 trace archive. Times are native monotonic milliseconds within each stream; screenshots and saved accessibility trees have separate capture times.",
         "instructions": {
-          "producer": "Initialize a page with package playwright and bind an lf-trace widget to its source id. Import the native archive through the producer and Leaf canonical media writer: leaf package run playwright import_trace.py TRACE --page PAGE --leaf /absolute/path/to/bin/leaf --viewer-url URL | leaf data set PAGE SOURCE. The viewer URL must open the same unchanged trace.zip. Keep the original archive; its SHA-256 scopes every imported action, image and saved-tree node identity. Use a new source id for another recording. The producer reads formats 9 and 10; other archive versions and mixed-format streams are refused explicitly. The manifest retains the archive's actual format. Review the recording for credentials and personal data before sharing. PNG checkpoints and accessibility trees are sequential captures: tree boxes describe the saved tree, not an exact pixel target in the neighboring image. Native method names and input selector, key, pointer coordinates and input-snapshot viewport dimensions are retained with action titles, timings and errors; filled values and other API parameters remain in the archive. Input may be absent, and keyboard input may have no pointer coordinates. Pointer coordinates use the native viewport, not raster-image dimensions; no point overlay is possible without that viewport. Native input events have no timestamp; the action phase records its snapshot time. DOM inspection, network, console, source, test-runner hierarchy, attachments and complete assertion results remain in the linked Playwright viewer."
+          "producer": "Initialize the page with package playwright and bind an lf-trace widget to the source id. Import the native archive with: leaf package run playwright import_trace.py TRACE --page PAGE --leaf /absolute/path/to/bin/leaf --viewer-url URL | leaf data set PAGE SOURCE. The viewer URL must open the same unchanged trace.zip. Keep the original archive, since its SHA-256 scopes every imported action, image and saved-tree id, and import another recording under a new source id. Review the recording for credentials and personal data before sharing. The manifest keeps each action's title, timings, errors, method, selector, key and pointer coordinates in the native viewport's pixels; filled values, DOM, network, console, source and assertion details stay in the archive and its viewer."
         },
         "schema": {
           "type": "object",
@@ -384,7 +384,7 @@
   },
   "lf-trace": {
     "description": "A commentable Playwright recording with action phases, native captured frames and saved accessibility elements.",
-    "x-instructions": "Bind it to an imported playwright-trace source. Say what the recording shows, and make each result under review directly reachable with a named lf-trace-bookmark, preferably a successful expectation's After checkpoint, using imported ids and a label naming the result. The viewer supplies its own controls and opens at the earliest authored moment it can resolve. Native input records no timestamp or held duration, so the timeline places inputs at their calls; describe input timing at that resolution. Equal elapsed times in two recordings don't mean equal states. A comment on an image pins that image; one on a saved element pins the labeled checkpoint and tree path, which can be at a different time. Keep the linked Playwright viewer running for DOM snapshots, element picking, source, console and network. To pair results across recordings, put the viewers in one lf-trace-compare and give matching bookmarks the same key: selecting a bookmark finds its explicit peer while every recording retains its original timeline. The author instructions describe how to record comparable journeys.",
+    "x-instructions": "Bind `source` to an imported playwright-trace source. The viewer opens at the earliest authored moment it can resolve.",
     "type": "object",
     "properties": {
       "id": {
@@ -445,7 +445,7 @@
   },
   "lf-trace-compare": {
     "description": "Several Playwright recordings inspected together, with their results paired by key.",
-    "x-instructions": "Put one `lf-trace` per recording inside it, each with a `label`, and give bookmarks for corresponding steps the same `key`. Selecting a bookmark finds its peer; source switches keep image scale. Original timelines, timestamps and durations stay visible. Equal elapsed times do not establish corresponding inputs or results. Follow the author instructions' Record comparable journeys convention when capturing a pair.",
+    "x-instructions": "Put one `lf-trace` per recording inside it, each with a `label`.",
     "type": "object",
     "properties": {
       "id": {

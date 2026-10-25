@@ -329,9 +329,17 @@ against 2.8, 3.3, 5.6, cost $3.14 against $2.49 a sample; every final judge pass
 Codex, two runs pooled: first turns 2.7 against 2.5 minutes (n=5 each), all completed
 judgments passed. In three Codex runs, 3 of 8 base samples and none of 8 candidates
 errored in the harness's comment journey (a 15 s wait for the selection field or a
-response); the cause wasn't traced. Dashboard and document first turns didn't get faster; their time
-is the record review: render checks, up to 23 screenshot reads, the fresh-eyes subagent
-page-checkpoints.md asks for, and the author's own rounds after clean checks.
+response); the cause wasn't traced. Dashboard and document first turns didn't get
+faster; their time is the record review: render checks, up to 23 screenshot reads, the
+fresh-eyes subagent page-checkpoints.md asks for, and the author's own rounds after
+clean checks. On the full dashboard workflow, Opus Leaf took 8.9 minutes at main (n=6)
+and 9.1 at the branch (n=9). The branch's dashboards wrote a final status such as
+"eu-west is rolling back to 4.11" after the user had only decided in 6 of 15 samples,
+against 0 of 6 at main (5 of 12 against 0 of 6 for the final branch, Fisher p ≈ 0.11);
+removing conversation-loop.md's sentence on how a start ends left it at 1 of 3, and no
+other change on the branch touches that phase, so its cause is open.
+authoring-revisions.md's "say beside it what came of the choice" is written for a
+decision the agent carried out.
 
 Removing that subagent on the document task (`page-reads-at-every-width`, two runs of
 3 per arm) cut 4.3 to 3.3 minutes and $1.39 to $0.92 a page, with 4 against 3 judged

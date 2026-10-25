@@ -138,7 +138,7 @@
     const position = tools.offer("span", "lf-timeline-position");
     tools.generatedElement(position, { says: false });
     const next = tools.offer("button", "lf-btn lf-timeline-next", "Next");
-    controls.append(previous, position, next);
+    controls.append(previous, next, position);
     const chart = document.createElement("div");
     chart.className = "lf-timeline-chart";
     chart.setAttribute("aria-hidden", "true");

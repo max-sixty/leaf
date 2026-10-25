@@ -149,7 +149,7 @@ export function drawTimeline(host, tools) {
   const position = tools.offer("span", "lf-timeline-position");
   tools.generatedElement(position, { says: false });
   const next = tools.offer("button", "lf-btn lf-timeline-next", "Next");
-  controls.append(previous, position, next);
+  controls.append(previous, next, position);
 
   // The chart repeats the step list's words, which assistive technology reads there.
   const chart = document.createElement("div");

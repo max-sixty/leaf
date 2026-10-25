@@ -69,8 +69,13 @@ def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
     expect(rows).to_have_count(6)
     expect(rows.nth(0)).to_have_attribute("aria-current", "step")
 
-    page.get_by_role("button", name="Next").click()
+    # The position's words change width with each step, so they follow both buttons
+    # and never move the one being pressed.
+    next_button = page.get_by_role("button", name="Next")
+    before = next_button.bounding_box()
+    next_button.click()
     expect(position).to_have_text("Step 2 of 6 · 0.2 s")
+    assert next_button.bounding_box() == before
     page.keyboard.press("ArrowRight")
     expect(position).to_have_text("Step 3 of 6 · 1 s")
     page.keyboard.press("End")

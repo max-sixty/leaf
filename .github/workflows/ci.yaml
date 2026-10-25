@@ -20,7 +20,7 @@ on:
 
 # Only a pull request cancels its own earlier run. A push to main keeps its run: a red
 # branch is judged against the base SHA's result, and the next merge must not end a
-# suite partway through. tend-ci-fix answers a failed run on main and never a
+# suite partway through. tend-ci-failures reports a failed run on main and never a
 # cancelled one, so a cancellation goes unreported. Nothing outside a pull request
 # shares a workflow group; the test job owns each event's queue.
 concurrency:
@@ -118,7 +118,7 @@ jobs:
         run: |
           mkdir -p .tmp/test-results
           # Fail normally before the six-hour job deadline, which cancels the run
-          # and never summons tend-ci-fix. Leave time for termination, profiles,
+          # and never reaches tend-ci-failures. Leave time for termination, profiles,
           # uploads and the website gates.
           # Keep the shell alive through INT while pytest and py-spy finalize. Shell
           # background jobs inherit INT ignored, so reset it at both child entries.

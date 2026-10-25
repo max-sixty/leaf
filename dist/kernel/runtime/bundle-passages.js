@@ -1,6 +1,7 @@
 import { shadowHost, under, upFrom } from "./bundle-dom-move.js";
-import { PAGE_PAINT_ATTRIBUTE, SAID, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, pageUpgraded, refuseShadowRoot, registry, reportPageError, shadowRootsIn, uiInside } from "./bundle-layer-client.js";
+import { PAGE_PAINT_ATTRIBUTE, pageUpgraded, reportPageError } from "./bundle-layer-client.js";
 import { readPart } from "./bundle-context.js";
+import { SAID, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-errors.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 //#region runtime/passage-facts.js

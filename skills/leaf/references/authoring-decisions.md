@@ -78,6 +78,37 @@ How to build an alternative waits for the user's pick.
 
 The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
 
+## One decision in its section and on a board
+
+When the user answers proposals beside their cases and also needs every answer in one
+view to compare or rearrange, keep each answer in its section's `lf-options` and add a
+board whose cards show those answers, rather than asking twice. Give each option a
+`value` naming the answer it gives, in words every section shares, and the board one
+column per value with that `value`, plus one column without a value for proposals not
+yet answered or answered in the user's own words. Each card's `shows` names its
+section's group, and the card stands in the column of that group's pick:
+
+```html
+<lf-options id="rail-choice" choose>
+  <lf-option id="rail-next" value="next">Next</lf-option>
+  <lf-option id="rail-later" value="later">Later</lf-option>
+</lf-options>
+<!-- … the other proposals' sections … -->
+<lf-board id="plan">
+  <lf-column id="plan-open" label="Undecided">
+    <lf-card id="plan-rail" shows="rail-choice"><strong>Keep the rail</strong></lf-card>
+  </lf-column>
+  <lf-column id="plan-next" label="Next" value="next"></lf-column>
+  <lf-column id="plan-later" label="Later" value="later"></lf-column>
+</lf-board>
+```
+
+A drop on the board answers through the group, so the page holds one answer, which
+Undo and `restated` take back in both views. When a revision writes the user's pick
+into the group, move the card to that pick's column too. A card that shows an answer
+keeps the order you wrote it in; where the order within a column is itself the user's
+call, ask for it as its own decision.
+
 ## Permission
 
 When the user must permit an action, ask for it as a decision whose options keep

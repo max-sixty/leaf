@@ -10,7 +10,7 @@ import { chromeForeground, chromeRoot } from "./runtime/bundle-chrome.js";
 import { COLLAPSE, LEAF_SURFACE, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
 import { ADDRESSABLE, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-css-anchors.js";
 import { fragmentId } from "./runtime/bundle-initial-render.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
+import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadState, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
 import { copyControl } from "./runtime/bundle-copy-control.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, setChildren, watchDisclosures } from "./runtime/bundle-abort.js";
 import { motionEasing, motionPlays, motionTime, playMotion, reducedMotion, scrollBehavior } from "./runtime/bundle-motion.js";
@@ -5984,6 +5984,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const node = drawnNode(outletOf(), answer.message);
 		if (node) scrollIntoView(node, { block: "start" });
 	}
+	const viewScrolled = (event) => {
+		sawAnswer(event);
+		sawJoined(event.currentTarget);
+	};
 	function sawAnswer(event) {
 		const view = event.currentTarget;
 		if (!waiting || view.scrollTop === placed) return;
@@ -6351,7 +6355,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         </div>`)}${errors.length > 1 ? html`<hr />
             ${menuItem("Dismiss all", nothing, () => dismiss(null))}` : nothing}`;
 	}
-	function shownThreads() {
+	function listedThreads() {
 		const words = query.trim().toLowerCase();
 		const shown = threads().filter((thread) => {
 			if (words) return [
@@ -6366,6 +6370,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		});
 		return inPageOrder(shown, placedAt);
 	}
+	const shownThreads = () => listedThreads().filter((thread) => !heldRows.has(thread.key));
 	function threadsView() {
 		const shown = shownThreads();
 		const empty = query.trim() ? "Nothing matches." : {
@@ -6397,6 +6402,117 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               ${readThreads().phase === "offline" ? "Current threads are unavailable while the server is offline." : "Loading current threads…"}
             </p>`}
     </div>`;
+	}
+	const heldRows = /* @__PURE__ */ new Set();
+	const joined = /* @__PURE__ */ new Map();
+	let drawnStates = null;
+	let showingJoined = false;
+	const joinedNotice = newsNotice();
+	const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
+	const drawnRow = (view, key) => view.querySelector(`.lf-fp-thread[data-key="${CSS.escape(key)}"]`);
+	const inSight = (row, view) => {
+		const box = row.getBoundingClientRect();
+		const band = view.getBoundingClientRect();
+		return box.top >= band.top - .5 && box.bottom <= band.bottom + .5;
+	};
+	function admitRows() {
+		const top = trail.value.at(-1);
+		const view = top?.view === "threads" && drawnTop === routeKey(top) && !refitting && drawnStates !== null ? shownView() : null;
+		if (!view) return null;
+		const drawn = new Map(threadRows().map((row) => [row.dataset.key, row]));
+		const band = view.getBoundingClientRect();
+		let next = null;
+		for (const thread of shownThreads().reverse()) {
+			const row = drawn.get(thread.key);
+			if (row) next = row.getBoundingClientRect().top;
+			else if (!showingJoined && !gesturedOn(thread) && next !== null && next > band.top + .5 && next < band.bottom - .5) heldRows.add(thread.key);
+		}
+		return new Set(drawn.keys());
+	}
+	function noteJoined(before) {
+		const said = joinedFacts().join();
+		const view = shownView();
+		if (!before) {
+			heldRows.clear();
+			joined.clear();
+		} else {
+			const listed = new Set(listedThreads().map((thread) => thread.key));
+			for (const thread of threads()) {
+				const { key } = thread;
+				if (!listed.has(key)) {
+					heldRows.delete(key);
+					joined.delete(key);
+					continue;
+				}
+				if (!(before.has(key) ? false : heldRows.has(key) || drawnRow(view, key) !== null && !gesturedOn(thread)) || joined.has(key)) continue;
+				const was = drawnStates.get(key);
+				const now = Boolean(thread.resolved);
+				joined.set(key, was === void 0 ? "new" : was === now ? "news" : now ? "resolved" : "reopened");
+			}
+			forgetSeen(view);
+		}
+		drawnStates = showing({ view: "threads" }) && inventoried() ? new Map(threads().map((thread) => [thread.key, Boolean(thread.resolved)])) : null;
+		if (joinedFacts().join() !== said) {
+			const top = trail.value.at(-1);
+			render(top ? controlsTemplate(top) : nothing, controls);
+		}
+	}
+	function forgetSeen(view) {
+		for (const key of joined.keys()) {
+			const row = !heldRows.has(key) && drawnRow(view, key);
+			if (row && inSight(row, view)) joined.delete(key);
+		}
+	}
+	function joinedFacts() {
+		const kinds = [...joined.values()];
+		const counted = (kind, one, many) => {
+			const count = kinds.filter((joinedAs) => joinedAs === kind).length;
+			return count && `${count} ${count === 1 ? one : many}`;
+		};
+		return [
+			counted("new", "new thread", "new threads"),
+			counted("reopened", "thread reopened", "threads reopened"),
+			counted("resolved", "thread resolved", "threads resolved"),
+			counted("news", "thread with news", "threads with news")
+		].filter(Boolean);
+	}
+	function sawJoined(view) {
+		if (!joined.size) return;
+		const said = joinedFacts().join();
+		forgetSeen(view);
+		if (joinedFacts().join() !== said) paint();
+	}
+	function showJoined() {
+		const keys = new Set(joined.keys());
+		const pressed = focused() === joinedNotice.node;
+		heldRows.clear();
+		showingJoined = true;
+		try {
+			paint();
+		} finally {
+			showingJoined = false;
+		}
+		const view = shownView();
+		const row = threadRows().find((candidate) => keys.has(candidate.dataset.key));
+		if (!view || !row) return null;
+		scrollIntoView(row, { block: "nearest" });
+		rove(threadRows(), row);
+		if (pressed) focusDestination(row, "move");
+		sawJoined(view);
+		return null;
+	}
+	function joinedTemplate() {
+		const facts = joinedFacts();
+		if (!facts.length) return nothing;
+		joinedNotice.set({
+			parts: facts.map((fact, index) => index ? ` · ${fact}` : fact),
+			label: facts.join(" · "),
+			reopened: false,
+			open: showJoined
+		});
+		return html`<span class="lf-fp-facts lf-fp-joined"
+      ><span class="lf-fp-news-outlet">${joinedNotice.node}</span></span
+    >`;
 	}
 	let presentation = null;
 	const newsOutlet = () => controls.querySelector(".lf-fp-news-outlet");
@@ -6848,25 +6964,28 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function threadsControls() {
 		const news = newCount();
-		return { aux: html`${tabs(FILTERS, filter, capital, (name) => {
-			filter = name;
-			query = "";
-			paint();
-		}, (name) => name === "unread" ? news : name === "open" ? openCount() : null)}<button
+		return {
+			crumb: joinedTemplate(),
+			aux: html`${tabs(FILTERS, filter, capital, (name) => {
+				filter = name;
+				query = "";
+				paint();
+			}, (name) => name === "unread" ? news : name === "open" ? openCount() : null)}<button
           type="button"
           class="lf-fp-face lf-fp-icon-btn"
           aria-label="Find a thread or message"
           aria-pressed=${String(searching)}
           @click=${() => {
-			if (!searching) {
-				findThreads();
-				return;
-			}
-			closeThreadSearch();
-		}}
+				if (!searching) {
+					findThreads();
+					return;
+				}
+				closeThreadSearch();
+			}}
         >
           ${iconTemplate("search", "lf-action-icon")}
-        </button>` };
+        </button>`
+		};
 	}
 	function queueControls() {
 		const lists = queueLists();
@@ -6962,7 +7081,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			const top = trail.value.at(-1);
 			if (top?.thread && !threadOf(top)) close();
 			holdRoom();
-			paintNow();
+			const listed = admitRows();
+			const list = listed && shownView();
+			if (list) placeKeeper(list, {
+				items: ".lf-fp-thread",
+				identity: (row) => row.dataset.key
+			}).around(paintNow);
+			else paintNow();
+			noteJoined(listed);
 			if (holdMenu()) paintNow();
 		} finally {
 			painting = false;
@@ -7042,7 +7168,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ${ref(declareView)}
             style=${route === top && room !== null ? `height: ${room}px` : nothing}
             ?data-leaving=${route === leaving}
-            @scroll=${sawAnswer}
+            @scroll=${viewScrolled}
           >
             ${viewOf(route).draw(route)}
           </div>`), stage);

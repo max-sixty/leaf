@@ -457,6 +457,27 @@ def threads_panel(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
 
 
+def threads_returning(page: Page) -> None:
+    """Threads on Open as the agent's reply reopens the thread whose row leads the list,
+    above every row the user reads there."""
+    returning = "7b3e0a41"
+    as_agent("thread", "resolve", returning)
+    open_threads(page)
+    row = page.locator(f'.lf-fp-thread[data-key="{returning}"]')
+    expect(row).to_have_count(0)
+    # Opened afresh, the list fits the rows the resolve left rather than holding the
+    # height it opened at, which the resolve arriving after it emptied.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    open_threads(page)
+    count = page.locator(".lf-fp-filters [aria-pressed=true] .lf-fp-count")
+    opened = int(count.inner_text())
+    as_agent(
+        "thread", "reply", returning, "--text", "The resend covers a cold start too."
+    )
+    expect(count).to_have_text(str(opened + 1))
+
+
 def call_tree(page: Page) -> None:
     """The CallDiff root and its unchanged landmarks beside added and removed calls."""
     page.get_by_role("tab", name="CallDiff", exact=True).click()
@@ -1367,6 +1388,17 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State(
+        "threads-returning", "ship-review", threads_returning, region=".lf-fp-opened"
+    ),
+    State(
+        "threads-returning-phone",
+        "ship-review",
+        threads_returning,
+        viewport=(390, 844),
+        touch=True,
+        region=".lf-fp-opened",
+    ),
     State(
         "floating-thread-retitled",
         "ship-review",

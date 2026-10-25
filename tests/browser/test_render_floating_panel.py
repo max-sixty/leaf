@@ -1156,6 +1156,57 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(3)
 
 
+def test_a_thread_returning_above_threads_rows_waits_behind_a_notice(browser, serve):
+    """A reply reopening a thread brings it back to Threads in the page's order, here
+    above every row the user reads there. It moves none of them: it waits behind a
+    notice among the controls saying what joined, and a press there shows it and lands
+    on it."""
+    url = serve(LONG_PAGE, comments=3)
+    root = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    page = floating(browser, url)
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    inventory = page.locator(panel_view("threads"))
+    rows = inventory.locator(".lf-fp-thread")
+    expect(rows).to_have_count(3)
+    settled(page)
+    tops = "rows => rows.map(row => [row.dataset.key, row.getBoundingClientRect().top])"
+    before = rows.evaluate_all(tops)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "The opening undersells the retry.",
+        },
+    )
+    told(page)
+    notice = page.locator(".lf-fp-controls .lf-thread-news")
+    expect(notice).to_have_text("1 thread reopened")
+    expect(page.locator(".lf-fp-filters [aria-pressed=true]")).to_contain_text("4")
+    settled(page)
+    assert rows.evaluate_all(tops) == before
+
+    notice.click()
+    returned = inventory.locator(".lf-fp-thread", has_text="Is the opening right?")
+    expect(returned).to_be_focused()
+    expect(rows.first).to_have_text(re.compile("Is the opening right?"))
+    expect(notice).to_have_count(0)
+    assert returned.evaluate(
+        """row => {
+          const box = row.getBoundingClientRect();
+          const view = row.closest('.lf-fp-view').getBoundingClientRect();
+          return box.top >= view.top && box.bottom <= view.bottom;
+        }"""
+    )
+
+
 AGENDA_PAGE = titled_page(
     "agenda",
     """<h1 id="t">Workshop</h1>

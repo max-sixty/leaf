@@ -162,7 +162,7 @@ import { advertisesKeys, parsed, rowArrows } from "./keyboard/bindings.js";
 import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.js";
 import { pageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
-import { readThreads } from "./thread/state.js";
+import { readThreads, threadState } from "./thread/state.js";
 import { hasUnread, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
 import { afterScript } from "./rendering.js";
@@ -229,8 +229,10 @@ import { excerptWords } from "./words.js";
 import { afterSettling, holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { scrollIntoView } from "./landing-scroll.js";
+import { placeKeeper } from "./user-place.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
+import { newsNotice } from "./thread/held-news.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { agentName, documentChanged } from "./semantic-state.js";
@@ -1611,6 +1613,10 @@ export function createFloatingPanel({
   }
   // Scrolling the answer's start into sight above New reply takes New reply away, the
   // view keeping its height.
+  const viewScrolled = (event) => {
+    sawAnswer(event);
+    sawJoined(event.currentTarget);
+  };
   function sawAnswer(event) {
     const view = event.currentTarget;
     if (!waiting || view.scrollTop === placed) return;
@@ -2192,7 +2198,7 @@ export function createFloatingPanel({
   // (thread/placement.js), so each thread stands among its passage's neighbours. A
   // search reads a thread's name, its messages and the words it is about, as its head
   // quotes them (`quoteReading`).
-  function shownThreads() {
+  function listedThreads() {
     const words = query.trim().toLowerCase();
     const shown = threads().filter((thread) => {
       if (words) {
@@ -2212,6 +2218,9 @@ export function createFloatingPanel({
     });
     return inPageOrder(shown, placedAt);
   }
+  // The rows the list draws: those it lists, less those news holds back (`heldRows`).
+  const shownThreads = () =>
+    listedThreads().filter((thread) => !heldRows.has(thread.key));
   function threadsView() {
     const shown = shownThreads();
     const empty = query.trim()
@@ -2263,6 +2272,175 @@ export function createFloatingPanel({
             </p>`
       }
     </div>`;
+  }
+
+  // A thread joining Threads while it stands, as one the agent starts or one a reply
+  // reopens, moves none of the rows the user reads there (`browser/AGENTS.md`, "News
+  // never moves what the reader is reading"). The list holds its height against news
+  // (`holdRoom`), and a place hold (user-place.js) keeps the row the user is on, else
+  // the first they see, where it stood. A row moves every row after it, so one joining
+  // above the list's top edge goes into the room scrolled past, one with no row after
+  // it waits under the fold, and one that would land among the rows in sight is held
+  // back (`heldRows`), as a thread's view holds its news. Each row that joined out of
+  // sight is said, by what it joined as, in the notice a thread's held news uses
+  // (thread/held-news.js, `newsNotice`), where that news stands, at the start of the
+  // controls, until the user sees the row; a press shows what was held and lands on
+  // the first row it names. A row the user's own gesture brings, as Undo of their
+  // resolve, is theirs to see at once (thread/held-news.js, `gesturedOn`). A tab, filter
+  // or search the user presses shows the list whole (`refit`), as the next opening does.
+  const heldRows = new Set();
+  // The rows that joined while the list stood and that the user has yet to see, by
+  // their thread's key, with what each joined as.
+  const joined = new Map();
+  // Each thread's resolution as the list last drew, which says what a row joining it
+  // joined as; null while no list stands drawn.
+  let drawnStates = null;
+  let showingJoined = false;
+  const joinedNotice = newsNotice();
+  const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
+  const drawnRow = (view, key) =>
+    view.querySelector(`.lf-fp-thread[data-key="${CSS.escape(key)}"]`);
+  const inSight = (row, view) => {
+    const box = row.getBoundingClientRect();
+    const band = view.getBoundingClientRect();
+    return box.top >= band.top - 0.5 && box.bottom <= band.bottom + 0.5;
+  };
+  // Before a paint: the keys of the rows the standing list draws, holding back each
+  // thread joining it where the next drawn row begins in sight; null where no list
+  // stands that news joins.
+  function admitRows() {
+    const top = trail.value.at(-1);
+    const view =
+      top?.view === "threads" &&
+      drawnTop === routeKey(top) &&
+      !refitting &&
+      drawnStates !== null
+        ? shownView()
+        : null;
+    if (!view) return null;
+    const drawn = new Map(threadRows().map((row) => [row.dataset.key, row]));
+    const band = view.getBoundingClientRect();
+    let next = null;
+    for (const thread of shownThreads().reverse()) {
+      const row = drawn.get(thread.key);
+      if (row) next = row.getBoundingClientRect().top;
+      else if (
+        !showingJoined &&
+        !gesturedOn(thread) &&
+        next !== null &&
+        next > band.top + 0.5 &&
+        next < band.bottom - 0.5
+      )
+        heldRows.add(thread.key);
+    }
+    return new Set(drawn.keys());
+  }
+  // After a paint: notes the rows that joined, forgets those the user now sees or the
+  // list no longer holds, and redraws the controls where the notice changed.
+  function noteJoined(before) {
+    const said = joinedFacts().join();
+    const view = shownView();
+    if (!before) {
+      heldRows.clear();
+      joined.clear();
+    } else {
+      const listed = new Set(listedThreads().map((thread) => thread.key));
+      for (const thread of threads()) {
+        const { key } = thread;
+        if (!listed.has(key)) {
+          heldRows.delete(key);
+          joined.delete(key);
+          continue;
+        }
+        const arrived = before.has(key)
+          ? false
+          : heldRows.has(key) || (drawnRow(view, key) !== null && !gesturedOn(thread));
+        if (!arrived || joined.has(key)) continue;
+        const was = drawnStates.get(key);
+        const now = Boolean(thread.resolved);
+        joined.set(
+          key,
+          was === undefined
+            ? "new"
+            : was === now
+              ? "news"
+              : now
+                ? "resolved"
+                : "reopened",
+        );
+      }
+      forgetSeen(view);
+    }
+    drawnStates =
+      showing({ view: "threads" }) && inventoried()
+        ? new Map(threads().map((thread) => [thread.key, Boolean(thread.resolved)]))
+        : null;
+    if (joinedFacts().join() !== said) {
+      const top = trail.value.at(-1);
+      render(top ? controlsTemplate(top) : nothing, controls);
+    }
+  }
+  // Forgets each joined row the list draws in sight.
+  function forgetSeen(view) {
+    for (const key of joined.keys()) {
+      const row = !heldRows.has(key) && drawnRow(view, key);
+      if (row && inSight(row, view)) joined.delete(key);
+    }
+  }
+  // What the notice says, each kind of arrival a fact.
+  function joinedFacts() {
+    const kinds = [...joined.values()];
+    const counted = (kind, one, many) => {
+      const count = kinds.filter((joinedAs) => joinedAs === kind).length;
+      return count && `${count} ${count === 1 ? one : many}`;
+    };
+    return [
+      counted("new", "new thread", "new threads"),
+      counted("reopened", "thread reopened", "threads reopened"),
+      counted("resolved", "thread resolved", "threads resolved"),
+      counted("news", "thread with news", "threads with news"),
+    ].filter(Boolean);
+  }
+  // Scrolling a joined row into sight takes it off the notice.
+  function sawJoined(view) {
+    if (!joined.size) return;
+    const said = joinedFacts().join();
+    forgetSeen(view);
+    if (joinedFacts().join() !== said) paint();
+  }
+  // The notice's press: the rows it held join the list, and the first row it names,
+  // in the list's order, comes into sight with the walk standing on it.
+  function showJoined() {
+    const keys = new Set(joined.keys());
+    const pressed = focused() === joinedNotice.node;
+    heldRows.clear();
+    showingJoined = true;
+    try {
+      paint();
+    } finally {
+      showingJoined = false;
+    }
+    const view = shownView();
+    const row = threadRows().find((candidate) => keys.has(candidate.dataset.key));
+    if (!view || !row) return null;
+    scrollIntoView(row, { block: "nearest" });
+    rove(threadRows(), row);
+    if (pressed) focusDestination(row, "move");
+    sawJoined(view);
+    return null;
+  }
+  function joinedTemplate() {
+    const facts = joinedFacts();
+    if (!facts.length) return nothing;
+    joinedNotice.set({
+      parts: facts.map((fact, index) => (index ? ` · ${fact}` : fact)),
+      label: facts.join(" · "),
+      reopened: false,
+      open: showJoined,
+    });
+    return html`<span class="lf-fp-facts lf-fp-joined"
+      ><span class="lf-fp-news-outlet">${joinedNotice.node}</span></span
+    >`;
   }
 
   // A thread inside the panel is drawn by Leaf's own conversation reader: the panel
@@ -2993,6 +3171,7 @@ export function createFloatingPanel({
   function threadsControls() {
     const news = newCount();
     return {
+      crumb: joinedTemplate(),
       aux: html`${tabs(
           FILTERS,
           filter,
@@ -3170,7 +3349,15 @@ export function createFloatingPanel({
       const top = trail.value.at(-1);
       if (top?.thread && !threadOf(top)) close();
       holdRoom();
-      paintNow();
+      const listed = admitRows();
+      const list = listed && shownView();
+      if (list)
+        placeKeeper(list, {
+          items: ".lf-fp-thread",
+          identity: (row) => row.dataset.key,
+        }).around(paintNow);
+      else paintNow();
+      noteJoined(listed);
       if (holdMenu()) paintNow();
     } finally {
       painting = false;
@@ -3298,7 +3485,7 @@ export function createFloatingPanel({
             ${ref(declareView)}
             style=${route === top && room !== null ? `height: ${room}px` : nothing}
             ?data-leaving=${route === leaving}
-            @scroll=${sawAnswer}
+            @scroll=${viewScrolled}
           >
             ${viewOf(route).draw(route)}
           </div>`,

@@ -230,11 +230,6 @@ The page arranges itself in CSS, starting from the Layout classes
 (`browser/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
-- **Show returning threads without moving the current reading.** A thread returning
-  above the open card makes the list scrollable, so the place hold scrolls the
-  newcomer out of view rather than pushing down the card being read. The user sees
-  it only in the count; give that arrival a visible route while preserving the
-  current reading.
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class

@@ -676,6 +676,9 @@
     gap: 6px;
     margin-inline: auto 12px;
   }
+  .lf-fp-crumb:has(> .lf-fp-joined) {
+    flex-shrink: 0;
+  }
   .lf-fp-news-outlet {
     display: contents;
   }

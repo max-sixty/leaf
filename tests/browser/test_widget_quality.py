@@ -374,6 +374,6 @@ INITIAL_DRAWING_PAGE = """
 INITIAL_DRAWING_NODES = """lf-playground, lf-playground-control,
   lf-playground-preview, lf-playground-output, lf-playground-value,
   .lf-playground-input, .lf-playground-control-label, lf-playground label,
-  .lf-playground-reading, .lf-playground-copy-trigger,
+  .lf-playground-reading, .lf-playground-submit,
   lf-margin-entry-gallery, .margin-entry-gallery-name, .margin-entry-gallery-detail, .margin-entry-gallery-heading, .margin-entry-gallery-summary, .margin-entry-gallery-face,
   #after"""

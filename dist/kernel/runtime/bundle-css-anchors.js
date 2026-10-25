@@ -192,12 +192,12 @@ function addressableSays(addressable) {
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
 function leadingTitle(container) {
 	for (const node of container.childNodes) {
-		if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return "";
+		if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return null;
 		if (node.nodeType !== Node.ELEMENT_NODE || uiInside(node, container)) continue;
-		if (node.matches(TITLES)) return elementReading(node, "wrote");
+		if (node.matches(TITLES)) return node;
 		if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
 	}
-	return "";
+	return null;
 }
 function declaredName(element) {
 	const attribute = registry[element.localName]?.["x-name"];
@@ -205,7 +205,10 @@ function declaredName(element) {
 }
 function addressableName(element) {
 	if (!element) return "";
-	return declaredName(element) || leadingTitle(element);
+	const declared = declaredName(element);
+	if (declared) return declared;
+	const title = leadingTitle(element);
+	return title ? elementReading(title, "wrote") : "";
 }
 const LABEL_WORDS = 60;
 const captionOf = (element) => {
@@ -1466,4 +1469,4 @@ function anchorView(node, target, changed) {
 }
 
 //#endregion
-export { ADDRESSABLE, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, cutFrames, datumAimTarget, datumLabel, declaredName, designPressAt, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, lightSeat, localScrollBy, marks, nameAnchor, nameable, passageBoxes, passageGeometry, projectedDatum, rangeGeometry, refreshAnchorView, registerVisualParts, resolveAnchor, resolvedInMessage, revealAddressed, scrollAxes, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, unclaimedVisualGesture, visualAt, visualPartLabel, visualPartProblems, visualParts, visualSelector, widgetWord };
+export { ADDRESSABLE, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, aimTargetAt, aimTargets, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, boundedBlockOf, carriedAnchor, cutFrames, datumAimTarget, datumLabel, declaredName, designPressAt, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, localScrollBy, marks, nameAnchor, nameable, passageBoxes, passageGeometry, projectedDatum, rangeGeometry, refreshAnchorView, registerVisualParts, resolveAnchor, resolvedInMessage, revealAddressed, scrollAxes, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, unclaimedVisualGesture, visualAt, visualPartLabel, visualPartProblems, visualParts, visualSelector, widgetWord };

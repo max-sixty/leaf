@@ -1498,7 +1498,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     assert offered_routes(page) == current_location
     held_obligation = page.locator("#first-question-decision[data-lf-obligation]")
     expect(held_obligation).to_have_count(1)
-    assert "[data-lf-obligation]" in ring_rule(held_obligation)
+    assert "[data-lf-obligation]" in ring_rule(held_obligation, pseudo="after")
     # Native label activation temporarily blurs the radio. Its logical input
     # destination remains in place until the label's click transfers focus. The
     # pointer press removes its keyboard cue without moving that location.

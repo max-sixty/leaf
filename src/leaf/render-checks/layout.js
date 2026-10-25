@@ -13,7 +13,7 @@ import {
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
-import { clippedControls, restsOverPage } from "./reachability.js";
+import { clippedControls, restsOverPage, sealedAxes } from "./reachability.js";
 import { scrollbarClearance } from "./scrollbars.js";
 import { coveredWords, shrunkLabelReading } from "./words.js";
 
@@ -491,10 +491,8 @@ export function misplacedBoxes() {
   // group holding it carried every mark on it past the clip, and four of the examples
   // shipped a decision with no box to tick.
   //
-  // Across the page and not down it, which is the axis every reading here takes: a
-  // box cut off below its container is usually cut on purpose — a collapsed
-  // disclosure, a shot's frame, a draft's box are all a height with the rest hidden —
-  // where one cut off at the side never is.
+  // Across the page, box by box, which names the one box a container lost. Down the
+  // page, and the words a box holds itself, are its content's reading after this loop.
   //
   // The nearest container and no further, because past it what an outer box sees is
   // that container's own edges, and the container answers the same question on its
@@ -570,6 +568,44 @@ export function misplacedBoxes() {
     if ([...lost].some(([o, [, its]]) => o !== el && its === a && o.contains(el)))
       continue;
     report(el, "clipped-out", { past, container: at(a) });
+  }
+  // And what a box cuts off of its own content, on an axis it neither scrolls nor
+  // marks, read from its scroll extent: lines and words have no box of their own for
+  // the loop above to measure, and a box's height is where a page most often cuts
+  // them. The theme scrolls a <pre> or table sideways only, so one given just a
+  // max-height clips every line past it, and the reader sees a log end where it
+  // doesn't. Read down as well as across, which reverses the rule this pass kept
+  // until then, that a box cut off below is cut on purpose: what cuts on purpose
+  // says so. A bounded block scrolls (data-bound); a closed disclosure skips its
+  // content, which checkVisibility() reads; a line clamp and text-overflow mark the
+  // cut on the axis each marks; and a box under two pixels either way shows nothing to
+  // cut from: a hidden tab, size-contained to no height, and the words a page clips
+  // to a pixel for whoever is listening. A drawing's viewport (--lf-drawing) frames
+  // its own coordinates, as a screenshot frames its crop. A cut shorter than half a line hides no line or word, only the overhang
+  // of a tight line box. A text box scrolls to its caret. Across, the loop above
+  // already named the box a container lost, so the container's own reading adds
+  // only what no box of it carried, such as a run of words that does not wrap.
+  const named = new Set([...lost.values()].map(([, a]) => a));
+  for (const el of main.querySelectorAll("*")) {
+    if (!pageBox(el) || !el.checkVisibility() || el.matches(TEXT_BOX)) continue;
+    const s = getComputedStyle(el);
+    if (el.closest("svg") || s.getPropertyValue("--lf-drawing").trim() === "1")
+      continue;
+    const sealed = sealedAxes(s);
+    if (!sealed.across && !sealed.down) continue;
+    if (el.clientWidth < 2 || el.clientHeight < 2) continue;
+    const line = parseFloat(s.lineHeight) || 1.2 * parseFloat(s.fontSize);
+    const cut = (extent, room) =>
+      extent - room >= line / 2 ? Math.round(extent - room) : 0;
+    const across =
+      sealed.across && s.textOverflow === "clip" && !named.has(el)
+        ? cut(el.scrollWidth, el.clientWidth)
+        : 0;
+    const down =
+      sealed.down && s.webkitLineClamp === "none"
+        ? cut(el.scrollHeight, el.clientHeight)
+        : 0;
+    if (across || down) report(el, "clipped-content", { across, down });
   }
   // One finding per fault where two elements share a name, as their words would be.
   const seen = new Set();

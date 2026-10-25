@@ -333,9 +333,13 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
         ("<div id=dusk>", (1280, 1280)),
         ("<div id=dusk>", (540, 540)),
     }, clipped
+    # Each card that loses its controls loses the prose above them too, at the same
+    # widths: the content reading names the card, with what would show the rest.
+    cut = {(f.at, f.widths) for f in reading.failures if f.code == "clipped-content"}
+    assert cut == {(f.values["by"], f.widths) for f in clipped}, reading.failures
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
         (f.code, f.at, f.widths) for f in clipped
-    } == {
+    } - {("clipped-content", *box) for box in cut} == {
         ("page-scrolls", "", (600, 880)),
         ("scrollbar-clearance", "<div id=strip>", (600, 880)),
     }, reading.failures
@@ -3257,7 +3261,8 @@ AIM_BOXES = browser_function("aims.js", "flooredAims")
 # `cursor` first, the hand being the plainest promise a page makes; the rest is the dress
 # a control wears — a chip ground, a pill's corner, a border, a link's underline, a
 # summary's marker. Colour is not read: a chip that is red is saying something, and what a
-# control says is the other half of this bargain rather than this half.
+# control says is the other half of this bargain rather than this half. Every box
+# inherits a list style, but only a list item, as a summary is, draws its marker.
 PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
   .filter(n => n.checkVisibility() && n.getBoundingClientRect().width > 0)
   .map(n => {
@@ -3271,7 +3276,7 @@ PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
         parseFloat(s.borderTopLeftRadius) > 0 && 'a rounded corner',
         parseFloat(s.borderTopWidth) > 0 && 'a border',
         s.textDecorationLine.includes('underline') && 'an underline',
-        s.listStyleType !== 'none' && 'a marker',
+        s.display === 'list-item' && s.listStyleType !== 'none' && 'a marker',
       ].filter(Boolean),
     };
   })"""

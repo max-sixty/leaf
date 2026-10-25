@@ -1547,7 +1547,8 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			const destination = primary ?? (primaryReading(entry) ? marker : null);
 			if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
 			else if (destination) focusDestination(destination, "return");
-		} else if (lostOptionFocus || lostPrimaryFocus) focus.restore?.(primary, clusterMarginEntries(options)[0], clusterMarginEntries(host)[0]);
+		} else if (focus.focusedToggle && more.hidden) focus.restore?.(clusterMarginEntries(options)[0], primary, clusterMarginEntries(host)[0]);
+		else if (lostOptionFocus || lostPrimaryFocus) focus.restore?.(primary, clusterMarginEntries(options)[0], clusterMarginEntries(host)[0]);
 	}
 	function unfoldOpenThreadOwner(entry) {
 		const previousOwner = expandedOptionsOwner;
@@ -1629,6 +1630,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			const focus = {
 				focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
 				focusedOption: Boolean(host.options && currentLocationIn(host.options)),
+				focusedToggle: focused() === more,
 				restore: holdFocus(host, { key: "data-lf-margin-entry-identity" })
 			};
 			const projection = clusterProjection(entry, {

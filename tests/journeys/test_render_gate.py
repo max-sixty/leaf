@@ -14,6 +14,7 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     BARE_IDENTIFIERS_PAGE,
+    CUT_CONTENT,
     DRAWING_CONTROL_LAYER,
     DRAWING_CONTROL_WIDGETS,
     IDENTIFIERS_IN_CODE_PAGE,
@@ -1367,9 +1368,18 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     screen and print agree, and the copy, which withholds the clip, shows the words the
     live page dropped — so the user is the only party who loses them. A section, a tab
     panel and a disclosure all pass a note through to the margin, so the gate names the
-    box that doesn't, at handover, to the one party who can still move it."""
+    box that doesn't, at handover, to the one party who can still move it.
+
+    A box's own content has no box to lose, so the box answers for it, down as well as
+    across: a log capped by a max-height, a short box of paragraphs and a label that
+    does not wrap each cut off what they hold. A bounded log scrolls, a closed
+    disclosure draws nothing, a line clamp and an ellipsis mark their cut, a tight line
+    box overhangs by less than a line, and words clipped to a pixel for whoever is
+    listening show nothing to cut from, so none of those is named."""
     url = serve(
-        OVER_ITS_CONTAINER.replace("</main>", _added(SIDENOTE_IN_A_WIDGET) + "</main>"),
+        OVER_ITS_CONTAINER.replace(
+            "</main>", _added(SIDENOTE_IN_A_WIDGET) + CUT_CONTENT + "</main>"
+        ),
         layer_registry=DRAWING_CONTROL_LAYER,
         layer_widgets=DRAWING_CONTROL_WIDGETS,
     )
@@ -1436,6 +1446,30 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
         f"the drawing declaration concealed a lost control: {failures}"
     )
     assert "clean-drawing-control" not in controls, failures
+    cut = {
+        f.at: (f.values["down"], f.values["across"])
+        for f in failures
+        if f.code == "clipped-content"
+    }
+    assert cut.get("<pre id=capped-log>", (0, 0))[0] > 500, (
+        f"a log cut off at a max-height went out with the handover: {failures}"
+    )
+    assert cut.get("<div id=short-box>", (0, 0))[0] > 0, failures
+    assert cut.get("<div id=unwrapped>", (0, 0))[1] > 0, (
+        f"words with no box of their own ran out of their box unnamed: {failures}"
+    )
+    quiet = {
+        "<div id=clipping>",
+        "<div id=telling>",
+        "<pre id=bounded-log>",
+        "<pre id=shut-capped>",
+        "<p id=clamped>",
+        "<p id=tight-line>",
+        "<span id=listening>",
+    }
+    assert not quiet & cut.keys(), (
+        f"a box that cuts on purpose, or one a lost box already names: {failures}"
+    )
 
 
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):

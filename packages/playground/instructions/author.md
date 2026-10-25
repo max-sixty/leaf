@@ -184,7 +184,9 @@ playground's properties and attributes from its first paint, including after Res
 The output is the instruction the agent receives. Write a complete task that names the
 object, where the change goes, and the evidence you want back. Use `lf-playground-value`
 only where a selected value makes the task more precise; the action sends every control
-in `detail.values` anyway.
+in `detail.values` anyway. After submission, the button reads **Undo choice** while the
+working values and instruction match the saved choice. Editing either restores the
+submit action; Undo withdraws the choice and keeps the working values.
 
 ## Stateful previews
 

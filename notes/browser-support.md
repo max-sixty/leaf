@@ -10,7 +10,10 @@ that every other feature has been tested across those browsers.
 
 Keep the current user-visible effect, code owner, dated browser evidence,
 disposition, and a regression test or minimal reproduction that can settle a
-recheck. Distinguish an installed test engine from a current stable browser,
+recheck. A recheck settles nothing unless it fails on the engine the gap was
+recorded in, so confirm that before citing a pass as the gap closing, and name
+Playwright engines by build as well as version, since two builds can report one
+version. Distinguish an installed test engine from a current stable browser,
 and observed behavior from published compatibility data. A successful API
 adoption needs no entry. Resolved failures leave this list; reasons the current
 implementation still needs belong beside its code. Rewrite an entry when its

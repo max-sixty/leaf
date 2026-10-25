@@ -121,6 +121,9 @@ customElements.define(
           region.addEventListener("click", pick, { signal });
         const sizes = sizeObserver(this.#relayout);
         sizes.observe(drawing.chart.querySelector(".lf-timeline-ruler"));
+        // Chromium lays the page out for paper before it prints but runs no size
+        // observer there; it does report the print media change, at the paper's width.
+        matchMedia("print").addEventListener("change", this.#relayout, { signal });
         this.#relayout();
         return () => sizes.disconnect();
       });

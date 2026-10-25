@@ -104,9 +104,9 @@
       const labels = lane.events.map((event) => {
         const anchor = x(event.at);
         const size = textWidth(event.label, font) + LABEL_CHROME;
-        const flip = anchor + size > width && anchor - size >= 0;
-        const left = flip ? anchor - size : Math.min(anchor, Math.max(0, width - size));
-        return { id: event.id, left, size, flip };
+        const place = anchor + size <= width ? "start" : anchor - size >= 0 ? "flip" : "end";
+        const left = place === "start" ? anchor : place === "flip" ? anchor - size : width - size;
+        return { id: event.id, left: Math.max(0, left), size, place };
       });
       const rowOf = assignRows(
         labels,
@@ -114,12 +114,12 @@
         (label) => label.left + label.size + LABEL_GAP
       );
       for (const label of labels)
-        placed.set(label.id, { ...label, row: rowOf.get(label.id) });
+        placed.set(label.id, { place: label.place, row: rowOf.get(label.id) });
       return labels.length ? 1 + Math.max(...rowOf.values()) : 1;
     });
-    return { x, span, rows, placed, pxPerMs: span / model.duration };
+    return { span, rows, placed, pxPerMs: span / model.duration };
   }
-  var px = (value) => `${Math.round(value * 64) / 64}px`;
+  var fraction = (value) => Math.round(value * 1e5) / 1e5;
   function drawTimeline(host, tools) {
     const model = readTimeline(host);
     const saved = Number(tools.tabStore.get(`timeline:${host.id}`));
@@ -128,7 +128,9 @@
       model.steps.findIndex((step) => step.time === saved)
     );
     let layout = null;
-    const view = tools.offer("div", "lf-timeline-view");
+    const view = document.createElement("div");
+    view.className = "lf-timeline-view";
+    tools.generatedElement(view, { says: false });
     const controls = tools.offer("div", "lf-timeline-controls");
     controls.setAttribute("role", "group");
     controls.setAttribute("aria-label", host.getAttribute("aria-label") ?? "Timeline");
@@ -141,12 +143,16 @@
     chart.className = "lf-timeline-chart";
     chart.setAttribute("aria-hidden", "true");
     tools.generatedElement(chart, { says: "echo" });
+    chart.style.setProperty("--lf-timeline-lanes", String(model.lanes.length));
+    chart.style.setProperty("--lf-timeline-edge", `${EDGE}px`);
     const list = document.createElement("ol");
     list.className = "lf-timeline-steps";
     tools.generatedElement(list, { says: true });
     const rows = model.steps.map((step, index) => {
       const item = document.createElement("li");
-      const button = tools.offer("button", "lf-timeline-step");
+      const button = tools.generatedElement(tools.offer("button", "lf-timeline-step"), {
+        says: true
+      });
       button.dataset.step = String(index);
       const at = document.createElement("span");
       at.className = "lf-timeline-step-time";
@@ -169,6 +175,7 @@
     host.append(view);
     const paintChart = () => {
       const now = model.steps[current]?.time ?? 0;
+      const along = (ms) => fraction(ms / model.duration);
       const ticks = layout ? axisTicks(0, model.duration, model.duration, layout.pxPerMs) : [];
       render(
         html`${model.lanes.map(
@@ -186,7 +193,7 @@
                 class="lf-timeline-tick"
                 ?data-major=${tick.major}
                 ?data-flip=${tick.major && tick.time * layout.pxPerMs > layout.span - 36}
-                style="left: ${px(layout.x(tick.time))}"
+                style="--lf-timeline-at: ${along(tick.time)}"
                 >${tick.label ?? nothing}</span
               >`
         )}
@@ -202,8 +209,6 @@
             (event) => {
               const label = layout?.placed.get(event.id);
               const { state: state2, done } = stateAt(event, now);
-              const start = layout ? layout.x(event.at) : 0;
-              const end = layout && event.end !== null ? layout.x(event.end) : start;
               return html`<div
                     class="lf-timeline-event"
                     data-event=${event.id}
@@ -212,14 +217,14 @@
                   >
                     <span
                       class="lf-timeline-label"
-                      ?data-flip=${label?.flip}
-                      style="--lf-timeline-row-index: ${label?.row ?? 0}; left: ${px(label?.left ?? 0)}"
+                      data-place=${label?.place ?? "start"}
+                      style="--lf-timeline-row-index: ${label?.row ?? 0}; --lf-timeline-at: ${along(event.at)}"
                       >${event.label}</span
                     >
                     <span
                       class="lf-timeline-mark"
                       data-kind=${event.end === null ? "instant" : "span"}
-                      style="left: ${px(start)}; --lf-timeline-length: ${px(end - start)}; --lf-timeline-done: ${done}"
+                      style="--lf-timeline-at: ${along(event.at)}; --lf-timeline-span: ${along((event.end ?? event.at) - event.at)}; --lf-timeline-done: ${done}"
                     ></span>
                   </div>`;
             }
@@ -229,12 +234,11 @@
         <div class="lf-timeline-playhead">
           <span
             class="lf-timeline-playhead-line"
-            style="left: ${px(layout ? layout.x(now) : 0)}"
+            style="--lf-timeline-at: ${along(now)}"
           ></span>
         </div>`,
         chart
       );
-      chart.style.setProperty("--lf-timeline-lanes", String(model.lanes.length));
     };
     const paintTransport = () => {
       tools.keeps(previous, "aria-disabled", current > 0 ? null : "true");

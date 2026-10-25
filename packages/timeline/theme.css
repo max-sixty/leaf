@@ -51,6 +51,8 @@
   font: var(--lf-timeline-label-weight) 12px/1 var(--sans);
   color: var(--ink);
   user-select: none;
+  /* Marks and done spans are painted backgrounds, which paper otherwise drops. */
+  print-color-adjust: exact;
 }
 .lf-timeline-name {
   grid-column: 1;
@@ -72,8 +74,14 @@
   position: relative;
   color: var(--muted);
 }
+/* Each position is a fraction of the track (--lf-timeline-at, set by the drawing)
+   inside its edge inset, so it holds at any width, a printed page's included. */
 .lf-timeline-tick {
   position: absolute;
+  left: calc(
+    var(--lf-timeline-edge) + var(--lf-timeline-at) *
+      (100% - 2 * var(--lf-timeline-edge))
+  );
   inset-block-end: 0;
   block-size: 4px;
   border-inline-start: 1px solid var(--border-2);
@@ -122,6 +130,10 @@
    the chart's ground, so the line passes behind words rather than through them. */
 .lf-timeline-label {
   position: absolute;
+  left: calc(
+    var(--lf-timeline-edge) + var(--lf-timeline-at) *
+      (100% - 2 * var(--lf-timeline-edge))
+  );
   z-index: 2;
   inset-block-start: calc(
     (var(--lf-timeline-rows) - 1 - var(--lf-timeline-row-index, 0)) *
@@ -142,15 +154,25 @@
   pointer-events: auto;
   cursor: pointer;
 }
-.lf-timeline-label[data-flip] {
+.lf-timeline-label[data-place="flip"] {
+  translate: -100% 0;
   border-inline-start: 0;
   border-inline-end: 2px solid var(--lf-timeline-tone);
+}
+/* Too long to read either way from its mark: against the axis end. */
+.lf-timeline-label[data-place="end"] {
+  left: auto;
+  right: 0;
 }
 .lf-timeline-event[data-state="current"] .lf-timeline-label {
   font-weight: 600;
 }
 .lf-timeline-mark {
   position: absolute;
+  left: calc(
+    var(--lf-timeline-edge) + var(--lf-timeline-at) *
+      (100% - 2 * var(--lf-timeline-edge))
+  );
   z-index: 2;
   pointer-events: auto;
   cursor: pointer;
@@ -158,7 +180,7 @@
 .lf-timeline-mark[data-kind="span"] {
   inset-block-end: 6px;
   block-size: 10px;
-  inline-size: max(4px, var(--lf-timeline-length));
+  inline-size: max(4px, var(--lf-timeline-span) * (100% - 2 * var(--lf-timeline-edge)));
   border-radius: 3px;
   border: 1px solid var(--lf-timeline-tone);
   box-sizing: border-box;
@@ -192,6 +214,10 @@
 }
 .lf-timeline-playhead-line {
   position: absolute;
+  left: calc(
+    var(--lf-timeline-edge) + var(--lf-timeline-at) *
+      (100% - 2 * var(--lf-timeline-edge))
+  );
   inset-block: 0;
   inline-size: 2px;
   margin-inline-start: -1px;

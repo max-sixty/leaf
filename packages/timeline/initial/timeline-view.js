@@ -28,6 +28,8 @@ import {
   textWidth,
 } from "../../../browser/runtime/time-axis.js";
 
+// The track's inset at each end, so a mark at 0 or at the end isn't cut in half. The
+// theme reads it as --lf-timeline-edge.
 const EDGE = 12;
 const LABEL_GAP = 8;
 // A label's padding and the 2px staff on its anchored edge.
@@ -82,7 +84,9 @@ function stateAt(event, now) {
   return { state: done < 1 ? "running" : "past", done };
 }
 
-/** Lay out labels for a track `width` pixels wide, in the font `font`. */
+/** Lay out labels for a track `width` pixels wide, in the font `font`: each label's
+ * row, and whether it reads on from its mark (`start`), back from it (`flip`), or,
+ * fitting neither way, against the axis end (`end`). */
 export function layoutLabels(model, width, font) {
   const span = Math.max(1, width - 2 * EDGE);
   const x = (ms) => EDGE + (ms / model.duration) * span;
@@ -92,9 +96,11 @@ export function layoutLabels(model, width, font) {
       const anchor = x(event.at);
       const size = textWidth(event.label, font) + LABEL_CHROME;
       // A label that would pass the axis end reads back from its mark.
-      const flip = anchor + size > width && anchor - size >= 0;
-      const left = flip ? anchor - size : Math.min(anchor, Math.max(0, width - size));
-      return { id: event.id, left, size, flip };
+      const place =
+        anchor + size <= width ? "start" : anchor - size >= 0 ? "flip" : "end";
+      const left =
+        place === "start" ? anchor : place === "flip" ? anchor - size : width - size;
+      return { id: event.id, left: Math.max(0, left), size, place };
     });
     const rowOf = assignRows(
       labels,
@@ -102,13 +108,16 @@ export function layoutLabels(model, width, font) {
       (label) => label.left + label.size + LABEL_GAP,
     );
     for (const label of labels)
-      placed.set(label.id, { ...label, row: rowOf.get(label.id) });
+      placed.set(label.id, { place: label.place, row: rowOf.get(label.id) });
     return labels.length ? 1 + Math.max(...rowOf.values()) : 1;
   });
-  return { x, span, rows, placed, pxPerMs: span / model.duration };
+  return { span, rows, placed, pxPerMs: span / model.duration };
 }
 
-const px = (value) => `${Math.round(value * 64) / 64}px`;
+// Positions along the track are fractions of its width, so the drawing stays true at a
+// width it was not laid out for, such as a printed page's; only label rows and tick
+// density depend on the measured width.
+const fraction = (value) => Math.round(value * 1e5) / 1e5;
 
 /**
  * Draw the timeline into `host` with the initial renderer's `tools`. Returns the
@@ -124,7 +133,11 @@ export function drawTimeline(host, tools) {
   );
   let layout = null;
 
-  const view = tools.offer("div", "lf-timeline-view");
+  // The view holds evidence as well as controls, so it isn't an offer: paper drops
+  // offers, and would drop the chart and the step list with them.
+  const view = document.createElement("div");
+  view.className = "lf-timeline-view";
+  tools.generatedElement(view, { says: false });
   const controls = tools.offer("div", "lf-timeline-controls");
   controls.setAttribute("role", "group");
   controls.setAttribute("aria-label", host.getAttribute("aria-label") ?? "Timeline");
@@ -139,13 +152,18 @@ export function drawTimeline(host, tools) {
   chart.className = "lf-timeline-chart";
   chart.setAttribute("aria-hidden", "true");
   tools.generatedElement(chart, { says: "echo" });
+  chart.style.setProperty("--lf-timeline-lanes", String(model.lanes.length));
+  chart.style.setProperty("--lf-timeline-edge", `${EDGE}px`);
 
   const list = document.createElement("ol");
   list.className = "lf-timeline-steps";
   tools.generatedElement(list, { says: true });
   const rows = model.steps.map((step, index) => {
     const item = document.createElement("li");
-    const button = tools.offer("button", "lf-timeline-step");
+    // A row is the step's press and also its words, so paper keeps it as text.
+    const button = tools.generatedElement(tools.offer("button", "lf-timeline-step"), {
+      says: true,
+    });
     button.dataset.step = String(index);
     const at = document.createElement("span");
     at.className = "lf-timeline-step-time";
@@ -170,6 +188,7 @@ export function drawTimeline(host, tools) {
 
   const paintChart = () => {
     const now = model.steps[current]?.time ?? 0;
+    const along = (ms) => fraction(ms / model.duration);
     const ticks = layout
       ? axisTicks(0, model.duration, model.duration, layout.pxPerMs)
       : [];
@@ -191,7 +210,7 @@ export function drawTimeline(host, tools) {
                 class="lf-timeline-tick"
                 ?data-major=${tick.major}
                 ?data-flip=${tick.major && tick.time * layout.pxPerMs > layout.span - 36}
-                style="left: ${px(layout.x(tick.time))}"
+                style="--lf-timeline-at: ${along(tick.time)}"
                 >${tick.label ?? nothing}</span
               >`,
           )}
@@ -208,9 +227,6 @@ export function drawTimeline(host, tools) {
                 (event) => {
                   const label = layout?.placed.get(event.id);
                   const { state, done } = stateAt(event, now);
-                  const start = layout ? layout.x(event.at) : 0;
-                  const end =
-                    layout && event.end !== null ? layout.x(event.end) : start;
                   return html`<div
                     class="lf-timeline-event"
                     data-event=${event.id}
@@ -219,14 +235,14 @@ export function drawTimeline(host, tools) {
                   >
                     <span
                       class="lf-timeline-label"
-                      ?data-flip=${label?.flip}
-                      style="--lf-timeline-row-index: ${label?.row ?? 0}; left: ${px(label?.left ?? 0)}"
+                      data-place=${label?.place ?? "start"}
+                      style="--lf-timeline-row-index: ${label?.row ?? 0}; --lf-timeline-at: ${along(event.at)}"
                       >${event.label}</span
                     >
                     <span
                       class="lf-timeline-mark"
                       data-kind=${event.end === null ? "instant" : "span"}
-                      style="left: ${px(start)}; --lf-timeline-length: ${px(end - start)}; --lf-timeline-done: ${done}"
+                      style="--lf-timeline-at: ${along(event.at)}; --lf-timeline-span: ${along((event.end ?? event.at) - event.at)}; --lf-timeline-done: ${done}"
                     ></span>
                   </div>`;
                 },
@@ -236,12 +252,11 @@ export function drawTimeline(host, tools) {
         <div class="lf-timeline-playhead">
           <span
             class="lf-timeline-playhead-line"
-            style="left: ${px(layout ? layout.x(now) : 0)}"
+            style="--lf-timeline-at: ${along(now)}"
           ></span>
         </div>`,
       chart,
     );
-    chart.style.setProperty("--lf-timeline-lanes", String(model.lanes.length));
   };
 
   const paintTransport = () => {

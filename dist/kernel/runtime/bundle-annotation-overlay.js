@@ -186,9 +186,11 @@ var CardAnchor = class {
 			}
 		}
 		const attachment = seat.side === "top" ? "foot" : "top";
-		const ordinary = this.#sent || (writing ? seat.floored && seat.side !== "top" && seat.side !== "bottom" : seat.side === "top") ? "foot" : "top";
+		const ordinary = this.#sent || !writing && seat.side === "top" ? "foot" : "top";
+		const beside = seat.side === "left" || seat.side === "right";
 		return {
 			edge: seat.adopted ? attachment : press?.edge ?? ordinary,
+			rises: !seat.adopted && !press?.edge && writing && !this.#sent && beside,
 			commit: () => {
 				if (this.#press === captured) this.#press = press;
 			}
@@ -506,7 +508,8 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 						placeThreadPreview();
 					}
 				},
-				edge: anchored.edge
+				edge: anchored.edge,
+				rises: anchored.rises
 			});
 			watch(ui);
 			return placementDriver.position(ui.computePosition, commentReference(place, reference), {
@@ -2459,7 +2462,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		const scaleY = bar.height / parseFloat(style.height);
 		const left = parseFloat(style.paddingLeft);
 		const top = parseFloat(style.paddingTop);
-		const width = field.width / scaleX + left + parseFloat(style.paddingRight);
+		const width = Math.max(field.width / scaleX + left + parseFloat(style.paddingRight), parseFloat(style.minWidth) || 0);
 		const height = field.height / scaleY + top + parseFloat(style.paddingBottom);
 		return {
 			box: new DOMRect(field.left - left * scaleX, field.top - top * scaleY, width * scaleX, height * scaleY).toJSON(),

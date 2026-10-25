@@ -3604,6 +3604,10 @@ function holdToRead() {
 		hold = null;
 		if (!holder) return;
 		released = holder;
+		holder.focus({
+			preventScroll: true,
+			focusVisible: false
+		});
 		holder.dispatchEvent(new MouseEvent("click", {
 			bubbles: true,
 			cancelable: true,

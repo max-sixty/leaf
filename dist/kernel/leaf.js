@@ -1213,7 +1213,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 	}
 	function standDown() {
 		if (composerOpen) composer.hideComposer();
-		if (fabAnchor.value) letGoOfFab();
+		if (fabAnchor.value) closeLayer(() => showFab(null), fabBar.contains(fabFocused()) && letGo);
 		setReact(false);
 	}
 	const fabAnchorAt = () => fabAnchor.value;
@@ -1580,6 +1580,11 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	let releaseTimer = null;
 	let mounted = false;
 	const drawModeActive = () => drawModeOn;
+	function holdCompatibilityClick() {
+		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
+		releaseTimer = null;
+		claimThroughClick = true;
+	}
 	function releaseCompatibilityClickSoon() {
 		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
 		releaseTimer = setTimeout(() => {
@@ -1718,7 +1723,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
 		const origin = event.composedPath()[0];
 		if (leafSurface(origin)) return;
-		claimThroughClick = true;
+		holdCompatibilityClick();
 		claimedPointer = event.pointerId;
 		claim(event);
 		const target = sessionTarget() ?? targetAtPointer();

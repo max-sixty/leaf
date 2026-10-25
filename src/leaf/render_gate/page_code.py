@@ -36,6 +36,8 @@ reads layout, color schemes, print, or replay, and code that throws only after a
 gesture or a timer is not reached.
 """
 
+import turbohtml
+
 from leaf.findings import Finding
 from leaf.render_checks import (
     RENDER_VIEWPORT,
@@ -46,7 +48,7 @@ from leaf.render_checks import (
 )
 from leaf.revision_artifact import RevisionArtifact
 from leaf.schema import MEDIA_DIR
-from leaf.structure import SourceDocument, script_kind
+from leaf.structure import SourceDocument, element_attrs, script_kind
 
 from .scheme import answer_reports, served
 
@@ -90,12 +92,22 @@ def message_page(markup: str) -> SourceDocument:
     A message's widgets stand in its thread rather than the page, where a chart in a
     shut panel has no room to draw, so the run gives them the column the page's own
     widgets have. The page's document stays out of it, so an error here is the
-    message's. A thread inserts markup inertly, so the run is for the widgets the
-    markup places (`places_judged_widget`) and never for a script in it."""
-    return SourceDocument(
+    message's. A thread inserts markup through `template.innerHTML`, which never runs
+    a script in it, so the page leaves out every script a browser would run: the run is
+    for the widgets the markup places (`places_judged_widget`), and a script there would
+    refuse a message for code the user never runs, or change what the run reads."""
+    source = (
         '<!doctype html><html lang="en"><head><title>Message</title></head>'
         f'<body><main class="layout-column">{markup}</main></body></html>'
     )
+    tree = turbohtml.parse(source, scripting=True, source_locations=True)
+    for script in reversed(tree.find_all("script")):
+        location = script.source_location
+        if location is None or script_kind(element_attrs(script)) == "data":
+            continue
+        end = (location.end_tag or location.start_tag).end_offset
+        source = source[: location.start_tag.start_offset] + source[end:]
+    return SourceDocument(source)
 
 
 def run_page_code(browser, url: str) -> list[Finding]:

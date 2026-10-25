@@ -612,6 +612,9 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     assert not errors('kind="toggle" value="false"', name="5xx-pages")
     # A control is a Leaf element a user points at, so it takes a stable id.
     assert not errors('kind="toggle" value="false" id="setting-control"')
+    # `class` and `style` are the page's styling hooks on a widget as on any element.
+    assert not errors('kind="toggle" value="false" class="route"')
+    assert not errors('kind="toggle" value="false" style="grid-column: 2"')
     assert refused('kind="range" value="12"') == [("attribute-schema", "required", [])]
     assert refused('kind="range" value="twelve" max="24"') == [
         ("attribute-schema", "pattern", ["value"])

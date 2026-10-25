@@ -24,19 +24,18 @@
         <h2>Try it</h2>
         <p id="try-how">
           The sample is a page of its own, so nothing you do in it reaches this page,
-          and Reset starts it again. Pick <strong>Keep Redis</strong>, and the next
-          card comes up as soon as the answer is recorded. Press the bar's right
-          arrow, <strong>Later</strong>, on the upgrade note, pick two beta platforms
-          and press Done, then Later past the draft and the retry question, and
-          choose to post the release notes. The bar then counts the cards still to answer,
-          and its button, <strong>Go through the 3 left</strong>, starts again from the
-          first of them. The left arrow, <strong>Back</strong>, returns to a card you
-          answered, where its own controls change the answer; Leaf's Undo
-          (<code>z</code>) also takes you back to the card before taking the answer
-          back. From the keyboard, <code>m</code> goes to the open card's
-          question and its number keys answer it; <code>m</code> again leaves it for
-          later. On a phone, a swipe left is Later and a swipe right moves on from an
-          answered card.
+          and Reset starts it again. Pick <strong>Keep Redis</strong>, and the next card
+          comes up as soon as the answer is recorded. Press the bar's right arrow,
+          <strong>Later</strong>, on the upgrade note, pick two beta platforms and press
+          Done, then Later past the draft and the retry question, and choose to post the
+          release notes. The bar then counts the cards still to answer, and its button,
+          <strong>Go through the 3 left</strong>, starts again from the first of them.
+          The left arrow, <strong>Back</strong>, returns to a card you answered, where
+          its own controls change the answer; Leaf's Undo (<code>z</code>) also takes
+          you back to the card before taking the answer back. From the keyboard,
+          <code>m</code> goes to the open card's question and its number keys answer it;
+          <code>m</code> again leaves it for later. On a phone, a swipe left is Later
+          and a swipe right moves on from an answered card.
         </p>
         <lf-sample id="deck-sample" label="a release catch up">
           <template id="deck-sample-page" data-sample>
@@ -45,19 +44,35 @@
               <lf-ask id="s-store-ask">
                 <h3>Which session store ships in 2.4?</h3>
                 <p>
-                  Postgres removed the Redis hop in load tests (p99 41 ms to 29 ms) but needs the
-                  migration in the runbook. Redis is what production runs today.
+                  Postgres removed the Redis hop in load tests (p99 41 ms to 29 ms) but
+                  needs the migration in the runbook. Redis is what production runs
+                  today.
                 </p>
                 <lf-options id="s-store-choice" choose>
-                  <lf-option id="s-store-redis"><strong>Keep Redis</strong> No migration this release.</lf-option>
-                  <lf-option id="s-store-pg"><strong>Move sessions to Postgres</strong> Run the migration Thursday.</lf-option>
+                  <lf-option id="s-store-redis"
+                    ><strong>Keep Redis</strong> No migration this release.</lf-option
+                  >
+                  <lf-option id="s-store-pg"
+                    ><strong>Move sessions to Postgres</strong> Run the migration
+                    Thursday.</lf-option
+                  >
                 </lf-options>
               </lf-ask>
               <section id="s-notes-card">
                 <h3>Tighten the upgrade note?</h3>
                 <lf-suggestion id="s-notes-suggestion">
-                  <lf-old><p id="s-notes-old">Users upgrading from 2.2 or earlier should be aware that they may need to clear their cache in some cases.</p></lf-old>
-                  <lf-new><p>Upgrading from 2.2 or earlier? Clear the cache once after installing.</p></lf-new>
+                  <lf-old
+                    ><p id="s-notes-old">
+                      Users upgrading from 2.2 or earlier should be aware that they may
+                      need to clear their cache in some cases.
+                    </p></lf-old
+                  >
+                  <lf-new
+                    ><p>
+                      Upgrading from 2.2 or earlier? Clear the cache once after
+                      installing.
+                    </p></lf-new
+                  >
                 </lf-suggestion>
               </section>
               <lf-ask id="s-beta-ask">
@@ -72,19 +87,25 @@
               <lf-ask id="s-support-ask">
                 <h3>Reply to the support thread about slow logins</h3>
                 <p>Edit the reply; it goes out under your name.</p>
-                <lf-draft id="s-support-draft" needed><pre>
-Thanks for the report. 2.4 moves session lookups off the slow path; logins should feel faster from Friday.</pre></lf-draft>
+                <lf-draft id="s-support-draft" needed>
+                  <pre>
+Thanks for the report. 2.4 moves session lookups off the slow path; logins should feel faster from Friday.</pre>
+                </lf-draft>
               </lf-ask>
               <lf-ask id="s-retry-ask">
-                What retry ceiling should the client use? Today it retries forever; the load test
-                stayed healthy up to five.
+                What retry ceiling should the client use? Today it retries forever; the
+                load test stayed healthy up to five.
               </lf-ask>
               <lf-ask id="s-publish-ask">
                 <h3>Post the release notes to #eng on Friday?</h3>
                 <p>Posts the notes, with the upgrade note as you leave it.</p>
                 <lf-options id="s-publish-choice" choose>
-                  <lf-option id="s-publish-hold"><strong>Keep them as a draft</strong></lf-option>
-                  <lf-option id="s-publish-post"><strong>Post them on Friday</strong></lf-option>
+                  <lf-option id="s-publish-hold"
+                    ><strong>Keep them as a draft</strong></lf-option
+                  >
+                  <lf-option id="s-publish-post"
+                    ><strong>Post them on Friday</strong></lf-option
+                  >
                 </lf-options>
               </lf-ask>
             </lf-deck>
@@ -109,11 +130,11 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
           </li>
           <li id="change-speed">
             <strong>An answer moves on in about 50 ms.</strong> The next card comes up
-            as soon as the server's reading of the answer arrives: 36 to 56 ms from
-            the click across six timed answers in Chrome and Firefox, with the old
-            card flying off over it for 200 ms. The last prototype waited a fixed 700 ms after that reading and
-            then flew the card for 240 ms, nearly a second per answer, and ran three
-            whole Leaf windows on one page.
+            as soon as the server's reading of the answer arrives: 36 to 56 ms from the
+            click across six timed answers in Chrome and Firefox, with the old card
+            flying off over it for 200 ms. The last prototype waited a fixed 700 ms
+            after that reading and then flew the card for 240 ms, nearly a second per
+            answer, and ran three whole Leaf windows on one page.
           </li>
         </ul>
       </section>
@@ -125,28 +146,28 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
           runtime support (<code>x-views</code>). The runtime picks the card it opens on
           and the deck records each card it shows, so a reload comes back to the same
           card; no event records it. Inactive cards are
-          <code>hidden="until-found"</code>, so find-in-page, a link to something
-          inside a card, and the <code>m</code> walk each open the card holding what
-          they reach.
+          <code>hidden="until-found"</code>, so find-in-page, a link to something inside
+          a card, and the <code>m</code> walk each open the card holding what they
+          reach.
         </p>
         <p id="mechanism-waiting">
           A card waits while it holds an obligation open on the user, read from the
           server's inventory with <code>obligationsIn</code>, the rule
-          <code>lf-tally</code> counts by, and the bar counts in the tally's words.
-          When the reading says the open card no longer waits after the user answered
-          it on the card, the next waiting card comes up. A wait that ends any other
-          way, such as a comment that leaves the card with the agent, leaves the card
-          where it is with Next, since news shouldn't move what the user is reading.
-          Later records nothing, so a card left for later stays on On me. The deck adds
-          no event kind and no protocol bump, and no other widget knows it exists.
+          <code>lf-tally</code> counts by, and the bar counts in the tally's words. When
+          the reading says the open card no longer waits after the user answered it on
+          the card, the next waiting card comes up. A wait that ends any other way, such
+          as a comment that leaves the card with the agent, leaves the card where it is
+          with Next, since news shouldn't move what the user is reading. Later records
+          nothing, so a card left for later stays on On me. The deck adds no event kind
+          and no protocol bump, and no other widget knows it exists.
         </p>
         <p id="mechanism-layout">
           The bar's controls are symbols named by their titles, as a draft's actions
           are, and stand above the card, so cards of different heights never move them
           under the pointer; a card that comes up takes no press for a quarter second.
-          The deck has no Undo of its own, since Leaf's Undo already goes to the
-          answer it takes back, which opens its card. Only a touch drag moves a card; a mouse drag across a card
-          still selects its words, which is how a comment starts.
+          The deck has no Undo of its own, since Leaf's Undo already goes to the answer
+          it takes back, which opens its card. Only a touch drag moves a card; a mouse
+          drag across a card still selects its words, which is how a comment starts.
         </p>
       </section>
 
@@ -155,14 +176,20 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
           <h2>Should every page have the deck?</h2>
           <p id="package-context">
             It ships as an optional <code>deck</code> package, so a page has it only
-            when the agent selects the package, and only agents who select it learn
-            it. In the default package every page would have it, and every agent
-            writing a page would read one more entry; its code loads only on pages
-            that use it.
+            when the agent selects the package, and only agents who select it learn it.
+            In the default package every page would have it, and every agent writing a
+            page would read one more entry; its code loads only on pages that use it.
           </p>
           <lf-options id="package-choice" choose>
-            <lf-option id="package-default"><small class="tag ok">recommended</small><strong>Move it into the default package</strong> Agents can reach for it on any page where the user has several things to get through.</lf-option>
-            <lf-option id="package-optional"><strong>Keep it an optional package</strong> Agents use it only when a page selects <code>deck</code>.</lf-option>
+            <lf-option id="package-default"
+              ><small class="tag ok">recommended</small
+              ><strong>Move it into the default package</strong> Agents can reach for it
+              on any page where the user has several things to get through.</lf-option
+            >
+            <lf-option id="package-optional"
+              ><strong>Keep it an optional package</strong> Agents use it only when a
+              page selects <code>deck</code>.</lf-option
+            >
           </lf-options>
         </lf-ask>
       </section>

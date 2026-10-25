@@ -144,7 +144,8 @@ customElements.define(
       if (this.unplacedReported) return;
       for (const node of this.drawing.querySelectorAll("*"))
         for (const { name, value } of node.attributes)
-          if (/\bNaN\b/.test(value)) {
+          // Geometry and paint only: a label the author wrote may say "NaN".
+          if (!/^(aria-|data-)/.test(name) && /\bNaN\b/.test(value)) {
             this.unplacedReported = true;
             const part = node.closest("[data-lf-part]")?.dataset.lfPart;
             reportFailure(

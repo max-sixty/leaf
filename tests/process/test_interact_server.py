@@ -3255,11 +3255,10 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     monkeypatch.setattr(presence_model, "other_leaves", observe)
     presence_model.neighbor_reading(page_dir)
     for n in range(20):
-        declare(page_dir, "waiting", str(n))
+        declare(page_dir, "waiting")
         own.refresh()
         record = files_model.read_json(own.path)
-        # Give every pass a concrete changed canonical producer publication,
-        # even when waiting's detail is absent from the compact activity fold.
+        # Give every pass a concrete changed canonical producer publication.
         cleanup_model.write_json(
             own.path, {**record, "row": {**record["row"], "title": f"Own {n}"}}
         )

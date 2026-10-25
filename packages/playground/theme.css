@@ -106,11 +106,10 @@
 
 /* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
  * the playground, its split and its rail take that height. In the rail, the controls give
- * up height and scroll while the instruction and its actions stay whole under them. With
- * all controls inline, the stage is what the reader came to set, so it keeps at least
- * half the window and the instruction keeps its whole height below it: where both don't
- * fit, the workspace scrolls to the instruction and its actions rather than squeezing
- * the stage. That reverses an earlier 12rem stage floor, which kept the actions in view
+ * up height and scroll while the bar of actions stays whole under them. With all
+ * controls inline, the stage is what the reader came to set, so it keeps at least half
+ * the window and the bar keeps its whole height below it: where both don't fit, the
+ * workspace scrolls to the bar rather than squeezing the stage. That reverses an earlier 12rem stage floor, which kept the actions in view
  * down to a 500px window but left a 192px stage at 900x700 (the user's decision,
  * 2026-10-22). */
 @media screen {
@@ -128,8 +127,8 @@
       --lf-full-height: inherit;
     }
 
-    /* The instruction takes its content's height (`max-content`), since a box that
-     * scrolled inside the scrolling workspace would hide its end behind two scrolls. */
+    /* The bar takes its content's height (`max-content`), since a box that scrolled
+     * inside the scrolling workspace would hide its end behind two scrolls. */
     .lf-playground-split:not(
       :has(
         > .lf-playground-controls-region,
@@ -444,20 +443,8 @@
   padding: 12px 18px 16px;
   overflow-y: auto;
 }
-/* The copy is a code block's (integration.css), standing in the head as a quiet action,
- * as a mark bar's copy does (`.lf-mark-bar`), with a finger's floor. */
-.lf-playground-instruction-head > .lf-code-copy {
-  position: static;
-  width: auto;
-  height: auto;
-  padding: 0;
-  border: 0;
-  background: none;
-  box-shadow: none;
-  opacity: 1;
-  pointer-events: auto;
-}
-.lf-playground-instruction-head > .lf-code-copy::part(button) {
+/* The copy is a quiet action with a finger's floor. */
+.lf-playground-copy::part(button) {
   box-sizing: border-box;
   min-inline-size: var(--aim-floor);
   min-block-size: var(--aim-floor);

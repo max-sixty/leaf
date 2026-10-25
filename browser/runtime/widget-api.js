@@ -281,3 +281,6 @@ export { PRESSABLE } from "./widget-elements.js";
 export { agentName } from "./semantic-state.js";
 // The time axis the Playwright timeline and lf-timeline both draw on.
 export { assignRows, axisTicks, textWidth } from "./time-axis.js";
+// Leaf's one copy control, for a copy that stands in a widget's own toolbar rather
+// than over a block of source text (`copyBlock`).
+export { copyControl } from "./copy-control.js";

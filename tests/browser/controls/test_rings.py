@@ -329,6 +329,76 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     ), "the field retained its public focus part after focus left"
 
 
+def _button_pairs(serve):
+    """A page holding two quiet actions and two ordinary buttons, side by side."""
+    return serve(
+        leaf_page(
+            "Button pairs",
+            '<h1 id="pairs-heading">Button pairs</h1>\n<lf-button-pairs id="pairs"></lf-button-pairs>',
+        ),
+        layer_registry={
+            "lf-button-pairs": element_declaration("lf-button-pairs", upgrade=True)
+        },
+        layer_widgets={
+            "lf-button-pairs.js": """
+import {offer, once} from '/runtime/widget-api.js';
+customElements.define('lf-button-pairs', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    for (const [id, cls] of [
+      ['quiet-back', 'lf-btn lf-icon-action lf-quiet-action'],
+      ['quiet-next', 'lf-btn lf-icon-action lf-quiet-action'],
+      ['plain-back', 'lf-btn'],
+      ['plain-next', 'lf-btn'],
+    ]) {
+      const button = offer('button', cls, id);
+      button.id = id;
+      button.type = 'button';
+      this.append(button);
+    }
+  }
+});
+"""
+        },
+    )
+
+
+FACE = "el => getComputedStyle(el).backgroundColor"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_pressed_quiet_action_looks_like_its_neighbour(request, serve, engine):
+    """A press leaves focus on a quiet action, as on any button, and leaves its face
+    alone: once the pointer goes, it matches the action beside it until a key moves
+    focus there, which wears the chip."""
+    page = open_page(request.getfixturevalue(engine), _button_pairs(serve))
+    back, forward = page.locator("#quiet-back"), page.locator("#quiet-next")
+    forward.click()
+    page.mouse.move(0, 0)
+    expect(forward).to_be_focused()
+    rendered(page)
+    assert forward.evaluate(FACE) == back.evaluate(FACE)
+    page.keyboard.press("Shift+Tab")
+    expect(back).to_be_focused()
+    rendered(page)
+    assert back.evaluate(FACE) != forward.evaluate(FACE)
+
+
+def test_a_tapped_button_looks_like_its_neighbour(browser, serve):
+    """A finger leaves the button it tapped matching :hover, so a tapped button of
+    either face keeps the face of the untapped one beside it."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, _button_pairs(serve), context=context)
+    for tapped, beside in (("quiet-next", "quiet-back"), ("plain-next", "plain-back")):
+        page.locator(f"#{tapped}").tap()
+        rendered(page)
+        assert page.locator(f"#{tapped}").evaluate(FACE) == page.locator(
+            f"#{beside}"
+        ).evaluate(FACE), tapped
+
+
 def test_choice_rings_fit_clipped_edges_and_follow_native_visibility(browser, serve):
     """A whole-label cue survives clipping without turning every click into a cue."""
     page = open_page(

@@ -583,13 +583,20 @@ svg[data-lf-icon] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is(.lf-btn, .button):where(:not(:disabled, [aria-disabled="true"]):hover) {
-  background: var(--chip);
+/* A finger leaves the last control it tapped matching :hover until the next tap
+   elsewhere, so a button's hover face waits for a pointer that hovers; under a finger
+   the press shows its result instead. */
+@media (hover: hover) {
+  :is(.lf-btn, .button):where(:not(:disabled, [aria-disabled="true"]):hover) {
+    background: var(--chip);
+  }
 }
 /* Secondary actions wear one quiet face, independent of their toolbar's geometry.
  * The vendor part and native button share this rule; the host keeps no second face.
  * lf-ui identifies offered vendor controls, and gives this modifier precedence over
- * the ordinary copy-button face in integration.css. */
+ * the ordinary copy-button face in integration.css. The chip follows a hovering pointer
+ * and visible focus, as an ordinary button's does: a press leaves focus on the control,
+ * and a chip that stayed would set it apart from its unpressed neighbours. */
 :is(button, .lf-btn, .button).lf-quiet-action,
 .lf-quiet-action.lf-ui::part(button) {
   border: 1px solid transparent;
@@ -599,12 +606,20 @@ svg[data-lf-icon] {
   box-shadow: none;
 }
 :is(button, .lf-btn, .button).lf-quiet-action:where(
-    :not(:disabled, [aria-disabled="true"]):is(:hover, [data-lf-focus])
+    :not(:disabled, [aria-disabled="true"])[data-lf-focus-visible]
   ),
-.lf-quiet-action.lf-ui:not(:disabled, [aria-disabled="true"])::part(button):hover,
-.lf-quiet-action.lf-ui::part(lf-focus) {
+.lf-quiet-action.lf-ui::part(lf-focus-visible) {
   background: var(--chip);
   color: var(--ink);
+}
+@media (hover: hover) {
+  :is(button, .lf-btn, .button).lf-quiet-action:where(
+      :not(:disabled, [aria-disabled="true"]):hover
+    ),
+  .lf-quiet-action.lf-ui:not(:disabled, [aria-disabled="true"])::part(button):hover {
+    background: var(--chip);
+    color: var(--ink);
+  }
 }
 /* The committing action carries the accent as ink on the ordinary card, under a
    softened accent hairline, with the tint rising on hover. The selected face below is its
@@ -614,8 +629,10 @@ svg[data-lf-icon] {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
 }
-:is(.lf-btn, .button).primary:not(:disabled, [aria-disabled="true"]):hover {
-  background: var(--accent-tint);
+@media (hover: hover) {
+  :is(.lf-btn, .button).primary:not(:disabled, [aria-disabled="true"]):hover {
+    background: var(--accent-tint);
+  }
 }
 /* Two selectors, two mechanisms, one look: the platform's own on a real button, and the
    attribute wireInput sets, which is the only one a span press can wear. */

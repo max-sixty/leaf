@@ -3107,14 +3107,16 @@ def test_a_sidebar_pages_items_trim_their_words_at_both_edges(browser, serve):
 
 
 def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve):
-    """Beside the body, the one block a track holds stays in view at the window's head as the
-    body scrolls, scrolls what it holds so its end is reachable, and is the reading
-    region its words scroll in; it never reaches over a footer. That holds whatever
-    shares the page gives the track. Stacked, whether the window is narrow, the body's
-    content needs the page's width or the track's needs more than its share, it scrolls
-    with the page rather than standing over the body, however the window reached that
-    width; so does a track beside a second track rather than the body, and a track of
-    several blocks."""
+    """Beside the body, what a track holds, one block or several, stays in view at the
+    window's head as the body scrolls, scrolls within the window so its end is
+    reachable, and is the reading region its words scroll in; it never reaches over a
+    footer. That holds whatever shares the page gives the track. Stacked, whether the
+    window is narrow, the body's content needs the page's width or the track's needs
+    more than its share, it scrolls with the page rather than standing over the body,
+    however the window reached that width; so does a track beside a second track rather
+    than the body. The box that sticks is the one the runtime gathers the track's blocks
+    into: the track itself, a flex item, is bounded by the whole page, and stuck at the
+    page's end it stood 40px over a one-line footer."""
     body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
     block = (
         "<div id='block'><p id='follow-up'>Follow-up to check.</p>"
@@ -3124,12 +3126,16 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
     wide = "<div style='min-width: 1300px'>A block 1300px wide.</div>"
     footer = "<footer id='foot'><p>Reviewed by the platform team.</p></footer>"
     read = """async () => {
+      const held = document.getElementById('track').firstElementChild;
       const box = (id) => document.getElementById(id)?.getBoundingClientRect();
       const { scrollerFor } = await window.__lfWidgetApi();
-      return { top: box('block').top, bottom: box('block').bottom,
+      const scroller = scrollerFor(document.getElementById('follow-up'));
+      return { top: held.getBoundingClientRect().top,
+               bottom: held.getBoundingClientRect().bottom,
                foot: box('foot')?.top ?? Infinity, innerHeight,
-               position: getComputedStyle(document.getElementById('block')).position,
-               scroller: scrollerFor(document.getElementById('follow-up'))?.id ?? null };
+               blocks: [...held.children].map((child) => child.id),
+               position: getComputedStyle(held).position,
+               scroller: scroller === held ? 'held' : (scroller?.id ?? null) };
     }"""
     in_track = block.replace(
         "<p ", "<div style='min-width: 650px'>A block 650px wide.</div><p ", 1
@@ -3145,7 +3151,8 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
         ("", in_track, "", "", (900,), False),
         ("", in_track, "", "", (1440, 900), False),
         ("", block + "</aside><aside><p>Owners.</p>", "", "", (900,), False),
-        ("", block + "<p>Owners.</p>", "", "", (900,), False),
+        ("", block + "<p id='owners'>Owners.</p>", "", footer, (900,), True),
+        ("", block + "<p id='owners'>Owners.</p>", "", "", (390,), False),
         (
             "#body { flex: 0 0 400px } #track { flex: 0 0 420px; margin-inline-start: auto }",
             block,
@@ -3216,54 +3223,78 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
             assert at["position"] == "sticky", case
             assert 0 <= at["top"] <= 40, case
             assert at["bottom"] <= at["innerHeight"], case
-            assert at["scroller"] == "block", case
+            assert at["scroller"] == "held", case
+            assert at["blocks"][0] == "block", case
             page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
             at = page.evaluate(read)
             assert at["bottom"] <= at["foot"], case
         else:
             assert at["position"] != "sticky", case
             assert at["top"] < 0, case
-            assert at["scroller"] != "block", case
+            assert at["scroller"] != "held", case
 
 
-def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_block(browser, serve):
-    """A track's block is a reading region named by its own id, or by its track's where it
-    has none, so a neighbour never renames it. A revision that replaces the track keeps
-    the reader where they were in the block: the replacement stands beside the body, so
-    the block scrolls, before the reader's place returns."""
+def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_body(browser, serve):
+    """The box a track gathers its blocks into is a reading region named by the track's
+    id, so a neighbour never renames it. A revision that rewrites what the track holds,
+    adding a block before the reader's and renaming theirs, writes it inside that box,
+    which stays the one box the track holds and keeps the reader where they were. A
+    revision that replaces the track gathers the replacement's blocks into a box of its
+    own, standing beside the body, before the reader's place returns."""
     paragraphs = "".join(f"<p id='f{n}'>Follow-up {n} to check.</p>" for n in range(60))
     body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
     regions = """async () => (await window.__lfCheckApi())
       .readingRegions().map((region) => region.id)"""
+    held = """(id) => {
+      const track = document.getElementById(id);
+      const held = track.querySelector(':scope > [data-lf-track-body]');
+      return { only: track.children.length === 1 && track.firstElementChild === held,
+               kept: held?.dataset.probe === 'kept',
+               blocks: [...(held?.children ?? [])].map((block) => block.id) };
+    }"""
 
-    def source(track, block=""):
+    def source(track, blocks):
         return leaf_page(
             "a sidebar page",
-            f"<header><h1>Review</h1></header><aside id='{track}'><div{block}>"
-            f"{paragraphs}</div></aside>{body}",
+            f"<header><h1>Review</h1></header><aside id='{track}'>{blocks}</aside>{body}",
             layout="sidebar",
         )
 
-    page = open_page(browser, serve(source("track")))
+    page = open_page(
+        browser, live_url(serve(source("track", f"<div id='block'>{paragraphs}</div>")))
+    )
     resized(page, 900, 600)
     expect(page.locator("#track")).to_have_attribute("data-lf-beside", "")
     assert "lf-region:layout#track" in page.evaluate(regions)
-
-    page = open_page(browser, live_url(serve(source("track", " id='block'"))))
-    resized(page, 900, 600)
-    expect(page.locator("#track")).to_have_attribute("data-lf-beside", "")
     page.evaluate("scrollTo(0, 1500)")
-    page.locator("#block").evaluate("block => { block.scrollTop = 1000; }")
+    page.locator("#track > [data-lf-track-body]").evaluate(
+        "held => { held.dataset.probe = 'kept'; held.scrollTop = 1000; }"
+    )
     scroll_settled(page)
     read = "() => document.getElementById('f30').getBoundingClientRect().top"
     before = page.evaluate(read)
 
-    stamp_page(serve.page_dir, source("new-track", " id='block'"), "rename the track")
+    rewritten = f"<p id='lead'>Approve.</p><div id='checks'>{paragraphs}</div>"
+    stamp_page(serve.page_dir, source("track", rewritten), "add a verdict")
     wait_for_revision(page, 2)
-    expect(page.locator("#new-track")).to_have_attribute("data-lf-beside", "")
     scroll_settled(page)
-    assert "lf-region:layout#block" in page.evaluate(regions)
+    assert page.evaluate(held, "track") == {
+        "only": True,
+        "kept": True,
+        "blocks": ["lead", "checks"],
+    }
+    assert "lf-region:layout#track" in page.evaluate(regions)
     assert page.evaluate(read) == pytest.approx(before, abs=2)
+
+    stamp_page(serve.page_dir, source("new-track", rewritten), "rename the track")
+    wait_for_revision(page, 3)
+    expect(page.locator("#new-track")).to_have_attribute("data-lf-beside", "")
+    assert page.evaluate(held, "new-track") == {
+        "only": True,
+        "kept": False,
+        "blocks": ["lead", "checks"],
+    }
+    assert "lf-region:layout#new-track" in page.evaluate(regions)
 
 
 @pytest.mark.parametrize("rail", [True, False])

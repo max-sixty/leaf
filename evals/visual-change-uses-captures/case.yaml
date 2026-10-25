@@ -38,3 +38,37 @@ assert:
       Pass only if the finding draws nothing beside its captures. Fail if the page adds an
       inline SVG, an lf-diagram, or an HTML mockup of the button or form. Showing one capture
       again on its own elsewhere is fine.
+variants:
+  # For "placed-widgets-draw": a visual review's run is data only its module reads,
+  # including focus rectangles that have to fall inside both captures. Asked for "a
+  # Leaf visual review" without naming the package, 3 of 3 Claude Code authors paired
+  # the captures in lf-shot instead, so the request names it; this measures whether
+  # the widget draws once chosen, not whether an author finds it.
+  visual-review:
+    metadata:
+      purpose: "Every widget an agent places in a visual review draws without
+        reporting an error."
+      tags:
+        - checks
+        - draws
+    vars:
+      prompt: |
+        Make me a review of the Save button fix with Leaf's visual-review package, so
+        I can approve each state on its own.
+
+        The fix paints enabled Save in the accent colour and disabled Save at 40%
+        opacity; before it, both states were the same grey, so users clicked a
+        disabled Save and nothing happened. Review two cases from one pair of
+        captures: the Unchanged card, where Save is disabled, and the Edited card,
+        where Save is enabled.
+
+        Captures, taken in Chrome 141 at 1200x700 on 2026-10-22 at 14:05 UTC with the
+        settings form open and one field edited:
+        - evals/visual-change-uses-captures/captures/before.png: base revision 4f1c2e9
+        - evals/visual-change-uses-captures/captures/after.png: candidate revision 9ab03d7
+
+        Neither revision is deployed anywhere I can open.
+    assert:
+      - type: python
+        metric: widgets-draw
+        value: file://../dev/leaf_dev/page_draws.py

@@ -206,6 +206,74 @@ decisions rather than fixes:
   `AGENTS.md`, "Working on the repository"); the judge counted it on 14 pages.
 - On a phone a thread's pin stands over the end of the line it marks (5 pages).
 
+## Widgets that fail to draw, 2026-10-24
+
+Plain `page check` draws a page in the host's browser only where it has a script or
+places a page widget, a data widget or a widget naming page media (`needs_browser`,
+`render_gate/page_code.py`). `placed-widgets-draw` measures the widgets it leaves
+undrawn: an agent writes a README review (`lf-text-document`), the notification
+design playground (`lf-playground`), or a latency summary whose thread message
+carries a chart, and `visual-change-uses-captures/visual-review` a visual review
+(`lf-visual-review`). `dev/leaf_dev/page_draws.py` then draws each final page and
+opens each thread holding markup, and counts every error the runtime reports, the
+ones `leaf wait` would deliver.
+
+```sh
+uv run leaf-dev eval 'placed-widgets-draw*' visual-change-uses-captures/visual-review --harness claude-code --repeat 3 -j 2
+uv run leaf-dev eval 'placed-widgets-draw*' visual-change-uses-captures/visual-review --harness codex --repeat 2 -j 2
+```
+
+Further runs of the same commands, with more repeats of the thread message, brought
+the samples to the counts below: 41 on Claude Code with Opus 5.5 ($27) and 28 on
+Codex with Sol 6.1, at main `f00911ed1`. Final pages and messages with a widget that
+failed to draw, with Wilson 95% intervals:
+
+| Widget                                     | Claude Code | Codex   | Both            |
+| ------------------------------------------ | ----------- | ------- | --------------- |
+| `lf-text-document` with a Markdown preview | 0 of 8      | 0 of 5  | 0 of 13 (0–23%) |
+| `lf-playground`, markup only               | 0 of 4      | 0 of 5  | 0 of 9 (0–30%)  |
+| `lf-visual-review` with focus rectangles   | 0 of 8      | 0 of 5  | 0 of 13 (0–23%) |
+| `lf-chart` in a thread message             | 0 of 17     | 0 of 13 | 0 of 30 (0–11%) |
+| All the kinds plain check leaves undrawn   | 0 of 37     | 0 of 28 | 0 of 65 (0–6%)  |
+
+Most of these authors had no browser reading of these widgets before handing over:
+19 of the 41 Claude Code authors and 6 of the 28 Codex authors ran `--render`, and
+`--render` is the only check that opens a thread. Authors of 25 of the 29
+thread-message samples never ran it. Two of the 30 thread messages also carried an
+`lf-ask` with `lf-options`, and drew.
+
+Asked for "a Leaf visual review", all 3 Claude Code authors paired the captures in
+`lf-shot` instead of `lf-visual-review`, so the case now names the package. Its
+rate measures the widget once chosen, not whether authors find it.
+
+Plain check drew 5 Claude Code pages during authoring, and no Codex page. On 1 of
+the 5 it caught a real failure: a page script defined a `recorded-design` element
+that read the playground's controller before the playground had captured it, and
+the author fixed it after the check named the error. The 2 final playgrounds with
+page scripts, and the 3 pages pairing captures in `lf-shot`, drew.
+
+What follows for `needs_browser`:
+
+- The kinds it leaves undrawn stay undrawn. Agents wrote none that failed, so a
+  browser run would add about 1.2 s to each such check and catch nothing these
+  samples show.
+- Page code stays drawn: it caught the one failure in these runs.
+- Data widgets and widgets naming page media stay drawn, though no sample shows
+  them failing. The thread charts, mostly written with no browser reading, are
+  evidence about `lf-chart` bodies, but a data widget is also a Mermaid diagram, a
+  diff or a draft, which these cases do not exercise, and 3 `lf-shot` pages say
+  little about media.
+
+These counts come from the runtime's own reports. A widget that draws something
+wrong without reporting, such as an empty review, counts as drawn. The bound runs of
+7 visual reviews, 5 from Claude Code and 2 from Codex, were read by hand: each held
+both cases, with focus rectangles inside the 1200×700 captures.
+
+The first Codex runs predate a fix to `authoring_eval.check_log`, which had read
+page checks only from shell commands and so missed every check Codex ran through
+its `leaf` tool (added in #3331). Their in-session counts above are read again from
+the saved traces.
+
 ## Current configuration anchor, 2026-10-21
 
 One bounded block used four fresh Codex authors, in Leaf, HTML, HTML, Leaf order,

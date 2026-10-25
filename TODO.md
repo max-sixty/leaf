@@ -413,19 +413,19 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
   `triage-board` and 12.6 s on the corpus, measured by tracing the check's passes.
   The price is that dark mode and the narrow width would no longer be checked from
   a fresh start. Decide whether that coverage is worth the time before building it.
-- **Decide what plain `page check` runs in a browser from the mistakes agents make.**
-  It runs a page once in the host's browser, about 1.3 s, where the page has a script
-  or places a page widget, a data widget or a widget naming page media (`needs_browser`,
-  `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
-  (`lf-playground`, `lf-visual-review`, `lf-text-document`)
-  and every widget in thread markup report through `leaf wait` once a browser draws
-  them, but nothing runs them first. Write `evals/` cases in which agents author each
-  kind and measure how often what they write fails to draw, then run the kinds agents
-  get wrong and stop running those they reliably get right. `page-reads-at-every-width`
-  covers documents, dashboards, queues and playgrounds: none of its 40 final pages had
-  a widget that failed to draw, and every plain-check finding during authoring was
-  markup ([notes](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)).
-  Thread markup and the other widgets above are still unmeasured.
+- **Decide whether plain `page check` keeps drawing data widgets and page media.**
+  It draws a page in the host's browser, about 1.3 s, where the page has a script or
+  places a page widget, a data widget or a widget naming page media (`needs_browser`,
+  `render_gate/page_code.py`); any other page checks in about 0.15 s. The widgets it
+  leaves undrawn failed to draw in 0 of 65 final pages and thread messages (0–6%), so
+  they stay undrawn, and page code stays drawn, since it caught a failure in 1 of the
+  5 pages it drew during authoring
+  ([notes](notes/agent-usability-evals.md#widgets-that-fail-to-draw-2026-10-24)).
+  Data widgets and media failed nowhere either, but the samples are 30 thread charts
+  and 3 `lf-shot` pages. To settle them, add `placed-widgets-draw` contexts in which
+  agents write Mermaid diagrams, diffs and screenshot pairs, and stop drawing a kind
+  once its interval's upper end is low enough that the 1.2 s no longer pays for the
+  failures it would catch.
 - **Derive the waiting status from the page's open obligation.** Consider using the obligation's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open obligations and an informational page before choosing how the panel's

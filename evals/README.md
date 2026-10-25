@@ -190,7 +190,9 @@ sample's evidence. A prompt may reuse a complete task's request by naming it, as
 `file://<task>/request.md`. A `python` assertion naming
 `dev/leaf_dev/page_defects.py` grades the page by the defects its user would notice
 at three widths, beside what the checks reported; its header says what it records,
-and `page-reads-at-every-width` uses it. A visual `agent-rubric` can use `metadata.capture_evidence` to compare original
+and `page-reads-at-every-width` uses it. One naming `dev/leaf_dev/page_draws.py`
+draws the final page and each thread holding markup, and fails on any error the
+runtime reports; `placed-widgets-draw` uses it. A visual `agent-rubric` can use `metadata.capture_evidence` to compare original
 captures with registered page media, including cropped or marked images. Its
 `exact_inputs` records computed source matches, leaving visual comparison to
 transformed images. The judge can read only copied images under the run's

@@ -85,8 +85,9 @@ def check_log(trace: list[dict]) -> list[dict]:
     """Each tool call the author made, in order and whole, with the whole output of
     its page checks, so a reader can tell what a check reported and whether a later
     call changed the page in answer. A call is its tool's name and input as the
-    harness recorded them: a shell command, an Edit's strings, a Write's text or a
-    Codex patch's `changes`."""
+    harness recorded them: a shell command, an Edit's strings, a Write's text, a
+    Codex patch's `changes` or the `args` of Codex's `leaf` tool, whose result
+    arrives as the tool's JSON."""
     results = {
         block["tool_use_id"]: block.get("content")
         for block in blocks(trace)
@@ -97,8 +98,16 @@ def check_log(trace: list[dict]) -> list[dict]:
         if block.get("type") != "tool_use":
             continue
         entry = {"tool": block["name"], "input": block["input"]}
-        if "page check" in str(block["input"].get("command", "")):
+        call = block["input"]
+        checks = "page check" in str(call.get("command", ""))
+        checks = checks or call.get("args", [])[:2] == ["page", "check"]
+        if checks:
             output = results.get(block["id"])
+            if isinstance(output, str):
+                try:
+                    output = json.loads(output)["content"]
+                except (ValueError, KeyError, TypeError):
+                    pass  # a shell's output, already text
             if isinstance(output, list):
                 output = "\n".join(part.get("text", "") for part in output)
             entry["output"] = output or ""

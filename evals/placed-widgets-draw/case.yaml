@@ -1,0 +1,96 @@
+# From TODO.md, "Decide what plain `page check` runs in a browser": plain `page check`
+# draws a page only where it has a script, a page widget, a data widget or a widget
+# naming page media (`needs_browser`, render_gate/page_code.py). Widgets that fail on
+# their attribute values or their bound data, and every widget in a thread message,
+# report only once a browser draws them. Each context has an agent author one kind of
+# page those widgets suit, and `page_draws.py` draws the final page and each thread
+# holding markup and records what the runtime reported. The visual review is
+# `visual-change-uses-captures/visual-review`, which reuses that case's captures.
+# notes/agent-usability-evals.md, "Widgets that fail to draw", has the runs.
+description: placed-widgets-draw
+metadata:
+  purpose: "Every widget an agent places on its page or in a thread message draws
+    without reporting an error."
+  authoring: true
+  tags:
+    - checks
+    - draws
+vars:
+  prompt: |
+    Here's my draft README for `ledgerctl`, our internal CLI. Put it on a Leaf page
+    where I can read it as it will render and comment on lines of its Markdown
+    source. Under it, list the three things you'd change first and why. Keep my
+    draft's text exactly as I wrote it.
+
+    ````markdown
+    # ledgerctl
+
+    `ledgerctl` reconciles the payments ledger against the bank's settlement files
+    and reports the differences.
+
+    ## Install
+
+    ```sh
+    pipx install ledgerctl --index-url https://pypi.internal.example/simple
+    ```
+
+    ## Usage
+
+    | Command                        | What it does                              |
+    | ------------------------------ | ----------------------------------------- |
+    | `ledgerctl fetch DATE`         | Downloads the settlement file for DATE    |
+    | `ledgerctl diff DATE`          | Lists entries that differ from the ledger |
+    | `ledgerctl apply DATE --dry`   | Shows the corrections it would write      |
+
+    Run `fetch` before `diff`; `diff` reads the cached file.
+
+    > **Warning:** `apply` without `--dry` writes to production. There's no undo.
+
+    ## Configuration
+
+    `ledgerctl` reads `~/.config/ledgerctl.toml`:
+
+    ```toml
+    [bank]
+    sftp_host = "sftp.bank.example"
+    key_file = "~/.ssh/settlement_ed25519"
+
+    [ledger]
+    dsn = "postgresql://ledger-ro@db.internal.example/ledger"
+    ```
+
+    ## Troubleshooting
+
+    - *Permission denied (publickey)*: the key file isn't readable, or the bank
+      hasn't added your key yet.
+    - *No settlement file for DATE*: the bank publishes by 06:00 UTC the next day.
+    ````
+assert:
+  - type: python
+    metric: widgets-draw
+    value: file://../dev/leaf_dev/page_draws.py
+variants:
+  # A playground's controls, presets and choices are markup only its module reads.
+  playground:
+    vars:
+      prompt: file://notification-design/request.md
+  # A chart and a question posted in a thread message are drawn only when the user
+  # opens the thread. `thread open` and `thread reply` check markup through the
+  # same `check_markup`, so an opened thread stands for a reply.
+  thread-message:
+    vars:
+      prompt: |
+        Write a short Leaf page on last week's checkout latency for me and the
+        payments team. Daily p95 checkout latency in milliseconds, Monday to Sunday:
+
+        - eu-west: 412, 398, 405, 640, 655, 430, 410
+        - us-east: 380, 372, 390, 395, 610, 402, 385
+
+        The Thursday spike in eu-west and the Friday spike in us-east both followed a
+        card-network retry storm. We have two fixes and can schedule one this sprint:
+        a client-side retry budget (3 days of work) or a circuit breaker on the
+        card-network adapter (5 days).
+
+        Keep the page to the summary. Then open a thread on the page asking me which
+        fix to schedule first, with each region's daily p95 drawn as a chart in that
+        message so the team can compare them in the discussion.

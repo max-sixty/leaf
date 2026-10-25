@@ -241,6 +241,39 @@ test("a paint advancing a version it does not read claims no second pass", async
   assert.equal(paints.added, 2, "reading the version first subscribes the paint");
 });
 
+test("the margin's own commit is reachable while a widget holds its paint", async () => {
+  // Reply continuity waits for the margin's paint, not the whole pass: a widget that
+  // withholds its commit, as one does through a drag, must not keep a displaced reply
+  // editor from its new box (thread/presentation.js).
+  const { PRESENTATION_DOM, whenDocumentPresented } =
+    await import("/runtime/semantic-state.js");
+  const held = Promise.withResolvers();
+  const widget = queueWidgetUpdate(
+    "probe-held-widget",
+    () => {},
+    () => held.promise,
+  );
+  const paints = [];
+  const margin = applicationPresenter({
+    region: "annotations",
+    reading: () => true,
+    paint: () => paints.push("margin"),
+  });
+  void margin.present();
+  await widget;
+  let documentPresented = false;
+  void whenDocumentPresented().then(() => {
+    documentPresented = true;
+  });
+  await Promise.allSettled(PRESENTATION_DOM.annotations());
+  assert.deepEqual(paints, ["margin"]);
+  assert.equal(documentPresented, false, "the pass still waits for the widget");
+  held.resolve();
+  await whenDocumentPresented();
+  assert.equal(documentPresented, true);
+  margin.disconnect();
+});
+
 test("an optimistic cyclic move cannot deadlock widget DOM before its refusal", async () => {
   const original = applicationState.read().document;
   const move = {

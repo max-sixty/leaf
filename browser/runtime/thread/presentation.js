@@ -14,7 +14,7 @@
    margin as readings the margin's paint follows (anchor-placement.js `placedAt`,
    surfaces.js `claimed` and `heldOut`), so a commit that moves one has the margin
    repainted before the pass settles, and one that moves none leaves it drawn once.
-   Reply continuity begins once the pass has presented, since the route it lands on
+   Reply continuity begins once the margin has committed, since the route it lands on
    may be a margin card, and runs independently: its selected route may itself need
    this renderer to finish. Its caret follows the actual returned editor; its failures
    reach the page's existing asynchronous error channel. */
@@ -31,11 +31,7 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import {
-  applicationPresenter,
-  PRESENTATION_DOM,
-  whenDocumentPresented,
-} from "../semantic-state.js";
+import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { runtime } from "../context.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
@@ -179,12 +175,14 @@ export function createThreadPresentation({
             pageGeometry.pageShifted();
             read.present();
             // Continuity lands the user where the pass left their thread, a margin card
-            // included, so it starts once the pass has presented every region this
-            // commit moved; a failed paint elsewhere withholds nothing from it. It may
-            // reveal a route needing this very presenter, and never joins the ticket it
-            // is completing.
-            void whenDocumentPresented()
-              .catch(() => {})
+            // included, so it starts once the margin has committed, and waits for
+            // nothing else: not the whole pass, which a widget may hold through a drag.
+            // The margin's claim for what this commit moved lands when this stretch's
+            // batch ends, so its commit is read a microtask later; a margin owing no
+            // repaint has already committed. It may reveal a route needing this very
+            // presenter, and never joins the ticket it is completing.
+            void Promise.resolve()
+              .then(() => Promise.allSettled(PRESENTATION_DOM.annotations()))
               .then(() => continueReplies(restorePlace))
               .catch((error) => reportPageError(error, `Reply continuation failed`));
           }),

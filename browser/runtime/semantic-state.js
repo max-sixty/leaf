@@ -108,14 +108,17 @@ export const queueWidgetUpdate = (widget, update, committed) => {
 // The DOM each document owner reads: projection decorates widget output, threads
 // resolve passages over that decoration, obligations locate controls in threads,
 // and annotations measure those targets. Imperative Lit render commits in its call;
-// what a later preparation decides, such as where the thread pass places and seats
-// each thread, reaches its consumers as readings their paints follow
-// (anchor-placement.js `placedAt`, thread/surfaces.js `claimed`).
+// what the thread pass decides later, where it places and seats each thread, reaches
+// the margin as readings its paint follows (anchor-placement.js `placedAt`,
+// thread/surfaces.js `claimed`), not as DOM it waits for. Reply continuity waits for
+// the margin's commit alone (`annotations`), since the card it lands in is the
+// margin's.
 export const PRESENTATION_DOM = Object.freeze({
   widgets: () => [...widgetCommits.values()],
   projection: () => documentCommits.get("projection:chrome")?.() ?? [],
   thread: () => documentCommits.get("thread")?.() ?? [],
   obligations: () => documentCommits.get("obligations")?.() ?? [],
+  annotations: () => documentCommits.get("annotations")?.() ?? [],
 });
 
 // The document-wide presenters, in registration order. `presentDocument` is what a

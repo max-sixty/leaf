@@ -257,7 +257,7 @@ customElements.define(
 
     #offerControls() {
       if (quoted(this) || this.#tools) return;
-      this.#tools = offer("div", "lf-draft-tools");
+      this.#tools = offer("div", "lf-draft-tools lf-mark-bar");
       this.#tools.dataset.lfRuntime = "";
       this.append(this.#tools);
       // Copy is the toolbar's last mark, so Tab from the editor reaches Save first.
@@ -266,7 +266,6 @@ customElements.define(
         () => this.#editor?.value ?? this.controller.read().state.edit.value,
         "Markdown",
       );
-      this.#copy.classList.add("lf-quiet-action");
       this.#paintTools();
       this.#ensureCommands();
     }

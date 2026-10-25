@@ -1313,7 +1313,7 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
 	let copy = controls.get(pre);
 	if (!copy) {
-		copy = copyControl("lf-code-copy", {
+		copy = copyControl("lf-code-copy lf-quiet-action", {
 			label: `Copy ${noun}`,
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`

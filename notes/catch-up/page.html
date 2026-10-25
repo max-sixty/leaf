@@ -27,7 +27,7 @@
           and Reset starts it again. Pick <strong>Keep Redis</strong>, and the next card
           comes up as soon as the answer is recorded. Press the bar's right arrow,
           <strong>Later</strong>, on the upgrade note, pick two beta platforms and press
-          Done, then Later past the draft and the retry question, and approve the
+          Done, then Later past the draft and the retry question, and choose to post the
           release notes. The bar then counts the cards still to answer, and its button,
           <strong>Go through the 3 left</strong>, starts again from the first of them.
           The left arrow, <strong>Back</strong>, returns to a card you answered, where
@@ -96,10 +96,18 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
                 What retry ceiling should the client use? Today it retries forever; the
                 load test stayed healthy up to five.
               </lf-ask>
-              <lf-approval id="s-publish-approval">
+              <lf-ask id="s-publish-ask">
                 <h3>Post the release notes to #eng on Friday?</h3>
                 <p>Posts the notes, with the upgrade note as you leave it.</p>
-              </lf-approval>
+                <lf-options id="s-publish-choice" choose>
+                  <lf-option id="s-publish-hold"
+                    ><strong>Keep them as a draft</strong></lf-option
+                  >
+                  <lf-option id="s-publish-post"
+                    ><strong>Post them on Friday</strong></lf-option
+                  >
+                </lf-options>
+              </lf-ask>
             </lf-deck>
           </template>
         </lf-sample>

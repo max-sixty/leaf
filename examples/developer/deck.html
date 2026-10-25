@@ -71,10 +71,18 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
           What retry ceiling should the client use? Today it retries forever; the load
           test stayed healthy up to five.
         </lf-ask>
-        <lf-approval id="deck-publish-approval">
+        <lf-ask id="deck-publish-ask">
           <h3>Post the release notes to #eng on Friday?</h3>
           <p>Posts the notes, with the upgrade note as you leave it.</p>
-        </lf-approval>
+          <lf-options id="deck-publish-choice" choose>
+            <lf-option id="deck-publish-hold"
+              ><strong>Keep them as a draft</strong></lf-option
+            >
+            <lf-option id="deck-publish-post"
+              ><strong>Post them on Friday</strong></lf-option
+            >
+          </lf-options>
+        </lf-ask>
       </lf-deck>
       <p id="deck-after">The rest of the page goes on below the deck.</p>
     </main>

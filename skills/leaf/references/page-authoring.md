@@ -239,7 +239,9 @@ descendants. Use a bounded reading region for independently scrolling vertical c
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
 to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
 line. Put identifiers in `<code>`, which can break inside a cell, and keep the columns
-to what fits at the narrowest width the page's readers use.
+to what fits at the narrowest width the page's readers use. Write each row's name as its
+first cell, a `<th scope="row">`, and the names stay in view while the other columns
+scroll.
 
 ## Stable anchors
 

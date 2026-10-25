@@ -2851,7 +2851,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     stranded = stranded_quotes(page)
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
     # The projected contour an open thread raises stays above the figure's own paint
-    # without putting any paint over its contents.
+    # without putting any paint over its contents: it stands outside the figure.
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
@@ -2862,12 +2862,13 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     look = mark.evaluate(
         """node => { const style = getComputedStyle(node); return {
           background: style.backgroundImage,
-          borders: [style.borderTopWidth, style.borderRightWidth,
-                    style.borderBottomWidth, style.borderLeftWidth],
+          outline: [style.outlineStyle, style.outlineWidth],
+          offset: parseFloat(style.outlineOffset),
         }; }"""
     )
     assert look["background"] == "none", look
-    assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
+    assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
+    assert look["offset"] > 0, look
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"

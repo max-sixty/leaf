@@ -637,12 +637,11 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     look = overlay.evaluate(
         """el => { const style = getComputedStyle(el); return {
           background: style.backgroundImage,
-          borders: [style.borderTopWidth, style.borderRightWidth,
-                    style.borderBottomWidth, style.borderLeftWidth],
+          outline: [style.outlineStyle, style.outlineWidth],
         }; }"""
     )
     assert look["background"] == "none", look
-    assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
+    assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
     page.keyboard.press("Escape")
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
@@ -722,10 +721,10 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
     clip = {
-        "x": math.floor(box["x"]) - 2,
-        "y": math.floor(box["y"]) - 2,
-        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 4,
-        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 4,
+        "x": math.floor(box["x"]) - 8,
+        "y": math.floor(box["y"]) - 8,
+        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 16,
+        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 16,
     }
 
     def screenshot():
@@ -739,13 +738,28 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
     overlay = page.locator(".lf-visual-mark-pending")
     expect(overlay).to_be_visible()
-    ink = overlay.evaluate(
-        """element => getComputedStyle(element).borderLeftColor
-          .match(/[0-9.]+/g).slice(0, 3).map(Number)"""
+    contour = overlay.evaluate(
+        """element => { const style = getComputedStyle(element);
+          // A mixed ink computes as color(srgb …); a canvas reads any colour as bytes.
+          const pen = document.createElement('canvas').getContext('2d');
+          pen.fillStyle = style.outlineColor;
+          pen.fillRect(0, 0, 1, 1);
+          return {
+            ink: [...pen.getImageData(0, 0, 1, 1).data.slice(0, 3)],
+            outset: parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth),
+          }; }"""
     )
     marked = screenshot()
 
-    changed, _ = _edge_ink_changes(quiet, marked, box, clip, ink)
+    # The contour stands outside the frame, so its edges are the outline's outer box.
+    outset = contour["outset"]
+    outer = {
+        "x": box["x"] - outset,
+        "y": box["y"] - outset,
+        "width": box["width"] + 2 * outset,
+        "height": box["height"] + 2 * outset,
+    }
+    changed, _ = _edge_ink_changes(quiet, marked, outer, clip, contour["ink"])
     assert all(changed[side] > 0 for side in changed), (
         f"the screenshot frame covered part of its annotation contour: {changed}"
     )

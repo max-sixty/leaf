@@ -43,7 +43,6 @@ from urllib.parse import quote
 
 from leaf.events import (
     awaits_agent,
-    bare_reaction,
     is_reaction,
     retractions,
     taken_back,
@@ -364,14 +363,14 @@ def obligation_answered(
     )
 
 
-def with_agent(threads: dict, owed: list[dict]) -> set[str]:
-    """The threads the agent owes: an open one whose next word is the agent's, or one
-    holding an open to-do, the work a reply there promised (`todos.todo_reading`).
-    `owed` is `todos.TodoReading.owed`.
+def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
+    """The anchors of threads the agent owes: an open one whose next word is
+    the agent's, or one holding an open to-do, the work a reply there promised
+    (`todos.todo_reading`). `owed` is `todos.TodoReading.owed`.
 
-    An open obligation such a thread is about (`discussions`) is the agent's turn rather
-    than the user's: the user has said something about it and waits on the answer, so it
-    leaves their list until the agent answers. A reply that promises work settles the
+    An open obligation such a thread is about is the agent's turn rather than the user's:
+    the user has said something about it and waits on the answer, so it leaves
+    their list until the agent answers. A reply that promises work settles the
     message but leaves the obligation the agent's until the agent ends the to-do,
     through a resolution too, so a decision the user put off until other work lands
     stays off their list. Neither is an answer, since the widget's state is untouched,
@@ -385,18 +384,17 @@ def with_agent(threads: dict, owed: list[dict]) -> set[str]:
     promised = {
         todo["subject"]["id"] for todo in owed if todo["subject"]["kind"] == "thread"
     }
-    return {
-        identity
+    return [
+        anchor
         for identity, thread in threads.items()
-        if awaits_agent(thread) or identity in promised
-    }
+        if (awaits_agent(thread) or identity in promised)
+        and (anchor := thread["anchor"])
+        and anchor.get("section")
+    ]
 
 
-def discussions(
-    threads: dict, records: list[dict], within: dict
-) -> dict[str, list[dict]]:
-    """The obligations, answered or not, that each thread anchored on a section is
-    about, the thread open or resolved. A bare reaction is no thread and is about none.
+def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
+    """Hand each open obligation discussed by `anchors` to the agent.
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
@@ -406,10 +404,6 @@ def discussions(
     heading or on a section holding the frame is about them all. `within` is the
     document's containment (`Passages.enclosing`). A datum identity narrows an
     owning widget's record obligations to the exact case being discussed.
-
-    The relation gives the turn both ways: an obligation is the agent's while a thread
-    about it is (`with_agent`), and the thread is the user's while the obligation is
-    (`served_state.browser._thread_attention`).
     """
     items: dict[str, list[dict]] = {}
     for record in records:
@@ -417,15 +411,8 @@ def discussions(
     framed: dict[str, list[dict]] = {}
     for record in records:
         framed.setdefault(record["prompt"]["target"], []).append(record)
-    about_each: dict[str, list[dict]] = {}
-    for identity, thread in threads.items():
-        anchor = thread["anchor"]
-        if (
-            bare_reaction(thread)
-            or not anchor
-            or not (section := anchor.get("section"))
-        ):
-            continue
+    for anchor in anchors:
+        section = anchor["section"]
         chain = within.get(section, ())
         item = next((items[i] for i in reversed(chain) if i in items), None)
         about = (
@@ -439,15 +426,17 @@ def discussions(
             or next((framed[i] for i in reversed(chain) if i in framed), [])
         )
         datum = anchor.get("identity", anchor.get("datum"))
-        about_each[identity] = [
-            record
-            for record in about
-            if datum is None
-            or record["source"]["id"] != section
-            or "unit" not in record["source"]
-            or record["source"]["unit"] == datum
-        ]
-    return about_each
+        for record in about:
+            source = record["source"]
+            if (
+                datum is not None
+                and source["id"] == section
+                and "unit" in source
+                and source["unit"] != datum
+            ):
+                continue
+            if record["next_actor"] == "user":
+                record["next_actor"] = "agent"
 
 
 def quoted_in(rec: dict, registry: dict) -> bool:
@@ -968,10 +957,9 @@ def page_obligation_readings(
     revision: int | None = None,
     events: list = (),
     data: dict | None = None,
-) -> tuple[dict, dict[str, list[dict]]]:
-    """Obligations in one document basis, beside the ones each thread is about
-    (`discussions`); a discussion changes attention, not answer: an obligation a
-    thread with the agent is about is the agent's (`with_agent`).
+) -> dict:
+    """Obligations in one document basis; a discussion changes attention, not answer:
+    an obligation a thread with the agent is about is the agent's (`anchors_with_agent`).
     A reply-answered obligation is the exception, since a message about it is its answer:
     the first user message in a thread opened inside it, after the stamped version
     that last restated it (`$restated`), so a rewritten question is asked again.
@@ -1011,12 +999,8 @@ def page_obligation_readings(
             default=None,
         )
         settle_by_words(record, answer, log.ends.get(record["id"]))
-    about = discussions(threads, records, within)
-    for identity in with_agent(threads, log.owed):
-        for record in about.get(identity, ()):
-            if record["next_actor"] == "user":
-                record["next_actor"] = "agent"
-    return collection(records), about
+    discussed(records, anchors_with_agent(threads, log.owed), within)
+    return collection(records)
 
 
 def thread_obligation_readings(
@@ -1032,7 +1016,7 @@ def thread_obligation_readings(
     with no next actor. While the thread is open, a user turn after the message
     that asks hands the obligation to the agent until the agent answers that turn, and
     until the work a reply after it promised ends, as a thread anchored on a page
-    obligation does (`with_agent`). That turn instead answers a
+    obligation does (`anchors_with_agent`). That turn instead answers a
     reply-answered obligation, as does a reaction on the message whose token settles
     it; `log` is the page's `todos.TodoReading`, whose `ends` hold the agent's
     `todo_end` on each id."""

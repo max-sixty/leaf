@@ -2348,9 +2348,7 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
     empty = projection_model.StateProjection(
         {}, {}, {}, {}, {}, frozenset(), frozenset()
     )
-    document = document_reading_model.DocumentReading(
-        None, empty, {}, None, {}, {}, {}, {}
-    )
+    document = document_reading_model.DocumentReading(None, empty, {}, None, {}, {}, {})
     undo_reading = event_folds_model.UndoReading(
         events, within={}, absorbed=frozenset()
     )
@@ -2383,9 +2381,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
     empty = projection_model.StateProjection(
         {}, {}, {}, {}, {}, frozenset(), frozenset()
     )
-    document = document_reading_model.DocumentReading(
-        None, empty, {}, None, {}, {}, {}, {}
-    )
+    document = document_reading_model.DocumentReading(None, empty, {}, None, {}, {}, {})
 
     def walk(log):
         candidates = served_document.browser_undo_candidates(
@@ -2435,9 +2431,7 @@ def test_undo_candidates_say_which_gestures_the_agent_picked_up():
     empty = projection_model.StateProjection(
         {}, {}, {}, {}, {}, frozenset(), frozenset()
     )
-    document = document_reading_model.DocumentReading(
-        None, empty, {}, None, {}, {}, {}, {}
-    )
+    document = document_reading_model.DocumentReading(None, empty, {}, None, {}, {}, {})
     candidates = served_document.browser_undo_candidates(
         events,
         document,

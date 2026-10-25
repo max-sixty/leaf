@@ -23,8 +23,6 @@ class DocumentReading(NamedTuple):
     spoken: dict
     passages: Passages
     items: dict
-    # The obligations each thread is about, by thread id (`obligations.discussions`).
-    discussions: dict
     within: dict
     floors: dict
 
@@ -46,7 +44,7 @@ def read_document(
     spk = page.spoken
     passages = page.reading.decided_passages(retirement_outcomes(projection.actions))
     dropped = set(passages.retired) | set(passages.gone)
-    items, discussions = page_obligation_readings(
+    items = page_obligation_readings(
         page.reading.obligation_sources,
         projection,
         document.by_id,
@@ -68,7 +66,6 @@ def read_document(
         spoken=spk,
         passages=passages,
         items=items,
-        discussions=discussions,
         within=page.within,
         floors=retractions(events, revision),
     )

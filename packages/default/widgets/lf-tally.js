@@ -7,7 +7,7 @@
  * page adopts the reading that admits its answer, never on a guess. The count splits the
  * open ones by the server's next actor. Those waiting on the user, which Next on me walks
  * (`readObligations().user`), are "to answer". Those whose next actor is the agent, such
- * as one the user commented on and whose reply the agent owes (`obligations.with_agent`),
+ * as one the user commented on and whose reply the agent owes (`obligations.discussed`),
  * are counted under the agent's name, as its On list names it (`agentName`):
  * "7 of 8 to answer", "2 of 8 to answer · 1 on Claude", "1 of 8 on Claude". So the words
  * say something is the user's to answer exactly when Next on me is enabled. A frozen

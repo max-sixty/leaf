@@ -1260,7 +1260,7 @@ def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
     url = serve(LONG_PAGE)
     d = serve.page_dir
     posted = subprocess.run(
-        [*LEAF_COMMAND, "thread", "open", str(d), "--text", "See this."]
+        [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
         + ["--markup", '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>'],
         capture_output=True,
         text=True,

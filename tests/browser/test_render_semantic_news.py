@@ -97,7 +97,7 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     request.addfinalizer(lease.close)
     attempt = service_model.delivery_reply_attempt("delivery-interrupted")
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        transaction.set_status("waiting", "User feedback")
+        transaction.set_status("waiting")
         transaction.set_stream_reply(
             "codex-thread",
             "leaf-turn",

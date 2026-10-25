@@ -79,7 +79,7 @@ def test_a_plain_agent_question_can_be_opened_and_answered(browser, serve, secti
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(serve.page_dir),
             "--title",
             "Meeting details",
@@ -140,7 +140,7 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
         cli_model.cli,
         [
             "thread",
-            "open",
+            "create",
             str(serve.page_dir),
             "--text",
             "The rehearsal is complete.",
@@ -207,7 +207,7 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
     """Discussion of outside work is not completion; Done and Undo are explicit."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Can you check the mobile build?")
-    todo = todos_model.cmd_open(
+    todo = todos_model.cmd_create(
         serve.page_dir, root, "Try the build on your phone", "user"
     )
     assert todo["subject"] == {"kind": "thread", "id": root}

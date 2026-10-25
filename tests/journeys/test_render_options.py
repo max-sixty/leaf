@@ -262,7 +262,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 
     claim("card-migration", "checking the shard")
     [unsupported] = command_findings(
-        "task", "open", d, "jobs", "Price the alternatives"
+        "task", "create", d, "jobs", "--title", "Price the alternatives"
     )
     assert unsupported.code == "no-work-seat"
 

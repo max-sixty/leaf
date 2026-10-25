@@ -2294,6 +2294,42 @@ def resize_findings(page, path):
     return []
 
 
+def untouched_resize_findings(page):
+    """A page opened at its widest and scrolled by no one still shows its place, the
+    words at its landing edge (reading-place.js), once the window narrows to a phone's:
+    continuity keeps the page's own place, and a region the narrowing carries into the
+    page, as a sidebar's track or a pane stacking under the one before, holds no place
+    of the reader's to take the page to (version.js, `placeFor`). Read on a page of its
+    own, since every other journey scrolls the page it reads."""
+    assert page.viewport_size["width"] == RESIZE_PATH[0]
+    rendered(page)
+    landmark = page.evaluate_handle(
+        "async () => { const api = await window.__lfCheckApi();"
+        " return api.placeNode(api.capturePlace()); }"
+    )
+    if not landmark.evaluate("node => Boolean(node)"):
+        return []
+    resized(page, RESIZE_PATH[-1], 900)
+    rendered(page)
+    shown = landmark.evaluate(
+        """node => {
+        const range = document.createRange();
+        range.selectNode(node);
+        const {top, bottom} = range.getBoundingClientRect();
+        return bottom > 0 && top < innerHeight;
+    }"""
+    )
+    if shown:
+        return []
+    said = landmark.evaluate("node => node.textContent.trim().slice(0, 60)")
+    scrolled = page.evaluate("() => document.scrollingElement.scrollTop")
+    return [
+        f"opened at {RESIZE_PATH[0]}px and scrolled by no one, narrowed to "
+        f"{RESIZE_PATH[-1]}px: the page scrolled to {scrolled}px, away from its "
+        f"place ({said})"
+    ]
+
+
 # The words in the field holding the focus, found through the shadow trees on the way
 # to it, or null where the focus is on no field; and each field's words that the page
 # draws, found the same way.

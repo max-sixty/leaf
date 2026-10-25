@@ -135,7 +135,7 @@ def viewport(value: str) -> tuple[int, int]:
     "size",
     default=f"{DESKTOP[0]}x{DESKTOP[1]}",
     callback=lambda c, p, v: viewport(v),
-    help="WIDTHxHEIGHT.",
+    help="WIDTHxHEIGHT; independent of --touch, so a phone needs both.",
 )
 @click.option(
     "--scheme",
@@ -146,7 +146,8 @@ def viewport(value: str) -> tuple[int, int]:
 @click.option(
     "--touch",
     is_flag=True,
-    help="Show the page under a finger: a coarse pointer and a mobile viewport.",
+    help="Show the page under a finger: a coarse pointer and mobile emulation. "
+    "The size stays at --viewport (default desktop); pass --viewport 390x844 for a phone.",
 )
 @click.option(
     "--firefox",

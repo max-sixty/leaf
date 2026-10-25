@@ -538,8 +538,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         # "Stability is owed to the common path").
         def carried_in_panel(problem):
             return problem.code == "moved-without-input" and any(
-                path and "lf-fp-" in path[-1]
-                for path in problem.values["beside"]
+                path and "lf-fp-" in path[-1] for path in problem.values["beside"]
             )
 
         consume_browser_errors(page, http_error_console(400), carried_in_panel)

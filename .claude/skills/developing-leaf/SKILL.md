@@ -144,6 +144,11 @@ Prefer outputs the user can review quickly. Do the reviews you can do as well as
 user, and report the results. Choose the decisions the page puts to the user from
 their request, and show visible and interaction changes with the proof below.
 
+A choice about how something looks or moves can't be judged from a description, so
+every UI option you leave to the user carries a picture of its result: a still pair, a
+sketch, a diagram or a live sample. That includes the calls a PR body leaves to the
+user, and the decisions a page relays from it.
+
 ## Prove and hand off a visible change
 
 Define the user's task and each step's expected visible outcome before choosing

@@ -316,7 +316,7 @@ customElements.define(
                     <span class="lf-vr-case-label"
                       ><span class="lf-vr-case-name">${record.title}</span>
                       <span class="lf-vr-case-status" data-approved=${String(approved)}
-                        >${approved ? "Looks right" : "Unchecked"}</span
+                        >Looks right</span
                       ></span
                     >
                   </button>`;

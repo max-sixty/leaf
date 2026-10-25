@@ -649,17 +649,25 @@ def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):
 
 
 def test_visual_review_approvals_survive_reload_and_undo(browser, serve):
-    """Approval is reversible and independent of case navigation."""
+    """Approval is reversible and independent of case navigation. A case's row says
+    Looks right once checked and nothing before, in a line it holds either way."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 702, 898)
     widget = page.locator("#visual-review-run")
     case = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    row = widget.locator('.lf-vr-case-button[aria-current="true"]')
     ids = []
     for _ in range(3):
         ids.append(case.get_attribute("data-lf-datum"))
+        status = row.locator(".lf-vr-case-status")
+        expect(status).to_be_hidden()
+        height = row.bounding_box()["height"]
         with sending(page, "approve selected case"):
             case.get_by_role("checkbox", name="Looks right").check()
         expect(case).to_have_attribute("data-lf-datum", ids[-1])
+        expect(status).to_be_visible()
+        expect(status).to_have_text("Looks right")
+        assert row.bounding_box()["height"] == height
         if len(ids) < 3:
             case.get_by_role("button", name="Next unchecked").click()
     assert len(set(ids)) == 3

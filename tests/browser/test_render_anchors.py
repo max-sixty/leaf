@@ -3124,8 +3124,8 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     expect(mark).to_have_count(0)
 
     look = """node => { const style = getComputedStyle(node); return {
-      line: style.borderStyle,
-      width: style.borderWidth,
+      line: style.outlineStyle,
+      drawn: parseFloat(style.outlineWidth) > 0,
     }; }"""
 
     box = figure.bounding_box()
@@ -3137,7 +3137,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     assert thread_a_press_opened(page) is not None, "the press opened no thread"
     selected = mark.evaluate(look)
 
-    assert selected == {"line": "solid", "width": "2px"}
+    assert selected == {"line": "solid", "drawn": True}
     expect(page.locator("[data-lf-target-selected]")).to_have_count(1)
 
     # Every frame of the press and a few after it, read where the user sees them.

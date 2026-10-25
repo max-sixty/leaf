@@ -179,6 +179,11 @@ representative desktop viewport.
   stays where a symbol would leave the reader guessing, as in the rows of the leaf's
   menu, which the user opened to read. Symbols don't license more controls: a surface
   at rest shows only what its task needs, and the leaf's menu holds the rest.
+- **A control wears its role's face.** Code builds a control by its role, with
+  `offerAction` or `offeredAction`, and never names a face's classes, so two controls
+  of one kind can't look different (`runtime/prepaint.js`, `ACTION_FACES`, lists the
+  roles). A new role needs a difference in the user's task, not only in a widget's
+  taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.

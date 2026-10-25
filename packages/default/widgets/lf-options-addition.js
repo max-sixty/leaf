@@ -71,7 +71,7 @@ export class OptionAddition {
     this.#input = offer(TEXT_FIELD);
     this.#input.name = "option";
     this.#input.setAttribute("aria-label", ANOTHER);
-    this.#add = offer("button", "lf-btn", "Add");
+    this.#add = offer("button", "", "Add");
     this.#add.setAttribute("aria-label", "Add and select option");
     this.#bindingBadge = offer("span", "lf-key-badge");
     this.#bindingBadge.setAttribute("aria-hidden", "true");

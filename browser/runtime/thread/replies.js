@@ -446,7 +446,7 @@ export function createReplyView(
     const row = offer("div", "lf-thread-reply");
     const input = offer(TEXT_FIELD);
     input.name = "reply";
-    const send = offer("button", "lf-btn lf-thread-send", "Send");
+    const send = offer("button", "lf-thread-send", "Send");
     row.append(input, send);
     return wireReply(key, row, input, send, commands.wireInput, {
       hint,

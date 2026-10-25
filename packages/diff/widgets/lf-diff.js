@@ -44,7 +44,6 @@ import {
   render,
   relabel,
   inChrome,
-  iconElement,
   iconTemplate,
   commands,
   keeps,
@@ -56,6 +55,7 @@ import {
   move,
   nextRender,
   offer,
+  offerAction,
   LeafElement,
   paintKeys,
   publishOutput,
@@ -405,13 +405,14 @@ function fileEntry(row) {
 }
 
 function commentButton(label, opened, className) {
-  const button = offer(
-    "button",
-    `lf-diff-comment ${className} lf-btn lf-icon-action lf-quiet-action`,
+  const button = offerAction(
+    "symbol",
+    `lf-diff-comment ${className}`,
+    `Comment on ${label}`,
+    {
+      icon: "comment",
+    },
   );
-  button.type = "button";
-  button.setAttribute("aria-label", `Comment on ${label}`);
-  button.append(iconElement("comment", "lf-action-icon"));
   if (opened) button.addEventListener("click", opened);
   return button;
 }
@@ -533,11 +534,7 @@ function diffTools(host) {
   progress.append(count);
   // Opening every file is rare beside opening one, so it is a quiet icon after the count
   // of the files it opens rather than a labelled button of its own (shadow.css).
-  const foldAll = offer(
-    "button",
-    "lf-btn lf-icon-action lf-quiet-action lf-diff-fold-all",
-  );
-  foldAll.type = "button";
+  const foldAll = offerAction("symbol", "lf-diff-fold-all");
   foldAll.slot = "end";
   foldAll.addEventListener("click", () => host.foldAll());
   search.append(progress, foldAll);
@@ -828,9 +825,7 @@ function deferredError(details, error, retry) {
     : `That file's diff cannot be shown: ${message}`;
   let standIn = header;
   if (retry) {
-    standIn = offer("button", "lf-btn");
-    standIn.type = "button";
-    standIn.textContent = "Retry";
+    standIn = offerAction("word", "", "Retry");
     standIn.addEventListener("click", () => {
       if (standIn.getAttribute("aria-disabled") === "true") return;
       standIn.setAttribute("aria-disabled", "true");

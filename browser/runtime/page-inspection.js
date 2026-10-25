@@ -19,7 +19,7 @@ import {
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { requestJson, sessionIsActive } from "./layer-client.js";
 import { readCurrentUserView } from "./user-view.js";
-import { closeControl, el } from "./widget-elements.js";
+import { closeControl, el, offerAction, offeredAction } from "./widget-elements.js";
 
 const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "Page diagnostics");
@@ -30,8 +30,7 @@ const copy = copyControl("", {
   success: "Diagnostics copied",
   error: "Diagnostics not copied · open Structured report to select the text",
 });
-const copyLabel = el("button", "lf-btn", "Copy diagnostics");
-copyLabel.type = "button";
+const copyLabel = offerAction("word", "", "Copy diagnostics");
 copy.append(copyLabel);
 const close = closeControl({
   name: "Close page diagnostics",
@@ -172,7 +171,7 @@ function present() {
             ? html`<p role="status">${sourceError}</p>
                 ${
                   report.basis
-                    ? html`<button class="lf-btn" @click=${loadSource}>
+                    ? html`<button ${offeredAction("word")} @click=${loadSource}>
                         Retry source inspection
                       </button>`
                     : nothing

@@ -1452,7 +1452,6 @@
     color: inherit;
     font: inherit;
   }
-  .lf-btn,
   .lf-ui :is(textarea, leaf-text),
   :is(textarea, leaf-text).lf-ui {
     font: inherit;
@@ -1678,11 +1677,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-dot.blocked {
     background: var(--danger);
   }
-  @layer lf-reset {
-    .lf-thread-action {
-      font: inherit;
-    }
-  }
   :is(.lf-quote, .lf-msg-body) {
     user-select: text;
     -webkit-user-select: text;
@@ -1725,19 +1719,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-quote-expand::before {
     inline-size: 1em;
     text-align: center;
-  }
-  .lf-thread-action {
-    border: none;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .lf-thread-action:hover {
-    color: var(--ok);
-  }
-  .lf-thread-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
   }
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;

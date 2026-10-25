@@ -122,11 +122,6 @@
 }
 :scope:host(lf-file-editor) .lf-file-editor-choices .lf-btn {
   text-align: left;
-  border-color: transparent;
-  background: none;
-}
-:scope:host(lf-file-editor) .lf-file-editor-choices .lf-btn:hover {
-  background: var(--chip);
 }
 :scope:host(lf-file-editor) .lf-file-editor-choices .lf-btn[aria-checked="true"] {
   color: var(--accent);

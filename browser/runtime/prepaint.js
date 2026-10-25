@@ -450,6 +450,61 @@
     if (label !== undefined) node.textContent = label;
     return node;
   };
+  // Leaf's controls come from a closed set of roles, and each role wears one face
+  // (components/controls.css). A widget names the role and never the face's classes,
+  // so two controls of one kind cannot be drawn two ways; this table is the only place
+  // the classes are spelled (`test_controls_are_built_by_role_and_never_by_face` in
+  // `tests/model/test_interact_layer.py` holds that).
+  //
+  // - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
+  //   accessible name (browser/AGENTS.md, "Visual grammar"): quiet at rest, the chip
+  //   under a hovering pointer or visible focus.
+  // - `word`: a press that says what it does in words, quiet as a symbol is, a row of
+  //   a list or menu included. A toggle is a word whose `aria-pressed` the theme draws
+  //   as selected.
+  // - `commit`: the one press on a surface that commits the user's work, framed in the
+  //   accent.
+  // - `mark`: a small symbol seated on the thing it acts on, at a corner or on a
+  //   block's border toolbar, where a larger face would cover the thing.
+  //
+  // A difference that was only a past choice is not a role: a symbol once came bordered
+  // in some widgets and quiet in others, and a word framed in some, quiet in others and
+  // a list's row in a third, before each merged.
+  const ACTION_FACES = {
+    symbol: "lf-icon-action",
+    word: "lf-btn",
+    commit: "lf-btn primary",
+    mark: "lf-mark-action",
+  };
+  // `label` names the press. A worded role shows it, and `offerAction` writes it as the
+  // words; the element writer leaves the words to whoever owns the element's content,
+  // such as a template. A symbol or mark says it as the accessible name and the
+  // tooltip, `title` where the tooltip says more, such as the key that does the same.
+  const offerActionElement = (node, role, cls, label, { title = label } = {}) => {
+    const face = ACTION_FACES[role];
+    if (!face)
+      throw new TypeError(
+        `A control's role is one of ${Object.keys(ACTION_FACES).join(", ")}, not ${role}`,
+      );
+    offerElement(node, cls ? `${face} ${cls}` : face);
+    if (label !== undefined && (role === "symbol" || role === "mark")) {
+      keepsAttribute(node, "aria-label", label);
+      keepsAttribute(node, "title", title);
+    }
+    return node;
+  };
+  const offerAction = (role, cls, label, options) => {
+    const node = offerActionElement(
+      document.createElement("button"),
+      role,
+      cls,
+      label,
+      options,
+    );
+    if (label !== undefined && role !== "symbol" && role !== "mark")
+      node.textContent = label;
+    return node;
+  };
   // External marks occupy inline room, so the parser seats them before prose paints.
   // The module runtime adopts this owner and its baselines for subsequent arrivals.
   // External page links keep native link behavior but make the boundary explicit: the
@@ -1278,6 +1333,7 @@
         tabStore,
         offer,
         offerElement,
+        offerAction,
         generatedElement,
         keeps: keepsAttribute,
         authoredBody(node) {
@@ -1318,6 +1374,8 @@
     },
     offer,
     offerElement,
+    offerAction,
+    offerActionElement,
     generatedElement,
     origin(node) {
       return origins.get(node);

@@ -2,7 +2,7 @@ import { SVG_NS, dropStand, paintGeometry, paintShape, paintStand, paintTrace, p
 import { Z, bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, tabStops, under } from "./bundle-dom-move.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-errors.js";
+import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, keys, notice, offer, offerAction, paintKeys, repaint, rightCover, rowArrows, seenRect, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-errors.js";
 import { whenDocumentPresented } from "./bundle-context.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
@@ -230,14 +230,8 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 	});
 	const previewNav = el("span", "lf-margin-preview-nav");
 	const previewPosition = el("span", "lf-margin-preview-position");
-	const previewPrevious = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
-	previewPrevious.append(iconElement("previous", "lf-action-icon"));
-	previewPrevious.setAttribute("aria-label", "Previous thread");
-	previewPrevious.title = "Previous thread";
-	const previewNext = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
-	previewNext.append(iconElement("next", "lf-action-icon"));
-	previewNext.setAttribute("aria-label", "Next thread");
-	previewNext.title = "Next thread";
+	const previewPrevious = offerAction("symbol", "lf-margin-preview-step", "Previous thread", { icon: "previous" });
+	const previewNext = offerAction("symbol", "lf-margin-preview-step", "Next thread", { icon: "next" });
 	previewNav.append(previewPrevious, previewPosition, previewNext);
 	const previewList = el("div", "lf-margin-preview-list");
 	const carry = surfaceGrip({

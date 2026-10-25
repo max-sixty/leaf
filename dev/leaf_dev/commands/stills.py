@@ -339,6 +339,11 @@ def motion_controls(page: Page) -> None:
     select.focus()
 
 
+def timeline_steps(page: Page) -> None:
+    """A timeline's Previous and Next beside its position, above its lanes."""
+    page.locator("#race-before .lf-timeline-controls").scroll_into_view_if_needed()
+
+
 def card_by_pointer(page: Page) -> None:
     """The first margin card, opened by a click on its marker."""
     open_card(page, page.locator(".lf-margin-marker").first)
@@ -1689,6 +1694,12 @@ STATES = (
         "developer/motion",
         motion_controls,
         region="#fold-motion .lf-motion-controls",
+    ),
+    State(
+        "timeline-steps",
+        "lost-update",
+        timeline_steps,
+        region="#race-before .lf-timeline-controls",
     ),
     State(
         "trace-timeline-keyboard",

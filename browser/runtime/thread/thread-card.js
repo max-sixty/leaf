@@ -39,7 +39,12 @@ import {
 import { html, render, nothing, share, signal } from "/vendor/browser-runtime.js";
 import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
-import { generatedElement, offer, measure } from "../widget-elements.js";
+import {
+  generatedElement,
+  offerAction,
+  offeredAction,
+  measure,
+} from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -203,13 +208,7 @@ export function threadTodos(todos, done) {
       (todo) =>
         html`<li class="lf-thread-todo">
           <span class="lf-thread-todo-title">To-do · ${todo.title}</span
-          ><button
-            type="button"
-            class="lf-btn lf-thread-action"
-            @click=${() => done(todo.id)}
-          >
-            Done
-          </button>
+          ><button ${offeredAction("word")} @click=${() => done(todo.id)}>Done</button>
         </li>`,
     )}
   </ul>`;
@@ -760,11 +759,10 @@ export class ThreadView {
     const face = `${state.kind} ${place}`;
     let button = this.#settlements.get(face);
     if (!button) {
-      button = offer(
-        "button",
-        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${icon ? "lf-icon-action" : "lf-thread-action"}`,
+      button = offerAction(
+        icon ? "symbol" : "word",
+        reopen ? "lf-reopen" : "lf-resolve",
       );
-      button.type = "button";
       this.#settlements.set(face, button);
       const word = reopen ? "Reopen" : "Resolve";
       keys(button, `On a thread's ${word} button`, [

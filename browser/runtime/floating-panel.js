@@ -149,8 +149,8 @@ import {
   repeat,
   signal,
 } from "/vendor/browser-runtime.js";
-import { el, reveal } from "./widget-elements.js";
-import { iconElement, iconTemplate } from "./icons.js";
+import { el, offerAction, reveal } from "./widget-elements.js";
+import { iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 import { setRuntimeRootStyle } from "./root-state.js";
@@ -381,12 +381,13 @@ export function createFloatingPanel({
   // corner mark on the box's top-right corner, chosen over one at the row's end on 15
   // October. It presses the fold command's own row, as the menu's row does; that row and
   // `.` are the keyboard's and a finger's ways, so it takes no Tab stop of its own.
-  const minimize = el("button", "lf-mark lf-corner-mark lf-fp-minimize");
-  minimize.type = "button";
+  const minimize = offerAction(
+    "mark",
+    "lf-corner-mark lf-fp-minimize",
+    "Fold to the leaf",
+    { icon: "subtract" },
+  );
   minimize.tabIndex = -1;
-  minimize.title = "Fold to the leaf";
-  minimize.setAttribute("aria-label", "Fold to the leaf");
-  minimize.append(iconElement("subtract", "lf-mark-icon"));
   minimize.addEventListener("click", () =>
     rows()
       .find((entry) => entry.key === `command:${FOLD}`)

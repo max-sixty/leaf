@@ -8,7 +8,7 @@
       (control) => belongsTo(host, control)
     )
   ];
-  function render(host, { tabStore, offer, generatedElement, keeps }) {
+  function render(host, { tabStore, offer, offerAction, generatedElement, keeps }) {
     const presets = own(host, "lf-playground-preset");
     const outputs = own(host, "lf-playground-output");
     const previews = own(host, "lf-playground-preview");
@@ -221,9 +221,9 @@
         presetBar.append(title, ...presets);
       }
       for (const preset of presets) {
-        const button = offer(
-          "button",
-          "lf-btn lf-playground-preset",
+        const button = offerAction(
+          "word",
+          "lf-playground-preset",
           preset.getAttribute("label")
         );
         button.setAttribute("aria-pressed", "false");
@@ -231,8 +231,8 @@
         presetButtons.set(preset, button);
       }
       const actions = node("footer", "lf-playground-actions");
-      reset = offer("button", "lf-btn lf-playground-reset", "Reset");
-      submit = offer("button", "lf-btn primary lf-playground-submit");
+      reset = offerAction("word", "lf-playground-reset", "Reset");
+      submit = offerAction("commit", "lf-playground-submit");
       const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
       submit.dataset.room = `${submitLabel}
 Undo choice`;

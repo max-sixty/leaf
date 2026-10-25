@@ -1,7 +1,7 @@
 import { J, LitElement, PENDING, Z, actionForWidget, anchorKey, bindQueuedWork, d, discussed, editable, isMessageEvent, isThreadEvent, moved, projectionOrigins, q, reactionsAt, render, stateCoordinate, threadKey, tokenChoices, turns, x } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, reportCarried, reportPageError, requestJson, sameLayer, sessionIsActive, setRuntimeRootAttribute, watchPendingTraffic } from "./bundle-layer-client.js";
-import { PRESS, TEXT_ENTRY, announce, claimsEsc, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, cycledRow, el, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, landingInsets, layoutWindow, matchesWhen, notice, offer, paintKeys, paintKeysWithin, placeBox, placeHolder, presented, raiseError, registry, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-errors.js";
+import { PRESS, TEXT_ENTRY, announce, claimsEsc, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, cycledRow, el, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, landingInsets, layoutWindow, matchesWhen, notice, offer, offerAction, paintKeys, paintKeysWithin, placeBox, placeHolder, presented, raiseError, registry, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-errors.js";
 import { PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, offlineData, offlineInteractive, offlineState, pageUrl, presentDocument, queueWidgetUpdate, readApplication, readPart, runtime, setPresentationFailureReporter, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { activityTransitionDue, ago, markStateApplied, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, tickClock } from "./bundle-reading-regions.js";
 import { comparisonBase, comparisonChanges, createProjectionPresentation, inlineComparison, referencedProjection, requireReference, toggleInlineComparison } from "./bundle-version.js";
@@ -1409,7 +1409,7 @@ const composerQuote = el("blockquote", "lf-ui lf-quote detached");
 composerQuote.id = "lf-composer-quote";
 const composerInput = fabInput;
 composerInput.setAttribute("aria-describedby", composerQuote.id);
-const composerSend = el("button", "lf-btn", "Comment");
+const composerSend = el("button", "", "Comment");
 const composerField = document.createDocumentFragment();
 composerField.append(composerInput);
 composer.append(composerQuote, composerSend);
@@ -4356,8 +4356,8 @@ const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => 
 	const row = offer("div", "lf-say lf-comment-box");
 	const ta = offer(TEXT_FIELD);
 	ta.name = "comment";
-	const send = offer("button", "lf-btn", "Send");
-	const hold = declaration.hold ? offer("button", "lf-btn", declaration.hold) : null;
+	const send = offer("button", "", "Send");
+	const hold = declaration.hold ? offerAction("word", "", declaration.hold) : null;
 	const ctx = "say:" + el.id;
 	ta.value = loadDraft(ctx) ?? "";
 	ta.setAttribute("aria-label", hint);

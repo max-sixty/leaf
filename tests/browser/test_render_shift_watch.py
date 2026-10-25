@@ -6,6 +6,7 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
+from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_harness import (
     INPUT_WORK_WATCH_SOURCE,
@@ -50,9 +51,7 @@ def held_stretch(page):
     """Idle frames the sensor keeps unchanged readings for, on a CPU as slow as a CI
     runner's, so a credited move that follows is compared from a held frame
     (`shift_watch.js`, "Unchanged frames") with the frame timing CI has."""
-    page.context.new_cdp_session(page).send(
-        "Emulation.setCPUThrottlingRate", {"rate": 6}
-    )
+    slow_cpu(page, 6)
     page.evaluate(
         """count => new Promise((done) => {
           const next = () => (--count ? requestAnimationFrame(next) : done());

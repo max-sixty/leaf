@@ -387,6 +387,15 @@ navigation; raw and `browser.unwatched` pages aren't set up for later routes. Wh
 the driver loses a fact, such as the Page for a tab Chromium opened, read the
 browser's record (`opened_tab`).
 
+A watch finding that CI reports and this machine doesn't is usually a frame that lands
+later on CI's slower runner, after the input window that credits it has closed. Load
+alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest or
+`leaf-dev flake`, slows every Chromium page the browser fixtures open. Past findings
+reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
+so try more than one. Run the merge base under the same rate to learn whether the
+change caused it. A test whose subject is a slow CPU slows its own page
+with `leaf_dev.browser.slow_cpu`.
+
 - A route handler that returns without resolving holds the request before the server.
   Call `holding` before reading the list of held requests, since the ledger counts a
   send before the handler runs. Release a held request mid-test only when later

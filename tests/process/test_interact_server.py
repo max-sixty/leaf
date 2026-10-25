@@ -3319,22 +3319,6 @@ def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
     assert not server_rows_model.row_path(deleted).exists()
 
 
-def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
-    import watchfiles.main
-    from watchfiles._rust_notify import WatchfilesRustInternalError
-
-    from leaf import file_changes
-
-    def exhausted(*_args, **_kwargs):
-        raise WatchfilesRustInternalError(
-            "Error creating recommended watcher: Too many open files (os error 24)"
-        )
-
-    monkeypatch.setattr(watchfiles.main, "RustNotify", exhausted)
-    with pytest.raises(WatchfilesRustInternalError, match="Too many open files"):
-        file_changes.FileChanges({tmp_path: False}, lambda _path: True)
-
-
 def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     page_dir, monkeypatch
 ):

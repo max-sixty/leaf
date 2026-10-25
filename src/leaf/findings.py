@@ -1874,6 +1874,12 @@ _TEXT = {
         "the URL reaches only this machine; re-serve with --host NAME for a user"
         " elsewhere"
     ),
+    # A native file watch the kernel refused (`file_changes`), which polls instead.
+    "watch-limit": lambda at, v: (
+        f"the kernel has no native file watch left ({v['limit']} is reached), so"
+        f" this process polls {', '.join(v['roots'])} instead and notices changes"
+        " later"
+    ),
     # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
     # back or could not, and why it ended.
     "server-restarted": lambda at, v: (

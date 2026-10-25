@@ -109,21 +109,20 @@ for no rerun: name it in the pull request as inherited, check that it has an own
 `main`.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
-`tend-ci-fix` repairs what CI's `test` job (`ci.yaml`) fails on main. The user accepted
-that a pull request can land green and break a test it never ran, so a red main is no
-reason to widen a change or its tests. A newer push cancels main's waiting run, as
-intended. To learn what main fails, read that job's run and reproduce a failure by node
-id.
+`tend-ci-fix` repairs what CI (`ci.yaml`) fails on main: the `test` job on Ubuntu, and
+`test-macos`, which runs every tier on macOS in the daily scheduled run and a dispatch.
+The user accepted that a pull request can land green and break a test it never ran, so
+a red main is no reason to widen a change or its tests. A newer push cancels main's
+waiting run, as intended. To learn what main fails, read that job's run and reproduce a
+failure by node id.
 
 A failure on main, in that run or only in a local one, needs an owner. `tend-ci-fix`
 owns one that main's latest run shows while its run on it is going, or while an open
-`fix/ci-*` pull request or `ci-fix:` issue it opened names it. A failure only macOS
-reproduces is beyond it, as is one whose `tend-ci-fix` run was refused or ended without
-naming it. Confirm a macOS-only failure at normal priority: `taskpolicy -b` slows
-headless Chrome's frames about sixfold, and tests that time frames then fail only on the
-Mac. For a failure `tend-ci-fix` doesn't own, check that no session, worktree (Codex's
-under `~/.codex/worktrees` included) or open pull request covers it, then start a local
-session for it (for example with `/dispatch`).
+`fix/ci-*` pull request or `ci-fix:` issue it opened names it. A failure only a local
+run shows is beyond it, as is one whose `tend-ci-fix` run was refused or ended without
+naming it. For a failure `tend-ci-fix` doesn't own, check that no session, worktree
+(Codex's under `~/.codex/worktrees` included) or open pull request covers it, then start
+a local session for it (for example with `/dispatch`).
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for

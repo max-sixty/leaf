@@ -59,9 +59,10 @@ successful reply publishes the source it checked (`thread._compose_and_append`, 
 Plain `page check` runs one browser reading as well. A page that runs code of its own,
 or places a data widget or a widget naming page media, is run once, and fails on each
 `error` event its runtime posts, the same events `leaf wait` delivers
-(`render_gate/page_code.py`). Message markup is not run, so a thread command never
-waits on a browser; a message's widget reports its failure as an `error` event when its
-thread draws.
+(`render_gate/page_code.py`). A thread command runs message markup placing one of those
+widgets the same way before it posts, apart from the page lease, and refuses it on the
+same reports (`render_gate/command.message_check`); markup without one waits on no
+browser.
 
 Leaf runs without a browser. Where the host has none, every browser gate (this run,
 `--render` and `package check --render`) is skipped with a note and leaves the status

@@ -13,6 +13,14 @@ the watcher's `error` event. The check therefore runs the exact candidate once,
 wherever the page carries any of these: through upgrade, authoritative presentation,
 and one rendering frame after it, at the render viewport in the light scheme.
 
+A thread message's markup is run the same way before it posts (`message_page`,
+`command.message_check`), wherever it places one of those widgets. Nothing else draws
+it before the user opens its thread, and the log freezes it, so posting is the one
+moment its author can still fix it. In the `widgets-draw-as-written` evals, 5 of 6
+Codex replies holding a Mermaid sequence diagram didn't draw (a `;` in a loop label
+or note ends the statement), and their authors never ran `--render`. A reply with no
+such widget waits on no browser.
+
 What fails it is what the runtime would report to the agent. `runtime/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and
 every fault the runtime reports about the page itself, as an `error` event; that is
@@ -55,6 +63,13 @@ def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
     ]
     if any(script_kind(script["attrs"]) in {"module", "classic"} for script in scripts):
         return True
+    return places_judged_widget(document, artifact)
+
+
+def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -> bool:
+    """Whether the document places a widget whose module reads what no static check
+    has: a page widget's own code, a data widget's body, or the page media its
+    attributes name. A widget the document never places never loads."""
     registry = artifact.registry
     implementations = artifact.implementations
     return any(
@@ -66,6 +81,20 @@ def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
         )
         for record in document.lf_elements
         if record["tag"] in implementations
+    )
+
+
+def message_page(markup: str) -> SourceDocument:
+    """A message's markup as a page of its own, as a sample's template is one.
+
+    A message's widgets stand in its thread rather than the page, where a chart in a
+    shut panel has no room to draw, so the run gives them the column the page's own
+    widgets have. The page's document stays out of it, so an error here is the
+    message's. A thread inserts markup inertly, so the run is for the widgets the
+    markup places (`places_judged_widget`) and never for a script in it."""
+    return SourceDocument(
+        '<!doctype html><html lang="en"><head><title>Message</title></head>'
+        f'<body><main class="layout-column">{markup}</main></body></html>'
     )
 
 

@@ -683,7 +683,9 @@ def test_plain_check_hears_a_chart_mark_drawn_at_nan(serve, headless_shell):
     [error] = check(1)
     assert '<lf-chart id="rates"> failed: its text mark drew at transform=' in error
 
-    (d / "index.html").write_text(LONG_PAGE.replace("</main>", chart.replace("DY", "4")))
+    (d / "index.html").write_text(
+        LONG_PAGE.replace("</main>", chart.replace("DY", "4"))
+    )
     assert check(0) == []
 
 

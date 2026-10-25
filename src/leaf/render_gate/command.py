@@ -209,6 +209,40 @@ def browser_check(
     )
 
 
+def message_check(page_dir: Path, kind: str, markup: str) -> None:
+    """Run a message's markup once, as a page of its own (`page_code.message_page`),
+    where it places a widget only a browser can judge, and refuse it on every error
+    that run reports, as plain `page check` refuses a page. Takes the page's current
+    layer, the one the thread will draw the message with. Where the host has no
+    browser the message posts unrun, and reports any failure when its thread draws."""
+    from leaf.files import latest_revision
+    from leaf.findings import Rejected
+    from leaf.registry.storage import read_page_registry
+    from leaf.revision_artifact import capture_artifact
+
+    from .page_code import message_page, places_judged_widget
+
+    layer = read_page_registry(page_dir)
+    if layer is None:
+        return
+    document = message_page(markup)
+    artifact = capture_artifact(
+        page_dir,
+        document,
+        layer.registry,
+        declaration_sources=layer.declaration_sources,
+        widget_sources=layer.widget_sources,
+    )
+    if not places_judged_widget(document, artifact):
+        return
+    revision = (latest_revision(page_dir) or 0) + 1
+    ran = browser_check(
+        page_dir, document, revision, artifact, page_code=True, render=False
+    )
+    if ran.status:
+        raise Rejected(ran.findings(), f"{kind} markup doesn't draw")
+
+
 @dataclass(frozen=True, slots=True)
 class WidgetQuality:
     """What `package check --render` read of the package's `widgets`: its findings

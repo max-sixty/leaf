@@ -25,6 +25,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_menu,
     panel_view,
@@ -64,7 +65,7 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
     expect(frame.locator("#bg-choice-ask h3")).to_have_text(
         "Which map should the sample team carry?"
     )
-    frame.locator(".lf-fp-threads").click()
+    open_threads(frame)
     expect(frame.locator(panel_view("threads"))).to_be_visible()
     frame.goto(frame.url)
     wait_until_ready(frame)

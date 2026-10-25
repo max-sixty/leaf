@@ -26,6 +26,7 @@ from render_harness import (
     leaf_page,
     nudge,
     open_page,
+    open_threads,
     page_comment,
     panel_field,
     panel_settled,
@@ -796,9 +797,11 @@ SURFACE_PAGES = {
 def toggle_surface(page, surface, open=True):
     if surface == "queue":
         toggle_queue(page, open)
+    elif open:
+        open_threads(page)
     else:
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, open, "threads" if open else None)
+        page.locator(".lf-fp-close").click()
+        panel_settled(page, open=False)
 
 
 @pytest.mark.parametrize(
@@ -852,8 +855,7 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
     dialog paints over the panel, and reads above it."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     stacking = page.evaluate(
         """async () => {
           const { stackLevel } = await window.__lfCheckApi();
@@ -961,7 +963,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     work, observer deliveries, cancellation — is tests/runtime/rendering.test.mjs."""
     url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-threads")
+    toggle = page.locator(".lf-fp-on-user")
     toggle.hover()
     rendered(page)
     # Read before dispatch: an earlier pointerdown capture listener may already have
@@ -984,7 +986,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
-    expect(page.locator(panel_view("threads"))).to_be_visible()
+    expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
 # The words of the field's draft, row by row as the field draws them.
@@ -1180,11 +1182,11 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     # The panel's field quotes the selection, where the finger that made it finds it,
-    # and the marks keep their seats; the leaf's menu stays shut.
+    # and the On me mark keeps its seat; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
-    expect(page.locator(".lf-fp-threads")).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
     box = comment.bounding_box()
     assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
     comment.tap()

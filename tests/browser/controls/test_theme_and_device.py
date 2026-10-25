@@ -9,6 +9,7 @@ from render_harness import (
     displayed,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_settled,
     resized,
@@ -182,9 +183,7 @@ def test_coarse_pointer_panel_lists_give_humane_aims(browser, serve):
             )
 
     # The rows of the panel's lists, which a finger picks among.
-    page.locator(".lf-fp-threads").tap()
-    panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button", has_text="Open").tap()
+    open_threads(page)
     humane(page.locator(".lf-fp-thread:visible"), "Threads row")
     page.locator(".lf-fp-close").tap()
     panel_settled(page, open=False)
@@ -236,7 +235,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
         resized(page, width, 700)
         for opened in (False, True):
             if opened:
-                page.locator(".lf-fp-threads").click()
+                page.locator(".lf-fp-on-user").click()
             panel_settled(page, open=opened)
             box = page.evaluate(reading)
             assert box["bottom"] <= box["height"] - insets["bottom"], (width, box)

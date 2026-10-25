@@ -613,7 +613,7 @@
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
      not a press of its own, in Dictate's seat. While the field holds a draft, the
-     counts step aside, so the field takes their room, and Send stays in its corner
+     mark steps aside, so the field takes its room, and Send stays in its corner
      with the caret elsewhere, so no line of the draft moves (floating-panel.js,
      `drafted`). */
   .lf-fp-field .lf-compose-submit {
@@ -623,9 +623,6 @@
     .lf-fp-field
     .lf-compose-submit {
     display: grid;
-  }
-  .lf-floating-panel:is([data-drafted], [data-search]) .lf-fp-quick {
-    display: none;
   }
   .lf-fp-field .lf-compose-dictate {
     display: grid;
@@ -637,15 +634,16 @@
     display: none;
   }
 
-  /* Marks with counts: what waits on the user, the threads, and annotating. */
+  /* The row's end: one seat, as wide as the On me mark with its count's room, which the
+     way out fills while it stands (floating-panel.js, `quick`), so the two trade places
+     moving nothing. A count's room stands whether or not it has a number. */
   .lf-fp-quick {
-    flex: 0 1 auto;
-    min-width: 0;
+    flex: none;
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 2px;
+    width: max(var(--lf-fp-aim), calc(16px + 4px + 2ch + 14px));
+  }
+  .lf-fp-quick > .lf-fp-chip {
+    flex: 1;
   }
   .lf-fp-chip {
     position: relative;
@@ -653,23 +651,15 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    min-width: var(--lf-fp-aim);
     min-height: var(--lf-line);
     padding: 0 7px;
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
   }
-  .lf-fp-chip:hover,
-  .lf-fp-chip[aria-pressed="true"] {
+  .lf-fp-chip:hover {
     color: var(--ink);
   }
-  .lf-fp-chip[aria-pressed="true"] {
-    background: var(--lf-fp-faint);
-  }
-  /* A count's room stands whether or not it has a number. */
-  .lf-fp-on-user,
-  .lf-fp-threads {
-    min-width: calc(16px + 4px + 2ch + 14px);
+  .lf-fp-on-user {
     justify-content: flex-start;
   }
   .lf-fp-on-user[data-due] .lf-fp-num {
@@ -686,10 +676,10 @@
     background: var(--accent);
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
-  /* The row's one small notice, beside the marks (floating-panel.js, `rowNotice`): a
+  /* The row's one small notice, beside the seat (floating-panel.js, `rowNotice`): a
      tinted chip of the qualifying size, whose press is the word that ends it. The
-     field gives up the room it takes, so the marks keep their seats, and while the
-     user types it stands aside with the counts. */
+     field gives up the room it takes, so the seat keeps its place, and while the
+     user types it stands aside with the mark. */
   .lf-fp-row-notice {
     flex: none;
     display: flex;
@@ -745,12 +735,6 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
-  /* The way out of the stance the user is in, after the counts. */
-  .lf-fp-exit-seat {
-    flex: none;
-    display: flex;
-    width: var(--lf-fp-aim);
-  }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */
   .lf-floating-panel[data-rest="mark"] {
@@ -763,7 +747,6 @@
     .lf-fp-field,
     .lf-fp-row-notice,
     .lf-fp-quick,
-    .lf-fp-exit-seat,
     .lf-fp-opened {
       display: none;
     }
@@ -1413,7 +1396,7 @@
     padding: 10px 8px 12px;
   }
   /* What left the list in view, under it: a section of its own, so a rule opens it. */
-  .lf-fp-on-done {
+  .lf-fp-ended {
     margin: 0 8px;
     padding-top: 10px;
     border-top: 1px solid var(--lf-fp-faint);

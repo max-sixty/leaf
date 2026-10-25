@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
-from playwright.sync_api import Browser, Page, sync_playwright
+from playwright.sync_api import Browser, FrameLocator, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf.render_checks import wait_for_probe, wait_until_ready
@@ -194,3 +194,47 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
         raise AssertionError(
             f"{where} never held one position for {frames} frames: gave up on {held}"
         ) from None
+
+
+# The floating panel's row ends in one seat: at rest the On me mark, which counts what
+# waits on the user and dots a thread with news; while a view, stance or search stands,
+# its way out (`.lf-fp-exit`, with `.lf-fp-close` for a view's Close) in the same place.
+ON_ME_MARK = ".lf-fp-on-user"
+
+
+def panel_tab(page: Page | FrameLocator, name: str):
+    """The On view's tab `name` at the foot of On and of Threads, Threads being one of
+    its tabs: `On me`, `On <agent>`, `Threads` and, while a plan exists, `Plan`. Each
+    but Plan says its count after its name, in `.lf-fp-count`."""
+    return page.locator(".lf-fp-controls .lf-fp-filters button", has_text=name)
+
+
+def threads_tab(page: Page | FrameLocator):
+    """Stand On or Threads open and return the Threads tab at its foot. From the row the
+    On me mark opens On, or Threads itself while nothing waits on the user but a reply
+    they have not read; another view standing open is closed first, by the seat's Close.
+    `page` may be a live sample's frame."""
+    host = page.locator(".lf-floating-panel")
+    if host.get_attribute("data-open") not in ("queue", "threads"):
+        if host.get_attribute("data-open") is not None:
+            page.locator(".lf-fp-close").click()
+        page.locator(ON_ME_MARK).click()
+    return panel_tab(page, "Threads")
+
+
+def open_threads(page: Page | FrameLocator) -> None:
+    """Open the floating panel's Threads view by pointer, as a user reaches it: from a
+    thread opened over Threads by its way back, else by the Threads tab (`threads_tab`)
+    unless the mark opened Threads itself. The view lists the open threads, then the
+    resolved ones under a Resolved heading (`.lf-fp-ended`)."""
+    host = page.locator(".lf-floating-panel")
+    if host.get_attribute("data-open") == "threads":
+        return
+    back = page.locator(".lf-fp-controls .lf-fp-back", has_text="Threads")
+    if back.count():
+        back.click()
+    else:
+        tab = threads_tab(page)
+        if host.get_attribute("data-open") != "threads":
+            tab.click()
+    page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])').wait_for()

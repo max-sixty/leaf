@@ -81,6 +81,7 @@ export { renderingState } from "./rendering.js";
 export { readingBlock, blocksOnScreen } from "./reading-place.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { walkPosition } from "./walk-position.js";
+export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";

@@ -181,7 +181,7 @@ representative desktop viewport.
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
-  Threads toggle, filters, panel, margin entry and Page Map change together. Green marks
+  On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
   the user's turn; other thread controls stay blue. Marking read never moves the user.
 
 ### Motion

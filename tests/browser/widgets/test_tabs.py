@@ -12,8 +12,8 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     pane_scroll_behavior,
-    panel_settled,
     post_event,
     resized,
     root_overflow,
@@ -785,8 +785,7 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     assert twins("desktop") == first
     # Wider than the reading column, which a workspace's prose does not keep.
     assert first["in-wide"]["width"] > 720, first
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     twins("threads open")
     resized(page, 390, 800)
     twins("phone")

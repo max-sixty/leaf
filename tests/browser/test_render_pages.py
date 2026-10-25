@@ -794,6 +794,8 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     mark = page.locator('.lf-visual-mark[data-for="lp-k-checks"].lf-visual-mark-here')
     expect(mark).to_be_visible()
     card.scroll_into_view_if_needed()
+    # Include the floating thread's final placement and shadow in both captures.
+    rendered(page)
     box = card.bounding_box()
 
     def screenshot():

@@ -1,6 +1,6 @@
 import { html, render } from "./bundle-browser-runtime.js";
 import { closeLayer, focusDestination, handBack, keeps, keepsHidden, keepsText, openLayer, openerOf } from "./bundle-dom-move.js";
-import { closeControl, closeNativeLayer, keys, nativeLayers, offerAction, offered, paintKeys, plainPress, showNativeLayer } from "./bundle-errors.js";
+import { closeControl, closeNativeLayer, keys, nativeLayers, offered, paintKeys, plainPress, showNativeLayer } from "./bundle-errors.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./bundle-context.js";
 import { says } from "./bundle-passages.js";
 import { foldDuration, reducedMotion } from "./bundle-motion.js";
@@ -33,7 +33,10 @@ const viewerClose = closeControl({
 	name: "Close image preview",
 	title: "Close image preview (Esc)"
 });
-const viewerZoom = offerAction("word", "lf-media-viewer-zoom", "100%");
+const viewerZoom = document.createElement("button");
+viewerZoom.type = "button";
+viewerZoom.className = "lf-btn lf-media-viewer-zoom";
+viewerZoom.textContent = "100%";
 const stage = document.createElement("div");
 stage.className = "lf-media-viewer-stage";
 const caption = document.createElement("p");

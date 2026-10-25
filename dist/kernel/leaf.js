@@ -2,7 +2,7 @@ import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_ex
 import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
-import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offerAction, offered, offeredAction, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
+import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
 import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
@@ -242,14 +242,20 @@ var AttachedMediaShelf = class extends LitElement {
                 ${this.picture(drawing)}
               </button>
               <button
-                ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke")}
+                type="button"
+                class="lf-mark lf-corner-mark lf-composer-drawing-undo"
+                aria-label="Undo last stroke"
+                title="Undo last stroke"
                 @mousedown=${(event) => event.preventDefault()}
                 @click=${() => this.actions.undoStroke()}
               >
                 ${this.undoIcon}
               </button>
               <button
-                ${offeredAction("mark", "lf-corner-mark", "Remove drawing")}
+                type="button"
+                class="lf-mark lf-corner-mark"
+                aria-label="Remove drawing"
+                title="Remove drawing"
                 @mousedown=${(event) => event.preventDefault()}
                 @click=${() => this.actions.removeDrawing()}
               >
@@ -258,7 +264,9 @@ var AttachedMediaShelf = class extends LitElement {
             </span>
           ` : null, media.map(({ index, url }) => {
 			const remove = html`<button
-          ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`)}
+          type="button"
+          class="lf-mark lf-corner-mark lf-composer-media-remove"
+          aria-label=${`Remove attached image ${index + 1}`}
           @click=${() => this.actions.removeMedia(index)}
         >
           ${iconTemplate("cross", "lf-mark-icon")}
@@ -339,10 +347,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		field.append(ta);
 		(submitIn ?? field).append(sendBtn);
 		const Recognition = globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
-		const mic = Recognition && icon === "send" && !submitIn ? Object.assign(document.createElement("button"), {
-			type: "button",
-			className: "lf-compose-dictate"
-		}) : null;
+		const mic = Recognition && icon === "send" && !submitIn ? document.createElement("button") : null;
 		let dictation = null;
 		let loadingDictation = false;
 		let dictationGeneration = 0;
@@ -351,6 +356,8 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		const dictationPhase = () => loadingDictation ? "starting" : dictation?.phase ?? "idle";
 		const dictationStatus = () => loadingDictation ? "Starting microphone…" : loadingFailure || dictation?.status || "";
 		if (mic) {
+			mic.type = "button";
+			mic.className = "lf-btn lf-icon-action lf-compose-dictate";
 			mic.append(iconElement("microphone", "lf-action-icon"));
 			field.append(mic);
 		}
@@ -371,7 +378,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			uncover();
 		});
 		const held = () => busy() || errorOver(ta) !== null;
-		sendBtn.classList.add("lf-compose-submit");
+		sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
 		sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
 		const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
 		mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
@@ -2884,8 +2891,12 @@ pageSearchStatus.setAttribute("role", "status");
 const pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
 const matchStep = (icon, name) => {
-	const control = offerAction("symbol", "lf-page-search-step", name, { icon });
+	const control = el("button", "lf-btn lf-icon-action lf-quiet-action lf-page-search-step");
+	control.type = "button";
 	control.tabIndex = -1;
+	control.append(iconElement(icon, "lf-action-icon"));
+	control.setAttribute("aria-label", name);
+	control.title = name;
 	control.addEventListener("mousedown", (event) => event.preventDefault());
 	return control;
 };
@@ -5252,8 +5263,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	inner.append(opened, row);
 	card.append(inner);
 	host.append(card, menu, peek);
-	const minimize = offerAction("mark", "lf-corner-mark lf-fp-minimize", "Fold to the leaf", { icon: "subtract" });
+	const minimize = el("button", "lf-mark lf-corner-mark lf-fp-minimize");
+	minimize.type = "button";
 	minimize.tabIndex = -1;
+	minimize.title = "Fold to the leaf";
+	minimize.setAttribute("aria-label", "Fold to the leaf");
+	minimize.append(iconElement("subtract", "lf-mark-icon"));
 	minimize.addEventListener("click", () => rows().find((entry) => entry.key === `command:${FOLD}`).press(null));
 	host.append(minimize);
 	const CORNER = {
@@ -7148,7 +7163,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				menuFade = null;
 				render(nothing, menu);
 			}
-		} else if (menuDrawn && !menuFade) {
+		} else if (menuDrawn && !menuFade && motionPlays()) {
 			menu.setAttribute("data-leaving", "");
 			menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
 				duration: motionTime("--lf-motion-disclosure", menu),
@@ -7575,6 +7590,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		return present({ release: true }).then(() => true);
 	}
+	function openThread(id) {
+		const thread = threadByKey(id);
+		if (!thread) return;
+		open({
+			view: "thread",
+			thread: thread.key
+		}, { reopen: true });
+	}
 	function captureCurrentLocation() {
 		const top = trail.value.at(-1);
 		const view = openView();
@@ -7683,6 +7706,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		searchPage,
 		doors,
 		showForSample,
+		openThread,
 		captureCurrentLocation,
 		restoreCurrentLocation,
 		responseHome: responseSeat,
@@ -10706,6 +10730,7 @@ app = mountApplication({
 		pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
 		renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
 		scrollThreadIntoView,
+		openInPanel: (id) => floatingPanel?.openThread(id),
 		goToObligation: (...args) => items.goToObligation(...args)
 	},
 	state: {

@@ -575,6 +575,7 @@ export class ThreadView {
       ? [
           model.news ? notice.node : null,
           marginControls.nav,
+          marginControls.expand,
           settlement,
           marginControls.close,
         ].filter(Boolean)

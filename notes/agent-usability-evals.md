@@ -409,6 +409,36 @@ was refused; mean author time was 1.1 minutes with the run and 1.4 without.
 uv run leaf-dev eval widgets-draw-as-written/thread-diagram widgets-draw-as-written/thread-chart --harness claude-code --base --repeat 6 -j 2
 ```
 
+An earlier run of similar cases, from the closed #3901 at `f00911ed1`, agrees and
+adds two observations. In its `placed-widgets-draw` cases and a visual-review case,
+agents authored 41 samples on Claude Code (Opus 5.5) and 28 on Codex (Sol 6.1), and
+its grader counted a widget as failed only where the runtime posted an `error`
+event. No final page or message failed on that count: text documents 0 of 13
+(0–23%), markup-only playgrounds 0 of 9 (0–30%), visual reviews 0 of 13 (0–23%) and
+charts in thread messages 0 of 30 (0–11%), from 29 samples.
+
+- 2 of 29 thread-chart samples (7%, 2–22%) had a chart draft that failed while its
+  author wrote it, both found by the 4 Claude Code authors who drew their chart on
+  a scratch page with `--render`. One failed with `invalid lineAnchor`, which the
+  runtime reports. The other logged Plot's `translate(0.5,NaN)` and was posted; the
+  runtime of the time reported nothing, so it counted as drawn. Its `Plot.text`
+  mark took `dy: (d) => (d.region === "us-east" ? 14 : -10)`, the per-datum offset
+  #3956 now refuses. On the page at main `d91276596`, plain `page check` reports
+  that chart as `marks[1] (text) has a dy that is not a number`, and `thread create`
+  would refuse the message. #3901 reported no other NaN drawing, so a scan for NaN
+  after the chart draws, which #3923's branch had and its merge dropped, would
+  catch nothing these runs show.
+- Asked for "a Leaf visual review", 3 of 3 Claude Code authors (44–100%) paired the
+  captures in `lf-shot` rather than `lf-visual-review`. #3901 then named the package
+  in the prompt, as `visual-change-uses-captures/review` does, so the visual-review
+  rates in both runs measure whether the widget draws once chosen, not whether
+  authors find it.
+
+`dev/tests/browser/test_draw_failures.py` is #3901's control for the grader: a
+playground control at `value="40"` over `max="24"` passes plain `page check`
+without a browser, and `draw_failures.py` reports it from `--render`, beside a
+thread message's `lf-chart` whose body throws.
+
 ## Render findings after handover, 2026-10-24
 
 TODO.md's "Read the full render gate after handover" would run the render readings on

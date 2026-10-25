@@ -1168,6 +1168,25 @@ const makeCut = () => {
 	return frame;
 };
 const placed = /* @__PURE__ */ new Map();
+const wired$1 = /* @__PURE__ */ new WeakSet();
+let hoveredControl = null;
+let focusedControl = null;
+const activeBlock = (control) => control && placed.get(control);
+const syncActive = (block) => {
+	if (block) block.toggleAttribute("data-lf-control-active", activeBlock(hoveredControl) === block || activeBlock(focusedControl) === block);
+};
+const setActiveControl = (kind, control) => {
+	const previous = kind === "hover" ? hoveredControl : focusedControl;
+	if (previous === control) return;
+	if (kind === "hover") hoveredControl = control;
+	else focusedControl = control;
+	syncActive(activeBlock(previous));
+	syncActive(activeBlock(control));
+};
+onCurrentLocation((node) => {
+	for (let at = node; at; at = upFrom(at)) if (placed.has(at)) return setActiveControl("focus", at);
+	setActiveControl("focus", null);
+});
 let resized = 0;
 addEventListener("resize", () => {
 	resized ||= nextRender(() => {
@@ -1181,9 +1200,21 @@ addEventListener("resize", () => {
 	});
 });
 function standInChrome(control, block, levels) {
+	const previousBlock = placed.get(control);
 	const frames = cutFrames(levels, cuts.get(control) ?? [], makeCut);
 	cuts.set(control, frames);
 	placed.set(control, block);
+	if (!wired$1.has(control)) {
+		wired$1.add(control);
+		control.addEventListener("pointerenter", () => setActiveControl("hover", control));
+		control.addEventListener("pointerleave", () => {
+			if (hoveredControl === control) setActiveControl("hover", null);
+		});
+	}
+	if (previousBlock !== block) {
+		syncActive(previousBlock);
+		syncActive(block);
+	}
 	if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
 	if (frames[0] && frames[0].parentNode !== home) move(home, frames[0], null);
 	const frame = frames.at(-1) ?? home;
@@ -1231,10 +1262,14 @@ let pressedPath = /* @__PURE__ */ new WeakSet();
 addEventListener("pointerdown", (event) => pressedPath = new WeakSet(event.composedPath()), { capture: true });
 const pressedElsewhere = (event, control) => event.detail > 0 && !pressedPath.has(control);
 function releaseControl(control) {
+	const block = placed.get(control);
+	if (hoveredControl === control) hoveredControl = null;
+	if (focusedControl === control) focusedControl = null;
 	control.remove();
 	cuts.get(control)?.[0]?.remove();
 	cuts.delete(control);
 	placed.delete(control);
+	syncActive(block);
 }
 
 //#endregion
@@ -1242,6 +1277,15 @@ function releaseControl(control) {
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
 const COPY_SCOPE = Symbol("code copy");
+function copySize(block) {
+	const style = getComputedStyle(block);
+	const chosen = style.getPropertyValue("--lf-code-copy-size").trim() || (block.localName === "pre" ? style.lineHeight : "");
+	return CSS.supports("width", chosen) ? chosen : "";
+}
+function setCopySize(copy, size) {
+	if (size) copy.style.setProperty("--lf-code-copy-size", size);
+	else copy.style.removeProperty("--lf-code-copy-size");
+}
 onCurrentLocation((node) => {
 	for (let at = node; at; at = upFrom(at)) {
 		const copy = controls.get(at);
@@ -1279,7 +1323,9 @@ function declareCopy(pre, copy, noun) {
 	}]));
 }
 function copyBlock(block, source, noun) {
+	const size = copySize(block);
 	const copy = aimControl(prepareCodeBlock(block, source, noun));
+	setCopySize(copy, size);
 	declareCopy(block, copy, noun);
 	return copy;
 }
@@ -1293,10 +1339,12 @@ function watchCodeBlocks() {
 			const prepared = blocks.filter((pre) => pre.getRootNode() === document).map((pre) => [
 				pre,
 				prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent, "code"),
-				headerLevels(pre)
+				headerLevels(pre),
+				copySize(pre)
 			]);
-			for (const [pre, pending, levels] of prepared) {
+			for (const [pre, pending, levels, size] of prepared) {
 				const copy = aimControl(pending);
+				setCopySize(copy, size);
 				standInChrome(copy, pre, levels);
 				copy.tabIndex = -1;
 				claimReachStop(pre);

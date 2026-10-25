@@ -1909,10 +1909,10 @@ html[data-lf-draw-mode] main {
   }
 }
 :root {
-  --lf-code-copy-size: var(--lf-line);
   --lf-code-copy-inset: 4px;
 }
 .lf-code-copy {
+  --lf-code-copy-size: var(--lf-line);
   position: absolute;
   top: calc(anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-block-control-dy, 0px));
   left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) + var(--lf-block-control-dx, 0px));
@@ -1949,13 +1949,13 @@ html[data-lf-draw-mode] main {
   position: relative;
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
-  padding: 6px;
+  padding: min(6px, max(1px, (var(--lf-code-copy-size) - var(--t-5) - 2px) / 2));
   border: 1px solid var(--code-border);
   border-radius: var(--r);
   background: var(--pre-bg);
   color: var(--muted);
   display: flex;
-  font-size: var(--t-5);
+  font-size: min(var(--t-5), calc(var(--lf-code-copy-size) - 4px));
 }
 .lf-code-copy::part(button):hover {
   color: var(--ink);

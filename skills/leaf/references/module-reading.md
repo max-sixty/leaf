@@ -117,8 +117,8 @@ number of differing pixels, whether they differ almost everywhere, and outlines
 `{x, y, width, height, side, kind}` around content that `changed` or `moved`, on the
 before image (`a`) or the after (`b`). `differenceKind(reading)`,
 `describeDifference(reading)` and `countAreas(regions)` classify, word and count the
-result. `compareImagePixels(a, b)` returns masks `{width, height, before, after, both}`,
-more opaque where a pixel changed more. `lf-shot` is the worked example.
+result. `compareImagePixels(a, b)` resolves to one RGBA mask `{width, height, data}`,
+whose alpha is stronger where a visible pixel changed more. `lf-shot` is the worked example.
 
 ### Media URLs
 

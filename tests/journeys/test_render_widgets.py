@@ -1243,6 +1243,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     ).to_have_value("4")
     instruction = page.locator("#release-query-instruction")
     expect(instruction).to_contain_text("risk above 80 and region is europe")
+    playground.locator(".lf-playground-instruction-region").hover()
     playground.get_by_role("button", name="Copy instruction").click()
     copied = page.evaluate("navigator.clipboard.readText()")
     assert copied == instruction.inner_text()
@@ -1407,6 +1408,7 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     instruction = page.locator("#code-comparison-instruction")
     expect(instruction).to_contain_text("comfortable reading density")
     expect(instruction).to_contain_text("wrap long lines")
+    playground.locator(".lf-playground-instruction-region").hover()
     playground.get_by_role("button", name="Copy instruction").click()
     assert page.evaluate("navigator.clipboard.readText()") == instruction.inner_text()
     with sending(page, "the code reader treatment"):
@@ -1462,8 +1464,8 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     ).to_have_accessible_name("Checkout needs attention")
     with sending(page, "the notification configuration"):
         playground.get_by_role("button", name="Create notification").click()
-    # The user can revise the configuration until the host stamps its result.
-    expect(playground.get_by_role("button", name="Create notification")).to_be_enabled()
+    # The control says the configuration is sent, and offers to withdraw it.
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_enabled()
     action = next(
         event
         for event in reversed(events_model.read_events(serve.page_dir))
@@ -1683,14 +1685,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     browser, serve
 ):
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-    # Present a wider rendered face before the control reserves its words, so a stated
-    # width cannot pass merely because it happens to fit this machine's font.
-    source = PLAYGROUND_PAGE.replace(
-        "</style>",
-        ".lf-playground-copy-trigger { letter-spacing: 0.125rem; }</style>",
-        1,
-    )
-    page = open_page(browser, serve(source), context=context)
+    page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
     playground = page.locator("#card-playground")
     expect(playground.get_by_role("group", name="Starting points")).to_be_visible()
     expect(playground.get_by_role("group", name="Controls")).to_be_visible()
@@ -1711,107 +1706,24 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    copy = playground.locator(".lf-playground-copy-trigger")
-    copy.scroll_into_view_if_needed()
-
-    def copy_width(label):
-        expect(copy).to_have_accessible_name(label)
-        reading = copy.evaluate(
-            """button => {
-              const visible = [...button.querySelectorAll('.lf-playground-copy-label')]
-                .find(label => getComputedStyle(label).display !== 'none');
-              const buttonBox = button.getBoundingClientRect();
-              const labelBox = visible.getBoundingClientRect();
-              const style = getComputedStyle(button);
-              return {
-                label: visible.textContent,
-                width: buttonBox.width,
-                labelLeft: labelBox.left,
-                labelRight: labelBox.right,
-                contentLeft: buttonBox.left + parseFloat(style.paddingLeft),
-                contentRight: buttonBox.right - parseFloat(style.paddingRight),
-              };
-            }"""
-        )
-        assert reading["labelLeft"] >= reading["contentLeft"], reading
-        assert reading["labelRight"] <= reading["contentRight"], reading
-        return reading["width"]
-
-    reserved_width = copy_width("Copy instruction")
+    # Copy is the code block's control, floating at the instruction pane's corner
+    # while the pointer is over the pane or the user is in it.
+    pane = playground.locator(".lf-playground-instruction-region")
+    copy = pane.get_by_role("button", name="Copy instruction")
+    pane.scroll_into_view_if_needed()
+    pane.hover()
     copy.click()
-    assert copy_width("Copied") == reserved_width
-    # A changed accessible name is not news to a screen reader; the live region is.
-    live = page.locator(".lf-live")
-    expect(live).to_have_text("Instruction copied")
-    expect(copy).to_have_css(
-        "color",
-        page.evaluate(
-            """() => {
-          const probe = document.createElement('span');
-          probe.style.color = 'var(--ok-ink)';
-          document.body.append(probe);
-          const color = getComputedStyle(probe).color;
-          probe.remove();
-          return color;
-        }"""
-        ),
-    )
-    expect(copy).to_have_attribute("data-copy-state", "success")
     assert page.evaluate("navigator.clipboard.readText()") == (
         "Use a 4px radius, compact spacing set to true, a bold tone, #4f766f accents, "
         "and the title Field note."
     )
 
     playground.get_by_role("button", name="Reset").click()
-    expect(copy).to_have_accessible_name("Copy instruction")
     assert playground.evaluate("root => root.values")["radius"] == 12
+    playground.get_by_role("button", name="Reset").press("Shift+Tab")
+    expect(copy).to_be_focused()
     copy.press("Enter")
-    assert copy_width("Copied") == reserved_width
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
-    expect(copy).to_have_accessible_name("Copy instruction")
-    page.evaluate(
-        """() => {
-          window.clipboardWrites = [];
-          window.clipboardReleases = [];
-          window.clipboardWrite = navigator.clipboard.writeText.bind(navigator.clipboard);
-          navigator.clipboard.writeText = value => {
-            window.clipboardWrites.push(value);
-            return new Promise(resolve => window.clipboardReleases.push(resolve));
-          };
-        }"""
-    )
-    copy.click()
-    radius = playground.get_by_role("slider", name="Corner radius")
-    radius.press("Home")
-    for _ in range(5):
-        radius.press("ArrowRight")
-    copy.click()
-    assert page.evaluate("window.clipboardWrites") == [
-        (
-            "Use a 12px radius, compact spacing set to false, a quiet tone, "
-            "#4f766f accents, and the title Field note."
-        ),
-        (
-            "Use a 5px radius, compact spacing set to false, a quiet tone, "
-            "#4f766f accents, and the title Field note."
-        ),
-    ]
-    page.evaluate(
-        """() => {
-          navigator.clipboard.writeText = window.clipboardWrite;
-          for (const release of window.clipboardReleases) release();
-        }"""
-    )
-    assert copy_width("Copied") == reserved_width
-    expect(copy).to_have_accessible_name("Copy instruction")
-    page.evaluate(
-        """() => {
-          navigator.clipboard.writeText = () => { throw new Error('refused'); };
-        }"""
-    )
-    copy.click()
-    assert copy_width("Copy failed") == reserved_width
-    expect(live).to_have_text("Could not copy the instruction")
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420
     assert " " not in playground.evaluate(

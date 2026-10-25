@@ -1310,6 +1310,11 @@ function prepareCodeBlock(pre, source, noun) {
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
 		});
+		for (const [icon, slot] of [
+			["copy", "copy-icon"],
+			["check", "success-icon"],
+			["cross", "error-icon"]
+		]) copy.append(Object.assign(iconElement(icon, "lf-mark-icon"), { slot }));
 		copy.addEventListener("click", (event) => {
 			if (pressedElsewhere(event, copy)) {
 				event.preventDefault();

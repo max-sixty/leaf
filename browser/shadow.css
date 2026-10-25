@@ -1342,7 +1342,6 @@ svg[data-lf-icon] {
   border: 0;
   border-radius: var(--r-s);
   font: inherit;
-  font-size: 12px;
   background: none;
   color: color-mix(in srgb, var(--ink) 72%, transparent);
   box-shadow: none;
@@ -1358,8 +1357,8 @@ svg[data-lf-icon] {
   outline-offset: 0;
 }
 .lf-mark > svg {
-  inline-size: 1em;
-  block-size: 1em;
+  inline-size: 12px;
+  block-size: 12px;
 }
 .lf-corner-mark {
   position: absolute;

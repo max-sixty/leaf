@@ -1783,8 +1783,10 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     resized(user, 1440, 900)
     widget = user.locator("#journey")
     widget.get_by_role("radio", name="Page 1", exact=True).click()
-    summary = widget.locator(".lf-trace-moments-heading")
-    expect(summary).to_have_text("Moments (20)")
+    # The list's numbered rows count the scope's moments; its heading doesn't.
+    moments = widget.locator(".lf-trace-bookmark:visible")
+    expect(widget.locator(".lf-trace-moments-heading")).to_have_text("Moments")
+    expect(moments).to_have_count(20)
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     pins = widget.locator(".lf-trace-moment-pin")
 
@@ -1867,8 +1869,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         "e => e.getBoundingClientRect().top + scrollY"
     )
     widget.get_by_role("radio", name="All pages", exact=True).click()
-    expect(summary).to_have_text("Moments (21)")
-    expect(widget.locator(".lf-trace-bookmark:visible")).to_have_count(21)
+    expect(moments).to_have_count(21)
     expect(
         widget.locator(".lf-trace-bookmark:visible .lf-trace-moment-number")
     ).to_have_text([str(number) for number in range(1, 22)])
@@ -1900,7 +1901,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         )
         == before_origin
     )
-    expect(summary).to_have_text("Moments (20)")
+    expect(moments).to_have_count(20)
     resized(user, 390, 844)
     visible_marks()
     # Keyboard stepping keeps its place on the timeline through a resize.

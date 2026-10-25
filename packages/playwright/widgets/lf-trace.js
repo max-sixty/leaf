@@ -1929,7 +1929,7 @@ customElements.define(
         <section class="lf-trace-bookmarks">
           <div class="lf-trace-options">
             <p class="lf-trace-moments-heading" ?hidden=${!this.#moments.length}>
-              Moments (${available.length + unavailable.length})
+              Moments
             </p>
             <a
               ${offered("lf-trace-viewer")}

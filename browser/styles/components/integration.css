@@ -33,10 +33,10 @@ html[data-lf-draw-mode] main {
    (code-copy.js). Hidden, it takes no presses, so a finger selecting the words beneath
    it reaches them. */
 :root {
-  --lf-code-copy-size: max(32px, var(--aim-floor));
   --lf-code-copy-inset: 4px;
 }
 .lf-code-copy {
+  --lf-code-copy-size: var(--lf-line);
   position: absolute;
   /* Hidden sources have no anchor; their chrome controls stay outside the window. */
   top: calc(
@@ -87,18 +87,27 @@ html[data-lf-draw-mode] main {
   pointer-events: auto;
 }
 .lf-code-copy::part(button) {
+  position: relative;
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
-  padding: 6px;
+  padding: min(6px, max(1px, (var(--lf-code-copy-size) - var(--t-5) - 2px) / 2));
   border: 1px solid var(--code-border);
   border-radius: var(--r);
   background: var(--pre-bg);
   color: var(--muted);
   display: flex;
-  font-size: var(--t-5);
+  font-size: min(var(--t-5), calc(var(--lf-code-copy-size) - 4px));
 }
 .lf-code-copy::part(button):hover {
   color: var(--ink);
+}
+/* Copy runs on its shadow button's press, so the reach (surfaces.css) is the button's:
+   one on the host would take the press from the button and copy nothing. Its own rule,
+   so an engine refusing a pseudo-element after a part keeps the rest. */
+.lf-code-copy::part(button)::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 /* A recording's bar lies over its foot, inset as Copy is from a code block's corner, in
    a control's face: paper, a hairline and the theme's radius (video-controls.js). It
@@ -106,7 +115,7 @@ html[data-lf-draw-mode] main {
    otherwise leaves the picture whole, taking no presses so a press reaches the
    picture. */
 :root {
-  --lf-video-bar-h: max(32px, var(--aim-floor));
+  --lf-video-bar-h: var(--lf-line);
   --lf-video-bar-inset: 4px;
 }
 .lf-video-controls {
@@ -151,7 +160,8 @@ html[data-lf-draw-mode] main {
   flex: none;
   display: grid;
   place-items: center;
-  inline-size: calc(var(--lf-video-bar-h) - 2px);
+  position: relative;
+  inline-size: max(var(--lf-video-bar-h) - 2px, var(--aim-floor));
   block-size: 100%;
   padding: 0;
   border: 0;
@@ -167,8 +177,6 @@ html[data-lf-draw-mode] main {
   }
   & > .lf-video-icon {
     grid-area: 1 / 1;
-    inline-size: 16px;
-    block-size: 16px;
   }
 }
 .lf-video-controls:not(.lf-video-playing) .lf-video-icon[data-lf-icon="pause"],

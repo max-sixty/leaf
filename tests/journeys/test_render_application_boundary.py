@@ -611,10 +611,11 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
-    # One reply answers both questions. Counts include them, while the
-    # compact answer summary names only widget choices instead of repeating words.
+    # One reply answers both questions; the separate proofread task remains due.
+    # Counts include them, while the compact answer summary names only widget
+    # choices instead of repeating words.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 waiting on me · 3 answered · Email"
+        "1 waiting on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(

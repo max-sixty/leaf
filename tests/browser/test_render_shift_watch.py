@@ -73,7 +73,7 @@ def field_page(browser, key=""):
 def within(node, place):
     """Whether a node the watch placed, by its steps innermost first, is the element
     `place` or inside it, as a text node in it (`["#text", "button#control"]`) or a
-    node in its shadow tree (`["div.cm-line", "#shadow-root", "leaf-text#field"]`)."""
+    node in its shadow tree (`["div.cm-line", "#shadow-root", "leaf-text#field.scroll"]`)."""
     return place in node
 
 
@@ -424,15 +424,15 @@ def test_editcontext_growth_keeps_input_credit_with_its_actual_field(
             page,
             {
                 "code": "typing-moved",
-                "field": ["leaf-text#field"],
-                "node": ["leaf-text#field"],
+                "field": ["leaf-text#field.scroll"],
+                "node": ["leaf-text#field.scroll"],
             },
         )
     else:
         assert field.bounding_box()["y"] == pytest.approx(before["y"])
         page.evaluate("document.getElementById('above').style.height = '40px'")
         judge_watches()
-        consume_browser_errors(page, moved_within("leaf-text#field"))
+        consume_browser_errors(page, moved_within("leaf-text#field.scroll"))
 
 
 @pytest.mark.parametrize(
@@ -1569,7 +1569,8 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     judge_watches()
     moved = consume_browser_errors(page, {"code": "moved-without-input"})
     assert any(
-        within(error.values["node"], "lf-diff#patch.lf-rendered") for error in moved
+        within(error.values["node"], "lf-diff#patch.scroll.lf-rendered")
+        for error in moved
     ), moved
 
 
@@ -1959,7 +1960,7 @@ def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
                 "node": [
                     "details.lf-diff-fold",
                     "#shadow-root",
-                    "lf-diff#patch.lf-rendered",
+                    "lf-diff#patch.scroll.lf-rendered",
                 ],
             },
         )

@@ -22,7 +22,7 @@ import importlib
 import os
 import secrets
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -32,7 +32,7 @@ from leaf.event_log import (
     _matching_attempt,
     _parse_events,
 )
-from leaf.files import unfinished_publications
+from leaf.files import read_json, unfinished_publications
 from leaf.interaction_log import append_interactions, session_context
 from leaf.machine import pid_alive, sandbox_remedy
 from leaf.refusals import Refused
@@ -143,7 +143,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
 
 
 # The keys a claim's reading takes from its session's lifetime (`claim_reading`).
-CLAIM_LIFETIMES = frozenset({"job", "chat", "pid"})
+CLAIM_LIFETIMES = frozenset({"job", "app", "chat", "pid"})
 
 
 def claim_reading(claim: dict | None) -> dict | None:
@@ -193,13 +193,21 @@ def claim_is_active(claim: dict | None) -> bool:
 
 def lifetime_is_live(lifetime: dict, record: dict | None) -> bool:
     """Whether the owner a `Harness.lifetime` names still lives: the job record a
-    background job's lifetime points at, the native source a persisted `chat`
-    stands on (`record`, the session's), or the process every other lifetime's pid
-    names. The only reading of that rule: a claim and the sandbox bridge's
-    registrations both carry a lifetime, so a harness that states its lifetime a
-    new way joins here alone."""
+    background job's lifetime points at, the Claude desktop app's record an `app`
+    lifetime points at while it is unarchived and still names the session, the
+    native source a persisted `chat` stands on (`record`, the session's), or the
+    process every other lifetime's pid names. The only reading of that rule: a claim and the sandbox
+    bridge's registrations both carry a lifetime beside the session's `id`, so a
+    harness that states its lifetime a new way joins here alone."""
     if "job" in lifetime:
         return (Path(lifetime["job"]) / "state.json").is_file()
+    if "app" in lifetime:
+        app = read_json(Path(lifetime["app"]))
+        return (
+            app is not None
+            and not app["isArchived"]
+            and app["cliSessionId"] == lifetime["id"]
+        )
     if lifetime.get("chat") is True:
         return chat_exists(record)
     return "pid" in lifetime and pid_alive(lifetime["pid"])
@@ -414,7 +422,7 @@ class PageTransaction:
         ended.
 
         `presence.nudge_unwatched` sends at most one such message per ending of a
-        turn (`session-lifetime.md`, Watchers), from browser-event admission, from
+        turn, from browser-event admission, from
         a watch giving up its lease, or from the page's server reading a turn
         interrupted, and a watch that wakes the session marks the ending too
         (`session.woke_after`). `ending` names the claim's turn id
@@ -450,14 +458,12 @@ class PageTransaction:
         stream the harness observes carries across a `waiting`, and `idle` clears it
         with the leaf."""
         from leaf.event_contracts import append_admitted
-        from leaf.harness import message_identity
 
         record, _ = append_admitted(
             self,
             {
                 "kind": "status",
                 "author": "agent",
-                **message_identity(),
                 "state": state,
                 "detail": detail,
             },
@@ -774,6 +780,24 @@ def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
 
 def claim_page(page_dir: Path) -> bool:
     return take_page_claim(page_dir) is not None
+
+
+def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
+    """Connect delivery before publishing ownership, without starting a server.
+
+    An explicit watcher claims with manual_delivery before its first wait. Hooks do
+    not prepare adapters, so this interval leaves delivery to that watcher; once its
+    wait is live, ordinary serving and reclaiming preserve the selected watch.
+    """
+    from leaf.harness import session_harness
+
+    harness = session_harness()
+    if harness is None:
+        raise Refused("only an agent harness session can claim a page")
+    preparation = nullcontext() if manual_delivery else harness.preparing_delivery()
+    with preparation, PageTransaction(page_dir) as page:
+        page.take_claim(harness)
+    return {"session": harness.session}
 
 
 def restore_page_claim(

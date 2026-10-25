@@ -22,12 +22,15 @@ from render_harness import (
     draft_control,
     draft_key,
     expect_error_waits_in_menu,
+    expect_panel_says,
     holding,
     http_error_console,
     open_page,
     page_comment,
     panel_field,
+    panel_says,
     panel_settled,
+    panel_view,
     round_trip,
     select_words,
     stored_draft,
@@ -35,7 +38,6 @@ from render_harness import (
     write,
 )
 
-from browser.drafts import PANEL_SAYS, expect_panel_says
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
 from leaf import event_log as events_model
 
@@ -311,7 +313,7 @@ def test_a_refused_detached_comment_reopens_beside_its_words(held_events, serve)
     before = box.bounding_box()
     page.keyboard.press("Enter")
     holding(page, held, 1, "the detached comment")
-    expect(page.locator(".lf-fp-view[data-view=thread]")).to_have_count(1)
+    expect(page.locator(panel_view("thread"))).to_have_count(1)
 
     refuse(page, held)
     expect(box).to_be_focused()
@@ -654,7 +656,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", words)
     expect_panel_says(page, "Couldn't send — refused before append")
-    assert "Draft kept" not in page.evaluate(PANEL_SAYS)
+    assert "Draft kept" not in panel_says(page)
     assert stored_draft_text(page, "general") == words
     assert not [
         event

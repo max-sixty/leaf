@@ -1,7 +1,7 @@
 /* Decorate the authored native disclosure before first paint. Its evidence stays
  * where the author put it, so a revision can patch prose while retaining the
  * nested diff reader. Native disclosure and revision carry own the open state. */
-document.documentElement.lfInitial.register("lf-worktree", (host) => {
+document.documentElement.lfInitial.register("lf-worktree", (host, tools) => {
   const node = (tag, className, text) => {
     const result = document.createElement(tag);
     result.className = className;
@@ -12,9 +12,8 @@ document.documentElement.lfInitial.register("lf-worktree", (host) => {
   details.classList.add("lf-worktree-disclosure");
   // Like lf-diff's file summary, this native disclosure names evidence. It is
   // content, not an apparatus-only offer: it must remain visible on paper.
-  const summary = node("summary", "lf-worktree-summary");
-  summary.dataset.lfGen = "1";
-  summary.dataset.lfSaid = "";
+  const summary = node("summary", "lf-worktree-summary lf-disclosure-marker");
+  tools.generatedElement(summary, { says: true });
   const identity = node("span", "lf-worktree-identity");
   const label = node("strong", "lf-worktree-label", host.getAttribute("label"));
   const branch = host.getAttribute("branch");
@@ -48,8 +47,7 @@ document.documentElement.lfInitial.register("lf-worktree", (host) => {
   }
   summary.append(identity, state, stats);
   const path = node("div", "lf-worktree-path");
-  path.dataset.lfGen = "1";
-  path.dataset.lfSaid = "";
+  tools.generatedElement(path, { says: true });
   path.append(
     node("span", "", "Worktree"),
     node("code", "", host.getAttribute("path")),

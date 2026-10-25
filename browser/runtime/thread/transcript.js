@@ -38,7 +38,6 @@ import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress, workingPlace } from "./summary-ranges.js";
 import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
-import { iconTemplate } from "../icons.js";
 
 // A progress run's face: its latest step, drawn as a message is, with who wrote it and
 // when at its head, but dimmed, and under a passing sheen while it is the working
@@ -470,7 +469,7 @@ export class Transcript {
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-summary-expand ${
+      class="lf-thread-disclosure lf-disclosure-marker lf-summary-expand ${
         progress ? "lf-progress-expand" : ""
       }"
       data-summary-toggle=${ids[0]}
@@ -481,7 +480,6 @@ export class Transcript {
         .join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${iconTemplate("down", "lf-disclosure-icon")}
       <span data-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }

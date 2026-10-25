@@ -78,7 +78,7 @@
 
    A spatial element reads the room past the measure declared by `x-space`:
 
-   - `wide` takes the shared capped evidence width;
+   - `wide` takes the shared capped width (`--wide`) from the prose's start edge;
    - `available` takes all room the page can give it.
 
    Delivery paints it as `data-lf-space`, and CSS computes room after chrome strips and
@@ -160,13 +160,12 @@
      above it, so the end of the page can scroll clear of it. A page that is not live
      draws no chrome and keeps no room (below).
 
-     The row is its one line and the padding around it. The leaf, each mark and press
-     beside the field, and the field's first line of words are each a line tall, and the
-     row stands them all on its foot, so every one of them is centred on the line the
-     words are written on (floating-panel.css, `.lf-fp-row`). */
-  --lf-fp-line: 32px;
+     The row is its one line (`--lf-line`) and the padding around it. The leaf, each
+     mark and press beside the field, and the field's first line of words are each a line
+     tall, and the row stands them all on its foot, so every one of them is centred on
+     the line the words are written on (floating-panel.css, `.lf-fp-row`). */
   --lf-fp-row-pad: 6px;
-  --lf-floating-row: calc(var(--lf-fp-line) + 2 * var(--lf-fp-row-pad));
+  --lf-floating-row: calc(var(--lf-line) + 2 * var(--lf-fp-row-pad));
   --lf-floating-gap: 14px;
   --lf-head-room: var(--lf-safe-top);
   --lf-foot-room: calc(
@@ -239,7 +238,18 @@
   --pin-fill: light-dark(var(--accent), #4d74a8);
   /* The user's turn needs a deeper green under a white pin glyph in both schemes. */
   --pin-on-user: light-dark(#2f7d45, #2d8047);
+  /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
+     Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
+     inline code, a tooltip, a checkbox, a corner mark, a word's highlight) takes --r-s.
+     A control or a box in the page's flow (a button, a field, a margin entry, a menu
+     row, a code block, an option list) takes --r. A surface floating over the page
+     that holds controls (the Leaf panel and its menu, a thread card, a dialog) takes
+     --r-l, so the controls inside it stay clear of its corners. Only what is round by
+     meaning is round: a dot, a radio mark, a count's pill. A role's own token, such as
+     --chip-r, names its size here rather than a length. */
+  --r-s: 3px;
   --r: 6px;
+  --r-l: 12px;
   /* The compact label every layer draws a small fact in: .tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --t-6, so a band of chips from different layers stands at one
@@ -247,7 +257,7 @@
      A chip that draws a border adds it outside this geometry. A chip left inline in a
      line of text takes the inset alone: an inline box paints its font's height whatever
      its line-height, which there would only resize the holder's line. */
-  --chip-r: 3px;
+  --chip-r: var(--r-s);
   --chip-pad: 0 8px;
   --chip-lh: 1.6;
   --sp-1: 4px;
@@ -261,6 +271,16 @@
      to be a fixed size under a finger — a margin entry, a panel's mark — still
      says so where it is written; this is the floor, not the size. */
   --aim-floor: 24px;
+  /* The line: the face of a one-line control, a button, field, picker or transport.
+     Controls that take turns in a place or stand side by side in it are each a line
+     tall, so none of them sizes it. Each reads the token in its own rule, so a place
+     that sets it sets it for all it seats. A finger's floor is a control's reach
+     (surfaces.css), not a taller line; a finger's line is taller only because its typed
+     words are (`--entry-floor`). */
+  --lf-line: 32px;
+  /* How far a line-tall control's reach stands past its face on each side: the room a
+     place keeps around such a control where something else takes presses. */
+  --lf-reach-room: max(0px, (var(--aim-floor) - var(--lf-line)) / 2);
   /* The smallest face a user types in. Only a finger's platform asks for one: iOS
      Safari zooms the page onto a text field set smaller as the field takes focus. The
      field rule that holds it is in shadow.css, and a surface that shows words before
@@ -270,7 +290,7 @@
      rail below is sized from the same length, so it is named rather than written into
      each. */
   --margin-entry: max(32px, var(--aim-floor));
-  /* A corner mark's disc (controls.css, `.lf-corner-mark`). A surface that keeps room
+  /* A corner mark's box (controls.css, `.lf-corner-mark`). A surface that keeps room
      for the marks on its corners reads it, so it is named rather than written there. */
   --corner-mark: 20px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
@@ -337,15 +357,16 @@
      keep the zero specificity a package restyling a pane relies on. */
   --pane-bar-pad: 10px 14px;
   --pane-inset: 14px;
-  /* How wide evidence with `x-space: wide` may stand — one number for the whole
-     vocabulary, because a set of widths is
-     what makes mixed measures read as a design rather than as an accident, and a width
-     per widget is how a page becomes a ransom note. Unmistakably wider than the column
-     on purpose: a near miss reads as a column that failed to line up, where half as much
-     again reads as a figure. --lf-room, the other half of the pair, is resolved by CSS
+  /* How wide a block with `x-space: wide` may stand, from the prose's start edge
+     (layouts.css, "Breakouts"): one number for the whole vocabulary, because a width per
+     widget is how a page becomes a ransom note. It is the width at which 100 columns of
+     code, the common limit of formatters such as rustfmt, read unwrapped in the widest
+     code gutter Leaf draws: a diff's, with four-digit line numbers and its sign column
+     (about 830px). Sharing the prose's start edge is what lets a block this close to the
+     column read as part of it. --lf-room, the other half of the pair, is resolved by CSS
      from the shell and its occupied margins, so a widget stands clear of both. An
      `available` surface is not held to this number. */
-  --wide: 1080px;
+  --wide: 840px;
   /* The widest a sidebar page (layouts.css) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
      distance between them. */
@@ -360,9 +381,6 @@
      come apart: a third copy of 1.45 is exactly the drift the reserve comment in
      chrome.css is about, and this one would show as the picker sinking again. */
   --lf-ui-lh: 1.45;
-  /* Compact toolbar controls share a height across native and vendor elements.
-     Larger transport controls keep their own size; a finger raises this floor. */
-  --lf-control-compact: max(30px, var(--aim-floor));
   --details-margin-block: 18px;
   /* The flow's larger gaps, as tokens so a density restates each once and every rule
      that keeps one (an eyebrow standing in for its heading's gap) follows it. */
@@ -400,7 +418,7 @@
      sent message. */
   --code-inline-size: 82%;
   --code-inline-pad: 1px 5px;
-  --code-inline-r: 4px;
+  --code-inline-r: var(--r-s);
   --quote-rule: 2px solid var(--rule);
   --quote-style: italic;
   --quote-inset: 18px;
@@ -456,12 +474,11 @@
      --raise-1. Its stylesheets live wherever the control does, often in a shadow tree
      or a package and on a pseudo-element no shared class reaches, so the face is
      tokens they name; each keeps its own placement. --tip-font is derived from the
-     ladder, so `.density-working` declares it again. */
+     ladder, so it is declared with the other derived tokens (below). */
   --tip-bg: var(--ink);
   --tip-ink: var(--paper);
   --tip-pad: 4px 7px;
-  --tip-r: 4px;
-  --tip-font: 500 var(--t-6)/1.2 var(--sans);
+  --tip-r: var(--r-s);
   /* Inline code's ground is measured against the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over this ivory is 1.01:1, so the chip vanished and its
      side padding read as double spaces around every span. */
@@ -512,6 +529,15 @@
      it, so there is still one place the band's thickness is decided. */
   --focus-ring-w: 2px;
   --focus-ring: var(--focus-ring-w) solid var(--accent);
+  /* A forced palette replaces the accent with its own ink for every outline, so the
+     ring would read as one more edge. Naming the platform's Highlight here gives every
+     rule that draws with the token the system's focus colour, inside the chrome and
+     out, where each surface once restated it for itself. A forced palette drops box
+     shadows outright, so --focus-shadow has no such answer: the browsed key hint that
+     wears it is told apart there only by its bold face. */
+  @media (forced-colors: active) {
+    --focus-ring: var(--focus-ring-w) solid Highlight;
+  }
   --focus-ring-gap: 3px;
   --focus-ring-room: calc(var(--focus-ring-w) + var(--focus-ring-gap));
   /* What a landing keeps clear for the ring at a scroller's edge: its room and two
@@ -536,16 +562,6 @@
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
-  /* A keyboard badge's box: the line box, which is a ratio of the font, plus
-     the ring drawn around it (chrome.css dresses one). It is a token for the
-     reason the ring's width is — a box somebody else holds room for has to be read
-     back in a calc, and the option that holds a column for one is in another layer's
-     stylesheet entirely. Written as a number there, the column stayed at the size the
-     chip was when it was measured, and a package redeclaring the ladder grows the chip
-     into whatever the column was holding beside it. Declared again on
-     `.density-working` (below), since a custom property resolves where it is
-     declared and a scope restating the ladder inherits the root's result. */
-  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover. */
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
@@ -598,6 +614,21 @@
   --series-4: light-dark(#6c489a, #7a4faf);
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
+/* Tokens derived from the type ladder. A custom property resolves where it is declared,
+   and a scope restating the ladder would inherit the root's result, so these are
+   declared on every scope that restates it: the root and `.density-working` (below). */
+:is(:root, .density-working) {
+  /* A keyboard badge's box: the line box, which is a ratio of the font, plus the ring
+     drawn around it (chrome.css dresses one). It is a token for the reason the ring's
+     width is — a box somebody else holds room for has to be read back in a calc, and
+     the option that holds a column for one is in another layer's stylesheet entirely.
+     Written as a number there, the column stayed at the size the chip was when it was
+     measured, and a package redeclaring the ladder grows the chip into whatever the
+     column was holding beside it. The badge's own line height is read back from it
+     (surfaces.css), so the ratio has this one home. */
+  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --tip-font: 500 var(--t-6)/1.2 var(--sans);
+}
 /* A page that is not live draws no chrome, so what sticks below the head sticks to the
    top of the window, and the page ends at the window's foot. */
 html:not([data-lf-live]) {
@@ -612,7 +643,7 @@ html:not([data-lf-live]) {
   :root {
     --aim-floor: 44px;
     --entry-floor: 16px;
-    --lf-fp-line: 34px;
+    --lf-line: 34px;
     --lf-fp-row-pad: 7px;
     --rail-hang: 10px;
   }
@@ -699,6 +730,12 @@ html:not([data-lf-live]) {
   syntax: "<integer>";
   inherits: false;
   initial-value: 0;
+}
+/* A bounded widget names its inner scroller on its host. Nested bounds choose their
+ * own scroller, so the selector does not inherit (package-themes.md). */
+@property --lf-bound-box {
+  syntax: "*";
+  inherits: false;
 }
 /* A box that wears the focus ring for a control inside it, as its face, says so in the
  * rule that rings it: a playground's choice rings its radio and words together, a
@@ -922,7 +959,7 @@ html[data-lf-interactive] [data-lf-arriving] {
   border-radius: var(--r);
   background: var(--card);
 }
-/* The room a text field keeps after its last words for the action standing in its
+/* The room a text field keeps at the end of its lines for the action standing in its
    trailing corner (composing/text-field.js). Typed, so a reading resolves to a length. */
 @property --lf-field-end-room {
   syntax: "<length>";
@@ -1000,7 +1037,7 @@ html[data-lf-interactive] [data-lf-arriving] {
 ):is(.lf-ui, .field) {
   --lf-field-pad-inline: 8px;
   box-sizing: border-box;
-  min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
+  min-height: var(--lf-line);
   padding: 4px var(--lf-field-pad-inline);
   border: 1px solid var(--border-2);
   border-radius: var(--r);
@@ -1304,9 +1341,10 @@ p {
  * per line is a style and not where the block stands. The ladder and the spacing scale
  * are restated for the block's subtree, so every rule that reads them, a Layout's gutter
  * and a widget's padding included, sets at working size; shadow trees too, since custom
- * properties cross into them. A token derived from the ladder at the root is declared
- * again here, since it resolves where it is declared. The flow's larger gaps are tokens
- * restated here; its small margins are numbers, restated in the rules below.
+ * properties cross into them. The tokens derived from the ladder are declared for this
+ * scope as for the root (above), since each resolves where it is declared. The flow's
+ * larger gaps are tokens restated here; its small margins are numbers, restated in the
+ * rules below.
  *
  * `--lf-density` names the setting for what a size alone cannot carry: a widget whose
  * form changes, such as an option card becoming a row, reads it with a style query, as
@@ -1326,8 +1364,6 @@ p {
   --sp-4: 14px;
   --code-size: 12px;
   --code-line: 17px;
-  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
-  --tip-font: 500 var(--t-6)/1.2 var(--sans);
   --pane-bar-pad: 6px 12px;
   --pane-inset: 12px;
   --h2-start: 18px;
@@ -1369,9 +1405,11 @@ figcaption {
 }
 /* Media fits its container on every page, with a Layout or without, and in a thread: the
  * live root clips what overflows sideways (html[data-lf-live], above), so an image wider
- * than its container would otherwise lose its far side with no way to scroll to it. */
+ * than its container would otherwise lose its far side with no way to scroll to it.
+ * Leaf's icons are not the page's media: they take their size from the icon rule
+ * (controls.css), which this one would outrank, unsizing a 16px icon's height. */
 img,
-svg,
+svg:where(:not([data-lf-icon])),
 video {
   max-width: 100%;
   height: auto;
@@ -1490,10 +1528,11 @@ th:not([scope="row"]),
 }
 
 /* The block an option row is about (§): its `for`, which lf-options writes.
- * It points; it never supplies the row's words, so it
- * reads as what it is — an id, written the way a thread writes an element
- * anchor — and rides at the line's end with the mark, out of the way of what the row
- * says.
+ * It points; it never supplies the row's words. It names the block by the name the
+ * chrome gives it, without the kind word a thread's § coordinate adds, with a "Jump to"
+ * title, and rides at the words' end, out of the way of what the row says (the package
+ * theme drops it under the words where both don't fit on a line). The user chose the block's name over its raw
+ * id on 23 October 2026, reversing the earlier choice to show the id as "what it is".
  *
  * The secondary interface ink and not the document's muted, because a row's ground is
  * one of the surfaces the layer itself paints: a chosen row wears --ok-tint, and
@@ -1665,17 +1704,9 @@ th.num,
 td.num {
   text-align: right;
 }
-/* A list of steps keeps the browser's own numbers, which sit on each step's first line
-   in any direction and at any size, and dresses them in the accent. A disc behind the
-   number is out of reach: `::marker` takes no background, and a box placed by hand has
-   to recompute the first line the marker already stands on. */
+/* Steps keep native list numbers and add space between entries. */
 ol.steps > li {
   margin: 10px 0;
-}
-ol.steps > li::marker {
-  color: var(--accent);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 /* A schematic drawing the page makes itself: every mark takes a theme token, so the
@@ -1822,7 +1853,7 @@ lf-suggestion {
 }
 lf-old,
 lf-new {
-  border-radius: 3px;
+  border-radius: var(--r-s);
   padding: 0 3px;
 }
 /* --ink-2, not --muted: the strike and the tint already say retired, and muted on
@@ -2019,7 +2050,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   min-height: var(--margin-entry);
   padding: 0;
   border: 1px solid var(--border-2);
-  border-radius: 50%;
+  border-radius: var(--r);
   background: var(--lf-entry-tint, var(--paper));
   color: var(--lf-entry-ink, var(--ink-2));
   flex: 0 0 auto;
@@ -2036,7 +2067,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 /* A margin entry carries one of three promises on the same paper surface.
    An action's heavier ring and lower shadow say this press acts now; a disclosure's
    firmer single ring says it opens context; read-only status keeps only the page's
-   ghost hairline. All three keep one circular silhouette and one place in the cluster,
+   ghost hairline. All three keep one silhouette and one place in the cluster,
    while the static status alone has no raised or responsive material. */
 .lf-margin-entry[data-lf-behavior="action"] {
   border-width: 2px;
@@ -2170,7 +2201,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   --lf-agent-stage-shadow: var(--lf-entry-lift);
 }
 /* Unread agent content marks the entry the way it marks the Threads toggle: a dot
-   painted inside the box the entry already reserves, so it adds no width. */
+   painted inside the box the entry already reserves, so it adds no width. It sits on
+   the entry's corner, over its border, so a paper ring parts the two. */
 .lf-margin-entry[data-lf-unread]::after {
   content: "";
   position: absolute;
@@ -2180,13 +2212,10 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 0 2px var(--paper);
 }
 .lf-margin-entry-glyph {
   line-height: 1;
-}
-.lf-margin-entry-icon {
-  inline-size: 16px;
-  block-size: 16px;
 }
 .lf-margin-entry > .lf-margin-entry-space {
   display: none;

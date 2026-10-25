@@ -50,12 +50,19 @@
   --wa-color-brand-fill-loud: var(--accent);
   --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
   --wa-color-focus: var(--accent);
+  /* Upstream's corner scale is Leaf's (theme.css, `--r`); one home for both. */
+  --wa-border-radius-s: var(--r-s);
+  --wa-border-radius-m: var(--r);
+  --wa-border-radius-l: var(--r-l);
   /* Leaf's logical focus owner paints the band. The vendor's native focus and open
      states must not paint another, including during a held label press. */
   --wa-focus-ring-style: none;
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);
   --wa-form-control-value-color: var(--ink);
+  /* A line tall (`--lf-line`) whatever its type would make it, restated on each
+     control so a place that sets the line sets it here too. */
+  --wa-form-control-height: var(--lf-line);
 }
 
 /* The vendor's native input sits in a shadow

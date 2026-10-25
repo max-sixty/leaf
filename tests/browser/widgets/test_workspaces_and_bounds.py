@@ -542,7 +542,9 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
 
     Whatever the user scrolls to in that full-height workspace clears the panel's row,
     as a document's last line does: the body scrolls as a whole and its end stands
-    above the band."""
+    above the band. So only the pane that is the body reserves the panel's room in its
+    own reader; the pane inside the section, which the body's end room already
+    clears, keeps its inset alone."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
     pane = page.locator("#workspace-pane")
@@ -568,6 +570,8 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     page.locator("#pane-end").evaluate("node => node.scrollIntoView({block: 'end'})")
     end = clear_of_the_bottom_chrome(page, "#pane-end")
     assert end["clear"], end
+    # The body's end room already clears the panel, so the pane keeps only its inset.
+    assert foot_reserve(page) == 0
     page.close()
 
     direct = leaf_page("a pane as the workspace body", LONG_PANE, layout="workspace")
@@ -575,6 +579,21 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     resized(page, 1280, 720)
     pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
     fills_the_window(page, page.locator("main"), True)
+    # A pane that reaches the window's foot keeps the panel's room in its reader.
+    assert foot_reserve(page) > 0
+
+
+def foot_reserve(page):
+    """How far #workspace-pane's reader pads its end beyond the pane inset."""
+    return page.locator("#workspace-pane > div").evaluate(
+        """reader => {
+          const style = getComputedStyle(reader);
+          return Math.round(
+            parseFloat(style.paddingBlockEnd) -
+              parseFloat(style.getPropertyValue('--pane-inset'))
+          );
+        }"""
+    )
 
 
 ZONE_PACKAGE = {
@@ -899,6 +918,51 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     page.evaluate(rebuild, 120)
     page.evaluate("() => new Promise(requestAnimationFrame)")
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
+
+
+def test_a_declared_inner_scroller_can_be_rebuilt_without_taking_a_nested_bound(
+    browser, serve
+):
+    """The host names its scrolling box even when a nested bound has a match first.
+    Replacing that box registers its successor and resumes following its end."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Nested bounded listings",
+                '<h1>Logs</h1><div id="outer" data-bound="end">'
+                '<div id="inner" data-bound="start"><div class="listing">'
+                + "<p>Nested entry</p>" * 30
+                + '</div></div><div id="listing" class="listing"></div></div>',
+                head="""<style>
+                  #outer { --lf-bound-box: .listing; max-block-size: none;
+                    overflow: visible; }
+                  #inner, #outer > .listing { max-block-size: 120px; overflow: auto; }
+                </style>""",
+            )
+        ),
+    )
+    regions = """async () => {
+      const { readingRegions } = await window.__lfCheckApi();
+      return Object.fromEntries(readingRegions()
+        .filter(({host}) => ['outer', 'inner'].includes(host.id))
+        .map(({host, body}) => [host.id, body.id]));
+    }"""
+    assert page.evaluate(regions) == {"outer": "listing", "inner": "inner"}
+    page.evaluate(
+        """() => {
+          const box = document.createElement('div');
+          box.id = 'replacement'; box.className = 'listing';
+          box.innerHTML = '<p>Arrived entry</p>'.repeat(60);
+          document.getElementById('listing').replaceWith(box);
+        }"""
+    )
+    page.wait_for_function(
+        """() => { const box = document.getElementById('replacement');
+          return box.scrollHeight > box.clientHeight &&
+            box.scrollHeight - box.scrollTop - box.clientHeight <= 2; }"""
+    )
+    assert page.evaluate(regions) == {"outer": "replacement", "inner": "inner"}
 
 
 def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):

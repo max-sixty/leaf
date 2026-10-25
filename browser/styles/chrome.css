@@ -162,7 +162,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 .lf-ins-block {
   background: var(--add-tint);
   box-shadow: 0 0 0 4px var(--add-tint);
-  border-radius: 2px;
+  border-radius: var(--r-s);
 }
 /* A marked block becomes one inline text diff when its Change disclosure opens
    (version.js): the block wash steps back so the insertion highlight marks only new
@@ -237,12 +237,17 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     pointer-events: none;
     overflow: hidden;
     color: var(--ink);
+    --lf-region-dim: rgb(0 0 0 / 40%);
   }
-  /* The box is the exact crop; its outline paints outside those pixels. */
+  /* The box is the exact crop; its outline paints outside those pixels. Until a drag
+     or an arrow key draws one, the whole window wears the dim around it. */
   .lf-region-selection {
     position: absolute;
     outline: 1px solid var(--accent);
-    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%);
+    box-shadow: 0 0 0 100vmax var(--lf-region-dim);
+  }
+  .lf-region-capture:has(> .lf-region-selection[hidden]) {
+    background: var(--lf-region-dim);
   }
 
   /* The layer is the runtime's, not the document's, so it never prints. */
@@ -435,17 +440,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     gap: 5px;
   }
   .lf-quote-expand::before {
-    content: "▸";
     inline-size: 1em;
     text-align: center;
-  }
-  .lf-quote-expand[aria-expanded="true"]::before {
-    content: "▾";
-  }
-  /* A border image outset into the inline margin draws the rail and takes no room. */
-  .lf-msg.lf-unread {
-    border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px / 0
-      0 0 6px;
   }
 
   .lf-thread-action {
@@ -572,7 +568,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     margin: 0;
     background: var(--card);
     border: 1px solid var(--border-2);
-    border-radius: var(--r);
+    border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
   }
@@ -839,7 +835,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     margin: -3px -6px;
     padding: 3px 6px;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--r);
     background: transparent;
     color: inherit;
     font: inherit;
@@ -891,8 +887,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: color-mix(in srgb, var(--lf-entry-tint, var(--chip)) 92%, var(--ink));
   }
   .lf-page-map-action .lf-margin-kind {
-    width: 16px;
-    height: 16px;
     align-self: center;
   }
   .lf-page-map-action-label {
@@ -940,7 +934,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     margin: 0 auto;
     padding: 14px;
     border: 1px solid var(--border-2);
-    border-radius: 12px;
+    border-radius: var(--r-l);
     background: var(--paper);
     color: var(--ink);
     box-shadow: var(--raise-3);
@@ -1033,9 +1027,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     .lf-inspection-dialog {
       border: 1px solid CanvasText;
       box-shadow: none;
-    }
-    .lf-page-map-action[data-lf-focus-visible] {
-      outline: 2px solid Highlight;
     }
   }
   .lf-binding-sequence {
@@ -1174,7 +1165,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-overflow: ellipsis;
     white-space: nowrap;
     padding: 1px 6px;
-    border-radius: 3px;
+    border-radius: var(--r-s);
     font-size: var(--t-6);
     line-height: 1.5;
     background: var(--accent);
@@ -1204,9 +1195,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     }
   }
 
-  /* Windows high-contrast mode suppresses the shadow used by text fields. Restore a
-     platform-colour outline for every focused chrome control instead of freezing the
-     product palette with forced-color-adjust. */
+  /* A forced palette keeps the chrome's states in platform colours rather than freezing
+     the product palette with forced-color-adjust. The focus ring needs nothing here:
+     --focus-ring is Highlight in a forced palette (theme.css). */
   @media (forced-colors: active) {
     .lf-dot {
       background: CanvasText !important;
@@ -1215,11 +1206,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       border-color: Highlight;
       background: Highlight;
       color: HighlightText;
-    }
-    :scope [data-lf-focus-visible] {
-      outline: var(--focus-ring-w) solid Highlight !important;
-      outline-offset: 2px !important;
-      box-shadow: none !important;
     }
     :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {
       border-color: Highlight !important;

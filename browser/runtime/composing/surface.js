@@ -78,11 +78,6 @@ import {
   pendingAbout,
 } from "./selection.js";
 
-import {
-  closeCommandReference,
-  commandReferenceOpen,
-} from "../keyboard/command-reference.js";
-
 import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, currentLocationThread } from "../thread/landing.js";
 import { replyDraftContext } from "../thread/replies.js";
@@ -117,6 +112,7 @@ import {
   focused,
   closeLayer,
   currentLocationIn,
+  onPressAway,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
@@ -152,6 +148,7 @@ export function createResponseSurface({
   setReact,
   openPageThread,
   drawModeActive,
+  captureActive,
   refreshThread,
   dismissThreadView,
   pageComment,
@@ -163,7 +160,6 @@ export function createResponseSurface({
   drawingEdits,
   createPlacement = null,
 }) {
-  const hideReference = () => closeCommandReference(false);
   const hasOtherResponses = (anchor) =>
     reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
 
@@ -886,35 +882,43 @@ export function createResponseSurface({
   // Selections made from the keyboard (shift-arrows, ⌘A) deserve the same response bar. Typing in
   // a box never does, whatever is selected elsewhere.
 
-  // Floating chrome getting out of the way of a press somewhere else, which is a fact about
-  // the press rather than about who receives it: the aim takes a press away from the page
-  // (see claimPress) and must not take this with it, or the command reference stays up over
-  // the composer that press just opened. Hence one function, called from both.
-  function standDown(target) {
-    // A native modal owns its press; the composer behind it remains inert.
-    if (nativeLayers().some((layer) => layer.kind === "modal")) return;
-    const visual = visualAt(target);
+  // The response surface getting out of the way of a press away from it (focus.js,
+  // `onPressAway`), which is a fact about the press rather than about who receives it, so
+  // a press the aim or a design mode claims from the page puts it away too. A press on
+  // the visual the bar stands for keeps it, as does a stroke in a draw mode or a capture's
+  // drag, which go on into the draft the composer holds. A native modal owns its press,
+  // the command reference's included, which goes by its own light dismissal
+  // (`closedby`), and the composer behind it stays inert.
+  function pressedAway(path) {
+    if (
+      drawModeActive() ||
+      captureActive() ||
+      nativeLayers().some((layer) => layer.kind === "modal")
+    )
+      return false;
+    // The node pressed, not the widget host a shadow tree retargets it to: core controls
+    // seated in a widget surface stay inside their own composer or reaction layer.
+    const [target] = path;
+    // A release outside the document can begin its path at window, which has no
+    // visual place to compare with the open composer.
+    const visual = target?.nodeType === Node.ELEMENT_NODE ? visualAt(target) : null;
     const sameVisual =
       visual &&
       !fabAnchor.value?.quote &&
       fabAnchor.value?.section === visual.id &&
       fabAnchor.value?.visual === visual.part?.id;
-    if (
+    return (
       !sameVisual &&
       !target.closest?.(".lf-fab-bar, .lf-react-surface, .lf-composer") &&
       !reactionContextContains(target)
-    ) {
-      if (composerOpen) composer.hideComposer();
-      letGoOfFab();
-      // The armed react press goes with the bar it was armed on.
-      setReact(false);
-    }
-    if (commandReferenceOpen() && !target.closest?.(".lf-command-reference"))
-      hideReference();
+    );
   }
-  // Document listeners see a shadow-tree press retargeted to its host. Read the
-  // composed origin so core controls seated in a widget surface remain inside their
-  // own composer/reaction layer instead of being dismissed before `click` can fire.
+  function standDown() {
+    if (composerOpen) composer.hideComposer();
+    if (fabAnchor.value) letGoOfFab();
+    // The armed react press goes with the bar it was armed on.
+    setReact(false);
+  }
 
   // What a plain click on the page means, decided once. Design mode explicitly changes the
   // grammar, and a visible mark opens its thread. Unadorned authored content keeps the
@@ -1123,9 +1127,7 @@ export function createResponseSurface({
         scheduleSelectionUpdate();
       } else observeSelection();
     });
-    document.addEventListener("mousedown", (ev) => {
-      if (!drawModeActive()) standDown(ev.composedPath()[0]);
-    });
+    onPressAway(pressedAway, standDown);
     document.addEventListener("click", (ev) => {
       if (drawModeActive()) return;
       const target = ev.composedPath()[0];
@@ -1405,7 +1407,6 @@ export function createResponseSurface({
     showFabOptions,
     hasPageSelectionTarget,
     updateFab,
-    standDown,
     fabAnchorAt,
     seatFab,
     restoreFab,

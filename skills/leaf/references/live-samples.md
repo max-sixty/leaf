@@ -34,12 +34,11 @@ Put only the demonstrated page inside the template; labels, your own controls an
 instructions for using the sample go outside it.
 
 The sample uses the parent's layer and has its own event log, so its decisions and
-comments never reach the parent's log or On me. It sits in the parent as a block as tall
-as its content, with Leaf's panel row beneath it. When the sample is
+comments never reach the parent's log or On me. When the sample is
 about the window itself, such as Leaf's panel and its views, add the boolean `window`
 attribute to show a whole Leaf window at a fixed height. The user can click or Tab into
-the sample and use it fully; Escape returns to the parent. **Full view** shows the
-sample at viewport size, and Reset starts it fresh from the template. A sample's
+the sample and use it fully; Escape returns to the parent, and Reset starts it fresh
+from the template. A sample's
 history is temporary, so use an ordinary Leaf page when the history must last. A page
 with a live sample can't be exported (`serving-pages.md`, "Exported files").
 
@@ -82,14 +81,13 @@ script in the same markup as the template and name its id in `data-sample-events
 
 The array holds ordinary event commands, which `page check` checks against the sample.
 Give an event an `id` when a later event refers to it; Leaf fills in other ids and
-timestamps. Several samples can share one script, each with its own copy, and Reset
-restores it. The events never reach the parent's log, so keep the anchors they name
-inside the template, and don't post setup events from a page module.
+timestamps. Several samples can share one script, and Reset restores it. Keep the
+anchors the events name inside the template, and don't post setup events from a page
+module.
 
 To start the sample with threads from the parent instead, set `data-sample-threads` on
 the template to their space-separated ids. A thread the parent's log doesn't hold yet is
-skipped, and the content the threads anchor to must exist in the sample. Reset copies
-them again. A template uses either `data-sample-events` or `data-sample-threads`, not
+skipped, and the content the threads anchor to must exist in the sample. A template uses either `data-sample-events` or `data-sample-threads`, not
 both.
 
 The sample is a separate, sandboxed document: its styles and scripts apply only to it,
@@ -114,5 +112,4 @@ this isolated mode even when `interactive` is present.
 
 An ordinary served Leaf page can also appear in a plain `<iframe src="…">`, with its own
 lasting history, but only inside a page of the same origin: the same scheme, hostname
-and port. Leaf refuses to load inside a page from another origin, so no other site can
-put a Leaf control under a misleading interface.
+and port.

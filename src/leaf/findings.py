@@ -240,15 +240,11 @@ def _bearing(at: str, v: dict, value: str) -> str:
     return _line(f"{at[:-1]} {v['attr']}={value}>", v)
 
 
-def _quoted(value: str) -> str:
-    return f'"{value}"'
-
-
 def _conditions(lacks: dict) -> str:
     """The `x-awaits.when` conditions a widget never met (`instances.unasked`)."""
     return " and ".join(
         " or ".join(
-            f"{attr} is {'present' if value else 'absent'}"
+            f"`{attr}` is {'set' if value else 'unset'}"
             if isinstance(value, bool)
             else f"{attr}={_json(value)}"
             for value in values
@@ -287,10 +283,11 @@ def _empty_question(at: str, v: dict) -> str:
         f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
         for w in v["widgets"]
     )
-    return f"{_line(at, v)}: this enclosing widget registers no obligation: " + (
-        widgets
-        or "it holds no widget that declares x-awaits; a question with no widget is"
-        " its words alone, with no heading"
+    return f"{_line(at, v)}: asks the user nothing, " + (
+        f"since {widgets}"
+        if widgets
+        else "since it holds no widget that asks (one declaring x-awaits); add one,"
+        " or drop the heading to ask in words alone"
     )
 
 
@@ -301,14 +298,6 @@ def _outside_main(content: list[dict]) -> list[str]:
         else f"<{c['tag']}> at line {c['line']}"
         for c in content
     ]
-
-
-# What the layer does with a word a widget declares from one of its lists, where the
-# word is on it (`instances.DECLARED_WORDS`).
-_HONORED = {
-    "x-language": "a language this page's layer speaks",
-    "x-tone": "a tone this page's layer paints",
-}
 
 
 def _unservable_layer(v: dict, why: str, action: str) -> str:
@@ -501,6 +490,12 @@ _TEXT = {
         "typed words left the screen without a key or press:"
         f" {json.dumps(v['words'], ensure_ascii=False)} in {placed(v['place'])}"
     ),
+    "place-resized": lambda at, v: (
+        f"{placed(v['place'])} changed size from {_size(v['before'])} to"
+        f" {_size(v['after'])} as {', '.join(map(placed, v['left']))} gave way to"
+        f" {', '.join(map(placed, v['arrived']))}"
+        + (f" after a {v['input']}" if v["input"] else " without input")
+    ),
     # The gate's own run, where it could not read the page.
     "gate-failed": lambda at, v: (
         f"the browser gate failed while running its probe module: {v['error']}"
@@ -550,10 +545,9 @@ _TEXT = {
         f"widgets rendered with no usable size: {_json(v['boxes'])}"
     ),
     "unmarkable": lambda at, v: (
-        f"{at} shows {v['w']}x{v['h']}px of words and offers no box to mark: it draws"
-        " none of its own and no element inside it draws one either, so a comment"
-        " anchored here would outline nothing and the On me walk would travel to"
-        " the top of the page. Put the words in an element that takes a box"
+        f"{at} shows {v['w']}x{v['h']}px of words, but neither it nor anything"
+        " inside it draws a box, so a comment anchored here outlines nothing. Put"
+        " the words in an element that takes a box"
     ),
     "undeclared-shadow": lambda at, v: (
         "shadow roots the registry doesn't declare (an undeclared root's words anchor"
@@ -590,8 +584,8 @@ _TEXT = {
     "retired-slot": lambda at, v: (
         f"{at} is settled `{v['outcome']}`, but its <{v['slot']}> still shows"
         f" {_json(v['words'])}. Leaf hides a retired slot by default, so this"
-        " widget's styles or module show it anyway, and the user can select words no"
-        " comment can anchor to"
+        " widget's own styles or module must be showing it, and no comment can"
+        " anchor to its words"
     ),
     "render-threw": lambda at, v: (
         f"{at} render() threw when the complete state was rendered a second time:"
@@ -697,8 +691,6 @@ _TEXT = {
     # markup. The source as a whole:
     "no-source": lambda at, v: f"no {v['path']}; write index.html first",
     "not-utf8": lambda at, v: f"{v['path']} is not UTF-8: {v['error']}",
-    # A layer this Leaf can neither serve nor write under (`layer.incompatible_layer`).
-    "invalid-registry": lambda at, v: v["error"],
     # A sample's initial history, read from the JSON script its template names.
     "sample-source-both": lambda at, v: (
         "use either data-sample-events or data-sample-threads, not both"
@@ -813,7 +805,7 @@ _TEXT = {
     "reserved-markers": lambda at, v: (
         f"{at} at line {v['line']} wears the runtime's own markers"
         f" ({', '.join(v['markers'])}); the lf- and data-lf- namespaces are the"
-        " runtime's to write, whether or not it writes this name today"
+        " runtime's to write"
     ),
     "ids-taken-by-messages": lambda at, v: (
         f"ids already taken by message markup: {_json(v['ids'])}"
@@ -885,11 +877,6 @@ _TEXT = {
     "untitled-question": lambda at, v: (
         f"{_line(at, v)}: this enclosing widget needs a heading to title its obligations,"
         " leading its content alone or in an <hgroup> or <header>"
-    ),
-    "unknown-word": lambda at, v: (
-        f"{_bearing(at, v, _quoted(v['value']))}: not {_HONORED[v['declares']]} —"
-        " known:"
-        f" {_json(v['known'])}"
     ),
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
@@ -981,6 +968,8 @@ _TEXT = {
             if v["section"] is not None
             else "a detached thread"
         )
+        + "; to place it yourself, reply in it with --section or --quote, or"
+        " --detach"
     ),
     # A registry, the vocabulary a page or package declares: `registry` is the file it
     # was read from, and `at` the element declaration a finding concerns. The file:
@@ -1593,11 +1582,9 @@ _TEXT = {
     "newer-layer": lambda at, v: (
         f"{v['page']} was vendored at page protocol {v['vendored']} by a newer Leaf"
         f" ({v['vendored_by']}), and this Leaf ({v['leaf']}) speaks protocol"
-        f" {v['protocol']}, so it cannot serve the page or write its log, nor"
-        " re-vendor it to an older protocol. Use a Leaf at protocol"
-        f" {v['vendored']} or later. An agent session keeps the Leaf plugin it"
-        " loaded until it reloads it; in Claude Code, `/reload-plugins` loads an"
-        " installed update."
+        f" {v['protocol']}, so it can neither serve nor re-vendor the page. Use a"
+        f" Leaf at protocol {v['vendored']} or later; in Claude Code,"
+        " `/reload-plugins` loads an installed update."
     ),
     "retired-layer": lambda at, v: _unservable_layer(
         v,
@@ -1630,8 +1617,8 @@ _TEXT = {
     # An action or a report, against its widget's declaration.
     "unknown-sender": lambda at, v: (
         f"unknown report widget {v['widget']!r} in revision r{v['revision']} — reports"
-        " name page widgets only; thread markup is frozen, so no version could ever"
-        " answer a report made there"
+        " name page widgets only, since no version can answer a report in frozen"
+        " thread markup"
         if v["kind"] == "report"
         else f"unknown action widget {v['widget']!r} in revision r{v['revision']} or"
         " agent-authored thread markup"
@@ -1844,12 +1831,11 @@ _TEXT = {
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
     ),
-    # What other commands note beside their result (`note`). `status waiting` over
+    # What other commands note beside their result (`note`). `page open` over
     # updates it still owes an answer, each named by the command that answers it:
-    "waiting-owes": lambda at, v: (
+    "page-open-owes": lambda at, v: (
         f"{len(v['answers'])} user update{'s' if len(v['answers']) != 1 else ''} with"
-        f" no answer ({'; '.join(v['answers'])}); the page reads waiting once each"
-        " has one"
+        f" no answer ({'; '.join(v['answers'])}); opening the page does not answer them"
     ),
     # `delivery ack` of a delivery an earlier turn already picked up
     # (`delivery.earlier_pickup`), with the answers its updates still owe:

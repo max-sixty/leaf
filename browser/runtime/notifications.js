@@ -133,7 +133,7 @@ function yieldNotice() {
 }
 
 // A semantic walk is an immediate user command even though its feedback is the live
-// ordinal rather than a timed notice. Hold arriving news for one boundary interval;
+// ordinal rather than a timed notice. Hold arriving news for a moment after the step;
 // beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
 export function holdStatus(ms) {
   if (noticeVisible()) yieldNotice();

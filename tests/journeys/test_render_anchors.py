@@ -24,6 +24,7 @@ from render_harness import (
     command_reference_rows,
     compare_with,
     expect_panel_offers,
+    expect_panel_says,
     leaf_page,
     open_page,
     panel_field,
@@ -54,7 +55,6 @@ from browser.threads import open_panel_thread
 
 from journeys import (
     detached_threads,
-    expect_panel_says,
     first_thread_quote,
     listed_threads,
 )
@@ -966,9 +966,9 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     expect(added).not_to_be_in_viewport()
-    # The thread's view goes to the line it quotes with On the page.
+    # The thread's view goes to the line it quotes with Show on page.
     first_thread_quote(page, serve.page_dir)
-    page.locator(".lf-fp-controls").get_by_role("button", name="On the page").click()
+    page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
     expect(search).to_have_value("")
     expect(added).to_be_in_viewport()
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))

@@ -18,6 +18,7 @@ from render_harness import (
     panel_field,
     panel_menu,
     panel_settled,
+    panel_view,
     resized,
     scroll_settled,
     select,
@@ -453,6 +454,95 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     returned = page.evaluate(reading)
     assert returned["place"]["quote"] == visible
     assert returned["top"] == pytest.approx(chosen["top"], abs=2)
+
+
+def test_reading_place_keeps_a_projected_row_among_repeated_words(browser, serve):
+    """A long text block's row identity survives capture, serialization and reflow."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reading a projected row",
+                '<h1>Projected text</h1><pre id="rows">'
+                + "".join(
+                    f'<span id="row-{n}" style="display:block">'
+                    "The same words occur on every independently addressed row.</span>"
+                    for n in range(80)
+                )
+                + '</pre><div style="height:900px"></div>',
+            )
+        ),
+    )
+    page.evaluate("""() => {
+      for (const row of document.querySelector('#rows').children) {
+        row.dataset.lfProjection = 'rows';
+        row.dataset.lfDatum = row.id;
+      }
+      window.scrollBy(0, document.querySelector('#row-40').getBoundingClientRect().top - 100);
+    }""")
+    scroll_settled(page)
+    reading = page.evaluate("""async () => {
+      const api = await window.__lfWidgetApi();
+      const place = api.capturePlace();
+      return {place, top: document.getElementById(place.datum)?.getBoundingClientRect().top};
+    }""")
+    assert reading["place"].get("datum"), reading
+    assert reading["place"]["quote"].startswith("The same words")
+    assert reading["top"] is not None
+    # A serialized checkpoint has no live node to disguise a lost datum identity.
+    page.evaluate("""() => {
+      document.querySelector('#row-0').style.height = '400px';
+      window.scrollTo({top: 0, behavior: 'instant'});
+    }""")
+    scroll_settled(page)
+    page.evaluate(
+        """async place => {
+      (await window.__lfWidgetApi()).restorePlace(place);
+    }""",
+        reading["place"],
+    )
+    scroll_settled(page)
+    assert page.locator(f"#{reading['place']['datum']}").bounding_box()[
+        "y"
+    ] == pytest.approx(reading["top"], abs=2)
+
+
+def test_reading_place_visits_a_projected_passage_before_its_parent_continuation(
+    browser, serve
+):
+    """A paragraph's later words cannot precede the datum that splits its reading."""
+    record = (
+        "The projected record is the first visible passage the reader should keep. "
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A projected passage inside a paragraph",
+                '<section id="source"><p id="paragraph">'
+                '<span style="display:block;height:1100px">Earlier paragraph words.</span>'
+                '<span id="record" style="display:block">'
+                + record
+                * 4
+                + '</span><span style="display:block">'
+                "The later continuation follows the record and must not take its place."
+                '</span></p></section><div style="height:900px"></div>',
+            )
+        ),
+    )
+    page.evaluate("""() => {
+      const record = document.querySelector('#record');
+      record.dataset.lfGen = '1';
+      record.dataset.lfProjection = 'source';
+      record.dataset.lfDatum = 'record';
+      window.scrollBy(0, record.getBoundingClientRect().top - 80);
+    }""")
+    scroll_settled(page)
+    place = page.evaluate(
+        """async () => (await window.__lfWidgetApi()).capturePlace()"""
+    )
+    assert place.get("datum") == "record", place
+    assert place["quote"].startswith(record)
 
 
 def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subtests):
@@ -1112,7 +1202,7 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     expect(threads).to_be_focused()
     page.wait_for_function("getSelection().isCollapsed")
     before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
@@ -1326,7 +1416,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     page.wait_for_function(
         "expected => getSelection().toString() === expected", arg=selected
     )
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    # The command closes the borrowed menu and keeps its Threads view open.
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")
@@ -1581,7 +1672,7 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(page.locator(panel_view("threads"))).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")

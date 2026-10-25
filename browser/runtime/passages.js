@@ -6,8 +6,9 @@
    introduce another text walk for one of those jobs: the page's words are `pageText()`
    (its `segments`, `pageBlocks()`), one element's are `elementReading(el, "says" |
    "wrote")`, and both are kept until the page changes. Each segment also carries the
-   `block` its words read in and the generated element (`gen`) they stand in, which the
-   walk knew on its way down; a segment cut from another keeps both.
+   `block` its words read in, their typographic `textBlock`, and the generated element
+   (`gen`) they stand in, which the walk knew on its way down. A datum starts a reading
+   block without inserting whitespace into inline text; a cut segment keeps these facts.
 
    Two readings are intentionally different:
 
@@ -54,15 +55,15 @@
    `data-lf-said` is nearer than `.lf-ui` and declares that a label inside
    chrome-looking structure is still one of the page's words. This lets a tab label or
    draft heading remain quotable while runtime controls stay outside the passage.
-   `relabel` writes the said marker; `offer` writes the control marker. They are
-   independent facts and neither clears the other.
+   `generatedElement` writes the said marker; `offer` writes the control marker. They
+   are independent facts and neither clears the other.
 
    A label copied off another element on the page is a route to those words rather
    than a second place the page says them. Say it once: a contents link, a roster row
    naming a worker, any generated index entry stays chrome, and the passage lives where
    the page speaks it. Two copies of one label carry the same text and, being fenced,
    the same empty context, so neither can be told from the other and a drag across
-   either detaches. (`relabel`'s third answer, `says: "echo"`, is what such a route
+   either detaches. (The third answer of `says`, `"echo"`, is what such a route
    declares; widget-elements.js says how.)
 
    Use `inChrome` when the question is whether an element belongs to the runtime's
@@ -406,6 +407,7 @@ const NO_CONTEXT = Object.freeze({
   generated: false,
   gen: null,
   block: null,
+  textBlock: null,
   island: null,
   cells: null,
 });
@@ -418,6 +420,9 @@ const GEN = "[data-lf-gen]";
 const ISLAND = "[data-lf-markdown-words]";
 const MARKS = [UI_MARKS, GENERATED, ISLAND].join(", ");
 const BLOCK_TAGS = new Set(TEXT_BLOCK.split(","));
+// A projected datum is independently addressable, even when its rows share one pre.
+// A closer paragraph or other text block still supplies the datum's reading grain.
+const BLOCKS = `${TEXT_BLOCK}, ${DATUM}`;
 // `uiInside`'s rule at one element: true where it starts chrome, false where a declared
 // label starts the page's words again inside chrome, null where it starts neither.
 const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
@@ -456,7 +461,8 @@ const editingBoundary = (el) =>
 // links and wrappers — hands its parent's context down unchanged.
 function enter(ctx, el, inFrame = true) {
   const marked = el.hasAttributes() && el.matches(MARKS);
-  const block = BLOCK_TAGS.has(el.localName);
+  const textBlock = BLOCK_TAGS.has(el.localName);
+  const block = textBlock || el.matches(DATUM);
   const editing = editingBoundary(el);
   const cell = opaque(el) || editing || (marked && el.matches(GEN) && unmodelled(el));
   const silent = !ctx.silenced && silences(el);
@@ -469,6 +475,7 @@ function enter(ctx, el, inFrame = true) {
     generated,
     gen: marked && el.matches(GEN) ? el : ctx.gen,
     block: block ? el : ctx.block,
+    textBlock: textBlock ? el : ctx.textBlock,
     island: marked && el.matches(ISLAND) ? el : ctx.island,
     cells: cell ? { el, editing, up: ctx.cells } : ctx.cells,
   };
@@ -504,6 +511,7 @@ const segmentIn = (node, ctx) => ({
   start: 0,
   end: node.data.length,
   block: ctx.block ?? (ctx.island ? upFrom(ctx.island) : null),
+  textBlock: ctx.textBlock ?? (ctx.island ? upFrom(ctx.island) : null),
   gen: ctx.gen,
 });
 // Which text each named reading keeps. `says` skips the runtime's own words and whatever
@@ -598,9 +606,9 @@ function walk(root, onText, skip = null, onBreak = null) {
         : NO_CONTEXT;
   visit(root, start);
 }
-// One named reading's segments under `root`, each carrying the block its words read in
-// (`blockAt`), which is where `quoteFrom` puts a space the markup does not hold, and the
-// generated element they stand in (`gen`, the nearest `[data-lf-gen]` in their tree).
+// One named reading's segments under `root`, carrying their reading block (`blockAt`),
+// typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
+// in their tree).
 // `boundary(element, segmentsSoFar)` answering true leaves that element's words out of
 // the walk, for a reader that stands something else in their place (render-checks,
 // `shownVerbatim`).
@@ -834,7 +842,7 @@ export function segmentsIn(range) {
 // The block a node reads as part of, and null where it belongs to no block of its own —
 // which is a different answer from "its parent", and the two callers want different ones.
 export const blockAt = (node) => {
-  const block = closestAcross(node, TEXT_BLOCK);
+  const block = closestAcross(node, BLOCKS);
   if (block) return block;
   // A parsed Markdown island stands where one direct source text node stood.
   // Its nested emphasis and links must inherit that text node's parent, while
@@ -842,10 +850,11 @@ export const blockAt = (node) => {
   const island = closestAcross(node, ISLAND);
   return island ? upFrom(island) : null;
 };
-// The unit a segment's words are read as part of, for where a space falls between two
-// segments: its block as the walk carried it, else the element holding the text (the walk
-// refuses text with none).
+// The unit a segment's words are read as part of: its block as the walk carried it,
+// else the element holding the text (the walk refuses text with none).
 export const segmentBlock = (segment) => segment.block ?? segment.node.parentElement;
+// Typography follows the HTML text blocks, independently of projected datum identity.
+const segmentTextBlock = (segment) => segment.textBlock ?? segment.node.parentElement;
 const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 
 // The normalized reading and, when requested, one DOM span for each character in it.
@@ -874,7 +883,10 @@ function readSegments(segments, mapCharacters) {
     if (mapCharacters) units.push({ text: character, start, end });
   };
   segments.forEach((seg, i) => {
-    if (i && (seg.breakBefore || segmentBlock(seg) !== segmentBlock(segments[i - 1]))) {
+    if (
+      i &&
+      (seg.breakBefore || segmentTextBlock(seg) !== segmentTextBlock(segments[i - 1]))
+    ) {
       const point = { node: seg.node, offset: seg.start };
       push(" ", point, point);
     }
@@ -986,11 +998,9 @@ function spanOf(reading, lo, hi) {
     const b = Math.min(hi, from + seg.end - seg.start);
     if (b > a)
       out.push({
-        node: seg.node,
+        ...seg,
         start: seg.start + a - from,
         end: seg.start + b - from,
-        block: seg.block,
-        gen: seg.gen,
         breakBefore: seg.breakBefore && a === from,
       });
   }
@@ -1078,6 +1088,8 @@ const READING_MARKERS = [
   "class",
   "data-lf-said",
   "data-lf-gen",
+  "data-lf-projection",
+  "data-lf-datum",
   "slot",
   "name",
   "contenteditable",

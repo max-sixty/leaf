@@ -36,7 +36,7 @@ stamped version that answers it (`workflows.handed_over`). It names the turn
 that wrote it and holds its item only for that turn; once that turn ends with the
 item still running, `activity` shows it stalled. A later start on the same item
 replaces it, which is how the next turn takes the item up again. The `status` event
-that `leaf status waiting` and `idle` write puts down every earlier start
+that `leaf page open` and `leaf page close` write puts down every earlier start
 (`item_starts`), leaving their to-dos open with nothing running; admission, which
 reads only the document and the log, sees it there. A start on a page declared
 `idle` reopens the page (`activity.declaration`).
@@ -356,7 +356,6 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
     page as a whole; the record. A thread attachment supplies discussion context
     without making a reply complete the task."""
     from .event_contracts import append_admitted
-    from .harness import message_identity
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
@@ -386,7 +385,6 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
                 {
                     "kind": "todo",
                     "author": "agent",
-                    **message_identity(),
                     "owner": owner,
                     "subject": named,
                     "title": title,
@@ -448,7 +446,6 @@ def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict
     """End `todo` with `outcome`, `detail` saying where the result is or why there
     is none; the record."""
     from .event_contracts import append_admitted
-    from .harness import message_identity
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
@@ -462,7 +459,6 @@ def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict
                 {
                     "kind": "todo_end",
                     "author": "agent",
-                    **message_identity(),
                     "todo": todo,
                     "outcome": outcome,
                     **({"detail": detail} if detail is not None else {}),

@@ -54,10 +54,10 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
     page = open_page(browser, url)
     resized(page, 1000, 700)
     case = page.locator('.lf-vr-case[aria-hidden="false"]')
-    case.get_by_role("button", name="Image scale and originals").click()
+    case.get_by_role("button", name="Image options").click()
     case.get_by_role("checkbox", name="Full frame").check()
     page.keyboard.press("Escape")
-    case.get_by_role("button", name="Image scale and originals").click()
+    case.get_by_role("button", name="Image options").click()
     case.get_by_role("button", name="100%", exact=True).click()
     host = case.locator(".lf-vr-capture")
     for mode in ("Pair", "Slider", "Pixels"):
@@ -242,7 +242,8 @@ def test_visual_review_allocates_focused_evidence_before_images_decode(browser, 
     })"""
     before = host.evaluate(geometry)
     assert before["frames"][0]["height"] > 500, before
-    assert before["frames"][1]["top"] >= before["frames"][0]["bottom"], before
+    assert before["frames"][1]["top"] == before["frames"][0]["top"], before
+    assert before["frames"][1]["height"] == before["frames"][0]["height"], before
     assert host.locator("img").evaluate_all(
         "images => images.every(image => image.naturalWidth === 0)"
     )
@@ -279,7 +280,12 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     # empty until the incoming pair has loaded; its declared geometry stays reserved.
     rendered(page, facts=("updatesSettled",))
     assert images.evaluate_all("images => images.every(image => !image.naturalWidth)")
-    assert host.evaluate("node => node.scrollHeight") > 1000
+    assert (
+        host.locator(".lf-shotframe").first.evaluate(
+            "node => node.getBoundingClientRect().height"
+        )
+        > 500
+    )
     expect(host.locator(".lf-error")).to_have_count(0)
     refuse(held[0])
     expect(host.locator(".lf-error")).to_contain_text("focus needs two decoded images")
@@ -319,7 +325,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     shot = case.locator("lf-shot")
     control = case.get_by_role("button", name="Slider", exact=True)
     control.click()
-    case.get_by_role("button", name="Image scale and originals").click()
+    case.get_by_role("button", name="Image options").click()
     case.get_by_role("button", name="100%", exact=True).click()
     divider = shot.get_by_role("scrollbar")
     divider.press("Home")
@@ -346,9 +352,9 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     assert shot.evaluate("(node, original) => node === original", original)
     expect(control).to_have_attribute("aria-pressed", "true")
     expect(shot.locator("wa-comparison")).to_have_attribute("position", "1")
-    expect(case.get_by_role("button", name="Image scale and originals")).to_have_text(
-        "100%"
-    )
+    expect(
+        case.get_by_role("button", name="100%", exact=True, include_hidden=True)
+    ).to_have_attribute("aria-pressed", "true")
 
     # A refused replacement leaves usable old evidence, and correcting it must
     # publish new dimensions even in Firefox, whose reused-image decode can be stale.
@@ -382,22 +388,22 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
         "images => images.map(image => [image.naturalWidth, image.naturalHeight, image.getBoundingClientRect().width])"
     ) == [[1200, 1000, 600], [1200, 1000, 600]]
 
-    # Refreshing captures also replaces cached pixel masks and their background.
+    # Refreshing captures also replaces the cached pixel mask and its background.
     pixels = case.get_by_role("button", name="Pixels", exact=True)
     pixels.click()
     page.wait_for_function(
-        """() => [...document.querySelectorAll(
-          '.lf-vr-case[aria-hidden="false"] .lf-shotpixels [data-lf-shot-side]'
-        )].every(node => node.style.getPropertyValue('--lf-shot-pixels'))"""
+        """() => document.querySelector(
+          '.lf-vr-case[aria-hidden="false"] .lf-shotpixels .lf-shot-pixel-mask'
+        )?.style.getPropertyValue('--lf-shot-pixels')"""
     )
     painted_pixels = """node => ({
       ground: node.querySelector('.lf-shotpixels img').src,
-      masks: [...node.querySelectorAll('.lf-shotpixels [data-lf-shot-side]')]
-        .map(paint => paint.style.getPropertyValue('--lf-shot-pixels')),
+      mask: node.querySelector('.lf-shotpixels .lf-shot-pixel-mask')
+        .style.getPropertyValue('--lf-shot-pixels'),
     })"""
     previous_pixels = shot.evaluate(painted_pixels)
     # Hold the platform's mask encoding at an actual asynchronous boundary.
-    # Refresh must keep the whole old difference until the new masks are ready.
+    # Refresh must keep the whole old difference until the new mask is ready.
     page.evaluate(
         """() => {
           const encode = OffscreenCanvas.prototype.convertToBlob;
@@ -421,7 +427,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     }
     data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", identical)
     told(page)
-    page.wait_for_function("window.heldShotMasks.length === 3")
+    page.wait_for_function("window.heldShotMasks.length === 1")
     assert shot.evaluate(painted_pixels) == previous_pixels
     # Metadata arriving after image validation owns a new request; it cannot
     # smuggle an invalid crop into the already-preparing pair.
@@ -450,8 +456,8 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
         "aria-description", "identical"
     )
     corrected_pixels = shot.evaluate(painted_pixels)
-    assert all(corrected_pixels["masks"])
-    assert corrected_pixels["masks"] != previous_pixels["masks"]
+    assert corrected_pixels["mask"]
+    assert corrected_pixels["mask"] != previous_pixels["mask"]
     assert shot.locator(".lf-shotpixels img").evaluate(
         "node => node.src"
     ) == shot.locator('.lf-shotframe[data-lf-state="after"] img').evaluate(

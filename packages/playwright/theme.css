@@ -265,7 +265,7 @@
 .lf-trace-bar {
   inline-size: max(2px, calc(var(--d) * var(--lf-trace-span)));
   box-sizing: border-box;
-  border-radius: 2px;
+  border-radius: var(--r-s);
   cursor: pointer;
 }
 .lf-trace-call-bar {
@@ -335,7 +335,7 @@
   text-overflow: ellipsis;
   padding-inline: 4px;
   line-height: calc(var(--lf-trace-row-h) - 4px);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 var(--r-s) var(--r-s) 0;
   background: var(--paper);
   border: 1px solid var(--border-2);
   border-inline-start: 0;
@@ -352,7 +352,7 @@
   padding-inline: 4px 0;
 }
 .lf-trace-moment-pin[data-flip] .lf-trace-moment-flag {
-  border-radius: 8px 0 0 8px;
+  border-radius: var(--r-s) 0 0 var(--r-s);
   border-inline-start: 1px solid var(--border-2);
   border-inline-end: 0;
 }
@@ -376,7 +376,7 @@
 }
 /* The selected mark's own name is highlighted, inside a shared label too. */
 :is(.lf-trace-word, .lf-trace-more)[data-current] {
-  border-radius: 2px;
+  border-radius: var(--r-s);
   background: var(--accent);
   color: var(--paper);
   box-shadow: 0 0 0 2px var(--accent);
@@ -390,7 +390,7 @@
 .lf-trace-more {
   margin-inline-start: 2px;
   padding-inline: 3px;
-  border-radius: 6px;
+  border-radius: var(--r-s);
   background: var(--paper);
   color: var(--ink);
   font-weight: 600;
@@ -467,7 +467,7 @@
   inset-block: 1px;
   left: calc(var(--lf-trace-window-start, 0) * 100%);
   inline-size: calc(var(--lf-trace-window-size, 1) * 100%);
-  border-radius: 2px;
+  border-radius: var(--r-s);
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .lf-trace-overview[data-zoomed] {
@@ -576,6 +576,9 @@
 }
 .lf-trace-metadata[data-lf-focus-visible] {
   outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
+.lf-trace-metadata > details > summary[data-lf-focus-visible] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-trace-readout {
@@ -800,10 +803,9 @@
 .lf-trace-bookmark[data-lf-focus-visible] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-/* One width for Play and Pause, so the readout beside it never moves when playback ends. */
 .lf-trace-play {
-  inline-size: 6.5em;
-  min-inline-size: 86px;
+  inline-size: var(--lf-trace-control-size);
+  min-inline-size: var(--lf-trace-control-size);
 }
 .lf-trace-play > svg:nth-child(2),
 .lf-trace-play[data-playing] > svg:first-child {
@@ -816,13 +818,6 @@
   .lf-trace-toolbar .lf-trace-position-row {
     flex-basis: 100%;
     order: 1;
-  }
-  .lf-trace-play {
-    inline-size: var(--lf-trace-control-size);
-    min-inline-size: var(--lf-trace-control-size);
-  }
-  .lf-trace-play > span {
-    display: none;
   }
   .lf-trace-selection {
     font-size: var(--lf-trace-small-type);
@@ -869,17 +864,18 @@
 /* The gap holds a focused button's ring, 2px off its face (controls.css), with a pixel to
  * spare: the button after it paints its border over any of the ring that reaches it. */
 .lf-trace-image-tools {
+  anchor-scope: --lf-trace-scale;
   display: flex;
   align-items: center;
   gap: var(--focus-ring-room);
   flex-wrap: wrap;
   margin-block: var(--sp-2) 0;
 }
-.lf-trace-image-tools button[aria-label] {
-  inline-size: var(--lf-control-compact);
+.lf-trace-image-tools > button:not(.lf-trace-image-scale) {
+  inline-size: var(--lf-line);
 }
 /* Status changes share one slot; loading a frame cannot wrap the tools into a new row. */
-.lf-trace-image-zoom {
+.lf-trace-image-status {
   margin-inline-start: auto;
   inline-size: 24ch;
   flex: 0 0 auto;
@@ -913,7 +909,7 @@
 }
 
 @container (max-width: 480px) {
-  .lf-trace-image-zoom {
+  .lf-trace-image-status {
     margin-inline-start: 0;
     inline-size: 100%;
     text-align: start;
@@ -1014,5 +1010,31 @@
     & > :is(lf-trace, :has(lf-trace)):not([data-lf-opening]) {
       display: none;
     }
+  }
+}
+
+.lf-trace-image-scale {
+  anchor-name: --lf-trace-scale;
+  inline-size: 10ch;
+  font-variant-numeric: tabular-nums;
+}
+.lf-trace-scale-options {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  padding: var(--sp-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--raise-2);
+}
+@supports (position-area: bottom) {
+  .lf-trace-scale-options {
+    position-anchor: --lf-trace-scale;
+    position-area: bottom span-right;
+    inset: auto;
+    margin: var(--sp-2) 0;
+    position-try-fallbacks: flip-block;
   }
 }

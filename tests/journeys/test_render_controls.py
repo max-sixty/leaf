@@ -46,6 +46,7 @@ from render_harness import (
     Traffic,
     _until,
     any_draft_control,
+    expect_panel_says,
     held_frames,
     holding,
     leaf_page,
@@ -55,7 +56,9 @@ from render_harness import (
     page_comment,
     panel_field,
     panel_menu,
+    panel_says,
     panel_settled,
+    panel_view,
     resized,
     root_overflow,
     round_trip,
@@ -66,7 +69,6 @@ from render_harness import (
     write,
 )
 
-from journeys import expect_panel_says, panel_says
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import presence as presence_model
@@ -223,7 +225,7 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 )
 
 
-LEAVES = '.lf-fp-view[data-view="leaves"]:not([data-leaving])'
+LEAVES = panel_view("leaves")
 
 
 # The rendered control mechanisms whose rows must keep their geometry across a press.
@@ -244,10 +246,10 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-tabs .lf-tab-btn:nth-child(2)",
     },
     {
-        # The playground's action row: Reset, Copy instruction, and the send beside each
-        # other under the controls. The send is the press with something to prove — it
-        # posts the configuration and comes back disabled, and a control that changes its
-        # own paint on the press is where a neighbour moves.
+        # The playground's action row: Reset and the send beside each other under the
+        # controls. The send is the press with something to prove — it posts the
+        # configuration and turns to Undo choice, and a control that changes its own
+        # words on the press is where a neighbour moves.
         "name": "playground-actions",
         "target": "#stable-playground .lf-playground-submit",
     },
@@ -323,7 +325,7 @@ RING_CASES = (
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
                 ("lf-diff summary", ".lf-diff-file > details > summary"),
-                ("lf-diff code", "code[data-code]"),
+                ("lf-diff code", ".lf-diff-frame"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", ".lf-mark-el"),
@@ -365,7 +367,7 @@ RING_CASES = (
     (
         "passage search",
         ("/",),
-        {RING_CHROME: ((".lf-page-search-box input:visible", "wa-input::part"),)},
+        {RING_CHROME: ((".lf-page-search-box input:visible", ".lf-fp-field"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -510,6 +512,7 @@ RING_EXAMPLE_FILES = {
 # paint so an unrelated ring drawn by the same rule cannot credit the sample.
 RING_REMOTE_CARRIER = {
     ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
+    ".lf-diff-frame": "lf-diff code[data-lf-focus-visible] + .lf-diff-frame",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
     "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
@@ -941,7 +944,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "resolved": page.frame_locator("#resolved-sample iframe"),
         "summary": page.frame_locator("#summary-sample iframe"),
     }
-    threads = '.lf-fp-view[data-view="threads"]:not([data-leaving])'
+    threads = panel_view("threads")
     for name in ("overview", "resolved"):
         expect(views[name].locator(PANEL)).to_have_attribute("data-open", "threads")
         expect(views[name].locator(f"{threads} .lf-fp-thread").first).to_be_visible()
@@ -1147,14 +1150,14 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
           behavior: 'instant'})"""
     )
     child = frame.element_handle().content_frame()
-    # The thread's view goes to the passage it quotes with On the page.
-    on_the_page = child.locator(".lf-fp-controls").get_by_role(
-        "button", name="On the page"
+    # The thread's view goes to the passage it quotes with Show on page.
+    show_on_page = child.locator(".lf-fp-controls").get_by_role(
+        "button", name="Show on page"
     )
-    on_the_page.scroll_into_view_if_needed()
+    show_on_page.scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
     root_before = child.evaluate("scrollY")
-    on_the_page.click()
+    show_on_page.click()
     scroll_settled(child)
     landing = child.evaluate(
         """() => {
@@ -2073,7 +2076,7 @@ def test_a_recorded_move_is_acknowledged_in_the_panel_and_nowhere_else(browser, 
     round_trip(page)
 
     # The field's own words come back once the notice has had its moment.
-    expect_panel_says(page, "Moved to Done", shown=False)
+    expect_panel_says(page, "Moved to Done", says=False)
 
 
 def test_all_pages_opens_a_neighbour_in_a_tab_of_its_own(
@@ -2264,7 +2267,7 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
-    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    threads = page.locator(panel_view("threads"))
     for _ in range(6):
         page.keyboard.press("ArrowDown")
     title = threads.locator(".lf-fp-thread").nth(5)
@@ -2626,7 +2629,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         # Settled choices are user view state, so expose their focusable controls.
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
-                row.click()
+                row.focus()
+                page.keyboard.press("Enter")
         page_at_rest(page)
 
         for scope, keys, cases in RING_CASES:

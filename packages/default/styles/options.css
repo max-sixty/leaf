@@ -324,7 +324,7 @@
   border-radius: 50%;
 }
 :scope:is(lf-options)[multiple] > lf-option > .lf-pick::before {
-  border-radius: 3px;
+  border-radius: var(--r-s);
 }
 /* The hand is on the mark exactly while it can take a selection. */
 :scope:is(lf-option) .lf-pick[role="checkbox"] {
@@ -368,7 +368,7 @@
 :scope:is(lf-option) .lf-pick[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
-  border-radius: 4px;
+  border-radius: var(--r-s);
 }
 /* The obligation's action keys, on the cells they bind. The gutter reads status, badge, then
  * prose. A card aligns its digit with its content's top; a row centres it. */
@@ -392,8 +392,11 @@
   display: grid;
   padding: 0;
 }
+/* Done is the group's last row, and a stack keeps no room between its rows for a reach,
+ * so its face is the floor's height where that is taller than the line. */
 :scope:is(lf-options) > lf-options-done > .lf-done {
   width: 100%;
+  padding-block: max(4px, (max(var(--lf-line), var(--aim-floor)) - 1lh) / 2 - 1px);
 }
 /* Done's digit stands in the options' digit column, centred on the button. */
 :scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge {
@@ -437,7 +440,7 @@
      * are held until upgrade and the next block stays put. Add is one option line inside
      * the same inset as the option it becomes. */
     --lf-add-cell-height: calc(var(--lf-option-line) + 2 * var(--lf-option-pad-block));
-    --lf-done-cell-height: 32px;
+    --lf-done-cell-height: max(var(--lf-line), var(--aim-floor));
     &:has(> lf-option > strong) {
       --lf-add-cell-height: calc(
         max(var(--lf-option-line), var(--lf-card-state-height)) + 2 *
@@ -602,10 +605,11 @@
   }
   .lf-another {
     --lf-option-add-seat-inset: var(--sp-1);
-    /* Centre Add on the last text line, using the same inset that sizes its row. */
+    /* Centre Add's face on the last text line, using the same inset that sizes its
+       row, which holds its reach (below). */
     --lf-option-add-seat-end: calc(
-      var(--lf-option-pad-block) + (var(--lf-option-line) - var(--lf-icon-action-hit)) /
-        2
+      var(--lf-option-pad-block) +
+        (var(--lf-option-line) - var(--lf-icon-action-face)) / 2
     );
     --lf-option-add-badge-inset: calc(
       var(--lf-option-add-seat-inset) +
@@ -613,7 +617,7 @@
     );
     --lf-option-add-badge-end: calc(
       var(--lf-option-add-seat-end) +
-        (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2
+        (var(--lf-icon-action-face) - var(--lf-key-badge-size)) / 2
     );
     --lf-option-write-badge-inset: calc(
       var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--sp-2)
@@ -674,7 +678,8 @@
    * and 6px before the words. It is held before the badge appears, so focusing an
    * option moves nothing. Screen only: paper gets no badge. */
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) {
-    /* Keep the form's padding, growing it only to contain the action's hit box.
+    /* Keep the form's padding, growing it only to contain the action's hit box, its
+     * face and the reach above and below it.
      * The draft and the option it becomes use this same padded text line. */
     --lf-option-pad-block: max(
       var(--lf-option-pad-min),
@@ -762,14 +767,17 @@
     }
   }
 }
-/* The reference takes a zero-width cell, so the free width goes to the words and the
- * line ends at one column whether or not a row names a block. Apparatus centres on the
- * row, not its first line, so a wrapped label carries it down. */
+/* The reference floats to the end of the words' last line where it fits there and
+ * drops under them where it doesn't, so the words keep the row's whole width and never
+ * lose a line to it; its line is the words' (`1lh`), so it stands level with them. On
+ * 23 October 2026 the user chose this over a zero-width table cell beside the words,
+ * which centred the reference on the row and ended every row's words at one column,
+ * but, once the reference named its block, squeezed a phone's words into a column five
+ * lines tall. */
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option > .lf-ref {
-  display: table-cell;
-  width: 0;
-  white-space: nowrap;
-  vertical-align: middle;
+  float: inline-end;
+  margin-inline-start: var(--lf-row-gap);
+  line-height: 1lh;
 }
 /* The mark stands out of flow in the group's column, so the words open at one place on
  * every row whatever the row holds, centred on the row. The height is stated because an
@@ -820,7 +828,7 @@
 }
 :scope:is(lf-options)[settled] > .lf-settled[data-lf-focus-visible] {
   outline: var(--focus-ring);
-  outline-offset: 1px;
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-settled-count {
   margin-left: auto;

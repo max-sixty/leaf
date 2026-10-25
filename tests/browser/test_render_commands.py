@@ -136,7 +136,6 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
             assert label["said"] == label["text"]
 
     assert_source_words()
-    shot.get_by_role("button", name="Slider", exact=True).click()
     expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
     assert_source_words()
     assert (
@@ -148,11 +147,28 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     toolbar = shot.locator(".lf-shot-toolbar")
     toolbar.scroll_into_view_if_needed()
     controls = toolbar.get_by_role("button").all()
-    boxes = [control.bounding_box() for control in controls if control.is_visible()]
+    controls = [control for control in controls if control.is_visible()]
+    boxes = [control.bounding_box() for control in controls]
     assert len(boxes) == 5
     floor = 44 if touch else 24
     for index, box in enumerate(boxes):
-        assert min(box["width"], box["height"]) >= floor - 0.5, box
+        assert box["width"] >= floor - 0.5, box
+        if touch:
+            assert controls[index].evaluate(
+                """(control, floor) => {
+              const box = control.getBoundingClientRect();
+              const x = box.left + box.width / 2;
+              const y = box.top + box.height / 2;
+              return [-1, 1].every(side => {
+                const offset = side * (floor / 2 - 0.5);
+                const hit = document.elementFromPoint(x, y + offset);
+                return hit === control || control.contains(hit);
+              });
+            }""",
+                floor,
+            ), box
+        else:
+            assert box["height"] >= floor - 0.5, box
         for other in boxes[index + 1 :]:
             assert (
                 box["x"] + box["width"] <= other["x"] + 0.5
@@ -162,6 +178,13 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
             ), (box, other)
     captions = toolbar.locator(".lf-shotcap")
     expect(captions).to_have_text(["Before", "After"])
+    label_colors = captions.evaluate_all(
+        "nodes => nodes.map(n => getComputedStyle(n).color)"
+    )
+    label_fills = captions.evaluate_all(
+        "nodes => nodes.map(n => getComputedStyle(n).backgroundColor)"
+    )
+    assert all(fill != "rgba(0, 0, 0, 0)" for fill in label_fills)
     for caption in captions.all():
         caption.tap() if touch else caption.click()
         expect(shot.locator("wa-comparison")).to_have_attribute("position", "50")
@@ -204,36 +227,76 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         point = {"x": 20, "y": 40}
         comparison.tap(position=point) if touch else comparison.click(position=point)
         expect(comparison).to_have_attribute("position", endpoint)
+        hidden = 1 if endpoint == "100" else 0
+        expect(captions.nth(hidden)).to_have_css("background-color", "rgba(0, 0, 0, 0)")
+        expect(captions.nth(1 - hidden)).to_have_css(
+            "background-color", label_fills[1 - hidden]
+        )
+        expect(captions.nth(hidden)).not_to_have_css("color", label_colors[hidden])
+        expect(captions.nth(1 - hidden)).to_have_css("color", label_colors[1 - hidden])
         expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
             "aria-pressed", "true"
         )
+    handle = comparison.get_by_role("scrollbar")
+    handle.focus()
+    for key, position in (("End", "100"), ("Home", "0"), ("ArrowRight", "1")):
+        page.keyboard.press(key)
+        expect(comparison).to_have_attribute("position", position)
+        for index in (0, 1):
+            hidden = (index == 0 and position == "0") or (
+                index == 1 and position == "100"
+            )
+            if hidden:
+                expect(captions.nth(index)).not_to_have_css(
+                    "color", label_colors[index]
+                )
+            else:
+                expect(captions.nth(index)).to_have_css("color", label_colors[index])
     shot.get_by_role("button", name="Pair", exact=True).click()
-    image = shot.locator(".lf-shotimage").first
-    image.tap(position={"x": 10, "y": 10}) if touch else image.click(
-        position={"x": 10, "y": 10}
-    )
-    expect(shot.get_by_role("button", name="Pair", exact=True)).to_have_attribute(
-        "aria-pressed", "true"
-    )
-    for view in ("Slider", "Pixels", "Pair"):
-        geometry = shot.evaluate(
-            """async (node, view) => {
-              const boxes = () => [...node.querySelectorAll(
-                '.lf-shot-toolbar, .lf-shotstage, .lf-shotcanvas'
-              )].map(box => box.getBoundingClientRect().toJSON());
-              [...node.querySelectorAll('.lf-shot-views button')]
-                .find(button => button.textContent === view).click();
-              const immediate = boxes();
-              await new Promise(requestAnimationFrame);
-              await new Promise(requestAnimationFrame);
-              return {immediate, painted: boxes()};
-            }""",
-            view,
-        )
-        assert geometry["painted"] == geometry["immediate"], (view, geometry)
-        assert_source_words()
-    for width, layout in ((1000, "side"), (390, "stack")):
+    for index in (0, 1):
+        expect(captions.nth(index)).to_have_css("color", label_colors[index])
+    # Controls and the image area's top stay put; Pair may shrink the content
+    # below them instead of reserving unused space for the other views.
+    # This fixture ends at the widget: a shorter document may clamp scrollY.
+    # Compare document coordinates rather than requiring empty space below it.
+    boxes = """node => {
+      const box = element => {
+        const r = element.getBoundingClientRect();
+        return {x: r.x, y: r.y + scrollY, width: r.width, height: r.height};
+      };
+      return {toolbar: box(node.querySelector('.lf-shot-toolbar')),
+        controls: [...node.querySelectorAll(
+          '.lf-shot-views button, .lf-shot-tools > button'
+        )].map(box), stageTop: box(node.querySelector('.lf-shotstage')).y};
+    }"""
+    for width in (390, 500, 1000):
         page.set_viewport_size({"width": width, "height": 844})
+        shot.get_by_role("button", name="Slider", exact=True).click()
+        toolbar.scroll_into_view_if_needed()
+        allocation = shot.evaluate(boxes)
+        for view in ("Pair", "Pixels", "Slider"):
+            shot.get_by_role("button", name=view, exact=True).click()
+            assert shot.evaluate(boxes) == allocation, view
+            page.evaluate("() => new Promise(requestAnimationFrame)")
+            assert shot.evaluate(boxes) == allocation, view
+            assert_source_words()
+            if view == "Pair":
+                unused_height = shot.evaluate("""node => {
+                  const stage = node.querySelector('.lf-shotstage');
+                  const style = getComputedStyle(stage);
+                  return stage.clientHeight - parseFloat(style.paddingTop)
+                    - parseFloat(style.paddingBottom)
+                    - node.querySelector('.lf-shotcanvas').getBoundingClientRect().height;
+                }""")
+                assert abs(unused_height) <= 1
+    # Pair takes the arrangement that draws the 2:1 captures larger on screen.
+    shot.get_by_role("button", name="Pair", exact=True).click()
+    for width, height, layout in (
+        (1000, 844, "stack"),
+        (1000, 360, "side"),
+        (390, 844, "stack"),
+    ):
+        page.set_viewport_size({"width": width, "height": height})
         expect(shot).to_have_attribute("data-lf-shot-layout", layout)
         assert_source_words()
 
@@ -244,9 +307,8 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
 ):
     """Full-page evidence stays inspectable on a phone through the shared viewer.
 
-    Endpoint choice, inspection, and native modified navigation are separate routes;
-    closing the viewer returns to the same route without shifting the comparison.
-    Every comparison view keeps the same routes to the original captures.
+    Pair images are links on mouse, keyboard and touch; closing the viewer returns
+    to the image without shifting the comparison. Slider gestures remain separate.
     """
     shots = {
         "before": solid_png(1200, 600, (210, 220, 235)),
@@ -269,35 +331,55 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     )
     shot = page.locator("lf-shot")
     shot.scroll_into_view_if_needed()
-    shot.get_by_role("button", name="Slider", exact=True).click()
+    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
-    before = shot.bounding_box()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    comparison.get_by_role("scrollbar").press("End")
+    expect(comparison).to_have_attribute("position", "100")
+    comparison.get_by_role("scrollbar").press("Home")
+    expect(comparison).to_have_attribute("position", "0")
+    expect(viewer).not_to_be_visible()
+
+    shot.get_by_role("button", name="Pair", exact=True).click()
     links = shot.get_by_role("link")
-    scale = shot.get_by_role("button", name="Image scale and originals")
-    scale.click()
+    expect(links).to_have_count(2)
+    before = shot.bounding_box()
     link_bounds = [link.bounding_box() for link in links.all()]
-    assert len(link_bounds) == 2
-    assert link_bounds[0]["y"] + link_bounds[0]["height"] <= link_bounds[1]["y"]
+    if not touch:
+        box = link_bounds[0]
+        start = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.move(*start)
+        page.mouse.down()
+        page.mouse.move(start[0] + 40, start[1] + 20, steps=4)
+        page.mouse.up()
+        expect(viewer).not_to_be_visible()
     assert not page.evaluate(
         "performance.getEntriesByType('resource').some(e => e.name.includes('photoswipe'))"
     )
-    viewer = page.get_by_role("dialog", name="Image preview")
     for index, state in enumerate(("before", "after")):
         link = shot.get_by_role(
             "link", name=f"Open {state} image — the navigation rail"
         )
+        link.scroll_into_view_if_needed()
+        box = link.bounding_box()
+        before = shot.bounding_box()
         floor = 44 if touch else 24
-        assert min(link_bounds[index]["width"], link_bounds[index]["height"]) >= floor
+        assert min(box["width"], box["height"]) >= floor
         link.hover()
-        assert link.bounding_box() == link_bounds[index]
-        link.focus()
-        assert link.bounding_box() == link_bounds[index]
+        assert link.bounding_box() == box
         assert shot.bounding_box() == before
         if touch:
             link.tap()
+        elif index == 0:
+            link.click()
         else:
-            link.press("Enter")
+            # Escape restored the first image; Tab reaches the second image.
+            page.keyboard.press("Tab")
+            expect(link).to_be_focused()
+            before = shot.bounding_box()
+            box = link.bounding_box()
+            page.keyboard.press("Enter")
         expect(viewer).to_be_visible()
         expect(viewer.locator(".lf-media-viewer-original")).to_have_attribute(
             "href",
@@ -314,11 +396,13 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
         page.keyboard.press("Escape")
         expect(viewer).not_to_be_visible()
         expect(link).to_be_focused()
-        expect(comparison).to_have_attribute("position", "50")
+        expect(shot.get_by_role("button", name="Pair", exact=True)).to_have_attribute(
+            "aria-pressed", "true"
+        )
         assert shot.bounding_box() == before
-        assert link.bounding_box() == link_bounds[index]
+        assert link.bounding_box() == box
 
-    # A modified link retains its href and ordinary browser destination.
+    # A modified image link retains its ordinary browser destination.
     after = links.nth(1)
     original = opened_tab(
         page,
@@ -328,16 +412,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     assert original.url.endswith(sources["after"])
     original.close()
     expect(viewer).not_to_be_visible()
-    expect(comparison).to_have_attribute("position", "50")
-
-    page.keyboard.press("Escape")
-    comparison.get_by_role("scrollbar").press("End")
-    expect(comparison).to_have_attribute("position", "100")
-    comparison.get_by_role("scrollbar").press("Home")
-    expect(comparison).to_have_attribute("position", "0")
-    assert shot.bounding_box() == before
     shot.evaluate("node => node.setAttribute('alt', 'the updated rail')")
-    scale.click()
     expect(after).to_have_accessible_name("Open after image — the updated rail")
     after.click()
     expect(viewer.locator("img.pswp__img")).to_have_attribute(
@@ -349,18 +424,29 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     page.keyboard.press("Escape")
     expect(viewer).not_to_be_visible()
     expect(after).to_be_focused()
-
-    # Inspection links remain usable when the paired view owns the pictures.
-    page.keyboard.press("Escape")
-    shot.get_by_role("button", name="Pair", exact=True).click()
-    scale.click()
-    expect(links.first).to_be_visible()
-    links.first.click()
-    expect(viewer).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(links.first).to_be_focused()
+    if touch:
+        shot.get_by_role("button", name="Image options").tap()
+        shot.get_by_role("button", name="100%", exact=True).tap()
+        viewport = shot.locator(".lf-shotviewport").first
+        viewport.scroll_into_view_if_needed()
+        box = viewport.bounding_box()
+        point = {"x": box["x"] + box["width"] * 0.75, "y": box["y"] + box["height"] / 2}
+        finger = page.context.new_cdp_session(page)
+        for kind, points in (
+            ("touchStart", [point]),
+            ("touchMove", [point | {"x": point["x"] - 100}]),
+            ("touchEnd", []),
+        ):
+            finger.send(
+                "Input.dispatchTouchEvent", {"type": kind, "touchPoints": points}
+            )
+        page.wait_for_function(
+            "node => node.scrollLeft > 0", arg=viewport.element_handle()
+        )
+        scroll_settled(page)
+        expect(viewer).not_to_be_visible()
+        finger.detach()
     page.emulate_media(media="print")
-    expect(links.first).not_to_be_visible()
     assert shown_frames(page) == ["before", "after"]
 
 
@@ -426,13 +512,20 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
             handle_box["x"] + handle_box["width"] / 2,
             box["y"] + 80,
         )
+        # Reading the image keeps the handle faint; aiming at it brings it up.
+        page.mouse.move(box["x"] + 20, box["y"] + 40)
+        expect(handle).to_have_css("opacity", "0.52")
+        handle.hover()
+        expect(handle).to_have_css("opacity", "1")
         scroll_before = page.evaluate("document.scrollingElement.scrollTop")
         page.mouse.move(*divider)
         page.mouse.down()
         page.mouse.move(divider[0] + 24, divider[1], steps=3)
+        expect(handle).to_have_css("opacity", "1")
         page.mouse.up()
         scroll_settled(page)
-        assert float(comparison.get_attribute("position")) > 50
+        assert 50 < float(comparison.get_attribute("position")) < 100
+        expect(page.get_by_role("dialog", name="Image preview")).not_to_be_visible()
         assert (
             abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
             <= 1
@@ -467,6 +560,7 @@ def test_a_tall_shot_scrolls_its_images_then_chains_to_its_container(
         ),
     )
     shot = page.locator("#scroll-shot")
+    shot.get_by_role("button", name="Pair", exact=True).click()
     allocation = shot.locator(".lf-shotstage").bounding_box()
     fitted = [frame.bounding_box() for frame in shot.locator(".lf-shotframe").all()]
     assert len(fitted) == 2
@@ -476,7 +570,7 @@ def test_a_tall_shot_scrolls_its_images_then_chains_to_its_container(
         assert (
             frame["y"] + frame["height"] <= allocation["y"] + allocation["height"] + 1
         )
-    shot.get_by_role("button", name="Image scale and originals").click()
+    shot.get_by_role("button", name="Image options").click()
     shot.get_by_role("button", name="100%", exact=True).click()
     stage = shot.locator(".lf-shotviewport").first
     stage.scroll_into_view_if_needed()
@@ -547,54 +641,46 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
     assert complete == pytest.approx(before, abs=1), (before, pending, complete)
 
 
-def test_a_shot_keeps_paired_images_usable_while_the_slider_loads(browser, serve):
-    """The optional divider stays off paired-view startup and never leaves an empty box."""
+def test_a_shot_keeps_its_default_slider_stable_while_the_divider_loads(browser, serve):
+    """Slider reserves one image from first drawing; Pair stays usable during loading."""
     source = leaf_page(
         "Request a divider",
         f'<h1>Request a divider</h1><lf-shot id="deferred-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
     )
     url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
-    page = open_page(browser, url)
-    shot = page.locator("lf-shot")
-    views = shot.get_by_role("group", name="Comparison view")
-    expect(views.get_by_role("button", name="Pair", exact=True)).to_have_attribute(
-        "aria-pressed", "true"
-    )
-    assert not page.evaluate(
-        "performance.getEntriesByType('resource').some(e => e.name.endsWith('/vendor/webawesome.esm.js'))"
-    )
-    paired_width = shot.locator(".lf-shotframe img").first.bounding_box()["width"]
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
     held = []
     page.route("**/vendor/webawesome.esm.js", lambda route: held.append(route))
-    views.get_by_role("button", name="Slider", exact=True).click()
-    holding(page, held, 1, "the requested comparison divider")
+    page.goto(url, wait_until="domcontentloaded")
+    holding(page, held, 1, "the default comparison divider")
+    shot = page.locator("lf-shot")
+    views = shot.get_by_role("group", name="Comparison view")
+    expect(views.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
     expect(shot.locator("wa-comparison")).to_have_count(0)
-    for image in shot.locator(".lf-shotframe img").all():
+    images = shot.locator(".lf-shotframe img")
+    for image in images.all():
         expect(image).to_be_visible()
-    stage = shot.locator(".lf-shotstage").bounding_box()
-    for frame in shot.locator(".lf-shotframe").all():
-        box = frame.bounding_box()
-        assert box["x"] >= stage["x"] - 1
-        assert box["y"] >= stage["y"] - 1
-        assert box["x"] + box["width"] <= stage["x"] + stage["width"] + 1
-        assert box["y"] + box["height"] <= stage["y"] + stage["height"] + 1
+    pending = [image.bounding_box() for image in images.all()]
+    assert len(pending) == 2
+    assert pending[0] == pytest.approx(pending[1], abs=1)
+    reserved = shot.bounding_box()
     views.get_by_role("button", name="Pair", exact=True).click()
+    expect(shot).to_have_attribute("data-lf-shot-mode", "compare")
+    paired = [image.bounding_box() for image in images.all()]
+    assert paired[1]["y"] >= paired[0]["y"] + paired[0]["height"], paired
+    views.get_by_role("button", name="Slider", exact=True).click()
     for route in held:
         route.continue_()
     page.unroute("**/vendor/webawesome.esm.js")
-    views.get_by_role("button", name="Slider", exact=True).click()
+    render_checks_model.wait_until_ready(page)
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
-    # The delivered divider gets the single-image fit immediately, without needing
-    # a later resize to release the smaller paired-view geometry.
-    image = shot.locator(".lf-shotframe img").first
-    assert image.bounding_box()["width"] > paired_width + 1
-    assert image.bounding_box()["width"] == pytest.approx(
-        min(
-            600, shot.locator(".lf-shotstage").evaluate("node => node.clientWidth") - 2
-        ),
-        abs=1,
-    )
+    assert shot.bounding_box() == pytest.approx(reserved, abs=1)
+    for image, box in zip(images.all(), pending, strict=True):
+        assert image.bounding_box() == pytest.approx(box, abs=1)
     handle = comparison.get_by_role("scrollbar")
     handle.press("Home")
     handle.press("ArrowRight")
@@ -627,15 +713,15 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     shot.evaluate(
         "node => node.inspect({pixelRatio: 2, captureWidth: 300, focus: {x: 5, y: 25, width: 100, height: 50}, labels: {before: 'Base', after: 'Candidate'}})"
     )
-    shot.get_by_role("button", name="Image scale and originals").click()
+    shot.get_by_role("button", name="Image options").click()
     full = shot.get_by_role("checkbox", name="Full frame", exact=True)
     expect(full).not_to_be_checked()
     page.keyboard.press("Escape")
-    shot.get_by_role("button", name="Image scale and originals").click()
+    shot.get_by_role("button", name="Image options").click()
     shot.get_by_role("button", name="100%", exact=True).click()
     expect(
-        shot.get_by_role("button", name="Image scale and originals")
-    ).to_contain_text("100%")
+        shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
+    ).to_have_attribute("aria-pressed", "true")
     image = shot.locator(".lf-shotframe .lf-shotimage").first
     assert image.bounding_box()["width"] == pytest.approx(100, abs=1)
     assert image.bounding_box()["height"] == pytest.approx(50, abs=1)
@@ -653,11 +739,15 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
         for view in ("Slider", "Pixels", "Pair"):
             views.get_by_role("button", name=view, exact=True).click()
             expect(
-                shot.get_by_role("button", name="Image scale and originals")
-            ).to_contain_text("100%")
+                shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
+            ).to_have_attribute("aria-pressed", "true")
             viewport = shot.locator(".lf-shotpixels") if view == "Pixels" else image
-            assert viewport.bounding_box()["width"] == pytest.approx(100, abs=1)
-            assert viewport.bounding_box()["height"] == pytest.approx(50, abs=1)
+            assert viewport.evaluate(
+                "node => [node.clientWidth, node.clientHeight]"
+            ) == [
+                100,
+                50,
+            ]
             source_box = viewport.locator(".lf-shotplane").bounding_box()
             assert source_box["x"] == pytest.approx(
                 viewport.bounding_box()["x"] - 5, abs=1
@@ -665,7 +755,7 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
             assert source_box["y"] == pytest.approx(
                 viewport.bounding_box()["y"] - 25, abs=1
             ), (direction, view)
-    shot.get_by_role("button", name="Image scale and originals").click()
+    shot.get_by_role("button", name="Image options").click()
     full.check()
     assert image.bounding_box()["width"] == pytest.approx(300, abs=1)
     assert image.bounding_box()["height"] == pytest.approx(150, abs=1)
@@ -677,8 +767,8 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     expect(full).to_be_focused()
     expect(full).not_to_be_checked()
     expect(
-        shot.get_by_role("button", name="Image scale and originals")
-    ).to_contain_text("100%")
+        shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
+    ).to_have_attribute("aria-pressed", "true")
     expect(
         shot.locator('.lf-shot-toolbar .lf-shotcap[data-lf-state="before"]')
     ).to_contain_text("Previous")
@@ -706,13 +796,14 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     )
     resized(page, 695, 900)
     shot = page.locator("#wide-pair")
+    shot.get_by_role("button", name="Pair", exact=True).click()
     controls = [
         shot.get_by_role("button", name=name, exact=True)
         for name in (
             "Pair",
             "Slider",
             "Pixels",
-            "Image scale and originals",
+            "Image options",
             "Outline changes",
         )
     ]
@@ -733,17 +824,22 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     assert after["y"] + after["height"] <= stage_box["y"] + stage_box["height"] + 1
     assert after["y"] + after["height"] <= 900
     assert frames.first.locator("img").bounding_box()["width"] <= 650
-    shot.get_by_role("button", name="Image scale and originals").click()
+    shot.get_by_role("button", name="Image options").click()
     shot.get_by_role("button", name="100%", exact=True).click()
     expect(
-        shot.get_by_role("button", name="Image scale and originals")
-    ).to_contain_text("100%")
+        shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
+    ).to_have_attribute("aria-pressed", "true")
     assert [control.bounding_box() for control in controls] == control_boxes
     headers = shot.locator(".lf-shot-frame-label").all()
     header_boxes = [header.bounding_box() for header in headers]
     panes = shot.locator(".lf-shotviewport")
     assert panes.first.bounding_box()["width"] == pytest.approx(
-        stage.evaluate("node => node.clientWidth") - 2, abs=2
+        stage.evaluate("""node => {
+          const style = getComputedStyle(node);
+          return node.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        }""")
+        - 2,
+        abs=2,
     )
     panes.first.hover()
     page.mouse.wheel(180, 0)
@@ -763,8 +859,8 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
             {"Slider": "flip", "Pixels": "pixels", "Pair": "compare"}[view],
         )
         expect(
-            shot.get_by_role("button", name="Image scale and originals")
-        ).to_contain_text("100%")
+            shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
+        ).to_have_attribute("aria-pressed", "true")
         assert [control.bounding_box() for control in controls] == control_boxes
         image = (
             shot.locator(".lf-shotpixels img")
@@ -776,7 +872,7 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
             ".lf-shotviewport" if view == "Pair" else ".lf-shotstage"
         ).first
         assert scroller.evaluate("node => node.scrollWidth > node.clientWidth")
-    shot.get_by_role("button", name="Image scale and originals").click()
+    shot.get_by_role("button", name="Image options").click()
     shot.get_by_role("button", name="Fit", exact=True).click()
     for mode in ("Slider", "Pixels"):
         shot.get_by_role("button", name=mode, exact=True).click()
@@ -824,14 +920,17 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     patch = page.locator("#shot-patch")
     patch.evaluate("async node => await node.difference")
     views = patch.get_by_role("group", name="Comparison view")
-    expect(views.get_by_role("button")).to_have_text(["Pair", "Slider", "Pixels"])
+    expect(views.get_by_role("button")).to_have_text(["Slider", "Pair", "Pixels"])
     pair = views.get_by_role("button", name="Pair", exact=True)
     slider = views.get_by_role("button", name="Slider", exact=True)
     pixels = views.get_by_role("button", name="Pixels", exact=True)
-    expect(pair).to_have_attribute("aria-pressed", "true")
+    expect(slider).to_have_attribute("aria-pressed", "true")
+    pair.click()
     outlines = patch.get_by_role("button", name="Outline changes", exact=True)
     outlines.click()
     expect(patch.locator(".lf-shotdiff > span").first).to_be_visible()
+    for mark in patch.locator(".lf-shotdiff > span").all():
+        expect(mark).to_have_css("background-color", "rgba(0, 0, 0, 0)")
     readings = patch.locator(".lf-shotframe").evaluate_all("""frames => frames.map(frame => {
       const image = frame.querySelector('img').getBoundingClientRect();
       const scale = image.width / 600;
@@ -855,10 +954,12 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     expect(page.locator("#shot-same .lf-shotdiff > span")).to_have_count(0)
     expect(page.locator("#shot-tint .lf-shotdiff > span")).to_have_count(0)
     pair.click()
-    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     expect(slider).to_be_focused()
     page.keyboard.press("Space")
     expect(slider).to_have_attribute("aria-pressed", "true")
+    page.keyboard.press("Tab")
+    expect(pair).to_be_focused()
     page.keyboard.press("Tab")
     expect(pixels).to_be_focused()
     page.keyboard.press("Enter")
@@ -866,10 +967,20 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     expect(outlines).to_be_disabled()
     expect(outlines).to_have_attribute("aria-pressed", "true")
     expect(patch.locator(".lf-shotpixels")).to_be_visible()
-    expect(patch.locator(".lf-shotlegend")).to_be_visible()
-    expect(patch.locator(".lf-shotlegend-item")).to_have_text(
-        ["Before only", "After only", "Recolored"]
+    colors = patch.locator(".lf-shotpixels .lf-shotplane > span").evaluate_all(
+        "nodes => nodes.map(node => getComputedStyle(node).backgroundColor)"
     )
+    assert len(colors) == 1
+    options = patch.get_by_role("group", name="Image options", exact=True)
+    expect(options).not_to_be_visible()
+    patch.get_by_role("button", name="Image options").click()
+    expect(options.locator(".lf-shot-pixel-key")).to_have_text("Changed pixels")
+    expect(options.locator(".lf-shot-key-swatch")).to_have_css(
+        "background-color", colors[0]
+    )
+    expect(options.get_by_role("link")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(options).not_to_be_visible()
     expect(patch.locator(".lf-shotdiff").last).to_be_hidden()
     # Reading or pointing at evidence cannot silently switch comparison modes.
     patch.locator(".lf-shotpixels").click(position={"x": 10, "y": 10})

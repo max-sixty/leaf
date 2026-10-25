@@ -115,7 +115,7 @@ def _render_version_attempt(
 
     One implementation with two callers — `page check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
-    (the tests/test_render_*.py modules) — so the gate and the suite hold one set of
+    (the tests/*/test_render_*.py modules) — so the gate and the suite hold one set of
     invariants. Returns the reading, ResizeObserver notices, and whether every reading
     completed. `browser` is a live Playwright browser; nothing here imports
     playwright at module level, so the module stays importable without it."""

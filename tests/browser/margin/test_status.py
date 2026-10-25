@@ -23,6 +23,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     panel_settled,
+    panel_view,
     resized,
     select,
     sending,
@@ -768,7 +769,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
     page.locator(".lf-floating-panel .lf-fp-filters button").nth(1).click()
-    queue = page.locator('.lf-fp-view[data-view="queue"]:not([data-leaving])')
+    queue = page.locator(panel_view("queue"))
     owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
     expect(owed).to_have_count(1)
     expect(owed.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(named)
@@ -943,7 +944,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     """A margin entry keeps the margin entry family visible without promising a press.
 
     Sent, Waiting for delivery, and Picked up report a move already made. Their status
-    margin entry therefore keeps the circular silhouette and full ink, while leaving the
+    margin entry therefore keeps the family silhouette and full ink, while leaving the
     accessibility tree as a status rather than a control and showing no hover fill.
     Hovering the status draws a soft neutral trace to the
     target without making the margin entry respond like a control. The walk still arrives,

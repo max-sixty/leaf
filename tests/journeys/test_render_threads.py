@@ -23,6 +23,7 @@ from render_harness import (
     RELEASE_FOCUS,
     consume_browser_errors,
     example_media,
+    expect_panel_says,
     http_error_console,
     open_page,
     panel_field,
@@ -58,7 +59,7 @@ from browser.threads import (
 )
 from render_harness import leaf_page
 
-from journeys import detached_threads, expect_panel_says
+from journeys import detached_threads
 
 # The same page with the change taken out of it, for the arm that carries the change
 # in a message instead: the two must differ in which document holds it and in nothing
@@ -139,10 +140,10 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     assert picture["y"] + picture["height"] <= words["y"], (picture, words)
     assert remove.bounding_box()["y"] >= bar.bounding_box()["y"]
     assert words["width"] == pytest.approx(field_width, abs=1)
-    # The shelf's face, its picture alone with a round removal on its corner, reaches
+    # The shelf's face, its picture alone with a small removal on its corner, reaches
     # the widget's tree too (response.css).
-    expect(image_open).to_have_css("border-radius", "8px")
-    expect(remove).to_have_css("border-radius", "50%")
+    expect(image_open).to_have_css("border-radius", "6px")
+    expect(remove).to_have_css("border-radius", "3px")
     expect(image_open).to_have_css("cursor", "zoom-in")
     assert remove.evaluate("""button => {
       const box = button.getBoundingClientRect();
@@ -279,7 +280,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     expect(draft_image).to_be_visible()
     expect(draft_image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
     remove = page.locator(".lf-fp-card .lf-composer-media-remove")
-    expect(remove).to_have_css("border-radius", "50%")
+    expect(remove).to_have_css("border-radius", "3px")
     expect(field.get_by_role("button", name="Send", exact=True)).to_have_attribute(
         "aria-disabled", "false"
     )

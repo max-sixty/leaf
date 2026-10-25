@@ -258,9 +258,12 @@
   color: var(--muted);
   font: 12px/1.4 var(--sans);
 }
+/* The capture takes the desk's spare height, but never less than its toolbar and a
+   frame worth reading: in a short window, where the desk's other regions leave it
+   little, this pane scrolls rather than shrinking the capture away. */
 .lf-vr-capture {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(12rem, 1fr) auto;
   min-inline-size: 0;
   min-block-size: 0;
   --lf-full-height: inherit;

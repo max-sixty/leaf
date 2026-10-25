@@ -500,8 +500,9 @@
                 goes where <kbd>m</kbd> would.
               </li>
               <li>
-                Find the sample picnic approval among the obligations. Its row takes you
-                to the request, where Approve answers it and Undo approval reopens it.
+                Find the sample picnic booking among the obligations. Its row takes you
+                to the request, where a pick answers it and pressing it again reopens
+                it.
               </li>
               <li>
                 Comment on the map question, then press <kbd>m</kbd> until it lands
@@ -773,7 +774,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-readings-guide">
               The meeting point is decided. Open <strong>Settled: At reception</strong>
               to inspect the alternatives, then close it. The spacious cards return to
-              one disclosure line, leaving no empty card space before Approval.
+              one disclosure line, leaving no empty card space before Permission.
             </p>
             <lf-ask id="bg-outcome-ask">
               <h3>Where should the sample group meet?</h3>
@@ -791,24 +792,34 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-user-workflows">
             <h2>
               <strong>User workflows</strong
-              ><span class="bg-feature-detail">: approval and interface comments</span>
+              ><span class="bg-feature-detail"
+                >: permission and interface comments</span
+              >
             </h2>
 
             <section id="bg-signoff">
-              <p class="eyebrow bg-feature-elements">lf-approval</p>
-              <h3>Approval of a stated action</h3>
+              <p class="eyebrow bg-feature-elements">lf-ask · lf-options</p>
+              <h3>Permission for a stated action</h3>
               <p id="bg-signoff-guide">
-                Press Approve on the sample request, then Undo approval to reopen it.
-                Other questions can stay unanswered. The request keeps its approval
-                through unrelated page edits until its author explicitly restates it.
+                Choose Book the shelter, then press it again to reopen the request.
+                Other questions can stay unanswered. The pick stays through unrelated
+                page edits until its author explicitly restates the request.
               </p>
-              <lf-approval id="bg-picnic-approval">
+              <lf-ask id="bg-picnic-decision">
                 <h4>Book the covered picnic shelter?</h4>
                 <p>
                   Reserve the park's covered shelter for the sample group's Saturday
                   lunch.
                 </p>
-              </lf-approval>
+                <lf-options id="bg-picnic" choose>
+                  <lf-option id="bg-picnic-skip"
+                    ><strong>Leave it unbooked</strong></lf-option
+                  >
+                  <lf-option id="bg-picnic-book"
+                    ><strong>Book the shelter</strong></lf-option
+                  >
+                </lf-options>
+              </lf-ask>
             </section>
 
             <section id="bg-page-comment-card">
@@ -1687,8 +1698,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread,
-                and a blue rail marks each unread message without shifting the
-                transcript.
+                and each unread message says New beside its time until it has been shown
+                whole.
               </p>
               <ul id="bg-thread-unread-steps">
                 <li>
@@ -2116,14 +2127,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               delivery or work status beside the content they concern. With enough room
               beside the reading column, their controls stand in the rail. Where the
               rail is absent, the same controls appear as pins near their targets on the
-              page. Every annotation uses the same filled teardrop face as a pin. Its
-              glyph and label keep their meaning: a Thread opens a conversation, Accept
-              acts on a suggestion, and Sent reports delivery. Targets inside scrolling
-              panes or extending into the rail also use pins. Related controls share a
-              compact group; “More options” opens additional controls. When space is
-              tight, a group can fold to one pin; opening it reveals its controls over
-              the page. A workflow status can appear on an existing control, as the
-              samples above show.
+              page. Every annotation uses the same filled face as a pin, one corner left
+              square to point at its target. Its glyph and label keep their meaning: a
+              Thread opens a conversation, Accept acts on a suggestion, and Sent reports
+              delivery. Targets inside scrolling panes or extending into the rail also
+              use pins. Related controls share a compact group; “More options” opens
+              additional controls. When space is tight, a group can fold to one pin;
+              opening it reveals its controls over the page. A workflow status can
+              appear on an existing control, as the samples above show.
             </p>
             <p id="bg-margin-layer-placement">
               Pins sit clear of text and controls when nearby space permits. In a
@@ -3053,14 +3064,16 @@ gallery/
                 </audio>
               </section>
               <p id="bg-shot-guide">
-                Sample labels invented content. Pair shows these wide run lists at the
-                same scale. Resize the window to inspect the paired layout. Choose
-                Slider and drag its divider to compare the same location, then choose
-                Pixels to see removed pixels in red, added pixels in blue and recoloured
-                pixels in amber. Outline marks regions in Pair and Slider. Compare Fit
-                with 100%: scrolling either image at 100% moves both to the same
-                location. Before and After keep their own shading; the controls stay in
-                place across views and scales. Tab reaches each control.
+                Sample labels invented content. Slider starts the comparison; drag its
+                divider to compare the same location. Choose Pair to see both run lists
+                at the same scale, and click either image to open its original. Resize
+                the window to inspect the paired layout. Pixels shows the changed
+                pixels; the … menu holds its color key and the scale choices. Outline
+                marks regions in Pair and Slider. Compare Fit with 100%: scrolling
+                either image in Pair at 100% moves both to the same location. In Slider,
+                a fully hidden image's label loses its shading. Outline preserves the
+                image's colors inside each border. The controls stay in place across
+                views and scales. Tab reaches each control.
               </p>
               <lf-shot
                 id="bg-shot"
@@ -3260,8 +3273,9 @@ switch --readers checkout-api,orders-api</code></pre>
             <p id="bg-llm-guide">
               Press Generate to ask the host's model for a five-word headline about a
               library opening on Sundays. The response appears below with the model's
-              name. A page without an active Codex or Claude claim reports that a claim
-              is required. Each press can incur model usage; the result is not saved.
+              name. A page without an active Codex, Claude Code or Pi claim reports that
+              a claim is required. Each press can incur model usage; the result is not
+              saved.
             </p>
             <button id="bg-llm-generate" class="button" type="button">Generate</button>
             <p id="bg-llm-result" role="status">No generation requested.</p>

@@ -19,6 +19,7 @@ from render_harness import (
     open_page,
     panel_field,
     panel_settled,
+    panel_view,
     resized,
     round_trip,
     scroll_settled,
@@ -101,7 +102,7 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     region = page.get_by_role("region", name="Leaf", exact=True)
-    expect(region.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
+    expect(region.locator(panel_view("threads"))).to_be_focused()
     expect(region.locator(".lf-fp-title")).to_have_text("Threads")
     page.keyboard.press("Escape")
 
@@ -640,7 +641,7 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
         serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
     )
     resized(page, width, 844)
-    threads = page.locator('.lf-fp-view[data-view="threads"]')
+    threads = page.locator(panel_view("threads"))
     for from_thread in (False, True):
         if from_thread:
             page.keyboard.press("t")
@@ -660,6 +661,39 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
         page.keyboard.press("Escape")
         panel_settled(page, open=False)
         assert page.evaluate("document.activeElement === document.body")
+
+
+def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
+    """A walk shows the thread it lands on and no other, so `c` and the walk's position
+    have one thread to mean. From a thread open in the panel, `t` to a thread about a
+    passage opens its card and puts the panel's view away; from that card, `t` to a
+    thread about the whole page opens it in the panel and closes the card. Both once
+    stayed open, and the panel said "Thread 2 of 2" under the thread the user had
+    left."""
+    url = serve(INLINE_PAGE)
+    first = panel_comment(
+        serve.page_dir, "About the bold text.", {"section": "p", "quote": "bold text"}
+    )
+    second = panel_comment(
+        serve.page_dir,
+        "About the neighbour.",
+        {"section": "p2", "quote": "neighbouring block"},
+    )
+    general = panel_comment(serve.page_dir, "About the whole page.")
+    page = open_page(browser, url)
+    view = open_panel_thread(page, first)
+    # The caret leaves the reply for the view, where the thread's keys answer.
+    page.keyboard.press("Escape")
+    expect(view).to_be_focused()
+
+    page.keyboard.press("t")
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator(f'.lf-page-thread[data-thread="{second}"]')).to_be_focused()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+
+    page.keyboard.press("t")
+    expect(page.locator(f'{PANEL_THREAD}[data-thread="{general}"]')).to_be_focused()
+    expect(card).to_be_hidden()
 
 
 def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):

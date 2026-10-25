@@ -229,12 +229,9 @@ change overflow at a breakpoint; Leaf measures the declared surface, never all o
 descendants. Use a bounded reading region for independently scrolling vertical content.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. It scrolls them sideways only, so one given a
-`max-height` clips what runs past it. Leave a long block unbounded or put it in
-`<details>`, and bound a live log with `data-bound` (`page-layout.md`, "Bounds and
-widths"). In a table that scrolls sideways, prose wraps a word per line. Put
-identifiers in `<code>`, which can break inside a cell, and keep the columns to what
-fits at the narrowest width the page's readers use.
+to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
+line. Put identifiers in `<code>`, which can break inside a cell, and keep the columns
+to what fits at the narrowest width the page's readers use.
 
 ## Stable anchors
 

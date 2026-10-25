@@ -11,7 +11,7 @@ import { chromeForeground, chromeRoot } from "./runtime/bundle-chrome.js";
 import { COLLAPSE, LEAF_SURFACE, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, openMarginContentLayout, pageControls, pageControlsChanged, placePoints, pointInto, railStands, registerPageControl, resolveAnchor, resolvedInMessage, revealAddressed, scheduleMarginContentLayout, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-content-layout.js";
 import { fragmentId } from "./runtime/bundle-initial-render.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadTodos, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
+import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rideSent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadTodos, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
 import { copyControl } from "./runtime/bundle-copy-control.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, setChildren, watchDisclosures } from "./runtime/bundle-abort.js";
 import { motionEasing, motionPlays, motionTime, playMotion, reducedMotion, scrollBehavior } from "./runtime/bundle-motion.js";
@@ -5331,6 +5331,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let postureMoved = true;
 	let landing = null;
 	const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
+	const transcriptOf = () => outletOf()?.querySelector(".lf-thread-transcript") ?? null;
 	function sayable() {
 		const input = host.dataset.rest === "mark" ? null : fieldInput();
 		if (!input?.isConnected || draftOf(input) !== "") return [];
@@ -5426,6 +5427,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			},
 			send: (_text, raw, owns) => {
 				let flight = null;
+				const ride = rideSent(input, transcriptOf);
 				const handle = sendMessage(PAGE_DRAFT, owns, (attempt) => flight = threadActions.create({
 					attempt,
 					text: raw
@@ -5437,6 +5439,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 					thread: handle.attempt
 				};
 				open(route, { replace: true });
+				if (landing?.key === handle.attempt) landing.ride = ride;
 				const untouched = retainUserIntent({ source: host });
 				Promise.resolve(flight).then((sent) => {
 					if (sent || trail.value.length && trail.value.at(-1) !== route) return;
@@ -5470,14 +5473,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			hint: () => saying(key, replyInput()),
 			hintAside: () => passingAside(key, replyInput()),
 			accessibleName: () => `Reply to ${threadTitle(key)}`,
-			sent: (flight) => {
+			transcript: transcriptOf,
+			sent: (flight, ride) => {
 				room = null;
 				rewriting = false;
 				releaseField();
 				landing = {
 					key,
 					after: drawnTurns(),
-					end: true
+					end: true,
+					ride
 				};
 				waiting = null;
 				queueMicrotask(paint);
@@ -7039,10 +7044,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (!landing || top?.thread !== landing.key) return;
 		const view = openView();
 		if (!view || drawnTurns() <= landing.after) return;
-		const { end } = landing;
+		const { end, ride } = landing;
 		landing = null;
 		if (end) scrollToEnd(view);
 		else showReturnTurn(outletOf().querySelector(".lf-thread-transcript"), threadByKey(top.thread));
+		ride?.();
 		decideUnreadSeat();
 	}
 	function paintNow() {

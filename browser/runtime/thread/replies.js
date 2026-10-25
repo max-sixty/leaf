@@ -35,6 +35,7 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
+import { rideSent } from "./sent-ride.js";
 import { readCaret, focused, currentLocationIn, onPressAway } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
@@ -313,11 +314,13 @@ function wireReply(
     // current location. A view whose box stays for the next turn lands the send itself (`sent`),
     // told whether the log takes it.
     send: (_text, raw, owns) => {
-      const { actions, landSent, sent } = composition.binding;
+      const { actions, landSent, sent, transcript } = composition.binding;
       const land = sendLanding(input);
+      // A view that names its transcript lets the turn ride into it (sent-ride.js).
+      const ride = transcript ? rideSent(input, transcript) : null;
       const reply = sendReply(draftCtx, key, raw, owns, actions);
       if (!reply) return;
-      if (sent) return sent(reply.flight);
+      if (sent) return sent(reply.flight, ride);
       landSent(closestAcross(input, THREAD));
       land(focused());
     },
@@ -437,6 +440,7 @@ export function createReplyView(
     accessibleName = "Reply",
     busy = () => false,
     sent = null,
+    transcript = null,
   } = {},
 ) {
   const fresh = () => {
@@ -453,7 +457,7 @@ export function createReplyView(
     });
   };
   let composition = fresh();
-  const binding = { ...commands, onChange, editLast, sent };
+  const binding = { ...commands, onChange, editLast, sent, transcript };
   let detach = attach(composition, binding);
   // A view takes the session's row in its place and draws it (`redraw`), and gives its
   // own up for a fresh one (`carry`), drawn by the step it returns.

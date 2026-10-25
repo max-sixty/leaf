@@ -82,6 +82,10 @@
     --lf-motion-view-in: 90ms;
     --lf-motion-view-out: 60ms;
     --lf-motion-menu-slide: 200ms;
+    /* A sent turn rides on the tween the box grows by, so the turns it carries up
+       keep their places under the view's name (thread/sent-ride.js). */
+    --lf-motion-send: var(--lf-motion-panel-resize);
+    --lf-motion-send-ease: var(--lf-motion-panel-ease);
   }
 
   /* The surface: a layer over the whole window, cut to the box's outline by the

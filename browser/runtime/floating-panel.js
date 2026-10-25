@@ -211,6 +211,7 @@ import {
 import { move } from "./dom-move.js";
 import { statusContextReading } from "./keyboard/status-context.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
+import { rideSent } from "./thread/sent-ride.js";
 import { pagePresented } from "./page-paint.js";
 import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
 import {
@@ -610,6 +611,7 @@ export function createFloatingPanel({
   // (`showReturnTurn`); after the user's turn, past it, at its end (`end`).
   let landing = null;
   const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
+  const transcriptOf = () => outletOf()?.querySelector(".lf-thread-transcript") ?? null;
 
   // ---------- one native editor per destination ----------
   // The errors the field can say now, newest first (errors.js): about nothing, not yet
@@ -746,6 +748,7 @@ export function createFloatingPanel({
       },
       send: (_text, raw, owns) => {
         let flight = null;
+        const ride = rideSent(input, transcriptOf);
         const handle = sendMessage(
           PAGE_DRAFT,
           owns,
@@ -759,6 +762,8 @@ export function createFloatingPanel({
         // panel opens so its reply follows in the same field.
         const route = { view: "thread", thread: handle.attempt };
         open(route, { replace: true });
+        // The thread's first turn rides from the field into the view opening over it.
+        if (landing?.key === handle.attempt) landing.ride = ride;
         // A refusal takes back the thread the send drew, which the server never held,
         // and its view goes with it (`paintPanel`); the words go back to the page's
         // draft (drafts.js, `standGesture`). Unless the user has opened another view
@@ -800,12 +805,13 @@ export function createFloatingPanel({
         hint: () => saying(key, replyInput()),
         hintAside: () => passingAside(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
-        sent: (flight) => {
+        transcript: transcriptOf,
+        sent: (flight, ride) => {
           // The user's turn lets go of the height a press held (`pressAt`).
           room = null;
           rewriting = false;
           releaseField();
-          landing = { key, after: drawnTurns(), end: true };
+          landing = { key, after: drawnTurns(), end: true, ride };
           // The user's turn grows the view to show it and takes New reply away.
           waiting = null;
           queueMicrotask(paint);
@@ -3264,7 +3270,7 @@ export function createFloatingPanel({
     if (!landing || top?.thread !== landing.key) return;
     const view = openView();
     if (!view || drawnTurns() <= landing.after) return;
-    const { end } = landing;
+    const { end, ride } = landing;
     landing = null;
     if (end) scrollToEnd(view);
     else
@@ -3272,6 +3278,7 @@ export function createFloatingPanel({
         outletOf().querySelector(".lf-thread-transcript"),
         threadByKey(top.thread),
       );
+    ride?.();
     decideUnreadSeat();
   }
   function paintNow() {

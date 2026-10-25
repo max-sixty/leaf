@@ -188,7 +188,9 @@ the exclusions). The Stop hook never continues a turn to deliver one.
 A watcher the session's own turns start can stop while the session lives on: a watch
 fails or reaches its hook's timeout, or a model-run wait is stopped after the turn
 ends. Claude Code's prompt hook starts a watch as each turn starts, so a turn an
-interrupt ends still has one. Input that reaches
+interrupt ends still has one, except a turn whose prompt came before the session
+held any page: its watch ended at once, and nothing wakes for what that turn
+leaves once it claims a page and is interrupted. Input that reaches
 the page after that has no watcher, and the claimant's harness may offer a nudge, the
 one way to reach such a session.
 

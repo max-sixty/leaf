@@ -556,8 +556,8 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     the turn the whole pending delivery inline, so the move reads Delivered as the
     hook hands it over, the envelope names no acknowledgement, and the model runs
     none. Claude Code reads that output only once the hook exits and may still drop
-    it, so the turn's next hook, which runs only once the model has read it,
-    records the receipt; until then nothing offers the move again."""
+    it, so the next hook records the receipt of what the transcript shows reached
+    the model's context; until then nothing offers the move again."""
     working(claimed, "revising")
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}

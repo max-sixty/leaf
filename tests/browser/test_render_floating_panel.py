@@ -22,8 +22,6 @@ from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
-    LIVE_V1,
-    LIVE_V2,
     live_url,
     panel_comment,
 )
@@ -3506,10 +3504,13 @@ def test_a_failed_save_is_an_error_until_the_next_valid_one(browser, serve):
     passed, and that stands as an error: the field says it and Errors in the leaf's
     menu lists it, and Versions says what the check found. It leaves both with the next
     valid save."""
-    page = open_page(browser, live_url(serve(LIVE_V1)))
-    (serve.page_dir / "index.html").write_text(LIVE_V2.replace("</main>", ""))
+    first = titled_page("Save status", '<p id="saved-text">First valid save.</p>')
+    second = first.replace("First valid save.", "Next valid save.")
+    page = open_page(browser, live_url(serve(first)))
+    (serve.page_dir / "index.html").write_text(second.replace("</main>", ""))
     told(page)
     expect(field(page)).to_have_attribute("data-says", "error")
+    expect(page.locator("#saved-text")).to_have_text("First valid save.")
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile(r"^Latest edit not shown")
     )
@@ -3521,8 +3522,9 @@ def test_a_failed_save_is_an_error_until_the_next_valid_one(browser, serve):
     expect(failed.locator(".lf-fp-failed-error")).not_to_be_empty()
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    (serve.page_dir / "index.html").write_text(second)
     told(page)
+    expect(page.locator("#saved-text")).to_have_text("Next valid save.")
     expect(field(page)).not_to_have_attribute("data-says", "error")
     page.locator(".lf-fp-leaf").click()
     expect(page.locator('.lf-fp-menu [data-row="errors"]')).to_have_count(0)

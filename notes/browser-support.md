@@ -50,23 +50,21 @@ the native timeline with the API removed.
 ### Highlight style inheritance
 
 Playwright Firefox 157.0 accepted `:root::highlight()` and `:host::highlight()`
-on 2026-10-24 (Firefox 155 on 2026-10-22) but painted no highlight on nested
-syntax spans in either light or shadow DOM. Universal highlight rules paint those
-ranges correctly; retain them in
-`browser/runtime/annotation-overlay/annotation-marks.css` and
-`browser/runtime/marks.css`. Revisit root-scoped rules when
+but painted no highlight on nested syntax spans in either light or shadow DOM on
+2026-10-24. Universal highlight rules paint those ranges correctly; retain them
+in `browser/runtime/annotation-overlay/annotation-marks.css` and
+`browser/runtime/marks.css`. Chromium 156.0.8078.4 painted both forms. Revisit
+root-scoped rules when
 `test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme` in
-`tests/browser/navigation/test_comment_marks.py` passes with them in supported
-engines. Chromium 153.0.8010.12 and 156.0.8078.4 passed both forms in that check.
+`tests/browser/navigation/test_comment_marks.py` passes with them in Firefox.
 
 ### Intrinsic block retirement motion
 
 `browser/runtime/motion.js` (`foldBlock`) animates block retirement with
 `calc-size()`. Engines without intrinsic-size interpolation complete retirement
 immediately; content, Undo and Reopen keep their ordinary behavior. This is an
-accepted visual difference. Playwright Chromium 153.0.8010.12 supported the
-animation on 2026-10-14; Firefox 157.0 and WebKit 27.2 still lacked `calc-size()`
-on 2026-10-24.
+accepted visual difference. On 2026-10-24 Playwright Chromium 156.0.8078.4
+supported the animation; Firefox 157.0 and WebKit 27.2 lacked `calc-size()`.
 Recheck native intrinsic interpolation before removing the capability check.
 
 ### Evidence disclosure motion
@@ -74,10 +72,10 @@ Recheck native intrinsic interpolation before removing the capability check.
 `packages/diff/styles/disclosure.css` enhances native file and call-tree
 closures only where intrinsic-size interpolation and `interactivity` both work.
 Other engines close immediately and retain native disclosure behavior, an
-accepted visual difference. Playwright Chromium 153.0.8010.12 folded pointer
-closures on 2026-10-21; Firefox 155 closed immediately, and Firefox 157.0 and
-WebKit 27.2 still lacked `calc-size()` and `interactivity` on 2026-10-24. Recheck both
-capabilities and keyboard access when changing this enhancement.
+accepted visual difference. On 2026-10-24 Playwright Chromium 156.0.8078.4
+supported both; Firefox 157.0 and WebKit 27.2 lacked `calc-size()` and
+`interactivity`. Recheck both capabilities and keyboard access when changing
+this enhancement.
 
 ### Browser dictation in comment boxes
 
@@ -147,12 +145,11 @@ with caching enabled when changing the policy or sample lifetime.
 
 The frame-edge rules in `browser/styles/theme.css` traverse bare wrappers,
 skip generated apparatus and stop at declared rows. Native `margin-trim`
-cannot replace that behavior across the checked engines: on 2026-10-08,
-Chrome 155 trimmed block-flow margins but left flex and grid item margins;
-a generated child could prevent trimming the authored paragraph. Playwright
-Chromium 153.0.8010.12 and Firefox 155 did not accept the property;
-on 2026-10-24 Firefox 157.0 still did not, and Chromium 156 and WebKit 27.2 did.
-Firefox's lack keeps the rules whatever the others do.
+cannot replace that behavior: Playwright Firefox 157.0 does not accept the
+property (2026-10-24), though Chromium 156.0.8078.4 and WebKit 27.2 do. On
+2026-10-08 Chrome 155 trimmed block-flow margins but left flex and grid item
+margins, and a generated child could prevent trimming the authored paragraph;
+that was not repeated on 156.
 Recheck wrapper and row behavior, not just parser support, against
 `test_frame_edges_pass_through_whatever_stands_at_them` and
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
@@ -217,7 +214,21 @@ Firefox on macOS bounced a sticky column with trackpad overscroll on
 positioning to stay still; other root-sticky boxes can still bounce.
 Recheck with a native trackpad fling at the document's end; headless Playwright
 supplies no overscroll. If engines hold sticky boxes still, the column can
-return to sticky positioning.
+return to sticky positioning. Its current cost is the WebKit anchor drift below.
+
+### An anchor under a fixed box in WebKit
+
+A mark, margin row or floating card targeting a fixed panel drifted by the
+page's scroll in WebKit, which applied the root scroll twice. Fixed in Playwright
+WebKit 27.2 (build 2370, 2026-10-24); build 2359 (26.6) still drifted, and
+Chromium and Firefox placed the box on the target. Shipping Safari is
+unverified (this Mac's Safari is 26.5), so `browser/runtime/css-anchors.js`
+keeps accepting the gap and Leaf's page-of-parts column remains an affected
+surface. Recheck in a shipping Safari with
+`test_a_fixed_box_anchored_under_a_fixed_panel_holds_through_scroll` in
+`tests/browser/margin/test_scrollers.py`, which anchors a fixed box to a target
+in a fixed scrolling panel while scrolling both the document and the panel; once
+Safari passes, delete this entry and the mentions in `css-anchors.js`.
 
 ### An anchor's transforms in Firefox
 
@@ -231,13 +242,11 @@ edges before removing the compensation; test other transforms separately.
 ### Native reveal bounded to its scroller
 
 `scrollIntoView(node, {within})` in `browser/runtime/landing-scroll.js` reveals
-an item without moving the containing page. On 2026-10-14, Playwright Firefox
-155's native `scrollIntoView({container: "nearest"})` also moved an outer
-scroller when a horizontal strip's edge extended just beyond its band.
-Playwright Firefox 157.0 still moved the page (scrollY 420 to 401) for a strip
-scrolled 150px with the page scrolled 420px on 2026-10-24; Chromium 156 and
-WebKit 27.2 left it. Recheck a partly clipped strip's inner and outer scroll offsets before
-replacing Leaf's bounded walk with native reveal.
+an item without moving the containing page. Playwright Firefox 157.0's native
+`scrollIntoView({container: "nearest"})` also moved the page (scrollY 420 to 401) for a horizontal strip whose edge extended just beyond its band, on
+2026-10-24; Chromium 156.0.8078.4 and WebKit 27.2 left it. Recheck a partly
+clipped strip's inner and outer scroll offsets before replacing Leaf's bounded
+walk with native reveal.
 
 ### Fixed layers missing from Firefox screencast frames
 

@@ -29,11 +29,12 @@
  * Rejected: a layer a scroll-driven animation translates, which Chrome can paint a frame
  * before or after the content it carries (a pin landed 40 px off in 6 of 20 CI runs,
  * #1935) and Firefox cannot run; and a script that measures and places the box again
- * after each scroll, which paints a frame behind it. One browser gap is accepted rather
+ * after each scroll, which paints a frame behind it. Two browser gaps are accepted rather
  * than answered by either (notes/browser-support.md, "A stuck sticky anchor in
- * Firefox"): Firefox ignores a sticky anchor's stuck offset. A second is answered
- * once, where every inset is measured (`anchorBox`): Firefox leaves an anchor's
- * transforms out.
+ * Firefox" and "An anchor under a fixed box in WebKit"): Firefox ignores a sticky
+ * anchor's stuck offset, and WebKit adds the root scroll to a box anchored under a
+ * fixed ancestor. A third is answered once, where every inset is measured
+ * (`anchorBox`): Firefox leaves an anchor's transforms out.
  *
  * A source keeps one name across those uses. Retained controls can observe whether its
  * source renders near the viewport before entering layout. That reading starts

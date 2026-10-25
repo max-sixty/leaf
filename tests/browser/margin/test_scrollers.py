@@ -773,6 +773,48 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     expect(stuck).to_be_visible()
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_fixed_box_anchored_under_a_fixed_panel_holds_through_scroll(request, engine):
+    """The minimal reproduction of notes/browser-support.md, "An anchor under a fixed
+    box in WebKit": a fixed box anchored to a target inside a fixed panel that itself
+    scrolls stays on the target through the document's scroll and the panel's. WebKit
+    26.6 added the document's scroll to the box a second time."""
+    page = request.getfixturevalue(engine).new_page(
+        viewport={"width": 800, "height": 600}
+    )
+    page.set_content(
+        """<style>
+          body { margin: 0; height: 3000px }
+          #panel { position: fixed; top: 50px; left: 50px; width: 300px; height: 200px;
+                   overflow: auto }
+          #inner { height: 1000px; padding-top: 300px }
+          #target { anchor-name: --t; width: 60px; height: 30px; margin-left: 40px }
+          #box { position: fixed; position-anchor: --t; top: anchor(top);
+                 left: anchor(left); width: 10px; height: 10px }
+        </style>
+        <div id="panel"><div id="inner"><div id="target">T</div></div></div>
+        <div id="box"></div>"""
+    )
+    offsets = """async () => {
+      const gap = () => {
+        const t = document.getElementById('target').getBoundingClientRect();
+        const b = document.getElementById('box').getBoundingClientRect();
+        return [Math.round(t.left - b.left), Math.round(t.top - b.top)];
+      };
+      const frames = () =>
+        new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const read = [gap()];
+      window.scrollTo(0, 500);
+      await frames();
+      read.push(gap());
+      document.getElementById('panel').scrollTop = 250;
+      await frames();
+      read.push(gap());
+      return read;
+    }"""
+    assert page.evaluate(offsets) == [[0, 0]] * 3
+
+
 def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, subtests):
     """A sticky or fixed box between a target and its scroller moves the target as no
     scroll alone does, so its row's carrier is anchored to the target itself, which
@@ -780,8 +822,9 @@ def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, sub
 
     Sticky constraints can belong to the target or an ancestor, and a fixed target
     stays put through the document's scroll. Firefox draws a stuck target's row where
-    the target would stand unstuck (notes/browser-support.md, "A stuck sticky anchor
-    in Firefox").
+    the target would stand unstuck, and WebKit moves a fixed target's row with the
+    document's scroll (notes/browser-support.md, "A stuck sticky anchor in Firefox",
+    "An anchor under a fixed box in WebKit").
     """
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1280, 900)

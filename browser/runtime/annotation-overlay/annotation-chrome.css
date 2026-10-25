@@ -105,7 +105,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       var(--thread-card)
     );
     min-width: min(var(--thread-card-min), var(--lf-comment-frame-max-width));
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(var(--lf-response-height), 1fr);
     grid-auto-rows: auto;
     align-items: end;
@@ -153,9 +153,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     align-self: stretch;
     grid-template-rows: minmax(0, 1fr);
   }
+  /* The field takes the frame's whole measure, so the card Send opens from it is the
+     card a reopen shows: the frame's width bounds are the card's. Other responses
+     stands 4px over the field's end, in the head row the frame reserves, where the
+     card's own controls stand once it opens. The user chose this on 2026-10-25,
+     revising #3634, which stood the trigger in a column beside the field and so left
+     the card Send opened 40px narrower than the card reopened. */
   .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-trigger {
-    grid-column: 2;
-    grid-row: 1;
+    position: absolute;
+    inset-block-start: calc(
+      var(--lf-comment-frame-top) - var(--lf-response-height) - 4px
+    );
+    inset-inline-end: var(--lf-comment-frame-inline);
   }
   /* Attached images hang off the box on the side away from its passage, outside its
      frame, so attaching neither grows the box nor moves a word and the passage stays in

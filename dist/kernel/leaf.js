@@ -5068,10 +5068,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			hintAside: () => passingAside(key, replyInput()),
 			accessibleName: () => `Reply to ${threadTitle(key)}`,
 			sending: streamSend,
-			sent: (flight) => {
+			sent: () => {
 				room = null;
 				rewriting = false;
-				releaseField();
 				landing = {
 					key,
 					after: drawnTurns(),
@@ -5079,7 +5078,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				};
 				waiting = null;
 				queueMicrotask(paint);
-				holdRefused(flight);
 			}
 		});
 		return replyOptions.get(key);
@@ -5358,7 +5356,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		landReader();
 		fitAnswer();
 		stood = openView()?.offsetHeight ?? null;
-		stoodAt = openView()?.getBoundingClientRect().top ?? null;
 		followBox();
 	});
 	const follow = sizeObserver(() => {
@@ -5410,7 +5407,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let room = null;
 	let drawnTop = null;
 	let stood = null;
-	let stoodAt = null;
 	let rewriting = false;
 	const holdThread = (height) => {
 		if (!trail.value.at(-1)?.thread || room !== null || height === null) return false;
@@ -5465,42 +5461,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		paint();
 	});
-	function holdRefused(flight) {
-		const route = trail.value.at(-1);
-		let cleared = null;
-		nextRender(() => {
-			cleared = replyInput()?.getBoundingClientRect().height ?? null;
-		});
-		Promise.resolve(flight).then((sent) => {
-			const view = openView();
-			if (sent || trail.value.at(-1) !== route || !view || stoodAt === null) return;
-			holdField(replyInput(), cleared);
-			const height = view.offsetHeight + view.getBoundingClientRect().top - stoodAt;
-			if (holdThread(height)) paint();
-		});
-	}
-	let fieldHold = null;
-	function holdField(input, height) {
-		releaseField();
-		if (!input || height === null) return;
-		if (input.getBoundingClientRect().height <= height + .5) return;
-		const release = new AbortController();
-		fieldHold = {
-			input,
-			release
-		};
-		input.style.setProperty("max-height", layoutPx(height));
-		for (const type of ["pointerdown", "beforeinput"]) input.addEventListener(type, releaseField, {
-			capture: true,
-			signal: release.signal
-		});
-	}
-	function releaseField() {
-		if (!fieldHold) return;
-		fieldHold.release.abort();
-		fieldHold.input.style.removeProperty("max-height");
-		fieldHold = null;
-	}
 	function holdRoom() {
 		const top = trail.value.at(-1);
 		if (!top || top.thread || room !== null || refitting) return false;
@@ -5640,7 +5600,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const changed = (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
 		if (changed) {
 			room = null;
-			releaseField();
 			rewriting = false;
 			pressed = null;
 			quoteExpanded = false;
@@ -10022,10 +9981,7 @@ if (validationEntry) {
 	validationEntry.lfObserveWidgetPreparations = observePreparations;
 	validationEntry.lfNativeLayers = nativeLayers;
 }
-const recoverComposer = retainUserIntent({
-	since: 0,
-	available: () => window === window.top || document.hasFocus()
-});
+const recoverComposer = retainUserIntent({ since: 0 });
 const overlaySelected = annotationMode === "overlay";
 const annotationRenderer = overlaySelected ? await import("./runtime/bundle-annotation-overlay.js") : null;
 if (validationEntry && annotationRenderer) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;

@@ -1,8 +1,7 @@
-import { Z } from "./bundle-browser-runtime.js";
-import { afterScript, drawn as drawn$1, nextFrame, nextRender, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
 import { clamp, layoutChanged, repaintPage, shownParts } from "./bundle-layer-client.js";
-import { inChrome, layoutBox, pageDocument, pageText } from "./bundle-passages.js";
+import { Z, afterScript, drawn as drawn$1, nextFrame, nextRender, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
 import { marks, resolveAnchor, targetSegments } from "./bundle-css-anchors.js";
+import { inChrome, layoutBox, pageDocument, pageText } from "./bundle-passages.js";
 
 //#region runtime/pointed-place.js
 const points = /* @__PURE__ */ new Map();

@@ -619,6 +619,24 @@ def test_the_first_startup_fault_names_the_page(browser, serve):
     )
 
 
+def test_a_boot_that_fails_after_it_waits_names_the_startup_fault(browser, serve):
+    """The entry boots in an async function, which the bundler needs (leaf.js), and a
+    failure after its first wait still reaches the window as an uncaught error, which
+    names the page's startup fault. Its annotation renderer, the module the boot
+    waits for, is refused here."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(re.compile(r"annotation-overlay(/index)?\.js$"), refuse)
+    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    root = page.locator("html")
+    expect(root).to_have_attribute(
+        "data-lf-startup-error", re.compile("dynamically imported module")
+    )
+    assert "annotation-overlay" in root.evaluate(
+        "root => root.lfStartupException.message"
+    )
+    consume_browser_errors(page, "dynamically imported module")
+
+
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     """`open_page` promises a page that has finished becoming itself, and the log is half
     of what that means. The instrument is a refusal of the first `/api/state`. Replay then

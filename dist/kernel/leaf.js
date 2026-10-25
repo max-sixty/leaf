@@ -1,25 +1,15 @@
-import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-target-paint.js";
-import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
-import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
-import { EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, uploadMedia, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-layer-client.js";
-import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
-import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
-import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
-import { DRAWING_COORDINATE_LIMIT, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, beginRead, commandSteps, composerOpen, composerQuote, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, leavesBox, mountApplication, mountHistory, notifyDataSubscribers, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, returnPlace, sendReaction, textField, threadInput, versionPicker, versionsReading } from "./runtime/bundle-answer.js";
-import { chromeForeground, chromeRoot } from "./runtime/bundle-chrome.js";
+import { DELIVERY, EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESENTATION_DOM, PRESS, PRESSABLE, SHARE_ROOT, WEBSITE_DELIVERY, advertisesKeys, agentName, allBindings, annotationMode, annotationSheets, announce, applicationPresenter, applicationState, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, documentChanged, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, offlineInteractive, overlaps, overlapsAcross, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, readPart, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, runtime, runtimeResource, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, shareUrl, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, uploadMedia, watchCommandAvailability, watchScrollEnds, watchScrolls, whenApplicationPresented, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-layer-client.js";
+import { CARET_KEYS, LitElement, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, Z, afterScript, afterSettling, bareReaction, bindQueuedWork, byRenderedOrder, cancelRender, carriesObligation, closeLayer, currentLocationIn, d, declareReading, deepFocus, drawn, focusDestination, focused, handBack, hasUnread, holdFocus, holdRendering, html, itemNoun, itemOutcome, keeps, keepsHidden, keepsText, keyed, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, noChange, nothing, observePreparations, observeQueuedWork, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, ref, release, releaseFocus, render, renderedOrder, renderedUnder, renderingState, repeat, rove, sameAnchor, selectsAll, shadowHost, sizeObserver, takesLetters, threadCounts, threadKey, threadNames, typesText, under, upFrom, x } from "./runtime/bundle-dom-move.js";
+import { ADDRESSABLE, JUST_NOW, PRESENTATION, UPGRADE, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentId, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, syncLayoutRegion, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-css-anchors.js";
+import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
+import { DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, annotationItems, beginRead, clearContributionControls, commandSteps, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, declareThreadKeys, entryControls, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, leavesBox, mountApplication, mountHistory, notifyDataSubscribers, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, registerContribution, returnPlace, sendReaction, spokenSubject, textField, threadInput, versionPicker, versionsReading, visibleContributionEntryLabel } from "./runtime/bundle-answer.js";
 import { COLLAPSE, LEAF_SURFACE, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
-import { ADDRESSABLE, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-css-anchors.js";
-import { fragmentId } from "./runtime/bundle-initial-render.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadTodos, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
-import { copyControl } from "./runtime/bundle-copy-control.js";
-import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, setChildren, watchDisclosures } from "./runtime/bundle-abort.js";
-import { motionEasing, motionPlays, motionTime, playMotion, reducedMotion, scrollBehavior } from "./runtime/bundle-motion.js";
-import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/bundle-media.js";
-import { KINDS, annotationItems, clearContributionControls, contributionHost, contributionItemKey, contributionReceipts, contributionSource, entryControls, registerContribution, spokenSubject, visibleContributionEntryLabel } from "./runtime/bundle-margin-model.js";
+import { DESIGN_MODE_KEY, DISCLOSE, DISCLOSURE_SELECTOR, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, copyControl, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, disclosed, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, setChildren, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadTodos, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, watchDisclosures, workflowStep } from "./runtime/bundle-surfaces.js";
+import { mediaViewer, motionEasing, motionPlays, motionTime, playMotion, readAttachedMedia, reducedMotion, scopedMediaUrl, scrollBehavior, writeAttachedMedia } from "./runtime/bundle-media.js";
 import { PAGE_CONTROL_RANK, livePoint, openMarginContentLayout, pageControls, pageControlsChanged, placePoints, pointInto, railStands, registerPageControl, scheduleMarginContentLayout, visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
-import { pageImage, pageRenderer } from "./runtime/bundle-page-image2.js";
+import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { shownScheme } from "./runtime/bundle-color-scheme.js";
-import { restoreUserView } from "./runtime/bundle-restore-state.js";
+import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-target-paint.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/composing/drawing-geometry.js
@@ -10349,583 +10339,586 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 
 //#endregion
 //#region leaf.js
-await document.documentElement.lfSample?.ready;
-initializeServedDocument();
-keepPageRulesOffLayer();
-holdArrivingBounds();
-const validationEntry = document.querySelector("script[data-lf-entry]");
-if (validationEntry) {
-	validationEntry.lfReadiness = pageReadiness;
-	validationEntry.lfRenderingState = renderingState;
-	validationEntry.lfObserveQueuedWork = observeQueuedWork;
-	validationEntry.lfObserveWidgetPreparations = observePreparations;
-	validationEntry.lfNativeLayers = nativeLayers;
-}
-const recoverComposer = retainUserIntent({ since: 0 });
-const overlaySelected = annotationMode === "overlay";
-const annotationRenderer = overlaySelected ? await import("./runtime/bundle-annotation-overlay.js") : null;
-if (validationEntry && annotationRenderer) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
-annotationRenderer?.mountAnnotationControls();
-let app;
-let layout;
-let pageMapDialog;
-let items;
-let responseSurface;
-let drawing;
-let regionCapture;
-const replaceDrawing = (anchor, drawn) => {
-	responseSurface.setDraftDrawing(anchor, drawn);
-	drawingPaint.paint();
-};
-const drawingEdits = {
-	target: (anchor) => drawing.target(anchor),
-	undoStroke: (anchor) => drawing.undoStroke(anchor),
-	remove: (anchor) => drawing.removeDrawing(anchor),
-	replace: replaceDrawing
-};
-let aim;
-let targets;
-let reactions;
-let pageGeometry;
-let goToSequence;
-let floatingPanel;
-const navigation = createNavigation({
-	placedAt: (id) => anchorPlacement.placedAt(id),
-	heldPlace: () => floatingPanel?.heldPlace() ?? null,
-	threadDestinations: {
-		openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
-		scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
+async function boot() {
+	await document.documentElement.lfSample?.ready;
+	initializeServedDocument();
+	keepPageRulesOffLayer();
+	holdArrivingBounds();
+	const validationEntry = document.querySelector("script[data-lf-entry]");
+	if (validationEntry) {
+		validationEntry.lfReadiness = pageReadiness;
+		validationEntry.lfRenderingState = renderingState;
+		validationEntry.lfObserveQueuedWork = observeQueuedWork;
+		validationEntry.lfObserveWidgetPreparations = observePreparations;
+		validationEntry.lfNativeLayers = nativeLayers;
+	}
+	const recoverComposer = retainUserIntent({ since: 0 });
+	const overlaySelected = annotationMode === "overlay";
+	const annotationRenderer = overlaySelected ? await import("./runtime/bundle-annotation-overlay.js") : null;
+	if (validationEntry && annotationRenderer) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
+	annotationRenderer?.mountAnnotationControls();
+	let app;
+	let layout;
+	let pageMapDialog;
+	let items;
+	let responseSurface;
+	let drawing;
+	let regionCapture;
+	const replaceDrawing = (anchor, drawn) => {
+		responseSurface.setDraftDrawing(anchor, drawn);
+		drawingPaint.paint();
+	};
+	const drawingEdits = {
+		target: (anchor) => drawing.target(anchor),
+		undoStroke: (anchor) => drawing.undoStroke(anchor),
+		remove: (anchor) => drawing.removeDrawing(anchor),
+		replace: replaceDrawing
+	};
+	let aim;
+	let targets;
+	let reactions;
+	let pageGeometry;
+	let goToSequence;
+	let floatingPanel;
+	const navigation = createNavigation({
+		placedAt: (id) => anchorPlacement.placedAt(id),
+		heldPlace: () => floatingPanel?.heldPlace() ?? null,
+		threadDestinations: {
+			openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
+			scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
+			threadHere: () => app.threadDestinations.threadHere(),
+			threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
+			threadPlace: (...args) => app.threadDestinations.threadPlace(...args)
+		}
+	});
+	const hintChrome = { barriers: windowChromeBoxes };
+	const anchorPlacement = createAnchorPlacement();
+	const visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
+	const anchorPaint = annotationRenderer?.createAnchorPaint({
+		targetPaint: visualMarkPaint,
+		pointer: pointerAt,
+		currentLocationThreadId,
+		rowThread: () => floatingPanel?.hoveredThread() ?? null,
+		threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
+		marginThread: () => app?.overlay?.pointedThread() ?? null
+	});
+	const drawingPaint = createDrawingInk({ drawings: () => [...annotationRenderer?.postedDrawings(allThreads(), anchorPlacement) ?? [], ...drawing.drawings()] });
+	const designMode = createDesignMode({
+		pageGeometry: {
+			refreshAim: () => pageGeometry.refreshAim(),
+			pageShifted: () => pageGeometry.pageShifted()
+		},
+		syncGeneral: () => generalComment.sync(),
+		composer: {
+			showFab: (...args) => responseSurface.showFab(...args),
+			openComposer: (...args) => responseSurface.openComposer(...args)
+		},
+		closePreview: (...args) => app.overlay?.closePreview(...args),
+		marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
+		closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
+		closeTargetPicker: () => targets.closeTargetPicker(),
+		closeReactionMode: () => reactions.setReact(false),
+		announce,
+		repaint
+	});
+	aim = createAim({
+		marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
+		refreshAim: () => pageGeometry.refreshAim(),
+		commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
+		drawModeActive: () => drawing.drawModeActive(),
+		designMode,
+		targetPicker: {
+			active: () => targets.choosing(),
+			choose: (...args) => targets.chooseTarget(...args)
+		}
+	});
+	pageGeometry = createPageGeometry({
+		refreshAnchorHover: anchorPaint?.refreshHover,
+		aim: {
+			isOn: aim.aimIsOn,
+			target: aim.aimedTarget
+		},
+		pointer: pointerAt,
+		designMode,
+		targetPaint: target_paint_exports,
+		visualMarkPaint,
+		shiftDrawings: drawingPaint.shifted,
+		queueLegend: designMode.queueLegend,
+		legendScrolled: designMode.legendScrolled,
+		activeActionAnchor: () => responseSurface.fabAnchorAt(),
+		refreshActionBar: () => responseSurface.refreshFab()
+	});
+	const focusForNavigation = (node, cause, options) => app?.overlay?.focusForNavigation ? app.overlay.focusForNavigation(node, cause, options) : focusDestination(node, cause, options);
+	const anchorTravel = createAnchorTravel({
+		anchors: anchorPlacement,
+		refreshThread: () => app.refreshThread(),
+		focusForNavigation,
+		threadFocusTarget: (id, options) => app.threadDestinations.threadFocusTarget(id, options),
+		announce
+	});
+	const landing = createThreadLanding();
+	declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere());
+	const anchorControls = createAnchorControls({
+		commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
+		openThread: (...args) => app.threadDestinations.openPageThread(...args),
+		withdrawReaction: (...args) => app.withdraw(...args),
+		labelAnchor: anchorLabel,
+		invalidateThread: () => app.refreshThread(),
+		invalidatePageGeometry: pageGeometry.invalidate,
+		messageReferenceRoot: chromeRoot,
+		draftQuote: composerQuote,
+		focused,
+		paintKeys
+	});
+	const version = createVersionController({
+		compositionInput: fabInput,
+		openThread: (id, options) => app.threadDestinations.openPageThread(id, {
+			...options,
+			travel: false
+		}),
+		refreshThread: () => app.refreshThread(),
+		midComposition: (...args) => app.midComposition(...args),
+		hasPending: () => app.hasPending(),
+		readAndApply: (...args) => app.readAndApply(...args),
+		syncLayout: () => layout.syncLayout(),
+		captureRetainedCurrentLocation: () => ({
+			margin: app?.overlay?.captureCurrentLocation() ?? null,
+			panel: floatingPanel.captureCurrentLocation()
+		}),
+		restoreRetainedCurrentLocation: ({ margin, panel }) => {
+			const panelShown = floatingPanel.restoreCurrentLocation(panel);
+			return (app?.overlay?.restoreCurrentLocation(margin) ?? false) || panelShown;
+		},
+		captureObligationCurrentLocation: () => items.captureCurrentLocation(),
+		restoreObligationCurrentLocation: (currentLocation) => items.restoreCurrentLocation(currentLocation),
+		versions: { press: () => floatingPanel.doors.versions.press() }
+	});
+	const inputs = createCompositionInputs({
+		uploadMedia,
+		inputHint: () => responseSurface.commentHint()
+	});
+	app = mountApplication({
+		arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
+		nextObligationWithin: (options) => queueWalk.nextWithin(options),
+		threadAvailable: !offlineInteractive,
+		createEngagement,
+		targetPickerOpen: () => targets.targetPickerOpen(),
+		wireInput: inputs.wireInput,
+		anchorPlacement,
+		anchorPaint,
+		anchorControls,
+		drawingPaint,
+		pageGeometry,
+		anchorTravel,
+		readThreadDraft: () => ({
+			open: composerOpen,
+			anchor: pendingAnchor,
+			about: pendingAbout,
+			drawing: pendingDrawing
+		}),
+		activeActionAnchor: () => responseSurface.fabAnchorAt(),
+		compositionSurface: {
+			active: () => composerOpen && responseSurface?.fabAnchorAt() ? { anchor: responseSurface.fabAnchorAt() } : null,
+			node: () => fabBar,
+			open: (...args) => responseSurface.commentOnTarget(...args),
+			outlet: () => responseSurface?.fabInlineOutlet() ?? null,
+			seat: (...args) => responseSurface.seatFab(...args),
+			restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
+			finishPlacement: () => responseSurface?.finishPlacement()
+		},
+		landInThread: (...args) => landing.landInThread(...args),
+		landSent: (...args) => landing.landSent(...args),
+		registerReactSurface: (...args) => reactions.registerReactSurface(...args),
+		sendReaction,
+		createMarginProjection: annotationRenderer?.createMarginProjection,
+		annotationCommands: {
+			designModeActive: designMode.active,
+			pointerModeActive: () => designMode.active() || drawing.drawModeActive() || regionCapture.active(),
+			leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
+			openPageMap: (...args) => pageMapDialog.openPageMap(...args),
+			pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
+			renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
+			scrollThreadIntoView,
+			goToObligation: (...args) => items.goToObligation(...args)
+		},
+		state: {
+			prepareActivation: (state) => version.prepareActivation(state),
+			acceptData,
+			notifyDataSubscribers
+		}
+	});
+	if (offlineInteractive) applicationState.setHostAvailable(false);
+	declareReading(landingPlace);
+	declareCurrentLocation({ pageState: () => Boolean(responseSurface.fabAnchorAt() || designMode.active() || drawing.drawModeActive() || app.overlay?.optionsRung()) });
+	pageMapDialog = createPageMapDialog({
+		inventory: app.annotations,
+		activeInAnnotations: app.overlay?.pageMapActive,
+		releaseAnnotations: app.overlay?.releaseForMap,
+		annotationFocus: app.overlay?.mapFocusTarget
+	});
+	items = createObligationView({
+		focusForNavigation,
+		presentedControl: app.overlay?.presentedControl,
+		prepareNavigationStep: anchorTravel.prepareNavigationStep,
+		arrive: anchorTravel.arrive,
+		openPageThread: app.threadDestinations.openPageThread,
+		announce,
+		repaint
+	});
+	const queueWalk = createQueueWalk({
+		actions: app.queueActions,
+		arriveAtRecord: items.arriveAtRecord,
+		arriveAtThread: navigation.arriveAtThread,
+		threadHere: () => app.threadDestinations.threadHere(),
+		threadPlace: (id) => app.threadDestinations.threadPlace(id),
+		prepareNavigationStep: anchorTravel.prepareNavigationStep,
+		arrive: anchorTravel.arrive,
+		readableDestination: anchorTravel.readableDestination,
+		announce
+	});
+	const commandHints = createCommandHints({ presentedControl: (control) => app.overlay?.presentedControl(control) ?? control });
+	const currentTarget = createCurrentTarget({
+		isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
+		currentLocationIn: items.currentLocationIn
+	});
+	floatingPanel = createFloatingPanel({
+		wireInput: inputs.wireInput,
+		observeFeedback: app.read.observeFeedback,
+		firstUnread: app.read.firstUnread,
+		afterReadingPass: app.read.afterPass,
+		threadActions: app.threadActions,
+		registerChromeThreadPresentation: app.registerChromeThreadPresentation,
+		obligations: { choicesOf: items.choicesOf },
+		queueActions: app.queueActions,
+		arrivesAt: (item) => queueWalk.arrivesAt(item),
+		inWalkOrder: (items) => queueWalk.inWalkOrder(items),
+		withdraw: app.withdraw,
+		settlement: app.settlement,
+		placedAt: anchorPlacement.placedAt,
+		openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options),
+		atLastResort: (key) => app.threadDestinations.atLastResort(key),
+		annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false
+	});
+	const generalComment = floatingPanel.pageComment;
+	const passageSelection = createPassageSelection({ restore: anchorTravel.restoreSelection });
+	responseSurface = createResponseSurface({
+		rememberSelection: passageSelection.remember,
+		createPlacement: annotationRenderer?.createFloatingResponsePlacement,
+		landIn: landing.landIn,
 		threadHere: () => app.threadDestinations.threadHere(),
 		threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
-		threadPlace: (...args) => app.threadDestinations.threadPlace(...args)
-	}
-});
-const hintChrome = { barriers: windowChromeBoxes };
-const anchorPlacement = createAnchorPlacement();
-const visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
-const anchorPaint = annotationRenderer?.createAnchorPaint({
-	targetPaint: visualMarkPaint,
-	pointer: pointerAt,
-	currentLocationThreadId,
-	rowThread: () => floatingPanel?.hoveredThread() ?? null,
-	threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
-	marginThread: () => app?.overlay?.pointedThread() ?? null
-});
-const drawingPaint = createDrawingInk({ drawings: () => [...annotationRenderer?.postedDrawings(allThreads(), anchorPlacement) ?? [], ...drawing.drawings()] });
-const designMode = createDesignMode({
-	pageGeometry: {
-		refreshAim: () => pageGeometry.refreshAim(),
-		pageShifted: () => pageGeometry.pageShifted()
-	},
-	syncGeneral: () => generalComment.sync(),
-	composer: {
-		showFab: (...args) => responseSurface.showFab(...args),
-		openComposer: (...args) => responseSurface.openComposer(...args)
-	},
-	closePreview: (...args) => app.overlay?.closePreview(...args),
-	marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
-	closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
-	closeTargetPicker: () => targets.closeTargetPicker(),
-	closeReactionMode: () => reactions.setReact(false),
-	announce,
-	repaint
-});
-aim = createAim({
-	marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
-	refreshAim: () => pageGeometry.refreshAim(),
-	commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-	drawModeActive: () => drawing.drawModeActive(),
-	designMode,
-	targetPicker: {
-		active: () => targets.choosing(),
-		choose: (...args) => targets.chooseTarget(...args)
-	}
-});
-pageGeometry = createPageGeometry({
-	refreshAnchorHover: anchorPaint?.refreshHover,
-	aim: {
-		isOn: aim.aimIsOn,
-		target: aim.aimedTarget
-	},
-	pointer: pointerAt,
-	designMode,
-	targetPaint: target_paint_exports,
-	visualMarkPaint,
-	shiftDrawings: drawingPaint.shifted,
-	queueLegend: designMode.queueLegend,
-	legendScrolled: designMode.legendScrolled,
-	activeActionAnchor: () => responseSurface.fabAnchorAt(),
-	refreshActionBar: () => responseSurface.refreshFab()
-});
-const focusForNavigation = (node, cause, options) => app?.overlay?.focusForNavigation ? app.overlay.focusForNavigation(node, cause, options) : focusDestination(node, cause, options);
-const anchorTravel = createAnchorTravel({
-	anchors: anchorPlacement,
-	refreshThread: () => app.refreshThread(),
-	focusForNavigation,
-	threadFocusTarget: (id, options) => app.threadDestinations.threadFocusTarget(id, options),
-	announce
-});
-const landing = createThreadLanding();
-declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere());
-const anchorControls = createAnchorControls({
-	commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-	openThread: (...args) => app.threadDestinations.openPageThread(...args),
-	withdrawReaction: (...args) => app.withdraw(...args),
-	labelAnchor: anchorLabel,
-	invalidateThread: () => app.refreshThread(),
-	invalidatePageGeometry: pageGeometry.invalidate,
-	messageReferenceRoot: chromeRoot,
-	draftQuote: composerQuote,
-	focused,
-	paintKeys
-});
-const version = createVersionController({
-	compositionInput: fabInput,
-	openThread: (id, options) => app.threadDestinations.openPageThread(id, {
-		...options,
-		travel: false
-	}),
-	refreshThread: () => app.refreshThread(),
-	midComposition: (...args) => app.midComposition(...args),
-	hasPending: () => app.hasPending(),
-	readAndApply: (...args) => app.readAndApply(...args),
-	syncLayout: () => layout.syncLayout(),
-	captureRetainedCurrentLocation: () => ({
-		margin: app?.overlay?.captureCurrentLocation() ?? null,
-		panel: floatingPanel.captureCurrentLocation()
-	}),
-	restoreRetainedCurrentLocation: ({ margin, panel }) => {
-		const panelShown = floatingPanel.restoreCurrentLocation(panel);
-		return (app?.overlay?.restoreCurrentLocation(margin) ?? false) || panelShown;
-	},
-	captureObligationCurrentLocation: () => items.captureCurrentLocation(),
-	restoreObligationCurrentLocation: (currentLocation) => items.restoreCurrentLocation(currentLocation),
-	versions: { press: () => floatingPanel.doors.versions.press() }
-});
-const inputs = createCompositionInputs({
-	uploadMedia,
-	inputHint: () => responseSurface.commentHint()
-});
-app = mountApplication({
-	arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-	nextObligationWithin: (options) => queueWalk.nextWithin(options),
-	threadAvailable: !offlineInteractive,
-	createEngagement,
-	targetPickerOpen: () => targets.targetPickerOpen(),
-	wireInput: inputs.wireInput,
-	anchorPlacement,
-	anchorPaint,
-	anchorControls,
-	drawingPaint,
-	pageGeometry,
-	anchorTravel,
-	readThreadDraft: () => ({
-		open: composerOpen,
-		anchor: pendingAnchor,
-		about: pendingAbout,
-		drawing: pendingDrawing
-	}),
-	activeActionAnchor: () => responseSurface.fabAnchorAt(),
-	compositionSurface: {
-		active: () => composerOpen && responseSurface?.fabAnchorAt() ? { anchor: responseSurface.fabAnchorAt() } : null,
-		node: () => fabBar,
-		open: (...args) => responseSurface.commentOnTarget(...args),
-		outlet: () => responseSurface?.fabInlineOutlet() ?? null,
-		seat: (...args) => responseSurface.seatFab(...args),
-		restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
-		finishPlacement: () => responseSurface?.finishPlacement()
-	},
-	landInThread: (...args) => landing.landInThread(...args),
-	landSent: (...args) => landing.landSent(...args),
-	registerReactSurface: (...args) => reactions.registerReactSurface(...args),
-	sendReaction,
-	createMarginProjection: annotationRenderer?.createMarginProjection,
-	annotationCommands: {
+		replyThreadAtCurrentLocation: () => app.threadDestinations.replyThreadAtCurrentLocation(),
+		threadTarget: (id) => app.threadDestinations.threadTarget(id),
+		currentTarget,
+		markAt: anchorPaint?.markAt,
+		scrollToElement: anchorTravel.scrollToElement,
+		scrollToRange: anchorTravel.scrollToRange,
+		visualActionAnchor: anchorControls.visualActionAnchor,
 		designModeActive: designMode.active,
-		pointerModeActive: () => designMode.active() || drawing.drawModeActive() || regionCapture.active(),
-		leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
-		openPageMap: (...args) => pageMapDialog.openPageMap(...args),
-		pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
-		renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
-		scrollThreadIntoView,
-		goToObligation: (...args) => items.goToObligation(...args)
-	},
-	state: {
-		prepareActivation: (state) => version.prepareActivation(state),
-		acceptData,
-		notifyDataSubscribers
+		designTarget: designMode.target,
+		openOnDesign: designMode.open,
+		isReactArmed: () => reactions.isReactArmed(),
+		reactionContextContains: (...args) => reactions.reactionContextContains(...args),
+		reactionTokens,
+		setReact: (...args) => reactions.setReact(...args),
+		openPageThread: app.threadDestinations.openPageThread,
+		drawModeActive: () => drawing.drawModeActive(),
+		captureActive: () => regionCapture.active(),
+		refreshThread: app.refreshThread,
+		dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
+		pageComment: generalComment,
+		responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
+		revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
+		createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
+		landSent: landing.landSent,
+		wireInput: inputs.wireInput,
+		drawingEdits
+	});
+	reactions = createReactionController({
+		marginEntryChoices: app.overlay?.marginEntryChoices,
+		marginEntryContextContains: app.overlay?.marginEntryContextContains,
+		openMarginEntryOptions: app.overlay?.openMarginEntryOptions,
+		designModeActive: designMode.active,
+		hideComposer: responseSurface.hideComposer,
+		syncResponseOptions: responseSurface.syncResponseOptions,
+		fabAnchorAt: responseSurface.fabAnchorAt,
+		fabReturnPlaces: responseSurface.fabReturnPlaces,
+		fabTargetAt: responseSurface.fabTargetAt,
+		hasPageSelectionTarget: responseSurface.hasPageSelectionTarget,
+		showFab: responseSurface.showFab,
+		showFabOptions: responseSurface.showFabOptions,
+		updateFab: responseSurface.updateFab,
+		currentLocationThread,
+		currentTarget
+	});
+	targets = createTargetPicker({
+		scrollToRange: anchorTravel.scrollToRange,
+		hintChrome,
+		commentOnTarget: responseSurface.commentOnTarget,
+		updateFab: responseSurface.updateFab,
+		fabAnchorAt: responseSurface.fabAnchorAt,
+		pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
+		readTargets: () => designMode.active() ? designMode.targets() : aimTargets(),
+		armChanged: () => aim.armChanged(),
+		searchInPanel: floatingPanel.searchPage
+	});
+	drawing = createDrawingController({
+		anchors: {
+			aimTargetAt,
+			resolveAnchor
+		},
+		pageGeometry: { refreshAim: pageGeometry.refreshAim },
+		pointer: pointerAt,
+		visibleTargets: targets.visibleTargets,
+		anchoredDrawing: responseSurface.draftDrawing,
+		heldDrawings: responseSurface.heldDrawings,
+		watchHeldDrawings: responseSurface.watchHeldDrawings,
+		draftKey: responseSurface.draftKey,
+		openAnchoredDrawing: (anchor, drawing) => responseSurface.openComposer(anchor, "", {
+			carry: true,
+			drawing
+		}),
+		replaceDrawing,
+		setDesignMode: designMode.setActive,
+		closeTargetPicker: targets.closeTargetPicker,
+		closeReactionMode: () => reactions.setReact(false),
+		announce,
+		paintDrawings: drawingPaint.paint,
+		shiftDrawingPaint: drawingPaint.shifted,
+		repaint
+	});
+	regionCapture = createRegionCapture({
+		closeTargetPicker: targets.closeTargetPicker,
+		closeReactionMode: () => reactions.setReact(false),
+		parent: chromeForeground,
+		visibleTargets: targets.visibleTargets,
+		openComposerWithMedia: responseSurface.openComposerWithMedia
+	});
+	layout = createPageLayout({
+		scheduleThreadPreviewPosition: app.overlay?.scheduleThreadPreviewPosition,
+		syncReactLayout: reactions.syncReactLayout,
+		refreshFab: responseSurface.refreshFab,
+		pageShifted: pageGeometry.pageShifted,
+		repaintPage
+	});
+	if (document.documentElement.lfSample) {
+		let viewOperation;
+		onSampleNotice("cancel-view", () => viewOperation?.abort());
+		registerSampleCommand("thread", async ({ id, surface, status }) => {
+			viewOperation?.abort();
+			viewOperation = new AbortController();
+			const { signal } = viewOperation;
+			const retained = retainUserIntent({ available: () => !signal.aborted });
+			const intent = restrictUserIntent(retained, retained);
+			return afterPresentation(async () => {
+				if (!intent()) return false;
+				if (surface === "panel") {
+					let shown = null;
+					const show = () => shown = floatingPanel.showForSample({
+						thread: id,
+						status
+					});
+					if (!intent.handoff(show)) return false;
+					return await shown && intent.available();
+				}
+				return Boolean(await app.threadDestinations.openPageThread(id, {
+					focus: false,
+					travel: false,
+					intent
+				}));
+			});
+		});
 	}
-});
-if (offlineInteractive) applicationState.setHostAvailable(false);
-declareReading(landingPlace);
-declareCurrentLocation({ pageState: () => Boolean(responseSurface.fabAnchorAt() || designMode.active() || drawing.drawModeActive() || app.overlay?.optionsRung()) });
-pageMapDialog = createPageMapDialog({
-	inventory: app.annotations,
-	activeInAnnotations: app.overlay?.pageMapActive,
-	releaseAnnotations: app.overlay?.releaseForMap,
-	annotationFocus: app.overlay?.mapFocusTarget
-});
-items = createObligationView({
-	focusForNavigation,
-	presentedControl: app.overlay?.presentedControl,
-	prepareNavigationStep: anchorTravel.prepareNavigationStep,
-	arrive: anchorTravel.arrive,
-	openPageThread: app.threadDestinations.openPageThread,
-	announce,
-	repaint
-});
-const queueWalk = createQueueWalk({
-	actions: app.queueActions,
-	arriveAtRecord: items.arriveAtRecord,
-	arriveAtThread: navigation.arriveAtThread,
-	threadHere: () => app.threadDestinations.threadHere(),
-	threadPlace: (id) => app.threadDestinations.threadPlace(id),
-	prepareNavigationStep: anchorTravel.prepareNavigationStep,
-	arrive: anchorTravel.arrive,
-	readableDestination: anchorTravel.readableDestination,
-	announce
-});
-const commandHints = createCommandHints({ presentedControl: (control) => app.overlay?.presentedControl(control) ?? control });
-const currentTarget = createCurrentTarget({
-	isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
-	currentLocationIn: items.currentLocationIn
-});
-floatingPanel = createFloatingPanel({
-	wireInput: inputs.wireInput,
-	observeFeedback: app.read.observeFeedback,
-	firstUnread: app.read.firstUnread,
-	afterReadingPass: app.read.afterPass,
-	threadActions: app.threadActions,
-	registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-	obligations: { choicesOf: items.choicesOf },
-	queueActions: app.queueActions,
-	arrivesAt: (item) => queueWalk.arrivesAt(item),
-	inWalkOrder: (items) => queueWalk.inWalkOrder(items),
-	withdraw: app.withdraw,
-	settlement: app.settlement,
-	placedAt: anchorPlacement.placedAt,
-	openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options),
-	atLastResort: (key) => app.threadDestinations.atLastResort(key),
-	annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false
-});
-const generalComment = floatingPanel.pageComment;
-const passageSelection = createPassageSelection({ restore: anchorTravel.restoreSelection });
-responseSurface = createResponseSurface({
-	rememberSelection: passageSelection.remember,
-	createPlacement: annotationRenderer?.createFloatingResponsePlacement,
-	landIn: landing.landIn,
-	threadHere: () => app.threadDestinations.threadHere(),
-	threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
-	replyThreadAtCurrentLocation: () => app.threadDestinations.replyThreadAtCurrentLocation(),
-	threadTarget: (id) => app.threadDestinations.threadTarget(id),
-	currentTarget,
-	markAt: anchorPaint?.markAt,
-	scrollToElement: anchorTravel.scrollToElement,
-	scrollToRange: anchorTravel.scrollToRange,
-	visualActionAnchor: anchorControls.visualActionAnchor,
-	designModeActive: designMode.active,
-	designTarget: designMode.target,
-	openOnDesign: designMode.open,
-	isReactArmed: () => reactions.isReactArmed(),
-	reactionContextContains: (...args) => reactions.reactionContextContains(...args),
-	reactionTokens,
-	setReact: (...args) => reactions.setReact(...args),
-	openPageThread: app.threadDestinations.openPageThread,
-	drawModeActive: () => drawing.drawModeActive(),
-	captureActive: () => regionCapture.active(),
-	refreshThread: app.refreshThread,
-	dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
-	pageComment: generalComment,
-	responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
-	revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
-	createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
-	landSent: landing.landSent,
-	wireInput: inputs.wireInput,
-	drawingEdits
-});
-reactions = createReactionController({
-	marginEntryChoices: app.overlay?.marginEntryChoices,
-	marginEntryContextContains: app.overlay?.marginEntryContextContains,
-	openMarginEntryOptions: app.overlay?.openMarginEntryOptions,
-	designModeActive: designMode.active,
-	hideComposer: responseSurface.hideComposer,
-	syncResponseOptions: responseSurface.syncResponseOptions,
-	fabAnchorAt: responseSurface.fabAnchorAt,
-	fabReturnPlaces: responseSurface.fabReturnPlaces,
-	fabTargetAt: responseSurface.fabTargetAt,
-	hasPageSelectionTarget: responseSurface.hasPageSelectionTarget,
-	showFab: responseSurface.showFab,
-	showFabOptions: responseSurface.showFabOptions,
-	updateFab: responseSurface.updateFab,
-	currentLocationThread,
-	currentTarget
-});
-targets = createTargetPicker({
-	scrollToRange: anchorTravel.scrollToRange,
-	hintChrome,
-	commentOnTarget: responseSurface.commentOnTarget,
-	updateFab: responseSurface.updateFab,
-	fabAnchorAt: responseSurface.fabAnchorAt,
-	pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
-	readTargets: () => designMode.active() ? designMode.targets() : aimTargets(),
-	armChanged: () => aim.armChanged(),
-	searchInPanel: floatingPanel.searchPage
-});
-drawing = createDrawingController({
-	anchors: {
-		aimTargetAt,
-		resolveAnchor
-	},
-	pageGeometry: { refreshAim: pageGeometry.refreshAim },
-	pointer: pointerAt,
-	visibleTargets: targets.visibleTargets,
-	anchoredDrawing: responseSurface.draftDrawing,
-	heldDrawings: responseSurface.heldDrawings,
-	watchHeldDrawings: responseSurface.watchHeldDrawings,
-	draftKey: responseSurface.draftKey,
-	openAnchoredDrawing: (anchor, drawing) => responseSurface.openComposer(anchor, "", {
-		carry: true,
-		drawing
-	}),
-	replaceDrawing,
-	setDesignMode: designMode.setActive,
-	closeTargetPicker: targets.closeTargetPicker,
-	closeReactionMode: () => reactions.setReact(false),
-	announce,
-	paintDrawings: drawingPaint.paint,
-	shiftDrawingPaint: drawingPaint.shifted,
-	repaint
-});
-regionCapture = createRegionCapture({
-	closeTargetPicker: targets.closeTargetPicker,
-	closeReactionMode: () => reactions.setReact(false),
-	parent: chromeForeground,
-	visibleTargets: targets.visibleTargets,
-	openComposerWithMedia: responseSurface.openComposerWithMedia
-});
-layout = createPageLayout({
-	scheduleThreadPreviewPosition: app.overlay?.scheduleThreadPreviewPosition,
-	syncReactLayout: reactions.syncReactLayout,
-	refreshFab: responseSurface.refreshFab,
-	pageShifted: pageGeometry.pageShifted,
-	repaintPage
-});
-if (document.documentElement.lfSample) {
-	let viewOperation;
-	onSampleNotice("cancel-view", () => viewOperation?.abort());
-	registerSampleCommand("thread", async ({ id, surface, status }) => {
-		viewOperation?.abort();
-		viewOperation = new AbortController();
-		const { signal } = viewOperation;
-		const retained = retainUserIntent({ available: () => !signal.aborted });
-		const intent = restrictUserIntent(retained, retained);
-		return afterPresentation(async () => {
-			if (!intent()) return false;
-			if (surface === "panel") {
-				let shown = null;
-				const show = () => shown = floatingPanel.showForSample({
-					thread: id,
-					status
-				});
-				if (!intent.handoff(show)) return false;
-				return await shown && intent.available();
-			}
-			return Boolean(await app.threadDestinations.openPageThread(id, {
-				focus: false,
-				travel: false,
-				intent
-			}));
+	const writingResume = createWritingResume({
+		arriveEditor: anchorTravel.arriveEditor,
+		revealInThread: (context, intent) => app.threadDestinations.openThreadDraft(context, intent),
+		holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context)
+	});
+	goToSequence = createGoToSequence({
+		doors: floatingPanel.doors,
+		hintChrome,
+		openPageMap: (...args) => pageMapDialog.openPageMap(...args),
+		directDestinations: () => [
+			writingResume,
+			passageSelection.command,
+			navigation.alignTop,
+			app.read.firstUnreadCommand,
+			version.PICKER
+		],
+		scrollToElement: anchorTravel.scrollToElement,
+		leavesOffered,
+		activateMarginEntry: app.overlay?.activateMarginEntry,
+		marginEntryKind: app.overlay?.marginEntryKind,
+		visibleMarginEntries: app.overlay?.visibleMarginEntries,
+		glideTo,
+		placeThreadEdge,
+		stopGlide
+	});
+	const currentLocationPainters = {
+		markHere: items.markHere,
+		paintCurrentLocation: anchorPaint?.paintCurrentLocation,
+		paintSelectedMarginEntries: () => app.overlay?.paintSelectedMarginEntries([{
+			kind: "on-me",
+			target: items.currentLocationIn()
+		}, {
+			kind: "comment",
+			target: anchorPlacement.placedAt(currentLocationThreadId())?.place
+		}]),
+		paintTouchControls,
+		paintStatusContext: () => paintStatusContext(goToSequence.goToStatus),
+		paintGoToHints: goToSequence.paintGoToHints,
+		paintTargetPickerHints: targets.paintTargetPickerHints,
+		paintCommandHints: commandHints.paint,
+		paintCoreControls,
+		paintInputs: inputs.paintInputs
+	};
+	if (!offlineInteractive) {
+		document.adoptedStyleSheets = [
+			...document.adoptedStyleSheets,
+			...annotationSheets,
+			chromeSheet,
+			marksSheet
+		];
+		chromeForeground.append(targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
+		chromeRoot.append(legendRoot, ...visualMarkPaint ? [visualMarkPaint.layer] : [], drawingPaint.layer, fabBar, chromeForeground);
+		document.body.append(chromeRoot);
+		version.mount();
+		mountPageStatus();
+		floatingPanel.mount(chromeForeground);
+		responseSurface.mount();
+		holdToRead();
+		reactions.mount();
+		targets.mount();
+		drawing.mount();
+		aim.mount();
+		mountTargetPaint();
+		anchorPaint?.mount();
+		anchorControls.mount();
+		pageGeometry.mount();
+		pageMapDialog.mount(chromeForeground);
+		items.mount();
+		queueWalk.mount();
+		commandHints.mount();
+		app.mountAnnotations();
+		app.overlay?.mount();
+		chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
+		app.mountRead();
+		layout.mountLayoutObservers();
+		goToSequence.mountGoToSequence();
+		mountCommandReference({ beforeOpening: () => {
+			goToSequence.setGoToSequence(false);
+			reactions.setReact(false);
+		} });
+		watchDisclosures(document);
+		mountRepaint({
+			...currentLocationPainters,
+			reflectFirstScopes,
+			reflectKeys,
+			syncLayout: layout.syncLayout,
+			pageShifted: pageGeometry.pageShifted
+		});
+	} else {
+		document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
+		chromeRoot.append(mediaViewer);
+		document.body.append(chromeRoot);
+		mountRepaint({
+			paintInputs: inputs.paintInputs,
+			reflectFirstScopes,
+			reflectKeys
+		});
+	}
+	mountKeyboard({
+		goToSequenceActive: goToSequence.goToSequenceActive,
+		setGoToSequence: goToSequence.setGoToSequence,
+		reactArmed: reactions.isReactArmed,
+		setReact: reactions.setReact
+	});
+	let startupFailed = false;
+	window.addEventListener("lf-startup-failed", () => startupFailed = true, { once: true });
+	const initialStateRead = beginRead();
+	if (!offlineInteractive) {
+		restoreUserView({ setDesignMode: designMode.setActive });
+		annotationRenderer?.restoreAnnotations();
+		recoverComposer.handoff(releaseFocus);
+	}
+	mountHistory({
+		followFragment: anchorTravel.followFragment,
+		returnToFragment: anchorTravel.returnToFragment
+	});
+	const landFragment = version.aimArrival();
+	const { landArrival, savedView } = offlineInteractive ? {
+		landArrival: () => {},
+		savedView: null
+	} : version.installArrival();
+	const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
+	async function presentPage() {
+		if (applicationState.read().phase === "waiting" || pagePresented() || startupFailed) return;
+		await whenApplicationPresented();
+		if (applicationState.read().phase === "waiting") return;
+		if (pagePresented()) return;
+		if (startupFailed) return;
+		markPagePresented();
+		if (!offlineInteractive) nextFrame(() => setTimeout(() => {
+			import("./runtime/bundle-user-view.js").then(({ observeUserView }) => observeUserView()).catch(() => {});
+		}, 0));
+		whenArrived().then(landFragment);
+		if (offlineInteractive) {
+			landFragment();
+			document.dispatchEvent(new Event(PRESENTATION));
+			return;
+		}
+		paintKeys();
+		repaint();
+		app.overlay?.flushLayout();
+		landFragment();
+		const arrival = landArrival();
+		document.dispatchEvent(new Event(PRESENTATION));
+		await arrival;
+		if (savedView && savedView.revision < runtime.currentRevision) notice(`Updated to ${runtime.currentLabel}`, { background: true });
+	}
+	async function startPage() {
+		const [upgraded] = await Promise.all([upgradeWidgets({ buildReactionBar: () => offlineInteractive ? void 0 : reactions.buildReactBar({
+			withdrawReaction: app.withdraw,
+			postReaction: app.post
+		}) }), offlineInteractive ? Promise.resolve() : loadIcon().catch((error) => reportPageError(error, "tab icon failed to load"))]);
+		if (!upgraded) return;
+		app.watchThreadSurfaces();
+		openMarginContentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
+		if (!offlineInteractive) {
+			layout.syncLayout();
+			items.buildBulkAnswers();
+			items.syncObligations();
+		}
+		await settlePageInterface();
+		landFragment();
+		setAnchoringReady(true);
+		try {
+			const draftOpened = !offlineInteractive && recoverComposer() && responseSurface.openDraft(savedComposer);
+			await app.presentThread();
+			await whenApplicationPresented();
+			if (draftOpened) await responseSurface.fabPositioned();
+		} catch (error) {
+			setAnchoringReady(false);
+			throw error;
+		}
+		markPageUpgraded();
+		anchorControls.publishVisualActions();
+		responseSurface.updateFab();
+		paintKeys();
+		app.startFeed(presentPage, initialStateRead);
+	}
+	startPage().catch((error) => {
+		const reason = `page failed to start: ${error?.message ?? error}`;
+		document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
+			window.dispatchEvent(new CustomEvent("lf-startup-failed", { detail: {
+				reason,
+				error
+			} }));
+			reportPageError(error, "page failed to start");
+			applicationState.setReach("broken");
 		});
 	});
 }
-const writingResume = createWritingResume({
-	arriveEditor: anchorTravel.arriveEditor,
-	revealInThread: (context, intent) => app.threadDestinations.openThreadDraft(context, intent),
-	holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context)
-});
-goToSequence = createGoToSequence({
-	doors: floatingPanel.doors,
-	hintChrome,
-	openPageMap: (...args) => pageMapDialog.openPageMap(...args),
-	directDestinations: () => [
-		writingResume,
-		passageSelection.command,
-		navigation.alignTop,
-		app.read.firstUnreadCommand,
-		version.PICKER
-	],
-	scrollToElement: anchorTravel.scrollToElement,
-	leavesOffered,
-	activateMarginEntry: app.overlay?.activateMarginEntry,
-	marginEntryKind: app.overlay?.marginEntryKind,
-	visibleMarginEntries: app.overlay?.visibleMarginEntries,
-	glideTo,
-	placeThreadEdge,
-	stopGlide
-});
-const currentLocationPainters = {
-	markHere: items.markHere,
-	paintCurrentLocation: anchorPaint?.paintCurrentLocation,
-	paintSelectedMarginEntries: () => app.overlay?.paintSelectedMarginEntries([{
-		kind: "on-me",
-		target: items.currentLocationIn()
-	}, {
-		kind: "comment",
-		target: anchorPlacement.placedAt(currentLocationThreadId())?.place
-	}]),
-	paintTouchControls,
-	paintStatusContext: () => paintStatusContext(goToSequence.goToStatus),
-	paintGoToHints: goToSequence.paintGoToHints,
-	paintTargetPickerHints: targets.paintTargetPickerHints,
-	paintCommandHints: commandHints.paint,
-	paintCoreControls,
-	paintInputs: inputs.paintInputs
-};
-if (!offlineInteractive) {
-	document.adoptedStyleSheets = [
-		...document.adoptedStyleSheets,
-		...annotationSheets,
-		chromeSheet,
-		marksSheet
-	];
-	chromeForeground.append(targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
-	chromeRoot.append(legendRoot, ...visualMarkPaint ? [visualMarkPaint.layer] : [], drawingPaint.layer, fabBar, chromeForeground);
-	document.body.append(chromeRoot);
-	version.mount();
-	mountPageStatus();
-	floatingPanel.mount(chromeForeground);
-	responseSurface.mount();
-	holdToRead();
-	reactions.mount();
-	targets.mount();
-	drawing.mount();
-	aim.mount();
-	mountTargetPaint();
-	anchorPaint?.mount();
-	anchorControls.mount();
-	pageGeometry.mount();
-	pageMapDialog.mount(chromeForeground);
-	items.mount();
-	queueWalk.mount();
-	commandHints.mount();
-	app.mountAnnotations();
-	app.overlay?.mount();
-	chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
-	app.mountRead();
-	layout.mountLayoutObservers();
-	goToSequence.mountGoToSequence();
-	mountCommandReference({ beforeOpening: () => {
-		goToSequence.setGoToSequence(false);
-		reactions.setReact(false);
-	} });
-	watchDisclosures(document);
-	mountRepaint({
-		...currentLocationPainters,
-		reflectFirstScopes,
-		reflectKeys,
-		syncLayout: layout.syncLayout,
-		pageShifted: pageGeometry.pageShifted
-	});
-} else {
-	document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
-	chromeRoot.append(mediaViewer);
-	document.body.append(chromeRoot);
-	mountRepaint({
-		paintInputs: inputs.paintInputs,
-		reflectFirstScopes,
-		reflectKeys
-	});
-}
-mountKeyboard({
-	goToSequenceActive: goToSequence.goToSequenceActive,
-	setGoToSequence: goToSequence.setGoToSequence,
-	reactArmed: reactions.isReactArmed,
-	setReact: reactions.setReact
-});
-let startupFailed = false;
-window.addEventListener("lf-startup-failed", () => startupFailed = true, { once: true });
-const initialStateRead = beginRead();
-if (!offlineInteractive) {
-	restoreUserView({ setDesignMode: designMode.setActive });
-	annotationRenderer?.restoreAnnotations();
-	recoverComposer.handoff(releaseFocus);
-}
-mountHistory({
-	followFragment: anchorTravel.followFragment,
-	returnToFragment: anchorTravel.returnToFragment
-});
-const landFragment = version.aimArrival();
-const { landArrival, savedView } = offlineInteractive ? {
-	landArrival: () => {},
-	savedView: null
-} : version.installArrival();
-const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
-async function presentPage() {
-	if (applicationState.read().phase === "waiting" || pagePresented() || startupFailed) return;
-	await whenApplicationPresented();
-	if (applicationState.read().phase === "waiting") return;
-	if (pagePresented()) return;
-	if (startupFailed) return;
-	markPagePresented();
-	if (!offlineInteractive) nextFrame(() => setTimeout(() => {
-		import("./runtime/bundle-user-view.js").then(({ observeUserView }) => observeUserView()).catch(() => {});
-	}, 0));
-	whenArrived().then(landFragment);
-	if (offlineInteractive) {
-		landFragment();
-		document.dispatchEvent(new Event(PRESENTATION));
-		return;
-	}
-	paintKeys();
-	repaint();
-	app.overlay?.flushLayout();
-	landFragment();
-	const arrival = landArrival();
-	document.dispatchEvent(new Event(PRESENTATION));
-	await arrival;
-	if (savedView && savedView.revision < runtime.currentRevision) notice(`Updated to ${runtime.currentLabel}`, { background: true });
-}
-async function startPage() {
-	const [upgraded] = await Promise.all([upgradeWidgets({ buildReactionBar: () => offlineInteractive ? void 0 : reactions.buildReactBar({
-		withdrawReaction: app.withdraw,
-		postReaction: app.post
-	}) }), offlineInteractive ? Promise.resolve() : loadIcon().catch((error) => reportPageError(error, "tab icon failed to load"))]);
-	if (!upgraded) return;
-	app.watchThreadSurfaces();
-	openMarginContentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
-	if (!offlineInteractive) {
-		layout.syncLayout();
-		items.buildBulkAnswers();
-		items.syncObligations();
-	}
-	await settlePageInterface();
-	landFragment();
-	setAnchoringReady(true);
-	try {
-		const draftOpened = !offlineInteractive && recoverComposer() && responseSurface.openDraft(savedComposer);
-		await app.presentThread();
-		await whenApplicationPresented();
-		if (draftOpened) await responseSurface.fabPositioned();
-	} catch (error) {
-		setAnchoringReady(false);
-		throw error;
-	}
-	markPageUpgraded();
-	anchorControls.publishVisualActions();
-	responseSurface.updateFab();
-	paintKeys();
-	app.startFeed(presentPage, initialStateRead);
-}
-startPage().catch((error) => {
-	const reason = `page failed to start: ${error?.message ?? error}`;
-	document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
-		window.dispatchEvent(new CustomEvent("lf-startup-failed", { detail: {
-			reason,
-			error
-		} }));
-		reportPageError(error, "page failed to start");
-		applicationState.setReach("broken");
-	});
-});
+boot().catch(reportError);
 
 //#endregion

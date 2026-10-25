@@ -4521,8 +4521,7 @@ function replyControlDestination(node) {
 	};
 }
 function sendReply(draftCtx, key, text, owns, actions) {
-	let flight = null;
-	return sendMessage(draftCtx, owns, (attempt) => flight = actions.reply(key, text, { attempt })) && { flight };
+	return sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
 }
 function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessibleName, busy }) {
 	row.classList.add("lf-comment-box");
@@ -4556,9 +4555,8 @@ function wireReply(key, row, input, send, wireInput, { hint, hintAside, accessib
 			const { actions, landSent, sending, sent } = composition.binding;
 			const land = sendLanding(input);
 			sending?.();
-			const reply = sendReply(draftCtx, key, raw, owns, actions);
-			if (!reply) return;
-			if (sent) return sent(reply.flight);
+			if (!sendReply(draftCtx, key, raw, owns, actions)) return;
+			if (sent) return sent();
 			landSent(closestAcross(input, THREAD));
 			land(focused());
 		},

@@ -2399,6 +2399,15 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
         opacity: 1;
         pointer-events: auto;
       }
+      @container style(--lf-before-upgrade: 1) {
+        :scope:is(lf-toc) .lf-toc-rows {
+          visibility: visible;
+        }
+        :scope:is(lf-toc) .lf-toc-rows :is(a, .lf-toc-window),
+        :scope:is(lf-toc) .lf-toc-rows::after {
+          visibility: hidden;
+        }
+      }
     }
   }
 }

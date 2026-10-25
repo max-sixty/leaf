@@ -384,6 +384,21 @@
         opacity: 1;
         pointer-events: auto;
       }
+      /* Until upgrade the theme hides generated chrome in main, whose controls would
+       * not yet answer (`data-lf-upgraded`, theme.css). The spine and its markers take
+       * no presses, and the initial drawing has laid them out where the module will
+       * measure them, so they show once the document has parsed. The labels, whose
+       * links upgrade completes, the strip whose hover reveals them, and the lens the
+       * module stands over the scroll wait for upgrade. */
+      @container style(--lf-before-upgrade: 1) {
+        :scope:is(lf-toc) .lf-toc-rows {
+          visibility: visible;
+        }
+        :scope:is(lf-toc) .lf-toc-rows :is(a, .lf-toc-window),
+        :scope:is(lf-toc) .lf-toc-rows::after {
+          visibility: hidden;
+        }
+      }
     }
   }
 }

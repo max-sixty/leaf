@@ -163,6 +163,61 @@ def test_a_later_map_only_sidebar_keeps_its_flow_spacing_before_startup(browser,
         page.unroute_all(behavior="wait")
 
 
+def test_the_margin_contents_map_shows_its_spine_where_upgrade_keeps_it(browser, serve):
+    """The margin map's spine and markers paint once the document has parsed, each
+    marker where the module will measure it, so upgrade moves none of them. Its labels,
+    whose links an upgrade completes, stay out of sight until then."""
+    source = leaf_page(
+        "Early map",
+        '<h1 id="title">Early map</h1>'
+        '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
+        + "".join(
+            f'<section id="part-{index}"><h2>Part {index}</h2>'
+            f'<div style="height:{height}px"></div></section>'
+            for index, height in enumerate([900, 200, 120, 1600, 400])
+        ),
+    )
+    markers = """toc => [...toc.querySelectorAll('.lf-toc-start, li')].map(row =>
+      row.getBoundingClientRect().top +
+      (parseFloat(getComputedStyle(row).getPropertyValue('--lf-toc-row-shift')) || 0))"""
+    boot = []
+    page = browser.new_page(viewport={"width": 1724, "height": 900})
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        page.wait_for_function("document.readyState !== 'loading'")
+        assert boot, "the positive control did not hold the boot module"
+        toc = page.locator("#contents")
+        expect(toc.locator("details")).to_have_attribute("open", "")
+        assert (
+            toc.locator(".lf-toc-rows").evaluate(
+                "rows => getComputedStyle(rows, '::before').visibility"
+            )
+            == "visible"
+        )
+        assert (
+            toc.locator("li").first.evaluate(
+                "row => getComputedStyle(row, '::before').visibility"
+            )
+            == "visible"
+        )
+        expect(toc.get_by_role("link", name="Part 0")).to_be_hidden()
+        early = toc.evaluate(markers)
+
+        boot.pop().continue_()
+        wait_until_ready(page)
+        expect(toc.get_by_role("link", name="Part 0")).to_be_attached()
+        upgraded = toc.evaluate(markers)
+        assert len(upgraded) == len(early) == 6
+        assert upgraded == pytest.approx(early, abs=0.5)
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
 def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     """The reader's chrome preference, the panel folded to the leaf, is saved for every
     page on the origin, but an isolated sample's child page starts without inheriting

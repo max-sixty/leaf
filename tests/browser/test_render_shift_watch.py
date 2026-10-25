@@ -2793,6 +2793,86 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
     judge_watches()
 
 
+# A control a gesture is made on, below a box and above room to scroll into. Its press
+# or its `x` key does what the page's `data-how` says: scroll the window 9px; grow the
+# box above it 60px and scroll by as much, holding it still; grow the box 40px and
+# scroll 31px, taking back part of that; announce a command that travels and scroll
+# 9px; scroll 9px for a key the page leaves to the browser; or scroll by nothing while
+# a frame loop no input began scrolls 9px within the gesture's rendering, as a test's
+# script may.
+AIMED = """<!doctype html><body style="margin:0">
+<div style="height: 100px"></div><div id="above"></div>
+<button id="control">Control</button><div style="height: 3000px"></div>
+<script>
+  const above = document.getElementById("above");
+  let passive = false;
+  const loop = () => {
+    if (passive) scrollBy(0, 9);
+    passive = false;
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+  const act = () => {
+    const how = document.body.dataset.how;
+    if (how === "travels")
+      document.dispatchEvent(
+        new CustomEvent("lf-command-invoked", { detail: { travels: true } }),
+      );
+    if (how === "holds") above.style.height = "60px";
+    if (how === "takes back") above.style.height = "40px";
+    passive = how === "passive";
+    scrollBy(0, { holds: 60, "takes back": 31, passive: 0 }[how] ?? 9);
+  };
+  control.addEventListener("click", act);
+  control.addEventListener("keydown", (event) => {
+    if (event.key !== "x") return;
+    if (document.body.dataset.how !== "native") event.preventDefault();
+    act();
+  });
+</script>"""
+
+
+@pytest.mark.parametrize(
+    ("how", "gesture"),
+    [
+        ("scrolls", "press"),
+        ("scrolls", "key"),
+        ("holds", "press"),
+        ("takes back", "press"),
+        ("travels", "key"),
+        ("native", "key"),
+        ("passive", "press"),
+    ],
+)
+def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gesture):
+    """Only a command that takes the user somewhere may scroll the control it was made
+    on across the screen (`shift_watch.js`, "Scrolls a gesture makes"). Layout
+    coordinates remove scrolling, so before this the watch compared the scrolled
+    control's page position with itself and found nothing."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(AIMED))
+    paint(page)
+    page.evaluate("how => { document.body.dataset.how = how; }", how)
+    if gesture == "press":
+        page.locator("#control").click()
+    else:
+        page.locator("#control").focus()
+        page.keyboard.press("x")
+    page.wait_for_function("scrollY > 0")
+    paint(page)
+    judge_watches()
+    if how == "scrolls":
+        consume_browser_errors(
+            page,
+            {
+                "code": "gesture-scrolled",
+                "node": ["button#control"],
+                "input": "click" if gesture == "press" else "keydown x",
+                "by": [0, -9],
+            },
+        )
+
+
 def test_disposing_a_frame_releases_parent_input_without_unwatching_its_sibling(
     browser, serve
 ):

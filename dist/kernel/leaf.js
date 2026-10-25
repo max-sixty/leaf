@@ -1441,6 +1441,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		touch: false,
 		keys: ["c"],
 		title: () => commentDestination().title,
+		travels: true,
 		when: () => anchoringIsReady() || !pageSelection(),
 		run: () => {
 			const selection = pageSelection();
@@ -2664,6 +2665,7 @@ function createHintSession({ layer, walk: walkKey, read, identity, scene, layout
 			keys: ["Enter"],
 			description: choose.description,
 			title: choose.title,
+			travels: true,
 			when: () => at >= 0,
 			run: () => take(hinted()[at])
 		}];
@@ -3241,6 +3243,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		}],
 		title: "search matches",
 		repeat: true,
+		travels: true,
 		when: () => Boolean(repeatedSearch),
 		run: (binding) => repeatSearch(binding === "n" ? 1 : -1)
 	};
@@ -3258,6 +3261,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		keys: HINT_KEYS,
 		label: "a–z",
 		title: "type hint",
+		travels: true,
 		when: () => hints.candidates().length > 0,
 		run: hints.type
 	};
@@ -3285,6 +3289,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 				id: "page.search.match.select",
 				keys: ["Enter"],
 				title: "select match",
+				travels: true,
 				touch: false,
 				when: () => matches.value.length > 0,
 				run: chooseMatch
@@ -3306,6 +3311,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 				}],
 				title: "matches",
 				repeat: true,
+				travels: true,
 				when: () => matches.value.length > 0,
 				run: (binding) => moveMatch(binding === "Tab" ? 1 : -1)
 			},
@@ -4576,6 +4582,7 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 		title: "On me",
 		when: offered,
 		repeat: true,
+		travels: true,
 		run: (binding) => walk(binding === "m" ? 1 : -1)
 	});
 	pageScope("todo", {
@@ -9063,6 +9070,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 					title: "Put the focused thread at the bottom of its list"
 				}],
 				title: "thread top / bottom",
+				travels: true,
 				when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
 				run: (binding) => {
 					const thread = focusedThreadTarget();
@@ -9090,6 +9098,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 				sequenceSteps: () => [...targetFilter ? [targetFilter.key] : [], ...hints.prefix() ? [...hints.prefix(), "…"] : ["letters"]],
 				completeSequenceSteps: () => [...targetFilter ? [targetFilter.key] : [], "letters"],
 				title: "visible target",
+				travels: true,
 				when: () => goToActive ? true : targetCapability(),
 				run: hints.type
 			},
@@ -9137,6 +9146,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 					title: "Go to the bottom of the page"
 				}],
 				title: "top / bottom",
+				travels: true,
 				when: atGoToTargets,
 				run: (binding) => {
 					setGoToSequence(false);
@@ -10049,6 +10059,7 @@ pageScope("command reference", {
 			keys: ["ArrowDown"],
 			title: "choose next",
 			repeat: true,
+			travels: true,
 			runFromCommandReference: false,
 			commandReferenceWhen: () => true,
 			when: () => commandReferenceCommandActive(),
@@ -10060,6 +10071,7 @@ pageScope("command reference", {
 			keys: ["ArrowUp"],
 			title: "choose previous",
 			repeat: true,
+			travels: true,
 			runFromCommandReference: false,
 			commandReferenceWhen: () => true,
 			when: () => commandReferenceCommandActive(),
@@ -10270,6 +10282,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		touch: "Align current item at top",
 		menu: "keys",
 		retainCurrentLocation: true,
+		travels: true,
 		run: () => {
 			const item = currentItem();
 			if (!item) return;
@@ -10296,6 +10309,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		title: "threads",
 		when: () => openThreads(placedAt).length > 0,
 		repeat: true,
+		travels: true,
 		run: (binding) => walkThreads(binding === "t" ? 1 : -1)
 	});
 	document.addEventListener("lf-sample-step", (event) => {
@@ -10317,6 +10331,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		}],
 		title: "page down / up",
 		repeat: true,
+		travels: true,
 		run: (binding) => move(binding === "d" ? .6 : -.6, "page")
 	});
 	pageCommand({
@@ -10334,6 +10349,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		}],
 		title: "scroll down / up",
 		repeat: true,
+		travels: true,
 		run: (binding) => move(binding === "j" ? 60 : -60, "pixel")
 	});
 	const arriveAtThreadById = (id, message = null) => message ? threadDestinations.openPageThread(message, {

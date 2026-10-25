@@ -62,7 +62,10 @@ representative desktop viewport.
 ### Stability
 
 - **The page holds still under the user's aim.** A state change may repaint any box,
-  but must not move the controls next to the gesture that caused it. Without a gesture,
+  but must not move the controls next to the gesture that caused it. A scroll the
+  gesture makes may not carry the control it was made on either, except where the
+  command takes the user somewhere, as a walk or Go-to does, and declares so
+  (`travels`, `runtime/keyboard/bindings.js`). Without a gesture,
   a box may grow or shrink into free room, but reading content and controls stay put. A
   change the user asked for may reflow the content it replaces, with motion the eye can
   follow. A reveal on hover, focus or a key never changes the size or position of its

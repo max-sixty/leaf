@@ -280,8 +280,10 @@ allowance list.
   `runtime/keeps.js`. A write that must restate, as a vendored component's does, joins
   `EXPECTED` in `write_watch.js` with its reason; a test that reads the page by changing
   it and putting it back does so inside `lfUnwatched`.
-- `shift_watch.js` reports a box that moves on screen without input, and typing that
-  moves its field (`browser/AGENTS.md`, "Stability"). It runs on every test
+- `shift_watch.js` reports a box that moves on screen without input, typing that
+  moves its field, and a scroll a gesture makes that carries the control it was made
+  on, unless its command declares `travels` (`browser/AGENTS.md`, "Stability"). It
+  runs on every test
   except those in modules marked `shifts_unsurveyed`, which opt in per test with
   `watch_shifts`. Playwright's clicks, keys and viewport resizes are input; a script's
   `click()`, a value set by script and server news are not. It ignores first

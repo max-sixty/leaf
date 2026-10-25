@@ -2,7 +2,8 @@
 //
 // Scope. The sensor credits movement the browser's own placement mechanisms produce,
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
-// which layout coordinates remove; sticky positioning, through its scroller's travel;
+// which layout coordinates remove, except where it carries the control a gesture was
+// made on (Scrolls a gesture makes); sticky positioning, through its scroller's travel;
 // CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
 // driven included, through sampled translation or reflow from size changes.
 // Beside those, it credits only what the Stability contract itself declares:
@@ -53,6 +54,24 @@
 // inside the `anchor-scope` that limits its name, and a direct native anchor inset,
 // inline or in their tree's own rules, retain that scroller too; nested CSS
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
+//
+// Scrolls a gesture makes. Layout coordinates remove scrolling, so a scroll inside a
+// gesture's rendering would credit itself, though it carries the control the user
+// just pressed out from under their aim (browser/AGENTS.md, "Stability"). So the
+// gesture's aim, the control a press lands on or the one holding focus for a key,
+// keeps its place on screen through that rendering, read fresh in viewport pixels
+// beside the scroll offsets of the boxes that carry it. A scroll may hold it still,
+// or take back part of what the gesture's own layout moved it, and carry it no
+// further. A command that takes the user somewhere declares that it may (`travels` on
+// its register row, which the dispatcher's `lf-command-invoked` carries), as a link
+// does by the platform's meaning and a key the page leaves to the browser by the
+// browser's; nothing here lists them. A scroll is the gesture's where its own work
+// called a scrolling API, focus that doesn't prevent its scroll included, which
+// input_work_watch.js names the input of; a call work no input owns makes during the
+// rendering, as a test's script does, leaves the rendering unjudged. So a scroll
+// begun where the input's source is lost, after a native `await` or in an observer's
+// delivery, goes unjudged, as does one the browser makes alone, such as a clamp.
+// Where it lands, the driver's own scroll before its next press counts too.
 //
 // Each trusted gesture owns its counted rendering until declared completion. A widget
 // preparation it began (`observePreparations`) works on in a promise the loop
@@ -1382,6 +1401,8 @@
     open = null;
   };
   const begin = (start, typing = null, own = new Set(), event = null) => {
+    // A newer input ends the open one's aim, after a last look at where it stands.
+    if (open) judgeAim(open);
     end();
     open = {
       start,
@@ -1444,6 +1465,7 @@
     presentationChanged();
     const at = read(time);
     if (open) {
+      judgeAim(open);
       // Effects begun before news retain their exact property evidence below.
       // A persistent attachment or a still-running time effect does not keep the
       // creator's counted input rendering open after its declared completion.
@@ -1528,6 +1550,8 @@
     const next = presentationState();
     if (next.every((value, index) => value === presentation[index])) return;
     presentation = next;
+    // What the new presentation moves is its own, not the open gesture's.
+    if (open) open.aim = null;
     const before = frames.at(-1)?.at ?? nativePerformance.now();
     if (open?.typing?.until === Infinity) open.typing.until = before;
     begin(nativePerformance.now());
@@ -1540,6 +1564,160 @@
     if (open) open.told = true;
     for (const rendering of landing) rendering.told = true;
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
+  // A gesture's aim: the control it was made on, which a scroll during the gesture's
+  // rendering may not carry on screen (Scrolls a gesture makes, above). A press aims
+  // at the control under the pointer, a key at whatever holds focus. A link's
+  // activation takes the user somewhere by the platform's own meaning, and a key the
+  // page leaves to the browser, as Tab, Space or an arrow, does what the platform does
+  // with it; neither aims. Wheels and drags move the page by the user's own hand.
+  const aimOf = (event) => {
+    let node = null;
+    if (event.type === "keydown") {
+      // A key pressed in another document aims at nothing here.
+      if (event.target.ownerDocument !== document) return null;
+      node = document.activeElement;
+      while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+      if (node === document.body || node === document.documentElement) node = null;
+    } else if (["pointerdown", "pointerup", "click"].includes(event.type)) {
+      const path = event.composedPath();
+      if (path.some((at) => at instanceof Element && at.matches("a[href], area[href]")))
+        return null;
+      node = path.find((at) => at instanceof Element && at.matches(interactive));
+    }
+    if (!node || node.ownerDocument !== document) return null;
+    const pose = aimPose(node);
+    // Focus can stand on a control scrolled off screen, which nobody aims at.
+    const { rect } = pose ?? {};
+    if (
+      !rect ||
+      rect.bottom <= 0 ||
+      rect.right <= 0 ||
+      rect.top >= innerHeight ||
+      rect.left >= innerWidth
+    )
+      return null;
+    return { node, event, ...pose };
+  };
+  // Where the aim stands on screen, and the scroll offset of each box whose scroll
+  // carries it: its rendered ancestors up to the first fixed box among it and them.
+  // Read fresh, not from the ledger, whose last reading can predate a script's scroll
+  // that the input follows within the frame.
+  const aimPose = (node) => {
+    if (!node.isConnected || !node.checkVisibility()) return null;
+    const rect = node.getBoundingClientRect();
+    if (!rect.width && !rect.height) return null;
+    const scrolls = new Map();
+    for (let child = node; ;) {
+      if (getComputedStyle(child).position === "fixed") break;
+      const parent = up(child);
+      if (!(parent instanceof Element)) break;
+      scrolls.set(parent, { left: parent.scrollLeft, top: parent.scrollTop });
+      child = parent;
+    }
+    return { rect, scrolls };
+  };
+  // A scroll carried the aim on screen where both its edges moved one way on an axis
+  // and the scroll moved it that way too. A scroll that holds it still, or takes back
+  // part of what the gesture's own layout moved, carries it nowhere; layout motion
+  // stays the gesture's own (Scope).
+  const judgeAim = (rendering) => {
+    const aim = rendering.aim;
+    if (!aim?.scrolled || aim.foreign) return;
+    if (aim.event.type === "keydown" && !aim.event.defaultPrevented) {
+      rendering.aim = null;
+      return;
+    }
+    const now = aimPose(aim.node);
+    if (!now) return;
+    const scrolled = { left: 0, top: 0 };
+    let carriedBy = false;
+    for (const [axis, far] of [
+      ["left", "right"],
+      ["top", "bottom"],
+    ]) {
+      for (const [box, offset] of now.scrolls) {
+        const was = aim.scrolls.get(box);
+        if (was) scrolled[axis] -= offset[axis] - was[axis];
+      }
+      if (
+        carried(aim.rect, now.rect, axis, far) &&
+        Math.abs(scrolled[axis]) >= 1 &&
+        Math.sign(scrolled[axis]) === Math.sign(now.rect[axis] - aim.rect[axis])
+      )
+        carriedBy = true;
+    }
+    if (!carriedBy) return;
+    rendering.aim = null;
+    const input =
+      aim.event.type === "keydown"
+        ? `${aim.event.type} ${aim.event.key}`
+        : aim.event.type;
+    report(JSON.stringify(["scrolled", name(aim.node)]), {
+      code: "gesture-scrolled",
+      node: name(aim.node),
+      input,
+      by: by(aim.rect, now.rect),
+      beside: [],
+      evidence: {
+        kind: "gesture",
+        node: name(aim.node),
+        input,
+        before: box(aim.rect),
+        after: box(now.rect),
+        scrolled: [Math.round(scrolled.left), Math.round(scrolled.top)],
+      },
+    });
+  };
+  // Whose scroll it was (Scrolls a gesture makes, above): the aim is judged once the
+  // gesture's own work has called a scrolling API, and never once other work has
+  // during its rendering. A scroll the call starts, a smooth one too, is the gesture's
+  // through the rendering.
+  const scrollCalled = () => {
+    const aim = open?.aim;
+    if (!aim) return;
+    const source = window.lfInputWork.current();
+    const owner = source && inputRenderings.get(source.event);
+    if (owner && (owner === open || owner.own === open.own)) aim.scrolled = true;
+    else aim.foreign = true;
+  };
+  for (const [owner, names] of [
+    [Element.prototype, ["scroll", "scrollTo", "scrollBy", "scrollIntoView"]],
+    [Element.prototype, ["scrollIntoViewIfNeeded"]],
+    [window, ["scroll", "scrollTo", "scrollBy"]],
+    [HTMLElement.prototype, ["focus"]],
+    [SVGElement.prototype, ["focus"]],
+  ])
+    for (const key of names) {
+      const call = owner[key];
+      if (typeof call !== "function") continue;
+      owner[key] = function (...args) {
+        if (key !== "focus" || !args[0]?.preventScroll) scrollCalled();
+        return call.apply(this, args);
+      };
+    }
+  for (const key of ["scrollTop", "scrollLeft"]) {
+    const offset = Object.getOwnPropertyDescriptor(Element.prototype, key);
+    Object.defineProperty(Element.prototype, key, {
+      ...offset,
+      set(value) {
+        scrollCalled();
+        offset.set.call(this, value);
+      },
+    });
+  }
+  // A command that takes the user somewhere declares it on its register row
+  // (`travels`, keyboard/bindings.js), which the dispatcher announces as it runs it.
+  listen(document, "lf-command-invoked", ({ detail }) => {
+    if (detail?.travels && open) open.aim = null;
+  });
+  listen(
+    window,
+    "pointercancel",
+    (event) => {
+      if (open?.aim?.event.pointerId === event.pointerId) open.aim = null;
+    },
+    true,
+  );
   // Press, drag, release and native activation are phases of one pointer gesture.
   // Each phase keeps its own paint boundary while sharing the effects that press
   // began. A later press starts fresh; native timeline reassignment cannot adopt
@@ -1554,6 +1732,7 @@
       presses.get(event.pointerId) ?? new Set(),
       event,
     );
+    open.aim = aimOf(event);
     if (event.type === "click") presses.delete(event.pointerId);
   };
   // An input's credits look back to the poses it began from, so where frames left

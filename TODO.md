@@ -625,13 +625,12 @@ export` writes a file that boots the page's own runtime offline, and that file
   seven cases in `tests/browser/threads/test_seated_threads.py`), and a held thread
   pass would withhold every margin paint. A fix needs continuity to wait for the
   margin's paint and the margin to stop depending on the thread region committing.
-- **Consider moving the before/after reading out of the core.** How
-  `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
-  experimental and about 820 lines in the core runtime, consumed by `lf-shot`,
-  `lf-visual-review` and `leaf-dev stills`. A package could own it, so the core keeps
-  only what every page needs. Try it on non-Leaf captures first (another site, a
-  terminal, a plot); where the capture is a browser's, recording each element's box
-  beside the PNG would read moves exactly, as Percy's and SmartUI's layout modes do.
+- **Read moves exactly where the before/after pair is a browser's capture.** The
+  default package's `widgets/image-difference.js` reads a pair (blocks, moves,
+  outlines) for `lf-shot`, `lf-visual-review` and `leaf-dev stills`. Try it on
+  non-Leaf captures (another site, a terminal, a plot); where the capture is a
+  browser's, recording each element's box beside the PNG would read moves exactly, as
+  Percy's and SmartUI's layout modes do.
   Known gaps: a pane that scrolled within itself reads as scattered changes and moves
   rather than one region, a border that changed length draws a thin outline, and a
   changed 1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which

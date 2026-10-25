@@ -391,7 +391,8 @@
         const frame = document.querySelector("#bg-durable-frame");
         frame.src = new URL("versions/v2.html?pin", pageRoot).href;
         frame.hidden = false;
-        frame.scrollIntoView({ block: "center" });
+        // Only as far as the frame needs, so the press leaves its button where it was.
+        frame.scrollIntoView({ block: "nearest" });
         frameOpener.disabled = true;
       });
 

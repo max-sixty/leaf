@@ -98,6 +98,12 @@ as a new decision with new ids. Use `$restated` to withdraw the decision and ask
 Don't mark a decision `settled` until you have finished applying it, and keep a section
 open while the user is still commenting there.
 
+A playground whose submitted configuration you have applied becomes a record too.
+Author each control at the chosen value, so the preview, Reset and the page's account
+of the choice agree, and keep it and its evidence open beside what came of the choice,
+since the user reads the record against that evidence. The user can still explore from
+it, and Reset brings them back to the record.
+
 The user reads threads to learn where their input stands. When a revision settles or
 lands what an open thread discusses, reply in that thread with what happened and where
 the page shows it, so the thread is not left looking unanswered.

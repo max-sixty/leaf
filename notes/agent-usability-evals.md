@@ -313,15 +313,17 @@ the saved screens, and avoidable rounds:
 | --- | --- | --- | --- |
 | Grepping Leaf's source for how a page script reaches the playground (6–9 calls) | 3/3 configuration authors, 3/3 on a retry-policy playground | The playground's author instructions show the whole page script (de65d626c) | 0/3 and 0/3; configuration first turn 4.4 → 3.5 min (3+3) |
 | `name="5xx-threshold"` refused by a leading-letter pattern | 2/3 | Names take ids' pattern (22930f891) | gone |
-| `class` on a playground control refused | 2/3 | `class` is outside every widget schema (a5f9a7865) | gone |
+| `class` or `style` on a playground control refused | 8 and 2 samples | Both are outside every widget schema (a5f9a7865, 80166e8bd) | can't fire |
 | `id` on a playground control refused, though page-authoring.md asks for ids | 4/4 Codex authors | Controls, choices and presets declare `id` (77f90772f) | can't fire |
 | Per-datum `dy` in lf-chart → NaN, reported only as a console error from Plot's bundle | 14/17 dashboards | The chart names the mark and option (4c0cc3fa9); its instructions say offsets are one per mark (51624ea6a) | 0/3 |
 | squeezed-table advice chased over many render checks, ending in a column hidden at phone width | 7/8 dashboards hid data | The advice says every column stays in reach (9550eecf2) | 1/15 |
 | `stamp --completes <playground>` refused with no fix | 4/4 Codex decision phases | The refusal lists open to-dos and says an answer needs no flag (1696e4877); conversation-loop.md says how a start on the user's update ends (9098577d8) | 2/3 with the message alone, 0/3 with both |
 | Sticky boxes painted with guessed tokens (`var(--bg)`) | 9/37 pages used an undefined token | page-authoring.md states the `--lf-ground` rule (5b39487f6) | 3/3 use it |
 
-Validation on the full configuration workflow, main against `51624ea6a`, Opus, 3 per
-arm: totals 9.0, 9.2, 13.2 against 7.6, 8.5, 9.7 minutes, first turns 4.4, 4.8, 4.4
+On the configuration first turn, main against `3e605af8e`, 5 interleaved authors each:
+3.6 against 4.1 minutes, $1.09 against $1.28, 20 against 29 tool calls; main's mean
+over all 10 of its first turns tonight was 4.3 minutes. Validation on the full
+configuration workflow, main against `51624ea6a`, Opus, 3 per arm: totals 9.0, 9.2, 13.2 against 7.6, 8.5, 9.7 minutes, first turns 4.4, 4.8, 4.4
 against 2.8, 3.3, 5.6, cost $3.14 against $2.49 a sample; every final judge passed.
 Codex, two runs pooled: first turns 2.7 against 2.5 minutes (n=5 each), all completed
 judgments passed. In three Codex runs, 3 of 8 base samples and none of 8 candidates

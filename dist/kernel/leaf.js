@@ -339,7 +339,10 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		field.append(ta);
 		(submitIn ?? field).append(sendBtn);
 		const Recognition = globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
-		const mic = Recognition && icon === "send" && !submitIn ? offer("button", "lf-compose-dictate") : null;
+		const mic = Recognition && icon === "send" && !submitIn ? Object.assign(document.createElement("button"), {
+			type: "button",
+			className: "lf-compose-dictate"
+		}) : null;
 		let dictation = null;
 		let loadingDictation = false;
 		let dictationGeneration = 0;

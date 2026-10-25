@@ -60,7 +60,7 @@ import {
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
-import { offer, offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../widget-elements.js";
 import { drawingThumbnail } from "./drawing-context.js";
 import {
   LitElement,
@@ -370,7 +370,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
     const mic =
       Recognition && icon === "send" && !submitIn
-        ? offer("button", "lf-compose-dictate")
+        ? Object.assign(document.createElement("button"), {
+            type: "button",
+            className: "lf-compose-dictate",
+          })
         : null;
     let dictation = null;
     let loadingDictation = false;

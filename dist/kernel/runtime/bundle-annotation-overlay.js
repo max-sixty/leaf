@@ -353,8 +353,9 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			paintContinuation: (above) => {
 				let edge = 0;
 				let height = above ? 12 : 0;
+				const room = parseFloat(getComputedStyle(transcript).paddingTop);
 				if (above) {
-					const top = transcript.getBoundingClientRect().top + transcript.clientTop + parseFloat(getComputedStyle(transcript).paddingTop);
+					const top = transcript.getBoundingClientRect().top + transcript.clientTop + room;
 					for (const head of transcript.querySelectorAll(".lf-msg-head")) {
 						const box = head.getBoundingClientRect();
 						if (!box.height || box.bottom <= top) continue;
@@ -368,6 +369,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 				const card = transcript.parentElement;
 				card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
 				card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
+				card.style.setProperty("--lf-thread-fade-band", layoutPx(above ? room : 0));
 			}
 		});
 	}

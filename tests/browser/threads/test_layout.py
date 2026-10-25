@@ -641,7 +641,8 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
                 heads: [...box.querySelectorAll('.lf-msg-head')]
                   .map(head => head.getBoundingClientRect().toJSON()),
                 top: box.getBoundingClientRect().top + box.clientTop
-                  + parseFloat(getComputedStyle(box).paddingTop)};
+                  + parseFloat(getComputedStyle(box).paddingTop),
+                edge: box.getBoundingClientRect().top + box.clientTop};
             }"""
         )
         cdp = page.context.new_cdp_session(page)
@@ -661,7 +662,14 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             border = cdp.send(
                 "DOM.getBoxModel", {"backendNodeId": pseudo["backendNodeId"]}
             )["model"]["border"]
-            reading.update(fade_top=min(border[1::2]), fade_bottom=max(border[1::2]))
+            # Paper over the ring room, clear over the stuck name, then paper fading
+            # from the name's lower edge: the fade starts at the last stop.
+            stops = re.findall(r"\)\s+([\d.]+)px", reading["paint"])
+            reading.update(
+                fade_top=min(border[1::2]),
+                fade_bottom=max(border[1::2]),
+                fade_start=min(border[1::2]) + (float(stops[-1]) if stops else 0),
+            )
         finally:
             cdp.detach()
         return reading
@@ -687,7 +695,10 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         if index:
             assert cue["display"] != "none" and cue["height"] > 0, cue
             assert "gradient" in cue["paint"], cue
-            assert cue["fade_top"] == pytest.approx(
+            # Paper from the scroller's edge, so nothing shows above the stuck
+            # name in the ring room, then the fade from the name's lower edge.
+            assert cue["fade_top"] == pytest.approx(cue["edge"], abs=1), cue
+            assert cue["fade_start"] == pytest.approx(
                 cue["heads"][index]["bottom"], abs=1
             ), cue
         else:
@@ -714,12 +725,12 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         assert cue["display"] != "none" and cue["height"] > 0, cue
         if handoff == "pushed":
             assert cue["heads"][0]["top"] < cue["top"] < cue["heads"][0]["bottom"], cue
-            assert cue["fade_top"] == pytest.approx(cue["heads"][0]["bottom"], abs=1), (
-                cue
-            )
+            assert cue["fade_start"] == pytest.approx(
+                cue["heads"][0]["bottom"], abs=1
+            ), cue
         else:
             assert cue["heads"][0]["bottom"] <= cue["top"], cue
-            assert cue["fade_top"] == pytest.approx(cue["top"], abs=1), cue
+            assert cue["fade_start"] == pytest.approx(cue["top"], abs=1), cue
         assert cue["fade_bottom"] <= cue["heads"][1]["top"] + 1, cue
 
 

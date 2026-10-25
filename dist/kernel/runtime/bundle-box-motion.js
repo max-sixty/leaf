@@ -738,9 +738,9 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		const offsets = /* @__PURE__ */ new Map();
 		const offset = (carrier) => {
 			if (!offsets.has(carrier)) {
-				const { from, to, carries: edge } = motions.get(carrier);
+				const { from, to, carries } = motions.get(carrier);
 				const now = between(from, to, progress);
-				offsets.set(carrier, [now[edge] - to[edge], now.top - to.top]);
+				offsets.set(carrier, carries.map((edge) => now[edge] - to[edge]));
 			}
 			return offsets.get(carrier);
 		};
@@ -906,7 +906,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			motions.set(part.element, {
 				from,
 				to: part.box,
-				carries: "left"
+				carries: ["left", "top"]
 			});
 			move(part.element, dx, dy);
 		}
@@ -917,26 +917,21 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 				if (gesture === "send") streamContent(part);
 				return;
 			}
-			let dx = rtl ? from.right - to.right : from.left - to.left;
-			let dy = from.top - to.top;
-			const end = width(to) - width(from);
-			const foot = height(to) - height(from);
-			const cut = rtl ? [
-				0,
-				0,
-				foot,
-				end
-			] : [
-				0,
-				end,
-				foot,
-				0
+			const edgeBy = (start, end, length) => length(to) < length(from) - .5 && near(from[end], to[end]) && !near(from[start], to[start]) ? end : start;
+			const carries = [rtl ? edgeBy("right", "left", width) : edgeBy("left", "right", width), edgeBy("top", "bottom", height)];
+			let dx = from[carries[0]] - to[carries[0]];
+			let dy = from[carries[1]] - to[carries[1]];
+			const cut = [
+				from.top - (to.top + dy),
+				to.right + dx - from.right,
+				to.bottom + dy - from.bottom,
+				from.left - (to.left + dx)
 			];
 			if (!part.element.matches(TEXT_FIELD) || !((rtl ? dx <= 0 : dx >= 0) && dy >= 0) && gesture !== "typing") {
 				motions.set(part.element, {
 					from,
 					to,
-					carries: rtl ? "right" : "left"
+					carries
 				});
 				move(part.element, dx, dy);
 				cutFrom(part.element, cut, radiusOf(part.style));
@@ -1041,7 +1036,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			motions.set(part.element, {
 				from: shifted(to, 0, dy),
 				to,
-				carries: "left"
+				carries: ["left", "top"]
 			});
 			move(part.element, 0, dy);
 			const first = Math.max(0, to.bottom + dy - boxFrom.top);

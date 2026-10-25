@@ -25,6 +25,9 @@
  *   carry or clip it, so leaves its face at rest.
  * - A part that changed size and holds only its own content, such as words, carries
  *   that content by its start corner, cut to its outline growing from where it stood.
+ *   On an axis where a face or content shrank while its far edge stayed, as a field a
+ *   send empties at its box's foot does, it travels by that edge instead, since no
+ *   cut draws a part larger than it stands.
  *   An editor carries its words inside its own box (`--lf-field-carry`,
  *   `--lf-field-cut`, composing/text-field.js), since a transform on the editor would
  *   move the field under the user's typing. That box cuts its words off at its edges,
@@ -275,9 +278,12 @@ export function boxMotion({
     const offsets = new Map();
     const offset = (carrier) => {
       if (!offsets.has(carrier)) {
-        const { from, to, carries: edge } = motions.get(carrier);
+        const { from, to, carries } = motions.get(carrier);
         const now = between(from, to, progress);
-        offsets.set(carrier, [now[edge] - to[edge], now.top - to.top]);
+        offsets.set(
+          carrier,
+          carries.map((edge) => now[edge] - to[edge]),
+        );
       }
       return offsets.get(carrier);
     };
@@ -510,12 +516,15 @@ export function boxMotion({
       const dy = from.top - part.box.top;
       const [carriedX, carriedY] = carriedBy(0)(part.element.parentElement);
       if (near(dx, carriedX) && near(dy, carriedY)) return;
-      motions.set(part.element, { from, to: part.box, carries: "left" });
+      motions.set(part.element, { from, to: part.box, carries: ["left", "top"] });
       move(part.element, dx, dy);
     }
 
     // Its content carried by its start corner, cut to its outline growing from where
-    // it stood.
+    // it stood. On an axis where it shrank and its far edge stayed, it travels by that
+    // edge instead: no cut draws it larger than it stands, so carried by its start it
+    // would carry the edge that stayed away and back, as the field a send emptied,
+    // standing at its box's foot, once showed at its old top and slid down to its foot.
     function carryContent(part, from) {
       const to = part.box;
       if (part.scrolls && !part.element.matches(TEXT_FIELD)) {
@@ -523,13 +532,27 @@ export function boxMotion({
         if (gesture === "send") streamContent(part);
         return;
       }
-      let dx = rtl ? from.right - to.right : from.left - to.left;
-      let dy = from.top - to.top;
-      // A shrinking frame starts outside its final box, so children remain visible
-      // in the larger outline they occupied before the change.
-      const end = width(to) - width(from);
-      const foot = height(to) - height(from);
-      const cut = rtl ? [0, 0, foot, end] : [0, end, foot, 0];
+      const edgeBy = (start, end, length) =>
+        length(to) < length(from) - 0.5 &&
+        near(from[end], to[end]) &&
+        !near(from[start], to[start])
+          ? end
+          : start;
+      const carries = [
+        rtl ? edgeBy("right", "left", width) : edgeBy("left", "right", width),
+        edgeBy("top", "bottom", height),
+      ];
+      let dx = from[carries[0]] - to[carries[0]];
+      let dy = from[carries[1]] - to[carries[1]];
+      // Cut to where it stood, as far as its box carried there reaches: a shrinking
+      // frame starts outside its final box, so children remain visible in the larger
+      // outline they occupied before the change.
+      const cut = [
+        from.top - (to.top + dy),
+        to.right + dx - from.right,
+        to.bottom + dy - from.bottom,
+        from.left - (to.left + dx),
+      ];
       // The editor's own box cuts its words off at its edges, so it carries them
       // inside itself only as far as that box holds them. Where its start moved up or
       // back, the editor is carried whole instead, unless the user is typing in it,
@@ -537,7 +560,7 @@ export function boxMotion({
       const editor = part.element.matches(TEXT_FIELD);
       const inside = (rtl ? dx <= 0 : dx >= 0) && dy >= 0;
       if (!editor || (!inside && gesture !== "typing")) {
-        motions.set(part.element, { from, to, carries: rtl ? "right" : "left" });
+        motions.set(part.element, { from, to, carries });
         move(part.element, dx, dy);
         cutFrom(part.element, cut, radiusOf(part.style));
         return;
@@ -629,7 +652,11 @@ export function boxMotion({
       const to = part.box;
       const dy = boxFrom.top - boxAt.top;
       if (dy < 0.5) return reveal(part, frame, siblings);
-      motions.set(part.element, { from: shifted(to, 0, dy), to, carries: "left" });
+      motions.set(part.element, {
+        from: shifted(to, 0, dy),
+        to,
+        carries: ["left", "top"],
+      });
       move(part.element, 0, dy);
       // How far it stands below the old outline's top at its start; the cut reaches
       // nothing once the part has risen clear of it.

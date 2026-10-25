@@ -580,17 +580,29 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   .lf-margin-thread .lf-page-thread::after {
     /* Share the transcript's grid track without reserving reading space. The
-       author stays crisp while words fade into its moving lower edge. */
+       author stays crisp while words fade into its moving lower edge, and the
+       transcript's ring room above the stuck author stays paper once anything is
+       scrolled away (thread-preview.js, `paintContinuation`). Between the two the
+       author paints its own ground, and nothing paints over it, since a message
+       riding a send (box-motion.js) stacks its author under this layer. */
+    --lf-thread-fade-cover: calc(
+      var(--lf-thread-fade-band, 0px) + var(--lf-thread-fade-top, 0px)
+    );
     content: "";
     position: absolute;
-    inset: var(--lf-thread-fade-top, 0px) 0 auto;
+    inset: calc(-1 * var(--lf-thread-fade-band, 0px)) 0 auto;
     grid-column: 1 / -1;
     grid-row: 2;
     align-self: start;
-    height: var(--lf-thread-fade-height, 0px);
+    height: calc(var(--lf-thread-fade-cover) + var(--lf-thread-fade-height, 0px));
     border-radius: 0;
     outline: none;
-    background: linear-gradient(var(--paper), transparent);
+    background: linear-gradient(
+      var(--paper) var(--lf-thread-fade-band, 0px),
+      transparent var(--lf-thread-fade-band, 0px) var(--lf-thread-fade-cover),
+      var(--paper) var(--lf-thread-fade-cover),
+      transparent
+    );
     pointer-events: none;
     /* Keep the action strip above the fade without putting its ground above
        a focused message control's ring. */

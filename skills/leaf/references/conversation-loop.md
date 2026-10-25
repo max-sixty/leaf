@@ -179,7 +179,11 @@ Information they may comment on but need not decide is not an obligation.
 On me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On me in page order. Each
 press lands where the obligation is answered; on a widget's obligation, its numbered actions
-(`1`–`9`) answer it there.
+(`1`–`9`) answer it there. A to-do's press lands on its subject. The margin marks that
+subject with the to-do's title, and once the user is there the panel shows the title
+with a Done. A to-do on a thread shows its title and Done at the top of the thread. The
+title is all the user reads of the to-do, so it names the action without the page's
+help.
 
 | Request                                                                         | Register it                                                                                                             | What answers it                                                                       |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |

@@ -77,9 +77,10 @@ finger does on what the gesture acts on: a search's arrows walk its matches from
 box, a drawing's composer undoes its stroke, and the page's field comments on selected
 words. So a page scope's rows take no words: each that runs a press says
 `touch: false` or is the `exit` of a stance a finger can enter, such as page search,
-the target picker or Draw mode. While that stance is the innermost one standing, the
-panel offers its exit as one ✕, which leaves the stance even where Escape would first
-close something inside it. The picker's ✕ is the exception: while typed hint letters
+the target picker or Draw mode, or a to-do on the user that they stand on, whose exit is
+its Done. While that stance is the innermost one standing, the panel offers its exit as
+one ✕, or the icon the row names (the to-do's check), which leaves the stance even
+where Escape would first close something inside it. The picker's ✕ is the exception: while typed hint letters
 stand, it takes back one (`target-picker.js`). The register refuses a page command
 without `touch` and a scope row whose `run` is neither `exit` nor `touch: false`.
 `false` says a finger reaches the result directly, by scrolling and tapping or through

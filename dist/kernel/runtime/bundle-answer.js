@@ -4103,17 +4103,17 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				activate: () => openThread(id)
 			}, pointed);
 		}
-		for (const item of readObligations().user) {
+		const placed = () => readObligations().user.filter((item) => obligationPlace(item).node);
+		for (const item of placed()) {
 			const id = item.id;
 			const target = obligationPlace(item).node;
-			if (!target) continue;
 			add(groups, target, {
 				kind: "on-me",
 				id: `on-me:${id}`,
 				text: "Waiting on me",
-				label: addressableLabel(target) || null,
+				label: (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) || null,
 				activate: () => {
-					const items = readObligations().user.filter((item) => item.source.kind === "widget");
+					const items = placed();
 					const next = items.find((candidate) => candidate.id === id);
 					if (next) goToObligation(next, items);
 				}
@@ -6993,6 +6993,10 @@ function mountApplication(dependencies) {
 			registerSurface: dependencies.registerReactSurface,
 			actions: threadActions
 		},
+		todos: { done: (id) => queueActions.done(queueItemKey({
+			kind: "todo",
+			id
+		})) },
 		read,
 		openThread: openPageThread,
 		landInThread: dependencies.landInThread

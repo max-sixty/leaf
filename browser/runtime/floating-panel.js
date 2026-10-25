@@ -170,7 +170,7 @@ import { threadAttention, workflowStep } from "./thread/workflow.js";
 import { messageReading, threadHeading, threadName } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
-import { quoteReading } from "./thread/thread-card.js";
+import { quoteReading, threadTodos } from "./thread/thread-card.js";
 import { inPageOrder } from "./thread/placement.js";
 import { dismissReply, replyAvailable } from "./thread/replies.js";
 import {
@@ -2471,7 +2471,9 @@ export function createFloatingPanel({
     // A thread the reading let go of takes its view away before the view draws.
     const thread = threadByKey(key);
     if (!thread) return nothing;
-    return html`${quoteHead(thread)}
+    return html`${quoteHead(thread)}${threadTodos(thread.userTodos, (id) =>
+        queueActions.done(queueItemKey({ kind: "todo", id })),
+      )}
       <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${
         waiting?.key === key
@@ -3437,9 +3439,14 @@ export function createFloatingPanel({
     // The way out of the stance the user is in, beside the counts.
     const exit =
       search === threadSearch
-        ? { label: "Close search", press: closeThreadSearch, disabled: false }
+        ? {
+            label: "Close search",
+            press: closeThreadSearch,
+            disabled: false,
+            icon: null,
+          }
         : top && !search
-          ? { label: "Close", press: close, disabled: false }
+          ? { label: "Close", press: close, disabled: false, icon: null }
           : (rows().find((entry) => entry.exit) ?? null);
     render(
       exit
@@ -3452,7 +3459,7 @@ export function createFloatingPanel({
             @mousedown=${(event) => event.preventDefault()}
             @click=${() => exit.press()}
           >
-            ${iconTemplate("cross", "lf-action-icon")}
+            ${iconTemplate(exit.icon ?? "cross", "lf-action-icon")}
           </button>`
         : nothing,
       exitSeat,

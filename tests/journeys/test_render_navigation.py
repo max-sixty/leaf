@@ -2238,14 +2238,35 @@ _REPAINTED_KEYS = (
 )
 
 
+# A press may hand an element to the browser's fullscreen, which arrives frames after
+# the press and moves focus as it does, past every wait the reading takes: a reading
+# it lands inside compares keys painted before the move with keys painted after it.
+# The page counts the requests still unanswered, so the reading waits for the browser
+# to answer each.
+_FULLSCREEN_REQUESTS = """(() => {
+  const request = Element.prototype.requestFullscreen;
+  window.__lfFullscreenRequests = 0;
+  const answered = () => window.__lfFullscreenRequests--;
+  Element.prototype.requestFullscreen = function (...args) {
+    window.__lfFullscreenRequests++;
+    const answer = request.apply(this, args);
+    answer.then(answered, answered);
+    return answer;
+  };
+})()"""
+
+
 def _stale_keys(page):
     """What a forced repaint of every element's keys changes, once the page has
     rendered what the input so far asked for: each change is an attribute that was
     stale. A control a send or a load holds unavailable is ready again once that
     finishes, so the reading waits for both: for the page's readiness, which includes
-    every live sample's arrival, and for every send to come back."""
+    every live sample's arrival, and for every send to come back. It waits too for
+    every fullscreen request the input made, which moves focus when the browser
+    answers it."""
     wait_until_ready(page)
     round_trip(page)
+    page.wait_for_function("() => window.__lfFullscreenRequests === 0")
     rendered(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
     page.evaluate("async () => (await window.__lfWidgetApi()).paintKeys()")
@@ -2271,7 +2292,7 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
     press reads the rows afresh, so no other test fails on such a row. A page change
     reshuffles the steps; the failure names the step and the control pressed."""
     rng = random.Random(example.stem)
-    page = open_page(browser, serve(example))
+    page = open_page(browser, serve(example), init_script=_FULLSCREEN_REQUESTS)
     stale = [{"step": "arrival", **finding} for finding in _stale_keys(page)]
     for step in range(_SWEEP_STEPS):
         # Handles rather than a locator's nth, so a page that changes between the

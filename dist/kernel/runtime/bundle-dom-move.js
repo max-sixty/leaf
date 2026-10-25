@@ -181,14 +181,55 @@ function afterScript(callback) {
 	if (!owedThisScript.size) queueMicrotask(settleScript);
 	if (!owedThisScript.has(callback)) owedThisScript.set(callback, enqueueWork(callback));
 }
+let deliveringSizes = 0;
 function sizeObserver(callback, { counted = true } = {}) {
-	return new ResizeObserver((entries, observer) => {
+	const pending = /* @__PURE__ */ new Map();
+	let installation = null;
+	const observer = new ResizeObserver((entries, observer) => {
 		if (counted) {
 			heard = true;
 			unsettle();
 		}
-		callback(entries, observer);
+		deliveringSizes++;
+		try {
+			callback(entries, observer);
+		} finally {
+			deliveringSizes--;
+		}
 	});
+	const observe = observer.observe.bind(observer);
+	const unobserve = observer.unobserve.bind(observer);
+	const disconnect = observer.disconnect.bind(observer);
+	const install = () => {
+		installation = null;
+		for (const [target, options] of pending) observe(target, options);
+		pending.clear();
+	};
+	const retireInstallation = () => {
+		if (pending.size || installation === null) return;
+		(counted ? cancelRender : cancelAnimation)(installation);
+		installation = null;
+	};
+	observer.observe = (target, options) => {
+		if (!deliveringSizes) {
+			pending.delete(target);
+			retireInstallation();
+			return observe(target, options);
+		}
+		pending.set(target, options);
+		if (installation === null) installation = (counted ? nextRender : nextAnimation)(install);
+	};
+	observer.unobserve = (target) => {
+		pending.delete(target);
+		retireInstallation();
+		unobserve(target);
+	};
+	observer.disconnect = () => {
+		pending.clear();
+		retireInstallation();
+		disconnect();
+	};
+	return observer;
 }
 const renderingState = () => {
 	const visible = rendered();

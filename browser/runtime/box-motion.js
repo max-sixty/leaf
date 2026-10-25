@@ -300,7 +300,10 @@ export function boxMotion({
       [...streamFrom].some(([scroller, then]) => {
         const content = scroller.firstElementChild;
         if (!content || (motions.get(content)?.stream && progress < 1)) return false;
-        return !near(content.getBoundingClientRect().top - carried(content)[1], then.top);
+        return !near(
+          content.getBoundingClientRect().top - carried(content)[1],
+          then.top,
+        );
       });
     // Nothing's layout changed, as when the observer reads a part it starts observing:
     // whatever moves keeps moving.

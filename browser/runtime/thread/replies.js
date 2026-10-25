@@ -11,11 +11,11 @@
    carries its detached native owner through a complete commit, then hands the
    session to the current same-key route. The owner's row is the session's, not its
    view's, so the editor moves with the thread, its caret and undo history with it. A
-   view that can draw the thread no more, a seat the thread left or a margin card whose
-   thread left the margin, open or closed, releases the row (`releaseReplies`): to a
-   view that draws the thread now, or else to a parked place, connected and out of
-   sight, until the next view drawing the thread claims it in place of its own row
-   (`claim`). A thread pass releases and claims in one task, so a user writing in the
+   view that can draw the thread no more, a seat the thread left, a margin card whose
+   thread left the margin, open or closed, or the floating panel's view of a thread the
+   page takes from it, releases the row (`releaseReplies`): to a view that draws the
+   thread now, or else to a parked place, connected and out of sight, until the next
+   view drawing the thread claims it in place of its own row (`claim`). A thread pass releases and claims in one task, so a user writing in the
    row keeps focus throughout; a row left parked past it keeps its words, caret and
    history, but not the user. A route's view also puts the row in place of its own
    (`carry`), taking it from a view that holds it out of sight. A closed card whose
@@ -394,18 +394,6 @@ export const replyCompositionHasDraft = (node) => {
 // Editing belongs to the reply row's session, including Send and native Tab browsing.
 // Persisted words alone never reopen an editor after settlement or reload.
 export const replyIsEditing = (key) => compositions.has(replyContext(key));
-
-// Whether the user is writing in the reply row `field` stands in: being anywhere in
-// the row, Send included, holding words in it, or `sending` a turn of theirs. A
-// floating card holds the edge its placement keeps still by this (thread-preview.js),
-// and the news it would move waits by it (thread-card.js, `newsMoves`).
-export const writingIn = (field, sending) =>
-  Boolean(
-    field?.checkVisibility() &&
-    (currentLocationIn(field.closest(".lf-thread-reply")) ||
-      field.value !== "" ||
-      sending),
-  );
 
 // Every reply renderer and route shares the same admission: open conversation,
 // or a settled conversation whose native editing session still owns its words.

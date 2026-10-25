@@ -30,7 +30,6 @@
        (controls.css, `.lf-corner-mark`; response.css, `.lf-composer-media`). */
     --lf-ground: var(--lf-fp-surface);
     --lf-ring: var(--lf-fp-ring);
-    --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
     /* The narrowest a mark or the leaf stands, larger under a finger. A mark with a
        count keeps its count's room besides, which is wider (`.lf-fp-on-user`). */
@@ -42,6 +41,9 @@
        quote's and each message's, so all three start on one edge. What marks them
        off, the quote's rule and a rewrite's frame, stands at the padding. */
     --lf-fp-inset: 8px;
+    /* The room the field's words keep at the end of every line for Send, which stands
+       in the corner past its 6px end padding (`.lf-fp-field`). */
+    --lf-fp-send-room: calc(max(var(--lf-line), var(--aim-floor)) - 6px);
     /* The panel is as wide as its measure (`--lf-fp-max`, wider while the field has
        more room) where the window holds it, and the window less a gutter where not. */
     --lf-fp-max: 540px;
@@ -131,7 +133,7 @@
     flex-direction: column;
     justify-content: flex-end;
     overflow: clip;
-    border-radius: var(--lf-fp-radius);
+    border-radius: var(--r-l);
     background: var(--lf-fp-surface);
     /* The box never runs past the window's top, where an open view keeps its head and
        Close: a long draft and an open view share the window, the view taking what the
@@ -581,11 +583,13 @@
     display: none;
   }
   /* The field's presses float in its foot's end corner, as an anchored comment box's
-     do (response.css), so every line but the last runs the field's whole width and the
-     last keeps room for them (text-field.js, `--lf-field-end-room`). The user chose this
-     on 15 October over the presses standing beside the words in the row's flow, which
-     kept a press's width empty beside every line. Each is a line tall, standing on the
-     row's foot, and as wide as the floor, as the row's other presses are. */
+     do (response.css), and every line keeps room for them (text-field.js,
+     `--lf-field-end-room`), so where the words wrap turns on nothing but the words.
+     The user chose the corner on 15 October, with only the last line keeping that
+     room, and on 23 October gave the other lines' width up for wrapping that no
+     keystroke at the end of the words can change above it. Each is a line tall,
+     standing on the row's foot, and as wide as the floor, as the row's other presses
+     are. */
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
     inset-inline-end: 0;
     inset-block-end: 0;
@@ -605,7 +609,7 @@
   .lf-fp-field
     .lf-compose-field
     > leaf-text:has(.lf-compose-placeholder-aside:not(:empty)) {
-    --lf-field-end-room: calc(max(var(--lf-line), var(--aim-floor)) - 6px);
+    --lf-field-end-room: var(--lf-fp-send-room);
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
      not a press of its own, in Dictate's seat. While the field holds a draft, the
@@ -713,7 +717,7 @@
     gap: 5px;
     min-height: 26px;
     padding: 0 9px;
-    border-radius: 7px;
+    border-radius: var(--r);
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font-size: 12px;
@@ -813,7 +817,7 @@
     height: 17px;
     padding: 0 5px;
     box-sizing: border-box;
-    border-radius: 9px;
+    border-radius: 999px;
     background: var(--pin-fill);
     color: white;
     font: 600 10.5px / 17px var(--sans);
@@ -1008,7 +1012,7 @@
     width: 14px;
     height: 14px;
   }
-  /* Next unread is news's way in, so it wears the accent the unread rail does. */
+  /* Next unread is news's way in, so it wears the accent an unread reply's New does. */
   .lf-fp-next-unread {
     display: inline-flex;
     align-items: center;
@@ -1082,7 +1086,7 @@
     gap: 4px;
     margin: 0 auto;
     padding: 0 12px 0 8px;
-    border-radius: 14px;
+    border-radius: var(--r);
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
@@ -1263,7 +1267,7 @@
     gap: 4px;
     margin: 0 0 12px;
   }
-  /* The quote here only says what the thread is about: "On the page" in the head is the
+  /* The quote here only says what the thread is about: "Show on page" at the foot is the
      way to the words, so it takes no press, no aim's room and no title naming a jump; a
      detached quote's title still says where its words went. The head names it, so the
      rule outranks a card's `.lf-quote` (chrome.css), which this file comes ahead of.
@@ -1481,11 +1485,16 @@
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
   }
-  /* A sent reply keeps the field's reading width, so its list and code lines do
-     not reflow merely because they moved above the leaf. The room matches the
-     leaf, the field's two 6px edges, and the thread's two text insets. */
+  /* A sent reply keeps the field's reading width, so no line reflows merely because
+     it moved above the leaf. The field's text column is the panel less, on each side,
+     the row's padding, a seat as wide as the leaf (the leaf's, the exit's), a 2px gap
+     and the field's 6px edge, and less Send's room; the 32px the view and transcript
+     already keep from the panel's edges are the message's own. */
   .lf-fp-messages .lf-msg.user {
-    --lf-msg-text-end: calc(var(--lf-fp-aim) + 12px + 2 * var(--lf-fp-inset));
+    --lf-msg-text-end: calc(
+      2 * (var(--lf-fp-row-pad) + var(--lf-fp-aim) + 8px) + var(--lf-fp-send-room) -
+        32px
+    );
   }
   .lf-fp-messages .lf-msg.user .lf-msg-text {
     box-sizing: border-box;
@@ -1618,7 +1627,7 @@
     width: 248px;
     padding: 6px;
     box-sizing: border-box;
-    border-radius: var(--lf-fp-radius);
+    border-radius: var(--r-l);
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
@@ -1735,7 +1744,7 @@
     max-width: min(320px, calc(100vw - 32px));
     box-sizing: border-box;
     padding: 6px 10px;
-    border-radius: 8px;
+    border-radius: var(--r);
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),

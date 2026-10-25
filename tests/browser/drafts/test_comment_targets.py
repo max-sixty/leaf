@@ -4,6 +4,7 @@ or moves to another location, and whose words a transfer carries."""
 import re
 
 import pytest
+from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
@@ -329,9 +330,7 @@ def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     if not resume_before_scroll:
         # Slow the browser to expose Resume interrupting native smooth travel.
-        page.context.new_cdp_session(page).send(
-            "Emulation.setCPUThrottlingRate", {"rate": 6}
-        )
+        slow_cpu(page, 6)
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     if existing_reply:
         page.keyboard.press("t")

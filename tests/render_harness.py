@@ -58,7 +58,7 @@ from interact_support import (
     wait_for,
     write_record,
 )
-from leaf_dev.browser import scroll_settled
+from leaf_dev.browser import scroll_settled, slow_cpu
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
@@ -1235,6 +1235,21 @@ def until_draft_settled(page, ctx: str) -> None:
 
 _BROWSER_PROBLEM_LISTS = None
 _TEST = None
+_CPU_THROTTLE = None
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--cpu-throttle",
+        type=float,
+        metavar="RATE",
+        help="Slow the CPU of every Chromium page the browser fixtures open this many times",
+    )
+
+
+def pytest_configure(config):
+    global _CPU_THROTTLE
+    _CPU_THROTTLE = config.getoption("--cpu-throttle")
 
 
 def watches_shifts(test):
@@ -2090,9 +2105,14 @@ def readable(page, *, java_script_enabled=True):
     left alone, since a second console listener would report every problem twice.
     A scripts-disabled context keeps the native error collector and shared deadlines;
     the script-driven readings are unavailable there.
+
+    A run given `--cpu-throttle RATE` also slows each Chromium page here, before it
+    navigates (`tests/AGENTS.md`, "Races").
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
+    if _CPU_THROTTLE and page.context.browser.browser_type.name == "chromium":
+        slow_cpu(page, _CPU_THROTTLE)
     page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
     arm_interception(page)
     if java_script_enabled:
@@ -2681,16 +2701,29 @@ _GESTURE = """async ([scroller, by, sample]) => {
   document.addEventListener('scrollend', end, {capture: true, once: true});
   window.lfWrites = [];
   window.lfWriteStep = frame;
+  // A task posted from a frame callback runs once that frame has rendered, before the
+  // next frame's scroll step.
+  const rendered = (then) => {
+    const {port1, port2} = new MessageChannel();
+    port1.onmessage = then;
+    port2.postMessage(null);
+  };
+  const take = () => {
+    const scrolled = box.scrollTop;
+    if (!samples.length || scrolled !== samples.at(-1).scrolled)
+      samples.push({scrolled, read: read()});
+  };
   const tick = () => {
     window.lfWriteStep = ++frame;
     if (!ended) {
-      samples.push({scrolled: box.scrollTop, read: read()});
+      rendered(take);
       requestAnimationFrame(tick);
     }
   };
   box.scrollBy({top: by, behavior: 'smooth'});
   requestAnimationFrame(tick);
   while (!ended) await new Promise(requestAnimationFrame);
+  await new Promise(rendered);
   return {frames: frame, samples};
 }"""
 
@@ -2700,8 +2733,14 @@ def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
     or a key does, and return each DOM write it caused, numbered by the frame it came
     in, with what its settle wrote under its last, and how many frames it took. The
     pointer is moved off the page's controls first, so the scroll brings nothing new
-    under it. With `sample`, a page function, it returns that function's reading on
-    each frame before the settle too, beside how far the scroller had gone."""
+    under it. With `sample`, a page function, it also returns that function's reading
+    beside how far the scroller had gone, on the first frame and each frame that moves
+    the scroller. Both are read once the frame has rendered: a box anchored to scrolled
+    content takes the frame's scroll at the frame's anchor recalculation, after its
+    frame callbacks, so read in one it stands where the frame before drew it. A frame
+    that moves nothing is left out, since the runtime settles once the scroll has been
+    still a while (arrivals.js, `SETTLE_MS`), which on slow frames comes before
+    `scrollend`, so such a frame can show what the scroll held laid out again at rest."""
     page.mouse.move(2, 300)
     rendered(page)
     start = page.evaluate(f"() => {scroller}.scrollTop")

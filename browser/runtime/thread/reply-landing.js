@@ -26,8 +26,9 @@
    surface back first (`off-flow.js`). These landings serve thread navigation,
    sending, and editor growth. Merely entering a reply reveals its writing area
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
-   the turn the user was reading, even when it is not the latest one. A separate
-   transcript opened for reading shows its latest turn (`showLatestTurn`). */
+   the turn the user was reading, even when it is not the latest one. A thread opened
+   for reading, on a card or in the panel's view, shows its first unread turn, else
+   its latest (`showReturnTurn`). */
 import { seenRect, stuckBox, userScrollport } from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -88,30 +89,49 @@ const landingTarget = (held, control) => {
 // (geometry.js, `seenRect`).
 const onScreen = (node) => seenRect(node, new Map()) !== null;
 
-// The turn a user comes back to a thread for: its latest message shown, or the summary
-// standing for earlier ones.
-const latestTurn = (transcript) =>
-  [
+// The turn a user comes back to a thread for: the first message they have not read,
+// named by the thread's `unread`, else its latest message shown, or the summary
+// standing for earlier ones. Landing past an unread start would leave the user reading
+// below a message they never saw begin, which read tracking (read.js) then rightly
+// keeps unread while every reply after it reads. A closed summary hides the unread
+// message behind its checkpoint, which stands before the messages it covers
+// (transcript.js), so the user starts at that summary, and Next unread or `g u` opens
+// it. Rejected: opening the summary on arrival, which would undo the fold the agent
+// wrote for every reader who comes back.
+const returnTurn = (transcript, unread) => {
+  const turns = [
     ...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)"),
-  ].findLast((node) => node.checkVisibility()) ?? null;
+  ];
+  let start = unread && turns.find((node) => node.dataset.message === unread);
+  while (start && !start.checkVisibility()) start = start.previousElementSibling;
+  return start ?? turns.findLast((node) => node.checkVisibility()) ?? null;
+};
 
-// A separate transcript opened for reading shows its latest turn: the transcript's end,
-// or that turn's head where it alone is taller than the transcript, as a long thread
-// lands in the Threads list (landing.js, `threadLandingStart`). The turn carries its
-// own head, so it is measured from the transcript's top.
-export function showLatestTurn(transcript) {
-  scrollToEnd(transcript);
-  const latest = latestTurn(transcript);
-  if (!latest) return;
+// A thread opened for reading shows the turn the user comes back for: the end of the
+// box scrolling its transcript where that turn is still in view there, or else that
+// turn's head at the box's top. The box is the transcript itself on a card and the
+// view around it in the panel. The turn carries its own head, so it is measured from
+// the box's top.
+export function showReturnTurn(transcript, thread) {
+  const scroller = scrollerFor(transcript);
+  scrollToEnd(scroller);
+  const unread = thread?.unread[0]?.message;
+  const start = thread?.msgs.find((message) => message.id === unread)?.key;
+  const turn = returnTurn(transcript, start ?? null);
+  if (!turn) return;
+  // Measured from the box's content edge, below the focus-ring room its padding keeps
+  // over the heads: a turn landed in that room would start where read tracking sees
+  // nothing of it (geometry.js, `seenRect`), and never read.
   const over =
-    transcript.getBoundingClientRect().top +
-    transcript.clientTop -
-    latest.getBoundingClientRect().top;
+    scroller.getBoundingClientRect().top +
+    scroller.clientTop +
+    parseFloat(getComputedStyle(scroller).paddingTop) -
+    turn.getBoundingClientRect().top;
   // A turn only a little taller than its room still shows its head at the end.
   // Keep its trailing reference and metadata there; align to the head only when
   // scrolling to the end would hide that head altogether.
-  const headHeight = latest.firstElementChild?.getBoundingClientRect().height ?? 0;
-  if (over > headHeight) moveScrollerBy(transcript, -over);
+  const headHeight = turn.firstElementChild?.getBoundingClientRect().height ?? 0;
+  if (over > headHeight) moveScrollerBy(scroller, -over);
 }
 
 function landThread(held, control, behavior, block) {

@@ -609,6 +609,7 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
             words = "A reply about " + target
             write(field, words)
             rendered(page)
+            field.evaluate("el => { window.lfTypedIn = el; }")
         assert _draft_in_view(page, words, field)
         for width in (480, 1200):
             resized(page, width, 900)
@@ -625,6 +626,15 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
                     expect(page.locator(".lf-fab-bar")).to_have_attribute(
                         "data-lf-plane", "page"
                     )
+                else:
+                    # The thread shows once: the floating panel, which took it while the
+                    # page drew its target nowhere, gives it back to the card, and the
+                    # user goes on in the editor they typed in, with its caret and undo
+                    # history.
+                    expect(
+                        page.locator(".lf-fp-view:not([data-leaving])")
+                    ).to_have_count(0)
+                    assert field.evaluate("el => el === window.lfTypedIn")
                 assert _draft_in_view(page, words, field)
 
 

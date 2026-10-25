@@ -53,6 +53,8 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
         page.keyboard.press("Tab")
         at = view.evaluate(current_location)
         assert at != "page", "Tab left Full view for the page beneath"
+        if at == "frame" and child.evaluate("() => document.hasFocus()"):
+            expect(frame).to_have_css("outline-style", "solid")
         entered |= at == "frame" and child.evaluate("() => document.hasFocus()")
         if entered and at == "view":
             left = True

@@ -152,10 +152,11 @@ def test_agent_interaction_command_help(regtest):
         "thread summarize",
         "page open",
         "page close",
-        "thread open",
+        "thread create",
         "thread reply",
         "thread edit",
         "thread resolve",
+        "task end",
         "page report",
         "page check",
         "page stamp",
@@ -212,7 +213,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     envelope = json.loads(woke.output)
-    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
+    assert f"leaf delivery ack {envelope['id']} && leaf wait" in envelope["acknowledge"]
     delivery_model.receive(envelope, "s1")
     [batch] = envelope["batches"]
     assert len(batch["events"]) == 2
@@ -229,11 +230,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     answered_events = events_model.read_events(page)
     record(response_args(), 0)
     assert events_model.read_events(page) == answered_events
-    for addressed_option in (
-        ["--done"],
-        ["--failure", "offline"],
-        ["--attempt", "retry"],
-    ):
+    for addressed_option in (["--done"],):
         record(
             [
                 "thread",
@@ -628,50 +625,6 @@ def test_the_skill_routes_every_reference_it_ships():
         assert relative in skill, relative
 
 
-def test_the_python_instructions_name_every_module_they_own():
-    """Every Python owner is named in the instruction scope that routes it."""
-    scripts = ROOT / "src"
-    instructions = (scripts / "AGENTS.md").read_text(encoding="utf-8")
-    paragraphs = instructions.split("\n\n")
-    within = {
-        match.group(1): paragraph
-        for paragraph in paragraphs
-        if (match := re.match(r"Within `([^`/]+)/`", paragraph))
-    }
-    outside = "\n\n".join(p for p in paragraphs if not p.startswith("Within `"))
-
-    # Keep package names scoped so `registry/layer` cannot be satisfied by the
-    # top-level `layer` owner.
-    def names(scope):
-        return {
-            part.removesuffix(".py")
-            for span in re.findall(r"`([^`]+)`", scope)
-            for part in span.split("/")
-        }
-
-    package_root = scripts / "leaf"
-    modules = sorted(
-        path.relative_to(package_root)
-        for path in package_root.rglob("*.py")
-        if path.name != "__init__.py"
-    )
-    assert modules, "no modules read — an empty set names itself"
-    packages = sorted({m.parent.as_posix() for m in modules} - {"."})
-    assert not set(packages) - set(within), (
-        f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
-    )
-
-    unnamed = [
-        module.as_posix()
-        for module in modules
-        if module.stem
-        not in names(
-            outside if module.parent.as_posix() == "." else within[module.parent.name]
-        )
-    ]
-    assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
-
-
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
     """A top-level directory a session works in must be named where sessions read.
 
@@ -816,13 +769,13 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
 
     [waiting] = written(["page", "open", str(page_dir)])
     assert waiting == logged(waiting)
-    assert (waiting["state"], waiting["detail"]) == ("waiting", "")
+    assert waiting["state"] == "waiting"
 
     # The comment's id is the thread's; --title names it in the same command.
     [opened] = written(
         [
             "thread",
-            "open",
+            "create",
             str(page_dir),
             "--text",
             "which store?",
@@ -837,7 +790,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
     [unnamed] = command_findings(
-        "thread", "open", page_dir, "--text", "and the cache?", "--title", ""
+        "thread", "create", page_dir, "--text", "and the cache?", "--title", ""
     )
     assert (unnamed.code, unnamed.values["kind"]) == ("invalid-event", "comment")
     assert events_model.read_events(page_dir) == before

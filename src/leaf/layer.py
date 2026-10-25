@@ -459,7 +459,7 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     is the same kind of fact: this Leaf would read the key's new name, find nothing,
     and drop what the page's layer declares under the old one, so the page is
     refused rather than misread. The check is one-sided: a key this Leaf added and
-    an older layer lacks refuses nothing. Every page server, the gate's and the
+    an older layer lacks refuses nothing. Every server of the page's live files, the
     website's included (`http.page_endpoint`, `leaf_website.page_binding`), the one
     append door and the writers that ask it first (`event_contracts.write_refusal`),
     and `page check` refuse on this one reading, each naming its repair. For a page
@@ -527,9 +527,10 @@ def incompatible_revision(revision: int, registry: dict) -> Finding | None:
     re-vendor leaves existing revisions as they were, so a page re-vendored across a
     bump still holds revisions saved before it. Served, one would run its own runtime
     against this Leaf's server, which is the break the protocol announces. The
-    document server and the append door ask this of the revision they would serve or
-    admit under; readings of the log keep reading every revision's registry, so
-    history still projects. Serving the page saves its source as a revision first,
+    document server, a snapshot's capture (`page_snapshot.capture_page_snapshot`),
+    and the append door ask this of the revision they would serve or admit under;
+    readings of the log keep reading every revision's registry, so history still
+    projects. Serving the page saves its source as a revision first,
     so its live revision is one of these only where the source no longer saves.
     A revision whose vocabulary uses a retired key is refused for the reason the
     layer is: this Leaf would read the key's new name there, find nothing, and draw

@@ -27,6 +27,7 @@ from leaf_dev.arms import (
     run_directory,
     run_leaf,
 )
+from leaf_dev.commands.distribution import cached_installation
 from leaf_dev.example_data import named_source
 
 OUT = ROOT / ".tmp" / "bench-check"
@@ -51,6 +52,7 @@ def bench_check(base_ref: str | None) -> None:
     """
     out = run_directory(OUT)
     arms, commits = build_pair(base_ref, out / "arms")
+    arms = {name: cached_installation(arm) for name, arm in arms.items()}
     pages = {}
     for arm, arm_dir in arms.items():
         for name in PAGES:

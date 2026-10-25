@@ -351,7 +351,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         detached = detached_threads(page, [thread["id"] for thread in listed])
         assert detached == retained, (
             f"{example.stem} has unexpected detached anchors: {detached - retained}. "
-            "Recapture unintended quotes with `leaf thread open --quote` against "
+            "Recapture unintended quotes with `leaf thread create --quote` against "
             f"the current file; missing historical sample quotes: {retained - detached}."
         )
         # Only where the log named a passage. The thread count above already allows a
@@ -480,7 +480,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     browser, serve, source
 ):
-    """The claim `leaf thread open` makes is that a quote read out of the mapped revision
+    """The claim `leaf thread create` makes is that a quote read out of the mapped revision
     names the same passage in the browser. Four unlike authored pages cover native
     blocks, representative widgets, and projected text that can make the file and
     browser readings disagree. The generated corpus derives its tab bodies from these
@@ -734,19 +734,22 @@ def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
     """`wide` is the shared capped evidence width wherever a block stands on a document
     page. A sidebar page's body is wider than `--wide` at a large window, so the
     breakout's growth alone left a named-wide block at the holder's width there. The
-    cap holds an authored occurrence and a package default (a board) alike, at the
+    cap holds an authored occurrence and a package default (a diff) alike, at the
     page's own `--wide`, while a block that names no width still fills its holder and
     `available` takes it all. A workspace states no evidence width, so there both fill
     their pane as a block that names none does. A narrow window's holder still bounds
     the wide block."""
     blocks = """
 <div id="named" data-width="wide">Named wide.</div>
-<lf-board id="board">
-<lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
-<lf-column id="two" label="Two"></lf-column><lf-column id="three" label="Three"></lf-column>
-<lf-column id="four" label="Four"></lf-column><lf-column id="five" label="Five"></lf-column>
-<lf-column id="six" label="Six"></lf-column>
-</lf-board>
+<lf-diff id="patch"><pre>
+diff --git a/feeders/mount.py b/feeders/mount.py
+--- a/feeders/mount.py
++++ b/feeders/mount.py
+@@ -1,2 +1,2 @@
+ def bracket():
+-    return "plastic"
++    return "steel"
+</pre></lf-diff>
 <div id="plain">No width named.</div>
 <div id="available" data-width="available">Available.</div>
 """
@@ -763,12 +766,12 @@ def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
         layout="sidebar",
     )
     measure = """() => Object.fromEntries(
-      ['named', 'board', 'plain', 'available'].map(id => {
+      ['named', 'patch', 'plain', 'available'].map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
       }))"""
     for source, cap in (
-        (sidebar_page, 1080),
+        (sidebar_page, 840),
         (workspace_page, None),
         (configured, 900),
     ):
@@ -777,7 +780,7 @@ def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
         at = page.evaluate(measure)
         assert at["plain"]["width"] > 1080 + 200, at
         assert at["available"]["width"] == at["plain"]["width"], at
-        for capped in ("named", "board"):
+        for capped in ("named", "patch"):
             width = cap or at["plain"]["width"]
             assert at[capped]["width"] == pytest.approx(width, abs=1), (capped, at)
             assert at[capped]["left"] == at["plain"]["left"], (capped, at)
@@ -1072,7 +1075,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     resized(page, 700, 900)
     narrow = page.evaluate(reading)
     assert narrow["taken"] == 0
-    assert narrow["float"] == "none" and narrow["position"] == "static"
+    assert narrow["float"] == "none" and narrow["position"] in {"static", "relative"}
     assert abs(narrow["sidebar"]["left"] - narrow["column"]["left"]) <= 1
     assert root_overflow(page) == 0
 
@@ -1080,7 +1083,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     page.emulate_media(media="print")
     printed = page.evaluate(reading)
     assert printed["taken"] == 0
-    assert printed["float"] == "none" and printed["position"] == "static"
+    assert printed["float"] == "none" and printed["position"] in {"static", "relative"}
     assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
 
 

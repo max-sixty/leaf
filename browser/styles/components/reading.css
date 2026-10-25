@@ -336,12 +336,12 @@ leaf-text.lf-fab-input,
   overflow-wrap: anywhere;
   --lf-measure: var(--col);
 }
-/* The user's own words and pictures keep the column of the box they write and rewrite
-   them in, which ends its lines the thread's text inset short of its edge, so a line
-   breaks where it broke as they wrote it and where it will as they rewrite it; a
-   surface whose box ends its words elsewhere says where (`--lf-msg-text-end`). */
+/* The user's own words and pictures keep the column of the reply box they write them
+   in, which ends every line short of Send (response.css, `--lf-compose-send-end`, past
+   the field's 1px frame), so a line breaks where it broke as they wrote it; a surface
+   whose box ends its words elsewhere says where (`--lf-msg-text-end`). */
 .lf-msg:where(.user) {
-  --lf-msg-text-end: var(--lf-thread-text-inset, 0px);
+  --lf-msg-text-end: calc(var(--lf-compose-send-end) + 1px);
 }
 .lf-msg-text {
   display: block;
@@ -362,9 +362,11 @@ leaf-text.lf-fab-input,
 .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) {
   margin: 6px 0;
 }
+/* A message keeps its source's spaces and line breaks, wrapped as its draft's editor
+   wraps them (composing/text-field.js), a space at a line's end hanging past it. */
 .lf-msg-text > p {
   font: inherit;
-  white-space: break-spaces;
+  white-space: pre-wrap;
   margin-block: 1lh;
 }
 /* Prose here breaks anywhere, because the thing a reply overflows on is a URL

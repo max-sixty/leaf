@@ -402,9 +402,7 @@ document.addEventListener(
     // A drag is a pointer's; the keyboard's own activation of the control is not one and
     // is read the one way every press claim reads it (pointer.js).
     if (pressIsKeyboardActivation(ev)) return;
-    const control = /** @type {Partial<Element>} */ (ev.target).closest?.(
-      "[data-lf-offer]",
-    );
+    const control = /** @type {Partial<Element>} */ (ev.target).closest?.(PRESSABLE);
     if (control && reachedForWords(control)) {
       ev.stopPropagation();
       ev.preventDefault();

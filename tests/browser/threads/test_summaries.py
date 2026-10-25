@@ -538,7 +538,9 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
     assert owned == [message.evaluate("node => node.id") for message in covered]
 
-    toggle.press("Enter")
+    # A pointer press: the card and its buttons wear an empty data-lf-offer, which
+    # is not a control, so words selected in the card must not swallow the click.
+    toggle.click()
     for message in covered:
         expect(message).to_be_hidden()
     toggle.press("Enter")

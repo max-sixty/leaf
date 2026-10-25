@@ -2803,7 +2803,7 @@ function reachedForWords(el) {
 }
 document.addEventListener("click", (ev) => {
 	if (pressIsKeyboardActivation(ev)) return;
-	const control = ev.target.closest?.("[data-lf-offer]");
+	const control = ev.target.closest?.(PRESSABLE);
 	if (control && reachedForWords(control)) {
 		ev.stopPropagation();
 		ev.preventDefault();

@@ -831,6 +831,13 @@ def post_response(
     destination after user settlement but yields to another successful answer.
     Explicit addressed replies commit immediately; reservations prevent competing
     provider finals and failure receipts.
+
+    Each write's retry key (`post_reply`'s `attempt`) is derived here, never given:
+    the reservation for a provider's answer and the reservation's progress line for
+    its progress, so a provider's repeat returns the first; without a reservation,
+    the reference, in disjoint namespaces for answers and failure receipts so a
+    receipt's key never stands in for a later answer's. Progress without a
+    reservation takes no key, so each line posts.
     """
     address = response_address(reference)
     if address["kind"] != "reply":
@@ -845,20 +852,21 @@ def post_response(
                 )
             ]
         )
-    if reservation is None and not options.get("ephemeral"):
-        # The reference is the retry key of this addressed author's writes; only a
-        # provider's reservation brings its own. The disjoint namespaces keep a
-        # failure receipt's from standing in for a later answer's.
+    ephemeral = options.get("ephemeral", False)
+    if reservation is not None:
+        attempt = f"{reservation}-progress" if ephemeral else reservation
+    elif ephemeral:
+        attempt = None
+    else:
         namespace = "failure" if options.get("failure") is not None else "response"
-        options["attempt"] = (
-            f"leaf-{namespace}-{sha256(reference.encode()).hexdigest()}"
-        )
+        attempt = f"leaf-{namespace}-{sha256(reference.encode()).hexdigest()}"
     return post_reply(
         Path(address["page"]),
         address,
         text,
         markup,
         settlement=REFUSE if reservation is None else ProviderFinal(reservation),
+        attempt=attempt,
         validate_source=True,
         **options,
     )

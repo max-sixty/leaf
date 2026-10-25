@@ -790,9 +790,9 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
 
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
-    expect(help_el.locator('[role=row][data-lf-command="page.search.next"] kbd')).to_have_text(
-        "n"
-    )
+    expect(
+        help_el.locator('[role=row][data-lf-command="page.search.next"] kbd')
+    ).to_have_text("n")
     expect(
         help_el.locator('[role=row][data-lf-command="page.search.previous"] kbd')
     ).to_have_text("N")

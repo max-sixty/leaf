@@ -281,11 +281,11 @@ allowance list.
   it and putting it back does so inside `lfUnwatched`.
 - `shift_watch.js` reports a box that moves on screen without input, typing that
   moves its field, and a scroll a gesture makes that carries the control it was made
-  on, unless its command declares `travels` (`browser/AGENTS.md`, "Stability"). It
-  runs on every test
-  except those in modules marked `shifts_unsurveyed`, which opt in per test with
-  `watch_shifts`. Playwright's clicks, keys and viewport resizes are input; a script's
-  `click()`, a value set by script and server news are not. It ignores first
+  on, unless the gesture takes the user somewhere (`browser/AGENTS.md`, "Stability").
+  It runs on every test except those marked `shifts_unsurveyed`, which opt in per test
+  with `watch_shifts`. Playwright's clicks, keys, viewport resizes, and Back and
+  Forward are input; a script's `click()`, a value set by script and server news are
+  not. It ignores first
   presentation, whose remaining defects `known_widget_findings.py` records. Chrome
   hides a shift for half a second after a click, so a test of a news update's stability
   delivers the news after that.

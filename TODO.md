@@ -322,15 +322,12 @@ that changes size after first paint, with its cause.
   then move them, since each row's share is the module's measurement of the document
   (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
   would put them in place.
-- **Let a press say it takes the user somewhere.** The shift watch lets a key move
-  the control it was pressed on only where its command declares `travels`, and a
-  press only on a link (`shift_watch.js`, "Scrolls a gesture makes"); a press on any
-  other control has no command to declare it. Forced onto the unsurveyed tab tests,
-  the watch reports `lf-tabs` presses: a root set's switch, which adds a history entry
-  and opens the view at its place, carries the pressed tab up to 295px; an embedded
-  set's, 24px; and `#showTab` scrolls a partly hidden tab 51px into the strip.
-  Decide whether a view switch takes the user somewhere, which the history entry it
-  adds could declare as a link's does, and whether `#showTab`'s reveal is wanted.
+- **Keep what a live revision adds above the reader from moving it.** A revision
+  that puts a tab set above the gallery's page tabs, read from the page's top, moves
+  their strip 430px down the window as it arrives
+  (`test_the_gallery_tab_set_uses_the_boundary_of_its_composition[among-blocks]`,
+  marked `shifts_unsurveyed` for it). Scroll anchoring absorbs growth above the
+  window; this one grows inside it, above what the reader sees.
 - **Keep the merge film's controls still as it steps.** In `examples/wt-merge.page`'s
   `lf-merge-film`, pressing Next inspection scrolls that button 83px and `i` on Play
   7px (`test_merge_film_inspection_has_touch_and_keyboard_routes`, unsurveyed).

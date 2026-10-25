@@ -621,10 +621,11 @@ A route is how new user input reaches the agent's task:
   leaf wait          The agent runs `leaf wait` in the background. It prints
                      the delivery as JSON and exits, and the harness hands that
                      output to the agent as the command's result, which wakes
-                     it. The agent acknowledges the delivery itself, with
-                     `leaf wait --ack <delivery-id>`, and answers with
-                     `leaf thread reply <answer.ref>`. A Codex task without Leaf's
-                     adapter uses this route, and so does a bare shell.
+                     it. The agent acknowledges the delivery itself and waits
+                     again, with `leaf delivery ack <delivery-id> && leaf wait`,
+                     and answers with `leaf thread reply <answer.ref>`. A Codex
+                     task without Leaf's adapter uses this route, and so does a
+                     bare shell.
   Claude Code hook   Leaf's native hook watcher runs between turns. When input
                      arrives it wakes the session with one line naming the page,
                      which opens a turn. Leaf's prompt hook runs as that

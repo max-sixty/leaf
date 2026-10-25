@@ -1821,7 +1821,7 @@ _TEXT = {
         f"{len(v['answers'])} user update{'s' if len(v['answers']) != 1 else ''} with"
         f" no answer ({'; '.join(v['answers'])}); opening the page does not answer them"
     ),
-    # `delivery ack` or `wait --ack` of a delivery an earlier turn already picked up
+    # `delivery ack` of a delivery an earlier turn already picked up
     # (`delivery.earlier_pickup`), with the answers its updates still owe:
     "delivery-repeated": lambda at, v: (
         f"an earlier turn already picked up delivery {v['delivery']}, so don't redo"

@@ -118,15 +118,14 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 
     # A live watcher lets Claude end its turn, but Codex must keep this one active
     # and poll the unified-exec session whose output can enter this context. The
-    # lease cannot say whether that process is the initial wait or a rearmed ack,
-    # so the remedy has to preserve both coordinates.
+    # lease cannot say whether that session's command is the initial wait or the
+    # one that acknowledged a delivery before waiting, so the remedy names both.
     hooks_model.cmd_hook(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
     )
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "poll the existing" in reason and "write_stdin" in reason
-    assert "`leaf wait` before the first batch" in reason
-    assert "rearmed `leaf wait --ack` afterward" in reason
+    assert "running `leaf wait`, alone or after `leaf delivery ack`" in reason
 
     # The adapter's second lease proves that the watcher can deliver into a
     # later turn. With that adapter alive, this turn may end normally.
@@ -168,13 +167,14 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
     )
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "`leaf wait` before the first batch" in reason
-    assert "rearmed `leaf wait --ack` afterward" in reason
+    assert "running `leaf wait`, alone or after `leaf delivery ack`" in reason
     assert "background" not in reason
     acknowledge = session_model.wait_acknowledgement(
-        harness_model.CodexHarness("codex-thread", "Codex")
+        harness_model.CodexHarness("codex-thread", "Codex"), page
     )("0a1b2c3d")
-    assert "run `leaf wait --ack 0a1b2c3d` in unified exec" in acknowledge
+    assert (
+        "run `leaf delivery ack 0a1b2c3d && leaf wait` in unified exec" in acknowledge
+    )
     assert "background" not in acknowledge
     leases_model.release_lease(lease)
 
@@ -703,10 +703,11 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert (
         CliRunner()
         .invoke(
-            cli_model.cli, ["wait", "--ack", delivery_through(claimed, int(report))]
+            cli_model.cli,
+            ["delivery", "ack", delivery_through(claimed, int(report))],
         )
         .exit_code
-        == 2
+        == 0
     )
     # A report is the agent's own news, so acknowledging it is the whole of what
     # it asks for; only a user's comment owes an answer as well.

@@ -125,8 +125,8 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
     # The envelope says once how this explicit wait is acknowledged; individual
     # events carry only their own handling and reply clauses.
-    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
-    assert not any("--ack" in text for text in handling.values())
+    assert f"leaf delivery ack {envelope['id']} && leaf wait" in envelope["acknowledge"]
+    assert not any("delivery ack" in text for text in handling.values())
     assert plain[-len(replying) :] == replying
     # A drawn comment is told everything a plain one is, and how to read its drawing.
     assert reading_a_drawing in drawn

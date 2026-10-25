@@ -840,14 +840,13 @@ def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> dict:
     return delivery_reading(payload, part=part)
 
 
-def cmd_delivery_ack(delivery_id: str) -> list[Path]:
-    """Accept the reader's attestation that every part reached its context, and
-    return the pages it named, for `delivery ack` and `wait --ack` alike. A page
-    the delivery names that has gone refuses it in the system's own words. A
+def cmd_delivery_ack(delivery_id: str) -> None:
+    """Accept the reader's attestation that every part reached its context. A
+    page the delivery names that has gone refuses it in the system's own words. A
     delivery an earlier turn already picked up is noted as a repeat
     (`earlier_pickup`)."""
     try:
-        received = receive_delivery(delivery_id)
+        receive_delivery(delivery_id)
     except FileNotFoundError as error:
         raise Refused(str(error)) from error
     harness = session_harness()
@@ -857,7 +856,6 @@ def cmd_delivery_ack(delivery_id: str) -> list[Path]:
         from .findings import note
 
         note(repeat)
-    return received
 
 
 def earlier_pickup(payload: dict, session_id: str):
@@ -1282,8 +1280,8 @@ def record_receipt(page: PageTransaction, through: int) -> None:
 def receive_delivery(delivery_id: str) -> list[Path]:
     """Confirm a reader's complete input and record its entry into that turn.
 
-    Both explicit acknowledgement commands prove the consumer is running even
-    if its prompt hook failed. The canonical opener preserves known provider
+    The explicit acknowledgement command, `leaf delivery ack`, proves the
+    consumer is running even if its prompt hook failed. The canonical opener preserves known provider
     lifecycle authority. Pointer receipt also retains its origin's reservation,
     including the exact turn a Codex hook offered it to. Automatic hook and
     provider receipts observe an already-open turn through `receive` instead.

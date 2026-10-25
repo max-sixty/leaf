@@ -1376,50 +1376,6 @@ def test_a_named_bare_shell_wait_keeps_its_directory_without_a_claim(
     assert service_model.page_claim(page_dir) is None
 
 
-def test_a_bare_shell_receipt_rearms_every_page_in_its_delivery(
-    page_dir, tmp_path, sessionless, spawn
-):
-    other = tmp_path / "other"
-    shutil.copytree(page_dir, other)
-    batches = []
-    for index, page in enumerate((page_dir, other), 1):
-        serving(page, index)
-        append_carried_log_record(
-            page, {"kind": "comment", "author": "user", "text": "first"}
-        )
-        with service_model.PageTransaction(page) as transaction:
-            batches.append(
-                delivery_model.batch_data(page, transaction, transaction.events)
-            )
-    payload = delivery_model.freeze_delivery(batches)
-    watching = spawn(
-        [*LEAF_COMMAND, "wait", "--ack", payload["id"]],
-        env=os.environ,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    wait_for(
-        lambda: (
-            leases_model.lock_is_held(page_dir / "waiter.lock"),
-            leases_model.lock_is_held(other / "waiter.lock"),
-        ),
-        all,
-        failure="receipt did not rearm both standalone pages",
-    )
-    later = append_carried_log_record(
-        other, {"kind": "comment", "author": "user", "text": "next"}
-    )
-    out, err = watching.communicate(timeout=STATED_TIMEOUT)
-    assert watching.returncode == 0, out + err
-    _, batch, [event] = printed(out)
-    assert batch["page"] == str(other)
-    assert event["id"] == later["id"]
-    for page in (page_dir, other):
-        assert service_model.page_claim(page) is None
-        assert acknowledged_through(page) == 1
-
-
 def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, capsys):
     """Without a harness identity or a named page, there is nothing to watch."""
     session_model.cmd_waiting(page_dir, "")
@@ -1674,7 +1630,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(
     service_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
+    assert f"leaf delivery ack {payload['id']} && leaf wait" in payload["acknowledge"]
     assert [event["id"] for event in payload["batches"][0]["events"]] == [first["id"]]
     getattr(delivery_model, acknowledge)(payload["id"])
 

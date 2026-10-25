@@ -134,7 +134,7 @@
 #        "format": "leaf-delivery/15",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
-#        "acknowledge": "If the output was cut off, reread it with `leaf delivery read e8417b8a` and follow any `next` commands. Then, before any other work, start `leaf wait --ack e8417b8a` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
+#        "acknowledge": "If the output was cut off, reread it with `leaf delivery read e8417b8a` and follow any `next` commands. Then, before any other work, start `leaf delivery ack e8417b8a && leaf wait` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
 #        "batches": [
 #          {
 #            "page": "/path/to/page",

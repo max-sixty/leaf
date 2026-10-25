@@ -32,7 +32,7 @@ starts an App Server turn with a `leaf_delivery` tool output.
 Leaf acknowledges input it queues or starts. A pointer still needs complete reading
 and its confirmation (`event-batches.md`, "Handle the input"); inline tool output
 needs no acknowledgement command.
-Run no `leaf wait` or `leaf wait --ack`.
+Run no `leaf wait`.
 The same delivery id can come back in a later turn; its `leaf delivery ack` then says an earlier turn already picked it up and
 names any answer it still owes. Don't redo that turn's work.
 
@@ -93,8 +93,8 @@ Two routes bring input without the adapter. On both, answer with
 `leaf thread reply <answer.ref>`.
 
 - This task runs `leaf wait` in unified exec, polls it with `write_stdin`, and
-  acknowledges each batch with `leaf wait --ack <delivery-id>`, which then waits for the
-  next. The turn stays open as long as the page is live.
+  acknowledges each batch with `leaf delivery ack <delivery-id> && leaf wait`, which
+  then waits for the next. The turn stays open as long as the page is live.
 - A separate watcher task runs the wait and forwards each batch into this task as a
   background follow-up; this task runs no wait. Use it only when the user allows a
   visible watcher task, and follow `codex-watcher.md`.

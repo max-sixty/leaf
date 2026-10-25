@@ -11,8 +11,7 @@ Usage: leaf wait [OPTIONS] PAGE
   page with new input instead, and end.
 
 Options:
-  --ack DELIVERY_ID  confirm receipt of this complete delivery before waiting
-  --help             Show this message and exit.
+  --help  Show this message and exit.
 
 ## leaf delivery read --help
 Usage: leaf delivery read [OPTIONS] DELIVERY_ID

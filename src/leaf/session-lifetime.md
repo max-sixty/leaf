@@ -138,8 +138,9 @@ comparing the name. A watcher is one of:
   starts as the session starts and as each run settles. When the watch exits with input
   and no run is going, the extension starts one.
 - **A model wait**: `leaf wait` runs the model starts itself. Every explicit wait prints
-  the delivery; a large one comes in parts, and `leaf wait --ack <delivery-id>` after
-  the last part advances the cursor and becomes the next wait.
+  the delivery; a large one comes in parts, and after the last part
+  `leaf delivery ack <delivery-id> && leaf wait` advances the cursor and starts the
+  next wait, which names the page again where no harness session holds it.
 - **The adapter**: one detached process per Codex task, on either transport, holding the
   task's wait lease and a lease of its own (`codex_adapter.py`).
 - **The host**: a harness that drives App Server itself, as the website's container

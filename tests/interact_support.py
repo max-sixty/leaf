@@ -2619,7 +2619,7 @@ def continued(output: str | dict) -> str:
 
 def printed(output: str) -> tuple[dict, dict, list[dict]]:
     """Read the one delivery a wait printed, for a harness whose wait is its watcher
-    (a bare shell, a Codex watcher): its reader confirms it with `wait --ack`."""
+    (a bare shell, a Codex watcher): its reader confirms it with `delivery ack`."""
     payload = json.loads(output)
     assert payload["format"] == delivery_model.DELIVERY.format
     assert payload["acknowledge"] is not None
@@ -2629,7 +2629,7 @@ def printed(output: str) -> tuple[dict, dict, list[dict]]:
 
 @pytest.fixture
 def codex_loop(monkeypatch):
-    """A Codex task running its own `leaf wait`/`leaf wait --ack` loop, the harness
+    """A Codex task running its own `leaf wait` loop, the harness
     session whose wait prints each delivery for its reader to confirm. This process,
     and every command it spawns, carries the task's identity in place of Claude
     Code's. Call the value with a page to record the task's claim on it: a claim
@@ -2652,7 +2652,7 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
             [stored[event["id"]] for event in events],
         )
     return delivery_model.freeze_delivery(
-        [batch], acknowledge=session_model.wait_acknowledgement(None)
+        [batch], acknowledge=session_model.wait_acknowledgement(None, page_dir)
     )
 
 

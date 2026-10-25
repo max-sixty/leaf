@@ -232,12 +232,12 @@ class Harness:
         return True
 
     @classmethod
-    def run_ack(cls, delivery_id: str) -> str:
-        """How the reader of this session's printed delivery runs the `leaf wait
-        --ack` that confirms it and goes on waiting: the verb phrase the
-        delivery's `acknowledge` ends with. A wait held in a background task is
-        the default."""
-        return f"start `leaf wait --ack {delivery_id}` as the next background task"
+    def run_ack(cls, command: str) -> str:
+        """How the reader of this session's printed delivery runs `command`, which
+        confirms it and goes on waiting: the verb phrase the delivery's
+        `acknowledge` ends with. A wait held in a background task is the
+        default."""
+        return f"start `{command}` as the next background task"
 
     @classmethod
     def hook_context(cls, event: str, message: str) -> dict:
@@ -472,8 +472,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
 # wait` already running in the task's shell tool, which the model reads by
 # writing to that session rather than by starting a second watcher.
 _POLL_UNIFIED_EXEC = (
-    "the existing shell session — `leaf wait` before the first batch or "
-    "the rearmed `leaf wait --ack` afterward — with `write_stdin`"
+    "the existing shell session running `leaf wait`, alone or after "
+    "`leaf delivery ack`, with `write_stdin`"
 )
 
 
@@ -650,13 +650,10 @@ class CodexHarness(EnvironmentHarness):
         return offer_hook_delivery(self.session, expected, received=event == "Stop")
 
     @classmethod
-    def run_ack(cls, delivery_id: str) -> str:
+    def run_ack(cls, command: str) -> str:
         """A Codex task's own wait lives in unified exec, the same session a
         watcher task or a direct loop polls."""
-        return (
-            f"run `leaf wait --ack {delivery_id}` in unified exec and poll it with "
-            "`write_stdin`"
-        )
+        return f"run `{command}` in unified exec and poll it with `write_stdin`"
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
         if listening:

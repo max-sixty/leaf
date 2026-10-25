@@ -1175,7 +1175,7 @@ def page_close(page_dir: Path) -> dict:
 
 
 @cli.command(
-    short_help="Confirm a delivery, if given, then wait for the next batch.",
+    short_help="Wait for the next batch.",
     help=(
         "Watch every page this session holds, or observe PAGE without taking "
         "ownership. Claim a foreign page explicitly with `leaf page claim`.\n\n"
@@ -1183,20 +1183,13 @@ def page_close(page_dir: Path) -> dict:
     ),
 )
 @page_argument(renew=False, required=False)
-@click.option(
-    "--ack",
-    metavar="DELIVERY_ID",
-    help="confirm receipt of this complete delivery before waiting",
-)
-def wait(page_dir: Path | None, ack: str | None) -> int:
-    """Confirm a delivery, if given, then wait for the next batch."""
+def wait(page_dir: Path | None) -> int:
+    """Wait for the next batch."""
     from leaf.leases import release_on_termination
     from leaf.session import cmd_wait
 
-    if page_dir is not None and ack is not None:
-        raise click.UsageError("PAGE and --ack cannot be used together")
     release_on_termination()
-    return cmd_wait(page_dir, ack=ack)
+    return cmd_wait(page_dir)
 
 
 def _obligation_option(command):

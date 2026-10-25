@@ -232,6 +232,7 @@ class DemoWaiter:
     rearms the wait. The demo itself stands in for the reader."""
 
     def __init__(self, page_dir: Path) -> None:
+        self.page_dir = page_dir
         self.process = subprocess.Popen(
             [*LEAF_COMMAND, "wait", str(page_dir)],
             stdout=subprocess.PIPE,
@@ -260,8 +261,14 @@ class DemoWaiter:
                 f"the demo waiter exited {self.process.returncode} without one batch "
                 f"of user events\n{stderr}".rstrip()
             )
+        if not hooked:
+            subprocess.run(
+                [*LEAF_COMMAND, "delivery", "ack", payload["id"]],
+                check=True,
+                capture_output=True,
+            )
         self.process = subprocess.Popen(
-            [*LEAF_COMMAND, "wait", *([] if hooked else ["--ack", payload["id"]])],
+            [*LEAF_COMMAND, "wait", *([] if harness else [str(self.page_dir)])],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

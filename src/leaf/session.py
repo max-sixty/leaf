@@ -424,19 +424,28 @@ class _WatchPass[DeliveryResult]:
     delivered: DeliveryResult | None = None
 
 
-def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
-    """What a `leaf wait` delivery tells its reader about acknowledging it.
+def wait_acknowledgement(
+    harness: Harness | None, page_dir: Path
+) -> Callable[[str], str]:
+    """What a `leaf wait` delivery of `page_dir` tells its reader about
+    acknowledging it.
 
-    Printing is not receipt, so the reader of the wait confirms it, in the way its
-    harness runs the next wait. It is stated once for the delivery, ahead of the
-    batches, where output cut off partway still shows it."""
+    Printing is not receipt, so the reader of the wait confirms it and starts the
+    next wait in one command, in the way its harness runs a wait; `&&` starts no
+    wait after a refused acknowledgement. A reader with no harness session names
+    the page again, since it has no ownership set for an unnamed wait to watch,
+    and its wait named one page, so the delivery carries that page alone. It is
+    stated once for the delivery, ahead of the batches, where output cut off
+    partway still shows it."""
+    rearm = "leaf wait" if harness else f"leaf wait {page_dir}"
     run_ack = (harness or Harness).run_ack
 
     def acknowledge(delivery_id: str) -> str:
+        command = f"leaf delivery ack {delivery_id} && {rearm}"
         return (
             "If the output was cut off, reread it with "
             f"`leaf delivery read {delivery_id}` and follow any `next` commands. "
-            f"Then, before any other work, {run_ack(delivery_id)}, which confirms "
+            f"Then, before any other work, {run_ack(command)}, which confirms "
             "this delivery and waits for the next. If you forward the delivery "
             "instead of handling it, acknowledge once it arrives where you sent it."
         )
@@ -452,7 +461,7 @@ def delivery_json(reading: PageTick, harness: Harness | None) -> str:
 
     payload = freeze_delivery(
         [batch_data(reading.page_dir, reading.transaction, reading.batch)],
-        acknowledge=wait_acknowledgement(harness),
+        acknowledge=wait_acknowledgement(harness, reading.page_dir),
     )
     return jsonl_line(delivery_reading(payload))
 
@@ -544,25 +553,18 @@ def wake_line(page_dir: Path, *, new_input: bool) -> str:
     )
 
 
-def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
-    """Confirm a complete delivery, if given, then watch for the next batch.
+def cmd_wait(page_dir: Path | None = None) -> int:
+    """Watch for the next batch.
 
-    A named wait observes that page without taking ownership. A receipt resumes
-    the session's current ownership set. A
-    standalone consumer watches the pages its delivery names. Exit 0 carries
-    the next immutable delivery; exit 2 names why the watch ended. A refused
-    receipt raises before a watch starts, leaving that page's cursor unchanged.
+    A named wait observes that page without taking ownership; an unnamed one
+    watches the session's current ownership set, and a consumer with no harness
+    session has none, so it names its page. Exit 0 carries the next immutable
+    delivery; exit 2 names why the watch ended.
     """
-    received = []
-    if ack is not None:
-        from .delivery import cmd_delivery_ack
-
-        received = cmd_delivery_ack(ack)
     # Leaf's work ends here; the watch that follows is the agent waiting.
     record_command("wait")
     harness = session_harness()
-    explicit = (page_dir,) if page_dir else tuple(received) if harness is None else ()
-    named = explicit[0] if len(explicit) == 1 else None
+    explicit = (page_dir,) if page_dir else ()
     watch = Watch(harness, pages=explicit)
     if not watch.acquire():
         target = "this session" if harness else ", ".join(map(str, explicit))
@@ -585,13 +587,13 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     try:
         while watch.holds():
             mark = watch.mark()
-            reading = read_watch_pass(watch, named, print_delivery)
+            reading = read_watch_pass(watch, page_dir, print_delivery)
             if reading.delivered is False:
                 break
             if reading.outcome is not None:
                 return reading.outcome
             if not reading.live:
-                return _ended_watch(reading.readings, named)
+                return _ended_watch(reading.readings, page_dir)
             watch.await_news(mark)
         note(Finding("watch-taken-over"))
         return 2

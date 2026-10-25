@@ -1450,7 +1450,7 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
     """A scheme switch starts the colour transitions of controls inside a closed
     disclosure too. Firefox never runs them while the disclosure stays closed, and they
     move no box, so the page settles; reading them as motion held `leaf-dev probe
-    --firefox` on live-progress until its 120 s limit."""
+    --browser firefox` on live-progress until its 120 s limit."""
     page = open_page(
         firefox_browser,
         serve(

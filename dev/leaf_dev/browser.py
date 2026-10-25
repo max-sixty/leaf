@@ -69,11 +69,11 @@ def headless_shell(**options):
 
 
 @contextmanager
-def headless_firefox():
-    """Playwright's Firefox, for a probe of a Gecko-only difference: some readers use
-    Leaf in Firefox, and the suite and `headless_shell` drive Chromium alone. A host
-    without it gets Playwright's own error, which names the install command."""
-    with sync_playwright() as playwright, playwright.firefox.launch() as browser:
+def headless_engine(name: str):
+    """Playwright's Firefox or WebKit, for a probe of an engine-specific difference:
+    readers use Leaf in both, and the suite and `headless_shell` drive Chromium. A host
+    without the engine gets Playwright's own error, which names the install command."""
+    with sync_playwright() as playwright, getattr(playwright, name).launch() as browser:
         yield browser
 
 

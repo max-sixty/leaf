@@ -15,8 +15,8 @@ and observed behavior from published compatibility data. A successful API
 adoption needs no entry. Resolved failures leave this list; reasons the current
 implementation still needs belong beside its code. Rewrite an entry when its
 status changes rather than appending the investigation's chronology.
-`uv run leaf-dev probe SOURCE --firefox` runs a probe or journey in Playwright's
-Firefox.
+`uv run leaf-dev probe SOURCE --browser firefox` (or `webkit`) runs a probe or
+journey in Playwright's Firefox or WebKit.
 
 Minor visual differences are acceptable when content remains readable and
 controls remain usable. Lost drafts, broken actions, inaccessible controls, and

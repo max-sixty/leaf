@@ -68,13 +68,15 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         # The element validates as the instance built from its attributes:
         # values as strings, flag attributes as True. HTML's two flag spellings
         # (bare and ="") both mean true; a literal value on a flag stays a string
-        # so it fails loudly rather than silently meaning true. `class` is the
-        # page's styling hook on any element, which no widget reads, so it is
-        # outside every schema; Leaf's own `lf-` classes are refused as markers.
+        # so it fails loudly rather than silently meaning true. `class` and `style`
+        # are the page's styling hooks on any element, outside every schema: no
+        # widget reads them, the runtime sets its own classes and custom properties
+        # beside the author's (`classList`, `style.setProperty`), and Leaf's own `lf-`
+        # classes are refused as markers.
         props = entry.get("properties", {})
         instance = {}
         for name, value in rec["attrs"].items():
-            if name in AUTHORED_ALLOCATIONS or name == "class":
+            if name in AUTHORED_ALLOCATIONS or name in ("class", "style"):
                 continue
             prop = props.get(name)
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"

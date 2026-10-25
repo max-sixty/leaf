@@ -119,6 +119,10 @@ stamped version that completes its widget:
 leaf page stamp <page> --text "…" --completes <widget-id>
 ```
 
+A start on the user's update, such as a widget action or a comment, ends with your
+answer to it. The stamped version that records a widget answer takes it in without
+`--completes`, which names only your own to-dos.
+
 ## Long-running work
 
 Follow the parent and worker roles in the main skill's "Stay responsive" section.

@@ -1,6 +1,7 @@
 /* The contents' initial drawing: the frame as the parser finishes the widget, and the
- * outline once the document it outlines has parsed, since its headings usually follow
- * it. A closed disclosure already has its final height. An authored open outline
+ * outline and its margin map once the document it outlines has parsed, since its
+ * headings usually follow it and each row's share is the length of the section it
+ * leads. A closed disclosure already has its final height. An authored open outline
  * depends on later headings, so its reading scope first paints once those inputs have
  * parsed, without waiting for behavior modules or the server's state. */
 import { drawToc, outlineDocument } from "../widgets/toc-view.js";
@@ -14,9 +15,11 @@ const reading = {
 };
 
 document.documentElement.lfInitial.register("lf-toc", (host, tools) => {
-  const drawing = drawToc(host, tools.generatedElement);
-  const outline = () =>
+  const drawing = drawToc(host, tools);
+  const outline = () => {
     tools.keeps(host, "data-lf-toc-empty", drawing.update(reading).length ? null : "");
+    drawing.measure();
+  };
   const doc = host.ownerDocument;
   if (doc.readyState === "loading") {
     const pending = host.hasAttribute("open") && outlineDocument(host);

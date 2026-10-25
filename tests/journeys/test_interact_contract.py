@@ -38,7 +38,6 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
-from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
@@ -312,10 +311,10 @@ def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
 
 def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
     """A practice page selects its own mode; invalid values stay child diagnostics."""
-    for declarations, valid, mode in (
-        ('data-annotations="page" data-rail="none"', True, "page"),
-        ("", True, "overlay"),
-        ('data-annotations="unknown"', False, None),
+    for declarations, valid, _mode in (
+        ('data-rail="none"', True, None),
+        ("", True, None),
+        ('data-rail="unknown"', False, None),
     ):
         source = PAGE.replace(
             "</main>",
@@ -323,13 +322,9 @@ def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
             "<h1>Child page</h1></template></main>",
         )
         (page_dir / "index.html").write_text(source)
-        parser = structure_model.SourceDocument(source)
-        [sample] = parser.samples
         status, findings = check_findings(page_dir)
         if valid:
             assert status == 0, findings
-            assert structure_model.annotation_mode(sample["document"]) == mode
-            assert structure_model.annotation_mode(parser) == "overlay"
         else:
             assert status == 1
             assert [(f.code, f.samples, f.values["value"]) for f in findings] == [

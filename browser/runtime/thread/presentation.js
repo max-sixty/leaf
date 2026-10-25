@@ -171,7 +171,6 @@ export function createThreadPresentation({
             readTargets();
             surfaces.commit();
             commitThreadSeats(batch);
-            surfaceView.composition.finishPlacement();
             // The margin is an owner of its own, with its own watcher; this pass only
             // refreshes it over the targets it moved, so what it reads is not this paint's.
             untracked(renderAnnotations);

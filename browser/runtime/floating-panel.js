@@ -495,19 +495,7 @@ export function createFloatingPanel({
   // and there while the user types (touch-controls.js, `stance`). Its seat keeps
   // room after a view closes, so news cannot shift the count chips under the reader.
   const exitSeat = el("div", "lf-fp-exit-seat");
-  // The anchored comment box's home on a page that draws its own annotations
-  // (`data-annotations="page"`), where the page gives the box no seat of its own
-  // (composing/surface.js, `responseHome`). While its composer is open it stands in the
-  // field's place, as each destination's own editor does there: its words go to a new
-  // thread on the passage it quotes, which the box says. The field comes back when the
-  // box closes, while a view is open above the row, whose field it is, and while the
-  // field quotes words selected on the page, which a press there comments on. Which of
-  // the two shows is the stylesheet's reading of the composer's own open state and the
-  // row's `data-offers` (floating-panel.css), so the box seated in the page, or put
-  // away, moves nothing here. Rejected: a view of its own above the row, which stood a
-  // second field over the panel's own.
-  const responseSeat = el("div", "lf-fp-response");
-  row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
+  row.append(leaf, field, rowNoticeSeat, quick, exitSeat);
 
   const CONNECTING = {
     tone: "",
@@ -4018,11 +4006,6 @@ export function createFloatingPanel({
     showForSample,
     captureCurrentLocation,
     restoreCurrentLocation,
-    // The anchored comment box opening in its home (`responseSeat`) clears the row for
-    // it, where the composer then takes the caret (composing/surface.js,
-    // `finishPlacement`).
-    responseHome: responseSeat,
-    revealResponse: clearRow,
     // Where the reader stood before stepping into the panel, while they are in it
     // (navigation.js, `currentItem`).
     heldPlace: () => (currentLocationIn(host) ? heldCurrentLocation : null),

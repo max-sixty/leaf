@@ -405,45 +405,23 @@
   /* What the field's draft carries, its attached images, hangs off the box rather
      than standing in it: the shelf stands just over the box's top edge, above the
      field's start, so attaching neither grows the box nor moves a word, in the page's
-     field, an open thread's reply and the comment box seated in the field's place
-     (`.lf-fp-response`) alike, one of which shows at a time. With a view open it hangs
+     field and an open thread's reply alike, one of which shows at a time. With a view open it hangs
      over the view's head. The user chose this on 19 October, comparing it live with the shelf taking
      a line of its own over the words, which grew the box by a line the one thumbnail
      left mostly empty, and with thumbnails shrunk into the row beside the words,
      which kept the box whole but made each picture a chip. */
-  :is(.lf-fp-field, .lf-fp-response) {
+  .lf-fp-field {
     anchor-name: --lf-fp-field;
   }
   /* The shelf's padding holds its pictures' shadows and removal reach (response.css),
      so the offsets take that padding back. */
-  :is(.lf-fp-field, .lf-fp-response) .lf-composer-media:not([hidden]) {
+  .lf-fp-field .lf-composer-media:not([hidden]) {
     position: fixed;
     bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-media-room));
     left: calc(anchor(--lf-fp-field left) - var(--lf-media-room));
     width: max-content;
     max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-media-room));
     margin: 0;
-  }
-  /* The anchored comment box on a page drawing its own annotations, standing in the
-     field's place while its composer is open and no view is open above the row
-     (floating-panel.js, `responseSeat`). While the field offers words selected on the
-     page (`data-offers`), the field stands there instead, so the finger that selected
-     them has its route to them, and the box comes back with its draft once they go. */
-  .lf-fp-response {
-    display: none;
-    flex: 1;
-    min-width: 0;
-    align-self: center;
-  }
-  .lf-floating-panel:not([data-open], [data-offers], [data-search])
-    .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
-    > .lf-fp-field {
-    display: none;
-  }
-  .lf-floating-panel:not([data-open], [data-offers], [data-search])
-    .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
-    > .lf-fp-response {
-    display: block;
   }
   /* One line, cut as the field's placeholder is, whatever passing notice it says. */
   .lf-fp-resolved {

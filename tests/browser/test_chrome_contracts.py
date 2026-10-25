@@ -516,7 +516,7 @@ def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, ser
     expect(page.locator("#words")).to_have_text("Revised words.")
 
 
-@pytest.mark.parametrize("mode", ["overlay", "page"])
+@pytest.mark.parametrize("mode", ["overlay"])
 def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve, mode):
     """Delivered sheets parse like their captured files in document and shadow stages.
 

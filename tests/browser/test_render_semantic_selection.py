@@ -310,8 +310,7 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
 def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     """Words a script selects are quoted in the panel's field, and only a press there
     comments on them: a Tab into the field writes on the page. A page draft hiding the
-    quote shows a Selection mode chip, and on a page drawing its own
-    annotations the field stands in an open comment box's place while it quotes."""
+    quote shows a Selection mode chip."""
     source = leaf_page(
         "Offered words",
         '<p id="first">The first passage holds its words.</p>'
@@ -347,39 +346,6 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     expect(composer).to_be_focused()
     expect(field).to_have_js_property("value", "A page note")
     expect(context).to_have_text("")
-
-    # Where the open box stands in the field's place, it leaves that place to the field
-    # while new words are offered.
-    page = open_page(
-        browser,
-        serve(source.replace("<body>", '<body data-annotations="page">', 1)),
-    )
-    offered = selection_field(page)
-    composer = page.locator(".lf-fab-input")
-    select("#first")
-    expect(offered).to_be_visible()
-    # A native selectionchange can deliver the next passage before the preceding
-    # press's handoff timer runs. Hold that ordering so the offer cannot depend on
-    # a second notification after the handoff ends.
-    page.clock.install(time=0)
-    page.clock.pause_at(1)
-    offered.click()
-    # Focus the native editor while its scheduled landing is also held.
-    composer.focus()
-    composer.blur()
-    page.evaluate("""async () => {
-      await new Promise(resolve => {
-        document.addEventListener('selectionchange', resolve, {once: true});
-        getSelection().selectAllChildren(document.querySelector('#second'));
-      });
-    }""")
-    page.clock.resume()
-    expect(offered).to_have_attribute(
-        "placeholder", "“A second passage comes after it.”"
-    )
-    offered.click()
-    expect(composer).to_be_focused()
-    expect(page.locator("#lf-composer-quote")).to_contain_text("A second passage")
 
 
 def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser, serve):

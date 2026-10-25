@@ -190,8 +190,6 @@ function shareUrl() {
 }
 const pageUrl = (path) => new URL(path, PAGE_ROOT).href;
 const offlinePayload = offlineMarker ? JSON.parse(offlineMarker.textContent || "null") : null;
-const allocation = (name) => document.body.getAttribute(name);
-const annotationMode = allocation("data-annotations") ?? "overlay";
 const offlineInteractive = offlinePayload !== null;
 const offlineState = () => offlineInteractive ? structuredClone(offlinePayload.state) : null;
 const offlineData = () => offlineInteractive ? offlinePayload.data : null;
@@ -282,4 +280,4 @@ const runtime = {
 const revisionLabel = (revision) => part.revisionLabels()[revision];
 
 //#endregion
-export { DELIVERY, LIVE_ROOT, PAGE_ROOT, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentLabel, agentName, annotationMode, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, layerRoot, offlineData, offlineInteractive, offlineState, pageClaimed, pageUrl, presentDocument, projectView, projectionRegionsPresented, queueWidgetUpdate, readApplication, readApplicationPresentation, readPart, revisionLabel, runtime, runtimeModule, runtimeResource, selectWidgets, setPresentationFailureReporter, shareUrl, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };
+export { DELIVERY, LIVE_ROOT, PAGE_ROOT, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentLabel, agentName, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, layerRoot, offlineData, offlineInteractive, offlineState, pageClaimed, pageUrl, presentDocument, projectView, projectionRegionsPresented, queueWidgetUpdate, readApplication, readApplicationPresentation, readPart, revisionLabel, runtime, runtimeModule, runtimeResource, selectWidgets, setPresentationFailureReporter, shareUrl, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };

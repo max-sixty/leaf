@@ -213,31 +213,3 @@ the widget's threads to the margin until the next pass.
 
 `threadSurface(this).open(datum)` opens the comment box on one of the widget's data
 items, in its outlet; Leaf keeps the draft and the sending.
-
-### Page annotation presentation
-
-On a page whose `body` has `data-annotations="page"`, one element may supply the outlets
-for all of the page's threads with `placePageThreads(owner, render)`. Its `render` takes
-the same targets and returns the same array as `threadOutlets`, for passages and visual
-parts as well as data; a widget's own outlet still wins. Outlets stay inside the
-element, and if `render` fails, presentation fails.
-
-The same element can show obligations, updates, status and margin actions by registering
-`consumeAnnotations(owner, render)`. `render` runs synchronously after the conversations
-are placed, with the current inventory and a view:
-
-- `view.items(entry)` returns the items the owner's visible controls don't already
-  show, and `view.activate(item)` runs one. Key items by `contributionItemKey(item)`.
-- `view.controls(entry)` returns the contribution's real controls. Place those nodes,
-  not copies of their markup, so they keep their behavior. `view.controlKey(control)`
-  and `view.controlRecord(control)` name and describe one.
-- `view.arriving` is true while focus is on its way to an entry here; release held
-  layout so its control can be reached.
-- `view.place(entry, row)` ties a row to its source for commenting and Escape.
-
-Both registrations throw on other pages, and return handles with `read()`, `update()`
-and `unregister()`; register them in `whileConnected`. Keep rows keyed, and hold size
-changes back with `HeldReading` (`module-scroll-and-motion.md`, "Holding the reader's
-place") while updating surviving controls at once. An owner that scrolls inside its own
-box registers it as a reading region. Whatever the owner doesn't show stays in Threads
-and the On lists of Leaf's panel.

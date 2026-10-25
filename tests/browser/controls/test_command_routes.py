@@ -368,7 +368,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(result).to_have_text("8")
 
 
-@pytest.mark.parametrize("annotation_mode", ["overlay", "page"])
+@pytest.mark.parametrize("annotation_mode", ["overlay"])
 def test_widget_context_keys_work_without_an_obligation(
     browser, serve, annotation_mode
 ):

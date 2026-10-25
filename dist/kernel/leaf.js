@@ -2,7 +2,7 @@ import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_ex
 import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
 import { EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, uploadMedia, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-layer-client.js";
-import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
+import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
 import { DRAWING_COORDINATE_LIMIT, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, beginRead, commandSteps, composerOpen, composerQuote, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, leavesBox, mountApplication, mountHistory, notifyDataSubscribers, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, returnPlace, sendReaction, textField, threadInput, versionPicker, versionsReading } from "./runtime/bundle-answer.js";
@@ -780,7 +780,7 @@ function createEngagement({ hasPending, fabAnchorAt, targetPickerOpen }) {
 
 //#endregion
 //#region runtime/composing/surface.js
-function createResponseSurface({ rememberSelection, landIn, threadHere, threadAtCurrentLocation, replyThreadAtCurrentLocation, threadTarget, currentTarget, markAt, scrollToElement, scrollToRange, visualActionAnchor, designModeActive, designTarget, openOnDesign, isReactArmed, reactionContextContains, reactionTokens, setReact, openPageThread, drawModeActive, captureActive, refreshThread, dismissThreadView, pageComment, responseHome, revealResponseHome = null, createComment, landSent, wireInput, drawingEdits, createPlacement = null }) {
+function createResponseSurface({ rememberSelection, landIn, threadHere, threadAtCurrentLocation, replyThreadAtCurrentLocation, threadTarget, currentTarget, markAt, scrollToElement, scrollToRange, visualActionAnchor, designModeActive, designTarget, openOnDesign, isReactArmed, reactionContextContains, reactionTokens, setReact, openPageThread, drawModeActive, captureActive, refreshThread, dismissThreadView, pageComment, responseHome, createComment, landSent, wireInput, drawingEdits, createPlacement = null }) {
 	const hasOtherResponses = (anchor) => reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
 	const fabAnchor = Z(null);
 	let fabPoint = null;
@@ -1134,14 +1134,6 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 				if (fabInlineOutlet) scrollIntoView(fabInput, { block: "nearest" });
 			}))) endFabFocus();
 		});
-	}
-	function finishPlacement() {
-		if (placement || !revealResponseHome || fabBar.parentElement !== responseHome || !fabAnchor.value || !composerOpen) return;
-		if (!fabFocusHandoff?.intent.handoff(revealResponseHome)) {
-			answerFabPosition(false);
-			return;
-		}
-		answerFabPosition(true);
 	}
 	function openComment(anchor, text, options = {}) {
 		return composer.openComposer(anchor, text, options);
@@ -1502,7 +1494,6 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		fabAnchorAt,
 		seatFab,
 		restoreFab,
-		finishPlacement,
 		fabInlineOutlet: () => fabInlineOutlet,
 		mount
 	};
@@ -5249,8 +5240,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const rowNoticeSeat = el("div", "lf-fp-row-notice");
 	const quick = el("div", "lf-fp-quick");
 	const exitSeat = el("div", "lf-fp-exit-seat");
-	const responseSeat = el("div", "lf-fp-response");
-	row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
+	row.append(leaf, field, rowNoticeSeat, quick, exitSeat);
 	const CONNECTING = {
 		tone: "",
 		summary: "Connecting…",
@@ -7537,8 +7527,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		showForSample,
 		captureCurrentLocation,
 		restoreCurrentLocation,
-		responseHome: responseSeat,
-		revealResponse: clearRow,
 		heldPlace: () => currentLocationIn(host) ? heldCurrentLocation : null,
 		hoveredThread: () => {
 			const row = threadRows().find((candidate) => candidate.matches(":hover"));
@@ -10359,10 +10347,9 @@ if (validationEntry) {
 	validationEntry.lfNativeLayers = nativeLayers;
 }
 const recoverComposer = retainUserIntent({ since: 0 });
-const overlaySelected = annotationMode === "overlay";
-const annotationRenderer = overlaySelected ? await import("./runtime/bundle-annotation-overlay.js") : null;
-if (validationEntry && annotationRenderer) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
-annotationRenderer?.mountAnnotationControls();
+const annotationRenderer = await import("./runtime/bundle-annotation-overlay.js");
+if (validationEntry) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
+annotationRenderer.mountAnnotationControls();
 let app;
 let layout;
 let pageMapDialog;
@@ -10529,8 +10516,7 @@ app = mountApplication({
 		open: (...args) => responseSurface.commentOnTarget(...args),
 		outlet: () => responseSurface?.fabInlineOutlet() ?? null,
 		seat: (...args) => responseSurface.seatFab(...args),
-		restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
-		finishPlacement: () => responseSurface?.finishPlacement()
+		restore: (...args) => responseSurface?.restoreFab(...args) ?? false
 	},
 	landInThread: (...args) => landing.landInThread(...args),
 	landSent: (...args) => landing.landSent(...args),
@@ -10633,8 +10619,7 @@ responseSurface = createResponseSurface({
 	refreshThread: app.refreshThread,
 	dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
 	pageComment: generalComment,
-	responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
-	revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
+	responseHome: chromeRoot,
 	createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
 	landSent: landing.landSent,
 	wireInput: inputs.wireInput,

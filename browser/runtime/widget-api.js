@@ -90,13 +90,7 @@ export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
-export {
-  threadBox,
-  placePageThreads,
-  consumeAnnotations,
-  registerThreadPresentation,
-  threadActions,
-} from "./application.js";
+export { threadBox, registerThreadPresentation, threadActions } from "./application.js";
 export { readThreads } from "./thread/state.js";
 export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { turns as threadTurns } from "./thread/model.js";
@@ -131,10 +125,7 @@ export {
 } from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 export { excerptWords } from "./words.js";
-export {
-  CONTRIBUTION_ENTRY_SCHEMA,
-  contributionItemKey,
-} from "./contribution-model.js";
+export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export {
   contributionEntry,
   presentContributionEntry,

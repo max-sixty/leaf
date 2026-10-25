@@ -37,7 +37,6 @@ from render_harness import (
     panel_view,
     resized,
     round_trip,
-    select_words,
     sending,
     stamp_page,
     ticked,
@@ -4151,34 +4150,6 @@ def test_a_page_thread_opens_in_the_panel_from_the_page_s_routes(browser, serve)
     expect(reader.locator(".lf-msg")).to_contain_text("Is the window long enough?")
 
 
-PAGE_ANNOTATED = LONG_PAGE.replace("<body>", '<body data-annotations="page">', 1)
-
-
-def test_a_thread_the_page_draws_nowhere_opens_in_the_panel(browser, serve):
-    """On a page that draws no margin (`data-annotations="page"`), a thread about a
-    passage has nowhere on the page to open, so the panel is its home: `m` arrives at
-    the agent's question there, as `t` does at a thread, drawn by Leaf's reader in the
-    panel's thread view (#91)."""
-    url = serve(PAGE_ANNOTATED)
-    panel_comment(
-        serve.page_dir,
-        "Should the rollout pause on Fridays?",
-        anchor={"section": "p3", "quote": "Paragraph 3."},
-        author="agent",
-        question="Pause on Fridays?",
-    )
-    page = floating(browser, url)
-    reader = page.locator(panel_view("thread"))
-    page.locator("body").focus()
-    page.keyboard.press("m")
-    expect(reader.locator(".lf-msg")).to_contain_text("Should the rollout pause")
-    page.keyboard.press("Escape")
-    expect(reader).to_have_count(0)
-    page.locator("body").focus()
-    page.keyboard.press("t")
-    expect(reader.locator(".lf-msg")).to_contain_text("Should the rollout pause")
-
-
 def test_a_reply_s_widget_stands_in_its_card(browser, serve):
     """A thread's card beside its passage draws a reply carrying a widget whole, widget
     and all, and the panel stays shut."""
@@ -4318,59 +4289,6 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
 
 
-def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
-    """In a thread's view the head's words, the quote's and each message's start on one
-    edge, the quote's rule standing left of it. A rewrite's frame reaches back only as
-    far as that rule, so its words keep the message's and its frame stays clear of the
-    panel's edge."""
-    url = serve(PAGE_ANNOTATED)
-    panel_comment(
-        serve.page_dir,
-        "Is the window long enough?",
-        anchor={"section": "p3", "quote": "Paragraph 3."},
-    )
-    page = floating(browser, url)
-    page.locator("body").focus()
-    page.keyboard.press("t")
-    view = page.locator(panel_view("thread"))
-    expect(view.locator(".lf-msg")).to_contain_text("Is the window long enough?")
-    settled(page)
-    starts = """() => {
-      const edge = document.querySelector('.lf-fp-card').getBoundingClientRect().left;
-      const words = (node) => {
-        const text = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
-          acceptNode: (t) => (t.textContent.trim() ? 1 : 3),
-        }).nextNode();
-        const range = document.createRange();
-        range.selectNodeContents(text);
-        return range.getClientRects()[0].left - edge;
-      };
-      const view = document.querySelector('.lf-fp-view[data-view=thread]');
-      const quote = view.querySelector('.lf-fp-quote');
-      const frame = view.querySelector('.lf-msg-editor .lf-compose-field');
-      const text = frame?.querySelector('leaf-text');
-      return {
-        head: words(document.querySelector('.lf-fp-head')),
-        quote: words(quote),
-        message: words(view.querySelector('.lf-msg')),
-        rule: quote.getBoundingClientRect().left - edge,
-        frame: frame && frame.getBoundingClientRect().left - edge,
-        rewrite: text && text.getBoundingClientRect().left - edge
-          + parseFloat(getComputedStyle(text).paddingLeft),
-      };
-    }"""
-    at = page.evaluate(starts)
-    assert at["head"] == pytest.approx(at["quote"], abs=0.5), at
-    assert at["message"] == pytest.approx(at["head"], abs=0.5), at
-    assert 0 < at["rule"] < at["head"] - 4, at
-
-    view.locator(".lf-msg-body").dblclick()
-    expect(view.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    at = page.evaluate(starts)
-    assert at["rewrite"] == pytest.approx(at["message"], abs=0.5), at
-    assert at["frame"] == pytest.approx(at["rule"], abs=0.5), at
-
-
 def test_the_go_to_doors_open_the_panel_s_views(browser, serve):
     """`g T` and `g M` open Threads and On me in the panel, and the same keys put them
     away again."""
@@ -4417,48 +4335,6 @@ def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     expect(pages).to_have_count(0)
-
-
-def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row(
-    browser, serve
-):
-    """On a page that draws its own annotations and gives the comment box no seat, the
-    box for a comment on selected words stands in the field's place in the panel's row
-    while it is open, holding the caret. Its
-    comment sent, the panel opens the thread it started, which the page draws
-    nowhere, and the field is back in the row."""
-    page = floating(browser, serve(PAGE_ANNOTATED))
-    response = page.locator(".lf-fp-response")
-    select_words(page, "#p3")
-    page.keyboard.press("c")
-    box = response.locator("leaf-text")
-    expect(box).to_be_visible()
-    expect(box).to_be_focused()
-    expect(page.locator(".lf-fp-field")).to_be_hidden()
-    page.keyboard.type("Is this paragraph needed?")
-    # Send stands in the field's end corner, as in every comment box, not on a line
-    # of its own under the field.
-    send = response.locator(".lf-compose-submit").bounding_box()
-    words = box.bounding_box()
-    assert words["y"] <= send["y"] and send["y"] + send["height"] <= (
-        words["y"] + words["height"]
-    ), (send, words)
-    assert words["x"] + words["width"] / 2 < send["x"], (send, words)
-    assert send["x"] + send["width"] <= words["x"] + words["width"], (send, words)
-    # An image it is given hangs over the panel as the field's does, so the box and
-    # its words stay where they are.
-    card = page.locator(".lf-fp-card")
-    before = (card.bounding_box(), box.bounding_box())
-    paste_image(box, solid_png(40, 30, (255, 128, 64)))
-    picture = response.locator(".lf-composer-media-open")
-    expect(picture).to_have_count(1)
-    assert (card.bounding_box(), box.bounding_box()) == before
-    tile = picture.bounding_box()
-    assert tile["y"] + tile["height"] <= before[0]["y"], (tile, before)
-    page.keyboard.press("Enter")
-    reader = page.locator(panel_view("thread"))
-    expect(reader.locator(".lf-msg")).to_contain_text("Is this paragraph needed?")
-    expect(response).to_be_hidden()
 
 
 def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
@@ -4859,21 +4735,3 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     expect(field(page)).to_have_js_property("value", "Make it the weekend.")
     page.wait_for_timeout(300)
     expect(page.get_by_text("That writing place is unavailable")).to_have_count(0)
-
-
-@pytest.mark.parametrize("touch", [False, True])
-def test_the_comment_box_seated_in_the_row_keeps_its_line(browser, serve, touch):
-    """The comment box that stands in the field's place on a page drawing its own
-    annotations takes turns with the field, so it is the row's line tall too. Its own
-    resting height, the pointer's floor, once stood the row 10px taller under a
-    finger."""
-    context = browser.new_context(
-        viewport={"width": 1280, "height": 800}, has_touch=touch
-    )
-    page = open_page(browser, serve(PAGE_ANNOTATED), context=context)
-    row = page.locator(".lf-fp-row")
-    rest = row.bounding_box()["height"]
-    select_words(page, "#p3")
-    page.keyboard.press("c")
-    expect(page.locator(".lf-fp-response leaf-text")).to_be_focused()
-    assert row.bounding_box()["height"] == pytest.approx(rest, abs=0.5)

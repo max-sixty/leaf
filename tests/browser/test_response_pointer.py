@@ -14,7 +14,7 @@ from leaf import data as data_model
 @pytest.mark.parametrize("touch,width", [(False, 1280), (True, 390)])
 @pytest.mark.parametrize(
     "seat,reactions",
-    [("floating", True), ("panel", True), ("inline", True), ("inline", False)],
+    [("floating", True), ("inline", True), ("inline", False)],
 )
 def test_response_picker_keeps_the_comment_in_place(
     browser, serve, touch, width, seat, reactions

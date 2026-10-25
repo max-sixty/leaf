@@ -1,8 +1,6 @@
 /* The physical annotation renderer: pins, contextual floating placement, posted
  * drawing paint, marks and annotation visibility.
- * Boot imports this entry only for overlay presentation, so a page that presents its
- * own annotations (`data-annotations=page`) loads none of this closure; no other
- * runtime owner reaches it (`.dependency-cruiser.mjs`, `core-independent-of-overlay`).
+ * Boot imports this entry; no other runtime owner reaches it (`.dependency-cruiser.mjs`, `core-independent-of-overlay`).
  * Its factories share the core runtime's canonical owners.
  *
  * It lives in the kernel. #1652 placed it in the bundled default package, but every

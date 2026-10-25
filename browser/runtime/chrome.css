@@ -285,28 +285,16 @@
     border-radius: var(--r);
     --lf-wears-ring: 1;
   }
-  :is(.lf-fp-field, .lf-fp-response) {
+  .lf-fp-field {
     anchor-name: --lf-fp-field;
   }
-  :is(.lf-fp-field, .lf-fp-response) .lf-composer-media:not([hidden]) {
+  .lf-fp-field .lf-composer-media:not([hidden]) {
     position: fixed;
     bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-media-room));
     left: calc(anchor(--lf-fp-field left) - var(--lf-media-room));
     width: max-content;
     max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-media-room));
     margin: 0;
-  }
-  .lf-fp-response {
-    display: none;
-    flex: 1;
-    min-width: 0;
-    align-self: center;
-  }
-  .lf-floating-panel:not([data-open], [data-offers], [data-search]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
-    display: none;
-  }
-  .lf-floating-panel:not([data-open], [data-offers], [data-search]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-response {
-    display: block;
   }
   .lf-fp-resolved {
     flex: 1;

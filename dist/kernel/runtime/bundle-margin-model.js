@@ -360,10 +360,6 @@ function contributionEntryRecord(control) {
 	if (!record) throw new TypeError("A presented margin control needs a margin entry record");
 	return record;
 }
-function contributionControlKey(control) {
-	const { owner, key } = contributionEntryRecord(control);
-	return JSON.stringify([owner, key]);
-}
 function contributionEntrySource(control) {
 	const offered = controlContributions.get(control);
 	if (!offered) return null;
@@ -570,7 +566,6 @@ function contributionControl(offered, entryKey, surface = null, visible = false)
 	const surfaces = presented.get(offered);
 	for (const name of surface ? [surface] : [
 		"margin",
-		"page",
 		"map",
 		"inline"
 	]) {
@@ -1066,4 +1061,4 @@ function marginInventory(groups) {
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, KINDS, activateContributionControl, annotationItems, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, compareContributions, contributionControlKey, contributionEntries, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, contributionSource, entryControls, entryEngaged, entryHasMarginHost, focusedOfferOf, marginInventory, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, presentingContributions, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadMarks, threadReading, unreadIn, visibleContributionEntryLabel, watchContributions };
+export { CONTRIBUTION_ENTRY_SCHEMA, KINDS, activateContributionControl, annotationItems, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, compareContributions, contributionEntries, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, contributionSource, entryControls, entryEngaged, entryHasMarginHost, focusedOfferOf, marginInventory, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, presentingContributions, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadMarks, threadReading, unreadIn, visibleContributionEntryLabel, watchContributions };

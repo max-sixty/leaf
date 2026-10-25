@@ -103,10 +103,9 @@
     }
   },
   "$authored": {
-    "description": "The page-wide declarations an author writes for the runtime to read. `allocations` lists the attributes of `body` and their permitted values; a sample template carries them onto its child's body. `data-rail` says whether the page cedes its right margin to the overlay rail or keeps it for its own margin content, `data-annotations` whether Leaf's overlay or the page presents annotations. `page check` holds a page to this table (`structure.AUTHORED_ALLOCATIONS`), build/browser/contract-types.mjs types the runtime's readers by it, and `build/registry.test.mjs` holds every stylesheet selector that spells an allocation to it.",
+    "description": "The page-wide declarations an author writes for the runtime to read. `allocations` lists the attributes of `body` and their permitted values; a sample template carries them onto its child's body. `data-rail` says whether the page cedes its right margin to the overlay rail or keeps it for its own margin content. `page check` holds a page to this table (`structure.AUTHORED_ALLOCATIONS`), build/browser/contract-types.mjs types the runtime's readers by it, and `build/registry.test.mjs` holds every stylesheet selector that spells an allocation to it.",
     "allocations": {
-      "data-rail": ["right", "none"],
-      "data-annotations": ["overlay", "page"]
+      "data-rail": ["right", "none"]
     }
   },
   "$names": {

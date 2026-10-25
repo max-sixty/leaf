@@ -73,15 +73,6 @@ export const pageUrl = (path) => new URL(path, PAGE_ROOT).href;
 const offlinePayload = offlineMarker
   ? JSON.parse(offlineMarker.textContent || "null")
   : null;
-// This declaration participates in executable identity: changing it replaces this
-// document realm rather than switching initialized physical owners in place.
-/** @typedef {import("../framework/contract.js").AuthoredAllocations} Allocations */
-/** A page-wide allocation `body` states (`$authored`), or null where it states none.
- * @template {keyof Allocations} A @param {A} name @returns {Allocations[A] | null} */
-const allocation = (name) => /** @type {any} */ (document.body.getAttribute(name));
-/** @type {Allocations["data-annotations"]} */
-export const annotationMode = allocation("data-annotations") ?? "overlay";
-
 export const offlineInteractive = offlinePayload !== null;
 export const offlineState = () =>
   offlineInteractive ? structuredClone(offlinePayload.state) : null;

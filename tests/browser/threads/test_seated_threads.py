@@ -609,7 +609,7 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     ("resolved", "annotations"),
     # A page margin draws the card in the pass that takes the thread off the diff; an
     # overlay margin opens it afterwards, for the user carried there.
-    [(False, "overlay"), (True, "overlay"), (False, "page")],
+    [(False, "overlay"), (True, "overlay")],
 )
 def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     browser, serve, resolved, annotations

@@ -3252,9 +3252,7 @@ aside { --lf-margin-content: sidebar }
 aside.note { --lf-margin-content: note; display: none }
 </style>""",
         layout=None,
-    ).replace(
-        "<body>", '<body data-annotations="' + ("overlay" if rail else "page") + '">'
-    )
+    ).replace("<body>", "<body>" if rail else '<body data-rail="none">')
     context = browser.new_context(viewport={"width": 950, "height": 800})
     page = open_page(browser, serve(source), context=context)
     main = page.locator("main")

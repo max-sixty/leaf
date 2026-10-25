@@ -62,7 +62,6 @@ from .schema import (
 from .structure import (
     UTF8_BOM,
     SourceDocument,
-    annotation_mode,
     element_attrs,
     page_layout,
     rel_tokens,
@@ -706,14 +705,13 @@ def delivery_sheets(
             ("marks", "/runtime/marks.css"),
         )
     }
-    if annotation_mode(document) == "overlay":
-        sheets["annotations"] = {
-            name: rebase_css(resources[path].data.decode("utf-8"), path, address)
-            for name, path in (
-                ("chrome", "/runtime/annotation-overlay/annotation-chrome.css"),
-                ("marks", "/runtime/annotation-overlay/annotation-marks.css"),
-            )
-        }
+    sheets["annotations"] = {
+        name: rebase_css(resources[path].data.decode("utf-8"), path, address)
+        for name, path in (
+            ("chrome", "/runtime/annotation-overlay/annotation-chrome.css"),
+            ("marks", "/runtime/annotation-overlay/annotation-marks.css"),
+        )
+    }
     return runtime_element(
         "script",
         {"type": "application/json", "data-lf-sheets": True},
@@ -855,7 +853,7 @@ def compose_document(
     )
     # Physical page-side placement keeps the theme's lf-base contract, below package
     # and authored overrides. An adopted sheet would rank after those same defaults.
-    if delivery.runtime is not None and annotation_mode(document) == "overlay":
+    if delivery.runtime is not None:
         annotation_theme = rebase_css(
             resources["/runtime/annotation-overlay/annotation-theme.css"].data.decode(
                 "utf-8"

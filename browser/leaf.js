@@ -5,7 +5,7 @@ import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "./vendor/webawesome-chrome.js";
-import { offlineInteractive, runtime, annotationMode } from "./runtime/context.js";
+import { offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
@@ -171,16 +171,10 @@ if (validationEntry) {
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
 const recoverComposer = retainUserIntent({ since: 0 });
 
-// This declaration belongs to the executable document lifetime. The revision capture
-// includes it in executable identity, so selecting another presentation retires this
-// module graph through the ordinary document replacement and draft carry owners.
-const overlaySelected = annotationMode === "overlay";
-const annotationRenderer = overlaySelected
-  ? await import("./runtime/annotation-overlay/index.js")
-  : null;
-if (validationEntry && annotationRenderer)
+const annotationRenderer = await import("./runtime/annotation-overlay/index.js");
+if (validationEntry)
   validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
-annotationRenderer?.mountAnnotationControls();
+annotationRenderer.mountAnnotationControls();
 
 let app;
 let layout;
@@ -370,7 +364,6 @@ app = mountApplication({
     outlet: () => responseSurface?.fabInlineOutlet() ?? null,
     seat: (...args) => responseSurface.seatFab(...args),
     restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
-    finishPlacement: () => responseSurface?.finishPlacement(),
   },
   landInThread: (...args) => landing.landInThread(...args),
   landSent: (...args) => landing.landSent(...args),
@@ -501,8 +494,7 @@ responseSurface = createResponseSurface({
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
   pageComment: generalComment,
-  responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
-  revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
+  responseHome: chromeRoot,
   createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   wireInput: inputs.wireInput,

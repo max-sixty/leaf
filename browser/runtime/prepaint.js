@@ -824,13 +824,7 @@
     const allocate = (room, movable) => {
       const taken = { left: 0, right: 0 };
       const granted = [];
-      /** @type {Allocations["data-annotations"]} */
-      const annotations = pageAllocation("data-annotations") ?? "overlay";
-      if (
-        annotations === "overlay" &&
-        pageAllocation("data-rail") !== "none" &&
-        room.right >= need("--rail")
-      ) {
+      if (pageAllocation("data-rail") !== "none" && room.right >= need("--rail")) {
         granted.push("rail");
         taken.right = need("--rail");
       }

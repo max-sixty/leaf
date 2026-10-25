@@ -11,7 +11,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_cases_layout import token_colour
 from render_harness import (
-    draft_control,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -146,7 +145,7 @@ def _refreshes_restate_no_margin_name(page, population):
     assert refresh["pageBoxes"] > 0, refresh
 
 
-@pytest.mark.parametrize("annotations", ["overlay", "page"])
+@pytest.mark.parametrize("annotations", ["overlay"])
 def test_an_inline_contribution_name_needs_no_physical_margin(
     browser, serve, annotations
 ):
@@ -1131,28 +1130,3 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             "slot a target",
         ],
     }
-
-
-def page_annotation_action_source():
-    return leaf_page(
-        "Page-owned annotations",
-        """
-      <h1>Page-owned annotations</h1><p id="subject">A source for contributed actions.</p>
-      <lf-draft id="draft"><pre>A draft to revise.</pre></lf-draft>
-    """,
-    ).replace("<body>", '<body data-annotations="page">')
-
-
-def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
-    page = open_page(browser, serve(page_annotation_action_source()))
-    page.locator("#subject").hover()
-    page.keyboard.press("w")
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    edit = draft_control(page, "edit", "draft")
-    assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
-    edit.click()
-    expect(page.locator("#draft leaf-text")).to_be_focused()
-    draft_control(page, "cancel", "draft").click()
-    expect(edit).to_be_visible()
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    expect(page.locator(".lf-drawing-pending")).to_have_count(0)

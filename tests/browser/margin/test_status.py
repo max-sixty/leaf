@@ -426,7 +426,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(workflow).to_have_attribute("title", f"Working · {detail}")
 
 
-@pytest.mark.parametrize("annotations", ["margin", "page"])
+@pytest.mark.parametrize("annotations", ["margin"])
 def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
     browser, serve, annotations
 ):

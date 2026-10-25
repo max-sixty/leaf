@@ -69,7 +69,6 @@ from leaf.schema import (
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
-    annotation_mode,
     links_with_rel,
     script_kind,
 )
@@ -729,7 +728,6 @@ def _capture_artifact(
         _canonical_json(
             {
                 "generation": layer.get("generation"),
-                "annotations": annotation_mode(document),
                 "vocabulary": _digest(
                     _canonical_json(
                         {

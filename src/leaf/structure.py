@@ -863,16 +863,6 @@ def links_with_rel(links: list[dict], rel: str) -> list[dict]:
     return [link for link in links if rel.lower() in rel_tokens(link["attrs"])]
 
 
-def annotation_mode(document: SourceDocument) -> str:
-    """The document's selected annotation presentation; omission keeps the overlay.
-
-    This is immutable boot configuration, distinct from the tab's current annotation
-    visibility. A revision that changes it replaces the executable document lifetime.
-    """
-    body = document.tree.select_one("body")
-    return element_attrs(body).get("data-annotations", "overlay") if body else "overlay"
-
-
 def page_layout(document: SourceDocument, registry: Mapping):
     """The `layout-` names the document's `main` and the boxes under it that can be its
     Layout's carry (`layout-column` is `column`), space-separated, or None.

@@ -153,7 +153,6 @@ export function createResponseSurface({
   dismissThreadView,
   pageComment,
   responseHome,
-  revealResponseHome = null,
   createComment,
   landSent,
   wireInput,
@@ -747,24 +746,6 @@ export function createResponseSurface({
     });
   }
 
-  // Only a successful current Thread cohort may reveal the fallback home. Retirement
-  // and rollback still move the native editor there without authorizing navigation.
-  // An opening gesture keeps its original input generation through that preparation.
-  function finishPlacement() {
-    if (
-      placement ||
-      !revealResponseHome ||
-      fabBar.parentElement !== responseHome ||
-      !fabAnchor.value ||
-      !composerOpen
-    )
-      return;
-    if (!fabFocusHandoff?.intent.handoff(revealResponseHome)) {
-      answerFabPosition(false);
-      return;
-    }
-    answerFabPosition(true);
-  }
   function openComment(anchor, text, options = {}) {
     return composer.openComposer(anchor, text, options);
   }
@@ -1410,7 +1391,6 @@ export function createResponseSurface({
     fabAnchorAt,
     seatFab,
     restoreFab,
-    finishPlacement,
     fabInlineOutlet: () => fabInlineOutlet,
     mount,
   };

@@ -462,7 +462,7 @@ export function contributionControl(
   visible = false,
 ) {
   const surfaces = presented.get(offered);
-  for (const name of surface ? [surface] : ["margin", "page", "map", "inline"]) {
+  for (const name of surface ? [surface] : ["margin", "map", "inline"]) {
     const control = surfaces?.get(name)?.get(entryKey);
     if (control?.isConnected && (!visible || control.checkVisibility())) return control;
   }

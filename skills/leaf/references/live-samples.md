@@ -42,7 +42,7 @@ from the template. A sample's
 history is temporary, so use an ordinary Leaf page when the history must last. A page
 with a live sample can't be exported (`serving-pages.md`, "Exported files").
 
-To give the sample a page-wide setting such as `data-annotations="page"`, put it on the
+To give the sample a page-wide setting such as `data-rail="none"`, put it on the
 template.
 
 A thread message's `--markup` can carry a live sample too. It uses the layer of the

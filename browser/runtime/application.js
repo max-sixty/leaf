@@ -3,7 +3,7 @@
    Importing this module is inert. leaf.js supplies the concrete feature views once and
    mounts the application before widget upgrade; exported functions are stable closures
    for the public widget API and fail clearly if invoked before that boundary. */
-import { annotationMode, runtime } from "./context.js";
+import { runtime } from "./context.js";
 import {
   applicationState,
   setPresentationFailureReporter,
@@ -28,7 +28,6 @@ import {
   annotationSelection,
   createAnnotationInventory,
 } from "./annotation-inventory.js";
-import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
@@ -42,7 +41,6 @@ import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
 import { isMessageEvent } from "./pending/model.js";
 import {
-  placePageThreads as registerPageConsumer,
   renderSurfaces,
   watchThreadSurfaces as watchSurfaces,
 } from "./thread/surfaces.js";
@@ -432,36 +430,9 @@ export function mountApplication(dependencies) {
     composition: dependencies.compositionSurface,
     reveal: openPageThread,
   };
-  // data-annotations=page is the one switch that hands presentation to the page: both
-  // page consumers refuse a document that keeps Leaf's own margin.
-  const requirePageAnnotations = () => {
-    if (annotationMode !== "page")
-      throw new Error("Page annotation presentation requires data-annotations=page");
-  };
-  let annotationRegistration = null;
-  const consumeAnnotations = (owner, render) => {
-    requirePageAnnotations();
-    if (annotationRegistration)
-      throw new Error("The document already has a page annotation view");
-    const registration = Symbol("page annotation view");
-    annotationRegistration = registration;
-    const retire = () => {
-      if (annotationRegistration === registration) annotationRegistration = null;
-    };
-    try {
-      return createAnnotationView(owner, render, annotations, invalidateDom, retire);
-    } catch (error) {
-      retire();
-      throw error;
-    }
-  };
   // The widgets declaring x-thread-surface, registered for as long as they stand, once
   // the registry that names them has loaded.
   const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
-  const placePageThreads = (owner, render) => {
-    requirePageAnnotations();
-    return registerPageConsumer(owner, render, threadSurfaceCommands);
-  };
 
   // One reader is the page's primary at a time (thread/destination.js). Leaf's own
   // chrome registers one that yields (`registerChromeThreadPresentation`, which the
@@ -600,8 +571,6 @@ export function mountApplication(dependencies) {
     refreshThread,
     presentThread,
     watchThreadSurfaces,
-    placePageThreads,
-    consumeAnnotations,
     threadActions,
     queueActions,
     settlement: settlementView,
@@ -636,8 +605,6 @@ export const landInThread = (...args) => app().landInThread(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
-export const placePageThreads = (...args) => app().placePageThreads(...args);
-export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);
 export const threadActions = Object.freeze({

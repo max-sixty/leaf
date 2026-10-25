@@ -15,7 +15,6 @@ from render_cases_navigation import (
     TARGETS_PAGE,
 )
 from render_harness import (
-    PANEL_THREAD,
     leaf_page,
     open_page,
     panel_settled,
@@ -1098,39 +1097,6 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
     references = open_panel_thread(page, comment).locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}
-
-
-def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, serve):
-    source = leaf_page(
-        "Page ink",
-        '<h1>Page ink</h1><p id="subject" style="height:160px">Draw the bend beside these words.</p>',
-    ).replace("<body>", '<body data-annotations="page">')
-    page = open_page(browser, serve(source))
-    target = page.locator("#subject")
-    draw_over(page, target)
-    pending = page.locator(".lf-drawing-pending")
-    expect(pending).to_have_count(1)
-    assert pending.evaluate(
-        "el => el.getBoundingClientRect().width > 0 && getComputedStyle(el.querySelector('path')).strokeWidth === '3px'"
-    )
-    editor = page.locator(".lf-fab-input")
-    expect(editor).to_be_focused()
-    write(editor, "The bend I mean")
-    with sending(page, "the exact page-owned drawing"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    event = events_model.read_events(serve.page_dir)[-1]
-    assert event["kind"] == "comment"
-    assert event["anchor"] == {"section": "subject"}
-    assert event["drawing"]["strokes"]
-    expect(page.locator(".lf-drawing-pending")).to_have_count(0)
-    expect(page.locator(".lf-drawing-posted")).to_have_count(0)
-    expect(
-        page.locator(f"{PANEL_THREAD} .lf-msg").filter(has_text="The bend I mean")
-    ).to_be_visible()
-    expect(
-        page.locator(".lf-margin-layer, .lf-margin-cluster, .lf-margin-preview")
-    ).to_have_count(0)
-    expect(page.locator('[data-lf-command="annotations.toggle"]')).to_have_count(0)
 
 
 CLIPPED_DRAWING_PAGE = leaf_page(

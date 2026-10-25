@@ -336,7 +336,9 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
             return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
           })"""
     )
-    assert all(c["y"] == pytest.approx(centers[0]["y"], abs=1) for c in centers), centers
+    assert all(c["y"] == pytest.approx(centers[0]["y"], abs=1) for c in centers), (
+        centers
+    )
     assert centers[0]["x"] < centers[1]["x"] < centers[2]["x"], centers
     if thread_count == 2:
         row = preview.evaluate(

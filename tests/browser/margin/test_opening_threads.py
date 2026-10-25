@@ -1437,7 +1437,9 @@ def test_resolving_a_cells_thread_rings_the_whole_cell(browser, serve):
     assert ring["cuts"] == [], ring["cuts"]
 
 
-def test_open_in_panel_moves_the_cards_thread_and_its_reply_to_the_panel(browser, serve):
+def test_open_in_panel_moves_the_cards_thread_and_its_reply_to_the_panel(
+    browser, serve
+):
     """A card's Open in panel closes the card and opens its thread in the panel's view,
     the reply being written there along with it, and Show on page brings both back."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))

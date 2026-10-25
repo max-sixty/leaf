@@ -1809,6 +1809,12 @@ details {
   margin: var(--details-margin-block) 0;
   --lf-block-frame: trim;
 }
+details:has(+ details) {
+  margin-block-end: 0;
+}
+details + details {
+  margin-block-start: 0;
+}
 summary {
   cursor: pointer;
   font-weight: 600;

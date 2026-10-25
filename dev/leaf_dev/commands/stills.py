@@ -1123,6 +1123,11 @@ def steps_in_view(page: Page) -> None:
     page.locator("#security-contract-list").scroll_into_view_if_needed()
 
 
+def disclosures_in_view(page: Page) -> None:
+    """Two closed disclosures written one after the other at the page's end."""
+    page.locator("#security-source-disclosure").scroll_into_view_if_needed()
+
+
 def go_to(page: Page) -> None:
     """The Go-to sequence armed from the keyboard, its destinations on the line."""
     page.keyboard.press("g")
@@ -2063,6 +2068,7 @@ STATES = (
         steps_in_view,
         region="#security-contract-list",
     ),
+    State("stacked-disclosures", "security-boundary", disclosures_in_view),
     State(
         "alert-options-in-pane-touch",
         "alert-review",

@@ -1235,6 +1235,7 @@ function localQueues(served, workflows, todos, items, local) {
 			owner: item.next_actor,
 			subject: source.subject,
 			thread: item.thread,
+			also: [],
 			live: false
 		});
 	};

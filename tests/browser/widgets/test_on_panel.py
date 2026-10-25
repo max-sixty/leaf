@@ -24,7 +24,7 @@ from render_harness import (
     told,
 )
 
-from browser.navigation import expect_walk_position
+from browser.navigation import expect_walk_position, walk_position
 from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -532,3 +532,120 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     # Scroll anchoring restores the offset to the scroller's subpixel precision.
     after = read.bounding_box()
     assert after["y"] == pytest.approx(before["y"], abs=1), (before, after)
+
+
+# Two decisions, the first under a heading a thread can be anchored on.
+TWO_DECISIONS_PAGE = leaf_page(
+    "two decisions",
+    """<h1 id="title">Review</h1>
+<section id="timeline-ask"><h2>Land the timeline prototype?</h2>
+<lf-options id="timeline" choose>
+  <lf-option id="tl-land">Land it</lf-option>
+  <lf-option id="tl-keep">Keep it on its branch</lf-option>
+</lf-options></section>
+<lf-ask id="ship-ask"><h2>Ship on Friday?</h2>
+<lf-options id="ship" choose>
+  <lf-option id="ship-friday">Ship Friday</lf-option>
+  <lf-option id="ship-wait">Wait a week</lf-option>
+</lf-options></lf-ask>""",
+)
+
+
+def thread_about_the_timeline(d):
+    """The user's comment on the timeline decision, and the agent's answer, which leaves
+    the user the next move."""
+    root = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "These need previews.",
+            "anchor": {"section": "timeline-ask"},
+        },
+    )["id"]
+    reply = append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root,
+            "responds": root,
+            "text": "Previews added; try each before deciding.",
+            "obligation": True,
+        },
+    )["id"]
+    return root, reply
+
+
+def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
+    """An agent's answer that leaves the user a move, in a thread about a decision, is
+    one place with the decision: `m` stops there once and On me draws one card, the
+    decision's, carrying the answer. Choosing on the card keeps the answer there with
+    its Reply, rather than moving it to a card of its own above."""
+    url = serve(TWO_DECISIONS_PAGE)
+    _, reply = thread_about_the_timeline(serve.page_dir)
+    page = open_page(browser, url)
+    for decision, at in [("timeline", 1), ("ship-ask", 2), ("timeline", 1)]:
+        page.keyboard.press("m")
+        expect_walk_position(page, f"{at} of 2 waiting on me · Options")
+        expect(page.locator(f"#{decision}")).to_be_focused()
+    view = open_on_me(page)
+    cards = view.locator(".lf-fp-on-item")
+    expect(cards).to_have_count(2)
+    carrier = on_card(page, "widget:timeline")
+    expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")
+    before = on_card(page, "widget:ship").bounding_box()
+    carrier.get_by_role("button", name="Land it").click()
+    expect(carrier.locator(".lf-fp-said")).to_have_text("Answered: Land it")
+    expect(carrier.get_by_role("button", name="Reply")).to_be_visible()
+    told(page)
+    expect(cards).to_have_count(2)
+    expect(carrier.locator(".lf-fp-asked")).to_contain_text("Previews added")
+    assert on_card(page, "widget:ship").bounding_box()["y"] == pytest.approx(
+        before["y"], abs=1
+    )
+    # Opened afresh, the answer stands on its own card, until the user replies.
+    page.keyboard.press("Escape")
+    view = open_on_me(page)
+    expect(
+        view.locator(f'.lf-fp-on-item[data-key=\'["message","message:{reply}"]\']')
+    ).to_be_visible()
+
+
+def test_m_steps_off_a_decision_its_threads_card_stands_beside(browser, serve):
+    """A to-do in a thread about a decision is a stop of its own, though the thread's card
+    stands beside the decision: standing at the decision is being on the decision, so
+    `m` steps on from each to the next and reaches all three."""
+    url = serve(TWO_DECISIONS_PAGE)
+    root, _ = thread_about_the_timeline(serve.page_dir)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "todo",
+            "author": "agent",
+            "agent": "Claude",
+            "session": "previews",
+            "owner": "user",
+            "subject": {"kind": "thread", "id": root},
+            "title": "Try the previews",
+        },
+    )
+    page = open_page(browser, url)
+    reached = [None]
+    for _ in range(3):
+        page.keyboard.press("m")
+        walk_position(page)
+        page.wait_for_function(
+            "said => (window.__lfWalkPosition()?.text ?? null) !== said",
+            arg=reached[-1],
+        )
+        reached.append(walk_position(page)["text"])
+    reached = reached[1:]
+    assert sorted(reached) == [
+        "1 of 3 waiting on me · To-do",
+        "2 of 3 waiting on me · Options",
+        "3 of 3 waiting on me · Options",
+    ], reached

@@ -393,48 +393,51 @@ def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
     ]
 
 
-def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
-    """Hand each open obligation discussed by `anchors` to the agent.
+def discussed_by(anchor: dict, records: list[dict], within: dict) -> list[dict]:
+    """The obligations among `records` a thread anchored at `anchor` is about.
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
     every obligation whose prompt target (its enclosing widget) is the innermost to
     enclose it. So a note on one obligation's option, or on a part of a frame holding
-    one obligation, leaves its framed sibling with the user, while one on the frame's
-    heading or on a section holding the frame is about them all. `within` is the
-    document's containment (`Passages.enclosing`). A datum identity narrows an
-    owning widget's record obligations to the exact case being discussed.
+    one obligation, leaves its framed sibling out, while one on the frame's heading or on
+    a section holding the frame is about them all. `within` is the document's
+    containment (`Passages.enclosing`). A datum identity narrows an owning widget's
+    record obligations to the exact case being discussed.
     """
+    section = anchor["section"]
+    chain = within.get(section, ())
     items: dict[str, list[dict]] = {}
-    for record in records:
-        items.setdefault(record["source"]["id"], []).append(record)
     framed: dict[str, list[dict]] = {}
     for record in records:
+        items.setdefault(record["source"]["id"], []).append(record)
         framed.setdefault(record["prompt"]["target"], []).append(record)
+    item = next((items[i] for i in reversed(chain) if i in items), None)
+    about = (
+        item
+        if item is not None
+        else [
+            record
+            for record in records
+            if section in within.get(record["source"]["id"], ())
+        ]
+        or next((framed[i] for i in reversed(chain) if i in framed), [])
+    )
+    datum = anchor.get("identity", anchor.get("datum"))
+    return [
+        record
+        for record in about
+        if datum is None
+        or record["source"]["id"] != section
+        or "unit" not in record["source"]
+        or record["source"]["unit"] == datum
+    ]
+
+
+def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
+    """Hand each open obligation discussed by `anchors` (`discussed_by`) to the agent."""
     for anchor in anchors:
-        section = anchor["section"]
-        chain = within.get(section, ())
-        item = next((items[i] for i in reversed(chain) if i in items), None)
-        about = (
-            item
-            if item is not None
-            else [
-                record
-                for record in records
-                if section in within.get(record["source"]["id"], ())
-            ]
-            or next((framed[i] for i in reversed(chain) if i in framed), [])
-        )
-        datum = anchor.get("identity", anchor.get("datum"))
-        for record in about:
-            source = record["source"]
-            if (
-                datum is not None
-                and source["id"] == section
-                and "unit" in source
-                and source["unit"] != datum
-            ):
-                continue
+        for record in discussed_by(anchor, records, within):
             if record["next_actor"] == "user":
                 record["next_actor"] = "agent"
 

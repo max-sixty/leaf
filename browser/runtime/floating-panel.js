@@ -2570,6 +2570,7 @@ export function createFloatingPanel({
   // the pointer that opened it.
   let queueTab = "you";
   let seated = null; // queue item keys present in the open On view
+  const carrying = new Map(); // what each card in the open On view carries (`also`)
   // The height each seated card first stood at, which it keeps while seated, so an
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
@@ -2733,7 +2734,7 @@ export function createFloatingPanel({
         </section>`,
     );
 
-  function onItemCard(item, list) {
+  function onItemCard(item, list, also = item.also) {
     const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     // A question asked in words is a message in its thread, and reads as that message,
@@ -2759,6 +2760,21 @@ export function createFloatingPanel({
         ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText
         : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
+    // The other questions the user answers at this card's place (`also`): further
+    // messages its thread's reply answers, and on an obligation's card those asked in a
+    // thread about it, so an answer about a decision rides on the decision. Each reads
+    // as its message, as a question asked in words does above.
+    const carried = (also ?? []).flatMap((id) => {
+      const other = readObligations().all.find((candidate) => candidate.id === id);
+      const where = other?.thread ? threadByKey(other.thread) : null;
+      const asked = where?.msgs.find((candidate) => candidate.id === other.message);
+      return asked ? [{ record: other, thread: where, message: asked }] : [];
+    });
+    const conversation = thread ?? carried[0]?.thread ?? null;
+    // A carried question still waiting once the card's own is answered.
+    const waiting = carried.find(
+      ({ record: other }) => other.status === "open" && other.next_actor === "user",
+    );
     // Where the thread's name stands for the card, it reads as Threads names the thread
     // (`threadHeading`).
     const heading =
@@ -2769,11 +2785,11 @@ export function createFloatingPanel({
         ? obligationView.choicesOf(record)
         : null;
     const gesture = answered ? answerGesture(record) : null;
-    const discuss = thread
+    const discuss = conversation
       ? html`<button
           type="button"
           class="lf-fp-face lf-fp-quiet"
-          @click=${() => open({ view: "thread", thread: thread.key })}
+          @click=${() => open({ view: "thread", thread: conversation.key })}
         >
           Discuss
         </button>`
@@ -2819,6 +2835,16 @@ export function createFloatingPanel({
                 @click=${() => withdraw(gesture)}
               >
                 Undo
+              </button>`
+            : nothing
+        }${
+          waiting
+            ? html`<button
+                type="button"
+                class="lf-fp-face lf-fp-answer"
+                @click=${() => open({ view: "thread", thread: waiting.thread.key })}
+              >
+                Reply
               </button>`
             : nothing
         }`;
@@ -2886,7 +2912,17 @@ export function createFloatingPanel({
             ? html`<h3 class="lf-fp-on-title">${heading}</h3>
                 <p class="lf-fp-prompt">${prompt}</p>`
             : html`<p class="lf-fp-prompt">${heading}</p>`
-      }
+      }${carried.map(({ thread: where, message: asked }) =>
+        presentation?.primary !== false
+          ? html`<div
+              class="lf-fp-asked lf-fp-outlet"
+              data-thread=${where.key}
+              data-message=${asked.key}
+            ></div>`
+          : html`<p class="lf-fp-prompt">
+              ${messageReading(asked, { reactions: [], workflows: [] }).body.plainText}
+            </p>`,
+      )}
       <div class="lf-fp-answers">
         ${answers}${discussHere ? discuss : nothing}${show}
       </div>
@@ -2932,9 +2968,23 @@ export function createFloatingPanel({
     // since. They stand in the walk's order, a card joining included, so `m` reaches
     // them down the list; a card joining above the one being read moves nothing on
     // screen, since the view's scroll anchoring holds the card in view where it was.
+    // A card carries the records it carried when the view opened or since (`also`)
+    // until the view closes, so where answering a decision leaves a thread's answer
+    // about it on a row of its own, the answer stays on the card the user pressed,
+    // which offers its reply, rather than moving to a card of its own.
+    if (seated === null) carrying.clear();
+    for (const item of lists[queueTab]) {
+      const key = queueItemKey(item);
+      carrying.set(key, [
+        ...new Set([...(carrying.get(key) ?? []), ...(item.also ?? [])]),
+      ]);
+    }
+    const carried = new Set((seated ?? []).flatMap((key) => carrying.get(key) ?? []));
     seated = [
       ...(seated ?? []).filter((key) => byKey.has(key)),
-      ...current.filter((key) => !(seated ?? []).includes(key)),
+      ...current.filter(
+        (key) => !(seated ?? []).includes(key) && !carried.has(byKey.get(key).id),
+      ),
     ];
     const listOf = (item) =>
       lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
@@ -2942,7 +2992,9 @@ export function createFloatingPanel({
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
     return html`${
       items.length
-        ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item)))
+        ? repeat(items, queueItemKey, (item) =>
+            onItemCard(item, listOf(item), carrying.get(queueItemKey(item))),
+          )
         : html`<p class="lf-fp-empty">
             Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
           </p>`

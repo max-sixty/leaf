@@ -220,7 +220,9 @@ leaf page state <page> | jq '{source, obligations, todos, queues}'
 
 `queues.on_user` is On me. `queues.on_agent` is your list: the updates you owe a
 reply or a version, and your to-dos. Read them as given rather than rebuilding them
-from events. A row names its obligation or to-do by `id`. An obligation's record in
+from events. A row names its obligation or to-do by `id`, and in `also` the other
+obligations the user answers at the same place: an answer of yours in a thread about a
+decision rides on the decision's row. An obligation's record in
 `obligations` holds its `prompt`, its `answer` once given, its `status` and its
 `next_actor`, and a widget's obligation takes its answer from the widget's state; a
 to-do's record in `todos` holds its `title` and the start `running` on it.

@@ -4469,12 +4469,10 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 	}
 	const stopsOf = (region) => region ? stopsWithin(region) : stops();
 	function currentLocationStop(list, origin = currentLocationOrigin()) {
-		const held = threadHere();
-		const thread = drawnThreadId(held);
-		if (thread) {
-			const stop = list.find((candidate) => candidate.kind === "thread" && candidate.id === thread);
-			if (stop) return stop;
-		}
+		const threadStop = (thread) => thread && list.find((candidate) => candidate.kind === "thread" && candidate.id === thread) || null;
+		return threadStop(drawnThreadId(heldThread())) ?? placeStop(list, origin) ?? threadStop(drawnThreadId(threadHere()));
+	}
+	function placeStop(list, origin) {
 		if (origin?.kind !== "current-location") return null;
 		const { place: here } = origin;
 		if (!here) return null;
@@ -6661,6 +6659,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let queueTab = "you";
 	let seated = null;
+	const carrying = /* @__PURE__ */ new Map();
 	const seatHeights = /* @__PURE__ */ new Map();
 	const QUEUE_TABS = Object.freeze({
 		you: "user",
@@ -6768,7 +6767,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ${goal.steps.map(planStep)}
           </ol>
         </section>`);
-	function onItemCard(item, list) {
+	function onItemCard(item, list, also = item.also) {
 		const record = carriesObligation(item) ? item.obligation : null;
 		const thread = item.thread ? threadByKey(item.thread) : null;
 		const inWords = record !== null && answeredInWords(record);
@@ -6780,16 +6779,28 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			workflows: []
 		}).body.plainText : record?.prompt?.text;
 		const prompt = said && said.trim() !== title.trim() ? said : "";
+		const carried = (also ?? []).flatMap((id) => {
+			const other = readObligations().all.find((candidate) => candidate.id === id);
+			const where = other?.thread ? threadByKey(other.thread) : null;
+			const asked = where?.msgs.find((candidate) => candidate.id === other.message);
+			return asked ? [{
+				record: other,
+				thread: where,
+				message: asked
+			}] : [];
+		});
+		const conversation = thread ?? carried[0]?.thread ?? null;
+		const waiting = carried.find(({ record: other }) => other.status === "open" && other.next_actor === "user");
 		const heading = thread && title === threadName(thread) ? threadHeading(thread) : title;
 		const answered = record && record.status !== "open";
 		const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
 		const gesture = answered ? answerGesture(record) : null;
-		const discuss = thread ? html`<button
+		const discuss = conversation ? html`<button
           type="button"
           class="lf-fp-face lf-fp-quiet"
           @click=${() => open({
 			view: "thread",
-			thread: thread.key
+			thread: conversation.key
 		})}
         >
           Discuss
@@ -6822,6 +6833,15 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                 @click=${() => withdraw(gesture)}
               >
                 Undo
+              </button>` : nothing}${waiting ? html`<button
+                type="button"
+                class="lf-fp-face lf-fp-answer"
+                @click=${() => open({
+				view: "thread",
+				thread: waiting.thread.key
+			})}
+              >
+                Reply
               </button>` : nothing}`;
 		} else if (choices?.length) answers = html`${choices.map((choice) => html`<button
             type="button"
@@ -6871,7 +6891,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                 data-thread=${thread.key}
                 data-message=${message.key}
               ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
-                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
+                <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}${carried.map(({ thread: where, message: asked }) => presentation?.primary !== false ? html`<div
+              class="lf-fp-asked lf-fp-outlet"
+              data-thread=${where.key}
+              data-message=${asked.key}
+            ></div>` : html`<p class="lf-fp-prompt">
+              ${messageReading(asked, {
+			reactions: [],
+			workflows: []
+		}).body.plainText}
+            </p>`)}
       <div class="lf-fp-answers">
         ${answers}${discussHere ? discuss : nothing}${show}
       </div>
@@ -6902,11 +6931,17 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		];
 		const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
 		const current = lists[queueTab].map(queueItemKey);
-		seated = [...(seated ?? []).filter((key) => byKey.has(key)), ...current.filter((key) => !(seated ?? []).includes(key))];
+		if (seated === null) carrying.clear();
+		for (const item of lists[queueTab]) {
+			const key = queueItemKey(item);
+			carrying.set(key, [.../* @__PURE__ */ new Set([...carrying.get(key) ?? [], ...item.also ?? []])]);
+		}
+		const carried = new Set((seated ?? []).flatMap((key) => carrying.get(key) ?? []));
+		seated = [...(seated ?? []).filter((key) => byKey.has(key)), ...current.filter((key) => !(seated ?? []).includes(key) && !carried.has(byKey.get(key).id))];
 		const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
 		const items = inWalkOrder(seated.map((key) => byKey.get(key)));
 		const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
-		return html`${items.length ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
+		return html`${items.length ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item), carrying.get(queueItemKey(item)))) : html`<p class="lf-fp-empty">
             Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
           </p>`}${finished.length ? html`<h3 class="lf-fp-on-done">Done</h3>
             ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}` : nothing}`;

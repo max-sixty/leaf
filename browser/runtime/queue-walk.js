@@ -84,6 +84,7 @@ import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
 import { carriesObligation, itemNoun } from "./queues.js";
+import { heldThread } from "./thread/focus.js";
 import { drawnThreadId } from "./thread/selectors.js";
 import { effect, untracked } from "/vendor/browser-runtime.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -205,19 +206,29 @@ export function createQueueWalk({
   // list's obligations holding their place, as `obligationHolding` reads obligations, so
   // a to-do the user ended leaves them on the one its subject stands in, or the
   // innermost widget an action was handed back on, in page order the last that holds
-  // them. Being in
+  // them; failing those, the thread drawn with their place (`threadHere`). A thread
+  // drawn beside an obligation, such as the card a thread about it opens, is one place
+  // with it, so standing at the obligation is being on the obligation, and a thread stop
+  // of its own is still the next one along rather than the one they are on. Being in
   // a thread that holds an open obligation is not being on that obligation. `origin` names
   // the user's place unless a walk supplies its own starting point. A reading
   // in the viewport can start a walk but does not select a task to finish or count.
   function currentLocationStop(list, origin = currentLocationOrigin()) {
-    const held = threadHere();
-    const thread = drawnThreadId(held);
-    if (thread) {
-      const stop = list.find(
-        (candidate) => candidate.kind === "thread" && candidate.id === thread,
-      );
-      if (stop) return stop;
-    }
+    const threadStop = (thread) =>
+      (thread &&
+        list.find(
+          (candidate) => candidate.kind === "thread" && candidate.id === thread,
+        )) ||
+      null;
+    return (
+      threadStop(drawnThreadId(heldThread())) ??
+      placeStop(list, origin) ??
+      threadStop(drawnThreadId(threadHere()))
+    );
+  }
+
+  // The obligation or subject stop holding the user's place, if any.
+  function placeStop(list, origin) {
     if (origin?.kind !== "current-location") return null;
     const { place: here } = origin;
     if (!here) return null;

@@ -562,6 +562,64 @@ def lists(state) -> tuple[list, list, list]:
     )
 
 
+def test_on_me_lists_one_row_for_each_place_the_user_answers_at():
+    """A thread's reply answers every question asked in it, so they share its row, and a
+    thread about a decision is one place with it, so its row rides on the decision's.
+    Each record still settles by its own rule: answering the decision leaves the
+    thread's questions on their own row until the user replies."""
+    document = model.leaf_page(
+        "Questions",
+        '<p id="intro">Context.</p><section id="case"><h2>Which route?</h2>'
+        + OPTIONS.format(attrs="choose")
+        + "</section>",
+    )
+
+    def asked(thread, anchor, *replies):
+        return [
+            {
+                "kind": "comment",
+                "id": thread,
+                "author": "user",
+                "text": "Show me.",
+                "anchor": {"section": anchor},
+            },
+            *(
+                {
+                    "kind": "reply",
+                    "id": reply,
+                    "author": "agent",
+                    "parent": thread,
+                    "responds": thread,
+                    "text": "Try it before choosing.",
+                    "obligation": True,
+                }
+                for reply in replies
+            ),
+        ]
+
+    events = asked("about", "case", "r1", "r2") + asked("aside", "intro", "r3")
+
+    def rows(state):
+        return sorted(
+            (row["id"], row["also"]) for row in state["views"]["1"]["queues"]["on_user"]
+        )
+
+    assert rows(model.reading(document, events)) == [
+        ("message:r3", []),
+        ("widget:choice", ["message:r1", "message:r2"]),
+    ]
+    chosen = {
+        "kind": "action",
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"value": ["a"]},
+    }
+    assert rows(model.reading(document, [*events, chosen])) == [
+        ("message:r1", ["message:r2"]),
+        ("message:r3", []),
+    ]
+
+
 FRAMED = model.leaf_page(
     "Questions",
     '<p id="intro">Context.</p><section id="case">'

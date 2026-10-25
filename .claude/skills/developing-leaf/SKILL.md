@@ -11,7 +11,8 @@ absolute launcher; a bare `leaf` may run the installed plugin instead.
 
 Before writing words the user sees, such as a label, status line or placeholder, or
 naming anything they operate or an identifier for one, read `references/glossary.md`,
-Leaf's canonical vocabulary and the voice its visible copy speaks in.
+Leaf's canonical vocabulary and the voice its visible copy speaks in. A control may
+need no words at all (`<root>/browser/AGENTS.md`, "Visual grammar").
 
 ## Read the owning contract
 

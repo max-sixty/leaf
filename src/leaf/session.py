@@ -5,6 +5,7 @@ loads the HTTP server only to revive a dead one. Status writes use those same
 projections without importing a server. Receipt remains `delivery`'s."""
 
 import contextlib
+import shlex
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -31,7 +32,12 @@ from .presence import nudge_unwatched, turn_ending
 from .refusals import Refused
 from .registry.kernel import kinds_declaring
 from .schema import ANSWER_INSTRUCTION
-from .served_state.reading import outside_inputs, page_input, page_reading
+from .served_state.reading import (
+    outside_inputs,
+    page_input,
+    page_reading,
+    page_roots,
+)
 from .server import read_service, running_server
 from .service import PageTransaction, owned_pages, unacknowledged
 from .state import (
@@ -49,20 +55,26 @@ from .state import (
 REVIVAL_CHECK_S = 5
 
 
-def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
+def cmd_waiting(page_dir: Path) -> dict:
     """Keep the page open for feedback, which puts down every start that stands
-    (`todos.item_starts`), and return the declaration's record, with the updates
-    still owed an answer, which the page goes on showing over it."""
+    (`todos.item_starts`), and return the declaration's record. The updates still
+    owed an answer, which the page goes on showing over it, are noted with the
+    command that answers each."""
+    from .activity import answer_command
     from .revisioning import activate_source
     from .served_state.context import read_page
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
-        status = page.set_status("waiting", detail)
-        return status, read_page(page_dir, page.events).work.obligations
+        status = page.set_status("waiting")
+        owed = read_page(page_dir, page.events).work.obligations
+    if owed:
+        answers = [answer_command(item["answer"], page_dir) for item in owed]
+        note(Finding("page-open-owes", values={"answers": answers}, severity="advice"))
+    return status
 
 
-def cmd_idle(page_dir: Path, detail: str) -> dict:
+def cmd_idle(page_dir: Path) -> dict:
     """Idle, putting down every start that stands, unless the page still owes its
     user an answer.
 
@@ -112,10 +124,10 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             raise Refused(
                 f"{len(todos)} open to-do{'s' if len(todos) != 1 else ''}: {named}. "
                 "End each before closing with "
-                '`leaf task end <page> <id> done "<where the result is>"`, or '
-                '`dropped "<why>"`.'
+                '`leaf task end <page> <id> done --text "<where the result is>"`, or '
+                '`dropped --text "<why>"`.'
             )
-        return page.set_status("idle", detail)
+        return page.set_status("idle")
 
 
 class PageTick(NamedTuple):
@@ -229,27 +241,32 @@ class Watch:
         """What the next pass starts from, taken before it reads, so a write that
         lands during the pass moves the stamps `await_news` compares against."""
         pages = tuple(self.watched)
-        discovery = self.discovery_targets()
-        targets = discovery | {
-            target for page in pages for target in outside_inputs(page)
-        }
-        if self.session_id:
-            targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
-        targets.update(path.resolve() for path in self.lease_paths)
-        roots = {self.claims: False}
-        roots.update({target.parent: False for target in targets})
-        for page in pages:
-            roots[page.parent] = False
-            roots[page] = True
-        key = (pages, frozenset(targets))
-        if (
-            self.changes is None
-            or key != self.change_pages
-            or not self.changes.matches(roots)
-        ):
+
+        def plan():
+            discovery = self.discovery_targets()
+            targets = discovery | {
+                target for page in pages for target in outside_inputs(page)
+            }
+            if self.session_id:
+                targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
+            targets.update(path.resolve() for path in self.lease_paths)
+            roots = {self.claims: False}
+            roots.update({target.parent: False for target in targets})
+            for page in pages:
+                roots.update(page_roots(page))
+            return discovery, (pages, frozenset(targets)), roots
+
+        def holds(key, roots):
+            return (
+                self.changes is not None
+                and key == self.change_pages
+                and self.changes.matches(roots)
+            )
+
+        def install(key, roots):
             if self.changes is not None:
                 self.changes.close()
-            watched = target_paths(targets)
+            watched = target_paths(key[1])
             self.changes = FileChanges(
                 roots,
                 lambda changed: (
@@ -260,9 +277,20 @@ class Watch:
                 ),
             )
             self.change_pages = key
-        # Stamp the subscribed set. A locator added during installation must
-        # differ at the next comparison, so its target is subscribed in turn.
-        return (list(pages), self.reading(discovery), self.changes.mark())
+
+        while True:
+            discovery, key, roots = plan()
+            if not holds(key, roots):
+                install(key, roots)
+            # Stamp the subscribed set. A locator added during installation must
+            # differ at the next comparison, so its target is subscribed in turn.
+            reading = self.reading(discovery)
+            generation = self.changes.mark()
+            # The roots follow each page's subdirectories, so a plan taken after
+            # the generation must still match: one created before it is
+            # subscribed now, and one created after it wakes the wait.
+            if holds(*plan()[1:]):
+                return (list(pages), reading, generation)
 
     def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> bool:
         """Return True once anything the pass since `mark` read has moved, or False
@@ -418,19 +446,28 @@ class _WatchPass[DeliveryResult]:
     delivered: DeliveryResult | None = None
 
 
-def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
-    """What a `leaf wait` delivery tells its reader about acknowledging it.
+def wait_acknowledgement(
+    harness: Harness | None, page_dir: Path
+) -> Callable[[str], str]:
+    """What a `leaf wait` delivery of `page_dir` tells its reader about
+    acknowledging it.
 
-    Printing is not receipt, so the reader of the wait confirms it, in the way its
-    harness runs the next wait. It is stated once for the delivery, ahead of the
-    batches, where output cut off partway still shows it."""
+    Printing is not receipt, so the reader of the wait confirms it and starts the
+    next wait in one command, in the way its harness runs a wait; `&&` starts no
+    wait after a refused acknowledgement. A reader with no harness session names
+    the page again, since it has no ownership set for an unnamed wait to watch,
+    and its wait named one page, so the delivery carries that page alone. It is
+    stated once for the delivery, ahead of the batches, where output cut off
+    partway still shows it."""
+    rearm = "leaf wait" if harness else shlex.join(["leaf", "wait", str(page_dir)])
     run_ack = (harness or Harness).run_ack
 
     def acknowledge(delivery_id: str) -> str:
+        command = f"leaf delivery ack {delivery_id} && {rearm}"
         return (
             "If the output was cut off, reread it with "
             f"`leaf delivery read {delivery_id}` and follow any `next` commands. "
-            f"Then, before any other work, {run_ack(delivery_id)}, which confirms "
+            f"Then, before any other work, {run_ack(command)}, which confirms "
             "this delivery and waits for the next. If you forward the delivery "
             "instead of handling it, acknowledge once it arrives where you sent it."
         )
@@ -446,7 +483,7 @@ def delivery_json(reading: PageTick, harness: Harness | None) -> str:
 
     payload = freeze_delivery(
         [batch_data(reading.page_dir, reading.transaction, reading.batch)],
-        acknowledge=wait_acknowledgement(harness),
+        acknowledge=wait_acknowledgement(harness, reading.page_dir),
     )
     return jsonl_line(delivery_reading(payload))
 
@@ -538,25 +575,18 @@ def wake_line(page_dir: Path, *, new_input: bool) -> str:
     )
 
 
-def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
-    """Confirm a complete delivery, if given, then watch for the next batch.
+def cmd_wait(page_dir: Path | None = None) -> int:
+    """Watch for the next batch.
 
-    A named wait observes that page without taking ownership. A receipt resumes
-    the session's current ownership set. A
-    standalone consumer watches the pages its delivery names. Exit 0 carries
-    the next immutable delivery; exit 2 names why the watch ended. A refused
-    receipt raises before a watch starts, leaving that page's cursor unchanged.
+    A named wait observes that page without taking ownership; an unnamed one
+    watches the session's current ownership set, and a consumer with no harness
+    session has none, so it names its page. Exit 0 carries the next immutable
+    delivery; exit 2 names why the watch ended.
     """
-    received = []
-    if ack is not None:
-        from .delivery import receive_delivery
-
-        received = receive_delivery(ack)
     # Leaf's work ends here; the watch that follows is the agent waiting.
     record_command("wait")
     harness = session_harness()
-    explicit = (page_dir,) if page_dir else tuple(received) if harness is None else ()
-    named = explicit[0] if len(explicit) == 1 else None
+    explicit = (page_dir,) if page_dir else ()
     watch = Watch(harness, pages=explicit)
     if not watch.acquire():
         target = "this session" if harness else ", ".join(map(str, explicit))
@@ -579,13 +609,13 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     try:
         while watch.holds():
             mark = watch.mark()
-            reading = read_watch_pass(watch, named, print_delivery)
+            reading = read_watch_pass(watch, page_dir, print_delivery)
             if reading.delivered is False:
                 break
             if reading.outcome is not None:
                 return reading.outcome
             if not reading.live:
-                return _ended_watch(reading.readings, named)
+                return _ended_watch(reading.readings, page_dir)
             watch.await_news(mark)
         note(Finding("watch-taken-over"))
         return 2

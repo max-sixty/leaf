@@ -1,6 +1,6 @@
 $ leaf thread reply --text Answer
 exit: 2
-{"error": "Missing argument 'REFERENCE_OR_PAGE'.", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]"}
+{"error": "Missing argument 'REFERENCE_OR_PAGE'.", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]"}
 
 $ leaf thread reply /page user-1 --text Answer
 exit: 1
@@ -24,15 +24,7 @@ exit: 0
 
 $ leaf thread reply /page user-1 --text Follow-up --done
 exit: 2
-{"error": "use an answer reference with --done; use `leaf thread reply <answer.ref>`", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]"}
-
-$ leaf thread reply /page user-1 --text Follow-up --failure offline
-exit: 2
-{"error": "use an answer reference with --failure; use `leaf thread reply <answer.ref>`", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]"}
-
-$ leaf thread reply /page user-1 --text Follow-up --attempt retry
-exit: 2
-{"error": "use an answer reference with --attempt; use `leaf thread reply <answer.ref>`", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]"}
+{"error": "use an answer reference with --done; use `leaf thread reply <answer.ref>`", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]"}
 
 $ leaf thread reply /page user-1 --text Follow-up --obligation
 exit: 0

@@ -314,7 +314,7 @@ def test_a_stop_leaves_input_arriving_at_the_end_to_a_turn_of_its_own(
     place of the answer the turn had written. The turn ends on its answer, and the
     watch, which wakes once the turn closes, gives the input a turn whose prompt
     hook hands it over."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     turn = service_model.page_claim(claimed)["turn"]
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "and this?"}
@@ -345,7 +345,7 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, printing, cap
     and the turn it hands the input to is the one still running, not closed, and
     not closed and reopened as another. The repeated Stop that follows with
     nothing new is the turn really ending."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
@@ -416,10 +416,11 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(
 def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     claimed, printing, tmp_path, monkeypatch, capsys
 ):
-    """The hook confirms a delivery only for the pages its session still holds as
-    it confirms, and hands what it could not confirm to its reader as a pointer. A
-    page another session took after capture keeps its input pending, and once this
-    session holds it again, its next hook hands that input over."""
+    """The hook records a delivery only for the pages its session still holds as it
+    records, and hands over inline only what it recorded: a pointer in its place
+    would leave opened pickups the next hook confirms though the model read none of
+    them. A page another session took after capture keeps its input pending, and
+    once this session holds it again, its next hook hands that input over."""
     moved = tmp_path / "a-moved"  # ahead of `claimed` in the walk's path order
     shutil.copytree(claimed, moved)
     assert service_model.claim_page(moved)
@@ -440,14 +441,13 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
 
     monkeypatch.setattr(hook_transport_model, "freeze_delivery", freeze_then_transfer)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    [delivery_id] = re.findall(
-        r'<leaf-delivery id="(\w+)"', continued(capsys.readouterr().out)
-    )
-    delivery = delivery_model.read_delivery(delivery_id)
-    assert [batch["page"] for batch in delivery["batches"]] == [
-        str(moved),
+    opening, envelope, *_ = continued(capsys.readouterr().out).split("\n")
+    assert opening == hook_transport_model.INLINE_OPENING
+    [batch] = json.loads(envelope)["batches"]
+    assert (batch["page"], [event["id"] for event in batch["events"]]) == (
         str(claimed),
-    ]
+        [comments[claimed]["id"]],
+    )
     assert service_model.page_claim(moved)["id"] == "s2"
     assert acknowledged_through(moved) == 0
     assert all(e["kind"] != "pickup" for e in events_model.read_events(moved))
@@ -513,6 +513,109 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     assert acknowledged_through(claimed) == last_deliverable_seq(claimed)
 
 
+def test_a_pointer_is_handed_once_per_turn_until_its_reader_confirms(
+    claimed, printing, capsys
+):
+    """A pointer leaves its input unconfirmed, so a later tool boundary of the same
+    turn would freeze that input again and point at it under a new id: the model
+    read the same input twice, two to four times a turn. A tool boundary carries
+    only new input, so it hands nothing from a page whose pointer this turn has
+    not confirmed, and the page's later input follows once the reader confirms."""
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    boundary = {"hook_event_name": "PostToolBatch", "session_id": "s1"}
+    large = append_carried_log_record(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "x" * harness_model.ClaudeCodeHarness.hook_context_bytes,
+        },
+    )
+    hooks_model.cmd_hook("claude-code", prompt)
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [delivery_id] = re.findall(r'<leaf-delivery id="(\w+)"', context)
+
+    later = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "And this"}
+    )
+    hooks_model.cmd_hook("claude-code", boundary)
+    assert capsys.readouterr().out == ""
+    assert acknowledged_through(claimed) < large["seq"]
+
+    confirmed = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery_id])
+    assert confirmed.exit_code == 0, confirmed.output
+    assert acknowledged_through(claimed) == large["seq"]
+    hooks_model.cmd_hook("claude-code", boundary)
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = json.loads(context.split("\n")[1])["batches"]
+    assert [event["id"] for event in batch["events"]] == [later["id"]]
+
+    # A new turn's prompt hands over again whatever a pointer left unconfirmed.
+    unread = append_carried_log_record(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "y" * harness_model.ClaudeCodeHarness.hook_context_bytes,
+        },
+    )
+    hooks_model.cmd_hook("claude-code", boundary)
+    [pointed] = re.findall(
+        r'<leaf-delivery id="(\w+)"',
+        json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"],
+    )
+    cleanup_model.close_session_turn("s1")
+    hooks_model.cmd_hook("claude-code", prompt)
+    # The delivery leads; reminders of the answers owed follow it.
+    again, *_ = re.findall(
+        r'<leaf-delivery id="(\w+)"',
+        json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"],
+    )
+    assert again != pointed
+    [batch] = delivery_model.read_delivery(again)["batches"]
+    assert [event["id"] for event in batch["events"]] == [unread["id"]]
+
+
+def test_a_prompt_that_reopens_the_turn_lets_its_tool_boundary_point_again(
+    claimed, printing, capsys
+):
+    """Escape drops a prompt with its hook's pointer, and Claude Code submits it
+    again into the same turn. Whether or not that prompt's own hook hands the input
+    over, the pointer the dropped one carried reached no model, so the reopened
+    turn's tool boundary points at the input again."""
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "x" * harness_model.ClaudeCodeHarness.hook_context_bytes,
+        },
+    )
+
+    def handed_a_pointer() -> bool:
+        context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+        return bool(
+            re.findall(r'<leaf-delivery id="(\w+)"', context["additionalContext"])
+        )
+
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    assert handed_a_pointer()
+    turn = cleanup_model.session_record("s1")["turn"]
+    time.sleep(0.002)  # `turn_opened` counts milliseconds
+    cleanup_model.prompt_turn("s1")
+    assert cleanup_model.session_record("s1")["turn"] == turn
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "PostToolBatch", "session_id": "s1"}
+    )
+    assert handed_a_pointer()
+
+
 def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
     """Leaf's Pi extension adds a hook's context to the session at any size, so
     input too large for Claude Code's context reaches Pi's whole and confirmed."""
@@ -538,7 +641,7 @@ def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
 
 def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkeypatch):
     """Ownership transfer before the planner's page lock belongs to the new owner."""
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     discover = hook_transport_model.owned_pages
 
     def transfer(session_id):
@@ -699,7 +802,7 @@ def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(
     owed answer. That prompt is the reminder on record, so a turn that ends owing
     the same answer again wakes nothing more."""
     serving(claimed, 1)
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
     )
@@ -774,7 +877,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     (page / "index.html").write_text(source)
     publish(page)
-    session_model.cmd_waiting(page, "")
+    session_model.cmd_waiting(page)
     observations = {}
 
     def hook(name):
@@ -1319,8 +1422,8 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
 ):
     """A hook that waited on a page's lock into its harness's timeout would have
     its output discarded after confirming the pages before it. So it waits for a
-    receipt's locks only until CONFIRM_WITHIN, and leaves a page still locked then
-    to the reader of the pointer it hands over, having confirmed the rest."""
+    receipt's locks only until CONFIRM_WITHIN, hands over the pages it recorded, and
+    leaves the input of a page still locked then pending for a later hook."""
     monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", 2.0)
     sibling = tmp_path / "sibling"  # after `claimed` in the walk's path order
     vendoring_model.cmd_init(sibling)
@@ -1346,13 +1449,9 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
             "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
         )
         assert time.monotonic() - started < 2 * hook_transport_model.CONFIRM_WITHIN
-        [delivery_id] = re.findall(
-            r'<leaf-delivery id="(\w+)"', continued(capsys.readouterr().out)
-        )
-        envelope = delivery_model.read_delivery(delivery_id)
-        assert [batch["page"] for batch in envelope["batches"]] == [
-            str(claimed.resolve()),
-            str(sibling.resolve()),
+        _, envelope, *_ = continued(capsys.readouterr().out).split("\n")
+        assert [batch["page"] for batch in json.loads(envelope)["batches"]] == [
+            str(claimed.resolve())
         ]
     finally:
         held.__exit__(None, None, None)

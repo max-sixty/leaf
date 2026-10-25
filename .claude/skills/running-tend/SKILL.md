@@ -151,6 +151,11 @@ which GitHub records as a cancelled run whose `test` job has no runner (`runner_
 0); that is not a regression. A `test` that held a runner and still ended cancelled
 hit its timeout, and that is a failure.
 
+The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
+can't reproduce. For a failure only that job shows, the failing run is the evidence
+from before the fix. For the evidence from after it, dispatch `ci` on the fix's branch
+(`gh workflow run ci --ref <branch>`) and read that run's `test-macos` job.
+
 ## Cloudflare logs
 
 `CLOUDFLARE_API_TOKEN` is the `Leaf observability (Tend CI)` token in

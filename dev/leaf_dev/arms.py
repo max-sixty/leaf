@@ -181,11 +181,18 @@ def run_leaf(
 
 @contextmanager
 def serving(arm: Path, state: Path, page: Path):
-    """Serve `page` with the arm's `leaf server run --temporary` under the state home
+    """Serve `page` with the arm's `leaf server run --lifetime temporary` under the state home
     `state`, and yield the tokened URL it prints. Retirement joins the owned process
     through its active requests and sample cleanup before the caller reuses its page."""
     server = subprocess.Popen(
-        [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
+        [
+            str(arm / "bin" / "leaf"),
+            "server",
+            "run",
+            "--lifetime",
+            "temporary",
+            str(page),
+        ],
         env=environment(XDG_STATE_HOME=str(state)),
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,

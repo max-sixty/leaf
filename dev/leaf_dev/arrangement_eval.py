@@ -18,6 +18,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import time
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,8 +26,10 @@ from pathlib import Path
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.render_gate import command as render_command_model
 from leaf.service import requires_agent_attention
 from leaf.thread import successful_replies
+from leaf.user_views import read_user_views
 from leaf_dev import ROOT, arrangement_plain
 from leaf_dev.arms import (
     MODELS,
@@ -224,9 +227,32 @@ def latest_seq(page: Path) -> int:
     return max((e["seq"] for e in events), default=0)
 
 
+def open_as_user(run: Run, url: str) -> None:
+    """Open the handed-over Leaf page once at the run's first window, as the user
+    who said "I'll open it" would, and wait until the page has recorded that view.
+
+    The author's `page check --render` reads the desktop at the window a browser last
+    reported for the page (`render_gate.command.desktop_viewport`), so in use it
+    checks the user's window. Here the browser user first opens the page in the
+    comment phase, and until then every render check read the fixed laptop window
+    while the user's stated window was 1600×1000: authors hunted for a way to
+    change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's source,
+    in 8 of 12 width revisions on 2026-10-24."""
+    viewport = next(iter(run.widths.values()))[0]
+    with headless_shell() as browser, tab(browser, viewport=viewport) as view:
+        load(view, url)
+        deadline = time.monotonic() + 20
+        while not read_user_views(run.authored_page, None)["sessions"]:
+            if time.monotonic() > deadline:
+                raise RuntimeError(f"the page recorded no view of {url}")
+            view.wait_for_timeout(250)
+
+
 def author(run: Run, cwd: Path) -> None:
     """Run the sample's live session through its phases, preserving each phase's
-    page, and stop any server it left running."""
+    page, and stop any server it left running. Its render checks read the user's
+    window once the page is handed over (`open_as_user`), not the fixed one the
+    harness pins for its own checks (`arms.environment`)."""
     cwd.mkdir(parents=True, exist_ok=True)
     fixtures = pinned_copy(TASKS / run.subject)
     if fixtures is not None and fixtures.is_dir():
@@ -249,6 +275,7 @@ def author(run: Run, cwd: Path) -> None:
             {
                 "PATH": environment(payload=run.payload)["PATH"],
                 "XDG_STATE_HOME": str(run.state),
+                render_command_model.PIN_VARIABLE: "",
             }
             if leaf
             else {}
@@ -277,6 +304,8 @@ def author(run: Run, cwd: Path) -> None:
                     break
                 if leaf and not live.url:
                     break
+                if leaf and phase == 1:
+                    open_as_user(run, live.url)
     finally:
         if leaf:
             run.leaf("server", "stop", str(page))

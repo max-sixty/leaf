@@ -1182,8 +1182,18 @@ def test_render_reads_widget_chrome_where_it_stands(
         ("clipped-offer", (360, 1920))
     ], failures
     assert all(f.values["by"] == "<div id=clipped-holder>" for f in clipped), clipped
+    # The planted button speaks through a hand-written data-lf-said with no data-lf-gen,
+    # so a comparison reads its words as the option's author's, and as changed.
+    changed = [f for f in failures if f.code == "read-as-changed"]
+    assert [(f.at, f.values["words"][:30]) for f in changed] == [
+        ("<lf-option id=c-lax>", "Lax, host-only Lax cookie Host")
+    ], failures
     words = sorted(
-        {(f.code, f.at, f.values["words"]) for f in failures if f not in pair + clipped}
+        {
+            (f.code, f.at, f.values["words"])
+            for f in failures
+            if f not in pair + clipped + changed
+        }
     )
     assert words == [
         ("chrome-words", "<lf-badge id=rp-badge>", "Sent by the reviewer"),
@@ -1260,7 +1270,7 @@ def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
     url = serve(LONG_PAGE)
     d = serve.page_dir
     posted = subprocess.run(
-        [*LEAF_COMMAND, "thread", "open", str(d), "--text", "See this."]
+        [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
         + ["--markup", '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>'],
         capture_output=True,
         text=True,

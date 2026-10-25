@@ -343,7 +343,7 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
         page.keyboard.press("?")
         page.get_by_role("combobox", name="Search commands").fill("g u")
         route = page.locator(
-            '.lf-command-reference tr[data-lf-command="thread.unread.first"]'
+            '.lf-command-reference [role=row][data-lf-command="thread.unread.first"]'
         )
         expect(route.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "u"])
     with sending(page, "authored reply read"):

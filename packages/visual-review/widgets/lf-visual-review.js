@@ -101,6 +101,7 @@ customElements.define(
         {
           id: "visual.next-case",
           title: "Next case",
+          travels: true,
           keys: ["n"],
           when: () => this.#entries.size > 1,
           run: () => this.#step(1),
@@ -108,6 +109,7 @@ customElements.define(
         {
           id: "visual.previous-case",
           title: "Previous case",
+          travels: true,
           keys: ["Shift+n"],
           when: () => this.#entries.size > 1,
           run: () => this.#step(-1),

@@ -18,8 +18,8 @@ ORPHAN_GRACE_SECS = 1
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
 ANSWER_INSTRUCTION = (
-    "`leaf page state <page>` lists what is owed, and `leaf page state <page> <id>` "
-    "reads a thread's history."
+    "`leaf page state <page>` lists what is owed, and "
+    "`leaf page state <page> <message>` reads a thread's history."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, thread context, and response "

@@ -403,7 +403,7 @@
         --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
         --lf-top-outer: var(--lf-top);
       }
-      /* It sticks and scrolls what it holds, as a sidebar page's track block does
+      /* It sticks and scrolls what it holds, as a sidebar page's track body does
        * (Sticking blocks, below). */
       :is(
           :scope[data-lf-margin~="sidebar"],
@@ -741,24 +741,24 @@
     flex: 2 1 30rem;
     margin-block: 0;
   }
+  /* A track keeps what it holds in view beside the scrolling body: the box the runtime
+   * gathers its blocks into (`data-lf-track-body`, prepaint.js `holdTrack`) sticks below
+   * the window's head room and any tab strip, scrolls what it holds within the window,
+   * and stays inside the track, which runs its flex line's height, so it never stands
+   * over a footer or a later line. The track itself, a flex item, would be bounded by
+   * the whole flex container. The track never scrolls, so it keeps its flex sizing.
+   * Whether the track stands beside the body depends on widths no query reads, so the
+   * margin reading marks it (`data-lf-beside`, prepaint.js `marginContentLayout`). Like a
+   * margin sidebar, the body restarts the slot and landing band, keeps the ring's room,
+   * anchors no reading, and is a reading region of the Layout's own. */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
     flex: 1 1 18rem;
     --lf-margin-content: track;
-  }
-  /* A track holding one block keeps it in view beside the scrolling body: sticky below
-   * the window's head room and any tab strip, scrolling what it holds within the window, and only
-   * inside its own flex line. The track itself never scrolls, so it keeps its flex
-   * sizing. Whether the track stands beside the body depends on widths no query reads,
-   * so the margin reading marks it (`data-lf-beside`, prepaint.js `marginContentLayout`). Like a
-   * margin sidebar, the block restarts the slot and landing band, keeps the ring's room,
-   * anchors no reading, and is a reading region of the Layout's own. */
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
-    > aside:has(> :only-child) {
     align-self: stretch;
   }
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
     > aside
-    > :only-child {
+    > [data-lf-track-body] {
     --lf-reading-region: layout;
   }
   @media screen {
@@ -766,12 +766,12 @@
       --lf-top-outer: var(--lf-top);
     }
     /* A widget's track: a box a widget generates beside what it serves, such as a
-     * playground's rail beside its stage, marked `data-lf-track`. It sticks as a track
-     * block does (module-scroll-and-motion.md, "Reading regions"). */
+     * playground's rail beside its stage, marked `data-lf-track`. It sticks as a track's
+     * body does (module-scroll-and-motion.md, "Reading regions"). */
     :has(> [data-lf-track]) {
       --lf-top-outer: var(--lf-top);
     }
-    /* Sticking blocks: a column's sidebar in the margin, a sidebar page's track block
+    /* Sticking blocks: a column's sidebar in the margin, a sidebar page's track body
      * beside the body and a widget's track stand below the window's head room and any tab
      * strip, and scroll what they hold within the window below that, so each restarts
      * `--lf-top` and its landing band (theme.css), a focused link keeps the ring's room
@@ -802,7 +802,7 @@
           > aside.sidebar:nth-child(1 of aside.sidebar),
         :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
           > aside[data-lf-beside]
-          > :only-child,
+          > [data-lf-track-body],
         [data-lf-track] {
           position: sticky;
           --lf-head-inset: 0px;

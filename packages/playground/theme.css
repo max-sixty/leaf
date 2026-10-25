@@ -387,20 +387,22 @@
   text-align: end;
 }
 
-/* The instruction's copy is a code block's (lf-playground.js), at its pane's corner
- * beside the title, and shows as a code block's does, while the pointer is over the
- * pane or the user is in it; it stands in the pane's header, so the header's own hover
- * alone would not reach it. It stands inside the pane, so the pane places it rather
- * than the anchor `copyBlock` names: Playwright Firefox drew the anchored copy 20 to
- * 365 px above the pane in three of the four bundled playgrounds on 2026-10-24,
- * where Chromium placed it on the corner. */
+/* The instruction's copy is a code block's (lf-playground.js), a toolbar of one mark on
+ * its pane's top border at the right, as a code block's stands on its block's
+ * (integration.css, `.lf-mark-bar`), and shows as a code block's does, while the
+ * pointer is over the pane or the user is in it. It stands inside the pane, so the pane
+ * places it rather than the anchor `copyBlock` names: Playwright Firefox drew the
+ * anchored copy 20 to 365 px above the pane in three of the four bundled playgrounds on
+ * 2026-10-24, where Chromium placed it on the corner. The insets are the padding box's,
+ * inside the pane's 1px border. */
 .lf-playground-instruction-region {
   position: relative;
 }
 .lf-playground-instruction-region .lf-code-copy {
-  top: var(--lf-code-copy-inset);
-  right: var(--lf-code-copy-inset);
+  top: 0;
+  right: calc(var(--lf-mark-bar-end) - 1px);
   left: auto;
+  translate: 0 calc(-50% - 0.5px);
 }
 .lf-playground-instruction-region:is(:hover, [data-lf-focus-within]) .lf-code-copy {
   opacity: 1;

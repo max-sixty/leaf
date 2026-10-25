@@ -58,7 +58,7 @@ from interact_support import (
     wait_for,
     write_record,
 )
-from leaf_dev.browser import scroll_settled
+from leaf_dev.browser import scroll_settled, slow_cpu
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
@@ -144,11 +144,11 @@ def shift_watch_source():
             "--input-type=module",
             "--eval",
             (
-                'import { WORKS, PRESSES } from "./browser/runtime/control-selectors.js";'
+                'import { WORKS, PRESSES, CARET_KEYS } from "./browser/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./browser/runtime/rect.js";'
                 'import { elementAxes, scrollAxes } from "./browser/runtime/element-frame.js";'
                 'import { shadowHost, upFrom, renderedParent } from "./browser/runtime/shadow.js";'
-                "process.stdout.write(JSON.stringify([WORKS,PRESSES,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
+                "process.stdout.write(JSON.stringify([WORKS,PRESSES,CARET_KEYS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],
         cwd=ROOT,
@@ -158,6 +158,7 @@ def shift_watch_source():
     (
         interactive,
         presses,
+        caret_keys,
         clipping,
         host,
         parent,
@@ -171,10 +172,10 @@ def shift_watch_source():
         + "const nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
         + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, pressControls, clippingAxes) => {{\n"
+        + f"((interactive, pressControls, caretKeys, clippingAxes) => {{\n"
         f"const shadowHost = {host};\nconst upFrom = {parent};\n"
         f"const renderedParent = {rendered_parent};\nconst elementAxes = {element_axes};\nconst scrollAxes = {axes};\n"
-        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {clipping});"
+        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {json.dumps(caret_keys)}, {clipping});"
     )
 
 
@@ -1235,6 +1236,21 @@ def until_draft_settled(page, ctx: str) -> None:
 
 _BROWSER_PROBLEM_LISTS = None
 _TEST = None
+_CPU_THROTTLE = None
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--cpu-throttle",
+        type=float,
+        metavar="RATE",
+        help="Slow the CPU of every Chromium page the browser fixtures open this many times",
+    )
+
+
+def pytest_configure(config):
+    global _CPU_THROTTLE
+    _CPU_THROTTLE = config.getoption("--cpu-throttle")
 
 
 def watches_shifts(test):
@@ -2090,9 +2106,14 @@ def readable(page, *, java_script_enabled=True):
     left alone, since a second console listener would report every problem twice.
     A scripts-disabled context keeps the native error collector and shared deadlines;
     the script-driven readings are unavailable there.
+
+    A run given `--cpu-throttle RATE` also slows each Chromium page here, before it
+    navigates (`tests/AGENTS.md`, "Races").
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
+    if _CPU_THROTTLE and page.context.browser.browser_type.name == "chromium":
+        slow_cpu(page, _CPU_THROTTLE)
     page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
     arm_interception(page)
     if java_script_enabled:
@@ -2339,11 +2360,11 @@ def any_suggestion_control(scope, key: str | None = None, *, visible=True):
 
 
 def command_reference_rows(page, heading):
-    """The rows of the command reference table titled `heading`."""
+    """The rows of the command reference section titled `heading`."""
     heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
         "id"
     )
-    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
+    return page.locator(f'[role=rowgroup][aria-labelledby="{heading_id}"]')
 
 
 # The page shell's box on screen: where the document's room starts and ends. The runtime

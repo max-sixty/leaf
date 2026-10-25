@@ -1455,18 +1455,17 @@ def page_endpoint(
     request: they are facts about the vendored page this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
     or temporary, passes here before it binds, and refuses naming the re-vendor when
-    the page's layer is one this Leaf cannot serve (`incompatible_layer`).
+    the page's layer is one this Leaf cannot serve (`incompatible_layer`). A
+    snapshot serves the revision it froze, which its capture already judged
+    (`page_snapshot.capture_page_snapshot`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
     # The registry first: its reader refuses a layer at another protocol before any
     # check of a shape that is this Leaf's protocol's, as the identity's reader does.
-    registry = (
-        page_snapshot.context.registry
-        if page_snapshot is not None
-        else load_registry(page_dir)
-    )
-    if refusal := incompatible_layer(page_dir, registry):
+    if page_snapshot is None and (
+        refusal := incompatible_layer(page_dir, load_registry(page_dir))
+    ):
         raise Rejected([refusal])
     identity = (
         page_snapshot.context.layer

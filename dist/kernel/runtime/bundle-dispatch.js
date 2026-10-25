@@ -307,7 +307,8 @@ function announceInvocation(invocation) {
 		id: invocation.id,
 		binding: invocation.binding,
 		title: titleOf(route?.title === void 0 ? row : route),
-		description: descriptionOf(route?.description === void 0 ? row : route)
+		description: descriptionOf(route?.description === void 0 ? row : route),
+		travels: Boolean(row.travels)
 	} }));
 }
 function invokeCommand(command) {

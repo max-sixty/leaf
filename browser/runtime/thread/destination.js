@@ -9,7 +9,11 @@
    on its message there. Where none of
    those shows it, the primary is asked again with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
-   second refusal leaves the thread unopened. A thread about an element an agent sent
+   second refusal leaves the thread unopened. The primary holds such a thread only until
+   the page can draw it again, as when a wider window shows the passage a narrow one hid:
+   once a thread pass has drawn every surface, it goes back to the page, and the user in
+   it goes with it, a reply they are writing carried with its caret and undo history
+   (`returnToPage`). A thread about an element an agent sent
    in a message has no drawing beside its subject: `openThreadSubject` opens that
    message and lands on the element there.
    A route shows one thread at a time: the primary taking a thread closes the page's
@@ -47,7 +51,7 @@ import { aborted } from "../abort.js";
 import { threadDraft } from "../drafts.js";
 import { focused } from "../focus.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
-import { replyAvailable } from "./replies.js";
+import { replyAvailable, replyThreadKey } from "./replies.js";
 import { allThreads, threadIdNamed, threadNamed } from "./state.js";
 import { heldThread } from "./focus.js";
 import { showHeld, showHeldThread } from "./held-news.js";
@@ -72,6 +76,9 @@ export function createThreadDestinations({
 }) {
   let presentation = null;
   let opening = null;
+  // The keys of the threads the primary was handed as the last resort (`request.last`),
+  // which nothing on the page drew when they were asked for.
+  const lastResort = new Set();
   function register(owner, open, reader) {
     if (presentation) throw new Error("The page already has a Thread presentation");
     const registration = { owner, open, reader };
@@ -143,6 +150,7 @@ export function createThreadDestinations({
       scroll = true,
       intent = retainUserIntent(),
       origin = null,
+      returning = false,
     } = {},
   ) {
     if (!intent()) return null;
@@ -191,7 +199,10 @@ export function createThreadDestinations({
               intent: arriving,
             })
           : null;
+      if (last) lastResort.add(thread.key);
+      else lastResort.delete(thread.key);
       const result = selected.open(thread.key, request);
+      if (result === false) lastResort.delete(thread.key);
       // A reader that declines at once is answered at once, so the page's own drawing
       // of the thread opens in the task of the gesture that asked for it (`onPage`), as
       // a walk's card does, rather than after a wait that no longer belongs to it.
@@ -338,15 +349,54 @@ export function createThreadDestinations({
       return DECLINED;
     }
 
-    const asked = selected ? inPrimary(false) : DECLINED;
+    // A thread coming back from the primary's last resort (`returnToPage`) is drawn on
+    // the page first, and the primary is asked only once the page shows it, so it puts
+    // its view away as it declines, handing on the reply being written there.
+    const asked = selected && !returning ? inPrimary(false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
     const shown = await onPage();
+    if (returning) {
+      if (!shown || shown === DECLINED) return null;
+      if (selected) await inPrimary(false);
+      return shown;
+    }
     if (shown !== DECLINED) return shown;
     // Only a reader that declined is asked again; one that took the thread has shown it.
     if (!selected || first !== DECLINED) return null;
     const last = await inPrimary(true);
     return last === DECLINED || last === UNDRAWN ? null : last;
+  }
+
+  // A thread the primary holds as the last resort goes back to the page once the page
+  // can draw it, which each thread pass asks once it has drawn every surface. The page
+  // draws it first, and only then does the primary put its view away, so a page that
+  // still has nowhere to show it leaves the view standing. The user goes with the thread
+  // from where they were in the view: from its reply box, the row itself, carried to the
+  // card with its caret and undo history (replies.js, `releaseReplies`), or from the
+  // thread to the card's. A user elsewhere stays there, and every scroller stays still,
+  // since the user has not moved.
+  async function returnToPage() {
+    const selected = presentation?.owner.isConnected ? presentation : null;
+    if (!selected) return;
+    for (const key of [...lastResort]) {
+      const thread = allThreads().find((each) => threadKey(each) === key);
+      // A view the user has put away holds nothing to give back.
+      const drawing = selected.reader.destination(key, { part: "thread" });
+      if (!thread || !drawing?.checkVisibility()) {
+        lastResort.delete(key);
+        continue;
+      }
+      await openPageThread(thread.id, {
+        part: "thread",
+        focus:
+          replyThreadKey(focused()) !== key &&
+          drawnThreadId(heldThread()) === thread.id,
+        travel: false,
+        scroll: false,
+        returning: true,
+      });
+    }
   }
 
   // Where a thread about an element an agent sent in a message goes to its subject: the
@@ -405,6 +455,10 @@ export function createThreadDestinations({
     openPageThread,
     openThreadSubject,
     openThreadDraft,
+    returnToPage,
+    // Whether the primary holds the thread `key` names as the last resort, so the page
+    // drew it nowhere it could be shown.
+    atLastResort: (key) => lastResort.has(key),
     holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,
     threadHere,

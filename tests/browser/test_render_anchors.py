@@ -390,7 +390,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
             cli_model.cli,
             [
                 "thread",
-                "open",
+                "create",
                 str(serve.page_dir),
                 "--section",
                 "revised-quotes",
@@ -430,6 +430,71 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
     ]
     assert {event["thread"] for event in moves} == {root["id"] for root in roots}
     assert all(event["anchor"] == {"section": "revised-quotes"} for event in moves)
+
+
+SIDEBAR_TRACK_PAGE = leaf_page(
+    "sidebar track quotes",
+    """<header><h1>Release review</h1></header>
+<aside id="track">
+  <section id="verdict"><h2>Verdict</h2><p>Approve, with two follow-ups.</p></section>
+  <section id="owners"><h2>Owners</h2><p>The payments on-call runs the cutover.</p></section>
+</aside>
+<div id="body"><p>The canary held its error rate at every step.</p></div>""",
+    layout="sidebar",
+)
+
+
+def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, serve):
+    """The runtime gathers a sidebar page's track's blocks into a box the file doesn't
+    have (prepaint.js, `holdTrack`), and a quote from those blocks still reads the same
+    in the browser as in the file: inside one block, and across two, sectioned by the
+    track. Where the box changed the reading, a comment written in the browser would
+    detach in `leaf thread create`'s reading, or the reverse."""
+    page = open_page(browser, live_url(serve(SIDEBAR_TRACK_PAGE)))
+    resized(page, 1440, 900)
+    expect(page.locator("#track > [data-lf-track-body] > #owners")).to_have_count(1)
+    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    cases = [
+        ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),
+        ("#verdict p", "two follow-ups.", "track", "#owners h2", "Owners"),
+    ]
+    for index, (start, start_words, section, end, end_words) in enumerate(cases, 1):
+        selected = page.evaluate(
+            """([start, startWords, end, endWords]) => {
+                const text = (selector) => document.querySelector(selector).firstChild;
+                const range = document.createRange();
+                range.setStart(text(start), text(start).data.indexOf(startWords));
+                const last = text(end);
+                range.setEnd(last, last.data.indexOf(endWords) + endWords.length);
+                getSelection().removeAllRanges();
+                getSelection().addRange(range);
+                return getSelection().toString();
+            }""",
+            [start, start_words, end, end_words],
+        )
+        page.dispatch_event("body", "mouseup")
+        open_selected_comment(page)
+        page.locator(".lf-fab-input").click()
+        write(page.locator(".lf-composer leaf-text"), f"track {index}")
+        with sending(page, f"the track {index} comment"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        expect_open_threads(page, index)
+        captured = [
+            event["anchor"]
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "comment"
+        ][-1]
+        expected = anchor_capture_model.capture_anchor(
+            structure_model.SourceDocument(SIDEBAR_TRACK_PAGE),
+            registry,
+            captured["quote"],
+            section,
+        )
+        assert captured == expected, (selected, captured, expected)
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    assert stranded_quotes(page) == []
 
 
 @pytest.mark.parametrize("panes", [False, True], ids=["obligation", "panes"])
@@ -1167,9 +1232,8 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     """A quote is read back as prose — seeded into the suggestion box, printed in the
-    panel, emitted into a Markdown blockquote by `leaf page transcript` — and written to a
-    UTF-8 file on the way. Source text is neither: it carries the author's line wraps,
-    which break a blockquote open, and cutting it to length by UTF-16 unit can halve a
+    panel — and written to a UTF-8 file on the way. Source text is neither: it carries
+    the author's line wraps, which break the prose, and cutting it to length by UTF-16 unit can halve a
     character, which no UTF-8 file can hold. The server refuses that write and the
     user is told it is offline, with no way to ever send the comment."""
     url = serve(INLINE_PAGE)
@@ -1756,12 +1820,12 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
     so both readings collapse to the same string — which is what lets the runtime color a
-    block the file knows nothing about, and what keeps `leaf thread open` able to quote
+    block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
     One pass serves both shapes a page has for code, lf-code's `language` and a plain
     <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread open`
+    the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)

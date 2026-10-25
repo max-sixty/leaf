@@ -110,7 +110,9 @@
    the same fact to the eye (renderQuiet, lf-code's highlighted lines). Worn with
    .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
    quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
-   so it holds no room; the covered-words gate skips this class.
+   so it holds no room, and unpadded, since a holder that pads every child, as a
+   `choose` group pads its cells, would make it a box that cuts off its own words;
+   the covered-words gate skips this class.
 
    And out of the selection, which the clip does not do on its own: a word standing
    among the page's own words is inside any selection drawn across them, so the
@@ -134,6 +136,7 @@
   position: absolute;
   width: 1px;
   height: 1px;
+  padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;

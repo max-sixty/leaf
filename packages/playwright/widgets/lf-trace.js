@@ -1220,7 +1220,7 @@ customElements.define(
             : !fitted && this.#picture?.imageData.ratio === 1,
         );
       keepsText(
-        this.#imageTools.value.querySelector(".lf-trace-image-status"),
+        this.#imageTools.value.querySelector(".lf-trace-tools-status"),
         this.#picture?.viewed
           ? ""
           : this.#pendingPicture
@@ -2158,7 +2158,7 @@ customElements.define(
                       </button>`,
                   )}
                 </div>
-                <span class="lf-trace-image-status"></span>
+                <span class="lf-trace-tools-status"></span>
               </div>
             </div>
             <div class="lf-trace-capture-footer" ?hidden=${!trace}>

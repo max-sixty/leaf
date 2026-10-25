@@ -33,6 +33,7 @@
   position: absolute;
   width: 1px;
   height: 1px;
+  padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
@@ -2003,6 +2004,7 @@ html[data-lf-draw-mode] main {
   pointer-events: auto;
 }
 .lf-code-copy::part(button) {
+  scroll-margin: var(--focus-ring-landing);
   position: relative;
   box-sizing: border-box;
   width: var(--lf-code-copy-size);
@@ -2021,15 +2023,11 @@ html[data-lf-draw-mode] main {
 :root {
   --lf-heading-link-size: var(--lf-line);
 }
-@position-try --lf-heading-link-end {
-  right: auto;
-  left: calc(anchor(right, -9999px) - var(--lf-heading-link-size) + var(--lf-block-control-dx, 0px));
-}
 .lf-heading-link {
+  --lf-heading-link-room: calc( 100% - anchor(left, 9999px) + var(--lf-block-control-dx, 0px) - var(--lf-heading-link-size) );
   position: absolute;
   top: calc(anchor(top, -9999px) + var(--lf-heading-link-top, 0px) + (var(--lf-heading-link-line, var(--lf-heading-link-size)) - var(--lf-heading-link-size)) / 2 + var(--lf-block-control-dy, 0px));
-  right: calc(anchor(left, 9999px) - var(--lf-block-control-dx, 0px));
-  position-try-fallbacks: --lf-heading-link-end;
+  right: calc(anchor(left, 9999px) - var(--lf-block-control-dx, 0px) + (1 - clamp(0, sign(var(--lf-heading-link-room)) + 1, 1)) * (anchor(right, 9999px) - anchor(left, 9999px)));
   width: var(--lf-heading-link-size);
   height: var(--lf-heading-link-size);
   z-index: 1;

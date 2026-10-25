@@ -136,16 +136,12 @@
               "description": "`waiting` on the user or `idle`, done with the page; `waiting` before the agent declares anything.",
               "type": "string"
             },
-            "detail": {
-              "description": "The declaration's words; empty before the first declaration and where a start reopened an idle page.",
-              "type": "string"
-            },
             "ts": {
               "description": "When the agent declared it, or when a start reopened an idle page; absent before the first declaration.",
               "type": "string"
             }
           },
-          "required": ["state", "detail"],
+          "required": ["state"],
           "additionalProperties": false
         },
         "listening": {

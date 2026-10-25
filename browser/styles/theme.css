@@ -240,7 +240,7 @@
   --pin-on-user: light-dark(#2f7d45, #2d8047);
   /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
      Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
-     inline code, a tooltip, a checkbox, a corner mark, a word's highlight) takes --r-s.
+     inline code, a tooltip, a checkbox, a mark, a word's highlight) takes --r-s.
      A control or a box in the page's flow (a button, a field, a margin entry, a menu
      row, a code block, an option list) takes --r. A surface floating over the page
      that holds controls (the Leaf panel and its menu, a thread card, a dialog) takes
@@ -264,6 +264,7 @@
   --sp-2: 8px;
   --sp-3: 16px;
   --sp-4: 24px;
+  --sp-5: 32px;
   /* The smallest box the layer offers a user to aim at, on either axis. One token
      rather than a number in each rule, and one token rather than two floors and a media
      query in each of them: what changes between a mouse and a finger is this length and
@@ -290,9 +291,9 @@
      rail below is sized from the same length, so it is named rather than written into
      each. */
   --margin-entry: max(32px, var(--aim-floor));
-  /* A corner mark's box (controls.css, `.lf-corner-mark`). A surface that keeps room
-     for the marks on its corners reads it, so it is named rather than written there. */
-  --corner-mark: 20px;
+  /* A mark's box (controls.css, `.lf-mark`), on a corner or in a toolbar. A seat that
+     keeps room around its marks reads it, so it is named rather than written there. */
+  --mark-size: 20px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
      to know where a pin will stand before packing it. */
   --pin-inset: 4px;
@@ -562,6 +563,12 @@
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
+  /* The contour on an element a moment is about, such as the target of the thread the
+     user is in (annotation-chrome.css). It stands outside the box at the ring's gap,
+     clear of the words at its edge, so a lighter, thinner accent keeps it apart from the
+     focus ring standing in the same place. */
+  --mark-contour-w: 1.5px;
+  --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover. */
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
@@ -1314,8 +1321,11 @@ h3 {
 }
 /* A page as wide as the window (`--lf-wide-page`, set by the sidebar Layout)
  * sets its title a size up and tighter, to hold its line above panels as wide as the
- * window. The Layout says how wide the page is; the size is answered here. */
-@container style(--lf-wide-page: 1) {
+ * window. The Layout says how wide the page is; the size is answered here. A page at
+ * working density keeps the working title, since it is a surface the reader operates
+ * or glances at, such as a rollout dashboard, whose first window the panels need: a
+ * 46px title and its air took a tenth of a 1000px window above them. */
+@container style(--lf-wide-page: 1) and (not style(--lf-density: working)) {
   h1 {
     font-size: clamp(36px, 3.2cqi, 46px);
     font-weight: 700;
@@ -1344,13 +1354,16 @@ p {
  * properties cross into them. The tokens derived from the ladder are declared for this
  * scope as for the root (above), since each resolves where it is declared. The flow's
  * larger gaps are tokens restated here; its small margins are numbers, restated in the
- * rules below.
+ * rules below. A column or sidebar page whose `main` takes the class, such as a
+ * dashboard the reader glances at, starts at a phone's head room rather than a
+ * document's 72px, as its title is set at working size too.
  *
  * `--lf-density` names the setting for what a size alone cannot carry: a widget whose
  * form changes, such as an option card becoming a row, reads it with a style query, as
  * it reads any other token, and never asks what holds it. */
 .density-working {
   --lf-density: working;
+  --page-pad-start: 28px;
   --t-1: 22px;
   --t-2: 18px;
   --t-3: 15.5px;
@@ -1362,6 +1375,7 @@ p {
   --sp-2: 6px;
   --sp-3: 10px;
   --sp-4: 14px;
+  --sp-5: 18px;
   --code-size: 12px;
   --code-line: 17px;
   --pane-bar-pad: 6px 12px;
@@ -1459,9 +1473,10 @@ dd {
   margin: 0 0 8px 0;
 }
 
-/* The apparatus voice, said once per layer. Every label, caption, chip, badge and
- * column heading on the page is the page pointing at its own content rather than
- * saying something — so it takes the UI sans at a small size, usually tracked, and
+/* The apparatus voice, said once per layer. Every label, caption, chip, badge,
+ * disclosure summary and column heading on the page is the page pointing at its own
+ * content rather than saying something — so it takes the UI sans at a small size,
+ * usually tracked, and
  * the serif is left to carry what there is to read. Listing them in one rule is the
  * point: what counts as apparatus is a judgement, and a judgement made in twenty
  * places is twenty chances to answer it differently. This rule is the layer's own
@@ -1502,7 +1517,8 @@ dd {
 figcaption,
 caption,
 th:not([scope="row"]),
-.facts dt {
+.facts dt,
+summary {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }
@@ -1679,6 +1695,32 @@ aside.sidenote {
 }
 .facts dd {
   margin: 0;
+}
+/* A metric tile: one figure under the label naming it, with an optional change beside
+   the figure, written as a one-term definition list. It is type and a hairline above,
+   not a card, so a row of them reads as figures; a page restyles it through the
+   tokens it reads. The figure and its change each go to a new line whole, and a figure
+   too long for the tile breaks anywhere rather than overflow it. */
+.metric {
+  margin: 0;
+  padding-block-start: var(--sp-2);
+  border-block-start: 1px solid var(--rule);
+}
+.metric dt {
+  color: var(--muted);
+  font: 600 var(--t-6) / 1.3 var(--sans);
+}
+.metric dd {
+  margin: var(--sp-1) 0 0;
+  font: 600 var(--t-2) / 1.2 var(--sans);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.metric dd > :is(strong, small) {
+  display: inline-block;
+}
+.metric dd small {
+  font: 500 var(--t-6) / 1.3 var(--sans);
 }
 @media screen {
   @container (width <= 640px) {

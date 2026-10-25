@@ -1143,3 +1143,48 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
         }"""
     )
     assert reading["ringTop"] >= reading["paneTop"] - 0.5, reading
+
+
+ASK_RING_READING = """() => {
+  const ask = document.querySelector('lf-ask[data-lf-obligation]');
+  const ring = getComputedStyle(ask, '::after');
+  const box = ask.getBoundingClientRect();
+  const words = document.createRange();
+  words.selectNodeContents(ask.querySelector('h2'));
+  const offset = parseFloat(ring.outlineOffset);
+  const width = parseFloat(ring.outlineWidth);
+  return {
+    inner: box.left - offset,
+    outer: box.bottom + offset + width,
+    words: words.getClientRects()[0].left,
+    foot: innerHeight,
+  };
+}"""
+
+
+def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
+    """The ring the user stands in goes round a question outside its box, as every
+    obligation's does, so it does not run over the first letter of each line. Only a
+    question that fills a full-height workspace, which can meet the window's foot with
+    no scroll left to show a ring outside it, draws the ring inside its box."""
+    ask = (
+        '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
+        "<p>They need administrator-configured namespaces.</p>"
+        '<lf-options id="rollout-options" choose>'
+        '<lf-option id="include">Include them</lf-option>'
+        '<lf-option id="later">Later</lf-option></lf-options></lf-ask>'
+    )
+    page = open_page(browser, serve(leaf_page("a question", ask)))
+    resized(page, 1280, 800)
+    page.keyboard.press("m")
+    expect(page.locator("#rollout")).to_have_attribute("data-lf-obligation", "1")
+    column = page.evaluate(ASK_RING_READING)
+    assert column["inner"] < column["words"], column
+    page.close()
+
+    page = open_page(browser, serve(leaf_page("a question", ask, layout="workspace")))
+    resized(page, 1280, 800)
+    page.keyboard.press("m")
+    expect(page.locator("#rollout")).to_have_attribute("data-lf-obligation", "1")
+    workspace = page.evaluate(ASK_RING_READING)
+    assert workspace["outer"] <= workspace["foot"], workspace

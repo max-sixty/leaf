@@ -2873,6 +2873,39 @@ def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gestu
         )
 
 
+def test_editor_caret_navigation_may_scroll_but_an_edit_may_not(browser, serve):
+    """Editors implement the platform's caret keys themselves, preventing their
+    defaults. Their navigation may scroll, while an ordinary edit still holds aim."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Editor navigation",
+                '<div id="port" style="height:180px;overflow:auto">'
+                '<div id="editor" contenteditable="true" style="height:3000px">Words</div>'
+                "</div>",
+            )
+        ),
+    )
+    page.locator("#editor").focus()
+    page.evaluate("""() => {
+      document.getElementById('editor').addEventListener('keydown', event => {
+        event.preventDefault();
+        document.getElementById('port').scrollBy(0, 9);
+      });
+    }""")
+    page.keyboard.press("PageDown")
+    rendered(page)
+    assert page.locator("#port").evaluate("port => port.scrollTop") == 9
+    judge_watches()
+    assert not take_browser_errors(page)
+
+    page.keyboard.press("x")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, {"code": "gesture-scrolled", "input": "keydown x"})
+
+
 def test_disposing_a_frame_releases_parent_input_without_unwatching_its_sibling(
     browser, serve
 ):

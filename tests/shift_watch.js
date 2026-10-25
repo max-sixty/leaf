@@ -65,8 +65,11 @@
 // further. A command that takes the user somewhere declares that it may (`travels` on
 // its register row, which the dispatcher's `lf-command-invoked` carries), as a link
 // does by the platform's meaning and a key the page leaves to the browser by the
-// browser's; nothing here lists them. A scroll is the gesture's where its own work
-// called a scrolling API, focus that doesn't prevent its scroll included, which
+// browser's. Caret navigation is also the editor's own where it implements those
+// platform keys itself, preventing their defaults (CodeMirror does). The runtime
+// owns both the caret keys and which controls take text. A scroll is the gesture's
+// where its own work called a scrolling API, focus that doesn't prevent its scroll
+// included, which
 // input_work_watch.js names the input of; a call work no input owns makes during the
 // rendering, as a test's script does, leaves the rendering unjudged. So a scroll
 // begun where the input's source is lost, after a native `await` or in an observer's
@@ -1623,7 +1626,12 @@
   const judgeAim = (rendering) => {
     const aim = rendering.aim;
     if (!aim?.scrolled || aim.foreign) return;
-    if (aim.event.type === "keydown" && !aim.event.defaultPrevented) {
+    if (
+      aim.event.type === "keydown" &&
+      (!aim.event.defaultPrevented ||
+        (caretKeys.includes(aim.event.key) &&
+          document.documentElement.lfInputs?.typesText(aim.node)))
+    ) {
       rendering.aim = null;
       return;
     }

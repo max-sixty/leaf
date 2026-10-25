@@ -257,6 +257,25 @@ test("a folded pin stands only where its opened actions stay inside its bounds",
   assert.ok(seat.rect.right - folds.open >= 200, JSON.stringify(seat));
 });
 
+test("a seat the layout pass does not offer is passed over, at either size", () => {
+  // The outside seat is not offered, as where another block stands beside the card.
+  assert.deepEqual(
+    seatOf(pin({ seats: [null, corner, above] })).get("card").rect,
+    corner,
+  );
+  // With every offered seat over words, the pin takes the one covering least of them.
+  const crowded = pin({ seats: [null, corner, above], cover: [box(24, 40, 386, 150)] });
+  assert.deepEqual(seatOf(crowded).get("card").rect, corner);
+  // Folded, its width is read from the corner seat, which is always offered.
+  const input = pin({
+    seats: [null, wide(corner), wide(above)],
+    cover: [box(24, 60, 300, 96), box(250, 104, 300, 140)],
+    controls: [box(250, 104, 300, 140)],
+    folds: { ...folds, seats: [null, ...folds.seats.slice(1)] },
+  });
+  assert.deepEqual(seatOf(input).get("card"), { rect: corner, folded: true });
+});
+
 test("a held pin keeps its seat, and one that no longer fits its bounds is seated again", () => {
   const held = box(200, 300, 244, 344);
   assert.deepEqual(seatOf(pin({ held, cover: [held] })).get("card").rect, held);

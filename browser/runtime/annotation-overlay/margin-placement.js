@@ -135,8 +135,9 @@ export const inSeatingOrder = (rows) =>
 // search's bounds give up that width on the left.
 //
 // Each pin is `{ key, came, held, seats, corner, floor, cover, controls, bounds, folds,
-// folded }`: `held` the rect it holds or null, `seats` its candidate rects, `corner` the
-// index among them of the one inside its target's corner, `floor` its target's bottom,
+// folded }`: `held` the rect it holds or null, `seats` its candidate rects, null where
+// one is not offered, `corner` the index among them of the one inside its target's
+// corner, never null, `floor` its target's bottom,
 // `cover` what it keeps
 // off (words, controls, media), `controls` the controls among them, `folds` the same pin
 // folded, `{ seats, open }` with `open` its width opened, where it can fold, and `folded`
@@ -149,7 +150,8 @@ export function seatRows(pins, { gap, occupied = [] }) {
   for (const pin of inSeatingOrder(pins)) {
     const fold = pin.folds;
     let folded = Boolean(fold && pin.folded);
-    const foldWidth = fold && fold.seats[0].right - fold.seats[0].left;
+    const foldWidth =
+      fold && fold.seats[pin.corner].right - fold.seats[pin.corner].left;
     const foldBounds = fold && {
       ...pin.bounds,
       // Reserve the opened actions to the toggle's left. Where the whole group
@@ -214,8 +216,8 @@ function boundedHome(home, bounds) {
   return { left, right: left + width, top, bottom: top + height };
 }
 
-// Of the `seats` inside `bounds` that overlap none of `pressed`, the first of those that
-// cover the least area of `cover`, or null.
+// Of the offered `seats` inside `bounds` that overlap none of `pressed`, the first of
+// those that cover the least area of `cover`, or null.
 function leastCovering(seats, cover, pressed, bounds) {
   const shared = (a, b) =>
     Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
@@ -223,7 +225,8 @@ function leastCovering(seats, cover, pressed, bounds) {
   let best = null;
   let least = Infinity;
   for (const seat of seats) {
-    if (!inside(seat, bounds) || pressed.some((box) => overlaps(box, seat))) continue;
+    if (!seat || !inside(seat, bounds) || pressed.some((box) => overlaps(box, seat)))
+      continue;
     const covered = cover.reduce((sum, box) => sum + shared(box, seat), 0);
     if (covered < least) [best, least] = [seat, covered];
   }

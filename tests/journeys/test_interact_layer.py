@@ -21,11 +21,16 @@ from interact_support import (
     add_test_widget,
     append_carried_log_record,
     check,
+    fetch,
     install_payload,
     page_packages,
     publish,
+    vendored_at_another_protocol,
+    vendored_before_a_key_rename,
+    words,
 )
 from leaf_dev.page_fixtures import package_selection_args
+from model.test_interact_layer import PLAIN_PAGE, _replying_after
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -584,7 +589,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
     assert vendored["$events"]["kinds"] == kernel["$events"]["kinds"]
     recovered = check(page_dir)
     assert recovered.exit_code == 0, recovered.output
-    replied = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
+    replied = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir), "c1"])
     assert replied.exit_code == 0, replied.output
     assert "The first one." in replied.output
 
@@ -1004,3 +1009,109 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert removed_registry["$layer"]["packages"] == []
     assert "lf-diagram" not in removed_registry
     assert not (composed / "widgets" / "lf-diagram.js").exists()
+
+
+def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
+    claimed, server, tmp_path
+):
+    """A reply through a reference names no page, so it is refused on a page an older
+    Leaf vendored, naming the re-vendor. The session's next write naming the page
+    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
+    its address, and the reply then goes."""
+    replied = _replying_after(claimed, server, vendored_at_another_protocol)
+    assert replied.returncode != 0, replied.stdout
+    assert f"leaf page init {claimed}" in replied.stderr
+    read = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(claimed)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert read.returncode == 0, read.stderr
+    assert "page protocol" in json.loads(read.stdout)["source"]["error"]
+    before = interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
+    subprocess.run(
+        [
+            *LEAF_COMMAND,
+            "page",
+            "export",
+            str(claimed),
+            "--out",
+            str(tmp_path / "export.html"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (
+        interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
+        == before
+    )
+    for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert ran.returncode == 0, ran.stderr
+        assert "re-vendor" not in ran.stderr
+    assert fetch(f"{server}/api/state")[0] == 200
+
+
+def test_thread_reply_names_a_published_page_vendored_before_a_key_was_renamed(
+    claimed, server
+):
+    """Admission refuses an old page on the same reading the servers do, after a
+    revision is published as well as before: here the layer and the revision it
+    captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
+    Leaf left them."""
+    replied = _replying_after(claimed, server, vendored_before_a_key_rename)
+    assert replied.returncode != 0, replied.stdout
+    assert "x-noun" in replied.stderr
+    assert f"leaf page init {claimed}" in replied.stderr
+    # The re-vendor it names repairs the page: init runs on it, and the reply goes.
+    for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert ran.returncode == 0, ran.stderr
+    assert fetch(f"{server}/api/state")[0] == 200
+
+
+def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypatch):
+    """A Leaf update leaves the render gate working on a page an earlier Leaf vendored
+    at this protocol: the gate runs the page under its own runtime and probes, and
+    names the page's Leaf beside its own."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
+    # The identity an earlier Leaf recorded for the layer it vendored.
+    stamp = page / "registry.json"
+    vendored = interact_files.read_json(stamp)
+    vendored["$layer"]["producer"] = {
+        "commit": "a74b08365870",
+        "dirty": False,
+        "committed": "2026-09-26T09:32:21-07:00",
+    }
+    stamp.unlink()
+    stamp.write_text(json.dumps(vendored), encoding="utf-8")
+
+    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
+
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.stdout)
+    assert report["browser"]["ran"] == ["render check"]
+    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in words(
+        result.stdout
+    )

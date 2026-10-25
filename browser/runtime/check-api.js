@@ -37,6 +37,7 @@ export {
   stackLevel,
 } from "./geometry.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
+export { authoredBody } from "./initial-render.js";
 export {
   readingRegions,
   shownRegionBounds,
@@ -112,3 +113,4 @@ export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";
 export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
+export { selfComparison, servedElements } from "./version.js";

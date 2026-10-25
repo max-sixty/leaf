@@ -77,11 +77,9 @@ verdict and file list stay beside the code. The region kept in view is the `asid
     <p class="lede">…</p>
   </header>
   <aside id="status">
-    <div class="overview">
-      <lf-toc id="contents"></lf-toc>
-      <p>…</p>
-      <!-- short verdict or status -->
-    </div>
+    <lf-toc id="contents"></lf-toc>
+    <p>…</p>
+    <!-- short verdict or status -->
   </aside>
   <div id="body">…</div>
   <!-- document and supporting evidence -->
@@ -97,9 +95,12 @@ such as a dashboard's log; it then sits on the right. Stack the regions inside t
 and inside the `aside`, so every region shares the same two vertical edges, rather than
 splitting each row anew.
 
-Put everything the `aside` holds in one block, as the `div` above does. While the two
-sit side by side, Leaf keeps that block in view at the window's top as the body scrolls.
-Write no `position`, `top`, height or overflow for it.
+While the two sit side by side, Leaf keeps everything the `aside` holds in view at the
+window's top as the body scrolls, however many blocks it is, and scrolls it within the
+window when it is taller. Write no `position`, `top`, height or overflow for the `aside`
+or its blocks. Leaf does this by gathering the blocks into a box of its own inside the
+`aside`, so a rule that names the `aside`'s children, such as `aside > p`, no longer
+reaches them: write `aside p`, or name the block by its class or id.
 
 ## A workspace
 
@@ -146,7 +147,9 @@ make a cramped working region usable.
 
 `density-working` is a style, not a Layout. It sets smaller type, tighter spacing and
 options as rows on any block, for a surface the reader operates. A workspace usually
-takes it, and so can a dense table on a column page.
+takes it, and so can a dense table on a column page. On the `main` of a column or
+sidebar page, such as a dashboard, it also sets the title at working size and starts
+the page nearer the window's top.
 
 For a queue of items decided one at a time, such as tickets or findings, make the body
 one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`

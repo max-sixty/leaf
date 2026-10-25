@@ -169,7 +169,13 @@ if (validationEntry) {
 
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
-const recoverComposer = retainUserIntent({ since: 0 });
+// A page framed in another holds no user until they enter it: its body reads as where
+// they stand only because the focus is elsewhere in the tab, and focusing anything in
+// it would take them from the page they are working in.
+const recoverComposer = retainUserIntent({
+  since: 0,
+  available: () => window === window.top || document.hasFocus(),
+});
 
 // This declaration belongs to the executable document lifetime. The revision capture
 // includes it in executable identity, so selecting another presentation retires this
@@ -466,6 +472,7 @@ floatingPanel = createFloatingPanel({
   placedAt: anchorPlacement.placedAt,
   openThreadSubject: (id, options) =>
     app.threadDestinations.openThreadSubject(id, options),
+  atLastResort: (key) => app.threadDestinations.atLastResort(key),
   annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
 });
 // The page's general comment box is the floating panel's field.

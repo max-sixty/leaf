@@ -18,6 +18,7 @@ from leaf.registry.contract import (
     state_specs,
 )
 from leaf.registry.schema import json_validator, schema_reading
+from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import found_at, structure_errors
@@ -68,11 +69,15 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         # The element validates as the instance built from its attributes:
         # values as strings, flag attributes as True. HTML's two flag spellings
         # (bare and ="") both mean true; a literal value on a flag stays a string
-        # so it fails loudly rather than silently meaning true.
+        # so it fails loudly rather than silently meaning true. `class` and `style`
+        # are the page's styling hooks on any element, outside every schema: no
+        # widget reads them, the runtime sets its own classes and custom properties
+        # beside the author's (`classList`, `style.setProperty`), and Leaf's own `lf-`
+        # classes are refused as markers.
         props = entry.get("properties", {})
         instance = {}
         for name, value in rec["attrs"].items():
-            if name in AUTHORED_ALLOCATIONS:
+            if name in AUTHORED_ALLOCATIONS or name in ("class", "style"):
                 continue
             prop = props.get(name)
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
@@ -437,6 +442,10 @@ def reference_errors(
                 )
             elif reference.get("owns") and target not in own:
                 errors.append(found_at("outside-reference", rec, **reference_to))
+            elif attr == entry.get("x-shows", {}).get("attr") and target not in own:
+                # A view and the answer it shows travel in one document, so a board
+                # in a reply shows widgets frozen in the same reply (`shown_answers`).
+                errors.append(found_at("shows-outside", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
         for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
@@ -552,6 +561,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + addressable_instance_errors(lf_elements, registry)
         + enclosing_errors(document, registry)
         + unique_errors(lf_elements, registry)
+        + shown_errors(document, registry)
     )
 
 

@@ -33,7 +33,7 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { createQueueActions } from "./queue-api.js";
+import { createQueueActions, queueItemKey } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
@@ -234,6 +234,8 @@ export function mountApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
+    // A thread's head ends the user's to-do on it with its own Done.
+    todos: { done: (id) => queueActions.done(queueItemKey({ kind: "todo", id })) },
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
@@ -352,6 +354,7 @@ export function mountApplication(dependencies) {
         flash: false,
         intent,
       }),
+    returnToPage: threadDestinations.returnToPage,
     // The thread a margin entry stands for, which a user on it goes on with when the
     // thread leaves the margin.
     threadAt: (node) => overlay?.entryThread(node) ?? null,

@@ -118,7 +118,6 @@ import {
   rowArrows,
   scrollIntoView,
   focused,
-  fitsWhole,
   motion,
   pressIsKeyboardActivation,
   signal,
@@ -674,20 +673,21 @@ export class TabSet extends LeafElement {
   // than it shows. A side list's column runs past only where it scrolls on its own,
   // in a workspace that fills the window (theme.css), and the tab comes into it the
   // same way, down the column.
-  // Where the strip has room for it, the tab comes in with its run's label, so the
-  // name of the group the user opened stays beside it. That room is the landing's own
-  // (`fitsWhole`), the tab's ring room included.
+  // In a row, a run's label sticks at the row's start as the run scrolls under it
+  // (the package theme), so the tab lands clear of the label's room, which this
+  // measures for the theme's `scroll-margin` (`--lf-tab-group-size`): the run's first
+  // tab then brings the label in with it, standing in its own place, and a later tab
+  // comes in beside the stuck label.
   #showTab(btn) {
-    const strip = this.#strip;
     if (!btn) return;
-    const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
-    const run = label && document.createRange();
-    run?.setStartBefore(label);
-    run?.setEndAfter(btn);
-    scrollIntoView(run && fitsWhole(run) ? run : btn, {
-      block: "nearest",
-      within: strip,
-    });
+    const run = btn.parentElement;
+    const label = run.querySelector(":scope > .lf-tab-group");
+    if (label)
+      run.style.setProperty(
+        "--lf-tab-group-size",
+        `${label.getBoundingClientRect().width}px`,
+      );
+    scrollIntoView(btn, { block: "nearest", within: this.#strip });
   }
 
   // The open tab stays in the row as the strip's width changes, and not only when a

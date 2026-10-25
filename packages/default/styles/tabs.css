@@ -459,7 +459,8 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run {
       flex: none;
       flex-direction: row;
-      gap: 2px;
+      --lf-tab-run-gap: 2px;
+      gap: var(--lf-tab-run-gap);
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered
       > .lf-tabstrip
@@ -471,10 +472,37 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
       padding-inline-start: 4px;
       border-inline-start: 1px solid var(--border-2);
     }
+    /* The label sticks at the row's start while its run scrolls under it, and the run's
+       * end pushes it out as the next run's label comes in, so the open item's group
+       * stays named however far along a long run the user is. It stands clear of the
+       * start press while that shows (`data-lf-more-before`, reach.js), which is the
+       * only time a label can be stuck, and covers the whole height of the names that
+       * slide under it, its word still centred on theirs, so a tab landing in the row
+       * keeps the label's room before it: the module measures the label for this
+       * margin (lf-tabs.js, `#showTab`). */
     :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-group {
       flex: none;
-      align-self: center;
+      display: flex;
+      align-items: center;
       padding: 0 4px;
+      position: sticky;
+      inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
+      z-index: 1;
+      background: var(--lf-tabstrip-bg);
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > .lf-tabstrip[data-lf-more-before]
+      .lf-tab-group {
+      inset-inline-start: calc(var(--lf-tabstrip-press) - var(--lf-tabstrip-pad));
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > .lf-tabstrip
+      > .lf-tab-run
+      > .lf-tab-group
+      ~ .lf-tab-btn {
+      scroll-margin-inline-start: calc(
+        var(--lf-tab-group-size) + var(--lf-tab-run-gap)
+      );
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered
       > .lf-tabstrip

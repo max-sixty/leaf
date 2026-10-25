@@ -341,19 +341,6 @@ that changes size after first paint, with its cause.
   needs the user's go-ahead, and its per-frame cost measured at 4x CPU throttling
   (`notes/shift-watch-cost.md`).
 
-### Queues
-
-A queue is one `lf-tabs list="side"` beside its open item (`page-layout.md`, "A
-workspace"). The first real one, a 21-item triage page, showed these. Its list's
-height and where a switch lands wait on the workspace decision under Layout.
-
-- **Keep the open item's group named on a phone.** In the one-row strip a group's
-  label stands before its run's first tab, so opening a later item in a long run
-  (`alert-review`'s "Ledger consumer lag" at 390px) scrolls the label out of view. A
-  label sticky at the row's start, stepping clear of the start press while stuck
-  (`scroll-state(stuck)`, Chrome 133+), keeps it named, but `#showTab` then has to
-  bring a tab in clear of a label whose width changes once it sticks.
-
 ### Before/after comparison
 
 - **#29 — Explain the faint amber halo in Pixels.** The comparison controls,

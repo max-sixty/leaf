@@ -993,7 +993,9 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
 def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     """Each run of neighbouring queue items that share a `group` stands under a label
     of it: a heading over the run in the column, and a word before the run's first tab
-    in a phone's row, which comes into the row with that tab. A run of items with no
+    in a phone's row, which comes into the row with that tab and stays at the row's
+    start, clear of the press there, while a later tab of a run longer than the row is
+    open, so the open item's group stays named. A run of items with no
     group is ruled off from the run before it, so it never reads as part of that group.
     A label is not a tab, so the walk passes it by and assistive technology hears the
     group in each tab's description instead. A revision that moves an item to another
@@ -1070,7 +1072,8 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
 
     # On a phone, loaded there so the row has its presses from the start. A run's
     # first tab comes into the row with its label, clear of the presses: at rest, and
-    # walking back onto it from the run after.
+    # walking back onto it from the run after. Its third tab, past the row's end, comes
+    # in beside the label, which the row keeps at its start.
     phone = open_page(
         browser,
         url,
@@ -1086,17 +1089,20 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
         {"label": None, "placed": True, "ruled": True, "tabs": ["i-d"]},
         {"label": "FYI", "placed": True, "ruled": True, "tabs": ["i-e", "i-f"]},
     ]
+    # The open tab's label in the row before the tab, both clear of the presses.
     label_shown = """() => {
       const strip = document.querySelector('#queue > .lf-tabstrip');
       const room = strip.getBoundingClientRect();
-      const tab = strip.querySelector('[aria-selected="true"]');
-      const label = tab.parentElement.querySelector('.lf-tab-group')
+      const open = strip.querySelector('[aria-selected="true"]');
+      const tab = open.getBoundingClientRect();
+      const label = open.parentElement.querySelector('.lf-tab-group')
         .getBoundingClientRect();
       const faces = [...strip.querySelectorAll('.lf-tabstrip-scroll > span')]
         .filter((face) => face.checkVisibility())
         .map((face) => face.getBoundingClientRect());
-      return faces.length > 0 && room.left <= label.left && label.right <= room.right
-        && faces.every((face) => face.right <= label.left + 0.5 || label.right <= face.left + 0.5);
+      return faces.length > 0 && room.left <= label.left
+        && label.right <= tab.left + 0.5 && tab.right <= room.right
+        && faces.every((face) => face.right <= label.left + 0.5 || tab.right <= face.left + 0.5);
     }"""
     phone_tabs = phone.locator("#queue").get_by_role("tab")
     phone_tabs.first.click()
@@ -1105,6 +1111,15 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     phone.keyboard.press("End")
     phone.keyboard.press("ArrowLeft")
     expect(phone_tabs.nth(4)).to_have_attribute("aria-selected", "true")
+    phone.wait_for_function(label_shown)
+    phone_tabs.nth(2).click()
+    assert phone.evaluate(
+        """() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      return strip.querySelector('.lf-tab-run').getBoundingClientRect().width
+        > strip.clientWidth;
+    }"""
+    ), "the run is longer than the row"
     phone.wait_for_function(label_shown)
 
 

@@ -406,7 +406,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
                     padding: getComputedStyle(pre).paddingTop,
                     frame: rect(pre.getBoundingClientRect()),
                     source: rect(range.getClientRects()[0]),
-                    button: rect(copy.shadowRoot.querySelector('button').getBoundingClientRect()),
+                    copy: rect(copy.getBoundingClientRect()),
                   };
                 }""",
                 pre_selector,
@@ -414,8 +414,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
         before = geometry()
         assert before["padding"] == "12px", before
-        frame, overlay = before["frame"], before["button"]
-        assert 0 <= overlay[1] - frame[1] <= 8, before
+        # Copy's toolbar stands on the block's top border, near its right edge.
+        frame, overlay = before["frame"], before["copy"]
+        assert overlay[1] + overlay[3] / 2 == pytest.approx(frame[1], abs=1), before
         assert 0 <= frame[0] + frame[2] - overlay[0] - overlay[2] <= 8, before
         if keyboard:
             # Enter on the source copies it, though the control stands outside
@@ -438,7 +439,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             button.hover()
         expect(control).to_have_css("opacity", "1")
         after = geometry()
-        for box in ("frame", "source", "button"):
+        for box in ("frame", "source", "copy"):
             assert after[box] == pytest.approx(before[box], abs=0.5), (before, after)
         if keyboard:
             page.keyboard.press("Enter")
@@ -560,9 +561,16 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")
     expect(touch_control).to_have_css("opacity", "1")
-    hit = touch_button.bounding_box()
-    assert hit and hit["width"] >= 44 and hit["height"] >= 44, hit
-    touch_button.tap()
+    # The face follows the block's line, and its reach meets a finger's floor: a tap
+    # inside that floor but beside the face still presses Copy.
+    face = touch_button.bounding_box()
+    floor = touch.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+    )
+    assert face
+    touch.touchscreen.tap(
+        face["x"] + face["width"] / 2, face["y"] + face["height"] / 2 + floor / 2 - 2
+    )
     expect_panel_says(touch, "Code copied")
     copied(plain)
     assert touch_pre.bounding_box() == frame
@@ -639,12 +647,6 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         "(code, source) => code.textContent = source", fitting
     )
     assert touch_pre.evaluate("pre => pre.scrollWidth === pre.clientWidth")
-    # The old scroll-state container query's 8px bottom float can survive the
-    # text write for a rendering pass after the line itself stops overflowing.
-    # Take geometry only after that old scrollbar clearance has gone.
-    touch.wait_for_function(
-        "getComputedStyle(document.querySelector('#plain'), '::after').content === 'none'"
-    )
     frame = touch_pre.bounding_box()
     suffix_uncovered()
     touch_pre.tap(position={"x": 20, "y": 20})

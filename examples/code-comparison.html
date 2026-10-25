@@ -104,6 +104,7 @@
       import {
         PAGE_INTERFACE,
         frameFor,
+        generatedElement,
         keeps,
         keepsText,
         layoutChanged,
@@ -149,6 +150,11 @@
               this.#button("Copy B to A", () => this.#copy("candidateB", "candidateA")),
             );
             this.prepend(toolbar);
+            // Each candidate's title and measurement are this module's words.
+            for (const words of this.querySelectorAll(
+              ".code-candidate-title, .code-measurement",
+            ))
+              generatedElement(words, { says: true });
           }
 
           #connect(signal) {

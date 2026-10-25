@@ -6,12 +6,11 @@ import { whenDocumentPresented } from "./bundle-context.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
-import { exactTarget, passageGeometry, rangeGeometry, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-css-anchors.js";
+import { exactTarget, passageGeometry, pointBand, rangeGeometry, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, retainUserIntent, revealHeld, rowWalk, selectionAnchor, showReturnTurn, tabStore, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-surfaces.js";
 import { setChildLists, setChildren } from "./bundle-abort.js";
 import { reducedMotion } from "./bundle-motion.js";
 import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-margin-model.js";
-import { pointBand } from "./bundle-visible-target-parts.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 

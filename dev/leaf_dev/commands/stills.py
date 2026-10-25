@@ -1123,6 +1123,11 @@ def steps_in_view(page: Page) -> None:
     page.locator("#security-contract-list").scroll_into_view_if_needed()
 
 
+def security_flow(page: Page) -> None:
+    """The case study's five-step flow diagram, every step in view."""
+    page.locator("#security-before-flow").scroll_into_view_if_needed()
+
+
 def go_to(page: Page) -> None:
     """The Go-to sequence armed from the keyboard, its destinations on the line."""
     page.keyboard.press("g")
@@ -2062,6 +2067,35 @@ STATES = (
         "security-boundary",
         steps_in_view,
         region="#security-contract-list",
+    ),
+    # The case study's five-step flow, drawn top-down so a phone shows every step.
+    State(
+        "security-flow",
+        "security-boundary",
+        security_flow,
+        region="#security-before-flow",
+    ),
+    State(
+        "security-flow-dark",
+        "security-boundary",
+        security_flow,
+        scheme="dark",
+        region="#security-before-flow",
+    ),
+    State(
+        "security-flow-phone",
+        "security-boundary",
+        security_flow,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "security-flow-phone-dark",
+        "security-boundary",
+        security_flow,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
     ),
     State(
         "alert-options-in-pane-touch",

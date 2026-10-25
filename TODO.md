@@ -176,11 +176,22 @@ has tried; settle that before building it.
   those pages from maintained public examples such as `wt-merge`, where a phone
   design can be worth exploring.
 - **Improve maintained examples through a phone-quality queue.** Keep desktop
-  as the priority and address phone composition in a dedicated stream. Start with
-  `triage-board`: at 390px only one bucket is meaningfully visible, while other
-  buckets scroll horizontally and the release rationale sits below the board.
-  Keep comparison context available during a move, preserving direct destination
-  controls and undo.
+  as the priority and address phone composition in a dedicated stream. Done:
+  `triage-board` stacks its columns at 640px and under (#3869), and
+  `security-boundary` draws its five-step flow top-down so a phone shows every step.
+  A survey of the catalogue at 390×844 under a finger (two screens each) ranked the
+  rest by what a phone reader can't see or reach; next is `data-explorer`, whose
+  result table scrolls sideways (480px in a 336px frame) with the Risk column, the
+  very field the filters act on, cut off, while the sticky controls hold 27% of the
+  screen. After it: `alert-review`, where a nine-tab strip of 2419px shows under two
+  alert names at a time, so the queue is only reachable through Next on me and the
+  strip's chevrons; `code-comparison`, where the sticky controls take 36% of the
+  screen above a code reader that scrolls sideways; `dynamic-widgets`, whose tab
+  strip overflows by 118px; `github-discoveries`, whose `pre` is 811px wide. The
+  survey also found controls under 32px on touch, which the widgets own rather than
+  the examples: the code reader's Copy (17px), `lf-option-control` marks (11–19px,
+  though the option card may be the target), release-notes' `.handle` (30px) and
+  rust-sort's scrubber (16px tall).
 - **Decide whether Back may restore a leaf.page page whole.** The local server
   sends `no-cache`, so Chrome and Firefox restore its pages on Back. leaf.page's
   container and the edge's state answers still send `no-store`, which keeps its

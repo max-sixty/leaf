@@ -32,7 +32,7 @@ from .data_contracts import (
     record_labels,
     working_data_bindings,
 )
-from .files import file_stamp, replace_files
+from .files import replace_files
 from .page_memory import memo
 from .registry.schema import json_value
 from .registry.storage import read_page_registry
@@ -43,6 +43,7 @@ from .state import (
     TIME,
     Record,
     described,
+    file_stamp,
     json_bytes,
     now_iso,
     object_schema,

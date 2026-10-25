@@ -383,11 +383,12 @@ def test_the_registered_hook_runs_in_the_environment_uv_syncs(harness, event, tm
     """Turn hooks need no system Python: the shell launcher has uv sync the
     install's environment, runs the hook on its interpreter, and runs later hooks
     there without uv until the lock changes, as a plugin update or a checkout
-    changes it.
+    changes it. The environment is the install's own, wherever the caller's
+    `UV_PROJECT_ENVIRONMENT` would have uv put one.
 
     This plugin copy has no library, and system python3 refuses to run. A recording
-    uv witnesses each sync and makes the environment, whose recording interpreter
-    witnesses the application command and unchanged payload."""
+    uv witnesses each sync and makes the environment where uv would, whose recording
+    interpreter witnesses the application command and unchanged payload."""
     project = tmp_path / "plugin"
     launcher = project / "bin/leaf"
     launcher.parent.mkdir(parents=True)
@@ -406,7 +407,9 @@ def test_the_registered_hook_runs_in_the_environment_uv_syncs(harness, event, tm
     uv = tools / "uv"
     uv.write_text(
         '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$UV_CALLED"\n'
-        f'mkdir -p "{project}/.venv/bin"\ncp "{interpreter}" "{project}/.venv/bin/python"\n'
+        "for project; do :; done\n"
+        'environment="${UV_PROJECT_ENVIRONMENT:-$project/.venv}"\n'
+        f'mkdir -p "$environment/bin"\ncp "{interpreter}" "$environment/bin/python"\n'
     )
     uv.chmod(0o755)
     python = tools / "python3"
@@ -435,6 +438,7 @@ def test_the_registered_hook_runs_in_the_environment_uv_syncs(harness, event, tm
                 "UV_CALLED": str(called),
                 "PYTHON_ARGS": str(args),
                 "PYTHON_INPUT": str(received),
+                "UV_PROJECT_ENVIRONMENT": str(tmp_path / "elsewhere"),
             },
             capture_output=True,
             text=True,

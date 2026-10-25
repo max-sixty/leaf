@@ -14,12 +14,12 @@ from collections.abc import Iterator
 from copy import deepcopy
 from pathlib import Path
 
-from leaf.files import file_stamp
 from leaf.findings import Finding, Rejected
 from leaf.refusals import Refused
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.state import (
     EVENTS_FILE,
+    file_stamp,
     flocked,
     now_iso,
     replace_bytes,

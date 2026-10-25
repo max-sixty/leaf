@@ -101,7 +101,7 @@
     },
     "quiet": {
       "since": 23,
-      "schema": {"description":"What a session's last tool boundary that handed its turn nothing read (`boundary_reading`), in the state home's `sessions/<digest>.quiet`.","type":"object","properties":{"reading":{"description":"This install, then each file read, as its path, inode, size and modification time in nanoseconds, or as its path alone where it was missing.","type":"array"}},"required":["reading"]}
+      "schema": {"description":"What a session's last tool boundary that handed its turn nothing read (`boundary_reading`), in the state home's `sessions/<digest>.quiet`.","type":"object","properties":{"reading":{"description":"This install, then each file read, as its path and its `file_stamp`, or as its path alone where it was missing.","type":"array"}},"required":["reading"]}
     },
     "row": {
       "since": 16,

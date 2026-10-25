@@ -81,13 +81,10 @@ nothing over. One that hands nothing over keeps what it read
 (`state.record_quiet`), and the launcher answers the next one that would read the
 same without starting Leaf (`state.boundary_quiet`). The reading is taken before
 the plans are read, so whatever changes after it, read or not, makes the next
-reading differ. A boundary reads two facts no file holds, and neither can give it
-input there: a claimant's lifetime only ends, taking pages away, and the
-harness's record of an ended turn matters only for input handed into the turn and
-not yet confirmed, which the boundary that kept the reading confirmed first
-(`delivery.confirm_turn`). A new event, the agent's own `leaf` write among them,
-a claim or a turn that changed, or a record another hook keeps changes the
-reading, and the next boundary runs whole.
+reading differ. The other facts a boundary reads can't give it input
+(`session-lifetime.md`, "The hook", lists them and says why). A new event, the
+agent's own `leaf` write among them, a claim or a turn that changed, or a record
+another hook keeps changes the reading, and the next boundary runs whole.
 """
 
 import json

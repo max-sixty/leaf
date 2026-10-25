@@ -7,6 +7,8 @@ import json
 import os
 import re
 import shutil
+import subprocess
+import sys
 import threading
 import time
 from datetime import datetime
@@ -603,6 +605,77 @@ def test_a_boundary_with_nothing_new_needs_no_leaf(claimed, monkeypatch, capsys)
     )
     capsys.readouterr()
     assert handed() == []
+
+
+BOUNDARY_PROBE = """\
+import json, sys
+opened = set()
+def audit(event, args):
+    if event == "open" and isinstance(args[0], str):
+        opened.add(args[0])
+    if event in {"os.listdir", "os.scandir"} and args and args[0]:
+        opened.add(str(args[0]))
+from leaf.hooks import cmd_hook
+sys.addaudithook(audit)
+cmd_hook("claude-code", {"hook_event_name": "PostToolBatch", "session_id": "s1"})
+print(json.dumps(sorted(opened)))
+"""
+
+
+def test_a_boundary_decides_only_on_files_its_reading_covers(claimed, capsys):
+    """The launcher answers a boundary whose reading is unchanged, so a file a
+    boundary reads beyond the reading has to be one that cannot give it input
+    (`session-lifetime.md`, "The hook"). A boundary run in a fresh interpreter,
+    as the hook runs, names every file it opens; one this test does not place is
+    a new input the reading must cover or the reference must justify."""
+    publish(claimed)
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "hi"}
+    )
+    boundary = {"hook_event_name": "PostToolBatch", "session_id": "s1"}
+    hooks_model.cmd_hook("claude-code", boundary)  # hands it over
+    hooks_model.cmd_hook("claude-code", boundary)  # confirms it
+    capsys.readouterr()
+    probe = subprocess.run(
+        [sys.executable, "-c", BOUNDARY_PROBE],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=True,
+    )
+    opened = {os.path.realpath(path) for path in json.loads(probe.stdout)}
+    real = lambda path: Path(os.path.realpath(path))
+    covered = {real(entry[0]) for entry in cleanup_model.boundary_reading("s1")[1:]}
+    home, page = real(cleanup_model.state_home()), real(claimed)
+    sessions = home / "sessions"
+    beyond = {
+        # This install's code and Python's own, which an install changes whole.
+        real(cleanup_model.PLUGIN_ROOT),
+        real(sys.prefix),
+        real(sys.base_prefix),
+        # The directories the reading lists to find the session's own files.
+        sessions,
+        *(real(path) for path in cleanup_model.held_claims("s1")),
+        real(cleanup_model.session_claims("s1")),
+        # Written by `page stamp` with the `version` event that names them.
+        page / "revisions",
+        # The page's state and activity, which a boundary hands nothing from.
+        page / "stream.json",
+        page / "data",
+        # Envelopes an answer reference names, removed only once their pages are
+        # gone (`delivery.reads_reference`).
+        home / "deliveries",
+    }
+    unplaced = {
+        path
+        for path in map(Path, opened)
+        if path not in covered
+        and not any(path == root or root in path.parents for root in beyond)
+        and not (path.parent == sessions and path.name.startswith(".leaf-"))
+    }
+    assert unplaced == set()
+    # The probe saw the inputs the reading does cover.
+    assert real(claimed / "events.jsonl") in {Path(path) for path in opened}
 
 
 def test_one_tool_calls_hooks_do_its_work_once(monkeypatch):

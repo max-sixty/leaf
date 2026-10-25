@@ -14,7 +14,9 @@
 # `leaf-dev` tooling, recorded in the shipped lock but never a harness's to
 # install. `--inexact`, as `uv run` syncs, so a checkout's dev tools stay. `-q`
 # because an agent reads stderr back and an ordinary sync has nothing to say; a
-# failed resolve is reported either way.
+# failed resolve is reported either way. The install owns its environment, so a
+# `UV_PROJECT_ENVIRONMENT` the caller set, which would have uv sync another one,
+# is dropped for the sync.
 #
 # Once uv has synced the environment, Leaf runs on its interpreter directly:
 # `uv run` costs about 70 ms more on every command and hook even with nothing to
@@ -83,7 +85,10 @@ ensure_synced() {
     [ -f "$synced" ] && read -r marked <"$synced"
     if ! { [ "$marked" = "$root" ] && [ -x "$python" ] &&
         [ "$synced" -nt "$root/uv.lock" ] && [ "$synced" -nt "$root/pyproject.toml" ]; }; then
-        uv sync -q $cache --no-dev --inexact --project "$root" </dev/null || exit
+        (
+            unset UV_PROJECT_ENVIRONMENT
+            exec uv sync -q $cache --no-dev --inexact --project "$root" </dev/null
+        ) || exit
         printf '%s\n' "$root" >"$synced"
     fi
 }

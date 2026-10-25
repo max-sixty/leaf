@@ -26,7 +26,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
 
-from .files import file_stamp
 from .leases import page_locked
 from .locations import canonical_path
 from .refusals import Refused
@@ -35,6 +34,7 @@ from .state import (
     STRING,
     Record,
     described,
+    file_stamp,
     flocked,
     object_schema,
     replace_bytes,

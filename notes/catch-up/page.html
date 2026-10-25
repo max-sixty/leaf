@@ -27,8 +27,9 @@
           and Reset starts it again. Pick <strong>Keep Redis</strong>, and the next card
           comes up as soon as the answer is recorded. Press the bar's right arrow,
           <strong>Later</strong>, on the upgrade note, pick two beta platforms and press
-          Done, then Later past the draft and the retry question, and choose to post the
-          release notes. The bar then counts the cards still to answer, and its button,
+          Done, then Later past the support reply (whose words you can edit before
+          choosing to send it) and the retry question, and choose to post the release
+          notes. The bar then counts the cards still to answer, and its button,
           <strong>Go through the 3 left</strong>, starts again from the first of them.
           The left arrow, <strong>Back</strong>, returns to a card you answered, where
           its own controls change the answer; Leaf's Undo (<code>z</code>) also takes
@@ -88,12 +89,18 @@
                 </lf-options>
               </lf-ask>
               <lf-ask id="s-support-ask">
-                <h3>Reply to the support thread about slow logins</h3>
-                <p>Edit the reply; it goes out under your name.</p>
-                <lf-draft id="s-support-draft" needed>
+                <h3>Send this reply to the support thread about slow logins?</h3>
+                <p>It goes out under your name, with any edit you make to it.</p>
+                <lf-draft id="s-support-draft">
                   <pre>
 Thanks for the report. 2.4 moves session lookups off the slow path; logins should feel faster from Friday.</pre>
                 </lf-draft>
+                <lf-options id="s-support-choice" choose>
+                  <lf-option id="s-support-send"><strong>Send it</strong></lf-option>
+                  <lf-option id="s-support-hold"
+                    ><strong>Don't send it</strong></lf-option
+                  >
+                </lf-options>
               </lf-ask>
               <lf-ask id="s-retry-ask">
                 What retry ceiling should the client use? Today it retries forever; the

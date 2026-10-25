@@ -60,12 +60,16 @@
           </lf-options>
         </lf-ask>
         <lf-ask id="deck-support-ask">
-          <h3>Reply to the support thread about slow logins</h3>
-          <p>Edit the reply; it goes out under your name.</p>
-          <lf-draft id="deck-support-draft" needed>
+          <h3>Send this reply to the support thread about slow logins?</h3>
+          <p>It goes out under your name, with any edit you make to it.</p>
+          <lf-draft id="deck-support-draft">
             <pre>
 Thanks for the report. 2.4 moves session lookups off the slow path; logins should feel faster from Friday.</pre>
           </lf-draft>
+          <lf-options id="deck-support-choice" choose>
+            <lf-option id="deck-support-send"><strong>Send it</strong></lf-option>
+            <lf-option id="deck-support-hold"><strong>Don't send it</strong></lf-option>
+          </lf-options>
         </lf-ask>
         <lf-ask id="deck-retry-ask">
           What retry ceiling should the client use? Today it retries forever; the load

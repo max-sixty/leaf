@@ -3207,7 +3207,7 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
   .lf-draft-status:empty {
     display: none;
   }
-  :scope:is(lf-draft):is(:hover, [data-lf-focus-within], :has(> .lf-draft-edit)) .lf-draft-tools {
+  :scope:is(lf-draft):is(:hover, [data-lf-focus-within], [needed], :has(> .lf-draft-edit)) .lf-draft-tools {
     opacity: 1;
   }
   @media (hover: none) {

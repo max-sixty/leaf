@@ -2695,8 +2695,14 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     field = page.locator(".lf-fab-input")
     write(field, "Half a thought")
     expect(field).to_be_focused()
+    rendered(page)
     box = page.locator(".lf-fab-bar")
-    at = box.bounding_box()["y"]
+    # Where the field stands is read against its target: the scroll offset that brings
+    # the target back is not the one read here once anything above it reflows, which
+    # scroll anchoring then absorbs.
+    beside = """box => box.getBoundingClientRect().top
+      - document.getElementById('p30').getBoundingClientRect().top"""
+    at = box.evaluate(beside)
     away = (
         "document.scrollingElement"
         if scroller == "page"
@@ -2721,8 +2727,8 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     expect(box).to_be_visible()
     expect(field).to_have_js_property("value", "Half a thought")
     expect(field).to_be_focused()
-    assert box.bounding_box()["y"] == pytest.approx(at, abs=1), (
-        "the field came back somewhere other than where it stood"
+    assert box.evaluate(beside) == pytest.approx(at, abs=1), (
+        "the field came back somewhere other than beside its target"
     )
     page.keyboard.type(" more")
     expect(field).to_have_js_property("value", "Half a thought more")

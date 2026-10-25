@@ -35,7 +35,6 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
-import { rideSent } from "./sent-ride.js";
 import { readCaret, focused, currentLocationIn, onPressAway } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
@@ -314,13 +313,12 @@ function wireReply(
     // current location. A view whose box stays for the next turn lands the send itself (`sent`),
     // told whether the log takes it.
     send: (_text, raw, owns) => {
-      const { actions, landSent, sent, transcript } = composition.binding;
+      const { actions, landSent, sending, sent } = composition.binding;
       const land = sendLanding(input);
-      // A view that names its transcript lets the turn ride into it (sent-ride.js).
-      const ride = transcript ? rideSent(input, transcript) : null;
+      sending?.();
       const reply = sendReply(draftCtx, key, raw, owns, actions);
       if (!reply) return;
-      if (sent) return sent(reply.flight, ride);
+      if (sent) return sent(reply.flight);
       landSent(closestAcross(input, THREAD));
       land(focused());
     },
@@ -426,7 +424,8 @@ export async function restoreReplyEditing(editing, land) {
 // (`hintAside`), and is named
 // (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
 // where its box stays for the next turn, as the floating panel's field does, land a
-// send itself (`sent`) rather than stand on the thread. The view draws its row again
+// send itself (`sent`) rather than stand on the thread, told before the send draws
+// (`sending`). The view draws its row again
 // on `redraw`, as it takes another in its place.
 export function createReplyView(
   key,
@@ -439,8 +438,8 @@ export function createReplyView(
     hintAside = () => "",
     accessibleName = "Reply",
     busy = () => false,
+    sending = null,
     sent = null,
-    transcript = null,
   } = {},
 ) {
   const fresh = () => {
@@ -457,7 +456,7 @@ export function createReplyView(
     });
   };
   let composition = fresh();
-  const binding = { ...commands, onChange, editLast, sent, transcript };
+  const binding = { ...commands, onChange, editLast, sending, sent };
   let detach = attach(composition, binding);
   // A view takes the session's row in its place and draws it (`redraw`), and gives its
   // own up for a fresh one (`carry`), drawn by the step it returns.

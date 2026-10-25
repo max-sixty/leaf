@@ -6,7 +6,8 @@
 // effect before awaiting, and invokes it afterwards. Leaf draft sends put words away
 // synchronously before awaiting delivery (drafts.js). A reactive element's update is
 // the exception the watch follows itself: Lit defers it behind a native await, and the
-// request that starts it names its cause (`adoptReactive`).
+// request that starts it names its cause (`adoptReactive`). The blur and focus a
+// press or key dispatches as its native default belong to that gesture.
 // Native edit starts identify their field through DOM capture or EditContext's
 // attachment; a watch confirms the value that field's input commits.
 // Parent input bridges belong to the child document. Pagehide releases them before
@@ -262,6 +263,7 @@
   // A press is one gesture from pointerdown through its click; a key is its keydown.
   const PRESS = new Set(["pointerdown", "mousedown", "pointerup", "mouseup"]);
   const GESTURES = new Set(["pointerdown", "keydown"]);
+  const FOCUS_MOVES = new Set(["blur", "focusout", "focus", "focusin"]);
   const endDispatch = (source) => {
     finishing.add(source);
     // A summary's native activation runs after the click listeners and their
@@ -351,6 +353,18 @@
           if (root.mode === "closed") node = inner;
         }
         return beginSource(event, node, true);
+      }
+    }
+    // A press or key moves focus as its native default, after its own listeners
+    // return and before its dispatch completes, so the blur and focus that move
+    // dispatches are that gesture's work: a box that closes on blur, as a file tree's
+    // search does, closes for the press elsewhere. Script focus inside a callback
+    // keeps that callback's source.
+    if (event.isTrusted && FOCUS_MOVES.has(event.type) && !callbackDepth) {
+      const gesture = [...finishing].findLast((s) => s.event.type !== "storage");
+      if (gesture) {
+        sources.set(event, gesture);
+        return gesture;
       }
     }
     const source = current();

@@ -5882,7 +5882,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 	requestUpdate(...args) {
 		const wasPending = this.isUpdatePending;
 		const result = super.requestUpdate(...args);
-		if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating)) d(() => {
+		if (this.renderRoot && this.isUpdatePending && (!wasPending || !this.#updating)) d(() => {
 			if (this.#connected && this.#region && !this.#ticket) this.#ticket = this.#claim();
 		});
 		return result;

@@ -132,8 +132,10 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     // Lit owns change detection and coalescing. A request made during render can
     // belong to the active update; one made after Lit clears its pending flag, as
     // in updated(), schedules a new update and needs its own claim. The first
-    // constructor request precedes this class's private fields.
-    if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating))
+    // constructor request precedes this class's private fields. Lit creates the
+    // render root before its first update decision, even if unread data skips
+    // that update and leaves hasUpdated false. Later requests still owe a claim.
+    if (this.renderRoot && this.isUpdatePending && (!wasPending || !this.#updating))
       untracked(() => {
         if (this.#connected && this.#region && !this.#ticket)
           this.#ticket = this.#claim();

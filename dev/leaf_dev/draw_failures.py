@@ -62,7 +62,9 @@ def failures(document: dict | None) -> list[dict]:
             "text": text[:600],
         }
         for finding in document.get("findings", [])
-        if finding["code"] in FAILED
+        # An author may reshape the output, as with jq, before the trace sees it.
+        if isinstance(finding, dict)
+        and finding.get("code") in FAILED
         and (text := finding.get("text") or json.dumps(finding.get("values", {})))
     ]
 

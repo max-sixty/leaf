@@ -650,6 +650,43 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         assert "Ada,Review,3" not in error
 
 
+def test_plain_check_hears_a_chart_mark_drawn_at_nan(serve, headless_shell):
+    """The chart mistake agents make is one Plot doesn't throw on: half the dashboards
+    in `widgets-draw-as-written` first gave a text mark a function for `dy`, which
+    Plot takes as a constant, and Plot drew those labels at NaN. The rest of the chart
+    drew and only the browser's console said so, which plain `page check` and the
+    watcher never hear. lf-chart reports the mark, so the plain check that runs a chart
+    for its data body fails on it, and the same chart passes with a constant."""
+    chart = (
+        "<lf-chart id='rates'><pre>\n"
+        "{ariaLabel: 'Error rate', x: {type: 'utc'}, marks: [\n"
+        "  Plot.text([{t: '2026-10-01T15:00Z', r: 0.4}],"
+        " {x: 't', y: 'r', text: 'r', dy: DY})\n"
+        "]}\n</pre></lf-chart>\n</main>"
+    )
+    serve(LONG_PAGE.replace("</main>", chart.replace("DY", "(d) =&gt; 4")))
+    d = serve.page_dir
+
+    def check(status):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, "page", "check", str(d)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+        )
+        assert ran.returncode == status, ran.stdout + ran.stderr
+        report = json.loads(ran.stdout)
+        assert report["browser"]["ran"] == ["page code"], report
+        return [f["text"] for f in report["findings"] if f["severity"] == "error"]
+
+    [error] = check(1)
+    assert '<lf-chart id="rates"> failed: its text mark drew at transform=' in error
+
+    (d / "index.html").write_text(LONG_PAGE.replace("</main>", chart.replace("DY", "4")))
+    assert check(0) == []
+
+
 def test_plain_check_runs_a_page_whose_widget_reads_media(serve, headless_shell):
     """A screenshot pair shot at two viewports is refused only by lf-shot's module, once
     it has decoded both images; the static check proves the files exist and never

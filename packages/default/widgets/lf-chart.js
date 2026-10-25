@@ -29,6 +29,7 @@ import {
   frameFor,
   whileConnected,
   failSoft,
+  reportFailure,
   inBaseLayer,
   measure,
   once,
@@ -131,6 +132,29 @@ customElements.define(
       if (legend > 0)
         this.drawing.replaceChildren(this.plot(Plot, body, width, box - legend));
       this.drawn = width;
+      this.reportUnplaced();
+    }
+
+    /* A mark a channel or option gave no number, as a function where Plot takes a
+     * constant `dy`, is drawn at NaN. The browser drops that attribute, so the mark lands
+     * at the origin or not at all, and says so only on its own console, which no check
+     * on the agent's quick path and no report to the watcher hears. The rest of the
+     * drawing is sound, so the chart keeps it and reports the mark, once. */
+    reportUnplaced() {
+      if (this.unplacedReported) return;
+      for (const node of this.drawing.querySelectorAll("*"))
+        for (const { name, value } of node.attributes)
+          if (/\bNaN\b/.test(value)) {
+            this.unplacedReported = true;
+            const part = node.closest("[data-lf-part]")?.dataset.lfPart;
+            reportFailure(
+              this,
+              new Error(
+                `${part ? `its ${part} mark` : `a <${node.localName}>`} drew at ${name}="${value}": a channel or option gave Plot no number, such as a function where Plot takes a constant`,
+              ),
+            );
+            return;
+          }
     }
 
     plot(Plot, body, width, height) {

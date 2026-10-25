@@ -14,7 +14,7 @@ page current as the work proceeds.
 
 The input is either a subject to present or a delivery from a page already handed
 over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the envelope
-`leaf wait` printed. A delivery starts at step 6 below; don't initialize or hand
+`leaf wait` printed. A delivery starts at step 7 below; don't initialize or hand
 the page over again. With no subject in `$ARGUMENTS`, present the work already
 under discussion.
 
@@ -56,28 +56,34 @@ must outlive the page directory.
    live and reports the error in page state and the browser. You write
    `index.html` and `page/`; only Leaf writes revisions and version mappings.
 3. **Check the page.** Before you first hand the page over, run
-   `leaf page check <page>` and fix every failure. That is the whole check for a
-   quick page, one the user reacts to once and then revises or drops: hand it over
-   without stamping or a browser review. A revision that answers a user's message,
-   even on a record, goes straight to the reply. The reply checks your saved edits
-   and is refused over an error; fix it and reply again. Each valid save is
-   already live on the user's page, so a separate check only delays the answer
-   they are waiting for.
-4. **Review and stamp a record.** A record is a page used beyond this
-   conversation. Before a record's first handoff, run `leaf page check <page> --render`, do the reading in
-   `references/page-checkpoints.md`, "Pre-handover review", then run
-   `leaf page stamp <page> --text "<changelog>"`.
-   `references/page-checkpoints.md`, "Stamp checkpoints", says when to stamp
-   again; each later stamp repeats the render check and the reading for the views
-   and On me obligations it adds. A quick page takes this review once a stamp makes it a record.
-5. Read the contract that "Harness selection" below picks. Follow
+   `leaf page check <page>` and fix every failure. A revision that answers a user's
+   message, even on a page you review, goes straight to the reply. The reply checks
+   your saved edits and is refused over an error; fix it and reply again. Each valid
+   save is already live on the user's page, so a separate check only delays the
+   answer they are waiting for.
+4. **Review an important page in the browser.** `leaf page check <page> --render`
+   and the reading in `references/page-checkpoints.md`, "Pre-handover review",
+   find what the markup check can't, such as a table squeezed to a word a line or a
+   layout that breaks at phone width. They take minutes, so give them to the pages
+   that matter. A page matters more the longer the user relies on it, whether past
+   this conversation or through a long one, the more it holds, and the more of its
+   layout you wrote yourself rather than took from the vocabulary. It matters less
+   the more urgently the user is waiting for it. A quick page, one the user reacts to
+   once and then revises or drops, needs no review. Review an important page before
+   its first handoff and again at each checkpoint, such as the user approving a plan
+   or settling a stage of the work, after the reply that answers it.
+5. **Stamp a record.** A record is a page used beyond this conversation, so it is
+   always important. Stamp it after each review, its first and each later one:
+   `leaf page stamp <page> --text "<changelog>"`. `references/page-checkpoints.md`,
+   "Stamp checkpoints", says which checkpoints a record has.
+6. Read the contract that "Harness selection" below picks. Follow
    `references/conversation-loop.md`, "Page availability and handoff", and serve and hand
    over the page the way that contract says.
-6. When a delivery arrives, read `references/event-batches.md`, the harness
+7. When a delivery arrives, read `references/event-batches.md`, the harness
    contract and, for user messages, `references/threads.md`, and answer every
    event as they say. Say what you are doing before you do it
    (`references/conversation-loop.md`, "When to write").
-7. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
+8. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 
 ## Harness selection
 
@@ -171,7 +177,7 @@ Read references from this skill directory.
 - `references/event-batches.md`: after a delivery, before processing its events.
 - `references/threads.md`: before opening, naming, replying to, editing,
   summarizing or resolving a thread.
-- `references/page-checkpoints.md`: before a record's pre-handover review, stamping,
+- `references/page-checkpoints.md`: before a pre-handover review, stamping,
   or ending a page.
 
 ### Serve or extend a page

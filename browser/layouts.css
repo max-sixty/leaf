@@ -750,11 +750,8 @@
    * Whether the track stands beside the body depends on widths no query reads, so the
    * margin reading marks it (`data-lf-beside`, prepaint.js `marginContentLayout`). Like a
    * margin sidebar, the body restarts the slot and landing band, keeps the ring's room,
-   * anchors no reading, and is a reading region of the Layout's own. A scrolling box
-   * clips at its padding edge, and the blocks run the body's full width, so the body
-   * holds the ring's room inside its edges and gives it back as a negative margin:
-   * in flow, what it holds stands where it would without it; stuck, it stands one
-   * ring's room lower. */
+   * anchors no reading, and is a reading region of the Layout's own. Where it sticks it
+   * scrolls, and keeps the ring's room inside its edges (Sticking blocks, below). */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
     flex: 1 1 18rem;
     --lf-margin-content: track;
@@ -764,10 +761,6 @@
     > aside
     > [data-lf-track-body] {
     --lf-reading-region: layout;
-    box-sizing: border-box;
-    padding: var(--focus-ring-room);
-    margin: calc(-1 * var(--focus-ring-room));
-    scroll-padding: var(--focus-ring-room);
   }
   @media screen {
     :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar {
@@ -826,6 +819,20 @@
           overflow-y: auto;
           overflow-anchor: none;
           --lf-holds-height: 1;
+        }
+        /* A scrolling box clips at its padding edge, and a track body's blocks run its
+         * full width, so a full-width control's ring would be cut at both sides and the
+         * last one's at the foot. The body holds the ring's room as padding. It gives
+         * the block-axis room back as a negative margin, so its blocks start where they
+         * would without it; the inline room stays inside the track, since a box set
+         * past the track's sides stands past the column (render check `past-column`). */
+        :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+          > aside[data-lf-beside]
+          > [data-lf-track-body] {
+          box-sizing: border-box;
+          padding: var(--focus-ring-room);
+          margin-block: calc(-1 * var(--focus-ring-room));
+          scroll-padding: var(--focus-ring-room);
         }
       }
     }

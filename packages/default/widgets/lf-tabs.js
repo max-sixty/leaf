@@ -118,6 +118,9 @@ import {
   rowArrows,
   scrollIntoView,
   focused,
+  fitsWhole,
+  landingInsets,
+  layoutPx,
   motion,
   pressIsKeyboardActivation,
   signal,
@@ -673,21 +676,42 @@ export class TabSet extends LeafElement {
   // than it shows. A side list's column runs past only where it scrolls on its own,
   // in a workspace that fills the window (theme.css), and the tab comes into it the
   // same way, down the column.
-  // In a row, a run's label sticks at the row's start as the run scrolls under it
-  // (the package theme), so the tab lands clear of the label's room, which this
-  // measures for the theme's `scroll-margin` (`--lf-tab-group-size`): the run's first
-  // tab then brings the label in with it, standing in its own place, and a later tab
-  // comes in beside the stuck label.
+  // Where the strip has room for it, the tab comes in with its run's label, so the
+  // name of the group the user opened stays beside it. Down a column that room is
+  // the landing's own (`fitsWhole`) and the run from heading to tab lands together.
+  // Along a row the label sticks at the row's start as the run scrolls under it (the
+  // package theme), so a range over the two measures where the label stands rather
+  // than the run's length; the row's room is asked whether the label and the tab
+  // can share it side by side, and the tab lands clear of the label's room through
+  // the theme's `scroll-margin`, which this measures for it (`--lf-tab-group-size`):
+  // the run's first tab brings the label in with it, standing in its own place, and
+  // a later tab comes in beside the stuck label. Where they cannot share the row,
+  // the tab lands whole and the label gives way (`data-lf-group-apart`).
   #showTab(btn) {
+    const strip = this.#strip;
     if (!btn) return;
     const run = btn.parentElement;
     const label = run.querySelector(":scope > .lf-tab-group");
-    if (label)
-      run.style.setProperty(
-        "--lf-tab-group-size",
-        `${label.getBoundingClientRect().width}px`,
-      );
-    scrollIntoView(btn, { block: "nearest", within: this.#strip });
+    if (label && getComputedStyle(strip).flexDirection === "row") {
+      const inset = landingInsets(strip);
+      const room = strip.clientWidth - inset.left - inset.right;
+      const gap = Number.parseFloat(getComputedStyle(run).columnGap) || 0;
+      const size = label.getBoundingClientRect().width;
+      const apart = size + gap + btn.getBoundingClientRect().width > room;
+      run.toggleAttribute("data-lf-group-apart", apart);
+      const measured = layoutPx(size);
+      if (run.style.getPropertyValue("--lf-tab-group-size") !== measured)
+        run.style.setProperty("--lf-tab-group-size", measured);
+      scrollIntoView(btn, { block: "nearest", within: strip });
+      return;
+    }
+    const range = label && document.createRange();
+    range?.setStartBefore(label);
+    range?.setEndAfter(btn);
+    scrollIntoView(range && fitsWhole(range) ? range : btn, {
+      block: "nearest",
+      within: strip,
+    });
   }
 
   // The open tab stays in the row as the strip's width changes, and not only when a

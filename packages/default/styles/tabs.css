@@ -320,6 +320,10 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     --lf-tabstrip-bg: var(--field);
     gap: 0;
     overflow: visible;
+    /* No press stands at a column's edge, so a landing keeps clear of none, and a run
+       * from its heading to a tab, as wide as the column, fits it (lf-tabs.js,
+       * `#showTab`). */
+    scroll-padding-inline: 0;
     padding: 8px;
     border-bottom: 0;
     border-inline-end: 1px solid var(--border-2);
@@ -441,6 +445,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
       gap: 2px;
       overflow-x: auto;
       overflow-y: hidden;
+      scroll-padding-inline: var(--lf-tabstrip-press);
       padding: 8px var(--lf-tabstrip-pad) 0;
       border-inline-end: 0;
       border-bottom: 1px solid var(--border-2);
@@ -479,7 +484,9 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
        * only time a label can be stuck, and covers the whole height of the names that
        * slide under it, its word still centred on theirs, so a tab landing in the row
        * keeps the label's room before it: the module measures the label for this
-       * margin (lf-tabs.js, `#showTab`). */
+       * margin (lf-tabs.js, `#showTab`). Where the label and the open tab cannot share
+       * the row (`data-lf-group-apart`), the tab lands whole and the label stands in
+       * its own place, scrolling with its run. */
     :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-group {
       flex: none;
       display: flex;
@@ -497,12 +504,18 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered
       > .lf-tabstrip
-      > .lf-tab-run
+      > .lf-tab-run:not([data-lf-group-apart])
       > .lf-tab-group
       ~ .lf-tab-btn {
       scroll-margin-inline-start: calc(
         var(--lf-tab-group-size) + var(--lf-tab-run-gap)
       );
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > .lf-tabstrip
+      > .lf-tab-run[data-lf-group-apart]
+      > .lf-tab-group {
+      position: static;
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered
       > .lf-tabstrip

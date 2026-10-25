@@ -87,7 +87,8 @@ const land = (box, by, behavior) => {
 };
 
 // A destination's landing margin on one side. A range has none of its own and takes the
-// larger of those of the elements it starts and ends with.
+// larger of those of the elements it starts and ends with, so a side list's run of a
+// group's label and a tab keeps the room the tab's ring needs (lf-tabs.js, `#showTab`).
 function scrollMargin(where, side = "Top") {
   if (!(where instanceof Range))
     return Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;

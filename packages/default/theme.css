@@ -1581,6 +1581,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     --lf-tabstrip-bg: var(--field);
     gap: 0;
     overflow: visible;
+    scroll-padding-inline: 0;
     padding: 8px;
     border-bottom: 0;
     border-inline-end: 1px solid var(--border-2);
@@ -1677,6 +1678,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
       gap: 2px;
       overflow-x: auto;
       overflow-y: hidden;
+      scroll-padding-inline: var(--lf-tabstrip-press);
       padding: 8px var(--lf-tabstrip-pad) 0;
       border-inline-end: 0;
       border-bottom: 1px solid var(--border-2);
@@ -1715,8 +1717,11 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
     :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip[data-lf-more-before] .lf-tab-group {
       inset-inline-start: calc(var(--lf-tabstrip-press) - var(--lf-tabstrip-pad));
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run > .lf-tab-group ~ .lf-tab-btn {
+    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run:not([data-lf-group-apart]) > .lf-tab-group ~ .lf-tab-btn {
       scroll-margin-inline-start: calc(var(--lf-tab-group-size) + var(--lf-tab-run-gap));
+    }
+    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run[data-lf-group-apart] > .lf-tab-group {
+      position: static;
     }
     :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-btn > :is(.lf-tab-name, .lf-tab-summary) {
       max-inline-size: 100%;

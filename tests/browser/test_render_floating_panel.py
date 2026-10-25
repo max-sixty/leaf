@@ -4797,7 +4797,8 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
 
 def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, serve):
     """Typing puts Send where the counts stood, wearing every composer's accent arrow
-    rather than the panel's own press face; a line break is a draft as a word is. A
+    rather than the panel's own press face, and the field runs to the row's end, past
+    the empty seat a view's Close would take; a line break is a draft as a word is. A
     press that takes the caret away leaves the draft as it stands, Send and every line
     in place, and so does a press back into it; the counts come back once the field
     empties."""
@@ -4818,6 +4819,13 @@ def test_send_stands_in_the_counts_place_while_the_field_holds_a_draft(browser, 
     expect(send).to_have_css("color", accent)
     expect(page.locator(".lf-fp-on-user")).to_be_hidden()
     settled(page)
+    short = page.evaluate(
+        "() => { const row = document.querySelector('.lf-fp-row');"
+        " const end = row.getBoundingClientRect().right"
+        " - parseFloat(getComputedStyle(row).paddingRight);"
+        " return end - document.querySelector('.lf-fp-field').getBoundingClientRect().right; }"
+    )
+    assert short <= 2, f"the drafted field stops {short}px short of the row's end"
     words = field(page).bounding_box()
     page.mouse.click(5, 5)
     expect(field(page)).not_to_be_focused()

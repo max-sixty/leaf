@@ -259,10 +259,6 @@
   .lf-floating-panel[data-expanded] {
     --lf-fp-max: 760px;
   }
-  .lf-floating-panel[data-reading] {
-    --lf-fp-max: 760px;
-    --lf-fp-view-height: calc(100dvh - var(--lf-foot-room) - 24px);
-  }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
     max-height: 75dvh;
   }

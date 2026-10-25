@@ -7265,7 +7265,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		fieldRests = resting || Boolean(search);
 		markRoom();
 		keeps(host, "data-expanded", expanded ? "" : null);
-		keeps(host, "data-reading", trail.value.at(-1)?.reading ? "" : null);
 		keeps(expand, "aria-pressed", String(expanded));
 		keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
 		keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
@@ -7591,6 +7590,15 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		return present({ release: true }).then(() => true);
 	}
+	function openThread(id) {
+		const thread = threadByKey(id);
+		if (!thread) return;
+		if (prefs().rest === "mark") prefs().setRest("row");
+		open({
+			view: "thread",
+			thread: thread.key
+		}, { reopen: true });
+	}
 	function captureCurrentLocation() {
 		const top = trail.value.at(-1);
 		const view = openView();
@@ -7670,21 +7678,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				return present({ release: true });
 			}
 		});
-		document.addEventListener("lf-open-in-panel", (event) => {
-			const thread = threadByKey(event.detail.thread);
-			if (!thread) return;
-			const reading = document.documentElement.dataset.playgroundFormat !== "panel";
-			if (prefs().rest === "mark") prefs().setRest("row");
-			open({
-				view: "thread",
-				thread: thread.key,
-				reading
-			}, { reopen: true });
-			present({ release: true }).then(() => {
-				const view = openView();
-				if (view) focusDestination(view, "move");
-			});
-		});
 		document.addEventListener(UPGRADE, () => paint(), { once: true });
 		x(() => {
 			const { visible } = noticeReading();
@@ -7714,6 +7707,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		searchPage,
 		doors,
 		showForSample,
+		openThread,
 		captureCurrentLocation,
 		restoreCurrentLocation,
 		responseHome: responseSeat,
@@ -10737,6 +10731,7 @@ app = mountApplication({
 		pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
 		renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
 		scrollThreadIntoView,
+		openInPanel: (id) => floatingPanel?.openThread(id),
 		goToObligation: (...args) => items.goToObligation(...args)
 	},
 	state: {

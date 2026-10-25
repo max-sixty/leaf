@@ -104,6 +104,7 @@ export function createThreadPreview({
   openPageThread,
   scrollThreadIntoView,
   scrollToElement,
+  openInPanel,
   onClose,
 }) {
   const { targetFor, entryPoint, entryPlace, sourceItem } = inventory;
@@ -135,8 +136,9 @@ export function createThreadPreview({
   previewNext.setAttribute("aria-label", "Next thread");
   previewNext.title = "Next thread";
   previewNav.append(previewPrevious, previewPosition, previewNext);
-  // PROTOTYPE (thread-expanded-panel): a press that moves the card's thread into the
-  // floating panel's view, which the panel opens on `lf-open-in-panel`.
+  // Open in panel moves the card's thread into the floating panel's view of it, which
+  // reads a long thread wider and taller than the card's room beside the column. The
+  // card closes, so one thread stands open, and the view's Show on page comes back.
   const previewOpenInPanel = offer(
     "button",
     "lf-btn lf-icon-action lf-quiet-action lf-margin-preview-expand",
@@ -772,19 +774,18 @@ export function createThreadPreview({
       node.append(body);
     }
     const shownThread = sourceItem(item).thread;
+    // The panel's view carries the reply being written along from the closed card
+    // (thread/replies.js, `carry`).
     previewOpenInPanel.onclick = () => {
       previewClose.click();
-      document.dispatchEvent(
-        new CustomEvent("lf-open-in-panel", { detail: { thread: shownThread.id } }),
-      );
+      openInPanel(shownThread.id);
     };
-    const candidate = document.documentElement.dataset.playgroundFormat;
     renderMarginThread(
       node.querySelector(":scope > .lf-margin-thread-body"),
       shownThread,
       {
         nav: previewNav.hidden ? null : previewNav,
-        expand: candidate === "today" ? null : previewOpenInPanel,
+        expand: previewOpenInPanel,
         close: previewClose,
         anchor: previewSession.anchor,
         // A resolved thread with no draft has no margin card, so resolving closes it and

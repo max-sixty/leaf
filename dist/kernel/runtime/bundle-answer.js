@@ -5127,7 +5127,8 @@ function mountApplication(dependencies) {
 		renderMarginThread: (host, thread, controls) => renderMarginThread(host, thread, inlineView, controls),
 		placedAt: dependencies.anchorPlacement.placedAt,
 		marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
-		scrollToElement: dependencies.anchorTravel.scrollToElement
+		scrollToElement: dependencies.anchorTravel.scrollToElement,
+		openInPanel: dependencies.annotationCommands.openInPanel
 	});
 	const threadDestinations = createThreadDestinations({
 		threadIdsAt: annotations.threadIdsAt,

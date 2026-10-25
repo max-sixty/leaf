@@ -330,13 +330,14 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
         "button => button.closest('.lf-margin-thread-controls') !== null"
     )
     centers = preview.evaluate(
-        """preview => ['.lf-resolve', '.lf-margin-preview-close'].map(selector => {
-          const rect = preview.querySelector(selector).getBoundingClientRect();
-          return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
-        })"""
+        """preview => ['.lf-margin-preview-expand', '.lf-resolve', '.lf-margin-preview-close']
+          .map(selector => {
+            const rect = preview.querySelector(selector).getBoundingClientRect();
+            return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
+          })"""
     )
-    assert centers[0]["y"] == pytest.approx(centers[1]["y"], abs=1), centers
-    assert centers[0]["x"] < centers[1]["x"]
+    assert all(c["y"] == pytest.approx(centers[0]["y"], abs=1) for c in centers), centers
+    assert centers[0]["x"] < centers[1]["x"] < centers[2]["x"], centers
     if thread_count == 2:
         row = preview.evaluate(
             """preview => {

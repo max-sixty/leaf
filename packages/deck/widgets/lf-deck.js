@@ -43,7 +43,11 @@
  * left is Later, right is Next once the card no longer waits, and a short or early drag
  * settles back. A mouse or pen drag stays
  * text selection, which comments start from. Unupgraded, and on paper, the cards stand
- * one after another. */
+ * one after another.
+ *
+ * Rejected: a Catch up button at the Leaf panel's foot opening a deck over the whole
+ * window, built from the On me list. Catch up is a widget the agent puts on the page
+ * around the questions it is waiting on, chosen by the user on 2026-10-24. */
 import {
   agentName,
   answeredInWords,

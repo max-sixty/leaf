@@ -21,7 +21,6 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
-    panel_control,
     resized,
     round_trip,
     sending,
@@ -727,8 +726,7 @@ def test_an_emptied_rewrite_keeps_nothing(browser, serve):
 def test_a_discarded_rewrite_comes_back(browser, serve):
     """Escape throws a rewrite's changed words away, so an accidental press lost a long
     rewrite for good. Restore discarded edit opens the message on those exact words
-    again, without sending them, by `g D` or the leaf's menu, which a pointer has; Save
-    then sends them as any rewrite, and nothing is left to restore."""
+    again, without sending them, by `g D`; Save then sends them as any rewrite, and nothing is left to restore."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     editor = message.locator(".lf-msg-editor leaf-text")
     rewritten = "  Fit both brackets and keep the longer explanation.  "
@@ -751,18 +749,15 @@ def test_a_discarded_rewrite_comes_back(browser, serve):
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", rewritten)
     expect(editor).to_have_js_property("selectionStart", len(rewritten))
-    # Discarded again, it comes back from the menu.
-    page.keyboard.press("Escape")
-    expect(editor).to_have_count(0)
-    panel_control(page, "command:message.edit.restore").click()
-    expect(editor).to_be_focused()
-    expect(editor).to_have_js_property("value", rewritten)
     assert edits() == []
     message.get_by_role("button", name="Save", exact=True).click()
     round_trip(page)
     expect(editor).to_have_count(0)
     assert edits() == [rewritten]
-    expect(panel_control(page, "command:message.edit.restore")).to_be_disabled()
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+d")
+    expect(editor).to_have_count(0)
 
 
 def test_a_rewrite_saves_its_exact_words(browser, serve):

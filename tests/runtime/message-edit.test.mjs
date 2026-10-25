@@ -14,8 +14,6 @@ import { applicationState } from "/runtime/semantic-state.js";
 import { draftStore } from "/runtime/storage.js";
 import { createGoToSequence } from "/runtime/keyboard/go-to-sequence.js";
 import { dispatchKey } from "/runtime/keyboard/dispatch.js";
-import { paintTouchControls } from "/runtime/keyboard/touch-controls.js";
-import { pageControls } from "/runtime/page-controls.js";
 import "/runtime/thread/landing.js";
 
 applicationState.setPhase("ready");
@@ -92,7 +90,7 @@ test("restore keeps the latest changed rewrite and its revision, without replaci
   assert.deepEqual(visits, [ctx]);
 });
 
-test("g D and the leaf's menu invoke the same recovery", (t) => {
+test("g D restores the discarded rewrite", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const visits = [];
   const restore = editing.createRewriteRestore({
@@ -120,15 +118,5 @@ test("g D and the leaf's menu invoke the same recovery", (t) => {
   assert.equal(press("D", true), true);
   assert.equal(goTo.goToSequenceActive(), false);
   assert.equal(loadDraft(rewriteContext("keyboard")), "Recover by keyboard");
-  discard("touch", "Recover from the menu");
-  paintTouchControls();
-  const control = pageControls().find(
-    ({ key }) => key === "command:message.edit.restore",
-  );
-  assert.equal(control.disabled, false);
-  control.press();
-  assert.equal(loadDraft(rewriteContext("touch")), "Recover from the menu");
-  assert.deepEqual(visits, [rewriteContext("keyboard"), rewriteContext("touch")]);
-  paintTouchControls();
-  assert.equal(pageControls().find(({ key }) => key === control.key).disabled, true);
+  assert.deepEqual(visits, [rewriteContext("keyboard")]);
 });

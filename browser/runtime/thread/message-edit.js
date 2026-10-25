@@ -27,11 +27,13 @@
    which left the user a draft to find and drop that the message could barely show.
    So an accidental Escape loses nothing for good: the last changed rewrite this
    document discarded stays in its memory until another takes its place or the document
-   reloads, and Restore discarded edit (`g D`, and a row of the leaf's menu for a pointer
-   or finger) puts it back in its draft and opens its message on it. Recovery has no
+   reloads, and Restore discarded edit (`g D`, a keyboard's convenience as Resume writing
+   is, with no row on every page's menu) puts it back in its draft and opens its message on it. Recovery has no
    timer and never replaces words of the rewrite's own, open, sending or newer from
-   another tab. Rejected: a timed Undo chip after the discard, a target the user cannot
-   learn (notifications.js).
+   another tab. The notice that follows a discard names the key.
+   Rejected: a timed Undo chip after the discard, a target the user cannot learn
+   (notifications.js), and a row of every page's menu for a pointer or finger, which put
+   a command on each page for a mishap of one keyboard gesture (the user's decision).
 
    The editor stands where the message stood and as it read (browser/AGENTS.md,
    "Editing in place"): a comment box over the message's body, every line of its words
@@ -129,9 +131,7 @@ export function createRewriteRestore({ revealInThread, holdsThreadDraft }) {
     keys: ["Shift+d"],
     title: "Restore discarded edit",
     touch: "Restore discarded edit",
-    // A pointer has no other way back to words Discard threw away, so the row stands on
-    // the menu itself, as Undo's does, rather than among a keyboard's conveniences.
-    menu: "page",
+    menu: "keys",
     when: () => Boolean(restorable()),
     run: async () => {
       if (!restorable()) return;
@@ -401,7 +401,7 @@ export class MessageEditor {
       if (unchanged()) return leave(true, { says: "Stopped editing" });
       discarded = { id, text: whole(), over: base };
       leave(true);
-      notice("Edit discarded; the leaf's menu can restore it");
+      notice("Edit discarded; g D restores it");
     };
     // Making way for another rewrite, as ↑ to an earlier message or opening one
     // elsewhere in the thread does, closes one the user has not changed; changed words

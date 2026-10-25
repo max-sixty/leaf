@@ -3286,7 +3286,7 @@ function createRewriteRestore({ revealInThread, holdsThreadDraft }) {
 		keys: ["Shift+d"],
 		title: "Restore discarded edit",
 		touch: "Restore discarded edit",
-		menu: "page",
+		menu: "keys",
 		when: () => Boolean(restorable()),
 		run: async () => {
 			if (!restorable()) return;
@@ -3435,7 +3435,7 @@ var MessageEditor = class {
 				over: base
 			};
 			leave(true);
-			notice("Edit discarded; the leaf's menu can restore it");
+			notice("Edit discarded; g D restores it");
 		};
 		const putAside = () => {
 			if (!unchanged()) return;

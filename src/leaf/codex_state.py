@@ -241,7 +241,7 @@ def delegated_work(session_id: str, grace: timedelta) -> dict | None:
     `grace`, the rule an open turn of the task's own lives by
     (`activity.claimant_turn`), since an app that quits mid-turn leaves that turn
     open in its transcript. A database Codex has not written, or whose shape has
-    changed, is no reading."""
+    changed, is no reading, as is a thread whose transcript doesn't parse."""
     home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
     database = home / STATE_DATABASE
     if not database.is_file():
@@ -258,11 +258,18 @@ def delegated_work(session_id: str, grace: timedelta) -> dict | None:
         return None
     opened = []
     for (source,) in paths:
-        path = Path(source)
-        reading = transcript_turns(path)
-        with reading.lock:
-            if reading.read(path) and reading.opened and reading.closed is None:
-                opened.append(datetime.fromisoformat(reading.opened))
+        # The database names transcripts no hook validated, and Codex rewrites its
+        # storage: an archive compressed to `.jsonl.zst`, a record of another shape.
+        # A transcript this reader can't take is no reading of that thread, since a
+        # raise here would end the page's server.
+        try:
+            path = Path(source)
+            reading = transcript_turns(path)
+            with reading.lock:
+                if reading.read(path) and reading.opened and reading.closed is None:
+                    opened.append(datetime.fromisoformat(reading.opened))
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
     if not opened:
         return None
     return {"state": "busy", "since": max(opened).astimezone().isoformat()}

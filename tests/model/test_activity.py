@@ -412,6 +412,20 @@ def test_a_codex_tasks_spawned_threads_keep_its_page_working(
                 + "\n"
             )
 
+    def registered(thread, parent, transcript, *, written=0):
+        """`parent` spawned `thread`, whose transcript Codex records at
+        `transcript`, last written `written` minutes ago."""
+        updated = time.time() - written * 60
+        with database:
+            database.execute(
+                "INSERT OR REPLACE INTO threads VALUES (?, ?, ?)",
+                (thread, transcript, int(updated * 1000)),
+            )
+            database.execute(
+                "INSERT OR REPLACE INTO thread_spawn_edges VALUES (?, ?, 'open')",
+                (parent, thread),
+            )
+
     def spawned(thread, parent, *, written=0):
         """`parent` spawned `thread`, whose turn opened and whose transcript was
         last written `written` minutes ago."""
@@ -420,17 +434,22 @@ def test_a_codex_tasks_spawned_threads_keep_its_page_working(
         meta = {"type": "session_meta", "payload": {"id": thread}}
         transcript.write_text(json.dumps(meta) + "\n")
         lifecycle(transcript, "task_started")
-        updated = time.time() - written * 60
-        with database:
-            database.execute(
-                "INSERT OR REPLACE INTO threads VALUES (?, ?, ?)",
-                (thread, str(transcript), int(updated * 1000)),
-            )
-            database.execute(
-                "INSERT OR REPLACE INTO thread_spawn_edges VALUES (?, ?, 'open')",
-                (parent, thread),
-            )
+        registered(thread, parent, str(transcript), written=written)
         return transcript
+
+    # Transcripts the reader can't take, as Codex's compressed archive and records
+    # of another shape leave them, are no reading of their threads.
+    unreadable = home / "archived_sessions"
+    unreadable.mkdir()
+    for name, content in (
+        ("archived.jsonl.zst", b"\x28\xb5\x2f\xfd" + bytes(range(256)) + b"\n"),
+        ("unframed.jsonl", b'{"type": "event_msg", "payload": {}}\n'),
+        ("garbled.jsonl", b"not json\n"),
+    ):
+        (unreadable / name).write_bytes(content)
+        registered(name, "s1", str(unreadable / name))
+    registered("unplaced", "s1", "")
+    assert activity_reading(page_dir)["kind"] == "away"
 
     # A worker the task spawned spawned one of its own, which still runs.
     spawned("worker", "s1")

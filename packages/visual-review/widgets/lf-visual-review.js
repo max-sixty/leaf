@@ -33,7 +33,6 @@ import {
   releaseOutlets,
   threadSurface,
   scopedMediaUrl,
-  describeDifference,
   whileConnected,
   registerReadingRegion,
   compoundReadingRegionId,
@@ -540,10 +539,7 @@ customElements.define(
                 }
                 ${
                   entry.difference
-                    ? fact(
-                        "Full-frame difference",
-                        describeDifference(entry.difference),
-                      )
+                    ? fact("Full-frame difference", entry.difference.description)
                     : nothing
                 }
               </dl>

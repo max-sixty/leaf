@@ -153,14 +153,6 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-// Where two images differ, gathered into regions or as pixels (image-difference.js).
-export {
-  compareImagePixels,
-  compareImages,
-  countAreas,
-  describeDifference,
-  differenceKind,
-} from "./image-difference.js";
 export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
 export { fitsWhole, scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.

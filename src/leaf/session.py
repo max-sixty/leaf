@@ -685,12 +685,16 @@ def watch_between_turns(
         no successor has come within the Stop hooks' time. Escape ends a turn
         with no Stop hook, leaving its record open, and the harness's own `idle`
         is the reading that moves then; a harness that gives none keeps the
-        immediate wake."""
+        immediate wake, except for a prompt's watch."""
         if claim["turn_closed"] is not None:
             closed = later_closed.setdefault(claim["turn"], time.monotonic())
             return time.monotonic() > closed + HOOK_TIMEOUT_S
         live = harness.live_turn()
-        return live is None or live["state"] == "idle"
+        if live is None:
+            # A prompt's watch follows the running turn itself, which its Stop hook
+            # hands over to the next watch.
+            return not at_prompt
+        return live["state"] == "idle"
 
     # What `left_owed` found on each page, by the log and turn it read, so a pass
     # that finds nothing changed folds no page.

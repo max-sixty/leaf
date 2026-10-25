@@ -99,3 +99,4 @@ These alternatives need a user-facing purpose before implementation:
   coordinated workspace ownership; persistent pages are one possible use.
 - Make Leaf the Codex client. This would add transcript, approval, interruption,
   and reconnect ownership to Leaf's page and feedback responsibilities.
+  [Leaf running the agent session](leaf-run-sessions.md) weighs it across harnesses.

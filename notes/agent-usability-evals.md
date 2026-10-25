@@ -483,11 +483,32 @@ error framing as the reason to change a layout it had judged the user's. One
 fixture and one request; a page an agent wrote itself may get a different response
 than a draft the user handed over.
 
+To see what the clause decides, the quick context ran again on both harnesses with
+the `error` kind's handling in `browser/registry.json` replaced, in the arm only, by
+one a render pass might carry: "Leaf's render check read the version you handed over,
+as the user's browser draws it. Fix each failure it lists and save the fix. Weigh each
+piece of advice against the page, and change the page only where that helps the user.
+Reply only if the user asked about it." (runs `20261024-233654-7g77ma3o` and
+`20261024-234904-48a2x9q8`; the registry change was not committed).
+
+| Quick context, harness, clause  | Ran `--render` first | Failures delivered: fixed | Advice only delivered: page changed | Final pages keeping the advice |
+| ------------------------------- | -------------------- | ------------------------- | ----------------------------------- | ------------------------------ |
+| Claude Code, `error` clause     | 7 of 10              | 4 of 5                    | 5 of 5                              | 3 of 10                        |
+| Claude Code, render-pass clause | 7 of 10              | 5 of 5                    | 1 of 5                              | 9 of 10                        |
+| Codex, `error` clause           | 5 of 10              | 5 of 5                    | 3 of 3                              | 0 of 10                        |
+| Codex, render-pass clause       | 5 of 10              | 5 of 5                    | 1 of 1                              | 0 of 10                        |
+
+With the render-pass clause every agent that got failures fixed them (10 of 10,
+72–100%), and Claude Code left the shrunk labels as they were in 4 of 5 advice-only
+deliveries, where the `error` clause had it change the chart every time. Codex changed
+the page for advice under either clause.
+
 For the TODO item: the readings take 7–8 s on a typical page. An agent that handed
 over without them did so about 40 s sooner, the check plus the reading and fixing it
-prompted, and every such agent that got the findings afterwards fixed the page. That
-supports building the pass, with a handling clause for each severity rather than the
-`error` event's.
+prompted, and every such agent that got the failures afterwards fixed them. That
+supports building the pass. Its delivery decides what agents do with advice: a clause
+of its own that tells failures from advice kept the failure fixes and let Claude Code
+weigh the advice.
 
 ## Remaining evaluation gaps
 

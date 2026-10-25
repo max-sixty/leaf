@@ -410,8 +410,10 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
   the pass takes a median 7–8 s on catalog and eval pages; 8 of 20 agents handed a
   quick edit over without it, and 20 of 21 agents that got its findings after
   handover, delivered as the page's `error` event, fixed the page in the same wake.
-  Decide how the findings arrive before building it: the `error` event's handling
-  says to fix a failure the user saw, which agents also applied to advice.
+  Give the findings a handling clause of their own: under the `error` event's, which
+  says to fix a failure the user saw, agents changed the page for advice every time;
+  a clause that tells failures from advice kept every failure fixed and had Claude
+  Code leave the advice in 4 of 5.
 - **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on

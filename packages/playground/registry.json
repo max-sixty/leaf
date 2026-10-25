@@ -59,6 +59,10 @@
     "x-name": "label",
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
       "name": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
@@ -160,6 +164,10 @@
     "x-name": "label",
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
       "value": {
         "type": "string",
         "minLength": 1
@@ -182,6 +190,10 @@
     "x-name": "label",
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
       "label": {
         "type": "string",
         "minLength": 1

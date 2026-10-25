@@ -610,6 +610,8 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     assert not errors('kind="text" value="yes"')
     # A name, like an id, may start with a digit: an alert called 5xx keeps its name.
     assert not errors('kind="toggle" value="false"', name="5xx-pages")
+    # A control is a Leaf element a user points at, so it takes a stable id.
+    assert not errors('kind="toggle" value="false" id="setting-control"')
     assert refused('kind="range" value="12"') == [("attribute-schema", "required", [])]
     assert refused('kind="range" value="twelve" max="24"') == [
         ("attribute-schema", "pattern", ["value"])

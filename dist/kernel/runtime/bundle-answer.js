@@ -1,8 +1,8 @@
 import { J, LitElement, PENDING, Z, actionForWidget, anchorKey, bindQueuedWork, d, discussed, editable, isMessageEvent, isThreadEvent, moved, projectionOrigins, q, reactionsAt, render, stateCoordinate, threadKey, tokenChoices, turns, x } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, composedParentNode, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, reportCarried, reportPageError, requestJson, sameLayer, sessionIsActive, setRuntimeRootAttribute, watchPendingTraffic } from "./bundle-layer-client.js";
-import { PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, offlineData, offlineInteractive, offlineState, pageUrl, presentDocument, queueWidgetUpdate, readApplication, readPart, runtime, setPresentationFailureReporter, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { PRESS, TEXT_ENTRY, announce, claimsEsc, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, cycledRow, el, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, landingInsets, layoutWindow, matchesWhen, notice, offer, paintKeys, paintKeysWithin, placeBox, placeHolder, presented, raiseError, registry, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-errors.js";
+import { PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, offlineData, offlineInteractive, offlineState, pageUrl, presentDocument, queueWidgetUpdate, readApplication, readPart, runtime, setPresentationFailureReporter, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { activityTransitionDue, ago, markStateApplied, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, tickClock } from "./bundle-reading-regions.js";
 import { comparisonBase, comparisonChanges, createProjectionPresentation, inlineComparison, referencedProjection, requireReference, toggleInlineComparison } from "./bundle-version.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
@@ -1781,7 +1781,6 @@ function createSelectionComposer({ setReact, reactionTokens, reactionAvailable, 
 						part: "thread",
 						focus: true,
 						travel: false,
-						flash: false,
 						intent: restrictUserIntent(currentIntent, revealAvailable),
 						origin
 					});
@@ -3324,7 +3323,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 	const threadFocusTarget = (id, { part = null } = {}) => surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
 	const DECLINED = Symbol("declined");
 	const UNDRAWN = Symbol("undrawn");
-	async function openPageThread(id, { part = null, focus = true, travel = true, flash = true, scroll = true, intent = retainUserIntent(), origin = null, returning = false } = {}) {
+	async function openPageThread(id, { part = null, focus = true, travel = true, scroll = true, intent = retainUserIntent(), origin = null, returning = false } = {}) {
 		if (!intent()) return null;
 		const navigationStep = travel && scroll;
 		const selected = presentation?.owner.isConnected ? presentation : null;
@@ -3924,7 +3923,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 						};
 					} else {
 						let joined = false;
-						const { hint, hintAside, accessibleName, busy, sent } = item.options;
+						const { hint, hintAside, accessibleName, busy, sending, sent } = item.options;
 						const redraw = () => {
 							for (const row of node.querySelectorAll(":scope > .lf-thread-reply")) if (row !== reply.node) row.remove();
 							move(node, reply.node, node.firstChild);
@@ -3938,6 +3937,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 							hintAside,
 							accessibleName,
 							busy,
+							sending,
 							sent
 						});
 						joined = true;
@@ -5158,7 +5158,6 @@ function mountApplication(dependencies) {
 			part: "reply",
 			focus: false,
 			travel: false,
-			flash: false,
 			intent
 		}),
 		returnToPage: threadDestinations.returnToPage,
@@ -5987,8 +5986,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 	get controller() {
 		return this.#controller;
 	}
-	willUpdate(changed) {
-		super.willUpdate(changed);
+	#deliverInputs() {
 		for (const entry of this.#inputs) {
 			if (!entry.bound) continue;
 			entry.read ??= dataReader(this, entry.input, () => this.#stage());
@@ -6045,12 +6043,14 @@ var LeafElement = class extends q(UpdateBoundary) {
 	shouldUpdate(changed) {
 		if (!this.#connected || !this.isConnected) return false;
 		if (this.#held) return false;
-		this.#drawing = this.#ticket;
+		this.#drawing = this.#ticket ?? this.#claim();
 		this.#ticket = null;
-		if (this.#broken) return false;
-		if (!this.#complete()) return false;
-		if (awaitsData(this)) return false;
+		if (!this.#draws()) return false;
+		this.#deliverInputs();
 		return super.shouldUpdate(changed);
+	}
+	#draws() {
+		return !this.#broken && this.#complete() && !awaitsData(this);
 	}
 	update(changed) {
 		super.update(changed);
@@ -6079,7 +6079,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 		}
 	}
 	redraw() {
-		render(this.render(), this.renderRoot, this.renderOptions);
+		if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
 	}
 	updated(changed) {
 		super.updated(changed);

@@ -295,10 +295,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     return this.#controller;
   }
 
-  // Set each bound property to the value its input delivers, before the update that
-  // reads it. Reading the input here follows it as `render()` reading it would.
-  willUpdate(changed) {
-    super.willUpdate(changed);
+  // Deliver before the widget decides whether to draw. Reading the input here
+  // follows it even when shouldUpdate skips an unchanged value.
+  #deliverInputs() {
     for (const entry of this.#inputs) {
       if (!entry.bound) continue;
       entry.read ??= dataReader(this, entry.input, () => this.#stage());
@@ -384,13 +383,20 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     }
     if (this.#held) return false;
     // The claim this update draws, from its gate on; one its own reads claim while it
-    // runs is the next's. An update that draws nothing settles it all the same.
-    this.#drawing = this.#ticket;
+    // runs is the next's. Before the first successful draw, Lit can retry a skipped
+    // update without requestUpdate claiming it. Every connected update owns a claim,
+    // including one that draws nothing and settles immediately.
+    this.#drawing = this.#ticket ?? this.#claim();
     this.#ticket = null;
-    if (this.#broken) return false;
-    if (!this.#complete()) return false;
-    if (awaitsData(this)) return false;
+    if (!this.#draws()) return false;
+    this.#deliverInputs();
     return super.shouldUpdate(changed);
+  }
+
+  // Whether the element has a reading to draw: none after a `setup()` that threw,
+  // while its reading lacks a declared verb, or while its data is undelivered.
+  #draws() {
+    return !this.#broken && this.#complete() && !awaitsData(this);
   }
 
   update(changed) {
@@ -439,9 +445,11 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
    *  (render-checks/replay.js), which holds a draw of the same reading to change
    *  nothing. `updated()` does not run, since what follows a draw may start
    *  preparation that would claim the widget's presentation and land after the check
-   *  reads the page. An update Lit has queued stays queued, with its claim. */
+   *  reads the page. An update Lit has queued stays queued, with its claim. An element
+   *  with no reading to draw draws nothing here either, so one whose `setup()` threw
+   *  keeps showing that failure. */
   redraw() {
-    render(this.render(), this.renderRoot, this.renderOptions);
+    if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
   }
 
   updated(changed) {

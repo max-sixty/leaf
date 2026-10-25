@@ -18,6 +18,7 @@ from leaf.registry.contract import (
     state_specs,
 )
 from leaf.registry.schema import json_validator, schema_reading
+from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import found_at, structure_errors
@@ -437,6 +438,10 @@ def reference_errors(
                 )
             elif reference.get("owns") and target not in own:
                 errors.append(found_at("outside-reference", rec, **reference_to))
+            elif attr == entry.get("x-shows", {}).get("attr") and target not in own:
+                # A view and the answer it shows travel in one document, so a board
+                # in a reply shows widgets frozen in the same reply (`shown_answers`).
+                errors.append(found_at("shows-outside", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
         for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
@@ -552,6 +557,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + addressable_instance_errors(lf_elements, registry)
         + enclosing_errors(document, registry)
         + unique_errors(lf_elements, registry)
+        + shown_errors(document, registry)
     )
 
 

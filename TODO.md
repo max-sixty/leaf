@@ -40,11 +40,6 @@ has tried; settle that before building it.
 
 ### User experience
 
-- **#25 — Answer one decision beside its evidence and on a board.** A section's
-  picker and its board card currently record independent facts. The section's widget
-  owns the answer; build the board's write to that owner and test both views against
-  one decision, including ordering, write-ins and revision retraction
-  ([design](notes/shared-decisions.md)).
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive

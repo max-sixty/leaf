@@ -989,7 +989,6 @@ customElements.define(
           this.publishFiles();
           this.diffTools = null;
           this.filesBody = null;
-          this.replaceChildren();
           shadowStage(this, []);
           projectData(this, [], { snapshot });
           this.classList.toggle("lf-rendered", false);
@@ -1107,10 +1106,6 @@ customElements.define(
             ...(this.diffTools ? [this.diffTools.search] : []),
             ...entries.map(({ node }) => node),
           ]);
-          // The authored placeholder leaves child by child: WebKit's `replaceChildren()`
-          // on a shadow host unloads every frame in its shadow tree, even with no child
-          // to remove, so a frame in a thread beside a row reloaded on each revision.
-          for (const child of [...this.childNodes]) child.remove();
           this.markRuns();
           this.stageFiles();
           this.projectFiles();

@@ -280,6 +280,11 @@ test("a line break assigned to a shadow slot separates its words", () => {
   const host = document.querySelector("lf-staged");
   const staged = document.createElement("template");
   staged.innerHTML = "<p><slot></slot></p>";
+  // happy-dom assigns no slots, so each child states the one a browser gives it.
+  for (const child of host.childNodes)
+    Object.defineProperty(child, "assignedSlot", {
+      get: () => host.shadowRoot?.querySelector("slot") ?? null,
+    });
   shadowStage(host, [...staged.content.childNodes]);
   assert.equal(says(host.shadowRoot), "Alpha Beta");
   assert.equal(pageText().raw, "Alpha Beta");

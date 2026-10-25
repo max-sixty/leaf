@@ -291,6 +291,71 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
 twelve-author Codex comparison above. The continuing brief is TODO #20.
 
+## Opus page-quality campaign, 2026-10-24
+
+An overnight `/grinding-ui` run with fresh Claude Code authors (Opus 5.5) and Sol live
+and pair judges, on the arrangement tasks at 1600×1000. The runs named in the two
+sections above no longer existed, so every control was authored fresh. Each repair
+was compared on its own task against the commit before it (`--base`), then on a
+dissimilar task, then against HTML controls through an index of chosen samples, since
+`eval-pairs` pairs only the two columns inside its runs.
+
+Retained, in commit order on the campaign branch:
+
+- Playground label choices wrap between whole labels instead of filling equal grid
+  cells, which broke "over 1% (today)" across two lines in a half-empty card; one
+  author had overridden the cells in page CSS.
+- Dashboards and tuning pages keep their working state in the first window
+  (`page-authoring.md`, "Composing a page"), and a working-density `main` on a column
+  or sidebar page takes the working title and a 28px head. Leaf dashboards authored on
+  main were 2667–3390px tall at their first version (median about 3020), with the
+  chart, region table or checks below the window; with the change, 1704–1947px
+  (median about 1790), with metrics, regions, chart and decision in the window. Pair
+  judgments against main: 7 of 8. Configuration first versions fell from
+  1804–3332px to 1000–1944px, though both arms reached a fitting page once the user
+  stated the window, and the pair judges then split 1 of 4 for the change.
+- A panel heading names its region and the panel's first line states its finding. All
+  7 Leaf dashboards with panels written without that line had a panel heading over 40
+  characters (up to 129, in small capitals); the 2 written with it had none over 20.
+- Queue summaries take `--t-working-label` instead of the label size, in an 18rem list.
+- An applied playground stays open, authored at the chosen values, as its record
+  (`authoring-revisions.md`). Authors given the line did so 7 of 8 times, authors on
+  main 0 of 4 (today's values, or the tuner in a disclosure). Judgments against base
+  on the first pair of runs: 4 of 4.
+- `lf-diff` joins the pieces `@pierre/diffs` 1.6 splits an uneven change into, so a
+  rewrite reads deletions above additions in the unified view.
+
+Rejected: a 24em measure for the wide-page title (no visible change on 55–60
+character titles), and laying a page out by how its reader uses its parts (patch
+review, latency review and a document control: 4 of 10 judgments for the change
+against base, 0 of 4 against HTML), and asking for a configuration's items as aligned
+rows (every author already wrote rows; base won 4 of 4).
+
+At the end, two fresh samples per task on main and on the campaign branch: the
+branch won 17 of 24 judgments against main, 4 of 4 on configuration, dashboard and
+queue, 3 of 4 on latency review, 2 of 4 on the document control and 0 of 4 on patch
+review, where the judges cited each page's content (which diff it showed, how it
+recorded the approval). Two queue judgments named the branch's larger, "more
+readable" summaries. Codex authors (Sol 6.1) wrote working-density dashboards,
+workspaces and short panel headings on both arms, so the instruction changes moved
+nothing there; their configuration and queue pairs went to main 4 of 4 on a browser
+user's wrong click and a queue item the branch's author left open. At a 900×600
+window (one sample per arm) the branch took 3 of 6: configuration 2 of 2, queue 1 of
+2, and dashboard 0 of 2, where main's author wrote a workspace of independently
+scrolling columns and the branch's a sidebar page, which the guidance names for a
+dashboard. Against the
+same HTML controls both arms gave identical winners: Leaf for dashboard, document
+and queue, HTML for configuration, latency review and patch review. The HTML
+dashboard, queue and document controls each had a decision route that recorded
+nothing or lost a decision, which the judges weighed heavily. HTML's remaining
+advantages as the judges named them: aligned rows and summary links on configuration
+pages, a chart beside all its rows and the plan where Leaf used separate views, and
+code at 13.5px beside the decision where Leaf set it at 12px in another part.
+
+Runs and pair indexes are under `.tmp/eval/` in the campaign's worktree,
+`leaf.agent-a10f091f355e3a600`; the running log with each cycle's screenshots is
+`.tmp/overnight/page-quality.md` there.
+
 ## Remaining evaluation gaps
 
 - Recovering a long thread's middle after the agent has lost it. `elided` now

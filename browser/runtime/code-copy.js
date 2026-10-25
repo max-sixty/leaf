@@ -24,6 +24,7 @@ import { watchArrivals } from "./arrivals.js";
 import {
   aimControl,
   anchorControl,
+  pressedElsewhere,
   releaseControl,
   revealControl,
   standInChrome,
@@ -54,20 +55,6 @@ function setCopySize(copy, size) {
   else copy.style.removeProperty("--lf-code-copy-size");
 }
 
-// A tap on a hidden control's corner stands the user on the block, which reveals the
-// control before the tap's click is aimed, so the click lands on it. Only a press that
-// began on the shown control copies; Enter's click carries no press (`detail` 0).
-// The last press may have been on markup a revision removes before another press.
-// Keep membership for the following click without keeping that markup alive.
-let pressedPath = new WeakSet();
-addEventListener(
-  "pointerdown",
-  (event) => (pressedPath = new WeakSet(event.composedPath())),
-  {
-    capture: true,
-  },
-);
-
 // Focus can reveal and scroll a source before the observer's next task. Its keyboard
 // route must see the control in that same gesture, widgets included.
 onCurrentLocation((node) => {
@@ -89,7 +76,8 @@ function prepareCodeBlock(pre, source, noun) {
     copy.addEventListener(
       "click",
       (event) => {
-        if (event.detail && !pressedPath.has(copy)) {
+        // A tap on a hidden control's corner reveals it; only a later press copies.
+        if (pressedElsewhere(event, copy)) {
           event.preventDefault();
           event.stopImmediatePropagation();
         } else copy.value = source();

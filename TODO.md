@@ -93,10 +93,6 @@ has tried; settle that before building it.
   them (see "A reply's widgets in every view of it"). Hiding resolved cards in place
   would show them among open ones unless CSS reorders them, so it needs the user's
   say; the `lf-diff` fix is keeping rows stable or the containers outside them.
-- **A summary's fold button ignores a press while words are selected.** With text
-  selected in a thread message, pressing "Show/Hide N earlier messages" does nothing,
-  even twice; Enter works. Reproduced in Chromium with a selection set by script,
-  before the flat transcript too.
 
 ### Agent and author experience
 

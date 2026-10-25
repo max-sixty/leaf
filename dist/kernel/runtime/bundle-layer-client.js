@@ -1,5 +1,5 @@
 import { AsyncDirective, Directive, PartType, Z, describeFailure, directive, html, isElementName, nothing, render, x as x$1 } from "./bundle-browser-runtime.js";
-import { CARET_KEYS, TEXT_BOX, WORKS, canPlaceFocus, cancelRender, closeLayer, controlNavigationKeys, focusRevision, focused, handBack, isNativeLayer, keeps, keepsText, move, nativeLayerHolding, nativeLayerKind, nextRender, onCurrentLocation, releaseFocus, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
+import { CARET_KEYS, PRESSES, TEXT_BOX, WORKS, canPlaceFocus, cancelRender, closeLayer, controlNavigationKeys, focusRevision, focused, handBack, isNativeLayer, keeps, keepsText, move, nativeLayerHolding, nativeLayerKind, nextRender, onCurrentLocation, releaseFocus, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
 import { DELIVERY, PAGE_ROOT, offlineInteractive, pageUrl, runtime } from "./bundle-context.js";
 
 //#region runtime/page-paint.js
@@ -2803,7 +2803,7 @@ function reachedForWords(el) {
 }
 document.addEventListener("click", (ev) => {
 	if (pressIsKeyboardActivation(ev)) return;
-	const control = ev.target.closest?.("[data-lf-offer]");
+	const control = ev.target.closest?.(`${PRESSES},[data-lf-offer]`);
 	if (control && reachedForWords(control)) {
 		ev.stopPropagation();
 		ev.preventDefault();

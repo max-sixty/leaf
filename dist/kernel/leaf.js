@@ -1716,8 +1716,18 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		event.preventDefault();
 		event.stopImmediatePropagation();
 	}
+	function dropStroke() {
+		stroke = null;
+		shiftDrawingPaint();
+		announce("Stroke canceled. Draw mode is still on.");
+	}
 	function begin(event) {
-		if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
+		if (!drawModeOn) return;
+		if (!event.isPrimary) {
+			if (stroke) dropStroke();
+			return;
+		}
+		if (event.button !== 0) return;
 		const origin = event.composedPath()[0];
 		if (leafSurface(origin)) return;
 		claimThroughClick = true;
@@ -1832,11 +1842,9 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 			return;
 		}
 		claim(event);
-		stroke = null;
 		claimedPointer = null;
 		releaseCompatibilityClickSoon();
-		shiftDrawingPaint();
-		announce("Stroke canceled. Draw mode is still on.");
+		dropStroke();
 	}
 	const compatibilityPress = (event) => {
 		if (claimThroughClick && !pressIsKeyboardActivation(event)) claim(event);

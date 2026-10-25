@@ -47,7 +47,7 @@
     "runtime/composing/drawing-ink.js": "a8f4a807abd0971c707ac5caea4aa420531f18aaea932331dd384efeef991f96",
     "runtime/composing/drawing-record.js": "273bf71a876a716a0443ff9fe4f0e9e301558cbb287d033b3c626f32523fdb23",
     "runtime/composing/drawing-schema.js": "d997712a7fc8183f4384f926f746056b115a6d877b7e8811b9799460f5b426ba",
-    "runtime/composing/drawing.js": "200cb03b0968ade6043accce61f0c4a2496dab04eb3644936a6e29b205bdaf5b",
+    "runtime/composing/drawing.js": "f36a6782c4da2d2ba8c5e3ba7d04a97415a2080881483de03ea0121acbf59c59",
     "runtime/composing/engagement.js": "20400ec66c7f307e44244c2779a695ba00fdeaf2053d4c49341500bad04164ab",
     "runtime/composing/input.js": "af2e1c19df013a41459d600dfffb7e5b3bb223cdc5aa5859528b32844823ecef",
     "runtime/composing/page-image.js": "7dd984ee0103c20a26ed6214b8363140958ecdc3c4ebfbcdb0634d022a6774fc",

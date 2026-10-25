@@ -145,7 +145,7 @@ html[data-lf-draw-mode] body {
 }
 /* One finger's drag is the capture's, or the stroke's. Draw mode lasts while the user
    moves about the page, so two fingers still pan and zoom it there; a second finger
-   landing mid-stroke cancels that stroke (drawing.js, `cancel`). */
+   landing takes back the stroke the first began (drawing.js, `begin`). */
 html[data-lf-region-capture],
 html[data-lf-region-capture] body {
   touch-action: none;

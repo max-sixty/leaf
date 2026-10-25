@@ -1499,7 +1499,7 @@ export function createFloatingPanel({
     const release = new AbortController();
     fieldHold = { input, release };
     input.style.setProperty("max-height", layoutPx(height));
-    for (const type of ["keydown", "pointerdown", "beforeinput"])
+    for (const type of ["pointerdown", "beforeinput"])
       input.addEventListener(type, releaseField, {
         capture: true,
         signal: release.signal,

@@ -879,8 +879,10 @@
 .lf-trace-image-tools > button:not(.lf-trace-image-scale) {
   inline-size: var(--lf-line);
 }
-/* Status changes share one slot; loading a frame cannot wrap the tools into a new row. */
+/* Status changes share one slot; loading a frame cannot wrap the tools into a new row.
+ * It keeps its line when its text clears, so a narrow layout's own row of it holds. */
 .lf-trace-tools-status {
+  min-block-size: 1lh;
   margin-inline-start: auto;
   inline-size: 24ch;
   flex: 0 0 auto;

@@ -5914,11 +5914,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			release
 		};
 		input.style.setProperty("max-height", layoutPx(height));
-		for (const type of [
-			"keydown",
-			"pointerdown",
-			"beforeinput"
-		]) input.addEventListener(type, releaseField, {
+		for (const type of ["pointerdown", "beforeinput"]) input.addEventListener(type, releaseField, {
 			capture: true,
 			signal: release.signal
 		});

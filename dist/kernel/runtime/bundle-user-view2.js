@@ -1,6 +1,6 @@
 import { layerHeaders, randomId, sessionIsActive } from "./bundle-layer-client.js";
-import { offlineInteractive, pageUrl, runtime, watchSemantic } from "./bundle-context.js";
 import { coarsePointer, layoutWindow, seenRect, shownWindow, tagsDeclaring, watchRoom } from "./bundle-errors.js";
+import { offlineInteractive, pageUrl, runtime, watchSemantic } from "./bundle-context.js";
 import { pageReadiness, unconcealedReadingRegions } from "./bundle-reading-regions.js";
 import { onMotionPreferenceChange, reducedMotion } from "./bundle-motion.js";
 import { darkPreference, shownScheme } from "./bundle-color-scheme.js";

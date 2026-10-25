@@ -206,6 +206,7 @@ export {
   PRESENTATION,
   afterPresentation,
   deferredArrival,
+  whileInterfaceConnected,
 } from "./presentation.js";
 export { quietWord } from "./declared-words.js";
 export { copyBlock } from "./code-copy.js";

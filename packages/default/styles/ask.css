@@ -5,9 +5,13 @@
 :scope:is(lf-ask) {
   display: block;
 }
-/* A full-height question can meet the viewport's foot, leaving no scroll position
- * that shows an outside obligation ring. Its content can cover an inset outline, so
- * paint the same band on a non-interactive overlay above the question's children. */
+/* The ring the user stands in (chrome.css, `[data-lf-obligation]`) stands outside the
+ * question at the ring's gap, clear of its heading's first letter, as every other
+ * obligation's does. A full-height question can meet the viewport's foot, leaving no
+ * scroll position that shows an outside ring, so there it stands inside the question's
+ * box. Its content can cover an inset outline, so the band is painted on a
+ * non-interactive overlay above the question's children. Drawn inside everywhere, it
+ * ran over the first letter of every line the question holds. */
 :scope:is(lf-ask)[data-lf-obligation] {
   position: relative;
   /* Runtime chrome is adopted after the package sheet. */
@@ -20,7 +24,12 @@
   z-index: 1;
   pointer-events: none;
   outline: var(--lf-obligation-ring, var(--focus-ring));
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-gap);
+}
+@container style(--lf-full-height: 1) {
+  :scope:is(lf-ask)[data-lf-obligation]::after {
+    outline-offset: calc(-1 * var(--focus-ring-w));
+  }
 }
 /* An lf-ask frames prose, so it keeps the reading measure as its text does (theme.css),
  * its outer width the measure, and in a flow wider than the column (a sidebar page's

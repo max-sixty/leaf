@@ -807,14 +807,16 @@ export function createFloatingPanel({
         hint: () => saying(key, replyInput()),
         hintAside: () => passingAside(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
-        sent: () => {
+        sent: (flight) => {
           // The user's turn lets go of the height a press held (`pressAt`).
           room = null;
           rewriting = false;
+          releaseField();
           landing = { key, after: drawnTurns(), end: true };
           // The user's turn grows the view to show it and takes New reply away.
           waiting = null;
           queueMicrotask(paint);
+          holdRefused(flight);
         },
       });
     return replyOptions.get(key);
@@ -1238,6 +1240,7 @@ export function createFloatingPanel({
     landReader();
     fitAnswer();
     stood = openView()?.offsetHeight ?? null;
+    stoodAt = openView()?.getBoundingClientRect().top ?? null;
     followBox();
   });
   const follow = sizeObserver(() => {
@@ -1390,8 +1393,9 @@ export function createFloatingPanel({
   // The view last drawn open, by its route's key.
   let drawnTop = null;
   // The open thread's view's height as last drawn, which the caret entering a rewrite
-  // holds.
+  // holds, and its top.
   let stood = null;
+  let stoodAt = null;
   let rewriting = false;
   const holdThread = (height) => {
     if (!trail.value.at(-1)?.thread || room !== null || height === null) return false;
@@ -1470,6 +1474,50 @@ export function createFloatingPanel({
     }
     paint();
   });
+  // A turn the log refuses leaves the view as news, while the user may be aiming at
+  // the view's head or at the controls over the field, so neither moves. The view keeps
+  // its head where it stood with the turn (`stoodAt`), the turn's room standing empty,
+  // until the user's next turn, as a press's hold does. The field keeps the height the
+  // send left it at, the words it hands back scrolling inside it under the refusal's
+  // cover, until the user next writes or presses there, which grows it as typing does.
+  // The refusal has drawn the thread without the turn, and the field with the words, by
+  // the time it settles the send, so both hold before the frame shows either. #3400
+  // dropped the view's hold, as its controls no longer stood at its head; the words
+  // given back then carried the controls up from under the user's aim.
+  function holdRefused(flight) {
+    const route = trail.value.at(-1);
+    let cleared = null;
+    nextRender(() => {
+      cleared = replyInput()?.getBoundingClientRect().height ?? null;
+    });
+    void Promise.resolve(flight).then((sent) => {
+      const view = openView();
+      if (sent || trail.value.at(-1) !== route || !view || stoodAt === null) return;
+      holdField(replyInput(), cleared);
+      const height = view.offsetHeight + view.getBoundingClientRect().top - stoodAt;
+      if (holdThread(height)) paint();
+    });
+  }
+  let fieldHold = null;
+  function holdField(input, height) {
+    releaseField();
+    if (!input || height === null) return;
+    if (input.getBoundingClientRect().height <= height + 0.5) return;
+    const release = new AbortController();
+    fieldHold = { input, release };
+    input.style.setProperty("max-height", layoutPx(height));
+    for (const type of ["pointerdown", "beforeinput"])
+      input.addEventListener(type, releaseField, {
+        capture: true,
+        signal: release.signal,
+      });
+  }
+  function releaseField() {
+    if (!fieldHold) return;
+    fieldHold.release.abort();
+    fieldHold.input.style.removeProperty("max-height");
+    fieldHold = null;
+  }
   // A list takes its room as it stands before the paint that would change it, once
   // drawn: what it holds then is what it fits, so taking it writes only the height the
   // list already stands at.
@@ -1677,6 +1725,7 @@ export function createFloatingPanel({
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
     if (changed) {
       room = null;
+      releaseField();
       rewriting = false;
       pressed = null;
       quoteExpanded = false;

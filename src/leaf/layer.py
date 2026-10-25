@@ -12,7 +12,7 @@ from typing import NamedTuple
 import tinycss2
 
 from .findings import Finding
-from .locations import located, locations_overlap
+from .locations import first_overlap, located
 from .machine import package_store
 from .refusals import Refused
 from .registry.contract import element_declarations, is_element_name
@@ -157,17 +157,12 @@ def input_paths(inputs: list[Path]) -> list[Path]:
 def overlapping_inputs(inputs: list[Path]):
     """The first resolved path shared by two precedence scopes."""
     located_inputs = [(root, located(input_paths([root]))) for root in inputs]
-    return next(
-        (
-            (left_root, left, right_root, right)
-            for index, (left_root, left_paths) in enumerate(located_inputs)
-            for right_root, right_paths in located_inputs[index + 1 :]
-            for left, left_at in left_paths
-            for right, right_at in right_paths
-            if locations_overlap(left_at, right_at)
-        ),
-        None,
-    )
+    for index, (left_root, left_paths) in enumerate(located_inputs):
+        for right_root, right_paths in located_inputs[index + 1 :]:
+            if overlap := first_overlap(left_paths, right_paths):
+                left, right = overlap
+                return left_root, left, right_root, right
+    return None
 
 
 def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:

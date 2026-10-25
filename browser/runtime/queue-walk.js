@@ -525,6 +525,7 @@ export function createQueueWalk({
     title: "On me",
     when: offered,
     repeat: true,
+    travels: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
     // down a level, so the current scope lets go of whichever one they end on. An item
     // reached through the panel leaves the panel a level of its own on the way out,

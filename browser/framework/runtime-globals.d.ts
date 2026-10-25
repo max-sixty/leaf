@@ -199,6 +199,7 @@ interface DocumentEventMap {
     binding: unknown;
     title: string;
     description: string;
+    travels: boolean;
   }>;
   /** The reading column's box, once the margin has laid out against it. */
   "lf-margin-layout": CustomEvent<{ column: DOMRect; height: number }>;

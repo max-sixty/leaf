@@ -13,12 +13,14 @@
    takes the status line.
    A document block's control stands in chrome and passes under the page's sticky
    headers as block-controls.js says.
-   The control follows the common pattern for code copy: hidden at rest, so it covers no
-   words, and shown while a pointer is over the block or the user is on it. A finger
-   has no hover, so a tap on the block stands the user on it and shows the control in
-   its corner, the touch form of the same reveal. The control takes no room, since room
-   made for it would move the page's content (`../AGENTS.md`, "Nothing Leaf draws moves
-   the page's content"). */
+   The control follows the common pattern for code copy: hidden at rest, and shown while
+   a pointer is over the block or the user is on it. A finger has no hover, so a tap on
+   the block stands the user on it and shows the control, the touch form of the same
+   reveal. Shown, it is a toolbar of one quiet mark whose middle lies on the block's top
+   border at its right (integration.css, `.lf-mark-bar`), the face and seat a draft's
+   toolbar wears, so it covers the border and padding rather than the first line's last
+   words. The control takes no room, since room made for it would move the page's
+   content (`../AGENTS.md`, "Nothing Leaf draws moves the page's content"). */
 import { copyControl } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import {
@@ -68,7 +70,7 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
   let copy = controls.get(pre);
   if (!copy) {
-    copy = copyControl("lf-code-copy", {
+    copy = copyControl("lf-code-copy lf-quiet-action", {
       label: `Copy ${noun}`,
       success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
       error: `Unable to copy ${noun}`,

@@ -67,6 +67,7 @@
   margin-block-start: 0;
   padding: 0;
   --lf-pane-top: 0px;
+  container-type: normal;
 }
 .lf-vr-case-button {
   display: grid;

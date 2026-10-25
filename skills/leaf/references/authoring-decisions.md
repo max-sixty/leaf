@@ -5,47 +5,13 @@ structured answer; a thread message with `--obligation` requests an answer in wo
 "The On lists", covers everything the user is asked for, including questions in the
 conversation and actions outside the page.
 
-A decision lets the user make a choice as well as you could. Say why the choice
-arises, what each option leads to in a case the user can picture, and what each costs,
-including the one you recommend, so they could reach your recommendation or turn it
-down for reasons the decision gives. Where you can't yet say what an option does,
-find out before you ask.
+## What a decision holds
 
-For decisions on the document, make each answerable where On me takes the user,
-without reading earlier content. Pressing `m` brings that decision to the top of the
-window, leaving preceding prose out of view. So the decision opens with a heading that
-asks its question, and holds that explanation, its evidence, the current state and the
-answering control, inside the answering widget or an enclosing `lf-ask`. Compose the
-explanation there first; backing detail goes after it.
-
-On a quick-answer page, open with the decision and put its backing in a disclosure after
-it; the first screen shows the goal, the current state and what the user can do next. On
-a record or system page, put each decision in the part of the page it decides: a
-decision about one entry goes with that entry, and one that turns on a claim contains
-the claim and its evidence. Only a decision about the whole record comes last.
-
-Keep the question, its evidence and the options on screen together. Where a table,
-chart or playground inside the decision, or the pictures in its options, can't be read
-at the prose's width, give that block, or the `lf-options`, its own `data-width`
-(`page-layout.md`, "Bounds and widths").
-
-Write decisions the user can answer independently in page order. If a later one depends
-on an earlier answer, pose it in the next turn rather than writing every branch.
-
-Let the user answer in the form the answer takes: a widget wherever it is a choice or
-an edit, and a thread message with `--obligation` for a conversational answer. An
-`lf-ask` holding no widget can also put an open question directly on the page.
-Each widget puts one obligation on On me and records its answer. A choice can hold a
-partial answer before the user presses Done, and an empty selection can be a complete
-answer.
-
-On me lists only what still needs the user. Retire a document decision or question
-once it stops mattering, by removing its widget in a new version or marking it
-`restated` (`authoring-revisions.md`). For a conversational obligation, use
-`leaf task end` as "The On lists" describes. A request the user made stays open until you
-answer it or they withdraw it; deciding something else, however related, doesn't
-answer it. To retire one yourself, say what changed to make it unnecessary. A to-do you
-put on the user is work for them to do, such as trying a build, not a question.
+The user should be able to make the choice as well as you could from what the decision
+tells them. Say why the choice arises, what each option leads to in a case the user
+can picture, and what each costs, including the one you recommend, so they could reach
+your recommendation or turn it down for reasons the decision gives. Where you can't
+yet say what an option does, find out before you ask.
 
 Each option is a result the user can pick, so its title says what choosing it does to
 the subject, keeping today's behavior included: “Generate shared types” and “Keep
@@ -72,15 +38,55 @@ once, such as an `lf-shot` pair, belongs to the group. Vary only what the decisi
 changes, and show today in the option that keeps it, or above the options where none
 does.
 
+When the page exists to choose among approaches, its title and headings ask the
+question without answering it. Give each alternative the same depth on the same
+example, with its own open questions, and mark your recommendation as advice.
+How to build an alternative waits for the user's pick.
+
+## Asking and retiring
+
+Let the user answer in the form the answer takes: a widget wherever it is a choice or
+an edit, and a thread message with `--obligation` for a conversational answer. An
+`lf-ask` holding no widget can also put an open question directly on the page.
+Each widget puts one obligation on On me and records its answer. A choice can hold a
+partial answer before the user presses Done, and an empty selection can be a complete
+answer.
+
+Write decisions the user can answer independently in page order. If a later one depends
+on an earlier answer, pose it in the next turn rather than writing every branch.
+
 When the user decides several proposals independently, give each its own decision with
 accept and reject options, beside that proposal's case. One decision can accept a batch
 of clear-cut proposals if it says why each is clear-cut. Use `multiple` only when the
 picks depend on each other, such as a limit on how many.
 
-When the page exists to choose among approaches, its title and headings ask the
-question without answering it. Give each alternative the same depth on the same
-example, with its own open questions, and mark your recommendation as advice.
-How to build an alternative waits for the user's pick.
+On me lists only what still needs the user. Retire a document decision or question
+once it stops mattering, by removing its widget in a new version or marking it
+`restated` (`authoring-revisions.md`). For a conversational obligation, use
+`leaf task end` as "The On lists" describes. A request the user made stays open until you
+answer it or they withdraw it; deciding something else, however related, doesn't
+answer it. To retire one yourself, say what changed to make it unnecessary. A to-do you
+put on the user is work for them to do, such as trying a build, not a question.
+
+## On the page
+
+Make each decision on the document answerable where On me takes the user, without
+reading earlier content. Pressing `m` brings that decision to the top of the
+window, leaving preceding prose out of view. So the decision opens with a heading that
+asks its question, and holds its explanation, its evidence, the current state and the
+answering control, inside the answering widget or an enclosing `lf-ask`. Compose the
+explanation there first; backing detail goes after it.
+
+On a quick-answer page, open with the decision and put its backing in a disclosure after
+it; the first screen shows the goal, the current state and what the user can do next. On
+a record or system page, put each decision in the part of the page it decides: a
+decision about one entry goes with that entry, and one that turns on a claim contains
+the claim and its evidence. Only a decision about the whole record comes last.
+
+Keep the question, its evidence and the options on screen together. Where a table,
+chart or playground inside the decision, or the pictures in its options, can't be read
+at the prose's width, give that block, or the `lf-options`, its own `data-width`
+(`page-layout.md`, "Bounds and widths").
 
 The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
 

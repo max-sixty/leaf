@@ -370,21 +370,6 @@ on 2026-10-07.
 
 ### The agent's text interface
 
-- **Stop delivering a comment twice after an interrupted tool boundary.** #3591
-  offers a Claude Code handover again once its turn ends with no later hook. That
-  is right for the prompt hook: Escape during it drops the prompt and Leaf's
-  context with it. At a tool boundary it isn't. On Claude Code 2.1.308, Escape
-  during PostToolBatch's hooks keeps Leaf's context in the conversation, so the
-  re-offer delivers the comment a second time. In one `leaf-dev journey
-claude-code` run (its `boundary` step), the transcript held the comment in both
-  the PostToolBatch context and the nudged turn's prompt context. The agent
-  answered it once and wrote that "the timezone question came in twice". A turn
-  interrupted after the model read a prompt's delivery but before any confirming
-  hook ran also gets that delivery twice, since PreToolUse runs only before `leaf`
-  commands. The finer fix is to offer an update again only when its handover came
-  from a prompt hook, and after an interrupted tool boundary to remind the agent
-  of what it owes instead, as `session.left_owed` does after Stop. That needs the
-  pickup to say which hook handed it over.
 - **Decide the Leaf-owned defects the bad-pages eval left open.**
   [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)
   lists three that follow from recorded choices: an open thread card covers the text

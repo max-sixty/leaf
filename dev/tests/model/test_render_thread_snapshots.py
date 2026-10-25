@@ -6,10 +6,63 @@ reviewed PNG images pinned in leaf-assets; run evidence stays in .tmp.
 ``leaf-dev thread-snapshots --help`` owns snapshot review and acceptance.
 """
 
+import json
+import shutil
+
 import pytest
-from leaf_dev.commands.thread_snapshots import visible_capture
+from click.testing import CliRunner
+from leaf_dev import leaf_assets
+from leaf_dev.commands import thread_snapshots
+from leaf_dev.commands.thread_snapshots import CASES, accept, visible_capture
+from leaf_dev.thread_journey import STAGES
 from PIL import Image
 from pytest_image_snapshot import ImageMismatchError, ImageNotFoundError
+
+
+def test_accept_publishes_only_a_run_with_a_complete_capture(tmp_path, monkeypatch):
+    """A run's capture becomes the whole pinned collection; a failed or partial one
+    publishes nothing."""
+    profile = "linux-24.04-x86_64-chromium-1"
+    artifact = tmp_path / "artifact"
+    images = artifact / "capture" / profile
+    images.mkdir(parents=True)
+    files = {}
+    for case in CASES:
+        for stage in STAGES:
+            for suffix in ("png", "json"):
+                name = f"{case.name}-{stage}.{suffix}"
+                files[name] = name.encode()
+                (images / name).write_bytes(files[name])
+    monkeypatch.setattr(
+        thread_snapshots,
+        "download_artifact",
+        lambda run, into: shutil.copytree(artifact, into, dirs_exist_ok=True),
+    )
+    published = []
+    monkeypatch.setattr(
+        leaf_assets,
+        "stage",
+        lambda *args, **kwargs: published.append((args, kwargs)) or tmp_path,
+    )
+    monkeypatch.setattr(leaf_assets, "publish", lambda *args: "assets-revision")
+    runner = CliRunner()
+
+    failed = runner.invoke(accept, ["7"])
+    assert failed.exit_code != 0 and "no successful capture" in failed.output
+    (artifact / "capture/capture.json").write_text(json.dumps({"profile": profile}))
+    result = runner.invoke(accept, ["7"])
+    assert result.exit_code == 0, result.output
+    (directory, staged, _), options = published.pop()
+    assert directory == "tests/thread-snapshots"
+    assert staged == {f"{profile}/{name}": data for name, data in files.items()}
+    assert options == {
+        "replace_tree": True,
+        "revision_key": "thread_snapshots_revision",
+    }
+    next(images.glob("*.png")).unlink()
+    partial = runner.invoke(accept, ["7"])
+    assert partial.exit_code != 0 and "missing capture" in partial.output
+    assert published == []
 
 
 def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(

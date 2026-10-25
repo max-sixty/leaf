@@ -44,7 +44,8 @@ def image_snapshot(request):
             )
             raise ImageMismatchError(
                 f"Image does not match the snapshot stored in {path}.{evidence}"
-                " Review evidence, then use leaf-dev thread-snapshots capture and accept."
+                " Review evidence, then capture with the thread-snapshots workflow and"
+                " accept its run (leaf-dev thread-snapshots --help)."
             ) from None
 
     return compare

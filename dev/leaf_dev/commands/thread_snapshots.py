@@ -2,27 +2,29 @@
 
 Images and viewport geometry live in max-sixty/leaf-assets, pinned by the existing
 leaf-assets.json's thread_snapshots_revision. Tests compare current Leaf directly
-against that immutable set;
-no historical runtime, source patch or baseline build is involved. Fonts and
-antialiasing differ by OS, so each OS compares against its own profile, named by the
-OS version, architecture and locked Chromium version. A missing profile fails, so
-browser upgrades require deliberately reviewed captures. Appearance is compared on
-macOS and Linux. `capture --linux` renders CI's Linux profile on any machine, in
-Playwright's image for the locked version: Ubuntu 24.04 on x86_64, as CI's runner is.
-The image runs as x86_64 because an arm64 render rounds colours differently across
-whole regions. On Apple Silicon that needs Rosetta (Colima's `--vz-rosetta`, or Docker
-Desktop's Rosetta setting), since Chromium's GPU process crashes under QEMU. Elsewhere
-the journey and its delivery assertions still run and keep their images as evidence,
-except in the dark cases, whose colour scheme changes only pixels.
-Existing fetch-assets warms the same cache as every other asset reader.
+against that immutable set; no historical runtime, source patch or baseline build is
+involved. Fonts and antialiasing differ by OS and machine, so CI's Linux runner both
+compares the images and captures the approved ones, and no developer machine has to
+reproduce its rendering. A profile names the runner's OS release, architecture and
+locked Chromium version, and a missing profile fails: a browser or runner upgrade
+requires a deliberately reviewed capture. Elsewhere, macOS included, the journey and
+its delivery assertions still run and keep their images as evidence, except in the
+dark cases, whose colour scheme changes only pixels. Existing fetch-assets warms the
+same cache as every other asset reader.
+
+macOS had a profile of its own, compared locally. It was dropped once CI captured
+Linux: a second profile doubled each capture and review, and its name followed one
+developer's macOS version, which CI's macOS runner doesn't share. Rendering CI's Linux
+profile locally in Playwright's container was declined, since developer machines
+shouldn't need Docker.
 
     uv run pytest -n0 tests/*/test_render_thread_snapshots.py
-    uv run leaf-dev thread-snapshots capture [--linux]
-    uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
+    uv run leaf-dev thread-snapshots --help
 
-Capture runs the same journey and hard delivery assertions, writing all 48 PNG images and
-geometry readings to a new evidence folder. Review its actual images and observations,
-then accept replaces that profile within the pinned collection, publishes through
+The thread-snapshots workflow runs `capture`: the same journey and hard delivery
+assertions, writing all 48 PNG images and geometry readings into the artifact it
+uploads, with each run's evidence. Review its images and observations, then accept
+publishes that run's profile as the whole pinned collection through
 leaf_assets.stage / publish and updates the thread-expectations pin, leaving media's
 revision untouched. Acceptance never occurs in normal tests. CI retains failed run
 evidence. Small antialias noise is excluded by Pixelmatch's AA handling and
@@ -41,7 +43,6 @@ cases cover general, panel, margin, inline diff, dark and narrow appearances;
 they do not claim all thread states. Existing news/storage tests remain separate.
 """
 
-import hashlib
 import io
 import json
 import math
@@ -50,12 +51,9 @@ import platform
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
-import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
-from importlib.metadata import version
 from pathlib import Path
 
 import click
@@ -100,18 +98,16 @@ CASES = (
 )
 
 
-# The platforms whose appearance is reviewed and compared.
-COMPARED = sys.platform in ("darwin", "linux")
+# Whether this run compares appearance: only on CI's Linux runner, which also captures
+# the approved images, so a Linux developer machine isn't held to a profile it can't
+# reproduce.
+COMPARED = sys.platform == "linux" and os.environ.get("GITHUB_ACTIONS") == "true"
 
 
 def render_profile(browser_version: str) -> str:
     """The rendering environment whose images this run can compare meaningfully."""
-    system = (
-        f"darwin-{platform.mac_ver()[0]}"
-        if sys.platform == "darwin"
-        else f"linux-{platform.freedesktop_os_release()['VERSION_ID']}"
-    )
-    return f"{system}-{platform.machine()}-chromium-{browser_version}"
+    release = platform.freedesktop_os_release()["VERSION_ID"]
+    return f"linux-{release}-{platform.machine()}-chromium-{browser_version}"
 
 
 def visible_capture(image: Image.Image, clip: dict, window: dict) -> Image.Image:
@@ -192,7 +188,7 @@ class SnapshotRun:
     def __init__(
         self, browser_version, case, compare, *, output, store: Path, updating=False
     ):
-        self.profile = render_profile(browser_version)
+        self.profile = render_profile(browser_version) if COMPARED else None
         self.case = case
         self.compare = compare
         self.output = Path(output) / case.name
@@ -287,6 +283,10 @@ class SnapshotRun:
 
 
 ASSET_DIRECTORY = "tests/thread-snapshots"
+# What .github/workflows/thread-snapshots.yaml uploads: `.tmp/thread-snapshots`, the
+# capture beside its runs' evidence.
+ARTIFACT = "thread-snapshots"
+CAPTURE = ROOT / ".tmp/thread-snapshots/capture"
 
 
 def expected_store() -> Path:
@@ -299,170 +299,52 @@ def expected_store() -> Path:
 
 @click.group()
 def thread_snapshots():
-    """Capture, review and publish current Leaf's thread appearance."""
+    """Capture, review and publish current Leaf's thread appearance.
 
-
-def capture_command(store: str) -> list[str]:
-    """The pytest arguments that capture every case into `store`."""
-    return [
-        "pytest",
-        "-n0",
-        "-q",
-        "--image-snapshot-update",
-        "--thread-snapshot-store",
-        store,
-        "tests/journeys/test_render_thread_snapshots.py::test_message_delivery_appearance_and_first_frame",
-    ]
-
-
-# CI's runner is ubuntu-24.04 on x86_64; the image matches its OS release and browser
-# build. The bootstrap installs the host tools `.github/actions/setup` supplies (uv,
-# Node and pnpm), then runs `leaf-dev setup`, CI's own setup, before the capture. Leaf
-# reads its checkout's commit (`leaf.layer`), so the tree is committed as CI's is.
-LINUX_PLATFORM = "linux/amd64"
-SETUP_FAILED = 100
-CHROMIUM_FAILED = 101
-LINUX_BOOTSTRAP = f"""set -euo pipefail
-trap 'exit {SETUP_FAILED}' ERR
-export DEBIAN_FRONTEND=noninteractive PATH="$HOME/.local/bin:$PATH"
-curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
-apt-get install -y -qq nodejs >/dev/null
-corepack enable
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-mkdir -p /work
-tar -xf - -C /work
-cd /work
-git init -q
-git add -A
-git -c user.name=capture -c user.email=capture@localhost commit -qm capture
-uv run --frozen leaf-dev setup
-trap - ERR
-uv run --frozen python -c '
-from playwright.sync_api import sync_playwright
-with sync_playwright() as playwright:
-    playwright.chromium.launch().new_page().screenshot()
-' || exit {CHROMIUM_FAILED}
-exec uv run --frozen "$@"
-"""
-
-
-def docker_failure(status: int) -> str | None:
-    """Why the container, rather than the capture's assertions, failed, if it did."""
-    if status in (125, 126, 127):
-        return f"docker could not run the Linux image (exit {status}); see its message above"
-    if status == SETUP_FAILED:
-        return "setting up the Linux image failed; see the output above"
-    if status == CHROMIUM_FAILED:
-        return (
-            "Chromium cannot run in the Linux image. On Apple Silicon the runtime must "
-            "emulate x86_64 with Rosetta (Colima's --vz-rosetta, or Docker Desktop's "
-            "Rosetta setting); under QEMU Chromium's GPU process crashes."
-        )
-    return None
-
-
-def working_tree_tar() -> bytes:
-    """The checkout as it stands, tracked and untracked files alike, minus ignored ones."""
-    names = subprocess.run(
-        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-        cwd=ROOT,
-        capture_output=True,
-        check=True,
-    ).stdout.split(b"\0")
-    archive = io.BytesIO()
-    with tarfile.open(fileobj=archive, mode="w") as tar:
-        for name in filter(None, names):
-            path = ROOT / os.fsdecode(name)
-            if path.is_symlink() or path.exists():
-                tar.add(path, arcname=os.fsdecode(name), recursive=False)
-    return archive.getvalue()
-
-
-def linux_capture(directory: Path) -> subprocess.CompletedProcess:
-    """Run the capture in Playwright's image for the locked version, on CI's platform."""
-    runs = ROOT / ".tmp/thread-snapshots/runs"
-    runs.mkdir(parents=True, exist_ok=True)
-    image = f"mcr.microsoft.com/playwright/python:v{version('playwright')}-noble"
-    result = subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "-i",
-            "--platform",
-            LINUX_PLATFORM,
-            "--ipc=host",
-            "-v",
-            f"{directory}:/capture",
-            "-v",
-            f"{runs}:/work/.tmp/thread-snapshots/runs",
-            image,
-            "bash",
-            "-c",
-            LINUX_BOOTSTRAP,
-            "bootstrap",
-            *capture_command("/capture"),
-        ],
-        input=working_tree_tar(),
-        check=False,
-    )
-    if failure := docker_failure(result.returncode):
-        shutil.rmtree(directory)
-        raise click.ClickException(failure)
-    return result
+    \b
+    CI's Linux runner captures it, for a pushed branch:
+      gh workflow run thread-snapshots.yaml --ref <branch>
+      gh run download <run> --name thread-snapshots --dir .tmp/thread-snapshots/<run>
+      uv run leaf-dev thread-snapshots accept <run>
+    """
 
 
 @thread_snapshots.command("capture")
-@click.option(
-    "--linux",
-    is_flag=True,
-    help="Capture CI's Linux profile in a container (needs Docker running x86_64).",
-)
-def capture(linux: bool):
-    """Run all delivery assertions and capture current appearance for review."""
-    if not (linux or COMPARED):
+def capture():
+    """Run all delivery assertions and capture current appearance for review.
+
+    The thread-snapshots workflow runs this on CI's Linux runner, the only place
+    appearance is compared.
+    """
+    if not COMPARED:
         raise click.ClickException(
-            "thread appearance is captured on macOS or Linux; pass --linux"
+            "thread appearance is captured on CI's Linux runner: "
+            "gh workflow run thread-snapshots.yaml --ref <pushed branch>"
         )
-    if linux and not shutil.which("docker"):
-        raise click.ClickException(
-            "capture --linux needs the docker CLI and a running Docker runtime"
-        )
-    directory = ROOT / ".tmp/thread-snapshots/captures" / uuid.uuid4().hex
-    directory.mkdir(parents=True)
-    result = (
-        linux_capture(directory)
-        if linux
-        else subprocess.run(
-            [sys.executable, "-m", *capture_command(str(directory))],
-            cwd=ROOT,
-            check=False,
-        )
+    CAPTURE.mkdir(parents=True)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-n0",
+            "-q",
+            "--image-snapshot-update",
+            "--thread-snapshot-store",
+            str(CAPTURE),
+            "tests/journeys/test_render_thread_snapshots.py::test_message_delivery_appearance_and_first_frame",
+        ],
+        cwd=ROOT,
+        check=False,
     )
     if result.returncode:
         raise click.ClickException(
-            f"capture assertions failed; review evidence in {directory}"
+            f"capture assertions failed; review evidence in {CAPTURE.parent}"
         )
-    (profile,) = (path.name for path in directory.iterdir() if path.is_dir())
-    files = capture_files(directory, profile)
-
-    (directory / "capture.json").write_text(
-        json.dumps(
-            {
-                "profile": profile,
-                "sha256": {
-                    name: hashlib.sha256(data).hexdigest()
-                    for name, data in files.items()
-                },
-            },
-            indent=2,
-        )
-        + "\n"
-    )
-    click.echo(
-        f"Review captures: {directory}\nAccept: uv run leaf-dev thread-snapshots accept {directory}"
-    )
+    (profile,) = (path.name for path in CAPTURE.iterdir() if path.is_dir())
+    capture_files(CAPTURE, profile)
+    (CAPTURE / "capture.json").write_text(json.dumps({"profile": profile}) + "\n")
+    click.echo(f"Captured {profile} in {CAPTURE}")
 
 
 def capture_files(directory: Path, profile: str) -> dict[str, bytes]:
@@ -479,44 +361,38 @@ def capture_files(directory: Path, profile: str) -> dict[str, bytes]:
     return files
 
 
-@thread_snapshots.command("accept")
-@click.argument(
-    "directory", type=click.Path(exists=True, file_okay=False, path_type=Path)
-)
-def accept(directory: Path):
-    """Publish a complete, reviewed capture and update the expectations pin."""
-    marker = directory / "capture.json"
-    if not marker.is_file():
-        raise click.ClickException(f"not a successful capture: {directory}")
-    captured = json.loads(marker.read_text())
-    profile = captured["profile"]
-    files = capture_files(directory, profile)
-    if captured["sha256"] != {
-        name: hashlib.sha256(data).hexdigest() for name, data in files.items()
-    }:
+def download_artifact(run: str, into: Path) -> None:
+    """Download the thread-snapshots artifact of workflow run `run` into `into`."""
+    command = ["gh", "run", "download", run, "--name", ARTIFACT, "--dir", str(into)]
+    if subprocess.run(command, cwd=ROOT, check=False).returncode:
         raise click.ClickException(
-            f"capture changed after its assertions passed: {directory}"
+            f"could not download run {run}'s {ARTIFACT} artifact; see gh's message above"
         )
-    # Preserve this runtime's other reviewed profiles, never the asset head's.
-    baseline = expected_store()
-    collection = {
-        path.relative_to(baseline).as_posix(): path.read_bytes()
-        for path in baseline.rglob("*")
-        if path.is_file() and path.relative_to(baseline).parts[0] != profile
-    }
-    collection.update({f"{profile}/{name}": data for name, data in files.items()})
+
+
+@thread_snapshots.command("accept")
+@click.argument("run")
+def accept(run: str):
+    """Publish the reviewed capture of thread-snapshots workflow RUN and pin it."""
+    with tempfile.TemporaryDirectory(prefix="leaf-thread-capture-") as download:
+        download_artifact(run, Path(download))
+        directory = Path(download) / CAPTURE.name
+        marker = directory / "capture.json"
+        if not marker.is_file():
+            raise click.ClickException(
+                f"run {run} made no successful capture; its artifact holds the evidence"
+            )
+        profile = json.loads(marker.read_text())["profile"]
+        files = capture_files(directory, profile)
     with tempfile.TemporaryDirectory(prefix="leaf-thread-images-") as staging:
         checkout = leaf_assets.stage(
             ASSET_DIRECTORY,
-            collection,
+            {f"{profile}/{name}": data for name, data in files.items()},
             Path(staging),
             replace_tree=True,
             revision_key="thread_snapshots_revision",
         )
         revision = leaf_assets.publish(
-            checkout, f"Accept reviewed thread appearance for {profile}"
+            checkout, f"Accept reviewed thread appearance for {profile} (run {run})"
         )
     click.echo(f"Accepted {len(files) // 2} thread images: {revision}")
-    click.echo(
-        "Validate with uv run pytest -n0 tests/*/test_render_thread_snapshots.py"
-    )

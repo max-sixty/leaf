@@ -1,0 +1,44 @@
+name: thread-snapshots
+
+# Captures the thread appearance gate's images on the runner `ci`'s `test` job uses,
+# the only place the gate compares them (`dev/leaf_dev/commands/thread_snapshots.py`).
+# Dispatch it on the branch whose appearance to approve, review the artifact, then
+# accept the run with `leaf-dev thread-snapshots accept`. A pull request that changes
+# the capture itself runs it too.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/thread-snapshots.yaml
+      - dev/leaf_dev/commands/thread_snapshots.py
+      - dev/leaf_dev/thread_journey.py
+      - dev/leaf_dev/thread_snapshot_plugin.py
+      - tests/journeys/test_render_thread_snapshots.py
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: 📂 Checkout code
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: 📸 Capture thread appearance
+        run: uv run leaf-dev thread-snapshots capture
+
+      # A failed capture uploads its runs' evidence, and no capture.json, which accept
+      # refuses.
+      - name: Upload capture
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: thread-snapshots
+          path: .tmp/thread-snapshots/
+          if-no-files-found: ignore
+          retention-days: 30

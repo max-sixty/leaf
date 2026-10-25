@@ -93,6 +93,7 @@ function pointBand(box, point) {
 const EMPTY = Object.freeze([]);
 const PAGE_CONTROL_RANK = Object.freeze({
 	session: 10,
+	claimant: 15,
 	preview: 20,
 	layer: 30,
 	inspection: 32,

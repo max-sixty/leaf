@@ -354,6 +354,7 @@ export function mountApplication(dependencies) {
         flash: false,
         intent,
       }),
+    returnToPage: threadDestinations.returnToPage,
     // The thread a margin entry stands for, which a user on it goes on with when the
     // thread leaves the margin.
     threadAt: (node) => overlay?.entryThread(node) ?? null,

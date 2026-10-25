@@ -30,6 +30,7 @@ const EMPTY = Object.freeze([]);
 // Where each contributor's rows stand, among the others'.
 export const PAGE_CONTROL_RANK = Object.freeze({
   session: 10,
+  claimant: 15,
   preview: 20,
   layer: 30,
   inspection: 32,

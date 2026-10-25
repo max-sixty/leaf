@@ -328,6 +328,12 @@
   const sources = new WeakMap();
   const sourceScopes = new WeakSet();
   const sourceShells = new WeakMap();
+  // The box a producer built to hold every authored child of its host, which it then
+  // seats inside boxes of its own, as a disclosure's body sits under the summary the
+  // module writes. The box is the module's and its interior is the page's: render
+  // checks read the boxes around it as the module's layout, and a revision that
+  // reaches the host's members edits inside it (dom-children.js, `patchTree`).
+  const authoredBodies = new WeakMap();
   // Initial geometry writes root attributes and styles before modules exist. Later
   // root writers adopt these registries, so revisions replace only the authored share.
   const runtimeAttributes = new WeakMap();
@@ -1219,6 +1225,11 @@
         offerElement,
         generatedElement,
         keeps: keepsAttribute,
+        authoredBody(node) {
+          node.append(...host.childNodes);
+          authoredBodies.set(host, node);
+          return node;
+        },
       });
       if (drawing?.then)
         throw new TypeError(
@@ -1255,6 +1266,9 @@
     generatedElement,
     origin(node) {
       return origins.get(node);
+    },
+    authoredBody(host) {
+      return authoredBodies.get(host) ?? null;
     },
     parent(node) {
       return parents.has(node) ? parents.get(node) : node.parentElement;

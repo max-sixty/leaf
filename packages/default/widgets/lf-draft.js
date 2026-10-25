@@ -344,14 +344,14 @@ customElements.define(
             const retry = key === "save" && this.#failed;
             const name = retry ? "Retry" : title;
             return html`<button
-              ${offered("lf-btn lf-quiet-action lf-draft-action")}
+              ${offered("lf-mark")}
               data-lf-draft-action=${key}
               ?hidden=${key === "edit" ? editing : !editing}
               aria-expanded=${key === "edit" ? String(editing) : nothing}
               aria-label=${name}
               title=${name}
             >
-              ${iconTemplate(retry ? "retry" : icon, "lf-draft-icon")}
+              ${iconTemplate(retry ? "retry" : icon, "lf-mark-icon")}
             </button>`;
           })}
           ${this.#copy}`,

@@ -42,7 +42,6 @@ import {
 import { copyControl } from "./copy-control.js";
 import { headerLevels } from "./css-anchors.js";
 import { focusDestination, focused, onCurrentLocation } from "./focus.js";
-import { iconElement } from "./icons.js";
 import { layoutPx } from "./keeps.js";
 import { pageScope } from "./keyboard/register.js";
 import { inChrome, pageQueryAll } from "./passages.js";
@@ -90,10 +89,8 @@ function makeLink(heading) {
     label: "Copy link to section",
     success: "Link copied",
     error: "Unable to copy link",
+    icon: "link",
   });
-  control.append(
-    Object.assign(iconElement("link", "lf-heading-link-icon"), { slot: "copy-icon" }),
-  );
   control.tabIndex = -1;
   const link = {
     heading,

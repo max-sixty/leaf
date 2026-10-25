@@ -1007,38 +1007,8 @@ export const layerReturnsRule = {
   },
 };
 
-// A top-level await in any module rolldown compiles turns off its chunk merging for
-// the whole build (`chunkOptimization`), which is how it keeps a waiting module's
-// execution order. The kernel compiles the runtime, and the website's rebundle
-// compiles each layer's widgets with it. One such await in leaf.js had every page
-// load eleven more kernel chunks before it presented. A module waits inside a
-// function it calls.
-const TOP_LEVEL_AWAIT_MESSAGE =
-  "No top-level await in a compiled module: it turns off the bundler's chunk merging for every page. Await inside a function the module calls.";
-
-const topLevelAwaitRule = {
-  meta: { type: "problem", schema: [] },
-  create(context) {
-    let functions = 0;
-    const report = (node) => {
-      if (!functions) context.report({ node, message: TOP_LEVEL_AWAIT_MESSAGE });
-    };
-    return {
-      ":function"() {
-        functions++;
-      },
-      ":function:exit"() {
-        functions--;
-      },
-      AwaitExpression: report,
-      "ForOfStatement[await=true]": report,
-    };
-  },
-};
-
 const architecturePlugin = {
   rules: {
-    "top-level-await": topLevelAwaitRule,
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "current-location-listeners": currentLocationListenersRule,
     placements: placementsRule,
@@ -1568,17 +1538,6 @@ export default [
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     languageOptions: { globals: browserGlobals },
     rules: { "no-undef": "error" },
-  },
-  {
-    // The modules the kernel and the website's rebundle compile (runtime-bundle.mjs).
-    files: [
-      "browser/leaf.js",
-      "browser/runtime/**/*.js",
-      "browser/widgets/**/*.js",
-      "packages/*/widgets/**/*.js",
-    ],
-    plugins: { architecture: architecturePlugin },
-    rules: { "architecture/top-level-await": "error" },
   },
   {
     // The settled reading answers only for the rendering callbacks and size observers it

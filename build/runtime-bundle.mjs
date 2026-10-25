@@ -137,10 +137,49 @@ async function nativeRuntimeEntries(layerRoot, assetRoot) {
   return { entries: [...entries].sort(), imports };
 }
 
-/** Keep native modules at their public URLs and compiled modules in one graph. */
+/** Where a module awaits outside every function, or null.
+ *
+ * One such await anywhere in a build turns off rolldown's chunk optimization
+ * (`mergeCommonChunks`, `avoidRedundantChunkLoads`) for every module in it, since
+ * that is how rolldown keeps a waiting module's execution order, and it says
+ * nothing. When leaf.js awaited at its top level, every page loaded eleven more
+ * kernel chunks before it presented.
+ */
+function topLevelAwait(program) {
+  const visit = (node) => {
+    if (/Function/.test(node.type)) return null;
+    if (
+      node.type === "AwaitExpression" ||
+      (node.type === "ForOfStatement" && node.await) ||
+      (node.type === "VariableDeclaration" && node.kind === "await using")
+    )
+      return node;
+    for (const value of Object.values(node))
+      for (const child of [value].flat())
+        if (typeof child?.type === "string") {
+          const found = visit(child);
+          if (found) return found;
+        }
+    return null;
+  };
+  return visit(program);
+}
+
+/** Keep native modules at their public URLs and compiled modules in one graph, and
+ * refuse a compiled module that awaits at its top level (`topLevelAwait`). */
 function moduleBoundaries(layerRoot, assetRoot) {
   return {
     name: "leaf-module-boundaries",
+    transform(code, path) {
+      if (!code.includes("await")) return null;
+      const found = topLevelAwait(this.parse(code, { sourceType: "module" }));
+      if (found)
+        this.error(
+          `${browserPath(relative(layerRoot, path))} awaits at its top level, which turns off the bundler's chunk merging for the whole build: await inside a function the module calls`,
+          found.start,
+        );
+      return null;
+    },
     resolveId(path, importer) {
       if (!importer || !/^[./]/.test(path)) return null;
       const rooted = path.startsWith("/");

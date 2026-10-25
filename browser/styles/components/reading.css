@@ -48,8 +48,9 @@
   isolation: auto;
 }
 /* A code block is sized by how many characters it takes across, which is why its size
- * is off the serif ladder above. At --code-size, the column keeps comfortably more
- * than the 80 characters most source is written to.
+ * is off the serif ladder above. At --code-size, the column keeps a few more than the
+ * 80 characters most source is written to (about 84 at 13.5px), and a `wide` block
+ * 100 (theme.css, --wide).
  *
  * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
  * shadow tree must keep one density through upgrade. */

@@ -2290,8 +2290,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         f"Pierre separator chrome entered the page reading: {reading}"
     )
     assert reading["font"] == reading["leafFont"], reading
-    assert reading["fontSize"] == reading["leafFontSize"] == "12.5px", reading
-    assert reading["lineHeight"] == reading["leafLineHeight"] == "19px", reading
+    assert reading["fontSize"] == reading["leafFontSize"] == "13.5px", reading
+    assert reading["lineHeight"] == reading["leafLineHeight"] == "20px", reading
     assert reading["background"] == reading["leafBackground"], reading
     assert reading["backgroundIsWhite"], reading
     assert reading["backgroundIsSeparateFromPage"], reading

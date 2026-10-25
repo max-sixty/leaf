@@ -453,7 +453,8 @@
   // Leaf's controls come from a closed set of roles, and each role wears one face
   // (components/controls.css). A widget names the role and never the face's classes,
   // so two controls of one kind cannot be drawn two ways; this table is the only place
-  // the classes are spelled (`tests/model/test_control_roles.py` holds that).
+  // the classes are spelled (`test_controls_are_built_by_role_and_never_by_face` in
+  // `tests/model/test_interact_layer.py` holds that).
   //
   // - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
   //   accessible name (browser/AGENTS.md, "Visual grammar"): quiet at rest, the chip

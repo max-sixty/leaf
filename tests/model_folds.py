@@ -54,6 +54,7 @@ UNCLAIMED = {
     "session_alive": None,
     "live_turn": None,
     "claim_session": None,
+    "session_name": None,
     "claim_turn": None,
     "turn_closed": None,
     "turn_opened": None,

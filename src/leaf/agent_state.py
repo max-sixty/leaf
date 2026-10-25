@@ -363,12 +363,13 @@ def _page_state(
                 "agent",
                 "session_alive",
                 "claim_session",
+                "session_name",
+                "session_cwd",
                 "claim_turn",
                 "turn_closed",
             )
         },
         "viewed": viewed_at(page_dir),
-        "session_cwd": served["session_cwd"],
     }
     state = _base_state(
         page_dir,

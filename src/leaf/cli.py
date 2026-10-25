@@ -542,6 +542,22 @@ def instructions(
     return page_instructions(page_dir, entries=entries, contracts=contracts)
 
 
+@page.command("list", short_help="List this machine's pages and who holds each.")
+def page_list() -> list:
+    """Print each page on this machine as a JSON line: every serving page, and
+    every page a session claimed, served or not.
+
+    A line names the page directory, its title, its `url` (null when nothing
+    serves it), and the session that holds it: `claim_session`, the name its
+    harness gives it now (`session_name`), the directory it claimed from
+    (`session_cwd`), and whether it still runs (`session_alive`). A serving
+    page also carries how many rows On me holds (`on_user`) and its open and
+    unread thread counts (`threads`). `page state PAGE` reads one page whole."""
+    from leaf.presence import page_list as listing
+
+    return listing()
+
+
 @page.command(short_help="Print where the page, a thread, or a widget stands.")
 @page_argument(renew=False)
 @click.argument("target", metavar="[MESSAGE_OR_WIDGET]", required=False)

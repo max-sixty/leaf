@@ -1020,6 +1020,7 @@ def test_a_process_free_publication_keeps_input_without_claimant_facts(claimed):
             "session_alive",
             "live_turn",
             "claim_session",
+            "session_name",
             "claim_turn",
             "turn_closed",
             "turn_opened",

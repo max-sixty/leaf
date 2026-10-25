@@ -584,7 +584,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
     assert vendored["$events"]["kinds"] == kernel["$events"]["kinds"]
     recovered = check(page_dir)
     assert recovered.exit_code == 0, recovered.output
-    replied = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
+    replied = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir), "c1"])
     assert replied.exit_code == 0, replied.output
     assert "The first one." in replied.output
 

@@ -152,7 +152,7 @@ def test_agent_interaction_command_help(regtest):
         "thread summarize",
         "page open",
         "page close",
-        "thread open",
+        "thread create",
         "thread reply",
         "thread edit",
         "thread resolve",
@@ -213,7 +213,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     envelope = json.loads(woke.output)
-    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
+    assert f"leaf delivery ack {envelope['id']} && leaf wait" in envelope["acknowledge"]
     delivery_model.receive(envelope, "s1")
     [batch] = envelope["batches"]
     assert len(batch["events"]) == 2
@@ -230,11 +230,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     answered_events = events_model.read_events(page)
     record(response_args(), 0)
     assert events_model.read_events(page) == answered_events
-    for addressed_option in (
-        ["--done"],
-        ["--failure", "offline"],
-        ["--attempt", "retry"],
-    ):
+    for addressed_option in (["--done"],):
         record(
             [
                 "thread",
@@ -773,13 +769,13 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
 
     [waiting] = written(["page", "open", str(page_dir)])
     assert waiting == logged(waiting)
-    assert (waiting["state"], waiting["detail"]) == ("waiting", "")
+    assert waiting["state"] == "waiting"
 
     # The comment's id is the thread's; --title names it in the same command.
     [opened] = written(
         [
             "thread",
-            "open",
+            "create",
             str(page_dir),
             "--text",
             "which store?",
@@ -794,7 +790,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
     [unnamed] = command_findings(
-        "thread", "open", page_dir, "--text", "and the cache?", "--title", ""
+        "thread", "create", page_dir, "--text", "and the cache?", "--title", ""
     )
     assert (unnamed.code, unnamed.values["kind"]) == ("invalid-event", "comment")
     assert events_model.read_events(page_dir) == before

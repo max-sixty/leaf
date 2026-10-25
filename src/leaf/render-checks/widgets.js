@@ -207,7 +207,7 @@ export function undeclaredAttrs(declarations) {
 // page still reads, and a settled slot can show its words anyway — a later layer's
 // rule outranking the default hide, a module re-showing what it folded — leaving the
 // user selecting words no comment can anchor to, with the refusal arriving later, at
-// `leaf thread open`, nowhere near the mistake. So the expected outcome comes from the
+// `leaf thread create`, nowhere near the mistake. So the expected outcome comes from the
 // file's reading (`decisions`, folded over this version's log), never from the page,
 // and the page answers only for what it shows.
 //

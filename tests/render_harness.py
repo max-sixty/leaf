@@ -58,7 +58,7 @@ from interact_support import (
     wait_for,
     write_record,
 )
-from leaf_dev.browser import scroll_settled
+from leaf_dev.browser import scroll_settled, slow_cpu
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
@@ -1235,6 +1235,21 @@ def until_draft_settled(page, ctx: str) -> None:
 
 _BROWSER_PROBLEM_LISTS = None
 _TEST = None
+_CPU_THROTTLE = None
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--cpu-throttle",
+        type=float,
+        metavar="RATE",
+        help="Slow the CPU of every Chromium page the browser fixtures open this many times",
+    )
+
+
+def pytest_configure(config):
+    global _CPU_THROTTLE
+    _CPU_THROTTLE = config.getoption("--cpu-throttle")
 
 
 def watches_shifts(test):
@@ -2090,9 +2105,14 @@ def readable(page, *, java_script_enabled=True):
     left alone, since a second console listener would report every problem twice.
     A scripts-disabled context keeps the native error collector and shared deadlines;
     the script-driven readings are unavailable there.
+
+    A run given `--cpu-throttle RATE` also slows each Chromium page here, before it
+    navigates (`tests/AGENTS.md`, "Races").
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
+    if _CPU_THROTTLE and page.context.browser.browser_type.name == "chromium":
+        slow_cpu(page, _CPU_THROTTLE)
     page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
     arm_interception(page)
     if java_script_enabled:

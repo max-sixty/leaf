@@ -587,6 +587,13 @@ _TEXT = {
         " widget's own styles or module must be showing it, and no comment can"
         " anchor to its words"
     ),
+    "read-as-changed": lambda at, v: (
+        f"{at} reads as changed when this version is compared with itself: a module"
+        f" wrote {_json(v['words'])} there without marking it, so every version"
+        " comparison marks it though nobody changed it. Mark the element the module"
+        " fills with generatedElement(node, {says}), or generated({says}) in a"
+        " template, from /runtime/widget-api.js"
+    ),
     "render-threw": lambda at, v: (
         f"{at} render() threw when the complete state was rendered a second time:"
         f" {v['error']}"
@@ -1801,7 +1808,7 @@ _TEXT = {
     ),
     "unowed-start": lambda at, v: (
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
-        " answer to; start the id a delivered update or `leaf task open` gave you"
+        " answer to; start the id a delivered update or `leaf task create` gave you"
     ),
     "widget-obligation": lambda at, v: (
         f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
@@ -1874,6 +1881,12 @@ _TEXT = {
         "the URL reaches only this machine; re-serve with --host NAME for a user"
         " elsewhere"
     ),
+    # A native file watch the kernel refused (`file_changes`), which polls instead.
+    "watch-limit": lambda at, v: (
+        f"the kernel has no native file watch left ({v['limit']} is reached), so"
+        f" this process polls {', '.join(v['roots'])} instead and notices changes"
+        " later"
+    ),
     # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
     # back or could not, and why it ended.
     "server-restarted": lambda at, v: (
@@ -1908,12 +1921,12 @@ _TEXT = {
     "watch-taken-over": lambda at, v: (
         "a watch between turns took over this session's pages"
     ),
-    # The thread and task commands' refusals (`thread`, `tasks.cmd_open`), before or
+    # The thread and task commands' refusals (`thread`, `todos.cmd_create`), before or
     # beside the append door's. `held` is what the log holds a refused id as
     # (`validation.admission.logged_id`), and `answer` the command that answers an
     # owed update (`activity.answer_command`).
     "unknown-comment": lambda at, v: (
-        f"unknown comment id {v['name']!r}"
+        f"unknown message id {v['name']!r}"
         + (f"; {v['held']}" if v.get("held") else "")
         + f"; known: {_json(v['known'])}"
     ),
@@ -1952,7 +1965,7 @@ _TEXT = {
         f"event {v['event']!r} is answered by this turn's messages; "
         + (
             "failure receipts wait for this turn to release the answer; answer in your"
-            f" final message or use {v['command']} without `--failure`"
+            f" final message or with {v['command']}"
             if v["failure"]
             else f"use {v['command']} to commit an explicit answer"
         )

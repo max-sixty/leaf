@@ -93,7 +93,7 @@ re-vendoring, write the current page into a new page directory and hand over its
 `server start` from an agent session claims the page for that session and connects
 the harness's delivery, even when the server is already running. The first serve sets
 the page's lifetime, and later serves keep it. To make a session page persistent, stop
-it and start it with `--persistent`, or start it from the user's shell.
+it and start it with `--lifetime persistent`, or start it from the user's shell.
 
 A session page stops when no live session holds it: when a terminal harness exits, or
 when a desktop Codex chat is archived or deleted.
@@ -146,6 +146,6 @@ names the file's other owners.
 
 ## Temporary test servers
 
-`server run --temporary` serves on loopback until its foreground command exits, with
+`server run --lifetime temporary` serves on loopback until its foreground command exits, with
 its own key and no claim. It can't be revived and delivers no browser events to an
 agent. Use it for browser tests.

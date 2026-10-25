@@ -2,8 +2,8 @@ import { TAB_STOP, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx
 import { LAYOUT, clamp, clippingAxes, coarsePointer, hoveringPointer, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-layer-client.js";
 import { afterPresentation, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageScroller, scrollLimit, scrollerFor, shownRegionBounds } from "./bundle-reading-regions.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
-import { anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, cutFrames, headerLevels, nameAnchor, passageBoxes, scrollAxes, scrollsWith, targetRange, targetSegments } from "./bundle-css-anchors.js";
-import { pointBand, railStands, visibleTargetParts } from "./bundle-visible-target-parts.js";
+import { anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, cutFrames, headerLevels, nameAnchor, passageBoxes, pointBand, railStands, scrollAxes, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
 //#region runtime/annotation-overlay/margin-placement.js
 function rowPlacement({ railStands, besideRail, blockRight, railInner, half, noted }) {

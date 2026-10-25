@@ -13,6 +13,7 @@ test("a thread card's output updates its commands without invalidating its prese
     surface: "margin",
     messages: [],
     summaries: [],
+    todos: [],
     reply: false,
     working: null,
     news: null,

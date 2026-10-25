@@ -1698,6 +1698,9 @@
     const next = presentationState();
     if (next.every((value, index) => value === presentation[index])) return;
     presentation = next;
+    // Layout can precede the native event, so this observation also makes the
+    // next reading complete, including clipping changes with no shift record.
+    announce();
     // What the new presentation moves is its own, not the open gesture's.
     if (open) open.aim = null;
     const before = frames.at(-1)?.at ?? nativePerformance.now();

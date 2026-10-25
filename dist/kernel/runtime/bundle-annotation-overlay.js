@@ -481,7 +481,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			scroller,
 			coarse: coarsePointer.matches
 		});
-		const { side, fresh } = seat;
+		const { side, fresh, opening } = seat;
 		let anchored;
 		floatingUi().then((ui) => {
 			if (!stillCurrent()) return null;
@@ -503,7 +503,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 					const room = Math.min(cardMeasure(), width, (session.width ?? Infinity) / scale.x);
 					preview.style.setProperty("--lf-thread-min-width", layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room));
 					const fitted = measureThreadCard(room, Math.max(stood, height), reading);
-					if (fresh && (side === "top" || side === "bottom") && makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)) {
+					if (opening && (side === "top" || side === "bottom") && makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)) {
 						session.side.scrolled();
 						placeThreadPreview();
 					}
@@ -2468,7 +2468,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		const scaleY = bar.height / parseFloat(style.height);
 		const left = parseFloat(style.paddingLeft);
 		const top = parseFloat(style.paddingTop);
-		const width = Math.max(field.width / scaleX + left + parseFloat(style.paddingRight), parseFloat(style.minWidth) || 0);
+		const width = field.width / scaleX + left + parseFloat(style.paddingRight);
 		const height = field.height / scaleY + top + parseFloat(style.paddingBottom);
 		return {
 			box: new DOMRect(field.left - left * scaleX, field.top - top * scaleY, width * scaleX, height * scaleY).toJSON(),

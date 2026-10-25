@@ -1629,7 +1629,8 @@ function commentPlacement() {
 				};
 			} else if (input && key.some((value, index) => Math.abs(value - input[index]) > .5)) forget();
 			input = key;
-			const fresh = held === null && initialHold === null;
+			const fresh = side === null;
+			const opening = held === null && initialHold === null;
 			side ??= unanchored ? "bottom" : commentSide({
 				clear,
 				extent,
@@ -1641,6 +1642,7 @@ function commentPlacement() {
 			return {
 				side,
 				fresh,
+				opening,
 				adopted: initialHold !== null
 			};
 		},

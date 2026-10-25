@@ -75,6 +75,19 @@ hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, w
 inside its timeout, and prints afterwards. It never waits for a lock past that
 deadline, and a page whose lock is still held goes as a pointer. App Server turns
 interrupted just after they start leave their updates Delivered.
+
+Claude Code runs PostToolBatch after every batch of tool calls, and most hand
+nothing over. One that hands nothing over keeps what it read
+(`state.record_quiet`), and the launcher answers the next one that would read the
+same without starting Leaf (`state.boundary_quiet`). The reading is taken before
+the plans are read, so whatever changes after it, read or not, makes the next
+reading differ. A boundary reads two facts no file holds, and neither can give it
+input there: a claimant's lifetime only ends, taking pages away, and the
+harness's record of an ended turn matters only for input handed into the turn and
+not yet confirmed, which the boundary that kept the reading confirmed first
+(`delivery.confirm_turn`). A new event, the agent's own `leaf` write among them,
+a claim or a turn that changed, or a record another hook keeps changes the
+reading, and the next boundary runs whole.
 """
 
 import json
@@ -106,7 +119,13 @@ from .service import (
     owned_pages,
     page_claim,
 )
-from .state import flocked, session_lock_path, session_record
+from .state import (
+    boundary_reading,
+    flocked,
+    record_quiet,
+    session_lock_path,
+    session_record,
+)
 
 
 def restart(obligations: list[dict]) -> str:
@@ -368,8 +387,8 @@ HOOK_TIMEOUT_S = 20
 
 # How long after it starts a hook may still hand a delivery over inline and wait
 # for the locks that record it; the hook itself takes about 0.4 s. The other half
-# of its timeout covers what this clock does not see: uv's start and the
-# interpreter's imports before it, and the receipt's writes and exit after it.
+# of its timeout covers what this clock does not see: the interpreter's start and
+# imports before it, and the receipt's writes and exit after it.
 CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
 
 
@@ -419,6 +438,7 @@ def carry_turn(
     over inline by `CONFIRM_WITHIN` after `started`, the hook's
     `time.monotonic()` as it began."""
     expected = session_record(sid) if expected is ... else expected
+    reading = boundary_reading(sid) if event == "PostToolBatch" else None
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
         plan.lifecycle != expected for plan in plans
@@ -437,6 +457,7 @@ def carry_turn(
         else []
     )
     if event == "PostToolBatch" and not batches:
+        record_quiet(sid, reading)
         return
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)

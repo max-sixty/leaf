@@ -72,6 +72,10 @@ def hold_mode(path: Path, mode: int) -> None:
 
 # A session's hook capability observation, which ends with its instance.
 HOOKS_SUFFIX = "hooks"
+# The tool calls its hooks last ran before (`leases.first_hook_for_tool`).
+TOOLS_SUFFIX = "tools"
+# What its last tool boundary that handed nothing over read (`QUIET`).
+QUIET_SUFFIX = "quiet"
 # Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
 
@@ -770,6 +774,78 @@ def held_claims(session_id: str) -> list[Path]:
     return held
 
 
+QUIET = Record(
+    "quiet",
+    described(
+        "What a session's last tool boundary that handed its turn nothing read "
+        "(`boundary_reading`), in the state home's `sessions/<digest>.quiet`.",
+        object_schema(
+            {
+                "reading": described(
+                    "This install, then each file read, as its path, inode, size "
+                    "and modification time in nanoseconds, or as its path alone "
+                    "where it was missing.",
+                    {"type": "array"},
+                )
+            }
+        ),
+    ),
+    since=23,
+)
+
+
+def boundary_reading(session_id: str) -> list:
+    """What a Claude Code tool boundary's hook reads to decide what it hands the
+    session's turn (`hook_transport.carry_turn`), as one value a later reading
+    compares whole: this install and the identity of its registry, which states
+    the page protocol it writes, and of each file among the session's own in
+    `sessions/` (its lifecycle and the records its hooks keep), each claim payload
+    it holds, and the event log and vendored registry of each page those claims
+    name. Every write to one of those files changes its size, inode or
+    modification time, so a reading equal to an earlier one finds the facts that
+    one found. Its own record is left out, and so
+    is the record of the tool calls its hooks ran before (`TOOLS_SUFFIX`), which
+    the hook before each tool call writes and no boundary reads."""
+    skipped = {
+        session_file(session_id, QUIET_SUFFIX),
+        session_file(session_id, TOOLS_SUFFIX),
+    }
+    paths = [path for path in _session_paths(session_id) if path not in skipped]
+    for locator in held_claims(session_id):
+        payload = locator.parent.parent / locator.name
+        paths.append(payload)
+        for page in named_pages(stored_record(payload) or {}):
+            paths.extend((page / EVENTS_FILE, page / "registry.json"))
+    return [
+        str(PLUGIN_ROOT),
+        _identity(PLUGIN_ROOT / "browser" / "registry.json"),
+        *(_identity(path) for path in sorted(paths)),
+    ]
+
+
+def _identity(path: Path) -> list:
+    try:
+        found = path.stat()
+    except FileNotFoundError:
+        return [str(path)]
+    return [str(path), found.st_ino, found.st_size, found.st_mtime_ns]
+
+
+def record_quiet(session_id: str, reading: list) -> None:
+    """Keep `reading` as what a tool boundary that handed the turn nothing read.
+    Its hook took it before reading anything it decided on, so whatever changed
+    after, whether the hook read it or not, makes the next reading differ."""
+    QUIET.write(session_file(session_id, QUIET_SUFFIX), {"reading": reading})
+
+
+def boundary_quiet(session_id: str) -> bool:
+    """Whether a tool boundary now would read what the last one that handed the
+    session's turn nothing read, and so would hand it nothing too: the launcher's
+    answer to a boundary that needs no Leaf (`bin/leaf`)."""
+    kept = QUIET.read(session_file(session_id, QUIET_SUFFIX))
+    return kept is not None and kept["reading"] == boundary_reading(session_id)
+
+
 def standing_claims() -> list[Path]:
     """Every claim payload on this machine whose page still stands, retiring those
     whose page is gone (`retire_claim`), whichever Leaf wrote them."""
@@ -825,11 +901,18 @@ def drop_locator(session_id: str, name: str) -> None:
 def main() -> None:
     payload = json.load(sys.stdin)
     if sys.argv[1:2] == ["hook-gate"]:
-        # `bin/leaf` asks this before starting uv for a hook registered
-        # `--if-claimed`, and a hook it skips takes about 25 ms in place of about
-        # 70 (measured on macOS). 3 alone says "nothing to do": a failure here
-        # must not skip the hook.
-        sys.exit(0 if holds_claims(payload.get("session_id") or "") else 3)
+        # `bin/leaf` asks this before starting Leaf for a hook registered
+        # `--if-claimed`, and a hook it answers takes about a fifth of a whole
+        # tool boundary's time (measured on macOS: 55 ms against 260 at a load
+        # of 27 on 18 cores). 3 alone says "nothing to do": a failure here must
+        # not skip the hook.
+        session = payload.get("session_id") or ""
+        if not holds_claims(session) or (
+            payload.get("hook_event_name") == "PostToolBatch"
+            and boundary_quiet(session)
+        ):
+            sys.exit(3)
+        sys.exit(0)
     if payload.get("hook_event_name") == "SessionEnd":
         end_harness_instance(payload.get("session_id") or "")
 

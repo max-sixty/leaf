@@ -722,11 +722,14 @@ export` writes a file that boots the page's own runtime offline, and that file
   written, which polling would show in 250 ms jumps of whole-state reads.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
-- **Leaf hook cost with owned pages:** Stop, prompt, and Codex tool-result
-  hooks discover ownership before page reading and without importing the CLI.
-  A session holding a page still imports page reading and reads each page's
-  state before answering. Measure that cost before expanding tool observation;
-  a compiled hook path is a further step if import cleanup is insufficient.
+- **Leaf hook cost with owned pages:** the launcher answers a Claude Code tool
+  boundary that would read what the last quiet one read (`state.boundary_quiet`),
+  but a boundary after any `leaf` write still runs whole, and in the Claude Code
+  journey the agent runs one at almost every step. A whole hook spends about
+  170 ms importing page reading, jsonschema about 37 ms of it through
+  `registry.contract` and `registry.schema`, and about 60 ms reading, at a load
+  near 30. Codex's PostToolUse could keep the same quiet reading. A compiled or
+  resident hook path is the next step if import cleanup is insufficient.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. At a Chromium floor of at least 135,
   test `command` and `commandfor`; Leaf still owns layer ordering, semantic state

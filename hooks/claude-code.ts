@@ -50,7 +50,7 @@
  *
  * A follower (`bin/leaf hook --harness claude-code
  * --if-claimed --pages`) prints that list whenever it changes and exits once the
- * session holds no page; the launcher answers it without starting uv in a session
+ * session holds no page; the launcher answers it without starting Leaf in a session
  * holding none. The session takes a page only through a `leaf` command, so the
  * module starts the follower as the session starts, after each Bash call that
  * runs `leaf`, and as a turn starts or a main-loop turn ends, once none is

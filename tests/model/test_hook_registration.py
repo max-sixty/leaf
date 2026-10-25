@@ -1,5 +1,5 @@
 """Each harness's registration of Leaf's hooks: the harness each names, the time
-each is given, and the launcher that runs a hook through uv."""
+each is given, and the launcher that runs a hook in the environment uv syncs."""
 
 import json
 import os
@@ -8,6 +8,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -338,12 +339,12 @@ def test_registered_hook_failures_remain_nonblocking_and_visible(harness, tmp_pa
     In particular uv's exit 2 must not become the harness's blocking status.
     """
 
-    def run(payload, env=None):
+    def run(payload, env=None, root=PLUGIN_ROOT):
         return subprocess.run(
             ["/bin/sh", "-c", _registered_hook_command(harness, "Stop")],
             input=payload,
             env=(env or os.environ)
-            | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT), "PLUGIN_ROOT": str(PLUGIN_ROOT)},
+            | {"CLAUDE_PLUGIN_ROOT": str(root), "PLUGIN_ROOT": str(root)},
             capture_output=True,
             text=True,
             timeout=COMPOSITE_TIMEOUT,
@@ -353,7 +354,13 @@ def test_registered_hook_failures_remain_nonblocking_and_visible(harness, tmp_pa
     crashed = run("not a hook payload")
     assert (crashed.returncode, crashed.stdout) == (1, "")
     assert "hook expects" in crashed.stderr
-    unresolvable = run("{}", env=os.environ | {"PATH": str(tmp_path / "no-tools")})
+    # An install whose environment uv has yet to make, where uv is missing.
+    unsynced = tmp_path / "plugin"
+    (unsynced / "bin").mkdir(parents=True)
+    shutil.copy(PLUGIN_ROOT / "bin/leaf", unsynced / "bin/leaf")
+    unresolvable = run(
+        "{}", env=os.environ | {"PATH": str(tmp_path / "no-tools")}, root=unsynced
+    )
     assert (unresolvable.returncode, unresolvable.stdout) == (1, "")
     assert "uv" in unresolvable.stderr
 
@@ -372,60 +379,87 @@ def test_registered_hook_failures_remain_nonblocking_and_visible(harness, tmp_pa
         ("codex", "Interrupt"),
     ],
 )
-def test_the_registered_hook_leaves_library_execution_to_uv(harness, event, tmp_path):
-    """Turn hooks need no system Python; the shell launcher owns uv.
+def test_the_registered_hook_runs_in_the_environment_uv_syncs(harness, event, tmp_path):
+    """Turn hooks need no system Python: the shell launcher has uv sync the
+    install's environment, runs the hook on its interpreter, and runs later hooks
+    there without uv until the lock changes, as a plugin update or a checkout
+    changes it.
 
     This plugin copy has no library, and system python3 refuses to run. A recording
-    uv witnesses the selected project, application command and unchanged payload.
-    """
+    uv witnesses each sync and makes the environment, whose recording interpreter
+    witnesses the application command and unchanged payload."""
     project = tmp_path / "plugin"
     launcher = project / "bin/leaf"
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
+    lock = project / "uv.lock"
+    lock.touch()
+    os.utime(lock, (time.time() - 60,) * 2)
     tools = tmp_path / "tools"
     tools.mkdir()
+    interpreter = tmp_path / "interpreter"
+    interpreter.write_text(
+        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$PYTHON_ARGS"\n/bin/cat > "$PYTHON_INPUT"\n'
+    )
+    interpreter.chmod(0o755)
     uv = tools / "uv"
     uv.write_text(
-        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$UV_CALLED"\n/bin/cat > "$UV_INPUT"\n'
+        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$UV_CALLED"\n'
+        f'mkdir -p "{project}/.venv/bin"\ncp "{interpreter}" "{project}/.venv/bin/python"\n'
     )
     uv.chmod(0o755)
     python = tools / "python3"
     python.write_text('#!/bin/sh\nprintf called > "$PYTHON_CALLED"\nexit 99\n')
     python.chmod(0o755)
     python_called = tmp_path / "python-called"
-    called, received = tmp_path / "uv-called", tmp_path / "uv-input"
-    payload = json.dumps({"hook_event_name": event, "session_id": "hook-harness"})
-    done = subprocess.run(
-        ["/bin/sh", "-c", _registered_hook_command(harness, event)],
-        input=payload,
-        env=os.environ
-        | {
-            "PATH": f"{tools}:/usr/bin:/bin",
-            "CLAUDE_PLUGIN_ROOT": str(project),
-            "PLUGIN_ROOT": str(project),
-            "PYTHON_CALLED": str(python_called),
-            "UV_CALLED": str(called),
-            "UV_INPUT": str(received),
-        },
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
+    called, args, received = (
+        tmp_path / "uv-called",
+        tmp_path / "python-args",
+        tmp_path / "python-input",
     )
-    assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
-    assert called.read_text().splitlines() == [
-        "run",
-        "-q",
-        "--no-dev",
-        "--project",
-        str(project),
-        "python",
-        "-m",
-        "leaf",
-        *_registered_hook_arguments(harness, event),
-    ]
+    payload = json.dumps({"hook_event_name": event, "session_id": "hook-harness"})
+
+    def run(root=project) -> list[str] | None:
+        """The arguments uv ran with, or None where it didn't run."""
+        called.unlink(missing_ok=True)
+        done = subprocess.run(
+            ["/bin/sh", "-c", _registered_hook_command(harness, event)],
+            input=payload,
+            env=os.environ
+            | {
+                "PATH": f"{tools}:/usr/bin:/bin",
+                "CLAUDE_PLUGIN_ROOT": str(root),
+                "PLUGIN_ROOT": str(root),
+                "PYTHON_CALLED": str(python_called),
+                "UV_CALLED": str(called),
+                "PYTHON_ARGS": str(args),
+                "PYTHON_INPUT": str(received),
+            },
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+        assert args.read_text().splitlines() == [
+            "-m",
+            "leaf",
+            *_registered_hook_arguments(harness, event),
+        ]
+        assert received.read_text().rstrip("\n") == payload
+        return called.read_text().splitlines() if called.exists() else None
+
+    sync = ["sync", "-q", "--no-dev", "--inexact", "--project", str(project)]
+    assert run() == sync
     assert received.read_text() == payload
+    assert run() is None
+    os.utime(lock)
+    assert run() == [*sync[:2], "--no-cache", *sync[2:]]
+    # A copy of the tree copies its environment, which the copy syncs for itself.
+    copied = tmp_path / "copied"
+    shutil.copytree(project, copied, symlinks=True)
+    assert run(copied) == [*sync[:2], "--no-cache", *sync[2:-1], str(copied)]
     assert not python_called.exists()
 
 
@@ -434,9 +468,10 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
 ):
     """Codex runs its tool hook after every tool call of every task, and most hold
     no page, so the launcher asks the environment's interpreter first and starts
-    uv only for a session that has claimed one. Every other Codex hook runs whole,
+    Leaf only for a session that has claimed one. Every other Codex hook runs whole,
     and so does the tool hook wherever the question cannot be asked: a failure
-    there must not drop it."""
+    there must not drop it. A stand-in package on the module path witnesses each
+    start of Leaf, and the payload it was given."""
     project = tmp_path / "plugin"
     launcher = project / "bin/leaf"
     launcher.parent.mkdir(parents=True)
@@ -450,13 +485,21 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     interpreter.symlink_to(sys.executable)
     tools = tmp_path / "tools"
     tools.mkdir()
-    called = tmp_path / "uv-called"
     uv = tools / "uv"
-    uv.write_text('#!/bin/sh\n/bin/cat > "$UV_CALLED"\n')
+    uv.write_text("#!/bin/sh\n")  # the environment is already in sync
     uv.chmod(0o755)
+    standin = tmp_path / "standin" / "leaf"
+    standin.mkdir(parents=True)
+    (standin / "__init__.py").touch()
+    (standin / "__main__.py").write_text(
+        "import os, sys\n"
+        "with open(os.environ['LEAF_STARTED'], 'w') as out:\n"
+        "    out.write(sys.stdin.read())\n"
+    )
+    started = tmp_path / "started"
 
     def run(event, session):
-        called.unlink(missing_ok=True)
+        started.unlink(missing_ok=True)
         payload = json.dumps({"hook_event_name": event, "session_id": session})
         done = subprocess.run(
             ["/bin/sh", "-c", _registered_hook_command("codex", event)],
@@ -465,7 +508,8 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
             | {
                 "PLUGIN_ROOT": str(project),
                 "PATH": f"{tools}:/usr/bin:/bin",
-                "UV_CALLED": str(called),
+                "PYTHONPATH": str(standin.parent),
+                "LEAF_STARTED": str(started),
             },
             capture_output=True,
             text=True,
@@ -473,7 +517,7 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
             check=False,
         )
         assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
-        return json.loads(called.read_text()) if called.exists() else None
+        return json.loads(started.read_text()) if started.exists() else None
 
     session = harness_model.session_harness().session
     assert run("PostToolUse", session) is None
@@ -487,10 +531,8 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     }
     assert run("PostToolUse", "another-session") is None
 
-    # An interpreter that cannot answer leaves the hook to run whole.
-    interpreter.unlink()
-    interpreter.write_text("#!/bin/sh\nexit 1\n")
-    interpreter.chmod(0o755)
+    # A question that cannot be answered leaves the hook to run whole.
+    program.write_text("raise SystemExit(1)\n")
     assert run("PostToolUse", "another-session") == {
         "hook_event_name": "PostToolUse",
         "session_id": "another-session",

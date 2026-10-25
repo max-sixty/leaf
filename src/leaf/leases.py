@@ -24,6 +24,8 @@ from typing import BinaryIO
 from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
+    TOOLS_SUFFIX,
+    flocked,
     session_file,
     state_home,
     still_named,
@@ -259,14 +261,40 @@ def sessions_home() -> Path:
 
 
 def hooks_path(session_id: str) -> Path:
-    """The mark a Leaf hook leaves each time it runs for this session."""
+    """The mark the first Leaf hook to run for this session leaves."""
     return session_state_path(session_id, HOOKS_SUFFIX)
 
 
 def mark_hooks(session_id: str) -> None:
     """Record that the harness ran a Leaf hook for this session. The mark stands for
-    the session's life, and its SessionEnd hook removes it."""
-    hooks_path(session_id).touch()
+    the session's life, and its SessionEnd hook removes it. Only its existence
+    says anything, so a later hook leaves it as it is, and with it the reading a
+    tool boundary compares (`state.boundary_reading`)."""
+    path = hooks_path(session_id)
+    if not path.exists():
+        path.touch()
+
+
+def first_hook_for_tool(session_id: str, tool_use_id: str | None) -> bool:
+    """Whether this is the first of the session's hooks to run before the tool call
+    `tool_use_id`, which it records if so; a hook that names no call is first.
+
+    Claude Code runs a PreToolUse registration once for each of its `if` rules a
+    command matches, all at once, and a command it cannot read matches all of
+    them (`hooks/hooks.json`, measured at 2.1.310). It starts the call only once
+    every one has exited, so the first does the hook's work for the others. The
+    calls named last are kept, enough for a batch of calls whose hooks
+    interleave."""
+    if not tool_use_id:
+        return True
+    with flocked(session_state_path(session_id, TOOLS_SUFFIX)) as held:
+        held.seek(0)
+        seen = held.read().decode().split()
+        if tool_use_id in seen:
+            return False
+        held.truncate(0)
+        held.write("\n".join([*seen[-15:], tool_use_id]).encode())
+    return True
 
 
 def hooks_ran(session_id: str) -> bool:

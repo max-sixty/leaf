@@ -203,7 +203,8 @@ at install time: installing, authoring pages, writing custom packages and
 exporting need no browser build or npm. Pages run the browser runtime the serving
 install holds: the kernel committed in `dist/kernel/` while it matches the tree's
 modules, and the source modules where a merge has left it stale
-(`leaf.runtime_selection.read_runtime`). `bin/leaf` is `uv run --no-dev` on the tree, so
+(`leaf.runtime_selection.read_runtime`). `bin/leaf` runs the tree's environment,
+which `uv sync --no-dev` makes on first use and again after the lock changes, so
 the install must be writable, and Leaf writes nothing else there. A plugin
 update may replace the directory, so anything that must survive one belongs in
 the page directory or the state home.

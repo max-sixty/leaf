@@ -551,6 +551,85 @@ def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkey
     assert hook_transport_model.remedies(hook_transport_model.read_plans("s1")) == []
 
 
+def test_a_boundary_with_nothing_new_needs_no_leaf(claimed, monkeypatch, capsys):
+    """Claude Code runs PostToolBatch after every batch of tool calls, and most have
+    nothing to hand over. The launcher answers a boundary that would read what the
+    last quiet one read (`state.boundary_quiet`), so every change a boundary could
+    act on has to bring Leaf back: new input, input that arrived while the last one
+    read, its own handover to confirm, and a new turn. A worker's boundary, which
+    hands nothing over, never speaks for the parent's."""
+    boundary = {"hook_event_name": "PostToolBatch", "session_id": "s1"}
+
+    def handed() -> list[str]:
+        assert not cleanup_model.boundary_quiet("s1")
+        hooks_model.cmd_hook("claude-code", boundary)
+        out = capsys.readouterr().out
+        if not out:
+            return []
+        context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        [batch] = json.loads(context.split("\n")[1])["batches"]
+        return [event["text"] for event in batch["events"]]
+
+    assert handed() == []
+    assert cleanup_model.boundary_quiet("s1")
+
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "worker's turn"}
+    )
+    hooks_model.cmd_hook("claude-code", {**boundary, "agent_id": "worker"})
+    assert handed() == ["worker's turn"]
+
+    # The next boundary confirms that handover, and input that arrives while it
+    # reads goes to the boundary after.
+    read_plans = hook_transport_model.read_plans
+
+    def arriving(session):
+        plans = read_plans(session)
+        append_carried_log_record(
+            claimed, {"kind": "comment", "author": "user", "text": "mid-read"}
+        )
+        return plans
+
+    monkeypatch.setattr(hook_transport_model, "read_plans", arriving)
+    assert handed() == []
+    monkeypatch.setattr(hook_transport_model, "read_plans", read_plans)
+    assert handed() == ["mid-read"]
+    assert handed() == []
+    assert acknowledged_through(claimed) == last_deliverable_seq(claimed)
+    assert cleanup_model.boundary_quiet("s1")
+
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    capsys.readouterr()
+    assert handed() == []
+
+
+def test_one_tool_calls_hooks_do_its_work_once(monkeypatch):
+    """Claude Code runs the PreToolUse registration once for each of its `if`
+    rules a command matches, at once, before the call; the first opens the turn a
+    claim would join, and the rest leave it as they find it. Another call's hook
+    does its work again."""
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
+    )
+
+    def before(call: str) -> None:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": "PreToolUse", "session_id": "s9", "tool_use_id": call},
+        )
+
+    before("toolu_1")
+    record = cleanup_model.session_record("s9")
+    assert record["turn_closed"] is None
+    cleanup_model.close_session_turn("s9", None, expected=record)
+    before("toolu_1")
+    assert cleanup_model.session_record("s9")["turn_closed"] is not None
+    before("toolu_2")
+    assert cleanup_model.session_record("s9")["turn_closed"] is None
+
+
 def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     """Claude Code's prompt hook runs as every turn begins, including the one a
     background wait's ending opens, and its PostToolBatch hook between steps; each hands

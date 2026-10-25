@@ -171,6 +171,14 @@ tool-boundary and Stop hooks hand into a turn:
   before its deadline. Otherwise it hands over a pointer the agent confirms with
   `leaf delivery ack`.
 
+Claude Code's tool boundary that hands nothing over keeps what it read, and the
+launcher answers the next one that would read the same without starting Leaf
+(`hook_transport.py`). So every fact a tool boundary decides on lives in a file
+`state.boundary_reading` covers: the session's own files in `sessions/`, the
+claims it holds, their pages' event logs and vendored registries, and the
+install's own registry. A change that makes delivery read another file moves the
+fact into one of these or extends the reading.
+
 `delivery.py` owns receipt: when each harness's hook output counts as read, and how a
 handover the turn never confirmed becomes input again. Session death is neither
 completion nor an explicit stop, so work status and the desired service stay as they

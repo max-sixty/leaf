@@ -59,7 +59,8 @@ adds the mark.
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
   See the [Thread plan](notes/threads.md#current-status).
-- **Test annotation placement in context.** **Waits on the user.** Compare a pinned marker card with a
+- **Test annotation placement in context.** **Waits on the user** to pick the margin
+  treatment once the comparison is built. Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
   at a time.
@@ -162,7 +163,8 @@ adds the mark.
 
 ## Next
 
-- **Add a host-owned widget LLM allowance.** **Waits on the user.** The initial `/api/llm` endpoint
+- **Add a host-owned widget LLM allowance.** **Waits on the user** for how a grant is
+  given and billed. The initial `/api/llm` endpoint
   uses the claimant harness's login and bounds input size, but does not bound
   cumulative usage. Define an explicitly granted allowance shared across page
   servers, with accounting appropriate to the login's quota or billing model.
@@ -242,7 +244,8 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Let a page restyle Leaf's chrome on purpose.** **Waits on the user.** A page's rules reach a widget's
+- **Let a page restyle Leaf's chrome on purpose.** **Waits on the user** to choose the
+  route below. A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
   wins only by out-weighing the chrome's own selector. Choose the deliberate route for
@@ -441,7 +444,8 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
 
 ### Development velocity
 
-- **Require `test` on `main` again.** Since 2026-10-13 Leaf merges any change that
+- **Require `test` on `main` again.** **Waits on the user** for the branch-protection
+  change, once main stays green. Since 2026-10-13 Leaf merges any change that
   introduces no new failure, so `test` is not a required check: a pull request
   inherits whatever main fails among the tests it runs, and only an admin could merge
   past that (`tests/AGENTS.md`, "Selecting checks"). Once main stays green

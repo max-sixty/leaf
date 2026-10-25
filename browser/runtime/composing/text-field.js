@@ -104,15 +104,20 @@
  * composer's drawing, each taken back or redone in the order it was made.
  *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
- * never clips the words; the page sizes the host. When that room changes, the field
- * reveals its focused selection again under the new constraint. CodeMirror's edit
- * reveal may have preceded the owner's sizing pass, and its own resize observer
- * watches the inner scroller, whose natural height need not change with the host.
- * This reveal belongs to the host alone: resizing a focused field does not move a
- * reading pane the user scrolled away from it.
+ * never clips the words; the page sizes the host. The field reveals the caret's whole
+ * row, its leading as well as the caret, inside the host's padding, so typing on the
+ * last line rests the words at their end with nothing more to scroll to. A native
+ * textarea reveals only the caret and leaves its foot's padding, and in Chromium part
+ * of the row, out of view. An edit's reveal does this before the view carries the
+ * caret out through the page, and when the host's room changes the field reveals its
+ * focused caret again under the new constraint: CodeMirror's edit reveal may have
+ * preceded the owner's sizing pass, and its own resize observer watches the inner
+ * scroller, whose natural height need not change with the host. The resize reveal
+ * belongs to the host alone: resizing a focused field does not move a reading pane
+ * the user scrolled away from it.
  */
 import { scrollIntoView } from "../landing-scroll.js";
-import { landingInsets } from "../geometry.js";
+import { moveScrollerBy } from "../scrolling.js";
 import {
   EditorView,
   EditorState,
@@ -131,7 +136,7 @@ import {
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
-import { LeafEditorView } from "../editor-view.js";
+import { caretAt, LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
@@ -739,60 +744,49 @@ class LeafText extends HTMLElement {
     if (view?.hasFocus)
       view.requestMeasure({
         key: this,
-        read: () => {
-          const caret = view.coordsAtPos(view.state.selection.main.head);
-          const box = this.getBoundingClientRect();
-          const { scaleX, scaleY } = view;
-          // The caret's whole line, its leading as well as the caret, lands inside
-          // the host's `scroll-padding`, as a landing does.
-          const inset = landingInsets(this);
-          const leading = caret
-            ? Math.max(
-                0,
-                (parseFloat(getComputedStyle(this).lineHeight) * scaleY -
-                  (caret.bottom - caret.top)) /
-                  2,
-              )
-            : 0;
-          return {
-            caret,
-            scaleX,
-            scaleY,
-            top: box.top + (this.clientTop + inset.top) * scaleY + leading,
-            left: box.left + (this.clientLeft + inset.left) * scaleX,
-            // client dimensions round fractional CSS sizes. Keep the trailing
-            // edges on the actual box, inset by its native border and scrollbar.
-            bottom:
-              box.bottom -
-              (this.offsetHeight - this.clientTop - this.clientHeight + inset.bottom) *
-                scaleY -
-              leading,
-            right:
-              box.right -
-              (this.offsetWidth - this.clientLeft - this.clientWidth + inset.right) *
-                scaleX,
-          };
-        },
-        write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
-          if (!caret) return;
-          // Native scroll offsets quantize a fractional correction. Round away from
-          // zero so a caret just beyond an edge actually enters the host's scrollport.
-          const wholePixel = (distance) =>
-            distance < 0 ? Math.floor(distance) : Math.ceil(distance);
-          this.scrollBy({
-            top: wholePixel(
-              (Math.min(0, caret.top - top) + Math.max(0, caret.bottom - bottom)) /
-                scaleY,
-            ),
-            left: wholePixel(
-              (Math.min(0, caret.left - left) + Math.max(0, caret.right - right)) /
-                scaleX,
-            ),
-            behavior: "instant",
-          });
-        },
+        read: () => this.#rowTravel(view, view.state.selection.main.head),
+        write: (travel) => moveScrollerBy(this, travel),
       });
   });
+
+  // How far the host scrolls to show the row holding `pos` whole, its leading as well
+  // as the caret, inside the host's padding (see the header). The words wrap, so the
+  // host scrolls only down and up.
+  #rowTravel(view, pos) {
+    const { destination, rectangle: caret } = caretAt(view, pos);
+    const node =
+      destination instanceof Range ? destination.startContainer : destination;
+    const row =
+      (node instanceof Element ? node : node.parentElement)?.closest(".cm-line") ??
+      this;
+    const { scaleY } = view;
+    const leading =
+      Math.max(
+        0,
+        (parseFloat(getComputedStyle(row).lineHeight) * scaleY -
+          (caret.bottom - caret.top)) /
+          2,
+      ) || 0;
+    const style = getComputedStyle(this);
+    const box = this.getBoundingClientRect();
+    const top = box.top + (this.clientTop + parseFloat(style.paddingTop)) * scaleY;
+    // client dimensions round fractional CSS sizes. Keep the bottom on the actual box,
+    // inset by its native border and scrollbar.
+    const bottom =
+      box.bottom -
+      (this.offsetHeight -
+        this.clientTop -
+        this.clientHeight +
+        parseFloat(style.paddingBottom)) *
+        scaleY;
+    const travel =
+      (Math.min(0, caret.top - leading - top) +
+        Math.max(0, caret.bottom + leading - bottom)) /
+      scaleY;
+    // Native scroll offsets quantize a fractional correction. Round away from zero so
+    // a row just beyond an edge actually enters.
+    return travel < 0 ? Math.floor(travel) : Math.ceil(travel);
+  }
 
   // Whether the host's words overflow it (`data-scrolls`), and which edges they run
   // past (`more-above`, `more-below`), read again as the host scrolls, so an owner can
@@ -892,6 +886,12 @@ class LeafText extends HTMLElement {
             this.#nativeInput = false;
           }
           return true;
+        }),
+        // An edit's reveal shows the caret's row in the host first; the view's own
+        // reveal (editor-view.js) then carries the caret out through the page.
+        EditorView.scrollHandler.of((view, range) => {
+          moveScrollerBy(this, this.#rowTravel(view, range.head));
+          return false;
         }),
         this.#history.of(history()),
         invertedEffects.of((tr) =>

@@ -374,7 +374,10 @@ svg[data-lf-icon] {
  * its descendants, so a playground's preview, whose cards fill it to the edge, showed
  * none of it. A widget whose content reads otherwise states how wide the fade is
  * (--lf-more-fade, 24px) and how much of the content is left at the edge
- * (--lf-more-fade-to, none); lf-diagram's theme does, for a drawing.
+ * (--lf-more-fade-to, none); lf-diagram's theme does, for a drawing. A box whose start
+ * stands still while the rest scrolls under it, as a table's row names do (reading.css),
+ * fades nothing there (--lf-more-fade-start, 0px), since what stands at that edge is
+ * whole, and marks where the scrolled content passes under it itself.
  *
  * Each axis states its gradient's stops in a property no box inherits, so a nested
  * scroller fades only where it is cut itself, and one rule intersects the two gradients,
@@ -399,26 +402,41 @@ svg[data-lf-icon] {
 @media screen {
   [data-lf-more-after]:where(
     [data-lf-scroll-direction="ltr"]:not([data-lf-more-before])
-  ),
-  [data-lf-more-before]:where(
-    [data-lf-scroll-direction="rtl"]:not([data-lf-more-after])
   ) {
     --lf-more-across:
       #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-before]:where(
+    [data-lf-scroll-direction="rtl"]:not([data-lf-more-after])
+  ) {
+    --lf-more-across:
+      #000 calc(100% - var(--lf-more-fade-start, var(--lf-more-fade, 24px))),
+      var(--lf-more-fade-to, transparent);
+  }
+  [data-lf-more-before]:where(
     [data-lf-scroll-direction="ltr"]:not([data-lf-more-after])
-  ),
+  ) {
+    --lf-more-across:
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade-start, var(--lf-more-fade, 24px));
+  }
   [data-lf-more-after]:where(
     [data-lf-scroll-direction="rtl"]:not([data-lf-more-before])
   ) {
     --lf-more-across:
       var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px);
   }
-  [data-lf-more-before][data-lf-more-after] {
+  [data-lf-more-before][data-lf-more-after]:where([data-lf-scroll-direction="ltr"]) {
+    --lf-more-across:
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade-start, var(--lf-more-fade, 24px)),
+      #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
+  }
+  [data-lf-more-before][data-lf-more-after]:where([data-lf-scroll-direction="rtl"]) {
     --lf-more-across:
       var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px),
-      #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
+      #000 calc(100% - var(--lf-more-fade-start, var(--lf-more-fade, 24px))),
+      var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-below] {
     --lf-more-down:
@@ -630,49 +648,68 @@ svg[data-lf-icon] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-/* A corner mark: a small press riding a corner of the thing it acts on, such as the
-   floating panel's fold and an attachment's removal and Undo last stroke. Every one
-   wears this face, which the user chose on 22 October from the panel's fold: a patch
-   of the ground the thing stands on, set off by that ground's ring and a lift, with
-   its icon in the dim ink, full ink under the pointer. An attachment's marks were a
-   dark disc with a light cross, which read as a second kind of control for the same
-   gesture. It was a disc itself until the theme's corner scale (theme.css, `--r`)
-   gave marks this small the small corner. The icon says the meaning (icons.js): `subtract` folds, `cross`
-   removes. A surface whose ground is not the paper sets `--lf-ground` and `--lf-ring`
-   for what it raises; each surface places its marks and says when they show. The
-   reach is the aim floor on both axes, since a corner leaves room on both sides. */
-.lf-corner-mark {
-  position: absolute;
-  z-index: 1;
+/* A mark: a small icon press seated on the thing it acts on. It rides a corner of that
+   thing (`.lf-corner-mark`, below), as the floating panel's fold, an attachment's
+   removal and a drawing's Undo last stroke do, or stands in a toolbar on its border
+   (`.lf-mark-bar`, integration.css), as a code block's Copy and a draft's Edit, Save
+   and Discard do. Every mark wears this one face at one size: the face the user chose
+   on 22 October from the panel's fold, its icon in the dim ink and full ink under the
+   pointer, at the fold's 20px (`--mark-size`, theme.css). On 25 October the user gave
+   it to the toolbars' marks as well, which had been 26px with a quiet wash under the
+   pointer, a second look for the same kind of press. A seat gives its marks only a
+   place and a ground: a corner mark a patch of its own, a toolbar's marks the
+   toolbar. The icon says the meaning (icons.js): `subtract` folds, `cross` removes.
+   The focus ring lies on the mark's edge, which on a corner is where its ground's
+   ring stands and in a toolbar is the toolbar's own edge, so it stays off the words
+   beside it either way. The reach is the aim floor on both axes (surfaces.css). Copy,
+   a vendor control, wears the face on the button part that takes its press. */
+:where(button).lf-mark,
+.lf-mark.lf-ui::part(button) {
+  position: relative;
   display: grid;
   place-items: center;
-  inline-size: var(--corner-mark);
+  box-sizing: border-box;
+  inline-size: var(--mark-size);
   min-inline-size: 0;
-  block-size: var(--corner-mark);
+  block-size: var(--mark-size);
   min-block-size: 0;
   padding: 0;
   border: 0;
   border-radius: var(--r-s);
   font: inherit;
-  background: var(--lf-ground);
+  background: none;
   color: color-mix(in srgb, var(--ink) 72%, transparent);
-  box-shadow:
-    0 0 0 1px var(--lf-ring, var(--border-2)),
-    var(--raise-1);
+  box-shadow: none;
   cursor: pointer;
 }
-.lf-corner-mark:hover {
+:where(button).lf-mark:hover,
+.lf-mark.lf-ui::part(button):hover {
   color: var(--ink);
 }
-.lf-corner-mark[data-lf-focus-visible] {
+:where(button).lf-mark[data-lf-focus-visible],
+.lf-mark.lf-ui::part(lf-focus-visible) {
   outline: var(--focus-ring);
-  outline-offset: 2px;
+  outline-offset: 0;
 }
-.lf-corner-mark > svg {
+.lf-mark > svg {
   inline-size: 12px;
   block-size: 12px;
 }
-/* A forced palette drops the mark's ring and lift, so it takes a system edge. */
+/* A corner mark stands on a patch of the ground the thing it rides stands on, set off
+   by that ground's ring and a lift. An attachment's marks were a dark disc with a
+   light cross, which read as a second kind of control for the same gesture. A surface
+   whose ground is not the paper sets `--lf-ground` and `--lf-ring` for what it raises;
+   each surface places its marks and says when they show. */
+.lf-corner-mark {
+  position: absolute;
+  z-index: 1;
+  background: var(--lf-ground);
+  box-shadow:
+    0 0 0 1px var(--lf-ring, var(--border-2)),
+    var(--raise-1);
+}
+/* A forced palette drops the ground's ring and lift, so it takes a system edge. A
+   toolbar's ground keeps its real border. */
 @media (forced-colors: active) {
   .lf-corner-mark {
     border: 1px solid ButtonText;

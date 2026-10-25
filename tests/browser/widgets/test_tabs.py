@@ -26,9 +26,6 @@ from render_harness import (
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
 
-pytestmark = pytest.mark.shifts_unsurveyed
-
-
 ROOT_TABS_PAGE = ROOT / "tests/fixtures/pages/root-tabs.html"
 ROOT_PARTS_PAGE = ROOT / "tests/fixtures/pages/root-parts.html"
 
@@ -869,7 +866,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     assert walked["list"][0] > 0 and walked["selectedShown"], walked
     assert walked["itemTop"] == before["itemTop"] and walked["page"] <= 0, walked
 
-    page.evaluate("document.documentElement.style.fontSize = '20px'")
+    # A reader's large root font, there from first paint: a script setting it on the
+    # open page would move the page without input.
+    large = "<style>html { font-size: 20px }</style></head>"
+    page = open_page(browser, serve(source.replace("</head>", large, 1)))
     resized(page, 730, 600)
     page.wait_for_function(
         """() => {
@@ -1720,3 +1720,60 @@ def test_a_phone_keeps_the_list_of_parts_in_reach_and_each_part_s_place(browser,
     row = strip.bounding_box()
     heading = page.locator("#part-plan-rollback h2").bounding_box()
     assert heading["y"] >= row["y"] + row["height"] - 1, (heading, row)
+
+
+@pytest.mark.parametrize("route", ["pointer", "keyboard", "touch"])
+def test_side_list_history_restores_the_reading_offset_of_each_entry(
+    browser, serve, route
+):
+    """A root side list reveals the history view without losing its return offset."""
+    body = '<h1>Views</h1><p>Shared context.</p><lf-tabs id="views" list="side">'
+    body += "".join(
+        f'<lf-tab id="view-{name.lower()}" label="{name}">'
+        + "".join(
+            f"<p>{name} paragraph {i}. Reading continues here.</p>" for i in range(180)
+        )
+        + "</lf-tab>"
+        for name in ("A", "B")
+    )
+    body += "</lf-tabs>"
+    head = """<style data-controls>
+    @container (width >= 36rem) {
+      #views > .lf-tabstrip {position: sticky; top: var(--lf-top, 0px);
+        align-self: start; max-block-size: 100dvh; overflow-y: auto;}
+    }
+    </style>"""
+    context = browser.new_context(has_touch=route == "touch")
+    page = open_page(
+        browser, serve(leaf_page("Reading views", body, head=head)), context=context
+    )
+    resized(page, 1600, 1000)
+    a = page.get_by_role("tab", name="A", exact=True)
+    b = page.get_by_role("tab", name="B", exact=True)
+    page.evaluate("scrollTo({top: 3000, behavior: 'instant'})")
+    scroll_settled(page)
+    box = b.bounding_box()
+    assert box is not None and 0 <= box["y"] < 1000
+    if route == "keyboard":
+        # Walk from the selected tab; focus already stands there after a press.
+        a.click()
+        page.evaluate("scrollTo({top: 3000, behavior: 'instant'})")
+        page.keyboard.press("ArrowDown")
+    elif route == "touch":
+        b.tap()
+    else:
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    expect(b).to_have_attribute("aria-selected", "true")
+    rendered(page)
+    page.evaluate("scrollTo({top: 4000, behavior: 'instant'})")
+    scroll_settled(page)
+    for direction, tab, offset in [
+        ("back", a, 3000),
+        ("forward", b, 4000),
+        ("back", a, 3000),
+    ]:
+        getattr(page, f"go_{direction}")()
+        expect(tab).to_have_attribute("aria-selected", "true")
+        page.evaluate("window.navigation.transition?.finished")
+        scroll_settled(page)
+        assert page.evaluate("scrollY") == pytest.approx(offset, abs=2)

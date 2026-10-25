@@ -136,7 +136,9 @@ def test_the_render_gate_reports_a_compact_spill_and_unreserved_heights(browser,
     widths it spills at, read once by the sweep. On the same page, a widget that
     states the height its module draws at holds it from first paint, so the gate has
     nothing to say about it; one stating none, or another height, is told the height
-    to state."""
+    to state. One whose first paint a stylesheet sized from its markup, as an inline
+    patch's counted rows size an lf-diff, is told nothing: missing that height is the
+    widget's defect, and a data-height would go stale with the markup."""
     source = leaf_page(
         "compact spill and reserved heights",
         """
@@ -145,12 +147,14 @@ def test_the_render_gate_reports_a_compact_spill_and_unreserved_heights(browser,
   #compact-overflow { width: 700px; }
 }
 lf-test-drawn { display: block; }
+html[data-lf-interactive] #counted:not(.lf-rendered) { block-size: 60px; }
 </style>
 <h1>Compact route</h1>
 <p id="compact-overflow">This row fits the wide viewport and spills from the compact one.</p>
 <lf-test-drawn id="reserved" data-height="120"></lf-test-drawn>
 <lf-test-drawn id="unreserved"></lf-test-drawn>
 <lf-test-drawn id="misreserved" data-height="40"></lf-test-drawn>
+<lf-test-drawn id="counted"></lf-test-drawn>
 """,
     )
 
@@ -172,17 +176,17 @@ lf-test-drawn { display: block; }
         (
             "unreserved-height",
             "<lf-test-drawn id=unreserved>",
-            {"drawn": 120, "reserved": None},
+            {"first": 0, "drawn": 120, "reserved": None},
         ),
         (
             "unreserved-height",
             "<lf-test-drawn id=misreserved>",
-            {"drawn": 120, "reserved": "40"},
+            {"first": 40, "drawn": 120, "reserved": "40"},
         ),
     ]
     assert str(reading.advice[1]) == (
-        "<lf-test-drawn id=misreserved> draws 120px tall where its first paint "
-        "reserves 40px, so what follows it moves when it is drawn: state "
+        "<lf-test-drawn id=misreserved> first paints 40px tall, reserving 40px, and "
+        "draws 120px tall, so what follows it moves 80px when it is drawn: state "
         'data-height="120"'
     )
 

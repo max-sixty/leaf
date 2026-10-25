@@ -24,6 +24,7 @@ from render_cases_interaction import (
 from render_cases_navigation import (
     call_diff,
     call_node,
+    source_revision,
 )
 from render_harness import (
     EXAMPLE_PACKAGES,
@@ -229,6 +230,17 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
     told(page)
+    # A retained row carries the capture it now shows, at its place in the tree.
+    expect(lines.nth(2)).to_have_attribute(
+        "data-lf-source-revision", source_revision(serve.page_dir, "request-call-diff")
+    )
+    assert json.loads(lines.nth(2).get_attribute("data-lf-origin"))["path"] == [
+        "trees",
+        0,
+        "tree",
+        "children",
+        0,
+    ]
     expect(group).to_have_attribute("open", "")
     expect(groups).to_have_count(2)
     expect(groups.nth(1)).not_to_have_attribute("open", "")

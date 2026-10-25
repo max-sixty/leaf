@@ -80,6 +80,8 @@ export { answeredInWords, readObligations } from "./obligations/model.js";
 export { obligationsIn } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
+// A view's reading and writing of another widget's answer (x-shows).
+export { shownAnswer } from "./shown-answer.js";
 export {
   readWork,
   workRole,
@@ -187,6 +189,7 @@ export {
   matchesWhen,
 } from "./registry.js";
 export {
+  flashDuration,
   foldDuration,
   returnDuration,
   foldBlock,
@@ -204,9 +207,9 @@ export {
   PRESENTATION,
   afterPresentation,
   deferredArrival,
+  whileInterfaceConnected,
 } from "./presentation.js";
 export { quietWord } from "./declared-words.js";
-export { projectData } from "./application.js";
 export { copyBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
@@ -276,3 +279,5 @@ export { heldGrowth } from "./thread/held-news.js";
 export { PRESSABLE } from "./widget-elements.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
+// The time axis the Playwright timeline and lf-timeline both draw on.
+export { assignRows, axisTicks, textWidth } from "./time-axis.js";

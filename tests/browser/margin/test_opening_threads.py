@@ -365,7 +365,7 @@ def open_where_the_user_stands(page, section, **options):
           const {readThreads, threadActions} = await window.__lfWidgetApi();
           const thread = readThreads().threads.find(t => t.anchor.section === section);
           const opening = threadActions.open(
-            thread.key, {focus: false, travel: false, flash: false, ...options});
+            thread.key, {focus: false, travel: false, ...options});
           const late = new Promise(resolve => setTimeout(() => resolve('late'), 5000));
           const shown = await Promise.race([opening, late]);
           return shown === 'late' ? shown : Boolean(shown);
@@ -1432,3 +1432,29 @@ def test_resolving_a_cells_thread_rings_the_whole_cell(browser, serve):
     ring = current_location_ring(page)
     assert ring, "the cell the user is located on wears no ring"
     assert ring["cuts"] == [], ring["cuts"]
+
+
+def test_open_in_panel_moves_the_cards_thread_and_its_reply_to_the_panel(
+    browser, serve
+):
+    """A card's Open in panel closes the card and opens its thread in the panel's view,
+    the reply being written there along with it, and Show on page brings both back."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    reply = preview.locator(".lf-thread-reply leaf-text")
+    reply.click()
+    page.keyboard.type("Halfway through a reply")
+
+    preview.get_by_role("button", name="Open in panel").click()
+    expect(preview).to_be_hidden()
+    panel_settled(page, view="thread")
+    expect(page.locator(PANEL_THREAD)).to_contain_text("Start with the first two.")
+    expect(panel_field(page)).to_have_js_property("value", "Halfway through a reply")
+
+    page.locator(PANEL).get_by_role("button", name="Show on page").click()
+    expect(preview).to_be_visible()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+    expect(reply).to_have_js_property("value", "Halfway through a reply")

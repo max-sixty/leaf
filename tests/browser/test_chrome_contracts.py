@@ -331,13 +331,16 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
         "button => button.closest('.lf-margin-thread-controls') !== null"
     )
     centers = preview.evaluate(
-        """preview => ['.lf-resolve', '.lf-margin-preview-close'].map(selector => {
-          const rect = preview.querySelector(selector).getBoundingClientRect();
-          return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
-        })"""
+        """preview => ['.lf-margin-preview-expand', '.lf-resolve', '.lf-margin-preview-close']
+          .map(selector => {
+            const rect = preview.querySelector(selector).getBoundingClientRect();
+            return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
+          })"""
     )
-    assert centers[0]["y"] == pytest.approx(centers[1]["y"], abs=1), centers
-    assert centers[0]["x"] < centers[1]["x"]
+    assert all(c["y"] == pytest.approx(centers[0]["y"], abs=1) for c in centers), (
+        centers
+    )
+    assert centers[0]["x"] < centers[1]["x"] < centers[2]["x"], centers
     if thread_count == 2:
         row = preview.evaluate(
             """preview => {
@@ -1014,6 +1017,38 @@ REPORTED_DRAFT = (
     "great, let's go with the more square form. I don't have a strong view of which"
     " one is better, and the other parts of this thread can wait until later"
 )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_scrolling_draft_shows_the_caret_s_row_with_the_padding_beside_it(
+    engine, request, serve
+):
+    """A line typed at the end of a draft that scrolls leaves nothing below it to scroll
+    to, and the caret taken to the first line leaves nothing above. Revealing only the
+    caret, as a native textarea does, left the field's padding out of view, and in
+    Firefox the foot of the caret's row too."""
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+    field = page_comment(page)
+    hidden = """box => ({
+      below: box.scrollHeight - box.clientHeight - box.scrollTop,
+      above: box.scrollTop,
+    })"""
+    page.keyboard.type("line 0")
+    for line in range(1, 40):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"line {line}")
+        if field.evaluate("box => box.scrollHeight > box.clientHeight + 40"):
+            break
+    else:
+        raise AssertionError("the draft never scrolled")
+    for key in ("Shift+Enter", "w", "ControlOrMeta+Home"):
+        page.keyboard.press(key)
+        rendered(page)
+        shown = field.evaluate(hidden)
+        if key == "ControlOrMeta+Home":
+            assert shown["above"] < 1, shown
+        else:
+            assert shown["below"] < 1, (key, shown)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

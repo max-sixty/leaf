@@ -1,5 +1,6 @@
 import { afterSettling, canPlaceFocus, composedParentNode, focusDestination, focused, onCurrentLocation, onUserInput, recoveredLabelFocus, renderedUnder, sizeObserver, takesLetters } from "./bundle-dom-move.js";
-import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, excludedByInert, live, nativeActivationAt, nativeClaimAt, nativeLayers, pagePresented, pageUpgraded, quickShortcuts, referencedCommandEntry, routedCommand, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-layer-client.js";
+import { pagePresented, pageUpgraded } from "./bundle-layer-client.js";
+import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, excludedByInert, live, nativeActivationAt, nativeClaimAt, nativeLayers, quickShortcuts, referencedCommandEntry, routedCommand, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-errors.js";
 import { whenArrived, whenArriving } from "./bundle-reading-regions.js";
 import { ELEMENTS, pageScopes, stances, textEntryScope, universalCommandReference } from "./bundle-surfaces.js";
 
@@ -59,7 +60,7 @@ if (child) {
 		if (!event.isTrusted || event.type === "blur") return;
 		gestures++;
 		afterSettling(() => gestures--);
-		sampleNotice("input");
+		sampleNotice("input", { type: event.type });
 	};
 	onUserInput(input);
 	window.addEventListener("click", input, {

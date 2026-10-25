@@ -79,7 +79,10 @@
  *   left the field, since the caret is the innermost thing open. A thread's view
  *   also goes when a route, such as the `t` walk, opens a thread's card on the page,
  *   so one thread stands open (`reveal`; the user chose this on 23 October, after a
- *   walk left the panel's thread under the card it opened). The view stands right
+ *   walk left the panel's thread under the card it opened). A card's Open in panel
+ *   moves the other way, closing the card for this view (`openThread`), which the
+ *   user chose on 25 October for a long thread read in a card's narrow room beside
+ *   the column; rejected was opening it wider than other views. The view stands right
  *   on the row, with no line between them that typing would show or hide.
  *   The user chose that (2026-10-14), reversing a blank line's room kept under every
  *   open view, which read in Threads as a missing row. Rejected there: the line pushing
@@ -388,12 +391,12 @@ export function createFloatingPanel({
   // corner mark on the box's top-right corner, chosen over one at the row's end on 15
   // October. It presses the fold command's own row, as the menu's row does; that row and
   // `.` are the keyboard's and a finger's ways, so it takes no Tab stop of its own.
-  const minimize = el("button", "lf-corner-mark lf-fp-minimize");
+  const minimize = el("button", "lf-mark lf-corner-mark lf-fp-minimize");
   minimize.type = "button";
   minimize.tabIndex = -1;
   minimize.title = "Fold to the leaf";
   minimize.setAttribute("aria-label", "Fold to the leaf");
-  minimize.append(iconElement("subtract", "lf-corner-mark-icon"));
+  minimize.append(iconElement("subtract", "lf-mark-icon"));
   minimize.addEventListener("click", () =>
     rows()
       .find((entry) => entry.key === `command:${FOLD}`)
@@ -564,6 +567,12 @@ export function createFloatingPanel({
   // the list moves none of the menu's rows.
   const menuAt = signal(null);
   let menuRoom = null;
+  // A closing menu's fade, which holds its last rows, inert, until it ends, so the menu
+  // goes out in a disclosure's time as it came in; null while it stands or is gone.
+  // Whether the menu was drawn open at the last paint tells a close from a menu that
+  // was never shown.
+  let menuFade = null;
+  let menuDrawn = false;
   let query = "";
   let searching = false;
   let pageSearch = null;
@@ -616,7 +625,8 @@ export function createFloatingPanel({
   // messages: on opening, the whole of it, at the turn the user comes back for
   // (`showReturnTurn`); after the user's turn, past it, at its end (`end`).
   let landing = null;
-  const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
+  const drawnTurns = () =>
+    outletOf()?.querySelectorAll(".lf-msg[data-message]").length ?? 0;
 
   // ---------- one native editor per destination ----------
   // The errors the field can say now, newest first (errors.js): about nothing, not yet
@@ -753,6 +763,7 @@ export function createFloatingPanel({
       },
       send: (_text, raw, owns) => {
         let flight = null;
+        streamSend();
         const handle = sendMessage(
           PAGE_DRAFT,
           owns,
@@ -807,6 +818,7 @@ export function createFloatingPanel({
         hint: () => saying(key, replyInput()),
         hintAside: () => passingAside(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
+        sending: streamSend,
         sent: (flight) => {
           // The user's turn lets go of the height a press held (`pressAt`).
           room = null;
@@ -1281,6 +1293,15 @@ export function createFloatingPanel({
     });
   };
   onUserInput(beginGesture);
+  // A send is the user's change joining the stream the box shows (box-motion.js,
+  // "send"): the box reads where that stream stands before the send draws, and the
+  // readings until the send's rendering settles carry it from there on the box's own
+  // tween.
+  function streamSend() {
+    if (gesture === null) return;
+    gesture = "send";
+    following.stream();
+  }
   window.addEventListener("click", beginGesture, { capture: true, passive: true });
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
@@ -1297,7 +1318,7 @@ export function createFloatingPanel({
     const compact = host.dataset.rest === "mark";
     const duration = compact
       ? foldMs()
-      : performance.now() < viewMovingUntil
+      : performance.now() < viewMovingUntil && gesture !== "send"
         ? viewResizeMs()
         : resizeMs();
     following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
@@ -1744,8 +1765,9 @@ export function createFloatingPanel({
       if (focus) focusView(after, drawn, stoodIn);
       return;
     }
+    // A view a send opens rises with the box as the stream does (`streamSend`).
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-    if (arriving)
+    if (arriving && gesture !== "send")
       playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
         duration: fadeMs(),
         delay: leaving ? outMs() : 0,
@@ -1888,7 +1910,7 @@ export function createFloatingPanel({
     render(
       menuItem(
         `Copy ${entry.label}`,
-        html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
+        iconTemplate("copy", "lf-fp-copy-icon"),
         () => {},
         {
           disabled: entry.disabled,
@@ -3322,17 +3344,43 @@ export function createFloatingPanel({
     );
     keeps(errorDot, "data-shown", unseen ? "" : null);
 
-    render(menuOpen.value ? menuTemplate() : nothing, menu);
+    if (menuOpen.value) {
+      // A menu reopened while it fades draws afresh, as one opened after it had gone.
+      if (menuFade) {
+        menuFade.cancel();
+        menuFade = null;
+        render(nothing, menu);
+      }
+    } else if (menuDrawn && !menuFade && motionPlays()) {
+      menu.setAttribute("data-leaving", "");
+      menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
+        duration: motionTime("--lf-motion-disclosure", menu),
+        easing: "linear",
+      });
+      menuFade?.finished.then(
+        () => {
+          menuFade = null;
+          paint();
+        },
+        () => {},
+      );
+    }
+    menuDrawn = menuOpen.value;
+    keeps(menu, "data-leaving", menuFade ? "" : null);
+    keeps(menu, "inert", menuFade ? "" : null);
+    if (!menuFade) render(menuOpen.value ? menuTemplate() : nothing, menu);
     // A copy control the menu keeps for its next showing leaves the list the render just
     // took down, which it would otherwise hold whole, rows and all, as its parent.
     for (const copy of [...copyItems.values(), ...copies.values()])
       if (!copy.isConnected) copy.remove();
-    keeps(
-      menu,
-      "data-level",
-      menuOpen.value && menuAt.value ? menuAt.value.view : null,
-    );
-    keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+    if (!menuFade) {
+      keeps(
+        menu,
+        "data-level",
+        menuOpen.value && menuAt.value ? menuAt.value.view : null,
+      );
+      keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+    }
     // A text to select, which About holds where no clipboard copies it, is no menu's row.
     keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
     if (menuOpen.value) {
@@ -3943,6 +3991,15 @@ export function createFloatingPanel({
     return present({ release: true }).then(() => true);
   }
 
+  // A margin card's Open in panel hands its thread here, where a long thread reads
+  // wider than in the card's room beside the column (thread-preview.js), as its row in
+  // Threads opens it.
+  function openThread(id) {
+    const thread = threadByKey(id);
+    if (!thread) return;
+    open({ view: "thread", thread: thread.key }, { reopen: true });
+  }
+
   // A live revision carries the thread open here, and where its view was read to,
   // across it (version.js, `captureRetainedCurrentLocation`): the reader is still at it, so
   // the view comes back as they left it, without taking focus, which the reply's own
@@ -4075,6 +4132,7 @@ export function createFloatingPanel({
     searchPage,
     doors,
     showForSample,
+    openThread,
     captureCurrentLocation,
     restoreCurrentLocation,
     // The anchored comment box opening in its home (`responseSeat`) clears the row for

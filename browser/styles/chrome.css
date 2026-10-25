@@ -33,17 +33,10 @@
    shared face stated here would outrank each component's own rule. The vocabulary's
    faces are therefore stated page-side (the margin entries in theme.css; .lf-key-badge,
    .lf-ui, .lf-btn and the aim floor in shadow.css, which also reaches
-   widget trees). What stays here is paint the runtime lays over the page, which has to
-   beat page and widget alike, and the `box-sizing` reset. test_interact_layer.py holds
-   that no selector is dressed for one property both here and page-side. */
-.lf-ui {
-  box-sizing: border-box;
-}
-.lf-ui *,
-.lf-ui *::before,
-.lf-ui *::after {
-  box-sizing: border-box;
-}
+   widget trees, and `.lf-ui`'s `box-sizing` reset in components/surfaces.css). What
+   stays here is paint the runtime lays over the page, which has to beat page and
+   widget alike. test_interact_layer.py holds that no selector is dressed for one
+   property both here and page-side. */
 /* Clearing the UA's form-control face lives in a layer, so any unlayered choice of
    face outranks it whatever its specificity: a control wearing .lf-ui takes the chrome
    face from its own class, and lf-draft's editor states the document's face unlayered
@@ -201,13 +194,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 @keyframes lf-runtime-4f3c2a8d-working {
   to {
     opacity: 0.5;
-  }
-}
-@keyframes lf-runtime-4f3c2a8d-flash {
-  /* The target owns its resting fill, including transparency and focus paint.
-     An omitted endpoint lets the browser interpolate to that underlying value. */
-  from {
-    background-color: var(--hi-tint);
   }
 }
 /* Everything below is private to the chrome: no widget or page class can match it. */
@@ -403,13 +389,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--muted-2);
     font: 500 var(--t-6)/1.25 var(--sans);
   }
-  /* Direct navigation cues the same bounded box it revealed: a short card, one
-     message, the reply row, or an oversized editor. */
-  .lf-msg.flash,
-  .lf-thread-reply.flash,
-  .lf-thread-reply leaf-text.flash {
-    animation: lf-runtime-4f3c2a8d-flash var(--lf-motion-flash) ease-out;
-  }
 
   .lf-quote {
     margin: 0 0 12px;
@@ -571,13 +550,36 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
+    /* Its column stands while a closing reference fades out, after `.open` has gone. */
+    flex-direction: column;
   }
   .lf-command-reference.open {
     display: flex;
-    flex-direction: column;
   }
   .lf-command-reference::backdrop {
     background: color-mix(in srgb, var(--ink) 24%, transparent);
+  }
+  /* The reference and the Page Map fade in and out in a disclosure's time, standing
+     where they open. A closed one stays drawn in the top layer while it fades
+     (`overlay`, `display`), taking no presses; a browser that can't transition those
+     hides it at once. */
+  :is(.lf-command-reference, .lf-page-map-dialog),
+  :is(.lf-command-reference, .lf-page-map-dialog)::backdrop {
+    opacity: 0;
+    transition:
+      opacity var(--lf-motion-disclosure) linear,
+      display var(--lf-motion-disclosure) allow-discrete,
+      overlay var(--lf-motion-disclosure) allow-discrete;
+  }
+  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+    pointer-events: none;
+  }
+  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
+  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+    opacity: 1;
+    @starting-style {
+      opacity: 0;
+    }
   }
   .lf-media-viewer {
     position: fixed;
@@ -993,6 +995,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: var(--paper);
     color: var(--ink);
     box-shadow: var(--raise-3);
+    /* Its column stands while a closing sheet fades out, after [open] has gone. */
+    flex-direction: column;
   }
   /* The sheet's one scroller takes the room its head and search leave inside the
      window bounds. Said on [open] so the author sheet leaves the UA's display:none
@@ -1000,7 +1004,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-page-map-dialog[open],
   .lf-inspection-dialog[open] {
     display: flex;
-    flex-direction: column;
   }
   .lf-page-map-dialog::backdrop,
   .lf-inspection-dialog::backdrop {

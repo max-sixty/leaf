@@ -84,10 +84,11 @@ Name a preset for its outcome: `Status strip`, not `Preset 2`.
 In this comparison, `format` names which candidate to build. Each choice contains its
 preview. Pressing its label or noninteractive body selects it; buttons, editors and media remain
 operable without selecting it. Do not put a second `format` control in the rail.
-A choice control's choices, rich or plain, form a responsive grid. When the comparison
-needs a particular arrangement, set `--playground-choice-columns` on the authored choice
-control or its parent, such as `repeat(2, minmax(0, 1fr))`, and use a media query to
-stack them on narrow screens.
+Rich choices form a responsive grid, and plain label choices run in a row that wraps
+between whole labels. When the comparison needs a particular arrangement of either, set
+`--playground-choice-columns` on the authored choice control or its parent to a grid's
+columns, such as `repeat(2, minmax(0, 1fr))`, and use a media query to stack them on
+narrow screens.
 
 ```html
 <lf-ask id="notification-ask">
@@ -207,19 +208,19 @@ resubmit them.
 
 A page script that draws what the values decide, such as each alert's firings at the
 chosen threshold, and writes the instruction itself, is complete as below; adapt
-`paint` and `instruction` and keep the rest. Slices and the instruction provider are
-declared once per playground lifetime, during `PAGE_INTERFACE`, whose `present()` holds
-the page's first presentation until the view has painted
-(`references/module-authoring.md`, "Startup and presentation"). `subscribe` calls
-`paint` at once and on every change; it paints synchronously, and its return value is
-not awaited. The `whileConnected` cleanup lets a reconnected playground restore the
-view without declaring its data again. A preview without structured data only
-subscribes; one without its own instruction keeps `lf-playground-output`'s markup and
-registers no provider.
+`paint` and `instruction` and keep the rest. `whileInterfaceConnected` reaches the
+playground once it has upgraded, and holds the page's first presentation until the view
+has painted (`references/module-authoring.md`, "Startup and presentation"). `declare`
+runs once per playground lifetime, so slices and the instruction provider are declared
+there; `connect` runs on each connection, so a reconnected playground restores the view
+without declaring its data again. `subscribe` calls `paint` at once and on every
+change; it paints synchronously, and its return value is not awaited. A preview without
+structured data only subscribes; one without its own instruction keeps
+`lf-playground-output`'s markup and has no `declare`.
 
 ```html
 <script type="module">
-  import { PAGE_INTERFACE, keepsText, whileConnected } from "/runtime/widget-api.js";
+  import { keepsText, whileInterfaceConnected } from "/runtime/widget-api.js";
 
   const FIRED = { 0.5: 31, 1: 12, 2: 4 };
   const playground = document.getElementById("alert-playground");
@@ -235,24 +236,9 @@ registers no provider.
   const instruction = (values) =>
     `Set payments-5xx-rate to over ${values["5xx-threshold"]}% and show me the config diff.`;
 
-  let registered = false;
-  whileConnected(playground, (signal) => {
-    let unsubscribe;
-    const initialize = () => {
-      if (signal.aborted || unsubscribe) return;
-      if (!registered) {
-        playground.registerInstructionProvider(instruction);
-        registered = true;
-      }
-      unsubscribe = playground.subscribe(paint);
-    };
-    document.addEventListener(
-      PAGE_INTERFACE,
-      (event) => event.detail.present(Promise.resolve().then(initialize)),
-      { signal },
-    );
-    if (registered) initialize();
-    return () => unsubscribe?.();
+  whileInterfaceConnected(playground, {
+    declare: () => playground.registerInstructionProvider(instruction),
+    connect: () => playground.subscribe(paint),
   });
 </script>
 ```

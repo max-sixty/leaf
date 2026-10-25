@@ -128,8 +128,8 @@ behavior. A compound widget may own reading regions without being a pane.
 | **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs On me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page puts it away |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
-as a **thread card** beside its words, and in the panel only where nothing on the page
-draws it. A comment on selected words is written in the **anchored comment box**, which
+as a **thread card** beside its words, and in the panel where nothing on the page
+draws it or the user moves it there with the card's **Open in panel**. A comment on selected words is written in the **anchored comment box**, which
 opens beside them and becomes their thread card on Send.
 
 ## Page Map and the margin

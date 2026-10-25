@@ -1510,31 +1510,36 @@ def test_tapping_code_copy_keeps_its_source_container_active(browser, serve):
     expect(actions).to_be_hidden()
 
 
-def test_code_copy_face_follows_a_compact_source_line(browser, serve):
+def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
+    """Copy is a mark, one size on every block, compact or tall, and its reach keeps
+    the aim floor."""
     url = live_url(
         serve(
             leaf_page(
-                "Compact code copy",
-                '<pre id="source" style="font-size:12.5px;line-height:19px;'
+                "Code copy marks",
+                '<pre id="compact" style="font-size:12.5px;line-height:19px;'
                 'padding:7px 10px"><code>echo hello</code></pre>'
-                '<div style="--lf-code-copy-size:27px"><pre id="custom">'
-                "<code>echo custom</code></pre></div>",
+                '<pre id="tall" style="line-height:40px"><code>echo tall</code></pre>',
             )
         )
     )
     page = open_page(browser, url)
-    page.locator("#source").hover()
-    face = page.locator(".lf-chrome .lf-code-copy").first.get_by_role("button")
-    expect(face).to_be_visible()
-    assert face.evaluate("el => el.getBoundingClientRect().height") == 19
-    assert face.evaluate(
-        "el => parseFloat(getComputedStyle(el, '::after').height)"
-    ) >= page.evaluate(
+    mark = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mark-size'))"
+    )
+    floor = page.evaluate(
         "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
     )
-    page.locator("#custom").hover()
-    custom = page.locator(".lf-chrome .lf-code-copy").last.get_by_role("button")
-    assert custom.evaluate("el => el.getBoundingClientRect().height") == 27
+    for index, block in enumerate(("#compact", "#tall")):
+        page.locator(block).hover()
+        face = page.locator(".lf-chrome .lf-code-copy").nth(index).get_by_role("button")
+        expect(face).to_be_visible()
+        box = face.evaluate("el => el.getBoundingClientRect().toJSON()")
+        assert (box["width"], box["height"]) == (mark, mark), block
+        assert (
+            face.evaluate("el => parseFloat(getComputedStyle(el, '::after').height)")
+            >= floor
+        ), block
 
 
 def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve):
@@ -2279,8 +2284,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         f"Pierre separator chrome entered the page reading: {reading}"
     )
     assert reading["font"] == reading["leafFont"], reading
-    assert reading["fontSize"] == reading["leafFontSize"] == "12.5px", reading
-    assert reading["lineHeight"] == reading["leafLineHeight"] == "19px", reading
+    assert reading["fontSize"] == reading["leafFontSize"] == "13.5px", reading
+    assert reading["lineHeight"] == reading["leafLineHeight"] == "20px", reading
     assert reading["background"] == reading["leafBackground"], reading
     assert reading["backgroundIsWhite"], reading
     assert reading["backgroundIsSeparateFromPage"], reading
@@ -2840,7 +2845,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     stranded = stranded_quotes(page)
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
     # The projected contour an open thread raises stays above the figure's own paint
-    # without putting any paint over its contents.
+    # without putting any paint over its contents: it stands outside the figure.
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
@@ -2851,12 +2856,13 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     look = mark.evaluate(
         """node => { const style = getComputedStyle(node); return {
           background: style.backgroundImage,
-          borders: [style.borderTopWidth, style.borderRightWidth,
-                    style.borderBottomWidth, style.borderLeftWidth],
+          outline: [style.outlineStyle, style.outlineWidth],
+          offset: parseFloat(style.outlineOffset),
         }; }"""
     )
     assert look["background"] == "none", look
-    assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
+    assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
+    assert look["offset"] > 0, look
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
@@ -3112,8 +3118,8 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     expect(mark).to_have_count(0)
 
     look = """node => { const style = getComputedStyle(node); return {
-      line: style.borderStyle,
-      width: style.borderWidth,
+      line: style.outlineStyle,
+      drawn: parseFloat(style.outlineWidth) > 0,
     }; }"""
 
     box = figure.bounding_box()
@@ -3125,7 +3131,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     assert thread_a_press_opened(page) is not None, "the press opened no thread"
     selected = mark.evaluate(look)
 
-    assert selected == {"line": "solid", "width": "2px"}
+    assert selected == {"line": "solid", "drawn": True}
     expect(page.locator("[data-lf-target-selected]")).to_have_count(1)
 
     # Every frame of the press and a few after it, read where the user sees them.
@@ -4901,7 +4907,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
     prior = source_revision(serve.page_dir, "review-patch")
     page = open_page(browser, url)
-    page.evaluate("window.priorManifest = document.querySelector('#patch').snapshot")
+    page.evaluate("window.priorManifest = document.querySelector('#patch').value")
     replacement = original.replace('return "first"', 'return "replacement"')
     manifest["files"][0]["patch"] = replacement
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
@@ -4916,7 +4922,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
             stale = error.message;
           }
           const current = await loadDeferred(
-            document.querySelector('#patch').snapshot, 'app.py'
+            document.querySelector('#patch').value, 'app.py'
           );
           return {stale, current};
         }"""

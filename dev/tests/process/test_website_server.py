@@ -632,23 +632,53 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
 
 
 def test_the_journey_chart_reads_ci_samples_through_a_cache(monkeypatch, tmp_path):
-    """`--from-ci` downloads each `publish-site` run's sample once, so a later chart
-    adds CI's releases to the local file without another download."""
+    """`--from-ci` downloads each `publish-site` run's sample once, charts the newest
+    release though `gh` lists runs newest first, and caches "no artifact" only when
+    GitHub says there is none, never after a failed call."""
     calls = []
+    failing = []
+
+    def sample(release, at):
+        row = {"target": "pi", "version": release, "at": at, "steps": []}
+        row["comment"] = {"sinceAdmissionMs": {"replied": 1000}, "approved": False}
+        return json.dumps(row) + "\n"
+
+    runs = {3: sample("rel3", "2026-10-03"), 2: sample("rel2", "2026-10-02"), 1: None}
 
     def gh(command, **_):
         calls.append(command)
         if command[:3] == ["gh", "run", "list"]:
-            return subprocess.CompletedProcess(command, 0, '[{"databaseId": 7}]', "")
+            listing = json.dumps([{"databaseId": run} for run in runs])  # newest first
+            return subprocess.CompletedProcess(command, 0, listing, "")
+        if command[:2] == ["gh", "api"]:
+            run = int(command[-1].split("/runs/")[1].split("/")[0])
+            count = str(int(runs[run] is not None))
+            return subprocess.CompletedProcess(command, 0, count, "")
+        if failing:
+            raise subprocess.CalledProcessError(1, command)
         folder = Path(command[command.index("--dir") + 1])
-        (folder / "journey.jsonl").write_text('{"target": "https://leaf.page"}\n')
+        (folder / "journey.jsonl").write_text(runs[int(command[3])])
         return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
     monkeypatch.setattr(journey_chart.subprocess, "run", gh)
-    assert journey_chart.ci_samples(5) == [{"target": "https://leaf.page"}]
-    assert journey_chart.ci_samples(5) == [{"target": "https://leaf.page"}]
-    assert sum(c[:3] == ["gh", "run", "download"] for c in calls) == 1
+    local = tmp_path / "leaf-dev" / "journey.jsonl"
+    local.parent.mkdir(parents=True)
+    local.write_text(sample("rel2", "2026-10-02T12:00"))
+
+    result = CliRunner().invoke(journey_chart.journey_chart, ["--from-ci"])
+    assert result.exit_code == 0, result.output
+    assert "at rel3" in result.stdout and "rel2" not in result.stdout
+    again = CliRunner().invoke(journey_chart.journey_chart, ["--from-ci"])
+    assert again.stdout == result.stdout
+    assert sum(c[:3] == ["gh", "run", "download"] for c in calls) == 2
+
+    # A failed call raises and leaves the run uncached rather than marked empty.
+    runs = {4: sample("rel4", "2026-10-04"), **runs}
+    failing.append(True)
+    with pytest.raises(subprocess.CalledProcessError):
+        journey_chart.ci_samples(5)
+    assert not (tmp_path / "leaf-dev" / "ci" / "4").exists()
 
 
 def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():

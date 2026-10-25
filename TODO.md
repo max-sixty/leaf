@@ -458,15 +458,14 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
   same container CI runs, the approach Playwright recommends (an arm64 image on a
   Mac matches CI only on an arm64 runner); or a hosted visual-review service that
   renders both sides itself.
-- **Keep the agent journey's samples.** `leaf-dev journey` prints one timed sample
+- **Keep the agent journey's samples.** **Waits on the user.** `leaf-dev journey` prints one timed sample
   per run, and `publish-site` runs it on every release. The workflow now uploads
   each sample as a `journey-sample` artifact (90 days, no extra token), and
   `leaf-dev journey-chart --from-ci` reads recent runs' artifacts beside the local
   file, drawing the proposed budgets from `notes/user-feedback-responsiveness.md`.
-  Waiting: the workflow change needs the control-plane owner's approval, and the
-  chart has not yet read a real artifact. Left open: history past 90 days, which
-  needs a file in `max-sixty/leaf-assets` and a token that can push there, and
-  harness-target samples, which CI does not run.
+  Left open: harness-target samples, which CI does not run, and history past 90
+  days, which needs a file in `max-sixty/leaf-assets` and a token that can push
+  there (the part that waits on the user).
 
 ## Etc
 

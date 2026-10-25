@@ -15,6 +15,7 @@ the model calls and their output tokens only say where it went.
 
 import json
 import re
+import shutil
 import statistics
 import subprocess
 from datetime import datetime
@@ -51,7 +52,7 @@ LABEL_PX = 5.5
 def ci_samples(runs: int) -> list[dict]:
     """The samples of the last `runs` successful `publish-site` runs, downloading
     each run's artifact once into a cache beside the local samples. A run without
-    one (before the workflow uploaded it) adds none."""
+    one (before the workflow uploaded it, or expired) adds none."""
     listing = subprocess.run(
         [
             *("gh", "run", "list", "--workflow", "publish-site.yaml"),
@@ -66,13 +67,32 @@ def ci_samples(runs: int) -> list[dict]:
     for run in json.loads(listing.stdout):
         folder = cache / str(run["databaseId"])
         if not folder.exists():
-            # An empty folder records that the run has no artifact.
-            folder.mkdir(parents=True)
-            subprocess.run(
-                ["gh", "run", "download", str(run["databaseId"])]
-                + ["--name", ARTIFACT, "--dir", str(folder)],
+            found = subprocess.run(
+                [
+                    *("gh", "api", "--jq", ".total_count"),
+                    (
+                        f"repos/{{owner}}/{{repo}}/actions/runs/{run['databaseId']}"
+                        f"/artifacts?name={ARTIFACT}"
+                    ),
+                ],
+                check=True,
                 capture_output=True,
+                text=True,
             )
+            # An empty folder records that the run has no artifact; any failure
+            # raises and leaves nothing cached.
+            folder.mkdir(parents=True)
+            if int(found.stdout) > 0:
+                try:
+                    subprocess.run(
+                        ["gh", "run", "download", str(run["databaseId"])]
+                        + ["--name", ARTIFACT, "--dir", str(folder)],
+                        check=True,
+                        capture_output=True,
+                    )
+                except subprocess.CalledProcessError:
+                    shutil.rmtree(folder)
+                    raise
         for kept in folder.glob("*.jsonl"):
             samples += json_lines(kept)
     return samples
@@ -308,7 +328,10 @@ def journey_chart(
         raise click.BadParameter("give a time zone, as in 2026-10-20T18:10-07:00")
     samples = json_lines(path) if path.exists() else []
     if from_ci:
-        samples += ci_samples(ci_runs)
+        # `gh` lists runs newest first, and `latest` keeps the last version it sees.
+        samples = sorted(
+            [*samples, *ci_samples(ci_runs)], key=lambda sample: sample.get("at", "")
+        )
     if not samples:
         raise click.ClickException(f"no samples kept in {path}; run `leaf-dev journey`")
     print(

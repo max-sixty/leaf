@@ -7593,7 +7593,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function openThread(id) {
 		const thread = threadByKey(id);
 		if (!thread) return;
-		if (prefs().rest === "mark") prefs().setRest("row");
 		open({
 			view: "thread",
 			thread: thread.key

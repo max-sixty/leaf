@@ -245,6 +245,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 	previewOpenInPanel.setAttribute("aria-label", "Open in panel");
 	previewOpenInPanel.title = "Open in panel";
 	const previewList = el("div", "lf-margin-preview-list");
+	let dismiss = () => {};
 	const carry = surfaceGrip({
 		surface: preview,
 		bounds: () => commentBoundary({ region: previewSession?.region }),
@@ -669,7 +670,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		}
 		const shownThread = sourceItem(item).thread;
 		previewOpenInPanel.onclick = () => {
-			previewClose.click();
+			dismiss();
 			openInPanel(shownThread.id);
 		};
 		renderMarginThread(node.querySelector(":scope > .lf-margin-thread-body"), shownThread, {
@@ -809,6 +810,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		}) : null;
 	}
 	function mount(onDismiss) {
+		dismiss = onDismiss;
 		previewClose.onclick = onDismiss;
 		previewPrevious.onclick = () => stepPreviewThread(-1);
 		previewNext.onclick = () => stepPreviewThread(1);

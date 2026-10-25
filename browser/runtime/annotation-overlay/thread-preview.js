@@ -137,8 +137,8 @@ export function createThreadPreview({
   previewNext.title = "Next thread";
   previewNav.append(previewPrevious, previewPosition, previewNext);
   // Open in panel moves the card's thread into the floating panel's view of it, which
-  // reads a long thread wider and taller than the card's room beside the column. The
-  // card closes, so one thread stands open, and the view's Show on page comes back.
+  // reads a long thread wider than the card's room beside the column. The card closes,
+  // so one thread stands open, and the view's Show on page comes back.
   const previewOpenInPanel = offer(
     "button",
     "lf-btn lf-icon-action lf-quiet-action lf-margin-preview-expand",
@@ -148,6 +148,7 @@ export function createThreadPreview({
   previewOpenInPanel.setAttribute("aria-label", "Open in panel");
   previewOpenInPanel.title = "Open in panel";
   const previewList = el("div", "lf-margin-preview-list");
+  let dismiss = () => {};
   // Carried by its grip, the card stands where the user drops it, relative to what it is
   // about, at the width it was carried at, until its placement chooses afresh.
   const carry = surfaceGrip({
@@ -777,7 +778,7 @@ export function createThreadPreview({
     // The panel's view carries the reply being written along from the closed card
     // (thread/replies.js, `carry`).
     previewOpenInPanel.onclick = () => {
-      previewClose.click();
+      dismiss();
       openInPanel(shownThread.id);
     };
     renderMarginThread(
@@ -961,6 +962,7 @@ export function createThreadPreview({
   }
 
   function mount(onDismiss) {
+    dismiss = onDismiss;
     previewClose.onclick = onDismiss;
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);

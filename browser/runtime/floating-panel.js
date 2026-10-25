@@ -3990,12 +3990,11 @@ export function createFloatingPanel({
   }
 
   // A margin card's Open in panel hands its thread here, where a long thread reads
-  // wider and taller than in the card's room beside the column (thread-preview.js), as
-  // its row in Threads opens it; a folded panel unfolds for it.
+  // wider than in the card's room beside the column (thread-preview.js), as its row in
+  // Threads opens it.
   function openThread(id) {
     const thread = threadByKey(id);
     if (!thread) return;
-    if (prefs().rest === "mark") prefs().setRest("row");
     open({ view: "thread", thread: thread.key }, { reopen: true });
   }
 

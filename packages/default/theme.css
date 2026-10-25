@@ -376,6 +376,11 @@
     overflow: clip;
   }
 }
+@container style(--lf-holds-height:1) {
+  :scope:is(lf-shot) > .lf-shotstage {
+    --lf-holds-height: 1;
+  }
+}
 @media print {
   :scope:is(lf-shot) {
     block-size: auto;

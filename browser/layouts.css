@@ -750,7 +750,8 @@
    * Whether the track stands beside the body depends on widths no query reads, so the
    * margin reading marks it (`data-lf-beside`, prepaint.js `marginContentLayout`). Like a
    * margin sidebar, the body restarts the slot and landing band, keeps the ring's room,
-   * anchors no reading, and is a reading region of the Layout's own. */
+   * anchors no reading, and is a reading region of the Layout's own. Where it sticks it
+   * scrolls, and keeps the ring's room inside its edges (Sticking blocks, below). */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
     flex: 1 1 18rem;
     --lf-margin-content: track;
@@ -825,17 +826,19 @@
           overflow-anchor: none;
           --lf-holds-height: 1;
         }
-        /* A track's body scrolls, so it clips: it keeps the ring's room on every side
-         * inside its box, so a ring at its edge, such as a summary's or the contents
-         * outline's last link, shows whole. Its top margin gives the room back, so its
-         * first words stay level with the body's; at its sides the room stays inside
-         * the track, since a margin there stood past the column. */
+        /* A scrolling box clips at its padding edge, and a track body's blocks run its
+         * full width, so a full-width control's ring would be cut at both sides and the
+         * last one's at the foot. The body holds the ring's room as padding. It gives
+         * the block-axis room back as a negative margin, so its blocks start where they
+         * would without it; the inline room stays inside the track, since a box set
+         * past the track's sides stands past the column (render check `past-column`). */
         :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
           > aside[data-lf-beside]
           > [data-lf-track-body] {
           box-sizing: border-box;
           padding: var(--focus-ring-room);
-          margin-block-start: calc(-1 * var(--focus-ring-room));
+          margin-block: calc(-1 * var(--focus-ring-room));
+          scroll-padding: var(--focus-ring-room);
         }
       }
     }

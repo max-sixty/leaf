@@ -868,13 +868,14 @@ FLOAT_ROOM = """async () => {
 }"""
 
 
-def test_the_response_field_grows_beside_its_picker_trigger(browser, serve):
+def test_the_response_field_grows_across_its_bar(browser, serve):
     """A one-line note uses the shared action corner. A longer one uses the width of
     its chosen rail and then wraps, growing through the room placement states — a dozen
     lines shows them all, and only one taller than the window the page shows scrolls,
     standing inside that band — and the corner stays fixed through all of that. On a
-    narrow screen the same room caps the bar and the field leaves room for its picker
-    trigger. The sent message spans the card as its reply does."""
+    narrow screen the same room caps the bar and the field spans it, since words take
+    the picker trigger out of its corner. The sent message spans the card as its reply
+    does."""
     page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -938,14 +939,10 @@ def test_the_response_field_grows_beside_its_picker_trigger(browser, serve):
         "bar => bar.getBoundingClientRect().right"
         " - parseFloat(getComputedStyle(bar).paddingRight)"
     )
-    trigger = bar.get_by_role(
-        "button", name="Other responses", exact=True
-    ).bounding_box()
-    assert narrow_field["x"] + narrow_field["width"] <= trigger["x"], (
-        narrow_field,
-        trigger,
-    )
-    assert trigger["x"] + trigger["width"] == pytest.approx(content_right, abs=1)
+    expect(bar.get_by_role("button", name="Other responses", exact=True)).to_be_hidden()
+    assert narrow_field["x"] + narrow_field["width"] == pytest.approx(
+        content_right, abs=1
+    ), narrow_field
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")

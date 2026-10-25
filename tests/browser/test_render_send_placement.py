@@ -1316,8 +1316,7 @@ def test_send_grows_thread_around_the_words(
     assert not reading["box"]["painted"], "The box being written painted its frame"
     assert reading["grew"], "Send showed the card without growing it out of the box"
     assert reading["frames"]
-    # The card takes the editor's reserved rectangle. The Other responses button
-    # stands beside that rectangle and disappears when the card opens.
+    # The card takes the editor's reserved rectangle.
     edges = ("left", "right", "top") if options else ("left", "right", "top", "bottom")
     for frame in reading["frames"]:
         assert {edge: frame["frame"][edge] for edge in edges} == pytest.approx(

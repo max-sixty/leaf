@@ -166,6 +166,7 @@ import { readThreads } from "./thread/state.js";
 import { hasUnread, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
 import { afterScript } from "./rendering.js";
+import { claimReleaseClick } from "./pointer.js";
 import { threadAttention, workflowStep } from "./thread/workflow.js";
 import { messageReading, threadHeading, threadName } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -848,7 +849,9 @@ export function createFloatingPanel({
   // comment takes it. The comment opens as the press completes, since the press is
   // still one away from whatever comment box stands open on the page, which goes as it
   // completes (composing/surface.js, `standDown`). WebKit does not deliver a click
-  // after this cancelled touch pointerdown, so the release owns the handoff. A Tab
+  // after this cancelled touch pointerdown, so the release owns the handoff, and claims
+  // the click other engines deliver after it, which would land on the comment box the
+  // release opened under the pointer, as on its Other responses. A Tab
   // through the row, or the runtime putting the caret there, writes on the page.
   let pressedWords = null;
   const quotedWords = () =>
@@ -871,7 +874,9 @@ export function createFloatingPanel({
   field.addEventListener("pointerup", (event) => {
     const words = pressedWords;
     pressedWords = null;
-    if (words && event.composedPath().includes(general?.input)) words.comment();
+    if (!words || !event.composedPath().includes(general?.input)) return;
+    claimReleaseClick();
+    words.comment();
   });
   field.addEventListener("pointercancel", () => {
     pressedWords = null;

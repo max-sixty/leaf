@@ -21,12 +21,16 @@ from render_harness import (
     consume_browser_errors,
     example_media,
     expect_error_waits_in_menu,
+    expect_obligations_answered,
     holding,
     http_error_console,
     open_page,
     round_trip,
+    sending,
+    shown,
     stored_draft_text,
     told,
+    undo,
     write,
 )
 
@@ -485,3 +489,79 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
       return {room, words: pen.measureText(field.getAttribute('placeholder')).width};
     }""")
     assert fit["words"] <= fit["room"], fit
+
+
+def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):
+    """The answer the author missed joins the control as a row of its own.
+
+    It is not a comment with a special response contract: the user has supplied an
+    answer, not opened a thread. The `add` stands on its own coordinate, so a
+    later ordinary pick and a reload keep the option, and each undo takes back one
+    gesture: the later pick, then the option's pick, then the option itself.
+    """
+    url = serve(OBLIGATION_PAGE)
+    page = open_page(browser, url)
+    d = serve.page_dir
+
+    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
+    added = page.locator("#jobs > .lf-another")
+    assert added.count() == 1, (
+        f"the add-option cell was not rendered: {shown(page.lf_errors)}; "
+        f"group={page.locator('#jobs').inner_html()}"
+    )
+    field = added.get_by_role("textbox", name="Another option", exact=True)
+    expect(field).to_have_attribute("placeholder", "Add another option")
+    write(field, "Insulate the camera battery")
+    add = added.get_by_role("button", name="Add and select option", exact=True)
+    add.focus()
+    with sending(page, "the added option"):
+        page.keyboard.press("Enter")
+    # Pressing Add is Enter pressed in the field: the user goes on in the field.
+    expect(field).to_be_focused()
+    expect(added.locator(".lf-compose-submit")).to_have_attribute(
+        "aria-disabled", "true"
+    )
+    expect_obligations_answered(page, "0/3")
+
+    new_option = page.locator("#jobs > lf-option[data-lf-added]")
+    assert new_option.count() == 1, (
+        f"the added option did not stand: {shown(page.lf_errors)}; events={events_model.read_events(d)}; "
+        f"group={page.locator('#jobs').inner_html()}"
+    )
+    expect(new_option).to_contain_text("Insulate the camera battery")
+    expect(new_option).to_have_attribute("chosen", "")
+    identity = new_option.get_attribute("id")
+    moves = [
+        (event["action"], event["detail"])
+        for event in events_model.read_events(d)
+        if event.get("kind") == "action" and event.get("widget") == "jobs"
+    ]
+    assert moves == [
+        ("add", {"option": identity, "text": "Insulate the camera battery"}),
+        ("choose", {"value": [identity]}),
+    ]
+    assert not [
+        event for event in events_model.read_events(d) if event["kind"] == "comment"
+    ]
+
+    page.locator("#job-heater").click()
+    round_trip(page)
+    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
+    expect(new_option).to_have_attribute("chosen", "")
+
+    page.reload(wait_until="load")
+    page.wait_for_function(
+        "() => document.body.getAttribute('data-lf-presented') === '1'"
+    )
+    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
+    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
+
+    undo(page)
+    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_attribute(
+        "chosen", ""
+    )
+    undo(page)
+    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
+    expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(0)
+    undo(page)
+    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)

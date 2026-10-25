@@ -66,6 +66,11 @@
   border-radius: 0;
   min-inline-size: 0;
 }
+/* The queue's body is no container, as a pane's body otherwise is (theme.css): the
+   case buttons follow the review's own width (`visual-review`), and Chromium left
+   them in the wide layout's padding the first time that width crossed a query
+   after the review upgraded, while a container stood between them and it. Nothing
+   in the list measures against it. */
 .lf-vr-case-list {
   display: grid;
   gap: 0;
@@ -75,6 +80,7 @@
   margin-block-start: 0;
   padding: 0;
   --lf-pane-top: 0px;
+  container-type: normal;
 }
 .lf-vr-case-button {
   display: grid;

@@ -168,6 +168,14 @@ export function createDrawingController({
 
   const drawModeActive = () => drawModeOn;
 
+  // A release still waiting from the last press is that press's: a new press claims its
+  // own compatibility events, which the browser may deliver before the timer runs.
+  function holdCompatibilityClick() {
+    if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
+    releaseTimer = null;
+    claimThroughClick = true;
+  }
+
   function releaseCompatibilityClickSoon() {
     if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
     releaseTimer = setTimeout(() => {
@@ -367,7 +375,7 @@ export function createDrawingController({
     if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
     const origin = event.composedPath()[0];
     if (leafSurface(origin)) return;
-    claimThroughClick = true;
+    holdCompatibilityClick();
     claimedPointer = event.pointerId;
     claim(event);
     const target = sessionTarget() ?? targetAtPointer();

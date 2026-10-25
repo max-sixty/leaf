@@ -61,7 +61,13 @@ def desktop_viewport(page_dir: Path) -> Desktop:
         return Desktop(*fixed, f"fixed, pinned by {PIN_VARIABLE}")
     views = read_user_views(page_dir, None)["sessions"]
     if not views:
-        return Desktop(*fixed, "fixed, since no browser has shown the page in a day")
+        # Authors who knew the user's window but read only "fixed" went looking for a
+        # way to set it; the words say it follows the user once they open the page.
+        return Desktop(
+            *fixed,
+            "fixed, since no browser has shown the page in a day; once the user"
+            " opens it, the check reads their window",
+        )
     window = views[0]["viewport"]
     return Desktop(round(window["width"]), round(window["height"]), "the user's window")
 

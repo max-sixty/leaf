@@ -58,7 +58,7 @@ import {
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
-const NAME = /^[a-z][a-z0-9-]*$/;
+const NAME = /^[a-z0-9][a-z0-9-]*$/;
 // What one pointer press operates: a preset, Reset, and the controls whose press or
 // drag is the whole gesture. Their readable labels remain ordinary selection targets.
 const ONE_PRESS = [

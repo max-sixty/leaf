@@ -29,7 +29,6 @@ import {
   frameFor,
   whileConnected,
   failSoft,
-  reportFailure,
   inBaseLayer,
   measure,
   once,
@@ -63,7 +62,27 @@ function drawOptions(body, Plot, width, height) {
     throw new Error(
       "state the chart's height as data-height on the element rather than in the options: the page holds that box before the chart draws",
     );
+  offsetsAreNumbers(spec.marks);
   return { ...spec, width, height };
+}
+
+/* Plot reads a mark's offsets and margins as one number for the whole mark (`+dy`), so a
+ * function there, such as a dy chosen per datum to keep end labels apart, becomes NaN,
+ * and all the page hears is the browser's "Trailing garbage" about a transform, logged
+ * from Plot's bundle. The chart names the mark and the option instead. */
+const OFFSETS = ["dx", "dy", "marginTop", "marginRight", "marginBottom", "marginLeft"];
+function offsetsAreNumbers(marks, place = "marks") {
+  if (!Array.isArray(marks)) return;
+  marks.forEach((mark, index) => {
+    const at = `${place}[${index}]`;
+    if (Array.isArray(mark)) return offsetsAreNumbers(mark, at);
+    if (!mark || typeof mark !== "object") return;
+    const name = OFFSETS.find((option) => Number.isNaN(mark[option]));
+    if (name)
+      throw new Error(
+        `${at} (${mark.ariaLabel ?? "a mark"}) has a ${name} that is not a number: Plot takes one ${name} for the whole mark, so draw each group that needs its own ${name} as a mark of its own`,
+      );
+  });
 }
 
 customElements.define(
@@ -132,30 +151,6 @@ customElements.define(
       if (legend > 0)
         this.drawing.replaceChildren(this.plot(Plot, body, width, box - legend));
       this.drawn = width;
-      this.reportUnplaced();
-    }
-
-    /* A mark a channel or option gave no number, as a function where Plot takes a
-     * constant `dy`, is drawn at NaN. The browser drops that attribute, so the mark lands
-     * at the origin or not at all, and says so only on its own console, which no check
-     * on the agent's quick path and no report to the watcher hears. The rest of the
-     * drawing is sound, so the chart keeps it and reports the mark, once. */
-    reportUnplaced() {
-      if (this.unplacedReported) return;
-      for (const node of this.drawing.querySelectorAll("*"))
-        for (const { name, value } of node.attributes)
-          // Geometry and paint only: a label the author wrote may say "NaN".
-          if (!/^(aria-|data-)/.test(name) && /\bNaN\b/.test(value)) {
-            this.unplacedReported = true;
-            const part = node.closest("[data-lf-part]")?.dataset.lfPart;
-            reportFailure(
-              this,
-              new Error(
-                `${part ? `its ${part} mark` : `a <${node.localName}>`} drew at ${name}="${value}": a channel or option gave Plot no number, such as a function where Plot takes a constant`,
-              ),
-            );
-            return;
-          }
     }
 
     plot(Plot, body, width, height) {

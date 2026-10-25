@@ -771,8 +771,40 @@ async function parsedFiles(source) {
     owners.set(file.name, owned);
   }
   return [...owners.values()].map((files) =>
-    files.length === 1 ? files[0] : replacementFile(files, parseDiffFromFile),
+    joinChangeRuns(
+      files.length === 1 ? files[0] : replacementFile(files, parseDiffFromFile),
+    ),
   );
+}
+
+// Pierre splits a change whose deleted and added line counts differ into pieces, so
+// its most similar lines pair up (`realignChangeContentBySimilarity`, run by
+// `parsePatchFiles` since @pierre/diffs 1.3.0). That serves a split view, which Leaf never draws. In the unified
+// view it moved a rewrite's four deleted lines between the 11th and 12th of its 19
+// added ones, cutting the new function in two and painting the indentation it had
+// paired as changed words. Leaf joins the pieces back into the one change git wrote,
+// its deletions above its additions. A git patch never puts two changes side by side
+// without context, so a one-sided change beside another is always such a piece. The
+// rows, line numbers and comment coordinates are the same either way.
+function joinChangeRuns(file) {
+  for (const hunk of file.hunks ?? []) {
+    const content = [];
+    for (const part of hunk.hunkContent) {
+      const last = content.at(-1);
+      const piece =
+        part.type === "change" &&
+        last?.type === "change" &&
+        [part, last].some((change) => !change.deletions || !change.additions);
+      if (!piece) {
+        content.push({ ...part });
+        continue;
+      }
+      last.deletions += part.deletions;
+      last.additions += part.additions;
+    }
+    hunk.hunkContent = content;
+  }
+  return file;
 }
 
 // The box takes the place of the file's lines, so core's composer leaves their outlets
@@ -850,6 +882,7 @@ customElements.define(
             id: "diff.next-hunk",
             keys: ["]"],
             title: "next hunk",
+            travels: true,
             when: () => this.hasHunks(),
             run: () => this.present(this.stepHunk(false)),
           },
@@ -857,6 +890,7 @@ customElements.define(
             id: "diff.previous-hunk",
             keys: ["["],
             title: "previous hunk",
+            travels: true,
             when: () => this.hasHunks(),
             run: () => this.present(this.stepHunk(true)),
           },
@@ -864,6 +898,7 @@ customElements.define(
             id: "diff.next-file",
             keys: ["}"],
             title: "next file",
+            travels: true,
             when: () => this.navigationEntries().length > 1,
             run: () => this.present(this.stepFile(false)),
           },
@@ -871,6 +906,7 @@ customElements.define(
             id: "diff.previous-file",
             keys: ["{"],
             title: "previous file",
+            travels: true,
             when: () => this.navigationEntries().length > 1,
             run: () => this.present(this.stepFile(true)),
           },

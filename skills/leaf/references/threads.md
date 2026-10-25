@@ -7,22 +7,22 @@ for a diagram or image, a declared part for one box within a visual, or nothing 
 the page as a whole:
 
 ```bash
-leaf thread open <page> --quote "<passage in the current page>" --obligation --text "…?"
-leaf thread open <page> --section <element-id> --text "…"
-leaf thread open <page> --section <diagram-id> --part node:<source-id> --text "…"
-leaf thread open <page> --obligation --text "…?"
+leaf thread create <page> --quote "<passage in the current page>" --obligation --text "…?"
+leaf thread create <page> --section <element-id> --text "…"
+leaf thread create <page> --section <diagram-id> --part node:<source-id> --text "…"
+leaf thread create <page> --obligation --text "…?"
 ```
 
 For a diagram, percent-encode the entire source id in the part token:
 `node:Line%20Item` names `Line Item`.
 
-`leaf thread open` anchors in the active revision as the user sees it. Quote exact
+`leaf thread create` anchors in the active revision as the user sees it. Quote exact
 words from the page's HTML that the user can see, within one widget part. The
 command refuses a quote that matches more than one place, or is retired, replaced,
 or crosses a boundary, rather than open a thread with no anchor. The thread's id is
 the `id` of its opening comment, in the record the command prints.
-`leaf page state <page> <id>`, `leaf thread reply`, `edit` and `resolve` take the
-id of any message in the thread.
+`leaf page state <page> <message>`, `leaf thread reply`, `edit` and `resolve` take
+the id of any message in the thread.
 
 When the user comments on repeated words that the surrounding text cannot tell
 apart, Leaf keeps the quote but not which copy they meant. The comment has
@@ -34,13 +34,13 @@ if it is still untitled when you answer, the event's `handling` asks you to add
 `--title`.
 
 ```bash
-leaf thread open <page> --section <element-id> --title "Afternoon workshop" --text "…"
+leaf thread create <page> --section <element-id> --title "Afternoon workshop" --text "…"
 leaf thread reply <answer.ref> --done --title "Afternoon workshop" --text "…"
 ```
 
 Keep a title stable. When it no
 longer describes the discussion, rename it with
-`leaf thread edit <page> <message-id> --title "<a few words>"`, which adds no
+`leaf thread edit <page> <message> --title "<a few words>"`, which adds no
 message.
 
 Add `--markup` for an HTML fragment after the text: a native table, a bounded log, or
@@ -77,7 +77,7 @@ and put the `path` it prints in your text as a Markdown image.
 
 ```bash
 leaf thread reply <answer.ref> --done --text "The deploy passed."
-leaf thread reply <page> <message-id> --text "The monitoring window has ended."
+leaf thread reply <page> <message> --text "The monitoring window has ended."
 ```
 
 Use the whole `answer.ref` when answering a delivered update or posting progress on
@@ -88,11 +88,10 @@ While the session an update was delivered to holds the page,
 delivered before the user's newer correction does not answer that correction.
 
 Successful answers check the saved `index.html` and make it the active revision
-with the answer. Progress and failure reports use the active revision without
-checking or publishing an in-progress draft. Rerunning an
+with the answer; the first answer on a revision also notes the advice `page check`
+gives. Progress and failure reports use the active revision without checking or
+publishing an in-progress draft. Rerunning an
 answer with the same `ref` adds nothing.
-When no answer is coming, `--failure <code>` posts a failure receipt, which settles
-the input without reopening a resolved thread.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
 "Replies"). Use `leaf thread reply` instead when the answer needs markup, a question
@@ -155,10 +154,11 @@ Use `--ephemeral` for progress while work is underway:
 leaf thread reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 ```
 
-It does not answer the update, but on an update you owe it starts the update, and
+It does not answer the update, so a turn whose final message is the answer still
+posts that message. On an update you owe it starts the update, and
 its text becomes the **Working** status in Leaf's panel, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
-thread that owes no reply, use `leaf thread reply <page> <message-id> --ephemeral`.
+thread that owes no reply, use `leaf thread reply <page> <message> --ephemeral`.
 
 The thread shows the latest progress as one dim working message where you posted it,
 Progress never counts as unread. Your next ordinary reply replaces the preceding
@@ -176,7 +176,7 @@ for Done; discussing it does not complete it.
 Correct a message you or an earlier agent wrote, without adding a turn:
 
 ```bash
-leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
+leaf thread edit <page> <message> --text "Corrected wording."
 ```
 
 The page labels it `edited`, and the log keeps every wording. Only the text changes;
@@ -189,12 +189,12 @@ outcome, which finishing the work does not show by itself. When unsure, leave it
 open. First answer any unanswered user message in it:
 
 ```bash
-leaf thread resolve <page> <message-id>
+leaf thread resolve <page> <message>
 ```
 
 ## What the user has read
 
-Each thread in `leaf page state <page>` and `leaf page state <page> <thread-id>`
+Each thread in `leaf page state <page>` and `leaf page state <page> <message>`
 lists under `unread` your messages the user has not read in their current wording. A
 message counts as read once its whole body has been on screen, once the user marks
 the thread read, or once they act in the thread after it: reply, react, answer a
@@ -207,7 +207,7 @@ one is not an answer.
 When a thread's topic has moved on, or settled detail buries the current exchange,
 summarize the earlier discussion as part of answering new input, without waiting to
 be asked. New input may carry `summary_hint`, a suggested range. Read the originals
-with `leaf page state <page> <thread-id>` and choose a contiguous range that fits the
+with `leaf page state <page> <message>` and choose a contiguous range that fits the
 topic, starting and ending on spoken messages rather than reactions. Leave out
 messages whose wording still matters to the current exchange. Summarize the range's
 decisions, reasoning, and open questions in Markdown prose, and put its outcomes in

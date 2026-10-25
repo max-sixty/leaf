@@ -40,11 +40,6 @@ has tried; settle that before building it.
 
 ### User experience
 
-- **#25 — Answer one decision beside its evidence and on a board.** A section's
-  picker and its board card currently record independent facts. The section's widget
-  owns the answer; build the board's write to that owner and test both views against
-  one decision, including ordering, write-ins and revision retraction
-  ([design](notes/shared-decisions.md)).
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
@@ -294,13 +289,6 @@ and its chrome coordinate.
 - **Layout values that wait for a task:** a selection-and-detail widget whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
-- **Make a sidebar built from several blocks stick.** A sidebar's track sticks only
-  when it holds one block (`:only-child` in `layouts.css`), so multi-block asides
-  flow. The user decided (2026-10-21) to drop the condition: a multi-block aside
-  sticks as a whole, scrolling within the window like a one-block track. Sticking the
-  aside itself lets it cover a footer at the page's end (browsers bound a sticky flex
-  item by its container, not its row; #2636), so the build waits on the user's pick
-  between the runtime wrapping the blocks in one sticky box and keeping the rule.
 - **Decide whether a too-narrow table fails a page at the fixed widths.** It is
   advice at every width, the two fixed viewports included, where it once refused
   the page.
@@ -322,24 +310,18 @@ that changes size after first paint, with its cause.
   another line and its removal shortens the box. Drawing nothing until the first
   state answer has been read would leave the theme's stand-in frame and caption until
   then.
-- **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
-  (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
-  disclosure stays closed until the module opens it, so the spine and its markers
-  first show at upgrade. Opening it earlier would show the markers evenly spaced and
-  then move them, since each row's share is the module's measurement of the document
-  (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
-  would put them in place.
-- **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
-  measures in layout coordinates, which remove scrolling, so a scroll the runtime
-  makes during a gesture can move the control under the user's aim and fail
-  nothing; #2895's reply box moved 9–14px on a send that way. The proposed rule:
-  only a gesture that takes the user somewhere (the `t` and `q` walks, links,
-  Go-to) may move its control, and every other gesture keeps it still. Declare the
-  exemption on the command, not in a list in the watch. Then fix what it catches,
-  starting with the landings that choose where a gesture's control ends up:
-  `standOnThread`, the Threads list's landing, and `scrollThreadIntoView`. This
-  needs the user's go-ahead, and its per-frame cost measured at 4x CPU throttling
-  (`notes/shift-watch-cost.md`).
+- **Let a press say it takes the user somewhere.** The shift watch lets a key move
+  the control it was pressed on only where its command declares `travels`, and a
+  press only on a link (`shift_watch.js`, "Scrolls a gesture makes"); a press on any
+  other control has no command to declare it. Forced onto the unsurveyed tab tests,
+  the watch reports `lf-tabs` presses: a root set's switch, which adds a history entry
+  and opens the view at its place, carries the pressed tab up to 295px; an embedded
+  set's, 24px; and `#showTab` scrolls a partly hidden tab 51px into the strip.
+  Decide whether a view switch takes the user somewhere, which the history entry it
+  adds could declare as a link's does, and whether `#showTab`'s reveal is wanted.
+- **Keep the merge film's controls still as it steps.** In `examples/wt-merge.page`'s
+  `lf-merge-film`, pressing Next inspection scrolls that button 83px and `i` on Play
+  7px (`test_merge_film_inspection_has_touch_and_keyboard_routes`, unsurveyed).
 
 ### Queues
 
@@ -376,21 +358,6 @@ on 2026-10-07.
 
 ### The agent's text interface
 
-- **Stop delivering a comment twice after an interrupted tool boundary.** #3591
-  offers a Claude Code handover again once its turn ends with no later hook. That
-  is right for the prompt hook: Escape during it drops the prompt and Leaf's
-  context with it. At a tool boundary it isn't. On Claude Code 2.1.308, Escape
-  during PostToolBatch's hooks keeps Leaf's context in the conversation, so the
-  re-offer delivers the comment a second time. In one `leaf-dev journey
-claude-code` run (its `boundary` step), the transcript held the comment in both
-  the PostToolBatch context and the nudged turn's prompt context. The agent
-  answered it once and wrote that "the timezone question came in twice". A turn
-  interrupted after the model read a prompt's delivery but before any confirming
-  hook ran also gets that delivery twice, since PreToolUse runs only before `leaf`
-  commands. The finer fix is to offer an update again only when its handover came
-  from a prompt hook, and after an interrupted tool boundary to remind the agent
-  of what it owes instead, as `session.left_owed` does after Stop. That needs the
-  pickup to say which hook handed it over.
 - **Decide the Leaf-owned defects the bad-pages eval left open.**
   [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)
   lists three that follow from recorded choices: an open thread card covers the text
@@ -576,6 +543,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   real task.
 - **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
+- **Consider Leaf running the agent session.** A side lane that answers questions
+  while the session runs a long tool, or Leaf hosting the whole session, would reach
+  controls Claude Code and the Codex app don't expose to a companion
+  ([evidence and options](notes/leaf-run-sessions.md)). Trigger: busy-agent waits
+  grow past a few questions a day, or a user wants Leaf to be where they work.
 - **Decide whether an exported page carries its threads.** `leaf page
 export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
@@ -630,13 +602,12 @@ export` writes a file that boots the page's own runtime offline, and that file
   seven cases in `tests/browser/threads/test_seated_threads.py`), and a held thread
   pass would withhold every margin paint. A fix needs continuity to wait for the
   margin's paint and the margin to stop depending on the thread region committing.
-- **Consider moving the before/after reading out of the core.** How
-  `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
-  experimental and about 820 lines in the core runtime, consumed by `lf-shot`,
-  `lf-visual-review` and `leaf-dev stills`. A package could own it, so the core keeps
-  only what every page needs. Try it on non-Leaf captures first (another site, a
-  terminal, a plot); where the capture is a browser's, recording each element's box
-  beside the PNG would read moves exactly, as Percy's and SmartUI's layout modes do.
+- **Read moves exactly where the before/after pair is a browser's capture.** The
+  default package's `widgets/image-difference.js` reads a pair (blocks, moves,
+  outlines) for `lf-shot`, `lf-visual-review` and `leaf-dev stills`. Try it on
+  non-Leaf captures (another site, a terminal, a plot); where the capture is a
+  browser's, recording each element's box beside the PNG would read moves exactly, as
+  Percy's and SmartUI's layout modes do.
   Known gaps: a pane that scrolled within itself reads as scattered changes and moves
   rather than one region, a border that changed length draws a thin outline, and a
   changed 1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which

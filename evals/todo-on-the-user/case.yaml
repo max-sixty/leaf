@@ -1,5 +1,5 @@
 # Added with step 5 of the What needs you plan, which lets the agent put a task on the
-# user with `leaf task open --on user`: something the agent needs the user to do that
+# user with `leaf task create --on user`: something the agent needs the user to do that
 # no Ask or thread question answers waits on their queue until their Done. Scores
 # conversation-loop.md, "The On lists". Base at 9f09e4284, which has no such task,
 # passed 0 of 2 runs on Claude Code, handing the request over as a waiting line; the
@@ -29,7 +29,7 @@ assert:
     metric: judgment
     value: |
       Pass only if the commands put a to-do on the user for trying the install steps:
-      a `leaf task open` on the page that names the `install` section (or the page) and
+      a `leaf task create` on the page that names the `install` section (or the page) and
       marks the to-do as the user's rather than the agent's, with a title saying what to
       try. A thread message beside it is fine. Fail if the request reaches the user only
       as prose, such as a reply, a new thread, or a waiting status line, with no to-do on

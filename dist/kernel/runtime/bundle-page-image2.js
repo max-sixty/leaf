@@ -1,10 +1,69 @@
-import { isSampleFrame, sampleFrameImage } from "./bundle-sample2.js";
-
 //#region runtime/composing/page-image.js
 const asDataUrl = async (blob) => `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
-const pageRenderer = () => import("/vendor/snapdom.esm.js");
+const pageRenderer = async () => {
+	const [{ snapdom }, { isSampleFrame, sampleFrameImage }] = await Promise.all([import("/vendor/snapdom.esm.js"), import("./bundle-sample.js")]);
+	return {
+		snapdom,
+		isSampleFrame,
+		sampleFrameImage
+	};
+};
+const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+const holds = (a, b) => a.left <= b.left && a.top <= b.top && a.right >= b.right && a.bottom >= b.bottom;
+const paintsOverChildren = (parent, style) => style.backgroundImage !== "none" || style.overflowX !== "visible" || style.overflowY !== "visible" || /paint|content|strict/.test(style.contain) || ["::before", "::after"].some((pseudo) => {
+	const own = getComputedStyle(parent, pseudo);
+	return !["none", "normal"].includes(own.content) && own.position !== "static";
+});
+const drawsThroughEffect = (style) => style.opacity !== "1" || style.mixBlendMode !== "normal" || [
+	"transform",
+	"translate",
+	"rotate",
+	"scale",
+	"filter",
+	"backdropFilter",
+	"clipPath",
+	"maskImage"
+].some((property) => style[property] !== "none");
+function* laidOut(parent, skip) {
+	for (const child of parent.children) {
+		if (skip && child.matches(skip)) continue;
+		if (child.getClientRects().length) yield child;
+		else if (getComputedStyle(child).display === "contents") yield* laidOut(child, skip);
+	}
+}
+function captureRoot(region, skip) {
+	let root = document.body;
+	const ground = [getComputedStyle(document.documentElement).backgroundColor];
+	while (!root.shadowRoot) {
+		const style = getComputedStyle(root);
+		if (paintsOverChildren(root, style)) break;
+		let holder = null;
+		for (const child of laidOut(root, skip)) {
+			const box = child.getBoundingClientRect();
+			if (!meets(box, region)) continue;
+			if (holder || !holds(box, region)) {
+				holder = null;
+				break;
+			}
+			holder = child;
+		}
+		if (!(holder instanceof HTMLElement) || !holder.hasChildNodes() || drawsThroughEffect(getComputedStyle(holder))) break;
+		ground.push(style.backgroundColor);
+		root = holder;
+	}
+	const ctx = new OffscreenCanvas(1, 1).getContext("2d");
+	for (const color of ground) {
+		ctx.fillStyle = color;
+		ctx.fillRect(0, 0, 1, 1);
+	}
+	const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+	return {
+		root,
+		ground: `rgba(${r}, ${g}, ${b}, ${a / 255})`
+	};
+}
 async function pageImage(clip, { exclude = [] } = {}) {
-	const { snapdom } = await pageRenderer();
+	const { snapdom, isSampleFrame, sampleFrameImage } = await pageRenderer();
 	const warnings = /* @__PURE__ */ new Set();
 	async function sampleContent(frame) {
 		const box = document.createElement("div");
@@ -37,8 +96,15 @@ async function pageImage(clip, { exclude = [] } = {}) {
 		}
 		return box;
 	}
-	const image = await snapdom(document.body, {
+	const { root, ground } = captureRoot({
+		left: clip.x - scrollX,
+		top: clip.y - scrollY,
+		right: clip.x - scrollX + clip.width,
+		bottom: clip.y - scrollY + clip.height
+	}, exclude.join(", "));
+	const image = await snapdom(root, {
 		clip,
+		backgroundColor: ground,
 		dpr: window.devicePixelRatio,
 		exclude,
 		excludeMode: "hide",
@@ -47,6 +113,11 @@ async function pageImage(clip, { exclude = [] } = {}) {
 		plugins: [{
 			name: "leaf-sample-frames",
 			resolveNode: (node) => isSampleFrame(node) ? sampleContent(node) : void 0
+		}, {
+			name: "leaf-root-in-place",
+			afterClone: ({ clone }) => {
+				clone.style.justifySelf = "normal";
+			}
 		}]
 	});
 	const blob = await image.toBlob({ format: "png" });

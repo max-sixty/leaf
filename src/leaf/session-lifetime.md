@@ -23,7 +23,7 @@ The table lists each fact the fold reads, and when it stops being believed.
 
 | Fact                                                                   | Where                                                                                           | Writer                                                                                                                                                                                                                           | Stops being believed                                                                                                                                                                                                                  |
 | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| page declaration: `waiting` or `idle`, with detail                     | the newest `status` event (`activity.declaration`)                                              | `leaf page open` and `leaf page close`; the website harness as it ends a turn, and as it starts one on an idle page                                                                                                              | the next declaration; for `idle`, also a start after it, which reopens the page                                                                                                                                                       |
+| page declaration: `waiting` or `idle`                                  | the newest `status` event (`activity.declaration`)                                              | `leaf page open` and `leaf page close`; the website harness as it ends a turn, and as it starts one on an idle page                                                                                                              | the next declaration; for `idle`, also a start after it, which reopens the page                                                                                                                                                       |
 | the item in hand: an update or to-do, its line, the turn that wrote it | a `start` event, or an ephemeral reply's start (`todos.start_reading`)                          | `leaf task start`, or `leaf thread reply --ephemeral` on an owed update                                                                                                                                                          | the item ending; a later `status` event; as a belief, a short grace after its turn closes, about a quarter of an hour without renewal, or at once when the claimant's lifetime ends                                                   |
 | live App Server activity: session, turn, kind, detail                  | `activity` in `stream.json`                                                                     | the App Server connection following the turn                                                                                                                                                                                     | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event                                                                                                                      |
 | live App Server reply, and reply reservations                          | `reply` and `reply_reservations` in `stream.json`                                               | an App Server connection bound to a delivery's reply                                                                                                                                                                             | the draft, once a logged event names its attempt or address; a reservation, at commit, at terminal failure, or once its turn is no longer the claim's open turn (`activity.reply_reservation_stands`)                                 |
@@ -138,8 +138,9 @@ comparing the name. A watcher is one of:
   starts as the session starts and as each run settles. When the watch exits with input
   and no run is going, the extension starts one.
 - **A model wait**: `leaf wait` runs the model starts itself. Every explicit wait prints
-  the delivery; a large one comes in parts, and `leaf wait --ack <delivery-id>` after
-  the last part advances the cursor and becomes the next wait.
+  the delivery; a large one comes in parts, and after the last part
+  `leaf delivery ack <delivery-id> && leaf wait` advances the cursor and starts the
+  next wait, which names the page again where no harness session holds it.
 - **The adapter**: one detached process per Codex task, on either transport, holding the
   task's wait lease and a lease of its own (`codex_adapter.py`).
 - **The host**: a harness that drives App Server itself, as the website's container
@@ -184,17 +185,21 @@ the exclusions). The Stop hook never continues a turn to deliver one.
 
 ### Nudging a session with no watcher
 
-A watcher the session's own turns start can stop while the session lives on: a turn
-interrupted without its Stop hooks starts no watch, a watch fails or reaches its
-hook's timeout, or a model-run wait is stopped after the turn ends. Input that reaches
-the page after that has no watcher, and the claimant's harness may offer a nudge, the
-one way to reach such a session.
+A watcher the session's own turns start can stop while the session lives on: a watch
+fails or reaches its hook's timeout, or a model-run wait is stopped after the turn
+ends. Claude Code's prompt hook starts a watch as each turn starts, so a turn an
+interrupt ends still has one, except a turn whose prompt came before the session
+held any page: its watch ended at once, so nothing watches once that turn claims a
+page and is interrupted. Input that reaches the page after that has no watcher, and
+the claimant's harness may offer a nudge, the one way to reach such a session.
 
 Admission sends a nudge when an event is appended to a page whose claimant takes no
 input, once per ending of its turn (`presence.nudge_unwatched`). An interrupted turn
-runs no hook, so the page's server sends for the input it left once its presence look
-reads the turn ended by the harness's record (`presence.nudge_interrupted`). Claude
-Code's nudge is a user message through the session's messaging socket
+runs no hook, so Claude Code also starts the watch as each prompt starts, which waits
+while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
+no watch holds the lease, the page's server sends for the input an interrupted turn
+left once its presence look reads the turn ended by the harness's record
+(`presence.nudge_interrupted`). Claude Code's nudge is a user message through the session's messaging socket
 (`harness.message_claude_code_session`), whose docstring says when the recipient holds
 it; a background job whose worker has retired is resumed with the message as its next
 prompt instead (`harness.resume_claude_code_job`). The adapter and the host declare no

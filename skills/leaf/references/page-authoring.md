@@ -54,7 +54,9 @@ The title names the page, and the lede under it states the finding. A section th
 reaches a finding states it in its heading, short enough to scan in an `lf-toc`; put
 qualifications in the first sentence. A `<summary>` and an option's `<strong>` do the
 same. "What we learned" promises a finding and withholds it. Use a plain label only where there is no finding, as over a list, table or board
-that speaks for itself.
+that speaks for itself. A panel's heading (`section.panel`, as on a dashboard) is
+set in small capitals, which read as a region's name and not as a sentence, so name
+the region there in a few words and state its finding in the panel's first line.
 
 Write for what the user has seen: this conversation and the page so far. Introduce the
 names a decision depends on, show evidence for any claim they could doubt, and drop the
@@ -86,14 +88,21 @@ extend beside it. Compose the page from these:
   read, operate and comment on. Embedded documents can isolate a demonstration, but
   also separate its navigation and interaction from the surrounding Leaf page
   (`live-samples.md`).
-- **A screen the reader works in rather than scrolls**, like a mail client, a queue
-  worked one item at a time, a log beside its chart, or a desktop interface the reader
-  tunes, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
-  window from the title's left edge. Let that surface lead when it is the main task;
-  supporting reading, such as the review behind a design the reader tunes, goes in
-  later parts on a page of parts (below). A document read top to bottom beside a
-  panel kept in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
-  (`page-layout.md`, "A sidebar page").
+- **A surface the reader works at or keeps open rather than reads down**, like a mail
+  client, a queue worked one item at a time, a log beside its chart, settings tuned
+  against their evidence, a desktop interface the reader tunes, or a rollout dashboard
+  glanced at between other work, keeps its working state in the reader's window, since a tuning pass or a glance
+  doesn't scroll: each setting or status beside the evidence that judges it, and the
+  decision or submission waiting on the reader. Keep the title and premise to a line
+  or two, and give `main` `density-working` (`page-layout.md`, "A workspace"). A screen
+  the reader works in is a workspace, whose surface fills the window from the title's
+  left edge; a dashboard whose detail the reader may read on down is a
+  `layout-sidebar` page with its regions side by side. Let that surface lead when it
+  is the main task; supporting reading, such as the review behind a design the reader
+  tunes or the full history behind a status, goes below it or in later parts on a page
+  of parts (below). A document read top to bottom beside a panel kept in view, such as
+  a postmortem beside its timeline, is a `layout-sidebar` page (`page-layout.md`, "A
+  sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
   views; a tabbed section holds local alternatives within a view. The `lf-tabs` entry says which placement makes
   which.
@@ -136,7 +145,9 @@ headings, tables, code and widgets. Polish a page through clearer content and hi
 within that treatment. Reserve page CSS for task-specific arrangement, visualization
 or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for
-polish adds visual weight without meaning.
+polish adds visual weight without meaning. A box page CSS makes opaque, such as a
+sticky bar, paints `background: var(--lf-ground)`: the surface it stands on, which a
+card or a playground's preview sets for what it holds.
 
 When page CSS reveals controls while a container is hovered or focused, include
 `:has([data-lf-control-active])` in the condition if it contains a code block.
@@ -245,4 +256,5 @@ When that title starts a section with an id, the `<section>` carries the address
 instead. An id a heading needs for `aria-labelledby` is not the section's address.
 
 Threads, reading position and version comparison all find a block by its id, so a
-rewritten paragraph keeps its id.
+rewritten paragraph keeps its id. A heading offers the reader a link to that address, so
+a heading with no id on it, its `<hgroup>` or the section it opens offers none.

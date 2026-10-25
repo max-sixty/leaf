@@ -1674,3 +1674,97 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )
+
+
+def test_a_sample_waits_for_slow_contained_page_state(serve, browser):
+    """A healthy contained page may present after an arbitrarily slow state read."""
+    url = serve("""<!doctype html><html><head><title>Slow sample</title></head><body><main>
+      <lf-sample id="practice" label="practice page">
+        <template id="practice-page" data-sample><p id="copy">Practice here.</p></template>
+      </lf-sample>
+    </main></body></html>""")
+    context = browser.new_context(reduced_motion="reduce")
+    page = context.new_page()
+    held = []
+    held_once = False
+    allocation = sample_allocation(page, url, "practice-page")
+
+    def hold_first_contained_state(route):
+        nonlocal held_once
+        if (
+            allocation["url"] is not None
+            and route.request.url.startswith(allocation["url"])
+            and not held_once
+        ):
+            held_once = True
+            held.append(route)
+            return
+        route.continue_()
+
+    page.route("**/api/state*", hold_first_contained_state)
+    try:
+        with page.expect_request(
+            lambda request: (
+                allocation["url"] is not None
+                and request.url.startswith(allocation["url"])
+                and "/api/state" in request.url
+            )
+        ):
+            page.goto(url, wait_until="domcontentloaded")
+        sample = page.locator("#practice")
+        holding(page, held, 1, "the contained page's first state read")
+        held.pop().continue_()
+        page.wait_for_load_state("load")
+        wait_until_ready(page)
+        sample.evaluate("async sample => { await sample.ready; }")
+        frame = sample.locator("iframe")
+        assert not frame.get_attribute("srcdoc")
+        contained_document = frame.content_frame.locator("html")
+        assert contained_document.evaluate(
+            "() => document.doctype?.name === 'html' && Boolean(document.scrollingElement)"
+        )
+        page.evaluate("sessionStorage.setItem('lf-view', 'outer reading')")
+        storage = contained_document.evaluate(
+            """async () => {
+                const {readApplication} = await window.__lfCheckApi();
+                const {PAGE_SCOPE, tabStore, draftStore, userStore} =
+                    await window.__lfCheckApi();
+                for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
+                    if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
+                        throw new Error(`${name} did not retain sample working state`);
+                    if (!store.keys().includes('isolation-test'))
+                        throw new Error(`${name} did not enumerate its retained state`);
+                    store.set('isolation-test', null);
+                    if (store.get('isolation-test') !== null)
+                        throw new Error(`${name} did not clear its retained state`);
+                }
+                return {liveRoot: readApplication().document.live, pageScope: PAGE_SCOPE};
+            }"""
+        )
+        assert storage["liveRoot"] is True
+        assert "/api/samples/" in storage["pageScope"]
+        interaction_url = f"{sample_address(frame)}api/interaction"
+        with page.expect_response(
+            lambda response: (
+                response.url == interaction_url
+                and any(
+                    entry["type"] == "pagehide"
+                    for entry in response.request.post_data_json["entries"]
+                )
+            )
+        ) as departure:
+            contained_document.evaluate(
+                "dispatchEvent(new PageTransitionEvent('pagehide'))"
+            )
+        assert departure.value.ok
+        assert page.evaluate("sessionStorage.getItem('lf-view')") == "outer reading"
+        assert (
+            page.evaluate(
+                "scope => sessionStorage.getItem(scope + 'lf-view')",
+                storage["pageScope"],
+            )
+            is None
+        )
+    finally:
+        for route in held:
+            route.abort()

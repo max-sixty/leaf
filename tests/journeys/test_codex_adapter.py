@@ -6,6 +6,7 @@ and the adapter process's lifetime."""
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from xml.etree import ElementTree
@@ -14,6 +15,7 @@ import pytest
 from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
+    PLUGIN_ROOT,
     STATED_TIMEOUT,
     _delivery_item,
     acknowledged_through,
@@ -24,6 +26,7 @@ from interact_support import (
     page_state,
     publish,
     release_codex_command,
+    release_held,
     spawn_probe,
     wait_for,
 )
@@ -535,3 +538,78 @@ print(json.dumps(cmd_claim(Path(sys.argv[1]))), flush=True)
 
     out, err = adapter.communicate(timeout=STATED_TIMEOUT)
     assert adapter.returncode == 0, f"{out}{err}"
+
+
+def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
+    codex_claimed_page, under_codex, codex_env, tmp_path
+):
+    """The previous adapter retires, and its successor queues the page's input.
+
+    Two real Python package locations model installed Leaf and a selected checkout;
+    the fake external Codex endpoint records the delivery instead of opening a turn.
+    """
+    foreign = tmp_path / "installed"
+    for name in ("src", "browser", "packages", "dist", "skills"):
+        shutil.copytree(PLUGIN_ROOT / name, foreign / name)
+    launcher = foreign / "bin/leaf"
+    launcher.parent.mkdir()
+    launcher.write_text(
+        "#!/bin/sh\n"
+        f"export PYTHONPATH={shlex.quote(str(foreign / 'src'))}\n"
+        f'exec {shlex.quote(sys.executable)} -m leaf "$@"\n'
+    )
+    launcher.chmod(0o755)
+    program, log = fake_codex_cli(tmp_path)
+    results = tmp_path / "starts.json"
+    first = claim_command(codex_claimed_page, program, launcher=[str(launcher)])
+    select_runtime = (
+        "from pathlib import Path; from leaf.session_runtime import select_launcher; "
+        f"select_launcher('codex-thread', Path({str(PLUGIN_ROOT / 'bin/leaf')!r}))"
+    )
+    calls = [
+        first,
+        [sys.executable, "-c", select_runtime],
+        claim_command(codex_claimed_page, program),
+    ]
+    runner = PLUGIN_ROOT / "tests/fixtures/programs/codex_starts.py"
+    task = under_codex(
+        shlex.join([sys.executable, str(runner), json.dumps(calls), str(results)]),
+        codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
+        app_server=False,
+        finished=tmp_path / "finished",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        outcomes = wait_for(
+            lambda: files_model.read_json(results),
+            lambda value: value is not None,
+            failure="delivery runtime replacement did not finish",
+        )
+        assert all(status == 0 for status, _out, _err in outcomes), outcomes
+        assert codex_adapter_model.running_adapter("codex-thread")["launcher"] == str(
+            PLUGIN_ROOT / "bin/leaf"
+        )
+        append_carried_log_record(
+            codex_claimed_page,
+            {
+                "kind": "comment",
+                "author": "user",
+                "text": "Review with the selected checkout",
+            },
+        )
+        wait_for(
+            lambda: log.read_text(),
+            lambda text: '"--message"' in text,
+            failure="the replacement adapter did not queue the pending input",
+        )
+    finally:
+        release_held(task)
+        task.communicate(timeout=STATED_TIMEOUT)
+        cleanup_model.end_session("codex-thread")
+        wait_for(
+            lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+            lambda live: not live,
+            failure="the replaced delivery runtime did not end",
+        )

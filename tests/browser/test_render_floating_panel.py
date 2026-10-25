@@ -3352,11 +3352,19 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
         assert done.exit_code == 0, done.output
         return json.loads(done.output.strip().splitlines()[-1])
 
-    drafting = task("open", str(page_dir), "page", "Draft the release note")
-    task("open", str(page_dir), "page", "Check the rollout")
-    tidied = task("open", str(page_dir), "page", "Tidy the wording")
+    drafting = task(
+        "create", str(page_dir), "page", "--title", "Draft the release note"
+    )
+    task("create", str(page_dir), "page", "--title", "Check the rollout")
+    tidied = task("create", str(page_dir), "page", "--title", "Tidy the wording")
     task("end", str(page_dir), tidied["id"], "done")
-    task("start", str(page_dir), drafting["id"], "Drafting the note's first line")
+    task(
+        "start",
+        str(page_dir),
+        drafting["id"],
+        "--text",
+        "Drafting the note's first line",
+    )
     page = floating(browser, url)
     page.locator(".lf-fp-on-user").click()
     page.locator(".lf-fp-filters button", has_text="On Claude").click()

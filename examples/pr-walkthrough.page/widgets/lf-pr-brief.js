@@ -15,6 +15,10 @@ import {
   unsafeHTML,
 } from "/runtime/widget-api.js";
 
+// A check's state is a status, drawn as the page's other statuses are (`.tag`), toned
+// where the forge's word says how it went.
+const TONES = { passed: "ok", success: "ok", failed: "danger", failure: "danger" };
+
 const identityOf = (record) =>
   record ? `${record.repository}#${record.number}` : "unavailable";
 
@@ -90,7 +94,11 @@ customElements.define(
                           ([name, status]) =>
                             html`<tr>
                               <th scope="row">${name}</th>
-                              <td>${status}</td>
+                              <td>
+                                <small class=${`tag ${TONES[status] ?? ""}`}
+                                  >${status}</small
+                                >
+                              </td>
                             </tr>`,
                         )
                       : html`<tr>

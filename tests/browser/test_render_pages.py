@@ -3075,6 +3075,39 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
         assert (track_box["top"] < body_box["top"]) is first
 
 
+def test_a_sidebar_pages_aside_takes_the_width_the_page_sets(browser, serve):
+    """A page sizes a sidebar page's `aside` with `--aside` (page-layout.md, "A sidebar
+    page"): beside the body it stands that wide and the body takes the rest of the row,
+    and where the body's base no longer fits beside it the two stack, each across the
+    row. Authors otherwise read the Layout's flex shares to find a rule to override."""
+    source = leaf_page(
+        "a sidebar page",
+        "<header><h1>Review</h1></header>"
+        "<aside id='track'><p>Summary and contents.</p></aside>"
+        "<div id='body'>" + "<p>Body paragraph. " * 40 + "</p></div>",
+        head="<style>main { --aside: 16rem; }</style>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    box = "(id) => document.getElementById(id).getBoundingClientRect()"
+    resized(page, 1440, 900)
+    body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
+    assert track_box["width"] == pytest.approx(256, abs=0.5)
+    assert track_box["top"] == pytest.approx(body_box["top"], abs=1)
+    row = page.locator("main").evaluate(
+        "node => node.clientWidth - parseFloat(getComputedStyle(node).paddingLeft)"
+        " - parseFloat(getComputedStyle(node).paddingRight)"
+    )
+    gap = page.locator("main").evaluate(
+        "node => parseFloat(getComputedStyle(node).columnGap)"
+    )
+    assert body_box["width"] == pytest.approx(row - 256 - gap, abs=0.5)
+    resized(page, 760, 844)
+    body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
+    assert track_box["top"] < body_box["top"]
+    assert track_box["width"] == pytest.approx(body_box["width"], abs=0.5)
+
+
 def test_a_sidebar_pages_items_trim_their_words_at_both_edges(browser, serve):
     """Each item in a sidebar page's row trims its words' outer margins, through any
     wrapper, as a column does at its edges: beside the body, a track whose heading sits in

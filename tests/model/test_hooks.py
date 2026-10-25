@@ -748,9 +748,16 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
         },
     ]
     transcript = tmp_path / "session.jsonl"
-    transcript.write_text("".join(json.dumps(record) + "\n" for record in records))
+    # The last record is still being written, so it ends partway through.
+    being_written = json.dumps({**records[1], "uuid": "late"}).replace("e2", "e4")
+    transcript.write_text(
+        "".join(json.dumps(record) + "\n" for record in records)
+        + being_written[: being_written.index("e4") + 5]
+    )
     assert harness_model.claude_code_entered(transcript) == {"e1", "e2"}
     assert harness_model.claude_code_entered(tmp_path / "missing.jsonl") == set()
+    (tmp_path / "empty.jsonl").write_text("")
+    assert harness_model.claude_code_entered(tmp_path / "empty.jsonl") == set()
     assert (
         harness_model.ClaudeCodeHarness.hook_payload(
             {"hook_event_name": "Stop", "prompt_id": "p1"}

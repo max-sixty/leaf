@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import mmap
 import os
 import time
 from collections.abc import Callable
@@ -980,17 +981,34 @@ def claude_code_entered(transcript: Path) -> set[str]:
     the conversation, and none for a prompt Escape dropped with its hooks' output;
     Escape during a tool boundary's hooks keeps that boundary's context and its
     record (measured at 2.1.310). So the record, not a later hook running, says the
-    model read a handover. A missing or unreadable transcript shows nothing."""
+    model read a handover. A missing or unreadable transcript shows nothing.
+
+    Every hook of a session holding a page reads it, and a long session's
+    transcript runs to hundreds of MB, so this maps the file and parses only the
+    lines holding Leaf's opening: 34 ms on a 200 MB transcript, where reading and
+    splitting it took 105 ms and 500 MB of memory."""
     from .hook_transport import INLINE_OPENING
 
-    try:
-        lines = transcript.read_bytes().split(b"\n")
-    except OSError:
-        return set()
     marker = INLINE_OPENING.encode()
+    lines = []
+    try:
+        with (
+            transcript.open("rb") as file,
+            mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mapped,
+        ):
+            at = 0
+            while (hit := mapped.find(marker, at)) != -1:
+                start = mapped.rfind(b"\n", 0, hit) + 1
+                end = mapped.find(b"\n", hit)
+                end = len(mapped) if end == -1 else end
+                lines.append(mapped[start:end])
+                at = end
+    except (OSError, ValueError):
+        # mmap refuses an empty file with ValueError.
+        return set()
     entered = set()
     for line in lines:
-        if b'"hook_additional_context"' not in line or marker not in line:
+        if b'"hook_additional_context"' not in line:
             continue
         try:
             attachment = json.loads(line).get("attachment") or {}

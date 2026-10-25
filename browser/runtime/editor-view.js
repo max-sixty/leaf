@@ -57,6 +57,8 @@ function editorViewOver({
   EditorView,
   StateEffect,
 }) {
+  // The caret at `at`, as a node a reveal can land and its rectangle, read from the DOM
+  // so a scroll handler may call it while the view updates (`LeafEditorView.caretAt`).
   function caretAt(view, at) {
     const position = view.domAtPos(at);
     const caret = document.createRange();
@@ -153,6 +155,10 @@ function editorViewOver({
       : state;
 
   return class LeafEditorView extends EditorView {
+    // Set while `focus()` moves native focus, which places the caret itself once
+    // focus has landed.
+    #focusing = false;
+
     constructor(config = {}) {
       super({
         ...config,
@@ -163,8 +169,18 @@ function editorViewOver({
       // editor may have lost its DOM selection while its state kept the caret.
       // Restore that caret in the arrival task, before the next key can edit at the
       // browser's collapsed position. Pointer selection follows focus and still places
-      // the caret at the words the user pressed.
-      this.contentDOM.addEventListener("focus", () => this.placeSelection());
+      // the caret at the words the user pressed. A selection written inside the
+      // focus event, before the platform finishes its focus steps, is one WebKit
+      // reveals across frames as it would a retained one, so `focus()` places its
+      // caret after native focus returns instead.
+      this.contentDOM.addEventListener("focus", () => {
+        if (!this.#focusing) this.placeSelection();
+      });
+    }
+
+    /** The caret at `at`: a node a reveal can land, and its rectangle. */
+    caretAt(at) {
+      return caretAt(this, at);
     }
 
     setState(state) {
@@ -190,7 +206,12 @@ function editorViewOver({
           )
       )
         selection.removeAllRanges();
-      this.contentDOM.focus({ preventScroll: true });
+      this.#focusing = true;
+      try {
+        this.contentDOM.focus({ preventScroll: true });
+      } finally {
+        this.#focusing = false;
+      }
       this.placeSelection();
     }
 

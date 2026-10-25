@@ -50,6 +50,7 @@
    now, the page presents without it, and `arrived` waits for it. Neither hands a
    package the bare `presented` wait. */
 
+import { whileConnected } from "./arrivals.js";
 import { applicationPresented } from "./semantic-state.js";
 import { reportPageError } from "./layer-client.js";
 import { activityTransitionAt } from "./presence.js";
@@ -200,4 +201,38 @@ export async function settlePageInterface() {
     if (result.status === "rejected")
       reportPageError(result.reason, "Page interface failed");
   }
+}
+
+// A page script's view of a widget, such as a playground's preview, which can reach the
+// widget only once it has upgraded. The first connection waits for PAGE_INTERFACE and
+// holds the page's presentation until `connect` has run; a reconnection runs it at once.
+// `declare` runs once, before the first `connect`, for what the widget accepts once per
+// lifetime; `connect(signal)` runs on each connection, and its returned cleanup runs as
+// the element leaves. A later PAGE_INTERFACE, from a revision applied in place, finds
+// the view already connected.
+export function whileInterfaceConnected(element, { declare, connect }) {
+  let declared = false;
+  return whileConnected(element, (signal) => {
+    let connected = false;
+    let cleanup;
+    const start = () => {
+      if (signal.aborted || connected) return;
+      if (!declared) {
+        declare?.();
+        declared = true;
+      }
+      connected = true;
+      cleanup = connect(signal);
+    };
+    document.addEventListener(
+      PAGE_INTERFACE,
+      (event) =>
+        /** @type {CustomEvent} */ (event).detail.present(
+          Promise.resolve().then(start),
+        ),
+      { signal },
+    );
+    if (declared) start();
+    return () => cleanup?.();
+  });
 }

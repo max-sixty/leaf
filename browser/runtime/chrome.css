@@ -63,6 +63,7 @@
     color: var(--ink);
   }
   .lf-fp-card {
+    isolation: isolate;
     anchor-name: --lf-fp-panel;
     display: flex;
     flex-direction: column;
@@ -532,6 +533,9 @@
     display: flex;
     width: var(--lf-fp-aim);
   }
+  .lf-floating-panel[data-drafted] .lf-fp-exit-seat {
+    width: auto;
+  }
   .lf-floating-panel[data-rest=mark] {
     --lf-fp-fold-pad-inline: calc((var(--lf-fp-folded) - var(--lf-fp-aim)) / 2);
     --lf-fp-fold-pad-block: calc((var(--lf-fp-folded) - var(--lf-line)) / 2);
@@ -875,9 +879,8 @@
     width: 100cqi;
     font: 13px / 1.45 var(--sans);
   }
-  .lf-fp-copy-item wa-icon {
+  .lf-fp-copy-icon {
     color: var(--lf-fp-muted);
-    font-size: 13px;
   }
   .lf-fp-chevron {
     width: 12px;
@@ -1158,12 +1161,6 @@
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
   }
-  .lf-fp-messages .lf-msg.user {
-    --lf-msg-text-end: calc( 2 * (var(--lf-fp-row-pad) + var(--lf-fp-aim) + 8px) + var(--lf-fp-send-room) - 32px );
-  }
-  .lf-fp-messages .lf-msg.user .lf-msg-text {
-    box-sizing: border-box;
-  }
   .lf-fp-messages .lf-msg-editor > .lf-compose-field {
     --lf-response-height: var(--lf-line);
   }
@@ -1282,8 +1279,11 @@
     background: var(--lf-fp-surface);
     box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-2);
   }
-  .lf-floating-panel:not([data-menu]) .lf-fp-menu {
+  .lf-floating-panel:not([data-menu]) .lf-fp-menu:not([data-leaving]) {
     display: none;
+  }
+  .lf-fp-menu[data-leaving] {
+    pointer-events: none;
   }
   .lf-floating-panel[data-menu] .lf-fp-menu {
     @starting-style {
@@ -1436,14 +1436,6 @@
 }
 
 /* browser/styles/chrome.css */
-.lf-ui {
-  box-sizing: border-box;
-}
-.lf-ui *,
-.lf-ui *::before,
-.lf-ui *::after {
-  box-sizing: border-box;
-}
 @layer lf-reset {
   button.lf-ui {
     appearance: none;
@@ -1558,11 +1550,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 @keyframes lf-runtime-4f3c2a8d-working {
   to {
     opacity: 0.5;
-  }
-}
-@keyframes lf-runtime-4f3c2a8d-flash {
-  from {
-    background-color: var(--hi-tint);
   }
 }
 @scope (.lf-chrome) {
@@ -1702,11 +1689,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--muted-2);
     font: 500 var(--t-6)/1.25 var(--sans);
   }
-  .lf-msg.flash,
-  .lf-thread-reply.flash,
-  .lf-thread-reply leaf-text.flash {
-    animation: lf-runtime-4f3c2a8d-flash var(--lf-motion-flash) ease-out;
-  }
   .lf-quote {
     margin: 0 0 12px;
     padding: 2px 8px 2px 10px;
@@ -1824,13 +1806,31 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
+    flex-direction: column;
   }
   .lf-command-reference.open {
     display: flex;
-    flex-direction: column;
   }
   .lf-command-reference::backdrop {
     background: color-mix(in srgb, var(--ink) 24%, transparent);
+  }
+  :is(.lf-command-reference, .lf-page-map-dialog),
+  :is(.lf-command-reference, .lf-page-map-dialog)::backdrop {
+    opacity: 0;
+    transition:
+      opacity var(--lf-motion-disclosure) linear,
+      display var(--lf-motion-disclosure) allow-discrete,
+      overlay var(--lf-motion-disclosure) allow-discrete;
+  }
+  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+    pointer-events: none;
+  }
+  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
+  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+    opacity: 1;
+    @starting-style {
+      opacity: 0;
+    }
   }
   .lf-media-viewer {
     position: fixed;
@@ -1944,20 +1944,34 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-command-reference-preference {
     display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: baseline;
     column-gap: 8px;
     row-gap: 2px;
     margin: 4px 0 12px;
     flex: none;
   }
   .lf-command-reference-preference input {
+    align-self: center;
     margin: 0;
   }
   .lf-command-reference-preference small {
-    grid-column: 2;
+    overflow: hidden;
     color: var(--muted);
     font-size: var(--t-6);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    opacity: 0;
+  }
+  .lf-command-reference-preference:is(:hover, :focus-within) small {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .lf-command-reference-preference small {
+      grid-column: 2 / -1;
+      white-space: normal;
+      opacity: 1;
+    }
   }
   .lf-search-field {
     width: 100%;
@@ -1982,9 +1996,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     visibility: hidden;
   }
   .lf-command-reference-results {
-    --lf-command-key-column: 104px;
     min-height: 0;
     overflow-y: auto;
+    margin-inline: -10px;
+    padding-inline: 10px;
   }
   .lf-command-reference-empty {
     padding: 20px 0 8px;
@@ -1992,99 +2007,105 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: center;
   }
   .lf-command-reference h3 {
-    margin: 12px 0 4px;
+    margin: 16px 0 4px;
   }
-  .lf-command-reference table {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
-    border-collapse: collapse;
+  .lf-command-reference-row:not([hidden]) {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr);
+    grid-template-areas: "action key desc";
+    align-items: center;
+    column-gap: 10px;
+    margin-inline: -6px;
+    padding-inline: 6px;
+    border-radius: var(--r);
   }
-  .lf-command-reference-key-column {
-    width: var(--lf-command-key-column);
+  .lf-command-reference-row > * {
+    min-width: 0;
+    padding-block: 4px;
   }
-  .lf-command-reference th {
-    padding: 0;
-    text-align: left;
+  .lf-command-reference-row.lf-sequence-command > * {
+    padding-top: 10px;
   }
-  .lf-command-reference td {
-    padding: 3px 0;
-    vertical-align: top;
+  .lf-command-reference-action {
+    grid-area: action;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
   }
-  .lf-command-reference tr[data-lf-command] {
+  .lf-command-reference-key {
+    grid-area: key;
+  }
+  .lf-command-reference-row {
     scroll-margin-block: var(--focus-ring-landing);
   }
-  .lf-command-reference tr.lf-sequence-command td {
-    padding-top: 8px;
-    border-top: 1px solid var(--rule);
-  }
-  .lf-command-reference td:first-child {
-    padding-right: 8px;
+  .lf-command-reference-description {
+    grid-area: desc;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: var(--t-6);
     white-space: nowrap;
+    text-overflow: ellipsis;
+    opacity: 0;
+  }
+  .lf-command-reference-row:is(:hover, [aria-selected=true], :has(.lf-command-reference-command[data-lf-focus])) .lf-command-reference-description {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .lf-command-reference-row:not([hidden]) {
+      grid-template-areas: "action key ." "desc desc desc";
+    }
+    .lf-command-reference-description {
+      padding-top: 0;
+      opacity: 1;
+      white-space: normal;
+    }
+    .lf-command-reference-row:has(.lf-command-reference-command) .lf-command-reference-description {
+      margin-top: calc((1lh - var(--aim-floor)) / 2);
+    }
+  }
+  .lf-command-reference .lf-binding-sequence {
+    flex-wrap: wrap;
+    max-width: 100%;
   }
   .lf-command-reference .lf-binding-sequence > kbd {
-    max-width: calc(var(--lf-command-key-column) - 8px);
+    max-width: 100%;
     height: auto;
     min-height: var(--lf-key-badge-size);
     padding-block: 1px;
     line-height: 1.3;
     white-space: normal;
   }
-  .lf-command-reference-binding-matches .lf-command-reference-action-main {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .lf-command-reference-binding-matches .lf-command-reference-command {
-    flex: 1;
-    width: auto;
-  }
   .lf-command-reference-scope {
     flex: none;
     color: var(--muted);
     font-size: var(--t-6);
   }
-  .lf-command-reference-description {
-    display: none;
-    margin-top: 2px;
-    color: var(--muted);
-    font-size: var(--t-6);
-  }
-  @media (hover: none) {
-    .lf-command-reference-description {
-      display: block;
-    }
-  }
-  @media (max-width: 640px) {
-    .lf-command-reference-binding-matches .lf-command-reference-action-main {
-      display: block;
-    }
-    .lf-command-reference-binding-matches .lf-command-reference-command {
-      width: 100%;
-    }
-    .lf-command-reference-binding-matches .lf-command-reference-scope {
-      display: block;
-      margin-top: 1px;
-    }
-  }
   .lf-command-reference-command {
-    width: 100%;
-    margin: -3px -6px;
-    padding: 3px 6px;
+    flex: none;
+    margin: 0;
+    padding: 0;
     border: 0;
-    border-radius: var(--r);
     background: transparent;
     color: inherit;
     font: inherit;
     text-align: left;
     cursor: pointer;
   }
-  .lf-command-reference-command:is(:hover, [data-lf-focus]),
-  .lf-command-reference-command[data-lf-selected=true] {
+  .lf-command-reference-command::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .lf-command-reference-row:has(.lf-command-reference-command:is(:hover, [data-lf-focus], [data-lf-selected=true])) {
     background: var(--chip);
   }
   .lf-command-reference-command[data-lf-focus-visible] {
+    outline: none;
+  }
+  .lf-command-reference-row:has(.lf-command-reference-command[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     outline-offset: 1px;
   }
@@ -2162,11 +2183,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: var(--paper);
     color: var(--ink);
     box-shadow: var(--raise-3);
+    flex-direction: column;
   }
   .lf-page-map-dialog[open],
   .lf-inspection-dialog[open] {
     display: flex;
-    flex-direction: column;
   }
   .lf-page-map-dialog::backdrop,
   .lf-inspection-dialog::backdrop {

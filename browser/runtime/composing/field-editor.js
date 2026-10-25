@@ -502,8 +502,9 @@ function fieldEditor(
    * where the user changed it before the editor built, is one step after that, so
    * undo takes it back, followed by the `steps` an owner recorded. `anchor` and
    * `head` are its selection. `field.typed(native, insert)` runs text input the editor
-   * takes, saying whether the DOM has already changed, and `field.returned()` says
-   * whether Return may insert a line. */
+   * takes, saying whether the DOM has already changed, `field.returned()` says
+   * whether Return may insert a line, and `field.revealed(view, pos)` shows the row
+   * holding `pos` in the field's host. */
   function fieldState(words, field) {
     // The run of words that differs between `base` and `text`: where the user typed.
     const { base, text } = words;
@@ -527,6 +528,12 @@ function fieldEditor(
         EditorView.inputHandler.of((view, _from, _to, _text, insert) => {
           field.typed(!view.contentDOM.editContext, () => view.dispatch(insert()));
           return true;
+        }),
+        // An edit's reveal shows the caret's row in the host first; the view's own
+        // reveal (editor-view.js) then carries the caret out through the page.
+        EditorView.scrollHandler.of((view, range) => {
+          field.revealed(view, range.head);
+          return false;
         }),
         histories.of(history()),
         invertedEffects.of((tr) =>

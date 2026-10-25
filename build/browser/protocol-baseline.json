@@ -1,5 +1,5 @@
 {
-  "protocol": 25,
+  "protocol": 27,
   "events": {
     "ownership": {
       "derived": ["meaning","attention"],
@@ -94,6 +94,10 @@
     "http-connections": {
       "since": 19,
       "schema": {"type":"object","properties":{"page":{"type":"string"},"connections":{"type":"object","additionalProperties":{"type":"object","properties":{"origin":{"type":"string"},"credential":{"type":"string"},"header":{"type":"string"},"prefix":{"type":"string"},"remaining":{"type":"integer","minimum":0}},"required":["origin","credential","header","prefix","remaining"]}}},"required":["page","connections"]}
+    },
+    "pointed": {
+      "since": 24,
+      "schema": {"description":"The pages whose input a hook handed a session's turn by pointer, in the state home's `sessions/<digest>.pointed` (`state.session_file`).","type":"object","properties":{"turn":{"description":"The turn the pointers were handed to.","type":"string"},"opened":{"description":"When that turn last opened (`turn_opened`): a prompt that opens it again hands the input over anew.","type":"string"},"pages":{"description":"Each page directory, with the last log position pointed at.","type":"object","additionalProperties":{"type":"integer"}}},"required":["turn","opened","pages"]}
     },
     "preview": {
       "since": 13,

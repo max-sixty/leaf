@@ -410,6 +410,7 @@ export function createHintSession({
         keys: ["Enter"],
         description: choose.description,
         title: choose.title,
+        travels: true,
         when: () => at >= 0,
         run: () => take(hinted()[at]),
       },

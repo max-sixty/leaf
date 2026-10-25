@@ -77,6 +77,97 @@ def test_a_refused_page_comment_respects_newer_reading_input(browser, serve):
     consume_browser_errors(page, http_error_console(400))
 
 
+@pytest.mark.parametrize("surface", ["margin", "page"])
+def test_a_refused_reply_folds_away_while_its_card_holds_still(browser, serve, surface):
+    """A reply the log refuses leaves the thread at once and folds away where it
+    stood. The card around it holds still through the fold, its head and the reply box
+    the words come back to: the room the turn gives back stays the card's until the
+    user's next turn (reply-continuity.js)."""
+    if surface == "margin":
+        url = serve(PANEL_PAGE)
+        panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
+        page = open_page(browser, url)
+        page.locator('[data-lf-margin-for="how-cap"] .lf-margin-marker').click()
+        card = page.locator(".lf-margin-preview .lf-page-thread")
+    else:
+        url, host = seated_page(serve, "verdict")
+        page = open_page(browser, url)
+        seat = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
+        seat.scroll_into_view_if_needed()
+        write(seat, "Check the capacity.")
+        page.keyboard.press("Enter")
+        round_trip(page)
+        card = page.locator(f"{host} > .lf-thread-seat > .lf-page-thread")
+    page.emulate_media(reduced_motion="no-preference")
+    box = card.locator(".lf-thread-reply leaf-text")
+    box.scroll_into_view_if_needed()
+    expect(box).to_be_visible()
+    # Freeze the fold as it starts, so the reading covers its interval rather than
+    # racing its duration.
+    card.evaluate("""node => new MutationObserver(() => {
+        const folding = node.querySelector('.lf-msg[inert]');
+        const animation = folding?.getAnimations()[0];
+        if (!animation || animation === window.retirement) return;
+        window.retirement = animation;
+        animation.pause();
+        animation.currentTime = 0;
+    }).observe(node, {subtree: true, attributeFilter: ['inert']})""")
+    held = []
+
+    def hold(route):
+        if route.request.post_data_json.get("kind") == "reply":
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/event", hold)
+    words = "Hold the release for the capacity numbers."
+    write(box, words)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the reply")
+    sent = card.locator('.lf-msg[data-event^="pending:"]')
+    expect(sent).to_be_visible()
+    rendered(page)
+
+    def stands():
+        return card.evaluate("""node => [
+          node.getBoundingClientRect().top,
+          node.querySelector('.lf-thread-reply').getBoundingClientRect().bottom,
+        ]""")
+
+    before = stands()
+    route = held.pop()
+    route.fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "attempt": route.request.post_data_json["attempt"],
+            "error": "refused before append",
+            "final": True,
+        },
+    )
+    expect(box).to_have_js_property("value", words)
+    folding = card.locator(".lf-msg[inert]")
+    expect(folding).to_have_count(1)
+    expect(sent).to_have_count(0)
+    assert folding.evaluate(
+        "node => node.matches(':not([data-event], [data-message])')"
+    )
+    page.evaluate(
+        "() => window.retirement.currentTime ="
+        " window.retirement.effect.getTiming().duration / 2"
+    )
+    one_frame(page)
+    assert 0 < folding.evaluate("node => node.getBoundingClientRect().height")
+    assert stands() == pytest.approx(before, abs=0.5)
+    page.evaluate("() => window.retirement.play()")
+    expect(folding).to_have_count(0)
+    rendered(page)
+    assert stands() == pytest.approx(before, abs=0.5)
+    page.unroute("**/api/event", hold)
+    consume_browser_errors(page, http_error_console(400))
+
+
 def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
@@ -170,6 +261,7 @@ def send_reply(page, thread, box, words):
     return before, box.evaluate(ROW_FOOT)
 
 
+@pytest.mark.watch_shifts
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 @pytest.mark.parametrize(("seat", "lines"), [("widget", 1), ("diff", 1), ("diff", 4)])
 def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
@@ -207,6 +299,33 @@ def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
         sends.append(send_reply(page, thread, box, words))
     for before, after in sends:
         assert abs(after["foot"] - before["foot"]) < 1, sends
+
+
+@pytest.mark.watch_shifts
+def test_escape_from_a_box_leaves_it_where_it_stood(browser, serve):
+    """Escape from a page thread's box, onto a thread that fits the window but whose
+    head the user has scrolled above it, lands on the thread without scrolling: the box
+    they left stays under their aim. Landing the thread nearest brought its head back
+    into view and carried the box down with it."""
+    url, root = long_seated_thread(serve)
+    page = open_page(browser, url)
+    resized(page, 1200, 560)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator("leaf-text")
+    expect(box).to_be_visible()
+    box.click()
+    page.keyboard.type("draft")
+    thread.evaluate(
+        "thread => scrollBy({top: thread.getBoundingClientRect().top + 30,"
+        " behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    assert thread.evaluate("thread => thread.getBoundingClientRect().top") < 0
+    before = box.evaluate("box => box.getBoundingClientRect().top")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    rendered(page)
+    assert box.evaluate("box => box.getBoundingClientRect().top") == before
 
 
 @pytest.mark.parametrize("touch", [False, True], ids=["desktop", "touch"])

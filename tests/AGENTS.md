@@ -109,21 +109,21 @@ for no rerun: name it in the pull request as inherited, check that it has an own
 `main`.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
-`tend-ci-fix` repairs what CI's `test` job (`ci.yaml`) fails on main. The user accepted
-that a pull request can land green and break a test it never ran, so a red main is no
-reason to widen a change or its tests. A newer push cancels main's waiting run, as
-intended. To learn what main fails, read that job's run and reproduce a failure by node
-id.
+Tend repairs what CI (`ci.yaml`) fails on main: the `test` job on Ubuntu, and
+`test-macos`, which runs every tier on macOS in the daily scheduled run and a dispatch.
+A failed run opens or updates a `tend-ci-failure` report issue, and triage files a
+`tend-ci-cause` issue for each cause and fixes it there.
+The user accepted that a pull request can land green and break a test it never ran, so
+a red main is no reason to widen a change or its tests. A newer push cancels main's
+waiting run, as intended. To learn what main fails, read that job's run and reproduce a
+failure by node id.
 
-A failure on main, in that run or only in a local one, needs an owner. `tend-ci-fix`
-owns one that main's latest run shows while its run on it is going, or while an open
-`fix/ci-*` pull request or `ci-fix:` issue it opened names it. A failure only macOS
-reproduces is beyond it, as is one whose `tend-ci-fix` run was refused or ended without
-naming it. Confirm a macOS-only failure at normal priority: `taskpolicy -b` slows
-headless Chrome's frames about sixfold, and tests that time frames then fail only on the
-Mac. For a failure `tend-ci-fix` doesn't own, check that no session, worktree (Codex's
-under `~/.codex/worktrees` included) or open pull request covers it, then start a local
-session for it (for example with `/dispatch`).
+A failure on main, in that run or only in a local one, needs an owner. Tend owns one
+that main's latest run shows, through the open report for that run and the cause issue
+or pull request that names it. A failure only a local run shows is beyond it. For a
+failure Tend doesn't own, check that no session, worktree
+(Codex's under `~/.codex/worktrees` included) or open pull request covers it, then start
+a local session for it (for example with `/dispatch`).
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for
@@ -280,11 +280,13 @@ allowance list.
   `runtime/keeps.js`. A write that must restate, as a vendored component's does, joins
   `EXPECTED` in `write_watch.js` with its reason; a test that reads the page by changing
   it and putting it back does so inside `lfUnwatched`.
-- `shift_watch.js` reports a box that moves on screen without input, and typing that
-  moves its field (`browser/AGENTS.md`, "Stability"). It runs on every test
-  except those in modules marked `shifts_unsurveyed`, which opt in per test with
-  `watch_shifts`. Playwright's clicks, keys and viewport resizes are input; a script's
-  `click()`, a value set by script and server news are not. It ignores first
+- `shift_watch.js` reports a box that moves on screen without input, typing that
+  moves its field, and a scroll a gesture makes that carries the control it was made
+  on, unless the gesture takes the user somewhere (`browser/AGENTS.md`, "Stability").
+  It runs on every test except those marked `shifts_unsurveyed`, which opt in per test
+  with `watch_shifts`. Playwright's clicks, keys, viewport resizes, and Back and
+  Forward are input; a script's `click()`, a value set by script and server news are
+  not. It ignores first
   presentation, whose remaining defects `known_widget_findings.py` records. Chrome
   hides a shift for half a second after a click, so a test of a news update's stability
   delivers the news after that.

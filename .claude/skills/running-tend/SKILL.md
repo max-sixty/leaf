@@ -7,7 +7,7 @@ description: Project-specific instructions loaded by tend workflows alongside AG
 
 ## Landing
 
-Tend uses `merge: yolo`. **Fix every failure in a red run** defines when a CI
+Tend uses `merge: yolo`. **Fixing a CI failure's cause** defines when a CI
 repair can land without maintainer approval.
 
 Changes to workflows, Tend's configuration, CODEOWNERS, or agent instructions
@@ -85,7 +85,7 @@ originating and repair pull requests, and say what the change intended, what
 conflicted, what the repair gave up and what remains uncertain. Mark the issue as
 awaiting that person's judgment and leave it open until they settle it; later Tend
 runs must not decide on their behalf. The repair's description names each behavior it
-moved. Proceed under **Fix every failure in a red run** without waiting for that
+moved. Proceed under **Fixing a CI failure's cause** without waiting for that
 judgment.
 
 Before choosing a fix, read the failing test's record in main's earlier runs: each
@@ -93,6 +93,8 @@ Before choosing a fix, read the failing test's record in main's earlier runs: ea
 and a `nightly` test runs only in the daily scheduled run
 (`gh run list -w ci -e schedule`). A test that failed with the same message, passed
 on code that didn't fix it, then failed again is non-deterministic, so fix the cause.
+A watch finding that fails on CI and passes locally needs a slower CPU rather than
+reruns to reproduce (`tests/AGENTS.md`, **Races**).
 Different messages across runs call for checking the intervening changes and the
 behavior each failure caught; simplify a test that unrelated changes repeatedly break
 without changing that behavior.
@@ -106,20 +108,21 @@ Two test-owned failures recur:
   history (`git log -L`); a set that keeps growing describes the suite's own
   noise, and the fix is against the test (`tests/AGENTS.md`, **Test-made noise**).
 
-## Fix every failure in a red run
+## Fixing a CI failure's cause
 
-The goal is main green. Every failure in the run is the session's, including
-those earlier runs also hit; a tracking issue records a failure but doesn't fix
-it. A session ends at GitHub's six-hour job limit, and a fix left unmerged then
-waits for someone else. Plan the work from these facts:
+A cause issue (`tend-ci-cause`) records the first `ci` run on main its tests
+failed in, with its commit, since that brackets the change that broke it; a
+`journeys` test, like the whole `test-macos` job, runs only nightly, so the pull
+request that broke it usually passed its own CI. Its session works until the
+cause has a merged fix, or a pull request it is still driving when GitHub's
+six-hour job limit ends it. Before fixing, check current main: the complete
+suite takes hours, and later changes may have removed the cause. A passing rerun
+alone does not clear a failure that comes and goes.
 
-- The complete suite takes hours, so check current main: later changes may have
-  removed a failure's cause. A passing rerun alone does not clear a failure that
-  comes and goes.
-- Failures often share a cause, and each pull request costs a CI run, so open
-  one pull request per cause that no open pull request already covers.
-- A pull request's CI takes most of an hour. Subagents, each in its own worktree,
-  can diagnose or fix separate causes meanwhile.
+No cause waits on a maintainer's decision. Where no repair keeps both the
+change's intent and the interface, **Reading a red suite** says to revert and
+file the issue that asks for that decision; this replaces escalating the cause
+issue itself.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then
@@ -136,8 +139,8 @@ once each test it claims to fix failed before the change and passes after it
 tests they edit, so run the claimed ones yourself. The pull request's CI must
 reach a terminal result on the exact head (`monitor-ci`). A failure there outside
 the tests it claims, and not caused by its change, neither blocks the merge nor
-calls for a rerun: fix it like the run's other failures. GitHub's applying merge
-rules still govern the merge.
+calls for a rerun: the report for that run carries it to its own cause. GitHub's
+applying merge rules still govern the merge.
 
 Merge a fix that is correct but incomplete, and open an issue for what it leaves.
 
@@ -151,12 +154,18 @@ which GitHub records as a cancelled run whose `test` job has no runner (`runner_
 0); that is not a regression. A `test` that held a runner and still ended cancelled
 hit its timeout, and that is a failure.
 
+The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
+can't reproduce. For a failure only that job shows, the failing run is the evidence
+from before the fix. For the evidence from after it, dispatch `ci` on the fix's branch
+(`gh workflow run ci --ref <branch>`) and read that run's `test-macos` job.
+
 ## Cloudflare logs
 
 `CLOUDFLARE_API_TOKEN` is the `Leaf observability (Tend CI)` token in
 `worker/README.md`: it reads the deployed site's Workers Observability logs and
 Analytics Engine events and cannot deploy. It is set only for an agent answering
-an issue or a red run on `main`. When an issue or a red `publish-site` concerns
+an issue, including a CI failure report and its cause issues. When an issue or a
+red `publish-site` concerns
 the deployed site, diagnose from those records as the README describes. Drop the
 token from any command that runs a pull request's code with
 `env -u CLOUDFLARE_API_TOKEN`.
@@ -172,8 +181,15 @@ permission first) still applies when the target shows no agent signals.
 
 Leave a **"Bot temporarily unavailable"** tracker open until `tend-review-runs`
 drains its rows, whatever its body says, since each row names a stranded
-trigger. This applies by title; `ci-fix` diagnosis trackers have no rows and
-`ci-fix` closes them.
+trigger. This applies by title; a CI failure report names no stranded trigger,
+and its lane's next passing run closes it.
+
+## Leave backlog issues to the maintainer
+
+An issue labelled `backlog` is an item on the maintainer's prioritised backlog
+(`TODO.md` says how it is kept), not a report awaiting triage. When one reaches
+you, whether through triage or an unread notification, take no action, post
+nothing, and acknowledge the notification.
 
 ## Nightly: model and harness releases
 

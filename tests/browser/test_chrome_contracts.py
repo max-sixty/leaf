@@ -1018,6 +1018,38 @@ REPORTED_DRAFT = (
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_scrolling_draft_shows_the_caret_s_row_with_the_padding_beside_it(
+    engine, request, serve
+):
+    """A line typed at the end of a draft that scrolls leaves nothing below it to scroll
+    to, and the caret taken to the first line leaves nothing above. Revealing only the
+    caret, as a native textarea does, left the field's padding out of view, and in
+    Firefox the foot of the caret's row too."""
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+    field = page_comment(page)
+    hidden = """box => ({
+      below: box.scrollHeight - box.clientHeight - box.scrollTop,
+      above: box.scrollTop,
+    })"""
+    page.keyboard.type("line 0")
+    for line in range(1, 40):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"line {line}")
+        if field.evaluate("box => box.scrollHeight > box.clientHeight + 40"):
+            break
+    else:
+        raise AssertionError("the draft never scrolled")
+    for key in ("Shift+Enter", "w", "ControlOrMeta+Home"):
+        page.keyboard.press(key)
+        rendered(page)
+        shown = field.evaluate(hidden)
+        if key == "ControlOrMeta+Home":
+            assert shown["above"] < 1, shown
+        else:
+            assert shown["below"] < 1, (key, shown)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_space_after_the_last_word_moves_no_word(engine, request, serve):
     """Where a draft's words wrap turns on the words alone, so a space typed after the
     last word leaves every word on its row, as in a textarea. With Send's room kept

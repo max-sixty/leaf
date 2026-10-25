@@ -638,6 +638,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         assert browser_served_model._thread_attention(
             thread,
             [owed],
+            [],
             work_served_model.served_workflows(workflows, frozen, records),
             todos,
         ) == {
@@ -646,7 +647,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
             "workflow": expected,
         }
     # With no record open in it, an open task keeps the thread on the agent.
-    assert browser_served_model._thread_attention(thread, [], [], todos) == {
+    assert browser_served_model._thread_attention(thread, [], [], [], todos) == {
         "kind": "waiting",
         "reason": "todo",
         "workflow": None,

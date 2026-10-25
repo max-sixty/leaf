@@ -596,7 +596,9 @@ def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
     work lands stays off their list. A comment on one obligation, or on the part of the
     frame holding it, leaves its framed sibling with the user; one on the frame's
     heading, on a widget there that asks nothing or on the section holding the frame is
-    about both, and one elsewhere about none."""
+    about both, and one elsewhere about none. The thread says the same turn: waiting on
+    the agent while it owes the answer, and the user's once an obligation it is about
+    is theirs again."""
     comment = {
         "kind": "comment",
         "id": "c1",
@@ -606,7 +608,13 @@ def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
     }
     items = ["widget:choice", "widget:y-choice"]
     owed = sorted(set(items) - set(held))
+
+    def turn(events) -> str | None:
+        attention = model.threads(model.reading(FRAMED, events))["c1"]["attention"]
+        return attention and attention["kind"]
+
     assert lists(model.reading(FRAMED, [comment])) == (owed, ["update:c1"], held)
+    assert turn([comment]) == "waiting"
     reply = {
         "kind": "reply",
         "author": "agent",
@@ -615,6 +623,28 @@ def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
         "text": "It means the first route.",
     }
     assert lists(model.reading(FRAMED, [comment, reply])) == (items, [], [])
+    assert turn([comment, reply]) == ("needs_user" if held else None)
+    # What the thread itself owes comes first: an answer that failed is the user's to
+    # send again, whatever it discussed.
+    failed = {**reply, "id": "f1", "failure": "harness_stopped"}
+    resend = model.threads(model.reading(FRAMED, [comment, failed]))["c1"]
+    assert resend["attention"]["reason"] == "resend"
+    # So is an answer the thread owes the agent, here for the user's pick on a question
+    # the agent sent into it.
+    asking = {
+        **reply,
+        "id": "q1",
+        "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="q-'),
+    }
+    picked = {
+        "kind": "action",
+        "id": "e1",
+        "author": "user",
+        "widget": "q-choice",
+        "action": "choose",
+        "detail": {"value": ["q-a"]},
+    }
+    assert turn([comment, asking, picked]) == "waiting"
     promise = {**reply, "id": "p1", "todo": "Ask again once the other work lands"}
     resolve = {"kind": "resolve", "author": "user", "parent": "c1"}
     end = {"kind": "todo_end", "author": "agent", "todo": "p1", "outcome": "done"}

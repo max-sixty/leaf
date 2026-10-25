@@ -35,7 +35,11 @@ class BrowserReading(NamedTuple):
 
 
 def _thread_attention(
-    thread: dict, records: list[dict], candidates: list[dict], todos: list[dict]
+    thread: dict,
+    records: list[dict],
+    about: list[dict],
+    candidates: list[dict],
+    todos: list[dict],
 ) -> dict | None:
     """Whose turn one thread is, read from the open obligation records in it
     (`records`): `needs_user` while one is the user's, a request (`obligation`) ahead of an
@@ -48,7 +52,12 @@ def _thread_attention(
     stage. A widget's record turns the agent's only while the thread's newest
     unanswered turn publishes an update record (`queues`), so a waiting thread always
     has a workflow to name. `todos` are the agent's open to-dos, each stamped with its
-    `thread`, and `todo` names the one the thread waits on by id."""
+    `thread`, and `todo` names the one the thread waits on by id.
+
+    Failing all of those, the thread is the user's while an open page obligation it is
+    about (`about`, `obligations.discussions`) is theirs: their comment on a decision
+    handed it to the agent, and the agent's answer hands both back. The thread's own
+    records come first, so a turn it owes, a resend or a to-do still names itself."""
     if thread["resolved"]:
         return None
 
@@ -83,15 +92,22 @@ def _thread_attention(
             "workflow": None,
             "todo": todo["id"],
         }
+    if any(record["next_actor"] == "user" for record in about):
+        return {"kind": "needs_user", "reason": "obligation", "workflow": None}
     return None
 
 
 def _apply_thread_attention(
-    records: list[dict], workflows: list[dict], threads: list[dict], todos: list[dict]
+    records: list[dict],
+    discussions: dict[str, list[dict]],
+    workflows: list[dict],
+    threads: list[dict],
+    todos: list[dict],
 ):
     """Attach each served thread's `attention`, the browser's one reading of whose turn
     it is. `records` are the obligation records of the view these threads are served
-    in, so a pinned revision's threads take the attention its own vocabulary reads;
+    in, so a pinned revision's threads take the attention its own vocabulary reads, and
+    `discussions` the page obligations each thread is about (`obligations.discussions`);
     `workflows` are the page's, enriched with delivery liveness."""
     open_records: dict[str, list[dict]] = {}
     for record in records:
@@ -105,6 +121,11 @@ def _apply_thread_attention(
         thread["attention"] = _thread_attention(
             thread,
             open_records.get(thread["id"], []),
+            [
+                record
+                for record in discussions.get(thread["id"], ())
+                if record["status"] == "open"
+            ],
             by_thread.get(thread["id"], []),
             todos,
         )
@@ -186,7 +207,13 @@ def browser_state(
         # the page's updates', served once: a list row names a
         # record by its id.
         items = viewed.all_obligations["all"] + durable.updates["all"]
-        _apply_thread_attention(items, workflows, thread["threads"], agent_todos)
+        _apply_thread_attention(
+            items,
+            reading.discussions,
+            workflows,
+            thread["threads"],
+            agent_todos,
+        )
         documents[revision] = reading
         projection = reading.projection
         classified = {

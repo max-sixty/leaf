@@ -280,7 +280,9 @@ to-do a reply promised (`obligations.thread_obligation_readings`). A thread anch
 a page obligation does the same, so an obligation the user has commented on leaves their
 On me list while the reply owed to the comment stands on the agent's, and a promised
 to-do keeps that obligation the agent's even after the thread is resolved
-(`obligations.anchors_with_agent`). A question asked in words (`obligation: true` or
+(`obligations.with_agent`). An open thread about an obligation that is the user's,
+whoever opened it, reads as the user's turn when nothing in the thread itself is owed
+(`served_state.browser._thread_attention`). A question asked in words (`obligation: true` or
 `x-awaits.reply`) is answered by that
 message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and

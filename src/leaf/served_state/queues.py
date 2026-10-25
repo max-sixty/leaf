@@ -13,7 +13,7 @@ On me holds records whose next actor is the user. On <agent> holds the open upda
 records the agent owes, then the agent's to-dos. A widget's obligation becomes the
 agent's while a thread about it awaits the agent's word, and that thread's newest
 unanswered turn already publishes an update record there; On <agent> lists that
-update alone (`obligations.anchors_with_agent`, `thread_obligation_readings`).
+update alone (`obligations.with_agent`, `thread_obligation_readings`).
 
 A row names its kind (its record's `source.kind`, or `todo`), its subject, the list it
 stands on (`owner`), the thread it stands in, and whether the agent has it in hand now

@@ -358,10 +358,24 @@ Measured:
   makes. Each read the gate's `words.js` to work out why, and rebuilt the drawing
   with `createElementNS`.
 
-Inferred, not measured: the playground, text document and visual review results
-cover one request each; a request with harder constraints (a step the values don't
-divide, captures at device scale 2) could fail more. The thread results cover one
-request per widget, and the semicolon failure is specific to Mermaid's grammar.
+Two harder contexts then tested whether those widgets hold up where the values are
+easier to get wrong. `widgets-draw-as-written/playground-fine-steps` gives today's
+settings at values a round step skips (quality 0.82, sharpening 0.7 px, saturation
+1.15×, width 1,250 px), and `visual-change-uses-captures/review-scaled` states the
+captures at device scale 2, so a focus rectangle has to be in CSS pixels, half the
+image's own. All 40 drew (10 per context and harness; 0 of 104 with the plain
+contexts, 0–4%): every Claude Code author gave quality `step="0.01"`, and all 20
+reviews set a focus rectangle that fit the 600×350 capture. One Codex author's page
+script misused `generatedElement`, and its plain check, which runs any page with a
+script, caught it.
+
+```sh
+uv run leaf-dev eval widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness codex --repeat 10 -j 2
+```
+
+Inferred, not measured: the thread results cover one request per widget, and the
+semicolon failure is specific to Mermaid's grammar.
 
 Decision, made on this evidence:
 

@@ -2,7 +2,11 @@
  * generation. Connections never expose credentials to this module. Results live
  * in the tab; the authored typed snapshot supplies the initial reading.
  */
-import { connection, generate } from "/runtime/widget-api.js";
+const unavailable = () => {
+  throw new Error("Live exploration is unavailable.");
+};
+const connection = () => ({ fetch: unavailable });
+const generate = unavailable;
 import profile from "./profile.js";
 
 const object = (properties) => ({

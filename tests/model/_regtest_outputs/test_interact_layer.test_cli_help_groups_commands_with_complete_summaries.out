@@ -10,17 +10,16 @@ Options:
   --help     Show this message and exit.
 
 Commands:
-  codex       Launch the experimental Codex terminal.
-  connection  Grant pages authenticated HTTPS reads.
-  data        Set or clear page-bound external data.
-  delivery    Read a delivery by its id, and confirm you received it.
-  file        Manage a page's access to local files.
-  package     Create, check, install, and run packages.
-  page        Create, check, stamp, and read pages.
-  server      Start, run, or stop the local server.
-  task        Open or end to-dos, start work on your list, and plan.
-  thread      Open, answer, edit, summarize, or resolve a thread.
-  wait        Confirm a delivery, if given, then wait for the next batch.
+  codex     Launch the experimental Codex terminal.
+  data      Set or clear page-bound external data.
+  delivery  Read a delivery by its id, and confirm you received it.
+  file      Manage a page's access to local files.
+  package   Create, check, install, and run packages.
+  page      Create, check, stamp, and read pages.
+  server    Start, run, or stop the local server.
+  task      Open or end to-dos, start work on your list, and plan.
+  thread    Open, answer, edit, summarize, or resolve a thread.
+  wait      Confirm a delivery, if given, then wait for the next batch.
 
 ## codex
 Usage: leaf codex [OPTIONS] COMMAND [ARGS]...
@@ -32,18 +31,6 @@ Options:
 
 Commands:
   launch  Launch an experimental streaming Codex terminal.
-
-## connection
-Usage: leaf connection [OPTIONS] COMMAND [ARGS]...
-
-  Host credentials and origin grants for page-authored integrations.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  bind    Grant authenticated GET access to an HTTPS origin.
-  unbind  Withdraw one page connection.
 
 ## data
 Usage: leaf data [OPTIONS] COMMAND [ARGS]...

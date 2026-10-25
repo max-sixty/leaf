@@ -679,9 +679,9 @@ function pixels(image) {
 
 //#endregion
 //#region runtime/file-api.js
-const live$3 = readPart((root) => root.document.live);
+const live$1 = readPart((root) => root.document.live);
 function boundFile(binding) {
-	const writable = () => !offlineInteractive && live$3();
+	const writable = () => !offlineInteractive && live$1();
 	async function request(options = {}) {
 		if (!writable()) throw new Error("File editing is available in live pages.");
 		try {
@@ -722,36 +722,10 @@ function boundFile(binding) {
 }
 
 //#endregion
-//#region runtime/llm-api.js
-const live$2 = readPart((root) => root.document.live);
-async function generate(request) {
-	if (offlineInteractive || !live$2()) throw new Error("LLM generation is available in live pages.");
-	return requestJson(pageUrl("api/llm"), {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(request)
-	}, "LLM generation");
-}
-
-//#endregion
-//#region runtime/http-api.js
-const live$1 = readPart((root) => root.document.live);
-function connection(name) {
-	return { async fetch(path) {
-		if (offlineInteractive || !live$1()) throw new Error("HTTP connections are available in live pages.");
-		return requestJson(pageUrl(`api/connections/${encodeURIComponent(name)}`), {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ path })
-		}, "HTTP connection");
-	} };
-}
-
-//#endregion
 //#region runtime/widget-api.js
 async function mountSample(frame, options) {
 	return (await import("./bundle-sample.js")).mountSample(frame, options);
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, HOLDS_WORD, HeldReading, LAYOUT, LeafEditorView, LeafElement, PAGE_INTERFACE, PRESENTATION, PRESS, PRESSABLE, TEXT_BOX, TEXT_FIELD, aborted, addressableLabel, addressableWord, afterPresentation, afterScript, agentName, ago, alignText, allButCommandReference, anchorLabel, announce, answerWords, answeredInWords, atLayoutPrecision, atScrollEnd, authoredScope, backgroundFlash, beginWalk, bodyText, boundFile, cancelAnimation, cancelRender, capturePlace, claimTraversals, classMap, clearDraft, clockValue, closeLayer, closeNativeLayer, commandScope, keys as commands, commandsOn, compareImagePixels, compareImages, comparisonChanges, compoundReadingRegionId, connection, consumeAnnotations, contributionEntry, contributionItemKey, copyBlock, countAreas, createRef, currentLocationIn, cycledRow, dataBody, declarationFor, deferredArrival, describeDifference, differenceKind, directWorkElements, dragging, dressSamples, el, elementById, elementsDeclaring, ensureSyntaxLanguage, excerptWords, failSoft, fitsWhole, focusDestination, focused, foldBlock, foldDuration, fragmentTarget, frameFor, generate, generated, generatedElement, growthIsSeen, guard, handBack, heldGrowth, highlightBlocks, holdFocus, html, iconElement, iconTemplate, inBaseLayer, inChrome, initialRender, inlineMarkdownFragment, isCanonicalMediaUrl, isNativeLayer, keepView, keeps, keepsHidden, keepsText, keyed, labelOf, landInThread, landingInsets, langForPath, layerFact, layoutChanged, layoutPx, listWalkPosition, live, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, matchesWhen, measure, motion, motionPreview, mountSample, move, navigateToDatum, nextAnimation, nextFrame, nextRender, noChange, nothing, notice, obligationActions, obligationsIn, offer, offered, onCurrentLocation, onMotionPreferenceChange, onUserInput, once, openLayer, openerOf, openingView, pageScroller, paintKeys, paintMarkdown, placeKeeper, placePageThreads, placesFailure, plainPress, presentContributionEntry, presentContributionReceipts, preserveReadingRegions, pressIsKeyboardActivation, projectData, projectedDatum, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, quietSince, quietWord, quoted, raiseError, rankAt, reachedForWords, readHistory, readObligations, readQueues, readThreads, readWork, reducedMotion, ref, regionScrollBehavior, registerContribution, registerReadingRegion, registerThreadPresentation, registerVisualParts, relabel, releaseOutlets, removeRuntimeRootStyle, render, renderMarkdown, renderRetired, repeat, replaceEntry, reportFailure, reportSequence, reportsPresented, reportsReady, restorePlace, retainUserIntent, returnDuration, revisionLabel, rove, rowArrows, rowWalk, saidAt, saveDraft, saying, says, scopedMediaUrl, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollerFor, searchField, selectableOffer, selectableOffered, sendDraft, setChildLists, setChildren, setRenderedChildren, setRuntimeRootStyle, shadowStage, shortAgo, showNativeLayer, showReadingSubject, shownParts, shownWindow, Z as signal, sizeObserver, styleMap, synNodes, syntax, tabStore, textNodesUnder, threadActions, threadBox, threadInput, threadSummary, threadSurface, turns as threadTurns, tokenLines, under, unsafeHTML, watchDraft, watchReadingRegionTransitions, wear, whenLeft, whileConnected, widgetController, wireInput, workAncestor, workElements, workRole, worksInside, wrote };
+export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, HOLDS_WORD, HeldReading, LAYOUT, LeafEditorView, LeafElement, PAGE_INTERFACE, PRESENTATION, PRESS, PRESSABLE, TEXT_BOX, TEXT_FIELD, aborted, addressableLabel, addressableWord, afterPresentation, afterScript, agentName, ago, alignText, allButCommandReference, anchorLabel, announce, answerWords, answeredInWords, atLayoutPrecision, atScrollEnd, authoredScope, backgroundFlash, beginWalk, bodyText, boundFile, cancelAnimation, cancelRender, capturePlace, claimTraversals, classMap, clearDraft, clockValue, closeLayer, closeNativeLayer, commandScope, keys as commands, commandsOn, compareImagePixels, compareImages, comparisonChanges, compoundReadingRegionId, consumeAnnotations, contributionEntry, contributionItemKey, copyBlock, countAreas, createRef, currentLocationIn, cycledRow, dataBody, declarationFor, deferredArrival, describeDifference, differenceKind, directWorkElements, dragging, dressSamples, el, elementById, elementsDeclaring, ensureSyntaxLanguage, excerptWords, failSoft, fitsWhole, focusDestination, focused, foldBlock, foldDuration, fragmentTarget, frameFor, generated, generatedElement, growthIsSeen, guard, handBack, heldGrowth, highlightBlocks, holdFocus, html, iconElement, iconTemplate, inBaseLayer, inChrome, initialRender, inlineMarkdownFragment, isCanonicalMediaUrl, isNativeLayer, keepView, keeps, keepsHidden, keepsText, keyed, labelOf, landInThread, landingInsets, langForPath, layerFact, layoutChanged, layoutPx, listWalkPosition, live, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, matchesWhen, measure, motion, motionPreview, mountSample, move, navigateToDatum, nextAnimation, nextFrame, nextRender, noChange, nothing, notice, obligationActions, obligationsIn, offer, offered, onCurrentLocation, onMotionPreferenceChange, onUserInput, once, openLayer, openerOf, openingView, pageScroller, paintKeys, paintMarkdown, placeKeeper, placePageThreads, placesFailure, plainPress, presentContributionEntry, presentContributionReceipts, preserveReadingRegions, pressIsKeyboardActivation, projectData, projectedDatum, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, quietSince, quietWord, quoted, raiseError, rankAt, reachedForWords, readHistory, readObligations, readQueues, readThreads, readWork, reducedMotion, ref, regionScrollBehavior, registerContribution, registerReadingRegion, registerThreadPresentation, registerVisualParts, relabel, releaseOutlets, removeRuntimeRootStyle, render, renderMarkdown, renderRetired, repeat, replaceEntry, reportFailure, reportSequence, reportsPresented, reportsReady, restorePlace, retainUserIntent, returnDuration, revisionLabel, rove, rowArrows, rowWalk, saidAt, saveDraft, saying, says, scopedMediaUrl, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollerFor, searchField, selectableOffer, selectableOffered, sendDraft, setChildLists, setChildren, setRenderedChildren, setRuntimeRootStyle, shadowStage, shortAgo, showNativeLayer, showReadingSubject, shownParts, shownWindow, Z as signal, sizeObserver, styleMap, synNodes, syntax, tabStore, textNodesUnder, threadActions, threadBox, threadInput, threadSummary, threadSurface, turns as threadTurns, tokenLines, under, unsafeHTML, watchDraft, watchReadingRegionTransitions, wear, whenLeft, whileConnected, widgetController, wireInput, workAncestor, workElements, workRole, worksInside, wrote };

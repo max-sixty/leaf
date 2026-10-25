@@ -120,15 +120,6 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
   (`state.held_claims`, `state.retire_claim`). `page init` on a fresh page clears the
   prior claim and its locator.
 
-- `<state-home>/http-connections/<page-key>.json` — the host's grants of authenticated
-  HTTPS reads (`http_connections.CONNECTIONS`), each one origin, one credential header
-  and a request allowance that `leaf connection bind` sets and every request, failed
-  ones included, debits before network I/O. The 0600 record holds the credential value
-  from the binding process's environment. Grants sit outside page resources, revisions
-  and exports, so copying or publishing a page confers no access; samples and captured
-  previews can't use them. The grant trusts every GET path on its origin, and the
-  module header owns what a request may do.
-
 - `<state-home>/rows/<page-key>.json` — disposable output of a serving page's own
   activity, for its neighbours (`server_rows.py`). No page's fold reads it.
 

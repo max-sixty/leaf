@@ -265,8 +265,6 @@
       import {
         afterPresentation,
         commands,
-        connection,
-        generate,
         keepsText,
         once,
         PAGE_INTERFACE,
@@ -274,67 +272,6 @@
         readObligations,
         whileConnected,
       } from "/runtime/widget-api.js";
-
-      document.addEventListener(PAGE_INTERFACE, () => {
-        const section = document.querySelector("#bg-http");
-        if (!section || quoted(section) || !once(section)) return;
-        const button = section.querySelector("button");
-        const output = section.querySelector("[role=status]");
-        whileConnected(section, (signal) => {
-          button.addEventListener(
-            "click",
-            async () => {
-              button.disabled = true;
-              keepsText(output, "Reading…");
-              try {
-                const response = await connection("example").fetch("/items");
-                keepsText(
-                  output,
-                  `HTTP ${response.status}: ${response.body.slice(0, 500)}`,
-                );
-              } catch (error) {
-                keepsText(output, error.message);
-              } finally {
-                button.disabled = false;
-              }
-            },
-            { signal },
-          );
-        });
-      });
-
-      document.addEventListener(PAGE_INTERFACE, () => {
-        const section = document.querySelector("#bg-llm");
-        if (!section || quoted(section) || !once(section)) return;
-        const button = section.querySelector("button");
-        const output = section.querySelector("[role=status]");
-        whileConnected(section, (signal) => {
-          button.addEventListener(
-            "click",
-            async () => {
-              button.disabled = true;
-              keepsText(output, "Generating…");
-              try {
-                const result = await generate({
-                  input: "Write a five-word headline: A library now opens on Sundays.",
-                  schema: {
-                    type: "object",
-                    properties: { headline: { type: "string" } },
-                    required: ["headline"],
-                    additionalProperties: false,
-                  },
-                });
-                keepsText(output, `${result.value.headline} (${result.model})`);
-              } catch (error) {
-                keepsText(output, error.message);
-              } finally {
-                button.disabled = false;
-              }
-            },
-            { signal },
-          );
-        });
-      });
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
         const item = readObligations().all.find((q) => q.id === "widget:bg-choice");
@@ -3251,35 +3188,6 @@ switch --readers checkout-api,orders-api</code></pre>
         </lf-tab>
 
         <lf-tab id="bg-view-data" label="Data & work">
-          <section id="bg-http">
-            <h2>Authenticated HTTP</h2>
-            <p>
-              Read /items from the host's example connection. A host grants its HTTPS
-              origin and credential with leaf connection bind; this page has no grant by
-              default. Pressing Read reports the missing grant, or displays the upstream
-              status and text once connected. Each read consumes one request from its
-              allowance; the result is not saved.
-            </p>
-            <button id="bg-http-read" class="button" type="button">Read</button>
-            <p id="bg-http-result" role="status">No HTTP read requested.</p>
-            <p>
-              The <a href="/examples/github-discoveries/">GitHub discoveries page</a>
-              composes this capability with LLM generation. Its queries and editorial
-              logic belong to the page; its saved stories work without a connection.
-            </p>
-          </section>
-          <section id="bg-llm">
-            <h2>LLM generation</h2>
-            <p id="bg-llm-guide">
-              Press Generate to ask the host's model for a five-word headline about a
-              library opening on Sundays. The response appears below with the model's
-              name. A page without an active Codex, Claude Code or Pi claim reports that
-              a claim is required. Each press can incur model usage; the result is not
-              saved.
-            </p>
-            <button id="bg-llm-generate" class="button" type="button">Generate</button>
-            <p id="bg-llm-result" role="status">No generation requested.</p>
-          </section>
           <section id="bg-external-data">
             <p class="eyebrow bg-feature-elements">lf-text-document · lf-num</p>
             <h2>

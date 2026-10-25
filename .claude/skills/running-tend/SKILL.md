@@ -187,10 +187,9 @@ and its lane's next passing run closes it.
 ## Leave backlog issues to the maintainer
 
 An issue labelled `backlog` is an item on the maintainer's prioritised backlog
-(`TODO.md` says how it is kept), not a report awaiting triage. `tend-triage`
-skips an issue opened with that label. When one reaches you another way, such as
-an unread notification, take no action, post nothing, and acknowledge the
-notification.
+(`TODO.md` says how it is kept), not a report awaiting triage. When one reaches
+you, whether through triage or an unread notification, take no action, post
+nothing, and acknowledge the notification.
 
 ## Nightly: model and harness releases
 

@@ -378,11 +378,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		});
 		const held = () => busy() || errorOver(ta) !== null;
 		sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
-		if (icon) sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
-		else {
-			const word = typeof sends === "function" ? sends() : sends;
-			sendBtn.replaceChildren(word.charAt(0).toUpperCase() + word.slice(1));
-		}
+		sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
 		const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
 		mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
 		mediaShelf.sent = sentMedia;
@@ -9781,33 +9777,34 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
         .textContent=${entry.title}
       ></button>` : entry.title;
 	const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
-	const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
-	const actionCell = html`<td role="gridcell">${actionBody}</td>`;
+	const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
+	const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
 	return html`
-    <tr
+    <div
       id=${entry.rowId}
       role="row"
-      class=${entry.sequenceControl ? "lf-sequence-command" : ""}
+      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}
     >
-      <td role="gridcell">
+      ${actionCell}
+      <div role="gridcell" class="lf-command-reference-key">
         ${entry.keySequence ? keySequenceTemplate(entry.keySequence, {
 		id: entry.keyId,
 		label: entry.keyLabel
 	}) : nothing}
-      </td>
-      ${actionCell}
-    </tr>
+      </div>
+      ${descriptionCell}
+    </div>
   `;
 }
 const headingRow = (id, title, hidden = false) => html`
-  <tbody ?hidden=${hidden}>
-    <tr role="row">
-      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
-    </tr>
-  </tbody>
+  <div role="rowgroup" ?hidden=${hidden}>
+    <div role="row">
+      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
+    </div>
+  </div>
 `;
 const commandReferenceItems = () => {
 	const visible = [];
@@ -9859,14 +9856,14 @@ const commandReferenceItems = () => {
 };
 function commandReferenceItemTemplate(item) {
 	if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
-	return html`<tbody
+	return html`<div
     role="rowgroup"
     aria-labelledby=${item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId}
     class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
     ?hidden=${item.hidden}
   >
     ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
-  </tbody>`;
+  </div>`;
 }
 function commandReferenceTemplate() {
 	const items = commandReferenceItems();
@@ -9910,13 +9907,7 @@ function commandReferenceTemplate() {
       role="grid"
       aria-label="Command reference"
     >
-      <table role="presentation">
-        <colgroup>
-          <col class="lf-command-reference-key-column" />
-          <col />
-        </colgroup>
-        ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
-      </table>
+      ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
         <div class="lf-command-reference-empty" role="gridcell">
           No matching commands
@@ -10029,7 +10020,7 @@ function moveCommandReferenceSelection(dir) {
 	presentCommandReference();
 	const next = commandButton(nextId);
 	if (focusedId) focusDestination(next, "move");
-	scrollIntoView(next.closest("tr"), { block: "nearest" });
+	scrollIntoView(next.closest("[role=\"row\"]"), { block: "nearest" });
 	beginWalk("shortcut-command", "Command", () => {
 		const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
 		return listWalkPosition(commandReferenceView.visibleCommands.map(({ entry }) => entry.id), current);

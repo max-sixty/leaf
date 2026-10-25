@@ -168,6 +168,15 @@ representative desktop viewport.
   edged on one side is never rounded: mark a state with a whole contour, or a stripe on
   a square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
   `test_no_rule_rounds_a_box_edged_on_one_side`.
+- **Leaf's controls are few, and each shows a symbol rather than a word where a
+  familiar symbol says what it does.** The words on Leaf's controls compete with the
+  page's own words for the reader's attention, and a symbol is smaller and quieter.
+  Draw it from `runtime/icons.js` and give the control its name as tooltip and
+  accessible name, without the word beside the symbol. One control whose symbol follows
+  its state, such as play turning to pause, replaces a button for each state. A word
+  stays where a symbol would leave the reader guessing, as in the rows of the leaf's
+  menu, which the user opened to read. Symbols don't license more controls: a surface
+  at rest shows only what its task needs, and the leaf's menu holds the rest.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.

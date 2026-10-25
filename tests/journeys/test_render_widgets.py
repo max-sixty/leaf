@@ -1706,7 +1706,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    # Copy is the code block's control, floating at the instruction pane's corner
+    # Copy is the code block's control, a toolbar on the instruction pane's top border,
     # while the pointer is over the pane or the user is in it.
     pane = playground.locator(".lf-playground-instruction-region")
     copy = pane.get_by_role("button", name="Copy instruction")

@@ -432,6 +432,71 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
     assert all(event["anchor"] == {"section": "revised-quotes"} for event in moves)
 
 
+SIDEBAR_TRACK_PAGE = leaf_page(
+    "sidebar track quotes",
+    """<header><h1>Release review</h1></header>
+<aside id="track">
+  <section id="verdict"><h2>Verdict</h2><p>Approve, with two follow-ups.</p></section>
+  <section id="owners"><h2>Owners</h2><p>The payments on-call runs the cutover.</p></section>
+</aside>
+<div id="body"><p>The canary held its error rate at every step.</p></div>""",
+    layout="sidebar",
+)
+
+
+def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, serve):
+    """The runtime gathers a sidebar page's track's blocks into a box the file doesn't
+    have (prepaint.js, `holdTrack`), and a quote from those blocks still reads the same
+    in the browser as in the file: inside one block, and across two, sectioned by the
+    track. Where the box changed the reading, a comment written in the browser would
+    detach in `leaf thread create`'s reading, or the reverse."""
+    page = open_page(browser, live_url(serve(SIDEBAR_TRACK_PAGE)))
+    resized(page, 1440, 900)
+    expect(page.locator("#track > [data-lf-track-body] > #owners")).to_have_count(1)
+    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    cases = [
+        ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),
+        ("#verdict p", "two follow-ups.", "track", "#owners h2", "Owners"),
+    ]
+    for index, (start, start_words, section, end, end_words) in enumerate(cases, 1):
+        selected = page.evaluate(
+            """([start, startWords, end, endWords]) => {
+                const text = (selector) => document.querySelector(selector).firstChild;
+                const range = document.createRange();
+                range.setStart(text(start), text(start).data.indexOf(startWords));
+                const last = text(end);
+                range.setEnd(last, last.data.indexOf(endWords) + endWords.length);
+                getSelection().removeAllRanges();
+                getSelection().addRange(range);
+                return getSelection().toString();
+            }""",
+            [start, start_words, end, end_words],
+        )
+        page.dispatch_event("body", "mouseup")
+        open_selected_comment(page)
+        page.locator(".lf-fab-input").click()
+        write(page.locator(".lf-composer leaf-text"), f"track {index}")
+        with sending(page, f"the track {index} comment"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        expect_open_threads(page, index)
+        captured = [
+            event["anchor"]
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "comment"
+        ][-1]
+        expected = anchor_capture_model.capture_anchor(
+            structure_model.SourceDocument(SIDEBAR_TRACK_PAGE),
+            registry,
+            captured["quote"],
+            section,
+        )
+        assert captured == expected, (selected, captured, expected)
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    assert stranded_quotes(page) == []
+
+
 @pytest.mark.parametrize("panes", [False, True], ids=["obligation", "panes"])
 def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, panes):
     """A pane does not turn visible prose into separate quotation islands."""

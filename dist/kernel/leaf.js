@@ -8652,6 +8652,35 @@ if (SHARE_ROOT) registerPageControl({
 	copies: shareUrl,
 	group: "page"
 });
+function claimantValue(state) {
+	const { session_name: name, claim_session: id, session_cwd: cwd } = state;
+	const where = cwd ? cwd.split("/").findLast(Boolean) : null;
+	return [
+		name || id.slice(0, 8),
+		where,
+		state.session_alive === false && "ended"
+	].filter(Boolean).join(" · ");
+}
+function claimantDiagnostics(state) {
+	return [
+		"Agent session",
+		`agent: ${state.agent}`,
+		...state.session_name ? [`name: ${state.session_name}`] : [],
+		`id: ${state.claim_session}`,
+		...state.session_cwd ? [`directory: ${state.session_cwd}`] : [],
+		`running: ${state.session_alive !== false}`
+	].join("\n");
+}
+const claimed = () => Boolean(runtime.state?.claim_session);
+registerPageControl({
+	key: "claimant",
+	rank: PAGE_CONTROL_RANK.claimant,
+	label: "agent session",
+	value: () => claimed() ? claimantValue(runtime.state) : "",
+	copies: () => claimed() ? claimantDiagnostics(runtime.state) : "",
+	offered: claimed,
+	group: "page"
+});
 const preview = () => runtime.state?.preview ?? null;
 function previewLabel() {
 	const state = runtime.state;

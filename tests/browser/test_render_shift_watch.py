@@ -2407,6 +2407,51 @@ def test_press_owned_native_height_flow_is_credited(browser):
     assert take_browser_errors(page) == []
 
 
+@pytest.mark.parametrize("seated", [True, False], ids=["in-its-line", "in-the-window"])
+def test_press_owned_size_flow_crosses_a_shadow_boundary(browser, seated):
+    """A press-owned fold inside a widget's shadow root carries the page's reading after
+    the widget's host, and a control absolutely positioned in a later line of that root,
+    after the press's own rendering has ended, as a resolved thread's fold in a diff runs
+    on once the server's reading lands. A control positioned against the window isn't
+    carried by that flow, so a script moving it by the fold's travel still fails."""
+    line = "position:relative" if seated else ""
+    seat = "top:0" if seated else "top:400px"
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<button id="start">Start</button>'
+            '<div id="widget"></div><p id="below">Below the widget.</p>'
+            '<script>const root = widget.attachShadow({mode: "open"});'
+            'root.innerHTML = \'<div id="fold" style="height:300px"></div>'
+            f'<div style="{line}">A later line'
+            f'<button id="seated" style="position:absolute;left:200px;{seat}">'
+            "Seated</button></div>';"
+            'start.addEventListener("pointerdown", () => {'
+            'window.effect = root.getElementById("fold").animate('
+            '[{height:"300px"}, {height:"0px"}], {duration:400, fill:"forwards"});'
+            "effect.playbackRate = 0; effect.currentTime = 0;});</script>"
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate(
+        """seated => {
+      effect.currentTime = 400;
+      if (!seated) widget.shadowRoot.getElementById('seated').style.top = '100px';
+    }""",
+        seated,
+    )
+    judge_watches()
+    if seated:
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("button#seated"))
+
+
 def test_absolute_size_animation_cannot_credit_an_independent_control_move(browser):
     """Matching travel does not join an out-of-flow effect to a later control."""
     page = browser.new_page()

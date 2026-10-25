@@ -290,9 +290,9 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
         capture_output=True,
         text=True,
-        check=True,
         env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
+    assert ran.returncode == 0, ran.stdout + ran.stderr
     screens = json.loads(ran.stdout)["browser"]["screens"]
     into = Path(screens["directory"])
     shows = {screen["file"]: screen["shows"] for screen in screens["files"]}

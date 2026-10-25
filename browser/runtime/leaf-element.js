@@ -383,8 +383,10 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     }
     if (this.#held) return false;
     // The claim this update draws, from its gate on; one its own reads claim while it
-    // runs is the next's. An update that draws nothing settles it all the same.
-    this.#drawing = this.#ticket;
+    // runs is the next's. Before the first successful draw, Lit can retry a skipped
+    // update without requestUpdate claiming it. Every connected update owns a claim,
+    // including one that draws nothing and settles immediately.
+    this.#drawing = this.#ticket ?? this.#claim();
     this.#ticket = null;
     if (!this.#draws()) return false;
     this.#deliverInputs();

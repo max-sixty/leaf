@@ -780,9 +780,8 @@ def test_a_constrained_target_carries_its_row_through_scroll(browser, serve, sub
 
     Sticky constraints can belong to the target or an ancestor, and a fixed target
     stays put through the document's scroll. Firefox draws a stuck target's row where
-    the target would stand unstuck, and WebKit moves a fixed target's row with the
-    document's scroll (notes/browser-support.md, "A stuck sticky anchor in Firefox",
-    "An anchor under a fixed box in WebKit").
+    the target would stand unstuck (notes/browser-support.md, "A stuck sticky anchor
+    in Firefox").
     """
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1280, 900)

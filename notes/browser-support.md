@@ -211,16 +211,7 @@ Firefox on macOS bounced a sticky column with trackpad overscroll on
 positioning to stay still; other root-sticky boxes can still bounce.
 Recheck with a native trackpad fling at the document's end; headless Playwright
 supplies no overscroll. If engines hold sticky boxes still, the column can
-return to sticky positioning. Its current cost is the WebKit anchor drift below.
-
-### An anchor under a fixed box in WebKit
-
-A mark, margin row or floating card targeting a fixed panel drifts as the
-page scrolls. Playwright WebKit 26.6 applied the root scroll twice on
-2026-10-14; Chromium 153, Chrome 155 and Firefox 155 placed it on the target.
-`browser/runtime/css-anchors.js` accepts this gap; Leaf's page-of-parts column
-is an affected surface. Recheck a fixed anchored box against a target in a
-fixed scrolling panel while scrolling both the document and panel.
+return to sticky positioning.
 
 ### An anchor's transforms in Firefox
 

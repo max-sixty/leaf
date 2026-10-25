@@ -118,14 +118,19 @@
   @container style(--lf-full-height: 1) {
     /* Each box passes the height on, so the panes in the split are told they have one
        (`--lf-full-height`, layouts.css) and scroll their bodies, and the instruction
-       knows which way it unfolds. */
+       and its copy know which way it unfolds. */
     :scope:is(lf-playground) {
       min-block-size: 0;
       margin-block: 0;
       --lf-full-height: inherit;
     }
 
-    :is(.lf-playground-split, .lf-playground-rail, .lf-playground-instruction) {
+    :is(
+      .lf-playground-split,
+      .lf-playground-rail,
+      .lf-playground-instruction,
+      .lf-playground-actions
+    ) {
       min-block-size: 0;
       --lf-full-height: inherit;
     }
@@ -163,6 +168,9 @@
       order: -1;
       border-top: 0;
       border-bottom: 1px solid var(--rule);
+    }
+    .lf-playground-instruction > .lf-playground-actions > .lf-code-copy {
+      top: 0;
     }
   }
 }
@@ -407,6 +415,7 @@
 }
 
 .lf-playground-actions {
+  position: relative;
   padding: 12px 18px;
   display: flex;
   flex-wrap: wrap;
@@ -422,23 +431,28 @@
 }
 
 /* The instruction's copy is a code block's (lf-playground.js), a toolbar of one mark on
- * the unfolded instruction's top rule at the right, as a code block's stands on its
- * block's (integration.css, `.lf-mark-bar`), and shows as a code block's does, while the
- * pointer is over the pane or the user is in it. It stands inside the instruction, so
- * the instruction places it rather than the anchor `copyBlock` names: Playwright Firefox
+ * the rule between the actions and the unfolded instruction, as a code block's stands on
+ * its block's top border (integration.css, `.lf-mark-bar`), and shows as a code block's
+ * does, while the pointer is over the pane or the user is in it. It stands at the rule's
+ * start: at its end it covered the key badge the submit button wears while the user is
+ * in the playground, where the instruction unfolds above the bar. It stands in the bar,
+ * which places it rather than the anchor `copyBlock` names, since Playwright Firefox
  * drew the anchored copy 20 to 365 px above the pane in three of the four bundled
- * playgrounds on 2026-10-24, where Chromium placed it on the corner. The right inset
- * stands the mark where it would sit inside a bordered block's 1px border. */
+ * playgrounds on 2026-10-24. A copy on the pane's top border, standing in the
+ * instruction, was clipped where a held workspace scrolls the pane's body; the rule is
+ * inside that body. The inset stands the mark where a code block's stands. */
 .lf-playground-instruction-body {
-  position: relative;
   padding: 12px 18px 16px;
   border-top: 1px solid var(--rule);
 }
-.lf-playground-instruction-body .lf-code-copy {
-  top: 0;
-  right: calc(var(--lf-mark-bar-end) - 1px);
-  left: auto;
+.lf-playground-actions > .lf-code-copy {
+  top: 100%;
+  left: calc(var(--lf-mark-bar-end) - 1px);
   translate: 0 calc(-50% - 0.5px);
+}
+.lf-playground-instruction:has(> .lf-playground-instruction-body[hidden])
+  .lf-code-copy {
+  display: none;
 }
 .lf-playground-instruction-region:is(:hover, [data-lf-focus-within]) .lf-code-copy {
   opacity: 1;

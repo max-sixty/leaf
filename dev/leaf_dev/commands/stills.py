@@ -1230,7 +1230,7 @@ def playground_instruction(page: Page) -> None:
     """The playground's instruction unfolded under the pointer, showing its copy."""
     page.get_by_role("button", name="Show instruction").click()
     page.locator("lf-playground-output").hover()
-    expect(page.locator(".lf-playground-instruction-body .lf-code-copy")).to_have_css(
+    expect(page.locator(".lf-playground-actions > .lf-code-copy")).to_have_css(
         "opacity", "1"
     )
 

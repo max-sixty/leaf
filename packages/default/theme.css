@@ -1341,7 +1341,10 @@
   display: block;
   font-weight: 600;
   line-height: 1.4;
-  margin: 0 0 2px;
+  margin: 0;
+}
+:scope:is(lf-card) > strong + p {
+  margin-block-start: 0;
 }
 :scope:is(lf-card) .lf-grip {
   position: absolute;

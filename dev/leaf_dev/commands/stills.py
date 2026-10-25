@@ -271,6 +271,12 @@ def diff_filter(page: Page) -> None:
     settle(page)
 
 
+def diff_separator(page: Page) -> None:
+    """A hunk separator's label between the source lines around it."""
+    page.locator("#pr-key-hunk [data-separator]").first.scroll_into_view_if_needed()
+    settle(page)
+
+
 def playground_text(page: Page) -> None:
     """A playground's native text control with the shared field face and focus."""
     field = page.get_by_role("textbox", name="Notification title", exact=True)
@@ -1516,6 +1522,12 @@ STATES = (
         "pr-walkthrough",
         diff_filter,
         region="#pr-key-hunk .lf-diff-tools",
+    ),
+    State(
+        "diff-separator",
+        "pr-walkthrough",
+        diff_separator,
+        region="#pr-key-hunk .lf-diff-rows",
     ),
     State(
         "diff-filter-phone-dark",

@@ -52,6 +52,7 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import schema as schema_model
+from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -718,6 +719,47 @@ def test_a_handover_its_turn_never_confirmed_is_offered_again(
         {"hook_event_name": "PreToolUse", "session_id": "s1", "prompt_id": "p2"},
     )
     assert acknowledged_through(claimed) > resolve["seq"]
+
+
+def test_the_server_nudges_a_first_claiming_turn_escape_left_unwatched(
+    claimed, interactive, monkeypatch
+):
+    """The turn that first claims a page started its prompt's watch before the
+    session held one, so that watch ended at once (`hooks.cmd_watch`), and Escape
+    ends the turn with no Stop hook to start another. The page's server reads the
+    turn interrupted in Claude Code's record and messages the session for the
+    comment that arrived meanwhile. While a watch holds the lease it sends nothing,
+    since that watch wakes the session itself."""
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed)
+    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
+    )
+    nudged = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "nudge",
+        lambda harness, page: nudged.append(page) or True,
+    )
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
+    )
+    server = server_rows_model.RowPublisher(claimed, "fixture-server")
+    server.refresh()
+    assert nudged == []
+
+    time.sleep(0.01)
+    live.update(state="idle", since=datetime.now().astimezone().isoformat())
+    lease = leases_model.take_lease(leases_model.waiter_lease_path(claimed, "s1"))
+    server.live_until = 0
+    server.refresh()
+    assert nudged == []
+
+    leases_model.release_lease(lease)
+    server.live_until = 0
+    server.refresh()
+    assert nudged == [claimed]
 
 
 def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path):

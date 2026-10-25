@@ -81,10 +81,10 @@ class Harness:
       `--print`, where no watch follows the turn (`hook_transport`). The prompt
       hook starts a watch too, which waits while its turn runs, so a turn an
       interrupt ends without its Stop hooks still has one, unless the session
-      held no page when that turn's prompt came. A watch can still
-      stop while the session lives on, failing or at its hook's timeout, or with
-      a background job's retired worker, which is why this is the harness with a
-      `nudge`.
+      held no page when that turn's prompt came. Then nothing watches, as when a
+      watch fails, reaches its hook's timeout or loses a background job's retired
+      worker, while the session lives on, which is why this is the harness with a
+      `nudge` (`presence.nudge_interrupted`).
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.

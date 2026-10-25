@@ -597,11 +597,10 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     expect(controls).not_to_have_attribute("data-lf-more-below", "")
 
 
-def test_a_playground_followed_by_a_note_keeps_its_instruction_off_the_note(
-    browser, serve
-):
+def test_a_playground_followed_by_a_note_keeps_its_actions_off_the_note(browser, serve):
     # From the bad-pages eval (notes/agent-usability-evals.md): two of three authors
-    # put an open note after the playground, and the instruction drew over it at 900px.
+    # put an open note after the playground, and the pane of its actions drew over it
+    # at 900px.
     source = leaf_page(
         "Alert workspace with a note",
         '<lf-ask id="noted-ask"><h1>Tune alert policies</h1>'
@@ -620,10 +619,10 @@ def test_a_playground_followed_by_a_note_keeps_its_instruction_off_the_note(
     )
     page = open_page(browser, serve(source))
     resized(page, 900, 700)
-    instruction = page.locator("#noted-config .lf-playground-instruction-region")
+    actions = page.locator("#noted-config .lf-playground-instruction-region")
     note = page.locator("#tally-note")
     assert (
-        instruction.bounding_box()["y"] + instruction.bounding_box()["height"]
+        actions.bounding_box()["y"] + actions.bounding_box()["height"]
         <= note.bounding_box()["y"] + 0.5
     )
     note.scroll_into_view_if_needed()

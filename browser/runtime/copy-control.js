@@ -44,10 +44,7 @@ function copyThroughSelection(value) {
 
 /** A copy control named `label`, drawn with `icon`, that says `success` or `error`
  * once pressed. */
-export function copyControl(
-  className,
-  { label = "", success, error, icon = "copy" },
-) {
+export function copyControl(className, { label = "", success, error, icon = "copy" }) {
   const copy = offer("wa-copy-button", className);
   for (const [name, slot] of [
     [icon, "copy-icon"],

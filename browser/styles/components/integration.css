@@ -60,8 +60,7 @@ html[data-lf-draw-mode] main {
   position: absolute;
   /* Hidden sources have no anchor; their chrome controls stay outside the window. */
   top: calc(
-    anchor(top, -9999px) - var(--lf-code-copy-box) / 2 +
-      var(--lf-block-control-dy, 0px)
+    anchor(top, -9999px) - var(--lf-code-copy-box) / 2 + var(--lf-block-control-dy, 0px)
   );
   left: calc(
     anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-code-copy-box) +

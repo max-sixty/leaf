@@ -452,8 +452,8 @@ export function createFloatingPanel({
   // (assets/AGENTS.md, "A control takes only its own room"). It stood at the end of the
   // line over the field until, on 17 October, that line stopped saying where the words
   // go and so stopped standing over them. Pressing it widens the
-  // panel and lets the field take most of the window, so the words re-wrap because the
-  // user asked. It folds back when the field empties, a send included, or on a second
+  // panel and stands the field half the window tall (floating-panel.css), so the words
+  // re-wrap because the user asked. It folds back when the field empties, a send included, or on a second
   // press. The user chose this on 15 October over the panel widening by itself at the
   // third line, which re-wraps every line under the caret; no composer they compared
   // widens on its own (Open WebUI and Zulip offer the same press once text is long).
@@ -3335,7 +3335,7 @@ export function createFloatingPanel({
         menuFade = null;
         render(nothing, menu);
       }
-    } else if (menuDrawn && !menuFade) {
+    } else if (menuDrawn && !menuFade && motionPlays()) {
       menu.setAttribute("data-leaving", "");
       menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
         duration: motionTime("--lf-motion-disclosure", menu),

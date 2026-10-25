@@ -78,7 +78,7 @@ def panel_comment(d, text, anchor=None, author="user", *, question=None):
 
 def answered_comment(d, text, anchor):
     """A user's thread the agent has replied to, so an obligation it is about waits on the
-    user again rather than on that reply (`obligations.sections_with_agent`)."""
+    user again rather than on that reply (`obligations.anchors_with_agent`)."""
     root = panel_comment(d, text, anchor)
     append_carried_log_record(
         d,
@@ -1318,7 +1318,7 @@ THREAD_OBLIGATIONS = [
 # A widget the shipped packages no longer have: one the user owes an answer on that
 # also seats a thread of its own. A thread anchored on any obligation splits the user's list
 # from the unanswered decisions while the agent has the next word, taking the obligation off
-# the list without answering it (`obligations.sections_with_agent`); a seat is where a
+# the list without answering it (`obligations.anchors_with_agent`); a seat is where a
 # user most often starts one. `lf-options` supplied the pair until 292de9c made the
 # user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
 # rather than borrowed from whichever shipped entry happens to carry it: the reading

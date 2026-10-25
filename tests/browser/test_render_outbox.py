@@ -562,6 +562,11 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
     def pressed_without_taking():
         page.keyboard.press("z")
         expect(picks).to_be_in_viewport()
+        # A scroll clears the arm only once the arm has seen what the press showed: its
+        # travel finished and the next pass read it in view. The user is on it from
+        # then, so a scroll before it would be one no user could make.
+        page.wait_for_function("() => !navigation.transition")
+        rendered(page)
         told(page)
         assert _undos(serve.page_dir) == []
 
@@ -574,6 +579,8 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
     page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
     scroll_settled(page)
     expect(picks).not_to_be_in_viewport()
+    # The arm reads the scroll in the pass after the window moves.
+    rendered(page)
     pressed_without_taking()
 
     page.mouse.move(400, 300)
@@ -2691,8 +2698,14 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     field = page.locator(".lf-fab-input")
     write(field, "Half a thought")
     expect(field).to_be_focused()
+    rendered(page)
     box = page.locator(".lf-fab-bar")
-    at = box.bounding_box()["y"]
+    # Where the field stands is read against its target: the scroll offset that brings
+    # the target back is not the one read here once anything above it reflows, which
+    # scroll anchoring then absorbs.
+    beside = """box => box.getBoundingClientRect().top
+      - document.getElementById('p30').getBoundingClientRect().top"""
+    at = box.evaluate(beside)
     away = (
         "document.scrollingElement"
         if scroller == "page"
@@ -2717,8 +2730,8 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     expect(box).to_be_visible()
     expect(field).to_have_js_property("value", "Half a thought")
     expect(field).to_be_focused()
-    assert box.bounding_box()["y"] == pytest.approx(at, abs=1), (
-        "the field came back somewhere other than where it stood"
+    assert box.evaluate(beside) == pytest.approx(at, abs=1), (
+        "the field came back somewhere other than beside its target"
     )
     page.keyboard.type(" more")
     expect(field).to_have_js_property("value", "Half a thought more")

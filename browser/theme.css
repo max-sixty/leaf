@@ -1831,7 +1831,8 @@ dd {
 figcaption,
 caption,
 th:not([scope=row]),
-.facts dt {
+.facts dt,
+summary {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }

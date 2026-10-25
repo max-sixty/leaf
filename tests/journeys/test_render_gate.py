@@ -381,9 +381,7 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
         )
 
     failures = render_gate_model.render_version(
-        primed(browser.unwatched, make_readiness_async),
-        serve(LONG_PAGE),
-        served_timeout_ms=500,
+        primed(browser.unwatched, make_readiness_async), serve(LONG_PAGE)
     ).failures
 
     assert failures

@@ -357,10 +357,17 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     page.get_by_role("button", name="Wide", exact=True).click()
     assert values()["width"] == 4
     assert child_button.evaluate(focused), "preset"
+    # A range takes native focus to be dragged, and the sample's location comes back
+    # through its port after the press, so the user is back once that answer lands.
+    child = page.locator("#ring-sample iframe").element_handle().content_frame()
+    back_in_sample = (
+        "() => document.querySelector('#child-button').matches(':focus')"
+        " && document.hasFocus()"
+    )
     slider = playground.get_by_role("slider", name="Width").bounding_box()
     page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     assert values()["width"] == 1
-    assert child_button.evaluate(focused), "slider"
+    child.wait_for_function(back_in_sample)
     page.mouse.move(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     page.mouse.down()
     page.mouse.move(
@@ -370,7 +377,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     )
     page.mouse.up()
     assert values()["width"] == 4
-    assert child_button.evaluate(focused), "slider drag"
+    child.wait_for_function(back_in_sample)
     sample = page.locator("#ring-sample")
     sample.evaluate(
         """sample => {

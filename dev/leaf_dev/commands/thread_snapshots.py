@@ -315,27 +315,51 @@ def capture_command(store: str) -> list[str]:
     ]
 
 
-# CI's runner is ubuntu-24.04 on x86_64 with Playwright's browsers and fonts-dejavu
-# (`leaf-dev setup`); the image matches its OS release and browser build.
+# CI's runner is ubuntu-24.04 on x86_64; the image matches its OS release and browser
+# build. The bootstrap installs the host tools `.github/actions/setup` supplies (uv,
+# Node and pnpm), then runs `leaf-dev setup`, CI's own setup, before the capture. Leaf
+# reads its checkout's commit (`leaf.layer`), so the tree is committed as CI's is.
 LINUX_PLATFORM = "linux/amd64"
-LINUX_BOOTSTRAP = """set -euo pipefail
+SETUP_FAILED = 100
+CHROMIUM_FAILED = 101
+LINUX_BOOTSTRAP = f"""set -euo pipefail
+trap 'exit {SETUP_FAILED}' ERR
 export DEBIAN_FRONTEND=noninteractive PATH="$HOME/.local/bin:$PATH"
-apt-get update -qq
-apt-get install -y -qq fonts-dejavu git >/dev/null
+curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
 apt-get install -y -qq nodejs >/dev/null
-curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null
+corepack enable
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 mkdir -p /work
 tar -xf - -C /work
 cd /work
 git init -q
 git add -A
 git -c user.name=capture -c user.email=capture@localhost commit -qm capture
-corepack enable
-COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile --reporter=silent
-uv run --frozen leaf-dev fetch-assets
+uv run --frozen leaf-dev setup
+trap - ERR
+uv run --frozen python -c '
+from playwright.sync_api import sync_playwright
+with sync_playwright() as playwright:
+    playwright.chromium.launch().new_page().screenshot()
+' || exit {CHROMIUM_FAILED}
 exec uv run --frozen "$@"
 """
+
+
+def docker_failure(status: int) -> str | None:
+    """Why the container, rather than the capture's assertions, failed, if it did."""
+    if status in (125, 126, 127):
+        return f"docker could not run the Linux image (exit {status}); see its message above"
+    if status == SETUP_FAILED:
+        return "setting up the Linux image failed; see the output above"
+    if status == CHROMIUM_FAILED:
+        return (
+            "Chromium cannot run in the Linux image. On Apple Silicon the runtime must "
+            "emulate x86_64 with Rosetta (Colima's --vz-rosetta, or Docker Desktop's "
+            "Rosetta setting); under QEMU Chromium's GPU process crashes."
+        )
+    return None
 
 
 def working_tree_tar() -> bytes:
@@ -360,7 +384,7 @@ def linux_capture(directory: Path) -> subprocess.CompletedProcess:
     runs = ROOT / ".tmp/thread-snapshots/runs"
     runs.mkdir(parents=True, exist_ok=True)
     image = f"mcr.microsoft.com/playwright/python:v{version('playwright')}-noble"
-    return subprocess.run(
+    result = subprocess.run(
         [
             "docker",
             "run",
@@ -383,6 +407,10 @@ def linux_capture(directory: Path) -> subprocess.CompletedProcess:
         input=working_tree_tar(),
         check=False,
     )
+    if failure := docker_failure(result.returncode):
+        shutil.rmtree(directory)
+        raise click.ClickException(failure)
+    return result
 
 
 @thread_snapshots.command("capture")
@@ -396,6 +424,10 @@ def capture(linux: bool):
     if not (linux or COMPARED):
         raise click.ClickException(
             "thread appearance is captured on macOS or Linux; pass --linux"
+        )
+    if linux and not shutil.which("docker"):
+        raise click.ClickException(
+            "capture --linux needs the docker CLI and a running Docker runtime"
         )
     directory = ROOT / ".tmp/thread-snapshots/captures" / uuid.uuid4().hex
     directory.mkdir(parents=True)

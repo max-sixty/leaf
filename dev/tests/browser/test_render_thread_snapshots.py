@@ -9,7 +9,9 @@ from leaf_dev.commands.thread_snapshots import COMPARED
 
 
 @pytest.mark.skip(reason="paused: TODO.md, Resume the thread appearance gate")
-@pytest.mark.skipif(not COMPARED, reason="thread appearance is reviewed on macOS")
+@pytest.mark.skipif(
+    not COMPARED, reason="thread appearance is reviewed on macOS and Linux"
+)
 def test_accept_publishes_only_a_successful_unchanged_capture(
     browser, thread_expected_store, tmp_path, monkeypatch
 ):

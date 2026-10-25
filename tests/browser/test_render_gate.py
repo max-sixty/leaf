@@ -3402,14 +3402,25 @@ NEXT_TAB = """(opened) => {
 }"""
 
 
+# Press a sibling of a tab in its strip (`away`), or the tab itself.
+REOPEN_TAB = """([id, away]) => {
+  const tab = [...document.querySelectorAll('[role="tab"]')].find(
+    (tab) => tab.getAttribute('aria-controls') === id,
+  );
+  const siblings = [...tab.parentElement.closest('.lf-tabstrip').querySelectorAll('[role="tab"]')];
+  (away ? siblings.find((other) => other !== tab) : tab).click();
+}"""
+
+
 def _short_aims(page, *, every_tab):
     short, seen = {}, 0
     # Opening a tab hands the browser a block of new layout, and under load it may say
-    # once that a ResizeObserver delivery was deferred. That is the platform's notice,
-    # which `navigate` also sets aside on a first sighting; this reading measures
-    # sizes and does not confirm the notice again.
+    # once that a ResizeObserver delivery was deferred. As `navigate` does, a first
+    # sighting is the platform's notice and is set aside; the tab is opened again, and a
+    # notice that recurs is a resize loop of the page's own and is reported.
     outside = getattr(page, "lf_resize_notices", None)
-    page.lf_resize_notices = []
+    page.lf_resize_notices = notices = []
+    recurred = []
     with under_a_finger(page):
         opened = []
         while True:
@@ -3423,17 +3434,34 @@ def _short_aims(page, *, every_tab):
                 break
             opened.append(tab)
             rendered(page)
+            if notices:
+                notices.clear()
+                # Away to a sibling and back, which opens the tab afresh.
+                page.evaluate(REOPEN_TAB, [tab, True])
+                rendered(page)
+                notices.clear()
+                page.evaluate(REOPEN_TAB, [tab, False])
+                rendered(page)
+                if notices:
+                    recurred.append(f"{tab}: {notices[0].code}")
+                    notices.clear()
     page.lf_resize_notices = outside
     assert seen > 30, f"only {seen} aims stood on the corpus"
-    if not short:
-        return []
-    return [
-        f"{len(short)} aims are smaller than 44px under a finger, of {seen} read:\n"
-        + "\n".join(
-            f"{found} (open on {', '.join(dict.fromkeys(tabs[:3]))})"
-            for found, tabs in sorted(short.items())
+    findings = []
+    if short:
+        findings.append(
+            f"{len(short)} aims are smaller than 44px under a finger, of {seen} read:\n"
+            + "\n".join(
+                f"{found} (open on {', '.join(dict.fromkeys(tabs[:3]))})"
+                for found, tabs in sorted(short.items())
+            )
         )
-    ]
+    if recurred:
+        findings.append(
+            "opening these tabs raised a ResizeObserver loop notice again on a second "
+            "opening:\n" + "\n".join(recurred)
+        )
+    return findings
 
 
 @contextmanager

@@ -476,7 +476,7 @@ export function createThreadPreview({
       scroller,
       coarse: coarsePointer.matches,
     });
-    const { side, fresh } = seat;
+    const { side, fresh, opening } = seat;
     let anchored;
     void floatingUi()
       .then((ui) => {
@@ -520,7 +520,7 @@ export function createThreadPreview({
             // Fitting the width settles wrapping before opening the card spends
             // scroll travel. A scroll supersedes this answer's attachment geometry.
             if (
-              fresh &&
+              opening &&
               (side === "top" || side === "bottom") &&
               makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)
             ) {

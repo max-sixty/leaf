@@ -332,7 +332,8 @@ export const cardMeasure = () => rootLength("--thread-card");
 /* One surface's placement: the side it holds and its inline attachment.
 
    `choose` holds a side, choosing one where none is held or the boundary or `extent`'s
-   width has changed, and says whether it chose afresh. `options` then gives
+   width has changed, and says whether it chose afresh, and whether the surface has
+   yet to land (`opening`). `options` then gives
    `computePosition` the reference to stand by, its placement and its middleware.
    `landed` takes the answer's inline start and where the rule stood the surface's top
    and foot before the boundary shifted it in, from the rule's line. `options` holds
@@ -448,11 +449,13 @@ export function commentPlacement() {
         forget();
       }
       input = key;
-      // A surface is fresh until it first lands, not only on the choice that picks its
-      // side: a placement a newer one supersedes before it fits never opened the
-      // surface, and a card opened while Floating UI first loads is placed again before
-      // that, so it would never make room clear of its target.
-      const fresh = held === null && initialHold === null;
+      // A choice is fresh where it picks the side. The surface is opening until it
+      // first lands: a placement a newer one supersedes before it fits never opened it,
+      // and a card opened while Floating UI first loads is placed again before that, so
+      // only `opening` says it has yet to make room clear of its target. A choice after
+      // the first keeps what that one began, such as the transcript's reading.
+      const fresh = side === null;
+      const opening = held === null && initialHold === null;
       side ??= unanchored
         ? "bottom"
         : commentSide({
@@ -466,6 +469,7 @@ export function commentPlacement() {
       return {
         side,
         fresh,
+        opening,
         adopted: initialHold !== null,
       };
     },

@@ -619,6 +619,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     let visibilityQueued = false;
     const paintSubmitVisibility = () => {
       visibilityQueued = false;
+      keeps(field, "data-words", hasContent(draftValue()) ? "" : null);
       if (mic) {
         const shown = dictationPhase() !== "idle" || !hasContent(draftValue());
         keepsHidden(mic, !shown);

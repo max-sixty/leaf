@@ -578,13 +578,11 @@ def state(
 @page_argument(renew=True)
 @body_options("the changelog")
 @click.option(
-    "--from-directory",
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
-    help="replace index.html and page/ together from this candidate directory",
-)
-@click.option(
-    "--if-source",
-    help="source.digest from page state, required with --from-directory",
+    "--replace",
+    type=(click.Path(exists=True, file_okay=False, path_type=Path), str),
+    metavar="DIR DIGEST",
+    help="replace index.html and page/ together from candidate DIR, if the "
+    "source still has DIGEST, the source.digest page state printed",
 )
 @click.option(
     "--completes",
@@ -597,8 +595,7 @@ def stamp(
     text: str | None,
     body_file,
     completes: tuple[str, ...],
-    from_directory: Path | None,
-    if_source: str | None,
+    replace: tuple[Path, str] | None,
 ) -> dict:
     """Stamp PAGE/index.html with a changelog.
 
@@ -607,9 +604,10 @@ def stamp(
     them done, citing the version. Other to-dos stay open, even when the version
     removes their widget.
 
-    --from-directory replaces index.html and the whole page/ tree and stamps them in
-    one step. Pass --if-source with source.digest from page state before editing; if
-    they have changed since, the stamp is refused and the page is left as it was.
+    --replace DIR DIGEST replaces index.html and the whole page/ tree from DIR and
+    stamps them in one step. DIGEST is source.digest from page state before editing;
+    if the source has changed since, the stamp is refused and the page is left as it
+    was.
     """
     from leaf.publishing import cmd_stamp
 
@@ -617,8 +615,7 @@ def stamp(
         page_dir,
         read_body(text, body_file),
         completes,
-        from_directory=from_directory,
-        if_source=if_source,
+        replace=replace,
     )
 
 
@@ -1020,63 +1017,69 @@ def server() -> None:
     """Start, run, or stop the local server."""
 
 
-def serve_flags(command):
-    """The two statements a serve takes, worn by the launcher and by the process
-    it launches alike: `server start` forwards them verbatim to the `server run`
-    it spawns, so one spelling is what keeps the pair from drifting."""
-    for option in (
-        click.option(
-            "--persistent",
-            is_flag=True,
-            help="decline the session claim, so the server outlives this session "
-            "and only `leaf server stop` ends it — for a page kept up across "
-            "sessions",
-        ),
-        click.option(
+LIFETIMES = {
+    "session": "claimed by this agent session, ending when no live session claims "
+    "the page (persistent from a shell outside any session)",
+    "persistent": "declines the session claim, so only `leaf server stop` ends it, "
+    "for a page kept up across sessions",
+    "temporary": "serves on loopback for this command only, without claiming the page",
+}
+
+
+def serve_flags(*lifetimes: str):
+    """The statements a serve takes: `--lifetime`, among `lifetimes`, and `--host`.
+    `server start` forwards both verbatim to the `server _serve` it spawns, so one
+    spelling keeps the pair from drifting. The values are the `lifetime` a started
+    server prints (`hosting.server_reading`)."""
+
+    def decorate(command):
+        command = click.option(
             "--host",
             metavar="NAME",
             help="bind every interface and put NAME in the URL, for a user the "
             "derived address can't reach; recorded in service.json",
-        ),
-    ):
-        command = option(command)
-    return command
+        )(command)
+        return click.option(
+            "--lifetime",
+            type=click.Choice(lifetimes),
+            default="session",
+            show_default=True,
+            help="; ".join(f"{name}: {LIFETIMES[name]}" for name in lifetimes),
+        )(command)
+
+    return decorate
 
 
 @server.command(short_help="Start a page's server and print its URL.")
 @page_argument(renew=True)
-@serve_flags
-def start(page_dir: Path, host: str | None, persistent: bool) -> dict:
+@serve_flags("session", "persistent")
+def start(page_dir: Path, host: str | None, lifetime: str) -> dict:
     """Start a page's server and print its URL.
 
     Returns once the server and this harness's watcher are ready; the server
     itself keeps running in a session of its own. `leaf server stop` takes one
     down, and a session server goes down with the session that claimed it
     besides. A page already served reconnects delivery and prints that server's
-    URL. `--persistent` claims no page and prepares no agent delivery. Beside the
-    URL it prints the server's lifetime, the page's layer and the Leaf serving it.
+    URL. A persistent server claims no page and prepares no agent delivery. Beside
+    the URL it prints the server's lifetime, the page's layer and the Leaf serving
+    it.
     """
     from leaf.hosting import claim_and_start, started_server
 
-    with claim_and_start(page_dir, host, persistent) as started:
+    with claim_and_start(page_dir, host, lifetime == "persistent") as started:
         pass
     return started_server(page_dir, started.url)
 
 
 @server.command(short_help="Serve a page in the foreground until stopped.")
 @page_argument(renew=True)
-@serve_flags
-@click.option(
-    "--temporary",
-    is_flag=True,
-    help="serve on loopback for this command only, without claiming the page",
-)
-def run(page_dir: Path, host: str | None, persistent: bool, temporary: bool) -> None:
+@serve_flags("session", "persistent", "temporary")
+def run(page_dir: Path, host: str | None, lifetime: str) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
     Run this in a terminal of your own to hold a page up where you can watch it.
-    Browser harnesses use `--temporary`; a user page in an agent session uses
-    `server start`. A page already served prints that server's URL and exits.
+    Browser harnesses use `--lifetime temporary`; a user page in an agent session
+    uses `server start`. A page already served prints that server's URL and exits.
     """
     from leaf.harness import session_harness
     from leaf.hosting import cmd_serve, cmd_serve_temporary
@@ -1085,20 +1088,22 @@ def run(page_dir: Path, host: str | None, persistent: bool, temporary: bool) -> 
     # As for `_serve`, except that a temporary server, which holds no lease,
     # unwinds on every stop.
     release_on_termination()
-    if temporary:
-        if persistent:
-            raise click.UsageError("choose --temporary or --persistent")
-        if host:
-            raise click.UsageError("--temporary is loopback-only; omit --host")
-        cmd_serve_temporary(page_dir)
+    if lifetime == "temporary":
+        cmd_serve_temporary(page_dir, host)
         return
-    cmd_serve(page_dir, host, persistent, harness=session_harness(), acquire=True)
+    cmd_serve(
+        page_dir,
+        host,
+        lifetime == "persistent",
+        harness=session_harness(),
+        acquire=True,
+    )
 
 
 @server.command("_serve", hidden=True)
 # A re-vendor here would restart the server this process is becoming.
 @page_argument(renew=False)
-@serve_flags
+@serve_flags("session", "persistent")
 @click.option("--revive", is_flag=True, hidden=True)
 @click.option("--acquire", is_flag=True, hidden=True)
 @click.option("--claim", hidden=True)
@@ -1107,7 +1112,7 @@ def run(page_dir: Path, host: str | None, persistent: bool, temporary: bool) -> 
 def _serve(
     page_dir: Path,
     host: str | None,
-    persistent: bool,
+    lifetime: str,
     revive: bool,
     acquire: bool,
     claim: str | None,
@@ -1128,7 +1133,7 @@ def _serve(
         cmd_serve(
             page_dir,
             host,
-            persistent,
+            lifetime == "persistent",
             revive,
             harness=harness_from_argument(harness),
             handshake=answer,

@@ -265,19 +265,18 @@ Usage: leaf page stamp [OPTIONS] PAGE
   them done, citing the version. Other to-dos stay open, even when the version
   removes their widget.
 
-  --from-directory replaces index.html and the whole page/ tree and stamps them
-  in one step. Pass --if-source with source.digest from page state before
-  editing; if they have changed since, the stamp is refused and the page is left
-  as it was.
+  --replace DIR DIGEST replaces index.html and the whole page/ tree from DIR and
+  stamps them in one step. DIGEST is source.digest from page state before
+  editing; if the source has changed since, the stamp is refused and the page is
+  left as it was.
 
 Options:
-  --text TEXT                 the changelog
-  --file PATH                 read the changelog from PATH, - for stdin; with
-                              neither option, from piped stdin
-  --from-directory DIRECTORY  replace index.html and page/ together from this
-                              candidate directory
-  --if-source TEXT            source.digest from page state, required with
-                              --from-directory
-  --completes WIDGET          a widget whose open to-dos this version completes
-                              (repeatable)
-  --help                      Show this message and exit.
+  --text TEXT           the changelog
+  --file PATH           read the changelog from PATH, - for stdin; with neither
+                        option, from piped stdin
+  --replace DIR DIGEST  replace index.html and page/ together from candidate
+                        DIR, if the source still has DIGEST, the source.digest
+                        page state printed
+  --completes WIDGET    a widget whose open to-dos this version completes
+                        (repeatable)
+  --help                Show this message and exit.

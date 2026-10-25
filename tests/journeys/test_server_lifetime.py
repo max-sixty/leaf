@@ -186,7 +186,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
             "server",
             "run",
             str(page_dir),
-            *(["--persistent"] if lifetime == "persistent" else []),
+            *(["--lifetime", "persistent"] if lifetime == "persistent" else []),
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

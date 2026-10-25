@@ -11,7 +11,7 @@ as `answer`, the operation that answers it with the reference its delivery gave,
 agent recovers what it owes without the delivery. `source` states whether a document
 is live and whether an invalid source save leaves the last valid version active. Its
 `digest` identifies the current index.html and complete page/ tree, even when invalid,
-for `page stamp --if-source`. Before the first valid revision, an invalid candidate
+for `page stamp --replace`. Before the first valid revision, an invalid candidate
 registry leaves no active document or readable vocabulary; its
 source error still remains readable. A page this Leaf cannot serve as
 vendored (`layer.incompatible_layer`) is still read, its `source.error` the refusal

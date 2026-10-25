@@ -138,8 +138,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
             publishing_model.cmd_stamp,
             page_dir,
             "Candidate",
-            from_directory=candidate,
-            if_source=expected,
+            replace=(candidate, expected),
         )
         try:
             assert reached.wait(timeout=STATED_TIMEOUT)
@@ -159,17 +158,13 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
     assert (page_dir / "events.jsonl").read_bytes() == log
 
     (candidate / "page/b.js").write_text("export const b = 2;")
-    publishing_model.cmd_stamp(
-        page_dir, "Complete", from_directory=candidate, if_source=expected
-    )
+    publishing_model.cmd_stamp(page_dir, "Complete", replace=(candidate, expected))
     assert files_model.latest_revision(page_dir) > first
     assert artifact_model.read_artifact(page_dir, first).resources[
         "/page/a.js"
     ].data == (b"export const a = 1;")
     with pytest.raises(Refused, match="authored inputs changed"):
-        publishing_model.cmd_stamp(
-            page_dir, "Stale", from_directory=candidate, if_source=expected
-        )
+        publishing_model.cmd_stamp(page_dir, "Stale", replace=(candidate, expected))
 
 
 def test_page_state_digest_guards_the_complete_authored_tree(page_dir, tmp_path):
@@ -193,9 +188,8 @@ def test_page_state_digest_guards_the_complete_authored_tree(page_dir, tmp_path)
         "page",
         "stamp",
         str(page_dir),
-        "--from-directory",
+        "--replace",
         str(candidate),
-        "--if-source",
         added,
         "--text",
         "Updated plan",
@@ -216,7 +210,7 @@ def test_page_state_digest_guards_the_complete_authored_tree(page_dir, tmp_path)
     assert not companion.exists()
 
     (candidate / "page" / "nested" / "notes.txt").unlink()
-    command[command.index("--if-source") + 1] = deleted
+    command[command.index("--replace") + 2] = deleted
     stamped = CliRunner().invoke(cli_model.cli, command)
     assert stamped.exit_code == 0, stamped.output
     assert "Updated plan" in (page_dir / "index.html").read_text()
@@ -245,9 +239,8 @@ def test_page_state_digest_can_repair_invalid_or_missing_source(
             "page",
             "stamp",
             str(page_dir),
-            "--from-directory",
+            "--replace",
             str(candidate),
-            "--if-source",
             invalid["digest"],
             "--text",
             "Repaired source",

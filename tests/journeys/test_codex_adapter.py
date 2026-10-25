@@ -451,7 +451,7 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
 
     subprocess.run([*LEAF_COMMAND, "page", "init", second], check=True)
     persistent = subprocess.run(
-        [*LEAF_COMMAND, "server", "start", second, "--persistent"],
+        [*LEAF_COMMAND, "server", "start", second, "--lifetime", "persistent"],
         capture_output=True,
         text=True,
         check=True,

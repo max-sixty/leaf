@@ -4495,7 +4495,7 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     runner = CliRunner()
     started = runner.invoke(
-        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4511,7 +4511,15 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     runner = CliRunner()
     started = runner.invoke(
         cli_model.cli,
-        ["server", "start", "--persistent", "--host", "localhost", str(page_dir)],
+        [
+            "server",
+            "start",
+            "--lifetime",
+            "persistent",
+            "--host",
+            "localhost",
+            str(page_dir),
+        ],
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4524,7 +4532,7 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
 def test_server_start_names_the_page_layer_and_running_payload(page_dir):
     runner = CliRunner()
     started = runner.invoke(
-        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4578,7 +4586,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     stamp.unlink()
     stamp.write_text(json.dumps({**newer, "$future": 1}), encoding="utf-8")
     reshaped = runner.invoke(
-        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     assert reshaped.exit_code != 0, reshaped.output
     assert f"Use a Leaf at protocol {foreign} or later" in reshaped.output
@@ -4798,7 +4806,8 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
             "server",
             "_serve",
             str(page_dir),
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--harness",
             "null",
             "--handshake",
@@ -4877,7 +4886,8 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             "server",
             "_serve",
             str(neighbor),
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--revive",
             "--harness",
             "null",
@@ -4995,7 +5005,8 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
             "server",
             "_serve",
             str(page_dir),
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--harness",
             "null",
             "--handshake",
@@ -5413,7 +5424,8 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
             str(page_dir),
             "--host",
             "page.example",
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--revive",
             "--harness",
             "null",
@@ -5446,7 +5458,7 @@ while json.loads((page / "service.json").read_text())["enabled"]:
 
 
 def hold_persistent(page: Path, start) -> subprocess.Popen:
-    """A persistent page with its lease held, as `server run --persistent` leaves one."""
+    """A persistent page with its lease held, as `server run --lifetime persistent` leaves one."""
     page.mkdir(parents=True)
     write_record(
         page / "service.json",

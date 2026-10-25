@@ -181,23 +181,21 @@ def cmd_stamp(
     text,
     completes: tuple[str, ...] = (),
     *,
-    from_directory: Path | None = None,
-    if_source: str | None = None,
+    replace: tuple[Path, str] | None = None,
 ) -> dict:
-    """Map the exact current source to the next public version."""
+    """Map the exact current source to the next public version. `replace`, a
+    candidate directory and the authored digest it was prepared against, first
+    swaps in the candidate's index.html and page/ tree, refusing if the source
+    no longer has that digest."""
     body = checked_text(page_dir, text)
-    if (from_directory is None) != (if_source is None):
-        raise Refused("--from-directory and --if-source are used together")
-    incoming = (
-        authored_files(from_directory / "index.html", from_directory / "page")
-        if from_directory is not None
-        else None
-    )
-    with PageTransaction(page_dir) as page:
-        if incoming is None:
+    if replace is None:
+        with PageTransaction(page_dir) as page:
             return _stamp_locked(page_dir, page, body, completes)
+    candidate, digest = replace
+    incoming = authored_files(candidate / "index.html", candidate / "page")
+    with PageTransaction(page_dir) as page:
         previous = authored_files(page_dir / "index.html", page_dir / "page")
-        if authored_digest(previous) != if_source:
+        if authored_digest(previous) != digest:
             raise Refused("authored inputs changed; reconcile them before retrying")
         try:
             write_authored_files(page_dir, incoming, previous)

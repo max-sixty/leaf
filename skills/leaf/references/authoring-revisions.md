@@ -23,7 +23,7 @@ Prepare a separate directory holding the replacement `index.html` and whole `pag
 tree, with any media it uses already in the live page, then publish:
 
 ```sh
-leaf page stamp <page> --from-directory <candidate> --if-source <digest> --text 'Updated the page'
+leaf page stamp <page> --replace <candidate> <digest> --text 'Updated the page'
 ```
 
 A successful stamp adds its version note while preserving the existing event history

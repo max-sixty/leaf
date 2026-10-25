@@ -106,7 +106,11 @@ as designed. If the change can't make that fix, its author or reviewer names and
 proposes it. A passing test for the reported case proves only that case. A
 second special case, a caller repeating its callee's rule, a guard enforcing a
 rule the code never states, or a flag passed down a stack to reach one use
-suggests the shared boundary is still unsettled.
+suggests the shared boundary is still unsettled. Reproducing a dependency's or
+module's output ahead of it so a result shows sooner, even in a plain or partial
+form, leaves the delay in place and adds a second implementation that must keep
+agreeing with the first. Make that path earlier or faster, or reserve the room
+it will need, as "Responsiveness" does for the server's reading.
 
 Don't add another patch on top of existing ones. A change that fixes the symptom
 and leaves the code harder to maintain doesn't go in, even with the real fix
@@ -189,7 +193,8 @@ each assertion at the boundary that owns it").
 Use maintained dependencies, including the platform and standard library, for
 established capabilities, in prototypes too. Leaf code owns product-specific
 behavior and integration, and writes a mechanism itself only when existing ones
-can't meet a concrete requirement. In the browser, use the platform's layout,
+can't meet a concrete requirement; arriving too late isn't one ("Fix the
+underlying issue"). In the browser, use the platform's layout,
 cascade and focus model first (`browser/AGENTS.md`, "The browser
 answers first"). Build browser dependencies in Leaf's pipeline and ship ready
 assets.

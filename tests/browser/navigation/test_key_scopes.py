@@ -1403,6 +1403,7 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
         )
         editor = page.locator("#d leaf-text")
         kept = page.locator("#d .lf-draft-kept")
+        reopen = draft_control(page, "edit", "d")
 
         def open_editor():
             draft_control(page, "edit", "d").click()
@@ -1412,6 +1413,7 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
         )
         editor = message.locator(".lf-msg-editor leaf-text")
         kept = message.locator(".lf-msg-kept")
+        reopen = message.locator(".lf-msg-edit")
 
         def open_editor():
             message.locator(".lf-msg-text").dblclick()
@@ -1424,10 +1426,19 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
 
     open_editor()
     write(editor, "Unsent words.")
+    page.evaluate(
+        """() => document.addEventListener('lf-command-invoked',
+          ({detail}) => (window.ranTitle = detail.title), {once: true})"""
+    )
     back_gesture(page)
     expect(editor).to_have_count(0)
     expect(page.locator(".lf-live")).to_have_text("Edit kept")
+    # The interaction log names the step that ran, not Discard's.
+    assert page.evaluate("window.ranTitle") == "keep"
     expect(kept).to_have_text("unsaved edit")
+    # Beside the sign, on the control that reopens the words, not in a text box whose
+    # caret would raise a phone's keyboard.
+    expect(reopen).to_be_focused()
     assert page.evaluate("window.browserBack") == 0
 
     open_editor()

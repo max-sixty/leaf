@@ -3402,7 +3402,10 @@ var MessageEditor = class {
 		const close = () => leave(true, { says: unchanged() ? "Stopped editing" : "Edit discarded; the message is as it was" });
 		const keep = () => {
 			if (unchanged()) return close();
-			leave(false);
+			const message = this.node.closest(".lf-msg");
+			leave(false, { landing: false });
+			const reopen = message?.querySelector(".lf-msg-edit");
+			if (reopen) focusDestination(reopen, "return");
 			notice("Edit kept");
 		};
 		const putAside = () => {
@@ -3981,7 +3984,7 @@ var MessageView = class {
           ${model.edited ? html`<span class="lf-edited" title=${model.edited}>edited</span>` : nothing}
           ${this.#kept ? html`<span
                   class="lf-msg-kept"
-                  title="The rewrite is kept; open it to save or cancel"
+                  title="The edit is kept; open it to save or discard"
                   >unsaved edit</span
                 >` : nothing}
         </span>

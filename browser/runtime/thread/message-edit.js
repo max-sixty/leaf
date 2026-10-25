@@ -28,7 +28,8 @@
    Android's back gesture, which may be an accidental edge swipe, keeps them instead
    (`keep`, keyboard/close-requests.js): the editor closes as on Escape, a notice says
    "Edit kept", and the message's head says "unsaved edit" until the user opens the
-   rewrite again, which finds them, or Resume writing does.
+   rewrite again, which finds them, or Resume writing does. Back lands on the message's
+   Edit control rather than the reply box, whose caret would raise a phone's keyboard.
 
    The editor stands where the message stood and as it read (browser/AGENTS.md,
    "Editing in place"): a comment box over the message's body, every line of its words
@@ -366,10 +367,15 @@ export class MessageEditor {
       });
     // Back's way out (`keep`, keyboard/close-requests.js): closing as Escape does, but
     // changed words stay in the draft, which the message says it holds, and opening the
-    // rewrite again finds them.
+    // rewrite again finds them. The user lands on the message's Edit control, beside
+    // that sign, rather than in the reply box, whose caret would raise a phone's
+    // keyboard just as back put it away and would cover the notice.
     const keep = () => {
       if (unchanged()) return close();
-      leave(false);
+      const message = this.node.closest(".lf-msg");
+      leave(false, { landing: false });
+      const reopen = message?.querySelector(".lf-msg-edit");
+      if (reopen) focusDestination(reopen, "return");
       notice("Edit kept");
     };
     // Making way for another rewrite, as ↑ to an earlier message or opening one

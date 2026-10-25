@@ -377,7 +377,8 @@ function invocationFor(row, binding, command, recovered = null) {
     : null;
 }
 
-function announceInvocation(invocation) {
+// `title` names a step the row took in place of its `run`, as a close request's `keep`.
+function announceInvocation(invocation, title = null) {
   const { row, entry } = invocation;
   const route = entry.route;
   document.dispatchEvent(
@@ -387,7 +388,7 @@ function announceInvocation(invocation) {
       detail: {
         id: invocation.id,
         binding: invocation.binding,
-        title: titleOf(route?.title === undefined ? row : route),
+        title: title ?? titleOf(route?.title === undefined ? row : route),
         description: descriptionOf(route?.description === undefined ? row : route),
         travels: Boolean(row.travels),
       },
@@ -462,8 +463,10 @@ export const escapeTakesAStep = () => {
 export function answerCloseRequest() {
   const matched = resolveKey(escapePress());
   if (!matched || matched === INPUT_PENDING) return;
-  announceInvocation(matched);
-  if (matched.row.keep) matched.row.keep();
+  const keeps = Boolean(matched.row.keep);
+  // The log names what ran: a row's `keep` is not its title's step.
+  announceInvocation(matched, keeps ? "keep" : null);
+  if (keeps) matched.row.keep();
   else matched.run();
 }
 

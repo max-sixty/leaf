@@ -301,13 +301,13 @@ function invocationFor(row, binding, command, recovered = null) {
 		native: Boolean(row.native)
 	} : null;
 }
-function announceInvocation(invocation) {
+function announceInvocation(invocation, title = null) {
 	const { row, entry } = invocation;
 	const route = entry.route;
 	document.dispatchEvent(new window.CustomEvent("lf-command-invoked", { detail: {
 		id: invocation.id,
 		binding: invocation.binding,
-		title: titleOf(route?.title === void 0 ? row : route),
+		title: title ?? titleOf(route?.title === void 0 ? row : route),
 		description: descriptionOf(route?.description === void 0 ? row : route),
 		travels: Boolean(row.travels)
 	} }));
@@ -361,8 +361,9 @@ const escapeTakesAStep = () => {
 function answerCloseRequest() {
 	const matched = resolveKey(escapePress());
 	if (!matched || matched === INPUT_PENDING) return;
-	announceInvocation(matched);
-	if (matched.row.keep) matched.row.keep();
+	const keeps = Boolean(matched.row.keep);
+	announceInvocation(matched, keeps ? "keep" : null);
+	if (keeps) matched.row.keep();
 	else matched.run();
 }
 function dispatchKey(ev) {

@@ -212,4 +212,3 @@ def test_motion_recordings_share_native_playback_and_a_sticky_transport(browser,
     assert page.evaluate(
         "[...detachedStudy.querySelectorAll('video')].every(v => v.paused)"
     )
-    context.close()

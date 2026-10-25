@@ -61,20 +61,26 @@
 // gesture's aim, the control a press lands on or the one holding focus for a key,
 // keeps its place on screen through that rendering, read fresh in viewport pixels
 // beside the scroll offsets of the boxes that carry it. A scroll may hold it still,
-// or take back part of what the gesture's own layout moved it, and carry it no
-// further. A command that takes the user somewhere declares that it may (`travels` on
-// its register row, which the dispatcher's `lf-command-invoked` carries), as a link
-// does by the platform's meaning and a key the page leaves to the browser by the
-// browser's. Caret navigation is also the editor's own where it implements those
-// platform keys itself, preventing their defaults (CodeMirror does). The runtime
-// owns both the caret keys and which controls take text. A scroll is the gesture's
-// where its own work called a scrolling API, focus that doesn't prevent its scroll
-// included, which
-// input_work_watch.js names the input of; a call work no input owns makes during the
-// rendering, as a test's script does, leaves the rendering unjudged. So a scroll
-// begun where the input's source is lost, after a native `await` or in an observer's
-// delivery, goes unjudged, as does one the browser makes alone, such as a clamp.
-// Where it lands, the driver's own scroll before its next press counts too.
+// or take back part of what the gesture's own layout moved it, or bring it whole into
+// the view of a box that showed only part of it (its scrollport less its
+// scroll-padding, which the aim's scroll-margin must clear) by no more than the part
+// it hid, as the browser's own focus does, and carry it no further. A gesture that takes the user somewhere may:
+// a command declares it (`travels` on its register row, which the dispatcher's
+// `lf-command-invoked` carries), and so does the history entry a gesture adds, as a
+// root tab set's switch adds one; a link does by the platform's meaning, its script's
+// travel included, and a key the page leaves to the browser by the browser's. Back
+// and Forward are the user's gestures, made in the browser's chrome, and open a
+// rendering as an input does. Caret navigation is also the editor's own where it
+// implements those platform keys itself, preventing their defaults (CodeMirror
+// does). The runtime owns both the caret keys and which controls take text. A scroll
+// is the gesture's on each box its own work called a scrolling API on, and for a
+// reveal or focus that doesn't prevent its scroll on every box holding the target,
+// as input_work_watch.js names the input of the call; a call work no input owns
+// makes during the rendering, as a test's script does, leaves the rendering
+// unjudged. So a scroll begun where the input's source is lost, after a native
+// `await` or in an observer's delivery, goes unjudged, as does one the browser makes
+// alone, such as a clamp. The driver's own scroll before its next press counts only
+// on a box the gesture's own work scrolled too.
 //
 // Each trusted gesture owns its counted rendering until declared completion. A widget
 // preparation it began (`observePreparations`) works on in a promise the loop
@@ -1570,7 +1576,8 @@
   // A gesture's aim: the control it was made on, which a scroll during the gesture's
   // rendering may not carry on screen (Scrolls a gesture makes, above). A press aims
   // at the control under the pointer, a key at whatever holds focus. A link's
-  // activation takes the user somewhere by the platform's own meaning, and a key the
+  // activation takes the user somewhere by the platform's own meaning, whether the
+  // browser follows it or the page's script travels in its place, and a key the
   // page leaves to the browser, as Tab, Space or an arrow, does what the platform does
   // with it; neither aims. Wheels and drags move the page by the user's own hand.
   const aimOf = (event) => {
@@ -1602,9 +1609,10 @@
     return { node, event, ...pose };
   };
   // Where the aim stands on screen, and the scroll offset of each box whose scroll
-  // carries it: its rendered ancestors up to the first fixed box among it and them.
-  // Read fresh, not from the ledger, whose last reading can predate a script's scroll
-  // that the input follows within the frame.
+  // carries it: its rendered ancestors up to the first fixed box among it and them,
+  // with what each that scrolls shows (`shownBy`). Read fresh, not from the ledger,
+  // whose last reading can predate a script's scroll that the input follows within
+  // the frame.
   const aimPose = (node) => {
     if (!node.isConnected || !node.checkVisibility()) return null;
     const rect = node.getBoundingClientRect();
@@ -1614,15 +1622,55 @@
       if (getComputedStyle(child).position === "fixed") break;
       const parent = up(child);
       if (!(parent instanceof Element)) break;
-      scrolls.set(parent, { left: parent.scrollLeft, top: parent.scrollTop });
+      const scrolling =
+        parent.scrollWidth > parent.clientWidth ||
+        parent.scrollHeight > parent.clientHeight;
+      scrolls.set(parent, {
+        left: parent.scrollLeft,
+        top: parent.scrollTop,
+        shown: scrolling ? shownBy(parent) : null,
+      });
       child = parent;
     }
     return { rect, scrolls };
   };
+  // Where a scroller shows what it holds whole: its scrollport less its scroll-padding,
+  // the region the browser's own reveals bring a target into, clear of what the
+  // scroller declares stands over its edges (a stuck header, a strip's edge press).
+  const shownBy = (box) => {
+    const root = box === document.scrollingElement;
+    const rect = root ? { left: 0, top: 0 } : box.getBoundingClientRect();
+    const style = getComputedStyle(box);
+    const inset = (side) => pixels(style[`scrollPadding${side}`]) ?? 0;
+    const left = rect.left + (root ? 0 : box.clientLeft);
+    const top = rect.top + (root ? 0 : box.clientTop);
+    return {
+      left: left + inset("Left"),
+      top: top + inset("Top"),
+      right: left + box.clientWidth - inset("Right"),
+      bottom: top + box.clientHeight - inset("Bottom"),
+    };
+  };
+  // A control as a reveal brings it into view: out to its scroll-margin, its ring's room.
+  const ringed = (node, rect) => {
+    const style = getComputedStyle(node);
+    const margin = (side) => pixels(style[`scrollMargin${side}`]) ?? 0;
+    return {
+      left: rect.left - margin("Left"),
+      top: rect.top - margin("Top"),
+      right: rect.right + margin("Right"),
+      bottom: rect.bottom + margin("Bottom"),
+    };
+  };
+  const whole = (rect, shown, start, end) =>
+    rect[start] > shown[start] - 1 && rect[end] < shown[end] + 1;
   // A scroll carried the aim on screen where both its edges moved one way on an axis
   // and the scroll moved it that way too. A scroll that holds it still, or takes back
   // part of what the gesture's own layout moved, carries it nowhere; layout motion
-  // stays the gesture's own (Scope).
+  // stays the gesture's own (Scope). Nor does a box's scroll that brings the aim whole
+  // into what that box shows from partly past it, by no more than the part it hid, as
+  // the browser's own focus does: the user pressed the part they could see, and the
+  // reveal shows them the rest.
   const judgeAim = (rendering) => {
     const aim = rendering.aim;
     if (!aim?.scrolled || aim.foreign) return;
@@ -1639,13 +1687,23 @@
     if (!now) return;
     const scrolled = { left: 0, top: 0 };
     let carriedBy = false;
+    const [from, to] = [aim.rect, now.rect].map((rect) => ringed(aim.node, rect));
     for (const [axis, far] of [
       ["left", "right"],
       ["top", "bottom"],
     ]) {
       for (const [box, offset] of now.scrolls) {
         const was = aim.scrolls.get(box);
-        if (was) scrolled[axis] -= offset[axis] - was[axis];
+        if (!was || !aim.scrolled.has(box)) continue;
+        const past =
+          was.shown &&
+          Math.max(was.shown[axis] - from[axis], from[far] - was.shown[far]);
+        const reveals =
+          past >= 1 &&
+          Math.abs(offset[axis] - was[axis]) < past + 1 &&
+          offset.shown &&
+          whole(to, offset.shown, axis, far);
+        if (!reveals) scrolled[axis] -= offset[axis] - was[axis];
       }
       if (
         carried(aim.rect, now.rect, axis, far) &&
@@ -1679,27 +1737,36 @@
   // Whose scroll it was (Scrolls a gesture makes, above): the aim is judged once the
   // gesture's own work has called a scrolling API, and never once other work has
   // during its rendering. A scroll the call starts, a smooth one too, is the gesture's
-  // through the rendering.
-  const scrollCalled = () => {
+  // through the rendering, on the boxes the call scrolls: the one it names, or for a
+  // reveal or focus every box holding its target.
+  const scrollCalled = (target, holders = false) => {
     const aim = open?.aim;
     if (!aim) return;
     const source = window.lfInputWork.current();
     const owner = source && inputRenderings.get(source.event);
-    if (owner && (owner === open || owner.own === open.own)) aim.scrolled = true;
-    else aim.foreign = true;
+    if (!owner || (owner !== open && owner.own !== open.own)) {
+      aim.foreign = true;
+      return;
+    }
+    aim.scrolled ??= new Set();
+    if (target === window) aim.scrolled.add(document.scrollingElement);
+    else if (!holders) aim.scrolled.add(target);
+    else
+      for (let box = up(target); box instanceof Element; box = up(box))
+        aim.scrolled.add(box);
   };
-  for (const [owner, names] of [
-    [Element.prototype, ["scroll", "scrollTo", "scrollBy", "scrollIntoView"]],
-    [Element.prototype, ["scrollIntoViewIfNeeded"]],
-    [window, ["scroll", "scrollTo", "scrollBy"]],
-    [HTMLElement.prototype, ["focus"]],
-    [SVGElement.prototype, ["focus"]],
+  for (const [owner, names, holders] of [
+    [Element.prototype, ["scroll", "scrollTo", "scrollBy"], false],
+    [Element.prototype, ["scrollIntoView", "scrollIntoViewIfNeeded"], true],
+    [window, ["scroll", "scrollTo", "scrollBy"], false],
+    [HTMLElement.prototype, ["focus"], true],
+    [SVGElement.prototype, ["focus"], true],
   ])
     for (const key of names) {
       const call = owner[key];
       if (typeof call !== "function") continue;
       owner[key] = function (...args) {
-        if (key !== "focus" || !args[0]?.preventScroll) scrollCalled();
+        if (key !== "focus" || !args[0]?.preventScroll) scrollCalled(this, holders);
         return call.apply(this, args);
       };
     }
@@ -1708,7 +1775,7 @@
     Object.defineProperty(Element.prototype, key, {
       ...offset,
       set(value) {
-        scrollCalled();
+        scrollCalled(this);
         offset.set.call(this, value);
       },
     });
@@ -1718,6 +1785,15 @@
   listen(document, "lf-command-invoked", ({ detail }) => {
     if (detail?.travels && open) open.aim = null;
   });
+  // So does a gesture that adds a history entry, as a followed link or a root tab
+  // set's switch does; renaming the entry the user is on (`replaceState`) takes them
+  // nowhere. Back or Forward is the user's own gesture, made in the browser's chrome,
+  // which no input event here carries, so it opens a rendering as hearing an input does.
+  if (window.navigation)
+    listen(window.navigation, "navigate", ({ navigationType }) => {
+      if (navigationType === "traverse") begin(nativePerformance.now());
+      else if (navigationType === "push" && open) open.aim = null;
+    });
   listen(
     window,
     "pointercancel",

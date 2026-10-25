@@ -885,6 +885,34 @@ def test_reply_validates_widget_markup(page_dir):
     assert event["markup"].startswith("<lf-diagram")
 
 
+def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_dir):
+    """A thread inserts a message's markup through `template.innerHTML`, which runs no
+    script in it, so the browser run that draws the message's widgets before it posts
+    leaves its scripts unrun too, rather than refusing it for code the user never runs."""
+    publish(page_dir)
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
+    )
+    posted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "See:",
+            "--markup",
+            (
+                '<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>'
+                '<script type="module">throw new Error("inert-message-script")</script>'
+            ),
+        ],
+    )
+    assert posted.exit_code == 0, posted.output
+    assert "inert-message-script" in events_model.read_events(page_dir)[-1]["markup"]
+
+
 def test_reply_validates_typed_references_against_the_page(page_dir):
     """Reply markup naming a page element of the wrong role never freezes, nor does
     a command naming the page's seat, which it would fill from another document."""

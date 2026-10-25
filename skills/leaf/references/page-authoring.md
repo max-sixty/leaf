@@ -141,7 +141,8 @@ page of parts, whose column parts each take their own outline.
 
 Use Leaf's default styling for ordinary content, with semantic HTML from the registry's
 elements and class idioms. The vendored theme supplies colours, type, spacing,
-headings, tables, code and widgets. Polish a page through clearer content and hierarchy
+headings, tables, code and widgets. Page CSS spaces with its steps, `--sp-1` to
+`--sp-5`, which `density-working` tightens. Polish a page through clearer content and hierarchy
 within that treatment. Reserve page CSS for task-specific arrangement, visualization
 or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for

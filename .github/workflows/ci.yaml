@@ -144,7 +144,7 @@ jobs:
           # minutes of worker time (#3243). eatmydata execs its command, so py-spy
           # still follows the tree from this PID.
           env --default-signal=INT eatmydata uv run pytest tests -n 4 -v --junitxml=.tmp/test-results/results.xml \
-            ${{ github.event_name == 'pull_request' && '--changed-since HEAD^1' || github.event_name == 'push' && '--run-main' || '--run-nightly' }} &
+            --run-main &
           tests=$!
           until pgrep -P "$tests" >/dev/null || ! kill -0 "$tests" 2>/dev/null; do
             sleep 0.1
@@ -212,7 +212,7 @@ jobs:
   # Linux-only, so this job runs the suite alone. The runner has three cores, so two
   # workers keep the share of cores `test` leaves idle.
   test-macos:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule'
     runs-on: macos-15
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1

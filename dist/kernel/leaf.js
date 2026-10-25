@@ -191,8 +191,8 @@ var AttachedMediaShelf = class extends LitElement {
 		};
 		this.actions = null;
 		this.sent = false;
-		this.undoIcon = iconElement("undo", "lf-corner-mark-icon");
-		this.removeIcon = iconElement("cross", "lf-corner-mark-icon");
+		this.undoIcon = iconElement("undo", "lf-mark-icon");
+		this.removeIcon = iconElement("cross", "lf-mark-icon");
 		this.pictured = {
 			drawing: null,
 			target: null,
@@ -243,7 +243,7 @@ var AttachedMediaShelf = class extends LitElement {
               </button>
               <button
                 type="button"
-                class="lf-corner-mark lf-composer-drawing-undo"
+                class="lf-mark lf-corner-mark lf-composer-drawing-undo"
                 aria-label="Undo last stroke"
                 title="Undo last stroke"
                 @mousedown=${(event) => event.preventDefault()}
@@ -253,7 +253,7 @@ var AttachedMediaShelf = class extends LitElement {
               </button>
               <button
                 type="button"
-                class="lf-corner-mark"
+                class="lf-mark lf-corner-mark"
                 aria-label="Remove drawing"
                 title="Remove drawing"
                 @mousedown=${(event) => event.preventDefault()}
@@ -265,11 +265,11 @@ var AttachedMediaShelf = class extends LitElement {
           ` : null, media.map(({ index, url }) => {
 			const remove = html`<button
           type="button"
-          class="lf-corner-mark lf-composer-media-remove"
+          class="lf-mark lf-corner-mark lf-composer-media-remove"
           aria-label=${`Remove attached image ${index + 1}`}
           @click=${() => this.actions.removeMedia(index)}
         >
-          ${iconTemplate("cross", "lf-corner-mark-icon")}
+          ${iconTemplate("cross", "lf-mark-icon")}
         </button>`;
 			return this.sent ? html`<p class="lf-composer-media-item">
               <button
@@ -5179,12 +5179,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	inner.append(opened, row);
 	card.append(inner);
 	host.append(card, menu, peek);
-	const minimize = el("button", "lf-corner-mark lf-fp-minimize");
+	const minimize = el("button", "lf-mark lf-corner-mark lf-fp-minimize");
 	minimize.type = "button";
 	minimize.tabIndex = -1;
 	minimize.title = "Fold to the leaf";
 	minimize.setAttribute("aria-label", "Fold to the leaf");
-	minimize.append(iconElement("subtract", "lf-corner-mark-icon"));
+	minimize.append(iconElement("subtract", "lf-mark-icon"));
 	minimize.addEventListener("click", () => rows().find((entry) => entry.key === `command:${FOLD}`).press(null));
 	host.append(minimize);
 	const CORNER = {
@@ -6171,7 +6171,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		copy.value = entry.copies;
 		copy.disabled = entry.disabled;
-		render(menuItem(`Copy ${entry.label}`, html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`, () => {}, {
+		render(menuItem(`Copy ${entry.label}`, iconTemplate("copy", "lf-fp-copy-icon"), () => {}, {
 			disabled: entry.disabled,
 			role: menuOpen.value ? "menuitem" : null,
 			row: entry.key,

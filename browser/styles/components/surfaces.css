@@ -482,8 +482,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-msg-control,
   .lf-thread-action,
   .lf-thread-notice:is(button),
-  .lf-draft-action,
-  .lf-corner-mark,
+  button.lf-mark,
   button.lf-fp-face
 ) {
   --lf-face-floor: auto;
@@ -493,6 +492,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     position: absolute;
     inset: min(0px, (100% - var(--aim-floor)) / 2);
   }
+}
+/* A mark on a vendor control, Copy, takes its press on its button part, so the reach
+   is the part's: one on the host would take the press from the button and copy
+   nothing. Its own rule, so an engine refusing a pseudo-element after a part keeps
+   the rest. */
+.lf-mark.lf-ui::part(button)::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 /* A native summary retains its list marker and centers its content within the
    target floor. Extra hit area surrounds the label rather than trailing it. */

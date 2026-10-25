@@ -286,3 +286,5 @@ export { tally, tallyWords } from "./obligations/tally.js";
 export { placeOf } from "./current-target.js";
 // Run a command by its id as its key would, as `lf-deck`'s Reply runs `c` on a question.
 export { executeCommand } from "./keyboard/dispatch.js";
+// The time axis the Playwright timeline and lf-timeline both draw on.
+export { assignRows, axisTicks, textWidth } from "./time-axis.js";

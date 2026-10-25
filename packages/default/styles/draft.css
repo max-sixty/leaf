@@ -83,10 +83,8 @@
      and the open editor and a draft that asks for an edit (`needed`) always, since
      there Edit is the way to answer. A finger sees it always, on the bottom border, since
      on a phone the margin's entries hang past the end of the line they mark, into the
-     room over the next block, which is where a top toolbar would stand. There each
-     mark is a full aim wide and its reach a full aim tall. */
+     room over the next block, which is where a top toolbar would stand. */
   .lf-draft-tools {
-    --lf-draft-mark: 26px;
     position: absolute;
     z-index: 1;
     inset-block-start: 0;
@@ -116,23 +114,5 @@
       translate: 0 calc(50% + 0.5px);
       opacity: 1;
     }
-  }
-  .lf-draft-action,
-  .lf-draft-tools > .lf-code-copy::part(button) {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    inline-size: max(var(--lf-draft-mark), var(--aim-floor));
-    min-inline-size: 0;
-    block-size: var(--lf-draft-mark);
-    min-block-size: 0;
-    padding: 0;
-  }
-  /* The ring stays inside its mark, off the words beside the toolbar. */
-  .lf-draft-action[data-lf-focus-visible],
-  .lf-draft-tools > .lf-code-copy::part(lf-focus-visible) {
-    outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }

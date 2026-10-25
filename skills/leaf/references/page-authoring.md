@@ -145,7 +145,9 @@ headings, tables, code and widgets. Polish a page through clearer content and hi
 within that treatment. Reserve page CSS for task-specific arrangement, visualization
 or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for
-polish adds visual weight without meaning.
+polish adds visual weight without meaning. A box page CSS makes opaque, such as a
+sticky bar, paints `background: var(--lf-ground)`: the surface it stands on, which a
+card or a playground's preview sets for what it holds.
 
 When page CSS reveals controls while a container is hovered or focused, include
 `:has([data-lf-control-active])` in the condition if it contains a code block.
@@ -227,9 +229,6 @@ grammar's aliases, such as `language-js` and `language-sh`. Format example code 
 the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.
-The Copy button over a code block follows its line height. Set
-`--lf-code-copy-size` on the block or its container when its visible button
-needs another size; its press target still keeps the theme's `--aim-floor`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="scroll"` to that same box. Leaf contains its positioned descendants and

@@ -17,6 +17,7 @@
         "../../packages/motion/vendor/*",
         "../../packages/playground/vendor/*",
         "../../packages/playwright/vendor/*",
+        "../../packages/timeline/vendor/*",
         "../../packages/visual-review/vendor/*"
       ],
       "/widgets/*": [
@@ -32,6 +33,7 @@
         "../../packages/motion/widgets/*",
         "../../packages/playground/widgets/*",
         "../../packages/playwright/widgets/*",
+        "../../packages/timeline/widgets/*",
         "../../packages/visual-review/widgets/*"
       ],
       "/runtime/*": [

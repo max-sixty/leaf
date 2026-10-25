@@ -375,10 +375,11 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 			const destination = destinationBox(where);
 			const byX = nearestScrollBy(destination.left - scrollMargin(where, "Left"), destination.right + scrollMargin(where, "Right"), left, right);
 			const byY = inside ? placementBy(where, "nearest", box, topMargin(where, box, start)) : 0;
-			if (byX || byY) land(box, localScrollBy(box, {
+			const by = localScrollBy(box, {
 				x: byX,
 				y: byY
-			}), "instant");
+			});
+			if (by.left || by.top) land(box, by, "instant");
 		}
 		if (box === within || box === pageScroller || getComputedStyle(box).position === "fixed") break;
 	}
@@ -1296,15 +1297,6 @@ function releaseControl(control) {
 const controls = /* @__PURE__ */ new WeakMap();
 const wired = /* @__PURE__ */ new WeakMap();
 const COPY_SCOPE = Symbol("code copy");
-function copySize(block) {
-	const style = getComputedStyle(block);
-	const chosen = style.getPropertyValue("--lf-code-copy-size").trim() || (block.localName === "pre" ? style.lineHeight : "");
-	return CSS.supports("width", chosen) ? chosen : "";
-}
-function setCopySize(copy, size) {
-	if (size) copy.style.setProperty("--lf-code-copy-size", size);
-	else copy.style.removeProperty("--lf-code-copy-size");
-}
 onCurrentLocation((node) => {
 	for (let at = node; at; at = upFrom(at)) {
 		const copy = controls.get(at);
@@ -1314,7 +1306,7 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
 	let copy = controls.get(pre);
 	if (!copy) {
-		copy = copyControl("lf-code-copy lf-quiet-action", {
+		copy = copyControl("lf-code-copy lf-mark", {
 			label: `Copy ${noun}`,
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
@@ -1342,9 +1334,7 @@ function declareCopy(pre, copy, noun) {
 	}]));
 }
 function copyBlock(block, source, noun) {
-	const size = copySize(block);
 	const copy = aimControl(prepareCodeBlock(block, source, noun));
-	setCopySize(copy, size);
 	declareCopy(block, copy, noun);
 	return copy;
 }
@@ -1358,12 +1348,10 @@ function watchCodeBlocks() {
 			const prepared = blocks.filter((pre) => pre.getRootNode() === document).map((pre) => [
 				pre,
 				prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent, "code"),
-				headerLevels(pre),
-				copySize(pre)
+				headerLevels(pre)
 			]);
-			for (const [pre, pending, levels, size] of prepared) {
+			for (const [pre, pending, levels] of prepared) {
 				const copy = aimControl(pending);
-				setCopySize(copy, size);
 				standInChrome(copy, pre, levels);
 				copy.tabIndex = -1;
 				claimReachStop(pre);
@@ -1608,9 +1596,9 @@ function makeLink(heading) {
 	const control = copyControl("lf-heading-link", {
 		label: "Copy link to section",
 		success: "Link copied",
-		error: "Unable to copy link"
+		error: "Unable to copy link",
+		icon: "link"
 	});
-	control.append(Object.assign(iconElement("link", "lf-heading-link-icon"), { slot: "copy-icon" }));
 	control.tabIndex = -1;
 	const link = {
 		heading,
@@ -1707,13 +1695,13 @@ function watchHeadingLinks() {
 		if (heading && headingAddress(heading)) focusDestination(heading, "move");
 	}, { capture: true });
 	let current = null;
-	onCurrentLocation((node) => {
-		const heading = (node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null) ?? headingOn(node);
-		if (heading === current) return;
+	const stand = (heading) => {
+		if (heading === current) return links.get(heading);
 		if (current) show(current, "current", false);
 		current = heading;
-		if (heading) show(heading, "current", true);
-	});
+		return heading && show(heading, "current", true);
+	};
+	onCurrentLocation((node) => stand(node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null));
 	pageScope("heading", {
 		title: "On a section heading",
 		root: focused,
@@ -1725,8 +1713,7 @@ function watchHeadingLinks() {
 			title: "copy link to section",
 			touch: false,
 			run: () => {
-				const heading = headingOn(focused());
-				(heading && show(heading, "current", true))?.control.shadowRoot.querySelector("button").click();
+				stand(headingOn(focused()))?.control.shadowRoot.querySelector("button").click();
 			}
 		}]
 	});
@@ -3427,6 +3414,7 @@ var MessageEditor = class {
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
 			sendBtn: save,
+			icon: "save",
 			submitIn: actions,
 			sentMedia: true,
 			save: (value) => {

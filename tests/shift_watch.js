@@ -61,20 +61,26 @@
 // gesture's aim, the control a press lands on or the one holding focus for a key,
 // keeps its place on screen through that rendering, read fresh in viewport pixels
 // beside the scroll offsets of the boxes that carry it. A scroll may hold it still,
-// or take back part of what the gesture's own layout moved it, and carry it no
-// further. A command that takes the user somewhere declares that it may (`travels` on
-// its register row, which the dispatcher's `lf-command-invoked` carries), as a link
-// does by the platform's meaning and a key the page leaves to the browser by the
-// browser's. Caret navigation is also the editor's own where it implements those
-// platform keys itself, preventing their defaults (CodeMirror does). The runtime
-// owns both the caret keys and which controls take text. A scroll is the gesture's
-// where its own work called a scrolling API, focus that doesn't prevent its scroll
-// included, which
-// input_work_watch.js names the input of; a call work no input owns makes during the
-// rendering, as a test's script does, leaves the rendering unjudged. So a scroll
-// begun where the input's source is lost, after a native `await` or in an observer's
-// delivery, goes unjudged, as does one the browser makes alone, such as a clamp.
-// Where it lands, the driver's own scroll before its next press counts too.
+// or take back part of what the gesture's own layout moved it, or bring it whole into
+// the view of a box that showed only part of it (its scrollport less its
+// scroll-padding, which the aim's scroll-margin must clear) by no more than the part
+// it hid, as the browser's own focus does, and carry it no further. A gesture that takes the user somewhere may:
+// a command declares it (`travels` on its register row, which the dispatcher's
+// `lf-command-invoked` carries), and so does the history entry a gesture adds, as a
+// root tab set's switch adds one; a link does by the platform's meaning, its script's
+// travel included, and a key the page leaves to the browser by the browser's. Back
+// and Forward are the user's gestures, made in the browser's chrome, and open a
+// rendering as an input does. Caret navigation is also the editor's own where it
+// implements those platform keys itself, preventing their defaults (CodeMirror
+// does). The runtime owns both the caret keys and which controls take text. A scroll
+// is the gesture's on each box its own work called a scrolling API on, and for a
+// reveal or focus that doesn't prevent its scroll on every box holding the target,
+// as input_work_watch.js names the input of the call; a call work no input owns
+// makes during the rendering, as a test's script does, leaves the rendering
+// unjudged. So a scroll begun where the input's source is lost, after a native
+// `await` or in an observer's delivery, goes unjudged, as does one the browser makes
+// alone, such as a clamp. The driver's own scroll before its next press counts only
+// on a box the gesture's own work scrolled too.
 //
 // Each trusted gesture owns its counted rendering until declared completion. A widget
 // preparation it began (`observePreparations`) works on in a promise the loop
@@ -101,7 +107,8 @@
 // the ancestor's whole box: independent movement of it or its children still fails.
 // This proof supports unique replace effects with pure transform translation, a
 // `translate` in pixels or percentages of the border box (including a directly bound
-// inline custom property), or pixel
+// inline custom property), a pixel-only stylesheet consumer of an inherited custom
+// property, or pixel
 // left/top/marginLeft/marginTop. Scale, rotation and
 // composed effects receive no inferred translation credit.
 //
@@ -239,7 +246,8 @@
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animationProperties(animation).length > 0 ||
-    GEOMETRY.test(animation.transitionProperty ?? "");
+    GEOMETRY.test(animation.transitionProperty ?? "") ||
+    inheritedBindings(animation).length > 0;
   // Every animation in the composed tree: the document's own list leaves out those
   // whose targets are in shadow trees, so each connected shadow root adds its own.
   const allAnimations = () => [
@@ -276,17 +284,13 @@
       `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
   };
-  // What decides a positioned box's inset on an axis, as the declarations that can win
-  // it: an important inline one alone, else the important rules of the box's own tree
-  // that match it now, else its inline style, else every matching rule. Within a tier
-  // the cascade weighs specificity, layers and order, which no API reports, so the
-  // inset counts as anchored only where every candidate there is a direct anchor
-  // inset: rules that disagree are ambiguous, like a name that is. Rules are read only
-  // for a box naming an anchor, since every frame samples it, and only those that
-  // state an inset at all, gathered once per sheet.
-  const INSETS = ["top", "right", "bottom", "left"];
-  const insetRules = new WeakMap();
-  const rulesStatingInsets = (sheet) => {
+  // Declarations that can win a property: an important inline one alone, else
+  // important matching rules, else inline style, else every matching rule. No API
+  // reports the cascade's specificity/layer/order result, so consumers require all
+  // candidates in that tier to prove the same relationship. Gather only rules
+  // stating the requested property, once per sheet and property.
+  const declarationRules = new WeakMap();
+  const rulesStating = (sheet, property) => {
     if (
       sheet.href &&
       new URL(sheet.href).origin !== window.origin &&
@@ -294,14 +298,14 @@
     )
       return [];
     const length = sheet.cssRules.length;
-    const known = insetRules.get(sheet);
+    const cached = declarationRules.get(sheet) ?? new Map();
+    const known = cached.get(property);
     if (known?.length === length) return known.rules;
     const rules = [];
     const visit = (list, conditions) => {
       for (const rule of list) {
         if (rule instanceof CSSStyleRule) {
-          if (INSETS.some((side) => rule.style.getPropertyValue(side)))
-            rules.push({ rule, conditions });
+          if (rule.style.getPropertyValue(property)) rules.push({ rule, conditions });
         } else if (rule.cssRules)
           visit(
             rule.cssRules,
@@ -312,7 +316,8 @@
       }
     };
     visit(sheet.cssRules, []);
-    insetRules.set(sheet, { length, rules });
+    cached.set(property, { length, rules });
+    declarationRules.set(sheet, cached);
     return rules;
   };
   const holds = (condition) =>
@@ -328,7 +333,7 @@
       ...(root.styleSheets ?? []),
       ...(root.adoptedStyleSheets ?? []),
     ])
-      for (const { rule, conditions } of rulesStatingInsets(sheet)) {
+      for (const { rule, conditions } of rulesStating(sheet, property)) {
         const value = rule.style.getPropertyValue(property);
         if (!value || (importantOnly && !rule.style.getPropertyPriority(property)))
           continue;
@@ -346,18 +351,146 @@
       }
     return found;
   };
+  // A direct translation consumer is proved from declarations, not a coincidental
+  // equality of computed values. Keep the existing conservative cascade tiers:
+  // every candidate in the winning tier must name the same animated variable.
+  const declaredValues = (node, property) => {
+    const inline = node.style.getPropertyValue(property);
+    if (inline && node.style.getPropertyPriority(property)) return [inline];
+    const rules = declaredRules(node, property, Boolean(inline));
+    return rules.important.length ? rules.important : inline ? [inline] : rules.normal;
+  };
+  const inheritedConsumers = new WeakMap();
+  const findConsumers = (target, keys) => {
+    keys = keys.filter((key) => key.startsWith("--"));
+    const consumers = [];
+    if (target && keys.length) {
+      const trees = [
+        target,
+        ...[...roots].filter((root) => {
+          for (let at = root.host; at; at = up(at)) if (at === target) return true;
+          return false;
+        }),
+      ];
+      for (const node of new Set(
+        trees.flatMap((tree) => [
+          ...(tree instanceof Element ? [tree] : []),
+          ...tree.querySelectorAll("*"),
+        ]),
+      )) {
+        const values = declaredValues(node, "translate");
+        const key = keys.find(
+          (key) =>
+            values.length && values.every((value) => value.trim() === `var(${key})`),
+        );
+        if (key) consumers.push({ node, key });
+      }
+    }
+    return consumers;
+  };
+  const inheritedBindings = (animation) => {
+    if (!inheritedConsumers.has(animation))
+      inheritedConsumers.set(
+        animation,
+        translationBindings.get(animation)
+          ? []
+          : findConsumers(animation.effect?.target, [
+              ...new Set((animation.effect?.getKeyframes() ?? []).flatMap(Object.keys)),
+            ]),
+      );
+    return inheritedConsumers.get(animation);
+  };
+  const consumerOrigins = (bindings) =>
+    new Map(
+      bindings.map(({ node }) => [
+        node,
+        animatedValue(node, getComputedStyle(node), "translate"),
+      ]),
+    );
+  const inheritedReading = (animation, binding, returning) => {
+    const { node, key } = binding,
+      target = animation.effect.target;
+    if (
+      animation.effect.composite !== "replace" ||
+      animation.effect
+        .getKeyframes()
+        .some(
+          (frame) => frame.composite && !["auto", "replace"].includes(frame.composite),
+        ) ||
+      scrollBinding(animation) ||
+      target
+        .getAnimations()
+        .some(
+          (other) =>
+            other !== animation &&
+            other.effect?.getKeyframes().some((frame) => key in frame),
+        )
+    )
+      return null;
+    const values = declaredValues(node, "translate");
+    if (
+      !node.isConnected ||
+      !values.length ||
+      !values.every((value) => value.trim() === `var(${key})`)
+    )
+      return null;
+    let reached = false;
+    for (let at = node; at; at = up(at)) {
+      if (at === target) {
+        reached = true;
+        break;
+      }
+      // An override, including an independent animation, breaks inherited source
+      // ownership even when its numeric trajectory happens to match.
+      if (
+        declaredValues(at, key).length ||
+        at
+          .getAnimations()
+          .some(
+            (other) =>
+              other !== animation &&
+              other.effect?.getKeyframes().some((frame) => key in frame),
+          )
+      )
+        return null;
+    }
+    if (
+      !reached ||
+      node
+        .getAnimations()
+        .some(
+          (other) =>
+            other !== animation && animationProperties(other).includes("translate"),
+        )
+    )
+      return null;
+    const style = getComputedStyle(node);
+    if (style.getPropertyValue(key) !== getComputedStyle(target).getPropertyValue(key))
+      return null;
+    const value = animatedValue(node, style, "translate");
+    const expected = animationTranslation(
+      "translate",
+      style.getPropertyValue(key).trim(),
+    );
+    const actual = animationTranslation("translate", value);
+    if (
+      !expected ||
+      !actual ||
+      expected.left !== actual.left ||
+      expected.top !== actual.top
+    )
+      return null;
+    if (returning && origins.get(animation)?.consumers?.get(node) !== value)
+      return null;
+    return { node, key, value, axes: translationAxes(node) };
+  };
   const anchoredInset = (node, style, property, axis) => {
     const inline = node.style.getPropertyValue(property);
     if (inline && node.style.getPropertyPriority(property))
       return anchorInset(inline, axis);
     if (!style.positionAnchor.startsWith("--"))
       return inline ? anchorInset(inline, axis) : false;
-    const rules = declaredRules(node, property, Boolean(inline));
-    const candidates = rules.important.length
-      ? rules.important
-      : inline
-        ? [inline]
-        : rules.normal;
+    const candidates = declaredValues(node, property);
     return (
       candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
     );
@@ -819,17 +952,25 @@
   Element.prototype.animate = function (...args) {
     announce();
     const values = underlying(this);
+    const frames = Array.isArray(args[0]) ? args[0] : [args[0] ?? {}];
+    const bindings = findConsumers(this, [...new Set(frames.flatMap(Object.keys))]);
+    const consumers = consumerOrigins(bindings);
     const at = nativePerformance.now();
     const animation = animate.apply(this, args);
     beganAt.set(animation, { at });
-    origins.set(
+    animationProperties(animation);
+    inheritedConsumers.set(
       animation,
-      Object.fromEntries(
+      translationBindings.get(animation) ? [] : bindings,
+    );
+    origins.set(animation, {
+      ...Object.fromEntries(
         animationProperties(animation)
           .filter((property) => property in values)
           .map((property) => [property, values[property]]),
       ),
-    );
+      consumers,
+    });
     return animation;
   };
   // Reusing a native effect is a new operation when play resumes or reverse changes
@@ -844,6 +985,7 @@
         this.effect.getComputedTiming().progress === null
           ? underlying(this.effect.target, this)
           : null;
+      if (origin) origin.consumers = consumerOrigins(inheritedBindings(this));
       const at = nativePerformance.now();
       const result = original.apply(this, args);
       if (beginning) {
@@ -930,6 +1072,9 @@
         axes: translationAxes(effect.target),
         scroll: scrollBinding(animation),
         keyframes: effect.getKeyframes(),
+        consumers: inheritedBindings(animation).map((binding) =>
+          inheritedReading(animation, binding, returning),
+        ),
       });
       pruneSamples(readings);
       animated.set(animation, readings);
@@ -1570,7 +1715,8 @@
   // A gesture's aim: the control it was made on, which a scroll during the gesture's
   // rendering may not carry on screen (Scrolls a gesture makes, above). A press aims
   // at the control under the pointer, a key at whatever holds focus. A link's
-  // activation takes the user somewhere by the platform's own meaning, and a key the
+  // activation takes the user somewhere by the platform's own meaning, whether the
+  // browser follows it or the page's script travels in its place, and a key the
   // page leaves to the browser, as Tab, Space or an arrow, does what the platform does
   // with it; neither aims. Wheels and drags move the page by the user's own hand.
   const aimOf = (event) => {
@@ -1602,9 +1748,10 @@
     return { node, event, ...pose };
   };
   // Where the aim stands on screen, and the scroll offset of each box whose scroll
-  // carries it: its rendered ancestors up to the first fixed box among it and them.
-  // Read fresh, not from the ledger, whose last reading can predate a script's scroll
-  // that the input follows within the frame.
+  // carries it: its rendered ancestors up to the first fixed box among it and them,
+  // with what each that scrolls shows (`shownBy`). Read fresh, not from the ledger,
+  // whose last reading can predate a script's scroll that the input follows within
+  // the frame.
   const aimPose = (node) => {
     if (!node.isConnected || !node.checkVisibility()) return null;
     const rect = node.getBoundingClientRect();
@@ -1614,15 +1761,55 @@
       if (getComputedStyle(child).position === "fixed") break;
       const parent = up(child);
       if (!(parent instanceof Element)) break;
-      scrolls.set(parent, { left: parent.scrollLeft, top: parent.scrollTop });
+      const scrolling =
+        parent.scrollWidth > parent.clientWidth ||
+        parent.scrollHeight > parent.clientHeight;
+      scrolls.set(parent, {
+        left: parent.scrollLeft,
+        top: parent.scrollTop,
+        shown: scrolling ? shownBy(parent) : null,
+      });
       child = parent;
     }
     return { rect, scrolls };
   };
+  // Where a scroller shows what it holds whole: its scrollport less its scroll-padding,
+  // the region the browser's own reveals bring a target into, clear of what the
+  // scroller declares stands over its edges (a stuck header, a strip's edge press).
+  const shownBy = (box) => {
+    const root = box === document.scrollingElement;
+    const rect = root ? { left: 0, top: 0 } : box.getBoundingClientRect();
+    const style = getComputedStyle(box);
+    const inset = (side) => pixels(style[`scrollPadding${side}`]) ?? 0;
+    const left = rect.left + (root ? 0 : box.clientLeft);
+    const top = rect.top + (root ? 0 : box.clientTop);
+    return {
+      left: left + inset("Left"),
+      top: top + inset("Top"),
+      right: left + box.clientWidth - inset("Right"),
+      bottom: top + box.clientHeight - inset("Bottom"),
+    };
+  };
+  // A control as a reveal brings it into view: out to its scroll-margin, its ring's room.
+  const ringed = (node, rect) => {
+    const style = getComputedStyle(node);
+    const margin = (side) => pixels(style[`scrollMargin${side}`]) ?? 0;
+    return {
+      left: rect.left - margin("Left"),
+      top: rect.top - margin("Top"),
+      right: rect.right + margin("Right"),
+      bottom: rect.bottom + margin("Bottom"),
+    };
+  };
+  const whole = (rect, shown, start, end) =>
+    rect[start] > shown[start] - 1 && rect[end] < shown[end] + 1;
   // A scroll carried the aim on screen where both its edges moved one way on an axis
   // and the scroll moved it that way too. A scroll that holds it still, or takes back
   // part of what the gesture's own layout moved, carries it nowhere; layout motion
-  // stays the gesture's own (Scope).
+  // stays the gesture's own (Scope). Nor does a box's scroll that brings the aim whole
+  // into what that box shows from partly past it, by no more than the part it hid, as
+  // the browser's own focus does: the user pressed the part they could see, and the
+  // reveal shows them the rest.
   const judgeAim = (rendering) => {
     const aim = rendering.aim;
     if (!aim?.scrolled || aim.foreign) return;
@@ -1639,13 +1826,23 @@
     if (!now) return;
     const scrolled = { left: 0, top: 0 };
     let carriedBy = false;
+    const [from, to] = [aim.rect, now.rect].map((rect) => ringed(aim.node, rect));
     for (const [axis, far] of [
       ["left", "right"],
       ["top", "bottom"],
     ]) {
       for (const [box, offset] of now.scrolls) {
         const was = aim.scrolls.get(box);
-        if (was) scrolled[axis] -= offset[axis] - was[axis];
+        if (!was || !aim.scrolled.has(box)) continue;
+        const past =
+          was.shown &&
+          Math.max(was.shown[axis] - from[axis], from[far] - was.shown[far]);
+        const reveals =
+          past >= 1 &&
+          Math.abs(offset[axis] - was[axis]) < past + 1 &&
+          offset.shown &&
+          whole(to, offset.shown, axis, far);
+        if (!reveals) scrolled[axis] -= offset[axis] - was[axis];
       }
       if (
         carried(aim.rect, now.rect, axis, far) &&
@@ -1679,27 +1876,36 @@
   // Whose scroll it was (Scrolls a gesture makes, above): the aim is judged once the
   // gesture's own work has called a scrolling API, and never once other work has
   // during its rendering. A scroll the call starts, a smooth one too, is the gesture's
-  // through the rendering.
-  const scrollCalled = () => {
+  // through the rendering, on the boxes the call scrolls: the one it names, or for a
+  // reveal or focus every box holding its target.
+  const scrollCalled = (target, holders = false) => {
     const aim = open?.aim;
     if (!aim) return;
     const source = window.lfInputWork.current();
     const owner = source && inputRenderings.get(source.event);
-    if (owner && (owner === open || owner.own === open.own)) aim.scrolled = true;
-    else aim.foreign = true;
+    if (!owner || (owner !== open && owner.own !== open.own)) {
+      aim.foreign = true;
+      return;
+    }
+    aim.scrolled ??= new Set();
+    if (target === window) aim.scrolled.add(document.scrollingElement);
+    else if (!holders) aim.scrolled.add(target);
+    else
+      for (let box = up(target); box instanceof Element; box = up(box))
+        aim.scrolled.add(box);
   };
-  for (const [owner, names] of [
-    [Element.prototype, ["scroll", "scrollTo", "scrollBy", "scrollIntoView"]],
-    [Element.prototype, ["scrollIntoViewIfNeeded"]],
-    [window, ["scroll", "scrollTo", "scrollBy"]],
-    [HTMLElement.prototype, ["focus"]],
-    [SVGElement.prototype, ["focus"]],
+  for (const [owner, names, holders] of [
+    [Element.prototype, ["scroll", "scrollTo", "scrollBy"], false],
+    [Element.prototype, ["scrollIntoView", "scrollIntoViewIfNeeded"], true],
+    [window, ["scroll", "scrollTo", "scrollBy"], false],
+    [HTMLElement.prototype, ["focus"], true],
+    [SVGElement.prototype, ["focus"], true],
   ])
     for (const key of names) {
       const call = owner[key];
       if (typeof call !== "function") continue;
       owner[key] = function (...args) {
-        if (key !== "focus" || !args[0]?.preventScroll) scrollCalled();
+        if (key !== "focus" || !args[0]?.preventScroll) scrollCalled(this, holders);
         return call.apply(this, args);
       };
     }
@@ -1708,7 +1914,7 @@
     Object.defineProperty(Element.prototype, key, {
       ...offset,
       set(value) {
-        scrollCalled();
+        scrollCalled(this);
         offset.set.call(this, value);
       },
     });
@@ -1718,6 +1924,15 @@
   listen(document, "lf-command-invoked", ({ detail }) => {
     if (detail?.travels && open) open.aim = null;
   });
+  // So does a gesture that adds a history entry, as a followed link or a root tab
+  // set's switch does; renaming the entry the user is on (`replaceState`) takes them
+  // nowhere. Back or Forward is the user's own gesture, made in the browser's chrome,
+  // which no input event here carries, so it opens a rendering as hearing an input does.
+  if (window.navigation)
+    listen(window.navigation, "navigate", ({ navigationType }) => {
+      if (navigationType === "traverse") begin(nativePerformance.now());
+      else if (navigationType === "push" && open) open.aim = null;
+    });
   listen(
     window,
     "pointercancel",
@@ -2685,6 +2900,37 @@
     for (const animation of new Set(animations)) {
       const target = animation.effect.target;
       if (!target) continue;
+      const samples = animated.get(animation);
+      const earlier = samples?.findLast((reading) => reading.at <= from);
+      const later = samples?.findLast((reading) => reading.at <= to);
+      for (let index = 0; index < (earlier?.consumers?.length ?? 0); index++) {
+        const first = earlier.consumers[index],
+          last = later?.consumers?.[index];
+        if (
+          !first ||
+          !last ||
+          first.node !== last.node ||
+          !ancestryAt(element, from).includes(first.node) ||
+          !ancestryAt(element, to).includes(first.node)
+        )
+          continue;
+        const prior = animationTranslation("translate", first.value);
+        const next = animationTranslation("translate", last.value);
+        if (!prior || !next) continue;
+        const by = viewportTranslation(
+          "translate",
+          { axes: first.axes },
+          { axes: last.axes },
+          { left: next.left - prior.left, top: next.top - prior.top },
+        );
+        if (!by) continue;
+        for (const axis of ["left", "top"])
+          credit(motion, "inherited_translation", first.node, axis, by[axis], {
+            property: first.key,
+            before: first.value,
+            after: last.value,
+          });
+      }
       if (!ancestryAt(element, to).includes(target)) {
         // A size animation can move boxes later in its flow. The size change
         // must propagate through its ancestors to a following in-flow branch.

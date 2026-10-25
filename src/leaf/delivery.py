@@ -1136,15 +1136,14 @@ def awaiting_receipt(page: PageTransaction) -> set[str]:
 def confirm_entered(harness, payload: dict) -> None:
     """Record the receipt of what this session's hooks handed over inline and its
     harness's record, named in hook `payload`, shows in the model's context
-    (`Harness.entered_context`), on every page the session holds: the receipt
-    through the last of the page's pending input that record shows along with every
-    update before it (`record_receipt`). The cursor passes everything before where
-    it moves to, so it stops at the first update the record lacks. One handed into
-    a prompt Escape dropped can still be awaited while a later boundary's handover
-    reaches the model, where a Claude Code that names no turn renews the turn for
-    the prompt it submits again (`ClaudeCodeHarness.hook_payload`). Every hook of a
-    harness whose hooks don't commit their context runs this before it reads the
-    page, so the prompt a nudge wakes after an interrupt confirms what the
+    (`Harness.entered_context`), on every page the session holds: the receipt of
+    the pending input before the first update that record does not show
+    (`record_receipt`), since the cursor passes every input before the position it
+    moves to. On a Claude Code that names no turn, an update handed into a prompt
+    Escape dropped still awaits its receipt when a later tool boundary's handover
+    reaches the model (`ClaudeCodeHarness.hook_payload`), and it stays input. Every
+    hook of a harness whose hooks don't commit their context runs this before it
+    reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
     from .service import owned_pages
 

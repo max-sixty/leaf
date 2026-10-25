@@ -1,7 +1,8 @@
 import { W, Z, foldWidgetStates, obligationValue, projectionOrigins, x } from "./bundle-browser-runtime.js";
 import { PRESSES, TEXT_BOX, deepFocus, drawn, focusDestination, focused, inputCount, keeps, move, nextAnimation, nextRender, onCurrentLocation, onUserInput, readCaret, renderingState, sizeObserver, typesText, under, upFrom } from "./bundle-dom-move.js";
-import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESSABLE, admitReading, ariaShortcuts, bindings, buttonCommand, clippedPlace, commandAvailable, commandRoutes, decisionFor, el, frameFor, holdingError, labelOf, landingBand, layoutChanged, live, notice, placeBox, placeHolder, pointerAt, pruneScopedElements, raiseError, registry, repaint, reportPageError, restorePointer, reveal, runtimeRootState, savedReadingSettled, shownBox, skipped, spell, tagsDeclaring, word } from "./bundle-layer-client.js";
+import { LayerRefused, PAGE_PAINT_ATTRIBUTE, admitReading, reportPageError, runtimeRootState } from "./bundle-layer-client.js";
 import { LIVE_ROOT, PRESENTATION_DOM, applicationPresenter, applicationState, layerRoot, pageUrl, projectView, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation } from "./bundle-context.js";
+import { PRESSABLE, ariaShortcuts, bindings, buttonCommand, clippedPlace, commandAvailable, commandRoutes, decisionFor, el, frameFor, holdingError, labelOf, landingBand, layoutChanged, live, notice, placeBox, placeHolder, pointerAt, pruneScopedElements, raiseError, registry, repaint, restorePointer, reveal, savedReadingSettled, shownBox, skipped, spell, tagsDeclaring, word } from "./bundle-errors.js";
 import { chosenSince, containingReadingRegionFor, effectiveScroller, moveScrollerBy, onReadingInput, pageScroller, placeKept, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, shownRegionBounds, stopScroll, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, inChrome, pageDocument, pageQueryAll, pageRange, rangeOf, readingFrom, renderRetired, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressedElements, anchoringIsReady, fragmentTarget, livePoint, registerPageControl, resolveAnchor, revealAddressed, sectionOf, settleMarginContentLayout, targetElement, targetPlace, targetSegments } from "./bundle-content-layout.js";
@@ -1866,7 +1867,8 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			if (!before && id !== own) continue;
 			const node = placeNode(entry.reading);
 			const carried = node ? boxOf(node) === box : id === own && (entry.reading.end || rawOffsetFits(entry.reading, box));
-			if ((carried || id === own || before?.has(id)) && !(found?.at > entry.at)) found = {
+			const ranks = !found || entry.at > found.at || entry.at === found.at && id === own;
+			if ((carried || id === own || before?.has(id)) && ranks) found = {
 				...entry,
 				lands: carried || node && under(box, node)
 			};

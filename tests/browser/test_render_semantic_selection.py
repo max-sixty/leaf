@@ -23,6 +23,7 @@ from render_harness import (
     panel_control,
     panel_field,
     resized,
+    scroll_settled,
     selection_field,
     sending,
     write,
@@ -1306,21 +1307,26 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     page.evaluate(
         """() => {
           const originalRect = Element.prototype.getBoundingClientRect;
-          let hiddenRectReads = 0;
+          window.lfHintScrollReads = {hiddenRectReads: 0};
           Element.prototype.getBoundingClientRect = function (...args) {
             if (this.id.startsWith('hidden-'))
-              hiddenRectReads += 1;
+              window.lfHintScrollReads.hiddenRectReads += 1;
             return originalRect.apply(this, args);
           };
-          addEventListener('scrollend', () => requestAnimationFrame(() => {
-            window.lfHintScrollReads = {hiddenRectReads};
+          window.lfStopCounting = () => {
             Element.prototype.getBoundingClientRect = originalRect;
-          }), {capture: true, once: true});
+          };
           document.scrollingElement.scrollTo({top: 600, behavior: 'smooth'});
         }"""
     )
-    page.wait_for_function("() => window.lfHintScrollReads")
-    reads = page.evaluate("() => window.lfHintScrollReads")
+    # The membership refresh runs in the passes after the scroll rests, so the count is
+    # read once those have run, not at the scroll's end.
+    page.wait_for_function("() => scrollY > 0")
+    scroll_settled(page)
+    rendered(page)
+    reads = page.evaluate(
+        "() => { lfStopCounting(); return window.lfHintScrollReads; }"
+    )
 
     assert reads["hiddenRectReads"] == 0, reads
 

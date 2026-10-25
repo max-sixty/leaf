@@ -40,11 +40,6 @@ has tried; settle that before building it.
 
 ### User experience
 
-- **#25 — Answer one decision beside its evidence and on a board.** A section's
-  picker and its board card currently record independent facts. The section's widget
-  owns the answer; build the board's write to that owner and test both views against
-  one decision, including ordering, write-ins and revision retraction
-  ([design](notes/shared-decisions.md)).
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
@@ -311,13 +306,6 @@ that changes size after first paint, with its cause.
   another line and its removal shortens the box. Drawing nothing until the first
   state answer has been read would leave the theme's stand-in frame and caption until
   then.
-- **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
-  (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
-  disclosure stays closed until the module opens it, so the spine and its markers
-  first show at upgrade. Opening it earlier would show the markers evenly spaced and
-  then move them, since each row's share is the module's measurement of the document
-  (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
-  would put them in place.
 - **Let a press say it takes the user somewhere.** The shift watch lets a key move
   the control it was pressed on only where its command declares `travels`, and a
   press only on a link (`shift_watch.js`, "Scrolls a gesture makes"); a press on any
@@ -366,21 +354,6 @@ on 2026-10-07.
 
 ### The agent's text interface
 
-- **Stop delivering a comment twice after an interrupted tool boundary.** #3591
-  offers a Claude Code handover again once its turn ends with no later hook. That
-  is right for the prompt hook: Escape during it drops the prompt and Leaf's
-  context with it. At a tool boundary it isn't. On Claude Code 2.1.308, Escape
-  during PostToolBatch's hooks keeps Leaf's context in the conversation, so the
-  re-offer delivers the comment a second time. In one `leaf-dev journey
-claude-code` run (its `boundary` step), the transcript held the comment in both
-  the PostToolBatch context and the nudged turn's prompt context. The agent
-  answered it once and wrote that "the timezone question came in twice". A turn
-  interrupted after the model read a prompt's delivery but before any confirming
-  hook ran also gets that delivery twice, since PreToolUse runs only before `leaf`
-  commands. The finer fix is to offer an update again only when its handover came
-  from a prompt hook, and after an interrupted tool boundary to remind the agent
-  of what it owes instead, as `session.left_owed` does after Stop. That needs the
-  pickup to say which hook handed it over.
 - **Decide the Leaf-owned defects the bad-pages eval left open.**
   [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)
   lists three that follow from recorded choices: an open thread card covers the text
@@ -626,13 +599,12 @@ export` writes a file that boots the page's own runtime offline, and that file
   seven cases in `tests/browser/threads/test_seated_threads.py`), and a held thread
   pass would withhold every margin paint. A fix needs continuity to wait for the
   margin's paint and the margin to stop depending on the thread region committing.
-- **Consider moving the before/after reading out of the core.** How
-  `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
-  experimental and about 820 lines in the core runtime, consumed by `lf-shot`,
-  `lf-visual-review` and `leaf-dev stills`. A package could own it, so the core keeps
-  only what every page needs. Try it on non-Leaf captures first (another site, a
-  terminal, a plot); where the capture is a browser's, recording each element's box
-  beside the PNG would read moves exactly, as Percy's and SmartUI's layout modes do.
+- **Read moves exactly where the before/after pair is a browser's capture.** The
+  default package's `widgets/image-difference.js` reads a pair (blocks, moves,
+  outlines) for `lf-shot`, `lf-visual-review` and `leaf-dev stills`. Try it on
+  non-Leaf captures (another site, a terminal, a plot); where the capture is a
+  browser's, recording each element's box beside the PNG would read moves exactly, as
+  Percy's and SmartUI's layout modes do.
   Known gaps: a pane that scrolled within itself reads as scattered changes and moves
   rather than one region, a border that changed length draws a thin outline, and a
   changed 1440x900 pair costs about 40–70 ms on the main thread (8 ms before), which

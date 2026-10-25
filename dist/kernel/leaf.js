@@ -1,8 +1,9 @@
 import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-target-paint.js";
 import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
-import { EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, uploadMedia, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-layer-client.js";
+import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
 import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
+import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
 import { commandSteps, createAnchorTravel, createVersionController, initializeServedDocument, keepPageRulesOffLayer, mountHistory, paintCoreControls, readPlace, returnPlace, versionPicker, versionsReading } from "./runtime/bundle-version.js";
@@ -1213,7 +1214,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 	}
 	function standDown() {
 		if (composerOpen) composer.hideComposer();
-		if (fabAnchor.value) letGoOfFab();
+		if (fabAnchor.value) closeLayer(() => showFab(null), fabBar.contains(fabFocused()) && letGo);
 		setReact(false);
 	}
 	const fabAnchorAt = () => fabAnchor.value;
@@ -1580,6 +1581,11 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	let releaseTimer = null;
 	let mounted = false;
 	const drawModeActive = () => drawModeOn;
+	function holdCompatibilityClick() {
+		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
+		releaseTimer = null;
+		claimThroughClick = true;
+	}
 	function releaseCompatibilityClickSoon() {
 		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
 		releaseTimer = setTimeout(() => {
@@ -1718,7 +1724,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
 		const origin = event.composedPath()[0];
 		if (leafSurface(origin)) return;
-		claimThroughClick = true;
+		holdCompatibilityClick();
 		claimedPointer = event.pointerId;
 		claim(event);
 		const target = sessionTarget() ?? targetAtPointer();
@@ -5464,9 +5470,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			hint: () => saying(key, replyInput()),
 			hintAside: () => passingAside(key, replyInput()),
 			accessibleName: () => `Reply to ${threadTitle(key)}`,
-			sent: () => {
+			sent: (flight) => {
 				room = null;
 				rewriting = false;
+				releaseField();
 				landing = {
 					key,
 					after: drawnTurns(),
@@ -5474,6 +5481,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				};
 				waiting = null;
 				queueMicrotask(paint);
+				holdRefused(flight);
 			}
 		});
 		return replyOptions.get(key);
@@ -5752,6 +5760,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		landReader();
 		fitAnswer();
 		stood = openView()?.offsetHeight ?? null;
+		stoodAt = openView()?.getBoundingClientRect().top ?? null;
 		followBox();
 	});
 	const follow = sizeObserver(() => {
@@ -5826,6 +5835,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let room = null;
 	let drawnTop = null;
 	let stood = null;
+	let stoodAt = null;
 	let rewriting = false;
 	const holdThread = (height) => {
 		if (!trail.value.at(-1)?.thread || room !== null || height === null) return false;
@@ -5880,6 +5890,42 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		paint();
 	});
+	function holdRefused(flight) {
+		const route = trail.value.at(-1);
+		let cleared = null;
+		nextRender(() => {
+			cleared = replyInput()?.getBoundingClientRect().height ?? null;
+		});
+		Promise.resolve(flight).then((sent) => {
+			const view = openView();
+			if (sent || trail.value.at(-1) !== route || !view || stoodAt === null) return;
+			holdField(replyInput(), cleared);
+			const height = view.offsetHeight + view.getBoundingClientRect().top - stoodAt;
+			if (holdThread(height)) paint();
+		});
+	}
+	let fieldHold = null;
+	function holdField(input, height) {
+		releaseField();
+		if (!input || height === null) return;
+		if (input.getBoundingClientRect().height <= height + .5) return;
+		const release = new AbortController();
+		fieldHold = {
+			input,
+			release
+		};
+		input.style.setProperty("max-height", layoutPx(height));
+		for (const type of ["pointerdown", "beforeinput"]) input.addEventListener(type, releaseField, {
+			capture: true,
+			signal: release.signal
+		});
+	}
+	function releaseField() {
+		if (!fieldHold) return;
+		fieldHold.release.abort();
+		fieldHold.input.style.removeProperty("max-height");
+		fieldHold = null;
+	}
 	function holdRoom() {
 		const top = trail.value.at(-1);
 		if (!top || top.thread || room !== null || refitting) return false;
@@ -6019,6 +6065,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const changed = (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
 		if (changed) {
 			room = null;
+			releaseField();
 			rewriting = false;
 			pressed = null;
 			quoteExpanded = false;
@@ -10369,7 +10416,10 @@ if (validationEntry) {
 	validationEntry.lfObserveWidgetPreparations = observePreparations;
 	validationEntry.lfNativeLayers = nativeLayers;
 }
-const recoverComposer = retainUserIntent({ since: 0 });
+const recoverComposer = retainUserIntent({
+	since: 0,
+	available: () => window === window.top || document.hasFocus()
+});
 const overlaySelected = annotationMode === "overlay";
 const annotationRenderer = overlaySelected ? await import("./runtime/bundle-annotation-overlay.js") : null;
 if (validationEntry && annotationRenderer) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;

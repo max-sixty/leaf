@@ -133,8 +133,9 @@ def cmd_hook(harness: str, payload: dict) -> None:
             )
         return
     if turn_id and event != "UserPromptSubmit":
-        # A first trusted step can identify an unknown session-scoped turn.
-        # Once a prompt/provider named it, late callbacks cannot replace it.
+        # A step can identify a turn Leaf minted, as a claim's new lifetime mints
+        # one before any hook names it. Once a prompt/provider named it, late
+        # callbacks cannot replace it.
         with flocked(session_lock_path(sid)):
             record = session_record(sid)
             if (
@@ -144,7 +145,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
             ):
                 return
             if record["turn"] != turn_id:
-                if record["provider"] or event != "PostToolUse":
+                if record["provider"]:
                     return
                 expected = advance_turn(sid, turn_id, running=True)
             else:

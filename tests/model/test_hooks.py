@@ -737,6 +737,24 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
     )
 
 
+def test_a_step_adopts_claude_codes_turn_over_one_leaf_minted(claimed, capsys):
+    """A claim's new lifetime mints a turn before any hook names one. Claude Code's
+    next step names it by `prompt_id` from then on, so the Stop hook closes the turn
+    Claude Code ended rather than passing over a turn it does not know."""
+    assert not cleanup_model.session_record("s1")["provider"]
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "PostToolBatch", "session_id": "s1", "prompt_id": "p9"},
+    )
+    assert cleanup_model.session_record("s1")["turn"] == "p9"
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "prompt_id": "p9"},
+    )
+    capsys.readouterr()
+    assert cleanup_model.session_record("s1")["turn_closed"] is not None
+
+
 def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
     claimed, interactive, context_record, monkeypatch, capsys
 ):

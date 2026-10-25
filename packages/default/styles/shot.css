@@ -415,6 +415,13 @@
     overflow: clip;
   }
 }
+/* A shot that holds its height scrolls its drawing in the stage, which holds that
+   height too; the declaration doesn't inherit, so the stage states it. */
+@container style(--lf-holds-height:1) {
+  :scope:is(lf-shot) > .lf-shotstage {
+    --lf-holds-height: 1;
+  }
+}
 @media print {
   :scope:is(lf-shot) {
     block-size: auto;

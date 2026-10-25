@@ -25,6 +25,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    painted_words,
     panel_field,
     panel_menu,
     refuse,
@@ -143,18 +144,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     # move off the card when that is the nearest room that covers no words.
     in_card_row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(in_card_row).to_have_attribute("data-lf-place", "pin")
-    stands_by = """row => {
+    stands_by = """(row, words) => {
       const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
       const change = row.lfTarget;
-      const words = [];
-      for (const node of [change, ...change.querySelectorAll('*')])
-        for (const text of node.childNodes)
-          if (text.nodeType === Node.TEXT_NODE && text.data.trim()) {
-            const range = document.createRange();
-            range.selectNodeContents(text);
-            words.push(...[...range.getClientRects()]
-              .filter((b) => b.width > 2 && b.height > 2).map(edges));
-          }
       const entries = [...row.querySelectorAll('.lf-margin-entry')]
         .filter((entry) => entry.checkVisibility())
         .map((entry) => edges(entry.getBoundingClientRect()));
@@ -171,7 +163,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         inPage: r.right <= document.body.getBoundingClientRect().right,
       };
     }"""
-    placed = in_card_row.evaluate(stands_by)
+    placed = in_card_row.evaluate(stands_by, painted_words(page, "#sug-in-card"))
     assert placed == {
         "covers": 0,
         "touches": True,
@@ -186,7 +178,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     )
     assert root_overflow(page) == 0
     for widget in ("sug-refill", "sug-in-card"):
-        placed = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(stands_by)
+        placed = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(
+            stands_by, painted_words(page, f"#{widget}")
+        )
         assert placed == {
             "covers": 0,
             "touches": True,

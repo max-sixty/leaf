@@ -1991,7 +1991,10 @@ export function createVersionController({
   // box's own end, or its raw offset where its width and revision are those it was read
   // at (reading-place.js, `rawOffsetFits`). `before` names the scrollers that carried the
   // box's words before the shift; with none, as for a region returning from
-  // concealment, only the box's own place speaks for it.
+  // concealment, only the box's own place speaks for it. Places the reader made rank
+  // by when they made them; among places none of them made, such as those the page
+  // arrived with, the box's own speaks for it, so a region the reader never read in
+  // doesn't move the page to itself as a resize carries it into the page.
   function placeFor(box, recorded, before) {
     const own = box === pageScroller ? PAGE : regionForBox(box).id;
     let found = null;
@@ -2001,7 +2004,9 @@ export function createVersionController({
       const carried = node
         ? boxOf(node) === box
         : id === own && (entry.reading.end || rawOffsetFits(entry.reading, box));
-      if ((carried || id === own || before?.has(id)) && !(found?.at > entry.at))
+      const ranks =
+        !found || entry.at > found.at || (entry.at === found.at && id === own);
+      if ((carried || id === own || before?.has(id)) && ranks)
         found = { ...entry, lands: carried || (node && under(box, node)) };
     }
     return found?.lands ? found : null;

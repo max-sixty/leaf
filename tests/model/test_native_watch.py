@@ -790,7 +790,7 @@ def test_an_exhausted_native_watcher_polls_instead(
     try:
         mark = changes.mark()
         (tmp_path / "written").write_text("x")
-        assert changes.wait(mark, timeout=10)
+        assert changes.wait(mark, timeout=STATED_TIMEOUT)
     finally:
         changes.close()
     [said] = [json.loads(line) for line in capfd.readouterr().err.splitlines()]

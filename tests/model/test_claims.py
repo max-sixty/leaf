@@ -380,16 +380,14 @@ def test_a_sandbox_refusal_says_to_run_outside_it(
 
 
 def test_a_sandbox_that_hides_the_session_says_to_claim_outside_it(
-    page_dir, monkeypatch
+    page_dir, monkeypatch, dead_pid
 ):
     """Claude Code's Linux sandbox runs each command in a process namespace of its
     own, so CLAUDE_PID names no process the command can see, and the claim cannot
     take there at all. The refusal says so where the harness declares its sandbox,
     since the agent's fix is to rerun the command outside it."""
-    gone = subprocess.Popen(["true"])
-    gone.wait()
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "namespaced")
-    monkeypatch.setenv("CLAUDE_PID", str(gone.pid))
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     refused = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
     assert refused.exit_code == 1, refused.output

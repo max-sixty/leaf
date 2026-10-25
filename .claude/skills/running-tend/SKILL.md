@@ -111,17 +111,27 @@ Two test-owned failures recur:
 ## Fix every failure in a red run
 
 The goal is main green. Every failure in the run is the session's, including
-those earlier runs also hit; a tracking issue records a failure but doesn't fix
-it. A session ends at GitHub's six-hour job limit, and a fix left unmerged then
-waits for someone else. Plan the work from these facts:
+those earlier runs also hit, and so is every open `ci-fix:` issue, which holds a
+failure an earlier session left. A record of a failure, whether an issue, a comment
+or a table of statuses, doesn't give it an owner: it waits for the next red run,
+whose session starts over. So keep working until each cause has a merged fix or a
+pull request you are still driving. A session ends at GitHub's six-hour job limit,
+and a fix left unmerged then waits for someone else. Plan the work from these
+facts:
 
 - The complete suite takes hours, so check current main: later changes may have
   removed a failure's cause. A passing rerun alone does not clear a failure that
-  comes and goes.
+  comes and goes. Close a `ci-fix:` issue whose failure no longer occurs, saying
+  what showed it.
 - Failures often share a cause, and each pull request costs a CI run, so open
   one pull request per cause that no open pull request already covers.
-- A pull request's CI takes most of an hour. Subagents, each in its own worktree,
-  can diagnose or fix separate causes meanwhile.
+- Follow **One issue per failing test** for tracking; preserve what you established
+  in each issue so the next session starts from there.
+- A pull request's CI takes most of an hour, so diagnose and fix separate causes
+  in parallel subagents, each in its own worktree.
+- No cause waits on a maintainer's decision: where no repair keeps both the
+  change's intent and the interface, **Reading a red suite** says to revert and
+  file the issue that asks for it.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then

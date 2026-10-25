@@ -88,10 +88,6 @@ has tried; settle that before building it.
   them (see "A reply's widgets in every view of it"). Hiding resolved cards in place
   would show them among open ones unless CSS reorders them, so it needs the user's
   say; the `lf-diff` fix is keeping rows stable or the containers outside them.
-- **A summary's fold button ignores a press while words are selected.** With text
-  selected in a thread message, pressing "Show/Hide N earlier messages" does nothing,
-  even twice; Enter works. Reproduced in Chromium with a selection set by script,
-  before the flat transcript too.
 
 ### Agent and author experience
 
@@ -299,26 +295,12 @@ Boxes that still move without input, which the "Stability" rule in
 `browser/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Draw a text document's listing once its text has arrived.** Every
-  `lf-text-document` now keeps its final box from first paint, but its module draws
-  the listing as soon as it upgrades, before the state answer brings the text: one
-  empty row under a caption reading “· no data”. When the text arrives, the gutter
-  widens for two-digit line numbers and the code column moves right inside the box.
-  `leaf-dev probe` on a page with a 20-line, a 3-line and a preview document scores
-  that move 0.12 of layout shift at 1440px and 0.44 at 390px, though nothing outside
-  the boxes moves, except where the “· no data” suffix wraps a long label onto
-  another line and its removal shortens the box. Drawing nothing until the first
-  state answer has been read would leave the theme's stand-in frame and caption until
-  then.
-- **Let a press say it takes the user somewhere.** The shift watch lets a key move
-  the control it was pressed on only where its command declares `travels`, and a
-  press only on a link (`shift_watch.js`, "Scrolls a gesture makes"); a press on any
-  other control has no command to declare it. Forced onto the unsurveyed tab tests,
-  the watch reports `lf-tabs` presses: a root set's switch, which adds a history entry
-  and opens the view at its place, carries the pressed tab up to 295px; an embedded
-  set's, 24px; and `#showTab` scrolls a partly hidden tab 51px into the strip.
-  Decide whether a view switch takes the user somewhere, which the history entry it
-  adds could declare as a link's does, and whether `#showTab`'s reveal is wanted.
+- **Keep what a live revision adds above the reader from moving it.** A revision
+  that puts a tab set above the gallery's page tabs, read from the page's top, moves
+  their strip 430px down the window as it arrives
+  (`test_the_gallery_tab_set_uses_the_boundary_of_its_composition[among-blocks]`,
+  marked `shifts_unsurveyed` for it). Scroll anchoring absorbs growth above the
+  window; this one grows inside it, above what the reader sees.
 - **Keep the merge film's controls still as it steps.** In `examples/wt-merge.page`'s
   `lf-merge-film`, pressing Next inspection scrolls that button 83px and `i` on Play
   7px (`test_merge_film_inspection_has_touch_and_keyboard_routes`, unsurveyed).
@@ -372,27 +354,21 @@ on 2026-10-07.
   advice. Run the render readings on the server when a version goes live and
   deliver the findings through `leaf wait`: the agent hands the page over at once
   and refines it if a reading warrants, while a failure still blocks a record's
-  stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
-  whether agents act on findings that arrive after handover, before building it.
+  stamp. Measured 2026-10-24
+  ([notes](notes/agent-usability-evals.md#render-findings-after-handover-2026-10-24)):
+  the pass takes a median 7–8 s on catalog and eval pages; 8 of 20 agents handed a
+  quick edit over without it, and 20 of 21 agents that got its findings after
+  handover, delivered as the page's `error` event, fixed the page in the same wake.
+  Give the findings a handling clause of their own: under the `error` event's, which
+  says to fix a failure the user saw, agents changed the page for advice every time;
+  a clause that tells failures from advice kept every failure fixed and had Claude
+  Code leave the advice in 4 of 5.
 - **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on
   `triage-board` and 12.6 s on the corpus, measured by tracing the check's passes.
   The price is that dark mode and the narrow width would no longer be checked from
   a fresh start. Decide whether that coverage is worth the time before building it.
-- **Decide what plain `page check` runs in a browser from the mistakes agents make.**
-  It runs a page once in the host's browser, about 1.3 s, where the page has a script
-  or places a page widget, a data widget or a widget naming page media (`needs_browser`,
-  `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
-  (`lf-playground`, `lf-visual-review`, `lf-text-document`)
-  and every widget in thread markup report through `leaf wait` once a browser draws
-  them, but nothing runs them first. Write `evals/` cases in which agents author each
-  kind and measure how often what they write fails to draw, then run the kinds agents
-  get wrong and stop running those they reliably get right. `page-reads-at-every-width`
-  covers documents, dashboards, queues and playgrounds: none of its 40 final pages had
-  a widget that failed to draw, and every plain-check finding during authoring was
-  markup ([notes](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)).
-  Thread markup and the other widgets above are still unmeasured.
 - **Derive the waiting status from the page's open obligation.** Consider using the obligation's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open obligations and an informational page before choosing how the panel's
@@ -549,6 +525,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   real task.
 - **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
+- **Consider Leaf running the agent session.** A side lane that answers questions
+  while the session runs a long tool, or Leaf hosting the whole session, would reach
+  controls Claude Code and the Codex app don't expose to a companion
+  ([evidence and options](notes/leaf-run-sessions.md)). Trigger: busy-agent waits
+  grow past a few questions a day, or a user wants Leaf to be where they work.
 - **Decide whether an exported page carries its threads.** `leaf page
 export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the

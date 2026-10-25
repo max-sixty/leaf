@@ -1,4 +1,6 @@
-"""Leaf's side of one Codex task, shared by both App Server clients.
+"""Leaf's side of one Codex task: the delivery records every transport shares, and
+the App Server connection Leaf uses where it can reach one, which the desktop app
+never offers (`session-lifetime.md`, "Watchers", says which tasks offer one).
 
 Two programs connect to a Codex task's App Server for Leaf: the detached
 `codex_adapter.py`, which watches a task the user owns, and `leaf_website`

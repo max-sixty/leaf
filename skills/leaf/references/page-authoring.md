@@ -145,7 +145,9 @@ headings, tables, code and widgets. Polish a page through clearer content and hi
 within that treatment. Reserve page CSS for task-specific arrangement, visualization
 or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for
-polish adds visual weight without meaning.
+polish adds visual weight without meaning. A box page CSS makes opaque, such as a
+sticky bar, paints `background: var(--lf-ground)`: the surface it stands on, which a
+card or a playground's preview sets for what it holds.
 
 When page CSS reveals controls while a container is hovered or focused, include
 `:has([data-lf-control-active])` in the condition if it contains a code block.

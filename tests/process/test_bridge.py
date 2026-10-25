@@ -71,21 +71,17 @@ def test_a_bridged_command_keeps_its_stdin_streams_and_status(page_dir):
 
 
 @pytest.mark.usefixtures("bridged")
-def test_a_bridged_command_ends_though_its_stdin_never_does():
+def test_a_bridged_command_ends_though_its_stdin_never_does(spawn):
     """A harness may hand a command a stdin that never ends, and a command that
     never reads it still finishes."""
-    held = subprocess.Popen(
+    held = spawn(
         [LAUNCHER, "--version"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
     )
-    try:
-        assert held.wait(timeout=STATED_TIMEOUT) == 0
-        assert held.stdout.read().startswith("leaf ")
-    finally:
-        held.stdin.close()
-        held.stdout.close()
+    assert held.wait(timeout=STATED_TIMEOUT) == 0
+    assert held.stdout.read().startswith("leaf ")
 
 
 @pytest.mark.usefixtures("bridged")

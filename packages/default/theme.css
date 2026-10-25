@@ -1563,6 +1563,9 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] {
     margin: 0;
   }
+  :scope:is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[hidden] {
+    overflow-anchor: none;
+  }
   :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=box] > lf-tab {
     container-type: inline-size;
   }

@@ -51,7 +51,9 @@ Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the decision lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
 position. The recommended option stays where that order puts it; its `recommended`
-label marks your advice.
+label marks your advice. Prose that recommends or discusses an option names it by
+its title, as in “I'd keep handwritten types”, never by its position or by a letter
+from an earlier list, since the options' order can change after you write it.
 
 Let the user judge each option by its result rather than a description of it, on plans
 and work-item lists too: an interaction they can try, a drawing of an arrangement or

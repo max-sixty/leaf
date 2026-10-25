@@ -825,6 +825,18 @@
           overflow-anchor: none;
           --lf-holds-height: 1;
         }
+        /* A track's body scrolls, so it clips: it keeps the ring's room on every side
+         * inside its box, so a ring at its edge, such as a summary's or the contents
+         * outline's last link, shows whole. Its top margin gives the room back, so its
+         * first words stay level with the body's; at its sides the room stays inside
+         * the track, since a margin there stood past the column. */
+        :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+          > aside[data-lf-beside]
+          > [data-lf-track-body] {
+          box-sizing: border-box;
+          padding: var(--focus-ring-room);
+          margin-block-start: calc(-1 * var(--focus-ring-room));
+        }
       }
     }
   }

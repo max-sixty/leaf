@@ -1952,7 +1952,7 @@ _TEXT = {
         f"event {v['event']!r} is answered by this turn's messages; "
         + (
             "failure receipts wait for this turn to release the answer; answer in your"
-            f" final message or use {v['command']} without `--failure`"
+            f" final message or with {v['command']}"
             if v["failure"]
             else f"use {v['command']} to commit an explicit answer"
         )

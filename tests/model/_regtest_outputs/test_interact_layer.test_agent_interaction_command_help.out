@@ -142,31 +142,28 @@ Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
   PAGE MESSAGE names, which is refused while that thread owes an answer.
 
   An answer declares what it leaves with --done, --todo or --obligation, or
-  carries a widget in --markup that asks; --ephemeral progress and a --failure
-  declare nothing, and both --done and --failure need a reference. The reply
-  publishes your saved page edits, checked as `page check` checks them without a
-  browser. The Leaf skill's references/threads.md says which to use and what
-  each leaves.
+  carries a widget in --markup that asks; --ephemeral progress declares nothing,
+  and --done needs a reference. The reply publishes your saved page edits,
+  checked as `page check` checks them without a browser. The Leaf skill's
+  references/threads.md says which to use and what each leaves.
 
 Options:
-  --failure TEXT  failure code when no answer is coming; refused while your
-                  turn's final message is to be the reply
-  --done          the reply delivers what the message asked for
-  --text TEXT     the reply's text
-  --file PATH     read the reply's text from PATH, - for stdin; with neither
-                  option, from piped stdin
-  --markup TEXT   frozen HTML fragment after the text
-  --todo TITLE    the reply promises work it doesn't deliver; opens that to-do
-                  on the thread, ended by `leaf task end` with the reply's id
-  --ephemeral     one-line progress, without answering
-  --title TEXT    name the thread for the panel unless it has a name: a few
-                  words, at most 80 characters
-  --obligation    put this message on On me until the user replies or settles it
-  --quote TEXT    new passage text to move this thread onto
-  --section ID    new element ID, or scope for --quote
-  --part ID       new declared visual part within --section
-  --detach        remove the thread's page target
-  --help          Show this message and exit.
+  --done         the reply delivers what the message asked for
+  --text TEXT    the reply's text
+  --file PATH    read the reply's text from PATH, - for stdin; with neither
+                 option, from piped stdin
+  --markup TEXT  frozen HTML fragment after the text
+  --todo TITLE   the reply promises work it doesn't deliver; opens that to-do on
+                 the thread, ended by `leaf task end` with the reply's id
+  --ephemeral    one-line progress, without answering
+  --title TEXT   name the thread for the panel unless it has a name: a few
+                 words, at most 80 characters
+  --obligation   put this message on On me until the user replies or settles it
+  --quote TEXT   new passage text to move this thread onto
+  --section ID   new element ID, or scope for --quote
+  --part ID      new declared visual part within --section
+  --detach       remove the thread's page target
+  --help         Show this message and exit.
 
 ## leaf thread edit --help
 Usage: leaf thread edit [OPTIONS] PAGE MESSAGE

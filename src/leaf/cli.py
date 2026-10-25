@@ -1264,11 +1264,6 @@ def thread_create(
 @click.argument("destination", metavar="REFERENCE_OR_PAGE")
 @click.argument("message", metavar="[MESSAGE]", required=False)
 @click.option(
-    "--failure",
-    help="failure code when no answer is coming; refused while your turn's final "
-    "message is to be the reply",
-)
-@click.option(
     "--done", is_flag=True, help="the reply delivers what the message asked for"
 )
 @body_options("the reply's text")
@@ -1289,7 +1284,6 @@ def thread_create(
 def thread_reply(
     destination: str,
     message: str | None,
-    failure: str | None,
     done: bool,
     **options,
 ) -> dict | None:
@@ -1297,8 +1291,8 @@ def thread_reply(
     thread PAGE MESSAGE names, which is refused while that thread owes an answer.
 
     An answer declares what it leaves with --done, --todo or --obligation, or
-    carries a widget in --markup that asks; --ephemeral progress and a --failure
-    declare nothing, and both --done and --failure need a reference. The reply
+    carries a widget in --markup that asks; --ephemeral progress declares nothing,
+    and --done needs a reference. The reply
     publishes your saved page edits, checked as `page check` checks them without a
     browser. The Leaf skill's references/threads.md says which to use and what
     each leaves.
@@ -1307,17 +1301,9 @@ def thread_reply(
 
     text = read_body(options.pop("text"), options.pop("body_file"))
     if message is not None:
-        addressed = [
-            flag
-            for flag, given in (
-                ("--done", done),
-                ("--failure", failure is not None),
-            )
-            if given
-        ]
-        if addressed:
+        if done:
             raise click.UsageError(
-                f"use an answer reference with {' and '.join(addressed)}; "
+                "use an answer reference with --done; "
                 "use `leaf thread reply <answer.ref>`"
             )
         return post_reply(
@@ -1339,16 +1325,15 @@ def thread_reply(
     ]
     if len(declared) > 1:
         raise click.UsageError(f"{' and '.join(declared)} cannot be used together")
-    answers = not options["ephemeral"] and failure is None
+    answers = not options["ephemeral"]
     if declared and not answers:
         raise click.UsageError(
-            f"{declared[0]} declares what an answer leaves; progress and failure "
-            "receipts answer nothing"
+            f"{declared[0]} declares what an answer leaves; progress answers nothing"
         )
     # An answer that declares nothing must carry a widget that asks; `post_reply`
     # refuses it otherwise (`undeclared-answer`).
     options["asks_back"] = not declared and answers
-    return post_response(destination, text, failure=failure, **options)
+    return post_response(destination, text, **options)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")

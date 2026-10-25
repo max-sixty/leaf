@@ -91,8 +91,6 @@ with the answer; the first answer on a revision also notes the advice `page chec
 gives. Progress and failure reports use the active revision without checking or
 publishing an in-progress draft. Rerunning an
 answer with the same `ref` adds nothing.
-When no answer is coming, `--failure <code>` posts a failure receipt, which settles
-the input without reopening a resolved thread.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
 "Replies"). Use `leaf thread reply` instead when the answer needs markup, a question

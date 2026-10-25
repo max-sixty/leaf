@@ -501,7 +501,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     ref = delivered_ref(claimed, asked["id"])
     with pytest.raises(delivery_model.Refused) as refused:
         thread_model.post_response(ref, "gave up", failure="turn_failed")
-    assert f"use `leaf thread reply {ref}` without `--failure`" in str(refused.value)
+    assert f"with `leaf thread reply {ref}`" in str(refused.value)
     with service_model.PageTransaction(claimed) as page:
         page.clear_delivery_reply_reservation(session["id"], asked["id"], "a1")
 

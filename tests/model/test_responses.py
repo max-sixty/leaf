@@ -562,22 +562,11 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
     )
     assert progress.exit_code == 0, progress.output
     source.write_text("<lf-unknown>Unfinished draft</lf-unknown>")
-    posted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            reference,
-            "--failure",
-            "unavailable",
-            "--text",
-            "No answer is coming.",
-        ],
+    reply = thread_model.post_response(
+        reference, "No answer is coming.", failure="unavailable"
     )
-    assert posted.exit_code == 0, posted.output
     assert files_model.latest_revision(page_dir) == active
     assert source.read_text() == "<lf-unknown>Unfinished draft</lf-unknown>"
-    reply = json.loads(posted.output)
     assert reply["failure"] == "unavailable"
     assert reply["responds"] == asked["id"]
     assert (

@@ -281,16 +281,13 @@ and its chrome coordinate.
   and which measurements become thresholds a test enforces rather than numbers a
   person reads.
 
-- **Test the Layouts on agents.** Give fresh agents tasks across the Layouts, then ask
-  them to revise the results: turn a report into a report with live status while
-  keeping its comments. They hold if revisions happen by ordinary composition. Include
-  a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
-  with the agent-usability baseline, by extending the document, dashboard and
-  queue tasks in `evals/`. For a workspace, also measure what a screenshot of the
-  document cannot show: each pane's contents through its own scroll, how much of each
-  pane is empty, and whether a reader reaches every pane by key. The arrangement
-  judge sees only the first screen of a pane that scrolls and is told not to infer
-  interaction, so no case yet measures whether a workspace works as a screen.
+- **Keep a window preference from cramping a dashboard into a workspace.** Told the
+  user works at 1600×1000 and 900×600, three of four rollout-dashboard authors turned
+  a sidebar page into a three-pane workspace, and every one then drew a judge defect
+  at 900×600, with one pane 224×173px holding 6.5 of its own heights while another
+  stood 65% empty at 1600×1000 (`notes/agent-usability-evals.md`, "Layouts under
+  revision"). Find what in the guidance sends the author there, change it, and score
+  `dashboard/write-up` before and after.
 - **Layout values that wait for a task:** a selection-and-detail widget whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.

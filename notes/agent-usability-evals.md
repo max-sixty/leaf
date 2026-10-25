@@ -291,6 +291,143 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
 twelve-author Codex comparison above. The continuing brief is TODO #20.
 
+## Layouts under revision, 2026-10-24
+
+TODO.md's "Test the Layouts on agents" asked whether pages hold when an agent revises
+them into another shape. Three variants of the complete tasks run the usual author,
+width preference, passage comment and browser decision, then send a revision that
+changes what the page is for: `document/live-status` turns the review into the page
+the team follows during the TTL rollout, `dashboard/write-up` adds the eu-west
+write-up to the rollout dashboard, and `queue/hand-off` adds a hand-off for the
+support lead to the worked queue. Each keeps its comment thread. `dashboard/cold`
+asks a fresh author for "a dashboard" from a pile of mixed material, with a text
+rubric for over-tiling and `page_defects.py`'s live judge. The workflow judges saw
+1600×1000 and 900×600.
+
+```sh
+uv run leaf-dev eval document/live-status dashboard/write-up queue/hand-off dashboard/cold --harness claude-code --viewport desktop --viewport short --repeat 2 -j 2
+uv run leaf-dev eval document/live-status dashboard/write-up queue/hand-off dashboard/cold --harness codex --viewport desktop --viewport short --repeat 2 -j 1
+```
+
+Main was `f00911ed1`: Opus 5.5 on Claude Code, Sol 6.1 on Codex, Sol judges. A
+Claude Code revision sample cost $3.5–4.8 and took 12–21 minutes; a cold dashboard
+$0.67–0.73.
+
+### What the revisions did
+
+The shape of each final page, read from its markup, and the live judge's verdict:
+
+| Task        | Harness     | Final page after the revision                                    | Judge  |
+| ----------- | ----------- | ---------------------------------------------------------------- | ------ |
+| live status | Claude Code | page of parts: status column, review sidebar                     | defect |
+| live status | Claude Code | column page with page tabs for status and review                 | defect |
+| live status | Codex       | sidebar page, status in the aside                                | pass   |
+| live status | Codex       | sidebar page, status in the aside                                | defect |
+| write-up    | Claude Code | page of parts: workspace, write-up column                        | defect |
+| write-up    | Claude Code | page tabs, each holding a workspace or a column (see below)      | defect |
+| write-up    | Codex       | write-up as one more tab inside a workspace pane                 | defect |
+| write-up    | Codex       | write-up as a 2×2 grid of prose sections beside the status aside | defect |
+| hand-off    | Claude Code | hand-off as the first tab in the queue's side list               | defect |
+| hand-off    | Claude Code | hand-off as the first tab in the queue's side list               | pass   |
+| hand-off    | Codex       | the workspace body split into page tabs: queue, hand-off         | pass   |
+| hand-off    | Codex       | hand-off on a second page, linked by a tokened `127.0.0.1` URL   | none   |
+
+The last sample finished every phase, but the run's scratch cleanup failed with
+"Directory not empty", so it was never judged.
+
+Adding a document to a working surface was the revision that broke composition.
+`page-authoring.md`, "Composing a page", already says parts of one subject that
+each want their own Layout are a page of parts, but only 1 of 7 judged dashboard and
+queue authors built one. The others put the document where it reads in a slot
+sized for the work: a 475px pane, a 618×484 pane at 900×600 holding 4.5 screens,
+or a grid of prose tiles. One Claude Code author gave each root page tab a Layout.
+`layouts.css` arranges a Layout only on `main`, a child of `main` or a part's
+child, so that workspace silently flowed with the page, and the judge found the
+event log scrolling the page rather than its pane. Nothing reported it. A scan of
+517 saved pages carrying a page Layout (the pages under
+`~/.local/state/leaf/pages/` and the eval samples saved in this machine's Leaf
+worktrees) found this the only one, so it is not worth a check yet.
+
+Status added to the review composed by Layouts in every sample. The defects there
+came from content: both judged Claude Code authors deleted the commented
+database-owner ask once Redis was chosen, leaving the thread reporting its passage
+gone, and two authors' status ran below the fold or under the floating panel at
+900×600. Codex kept the ask in both samples.
+
+The width preference, naming a 1600×1000 and a 900×600 window, turned three of
+four dashboards from sidebar pages into three-pane workspaces before any
+revision. Every workspace dashboard then drew a judge defect at 900×600: one
+author's "Log and checks" pane was 224×173px and held 6.5 of its own heights,
+while at 1600×1000 the same page's rollout pane was 65% empty. The 900×600
+defects on dashboards that stayed sidebar pages were about the write-up's width or
+what the arrival view left out, not cramped panes. This is the likeliest next
+target, and it needs its own before/after.
+
+### The cold dashboard
+
+None of the four over-tiled (`tiles-hold-peers` 4 of 4). Each put the four
+headline figures in equal cells, one also the card networks and two charts, kept
+the eight services in one table and listed the incidents with their owners. Claude
+Code used `layout-tiles` on a sidebar or column page with 268–454 bytes of page
+CSS. Codex rebuilt the frame itself, with 3.5 and
+6.8 KB of CSS setting its own grids, colours, font and panel cards, and one page
+overriding `main.layout-sidebar`'s tracks. `page_defects.py` found a defect on
+every page: on a phone, identifiers broken mid-word in the services table (2
+pages), charts and a timeline too small to read (1), a column dropped (1) and two
+spans run together (1); at the wider sizes, the services table using 435px of a
+995px section (1); and a thread card covering metrics or hiding its message (2).
+
+### Pane readings
+
+`dev/leaf_dev/pane_readings.py` now measures each Leaf-scrolled region of a shown
+workspace before a live judge explores, and the judge's task carries the readings.
+Across every judged workspace, Tab reached every pane whose content ran past its
+box. The panes
+Tab never reached neither scrolled nor held a control, or flowed with the page
+inside the misplaced workspace. On arrival at 1600×1000 the queue's selected ticket
+pane was 73–79% empty, and dashboard panes 38–69%. The readings cover only the
+part shown on arrival, so a workspace in a later part goes unmeasured.
+
+### The fix: a revision composes like a new page
+
+One sentence on the parts bullet in `page-authoring.md`, "Composing a page", says a
+revision that adds such a part composes the same way, naming a write-up added to a
+dashboard and a hand-off added to a queue. It sits in the reference every author
+reads before its first version, since few authors reopen a reference for the
+revision turn (authoring-revisions.md was opened in phase 5 by none of the
+eight authors above).
+
+| Arm       | Harness     | Dashboard and queue revisions built as parts | Judge passes |
+| --------- | ----------- | -------------------------------------------- | ------------ |
+| main      | Claude Code | 1 of 4                                       | 1 of 4       |
+| candidate | Claude Code | 4 of 4                                       | 2 of 4       |
+| main      | Codex       | 0 of 3 (and the unjudged second page)        | 1 of 3       |
+| candidate | Codex       | 4 of 4                                       | 3 of 4       |
+
+Codex's candidate defect was inside the queue's own workspace: at 900×600 a
+ticket's evidence got 423px beside a 239px decision column the pane readings
+measured as 70% empty. The candidate's two Claude Code defects had nothing to do
+with composition: an arrival summary at 900×600 left out the 17:30 stage, and a
+ticket record said an incident "was opened". All four candidate dashboards also stayed sidebar pages
+through the width preference, which the sentence does not touch, so part of the
+pass difference is that variance. On Claude Code the candidate also made both
+`document/live-status` revisions pages of parts, a status part beside the review,
+where main made 1 of 2;
+their judges' defects were again content (logout lag below the fold at 900×600, the
+deleted ask). The read-only layout probes `parts-take-their-own-layouts`,
+`page-arrangement-uses-layouts` and `surface-page-takes-the-window` passed 12 of 12
+on both arms. Two samples a cell show direction, not a rate.
+
+### Harness fixes from the runs
+
+The browser user's passage selection picked the contents outline's copy of a
+heading, which Leaf generates and offers no comment route for, and the sample
+failed. `eval_user.py` now skips generated words (`.lf-ui, [data-lf-gen]`,
+passages.js). The dashboard comment fell back to a whole-page comment on all four
+dashboards on main, because their follow-ups sat in a tab or a closed disclosure
+the page didn't show on arrival, and the scenario's `reveal` names nothing to open.
+The candidate dashboards showed them, so their comments anchored to the passage.
+
 ## Remaining evaluation gaps
 
 - Recovering a long thread's middle after the agent has lost it. `elided` now

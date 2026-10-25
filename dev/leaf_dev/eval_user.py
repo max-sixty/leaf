@@ -48,8 +48,10 @@ OPENERS = (
     "[role=link], [role=row], [role=treeitem], [tabindex]"
 )
 
-# The words the browser draws, each mapped back to its text node, with runs of
-# space collapsed as rendering collapses them; hidden and script text is skipped.
+# The authored words the browser draws, each mapped back to its text node, with runs
+# of space collapsed as rendering collapses them; hidden and script text is skipped,
+# and so are the words Leaf generates (`GENERATED`, passages.js), such as a contents
+# outline's copy of a heading, which a reader can select but not comment on.
 DRAWN = """() => {
   const chars = [], map = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -57,6 +59,7 @@ DRAWN = """() => {
   for (let node; (node = walker.nextNode()); ) {
     const parent = node.parentElement;
     if (!parent || parent.closest("script, style, template, noscript")) continue;
+    if (parent.closest(".lf-ui, [data-lf-gen]")) continue;
     if (!parent.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
       continue;
     for (let i = 0; i < node.data.length; i++) {

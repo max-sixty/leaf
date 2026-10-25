@@ -3,7 +3,8 @@
 Promptfoo owns providers, repetition, concurrency, assertions and saved results.
 This provider supplies the work Promptfoo cannot do: an installed Leaf or plain
 HTML workspace, a live multi-turn author, a browser user who makes the task's
-decision, and saved pages/traces. The author checks its own work. One agent judges
+decision, an optional last revision that changes what the page is for, and saved
+pages/traces. The author checks its own work. One agent judges
 the final page and, for a decision task, its earlier usable controls; there is no
 second decision reader or repeated render/quality grader for every revision.
 
@@ -27,7 +28,7 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
 from leaf.thread import successful_replies
-from leaf_dev import ROOT, arrangement_plain
+from leaf_dev import ROOT, arrangement_plain, pane_readings
 from leaf_dev.arms import (
     MODELS,
     TURN_LIMIT,
@@ -93,14 +94,21 @@ class Decision:
 
 @dataclass(frozen=True)
 class Scenario:
+    # The task under `evals/` whose request.md and pinned files the author gets,
+    # so a scenario can revise another task's page.
+    request: str
     comment: Comment | None = None
     decision: Decision | None = None
     # What a reader clicks to open the item that holds the comment's passage.
     reveal: str = ""
+    # A last message that changes what the page is for, sent once the user's
+    # comment and decision are on it.
+    revision: str | None = None
 
 
 CASES = {
     name: Scenario(
+        request=case["inputs"].get("request", name),
         comment=(
             Comment(**(comment | {"quotes": tuple(comment["quotes"])}))
             if (comment := case["inputs"]["comment"])
@@ -110,6 +118,7 @@ CASES = {
             Decision(**decision) if (decision := case["inputs"]["decision"]) else None
         ),
         reveal=case["inputs"]["reveal"],
+        revision=case["inputs"].get("revision"),
     )
     for name, case in DEFINITION["cases"].items()
 }
@@ -161,22 +170,27 @@ class Run:
 
 
 def phases(subject: str) -> tuple[int, ...]:
-    """Authoring, the width revision, the comment and the decision, as the task has
-    them."""
+    """Authoring, the width revision, the comment, the decision and the revision,
+    as the task has them."""
     scenario = CASES[subject]
     return (
         1,
         2,
         *((3,) if scenario.comment else ()),
         *((4,) if scenario.decision else ()),
+        *((5,) if scenario.revision else ()),
     )
+
+
+def request(subject: str) -> str:
+    return (TASKS / CASES[subject].request / "request.md").read_text()
 
 
 def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> str:
     return DEFINITION["prompts"]["first"][condition].format(
         payload=payload,
         page=page,
-        request=(TASKS / subject / "request.md").read_text(),
+        request=request(subject),
         browser=shell_executable(),
     )
 
@@ -228,9 +242,10 @@ def author(run: Run, cwd: Path) -> None:
     """Run the sample's live session through its phases, preserving each phase's
     page, and stop any server it left running."""
     cwd.mkdir(parents=True, exist_ok=True)
-    fixtures = pinned_copy(TASKS / run.subject)
+    task = CASES[run.subject].request
+    fixtures = pinned_copy(TASKS / task)
     if fixtures is not None and fixtures.is_dir():
-        shutil.copytree(fixtures, cwd / "evals" / run.subject)
+        shutil.copytree(fixtures, cwd / "evals" / task)
     (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
     page = run.authored_page
@@ -271,6 +286,8 @@ def author(run: Run, cwd: Path) -> None:
                     before = comment(run, live)
                 elif phase == 4:
                     decision_round(run, live)
+                elif phase == 5:
+                    live.send(CASES[run.subject].revision)
                 settled = live.settle(since, grace=GRACE, wake=WAKE, before=before)
                 snapshot(page, run.directory / f"page-phase{phase}")
                 if not settled or not (page / "index.html").exists():
@@ -459,6 +476,13 @@ def judge_pages(
                         Path(saved["payload"]), Path(temporary) / "state", copied
                     )
                 )
+            # Leaf's regions; a plain HTML page has none to read.
+            panes = {
+                label: pane_readings.read(address, widths)
+                for label, address in addresses.items()
+                if pages[label]["condition"] == "leaf"
+            }
+            (evidence / "panes.json").write_text(json.dumps(panes, indent=2))
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}
 Open your own headless Chromium with -s=<session> open <URL> --config {browser_config}.
@@ -480,7 +504,7 @@ Required viewports (CSS pixels):
 {json.dumps(widths)}
 Task and criterion:
 {prompt}
-"""
+{pane_readings.judge_note(panes)}"""
             (evidence / "prompt.txt").write_text(instructions)
             try:
                 trace = run_agent(
@@ -514,6 +538,7 @@ Task and criterion:
                 "metadata": {
                     "evidence": str(evidence),
                     "pages": addresses,
+                    "panes": panes,
                     "model": MODELS["codex"],
                     "trace": summary,
                 }
@@ -628,6 +653,8 @@ def later_messages(
                 f'to be applied: "{apply_message(decision, "typed", None)}"'
             ),
         ]
+    if revision := scenario.revision:
+        lines += ["", f'Then the user asked: "{revision}"']
     return lines
 
 
@@ -637,7 +664,7 @@ def brief(
     """What the judge reads: the request, the later messages, the author's `answer`
     to the comment."""
     lines = [
-        f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
+        f"<request>\n{request(subject)}</request>",
         "",
         *later_messages(subject, viewports=viewports),
         "",
@@ -668,11 +695,11 @@ def comparison_inputs(
     decision = CASES[subject].decision
     versions = {"": str(order[-1])}
     if decision:
-        versions["_before_decision"] = str(order[-2])
+        versions["_before_decision"] = str(order[order.index(4) - 1])
     return {
         "brief": "\n".join(
             [
-                f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
+                f"<request>\n{request(subject)}</request>",
                 "",
                 *later_messages(subject, "the first version", viewports),
             ]

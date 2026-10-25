@@ -550,6 +550,11 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         "Captured image could not load."
     )
     expect(broken_widget.locator(".viewer-container")).to_have_count(0)
+    # The image tools' own status slot says so too.
+    expect(broken_widget.locator(".lf-trace-tools-status")).to_be_visible()
+    expect(broken_widget.locator(".lf-trace-tools-status")).to_have_text(
+        "Image unavailable"
+    )
     broken_widget.get_by_role("button", name="Next", exact=True).click()
     rendered(broken)
 

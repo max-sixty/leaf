@@ -875,7 +875,7 @@
   inline-size: var(--lf-line);
 }
 /* Status changes share one slot; loading a frame cannot wrap the tools into a new row. */
-.lf-trace-image-status {
+.lf-trace-tools-status {
   margin-inline-start: auto;
   inline-size: 24ch;
   flex: 0 0 auto;
@@ -909,7 +909,7 @@
 }
 
 @container (max-width: 480px) {
-  .lf-trace-image-status {
+  .lf-trace-tools-status {
     margin-inline-start: 0;
     inline-size: 100%;
     text-align: start;

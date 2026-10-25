@@ -330,10 +330,11 @@ response); the cause wasn't traced. Dashboard and document first turns didn't ge
 is the record review: render checks, up to 23 screenshot reads, the fresh-eyes subagent
 page-checkpoints.md asks for, and the author's own rounds after clean checks.
 
-Removing that subagent on the document task (`page-reads-at-every-width`, 3 per arm)
-cut 4.1 to 3.2 minutes and $1.40 to $0.90 with the same page_defects findings, most
-of them Leaf's thread chrome. That judge reads layout, not whether a reader can follow
-the page, so the result prices the review rather than showing it adds nothing.
+Removing that subagent on the document task (`page-reads-at-every-width`, two runs of
+3 per arm) cut 4.3 to 3.3 minutes and $1.39 to $0.92 a page, with 4 against 3 judged
+defects the author owned beside the thread chrome's. That judge reads layout and the
+supplied facts, not whether a reader can follow the argument, so the result prices
+the review rather than showing it adds nothing.
 
 Until ca736ac63 the arrangement executor pinned the author's render check to the
 fixed 1280×720 window and the browser user first opened the page in the comment

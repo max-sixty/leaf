@@ -287,7 +287,7 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
 
 def test_a_section_handed_a_message_owed_nothing_is_sent_to_its_thread(page_dir):
     """A message the log owes nothing still names its thread to `leaf thread reply`.
-    Proactive replies name PAGE THREAD when nothing is owed; the diagnostic
+    Proactive replies name PAGE MESSAGE when nothing is owed; the diagnostic
     must provide a route the writer can take."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output

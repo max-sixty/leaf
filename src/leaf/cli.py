@@ -544,7 +544,7 @@ def instructions(
 
 @page.command(short_help="Print where the page, a thread, or a widget stands.")
 @page_argument(renew=False)
-@click.argument("target", metavar="[ID]", required=False)
+@click.argument("target", metavar="[MESSAGE_OR_WIDGET]", required=False)
 @click.option(
     "--after",
     type=click.IntRange(min=0),
@@ -564,11 +564,11 @@ def state(
     yours, thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
-    ID narrows the output to what it names. A message, or a widget frozen into
-    one, names its thread: the output is that thread with a page of its messages,
-    their frozen markup, and the state of its widgets, paged by --after and
-    --limit. A widget on the page names itself: its element, its current actions
-    and reports, its obligations and to-dos, and its workflows."""
+    MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
+    frozen into one, names its thread: the output is that thread with a page of its
+    messages, their frozen markup, and the state of its widgets, paged by --after
+    and --limit. A widget on the page names itself: its element, its current
+    actions and reports, its obligations and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
     return cmd_page_state(page_dir, target, after=after, limit=limit)
@@ -647,9 +647,9 @@ def export(page_dir: Path, out: Path, version: int) -> dict:
 
 @page.command(short_help="Picture a drawing comment as the user saw it.")
 @page_argument(renew=False)
-@click.argument("message", metavar="ID")
+@click.argument("message", metavar="MESSAGE")
 def picture(page_dir: Path, message: str) -> dict:
-    """Draw comment ID's drawing over the page as the user saw it, and print the
+    """Draw comment MESSAGE's drawing over the page as the user saw it, and print the
     PNG's path as `file`.
 
     Opens the comment's revision in the host's browser, with the log applied
@@ -701,7 +701,8 @@ def events(page_dir: Path, after: int, follow: bool) -> None:
 
     Each line is one stored event record; `seq` is its position, and `--after`
     resumes from the last one a reader saw. This is read-only and does not
-    acknowledge user events. `page state PAGE ID` reads one thread or widget.
+    acknowledge user events. `page state PAGE MESSAGE_OR_WIDGET` reads one thread or
+    widget.
     """
     from leaf.event_log import cmd_events
 
@@ -821,7 +822,7 @@ def thread() -> None:
     """Create and answer threads as the agent, and maintain them.
 
     Every write prints the records it appended, one JSON line each, as `page
-    events` prints them. `page state PAGE ID` reads one thread."""
+    events` prints them. `page state PAGE MESSAGE` reads one thread."""
 
 
 @thread.command("summarize", short_help="Summarize a contiguous message range.")
@@ -1260,10 +1261,10 @@ def thread_create(
 
 
 @thread.command(
-    "reply", short_help="Reply using an answer reference or a page and thread."
+    "reply", short_help="Reply using an answer reference or a page and message."
 )
 @click.argument("destination", metavar="REFERENCE_OR_PAGE")
-@click.argument("thread", required=False)
+@click.argument("message", metavar="[MESSAGE]", required=False)
 @click.option(
     "--failure",
     help="failure code when no answer is coming; refused while your turn's final "
@@ -1289,14 +1290,15 @@ def thread_create(
 @click.option("--detach", is_flag=True, help="remove the thread's page target")
 def thread_reply(
     destination: str,
-    thread: str | None,
+    message: str | None,
     failure: str | None,
     done: bool,
     **options,
 ) -> dict | None:
     """Reply to a delivered update using its `answer.ref` as the only argument, or
-    post an agent-initiated message using PAGE THREAD. A page and thread cannot
-    bypass an owed answer: use its delivered reference instead.
+    post an agent-initiated message using PAGE MESSAGE, any message in the thread.
+    A page and message cannot bypass an owed answer: use its delivered reference
+    instead.
 
     With a reference, mark every answer with --done (it delivers what the message
     asked for) or --todo TITLE (it promises work it doesn't deliver, which stays
@@ -1313,13 +1315,13 @@ def thread_reply(
     With a reference, an answer suppresses your turn's final message as a second
     reply; an --ephemeral line does not. --done and --failure require a
     reference.
-    PAGE THREAD accepts --obligation when the message needs the user's next move,
+    PAGE MESSAGE accepts --obligation when the message needs the user's next move,
     or --todo for promised work.
     """
     from leaf.thread import post_reply, post_response
 
     text = read_body(options.pop("text"), options.pop("body_file"))
-    if thread is not None:
+    if message is not None:
         addressed = [
             flag
             for flag, given in (
@@ -1335,7 +1337,7 @@ def thread_reply(
             )
         return post_reply(
             resolve_dir(destination),
-            {"parent": thread},
+            {"parent": message},
             text,
             validate_source=True,
             **options,
@@ -1391,16 +1393,16 @@ def thread_edit(
 
 @thread.command("resolve", short_help="Close a thread as the agent.")
 @page_argument(renew=True)
-@click.argument("thread", metavar="THREAD")
-def thread_resolve(page_dir: Path, thread: str) -> dict:
-    """Close THREAD, by any message in it, as the agent.
+@click.argument("message", metavar="MESSAGE")
+def thread_resolve(page_dir: Path, message: str) -> dict:
+    """Close the thread MESSAGE is in, as the agent.
 
     The user ordinarily closes a thread; the Leaf skill's
     references/threads.md says when the agent does.
     """
     from leaf.thread import cmd_resolve
 
-    return cmd_resolve(page_dir, thread)
+    return cmd_resolve(page_dir, message)
 
 
 @cli.group(short_help="Create or end to-dos, start work on your list, and plan.")

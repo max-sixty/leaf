@@ -1897,7 +1897,7 @@ _TEXT = {
     # (`validation.admission.logged_id`), and `answer` the command that answers an
     # owed update (`activity.answer_command`).
     "unknown-comment": lambda at, v: (
-        f"unknown comment id {v['name']!r}"
+        f"unknown message id {v['name']!r}"
         + (f"; {v['held']}" if v.get("held") else "")
         + f"; known: {_json(v['known'])}"
     ),

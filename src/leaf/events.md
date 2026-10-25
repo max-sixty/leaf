@@ -241,7 +241,7 @@ user for its lifetime, so a `read` names no account.
 
 An agent comment opens a thread, and a substantive reply opens or resumes one. Either
 waits on the user only through an obligation: the message's own, declared with
-`--obligation` (id `message:<event-id>`, its text the prompt), or one a widget in its
+`--obligation` (id `message:<message>`, its text the prompt), or one a widget in its
 markup declares through `x-awaits`.
 An answering command declares what it leaves: `--done`, nothing further; `--todo
 <title>`, a to-do on the thread for work the reply promises but does not deliver

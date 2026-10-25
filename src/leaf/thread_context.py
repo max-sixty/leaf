@@ -324,7 +324,7 @@ MESSAGE_FIELDS = (
 
 # How much of one thread a wait digest carries: the message that opened it,
 # because it holds the question the thread is about, and the most recent, being
-# what a new one answers. `leaf page state <page> <thread>` pages through the
+# what a new one answers. `leaf page state <page> <message>` pages through the
 # exchange when a reader needs the middle.
 #
 # The bound is the point. A delivery reprints the entire thread every time,
@@ -366,7 +366,7 @@ def thread_digest(
     exchange its own events land in without printing them twice. `pin` keeps a
     message the bound would otherwise drop. `elided` says how many went, so a
     reader can tell a short thread from a shortened one and knows to
-    page through the rest with `leaf page state <page> <thread> --after`."""
+    page through the rest with `leaf page state <page> <message> --after`."""
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
     shown = ends_kept(kept, pin)
     return {

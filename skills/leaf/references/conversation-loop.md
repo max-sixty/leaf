@@ -192,7 +192,7 @@ Generally pass `--obligation` when a message hands the next move to the user.
 Progress and information that need no response create no obligation. When a widget
 already captures the same answer, its obligation is sufficient.
 
-Obligation ids are `message:<message-id>` for an explicit message request,
+Obligation ids are `message:<message>` for an explicit message request,
 `widget:<widget-id>` for a widget, `lf-ask` included,
 and `update:<event-id>` for an update
 the user handed over. A to-do on the user keeps the id `task create` printed. It can sit on a thread; replies discuss the action and Done completes it.
@@ -234,8 +234,8 @@ where they answered; `dropped` withdraws a question that no longer applies. Neit
 outcome fabricates an answer in the page's history:
 
 ```bash
-leaf task end <page> message:<message-id> done --text "<where the answer is>"
-leaf task end <page> message:<message-id> dropped --text "<why>"
+leaf task end <page> message:<message> done --text "<where the answer is>"
+leaf task end <page> message:<message> dropped --text "<why>"
 ```
 
 For a reply-answered widget, use its `widget:<widget-id>` obligation id instead.

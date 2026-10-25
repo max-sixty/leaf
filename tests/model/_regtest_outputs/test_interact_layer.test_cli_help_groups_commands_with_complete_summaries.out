@@ -126,7 +126,7 @@ Usage: leaf thread [OPTIONS] COMMAND [ARGS]...
   Create and answer threads as the agent, and maintain them.
 
   Every write prints the records it appended, one JSON line each, as `page
-  events` prints them. `page state PAGE ID` reads one thread.
+  events` prints them. `page state PAGE MESSAGE` reads one thread.
 
 Options:
   --help  Show this message and exit.
@@ -134,6 +134,6 @@ Options:
 Commands:
   create     Create an agent thread \u2014 on a passage, or on the page whole.
   edit       Edit a message's text, or its thread's title.
-  reply      Reply using an answer reference or a page and thread.
+  reply      Reply using an answer reference or a page and message.
   resolve    Close a thread as the agent.
   summarize  Summarize a contiguous message range.

@@ -35,18 +35,18 @@ Options:
   --help  Show this message and exit.
 
 ## leaf page state --help
-Usage: leaf page state [OPTIONS] PAGE [ID]
+Usage: leaf page state [OPTIONS] PAGE [MESSAGE_OR_WIDGET]
 
   Print the page as it is now, as one JSON object: the active revision's file,
   the current widget actions and workers' reports, the user's On me list and
   yours, thread summaries, versions, presence, and bound data. Read the active
   revision's HTML beside it for the document.
 
-  ID narrows the output to what it names. A message, or a widget frozen into
-  one, names its thread: the output is that thread with a page of its messages,
-  their frozen markup, and the state of its widgets, paged by --after and
-  --limit. A widget on the page names itself: its element, its current actions
-  and reports, its obligations and to-dos, and its workflows.
+  MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
+  frozen into one, names its thread: the output is that thread with a page of
+  its messages, their frozen markup, and the state of its widgets, paged by
+  --after and --limit. A widget on the page names itself: its element, its
+  current actions and reports, its obligations and to-dos, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from
@@ -136,11 +136,12 @@ Options:
   --help         Show this message and exit.
 
 ## leaf thread reply --help
-Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]
+Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
 
   Reply to a delivered update using its `answer.ref` as the only argument, or
-  post an agent-initiated message using PAGE THREAD. A page and thread cannot
-  bypass an owed answer: use its delivered reference instead.
+  post an agent-initiated message using PAGE MESSAGE, any message in the thread.
+  A page and message cannot bypass an owed answer: use its delivered reference
+  instead.
 
   With a reference, mark every answer with --done (it delivers what the message
   asked for) or --todo TITLE (it promises work it doesn't deliver, which stays
@@ -156,7 +157,7 @@ Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [THREAD]
 
   With a reference, an answer suppresses your turn's final message as a second
   reply; an --ephemeral line does not. --done and --failure require a reference.
-  PAGE THREAD accepts --obligation when the message needs the user's next move,
+  PAGE MESSAGE accepts --obligation when the message needs the user's next move,
   or --todo for promised work.
 
 Options:
@@ -198,9 +199,9 @@ Options:
   --help        Show this message and exit.
 
 ## leaf thread resolve --help
-Usage: leaf thread resolve [OPTIONS] PAGE THREAD
+Usage: leaf thread resolve [OPTIONS] PAGE MESSAGE
 
-  Close THREAD, by any message in it, as the agent.
+  Close the thread MESSAGE is in, as the agent.
 
   The user ordinarily closes a thread; the Leaf skill's references/threads.md
   says when the agent does.

@@ -44,7 +44,7 @@ from .user_views import read_user_views, viewed_at
 from .validation.admission import logged_id
 from .work import page_subject
 
-# How many of a thread's messages one `page state PAGE THREAD` prints by default.
+# How many of a thread's messages one `page state PAGE MESSAGE` prints by default.
 HISTORY_LIMIT = 50
 
 
@@ -148,7 +148,7 @@ def _base_state(
         "plan": None,
         "obligations": [],
         # Current semantic facts only. A thread's history belongs to
-        # `page state PAGE THREAD`; keeping its sequence list here would make this
+        # `page state PAGE MESSAGE`; keeping its sequence list here would make this
         # default snapshot grow with every thread turn. A reaction nobody
         # has replied to opened no thread: it is paint on the page and
         # stands under `reactions` below.

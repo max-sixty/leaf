@@ -57,7 +57,7 @@ delivery:
       handling:
         h1: >-
           The batch's `threads` holds the thread's context; `leaf page state <page>
-          <thread-id>` reads its full history.
+          <message>` reads its full history.
         h2: >-
           The thread has no title yet. Name its subject with `--title "<a few words>"`
           on your reply.

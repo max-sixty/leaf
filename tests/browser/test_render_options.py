@@ -2675,3 +2675,41 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
         {"option": added.get_attribute("id"), "text": "Keep **both** routes"}
     ]
     expect(added.locator("strong")).to_have_text("both")
+
+
+def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
+    browser, serve
+):
+    """Authors write a card's consequence after its title either as a sentence or as a
+    paragraph, and both read as one card: the paragraph's own margin had set it three
+    times as far under the title."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "option shapes",
+                '<lf-options id="shapes" choose>'
+                '<lf-option id="sentence"><strong>Ship it</strong> The cohort gets it now.'
+                "</lf-option>"
+                '<lf-option id="paragraph"><strong>Hold it</strong>'
+                "<p>The cohort waits for the fix.</p></lf-option>"
+                "</lf-options>",
+            )
+        ),
+    )
+    gaps = page.evaluate(
+        """() => {
+          const below = (id) => {
+            const option = document.getElementById(id);
+            const title = option.querySelector(':scope > strong').getBoundingClientRect();
+            const range = document.createRange();
+            const body = id === 'sentence'
+              ? option.querySelector(':scope > strong').nextSibling
+              : option.querySelector(':scope > p').firstChild;
+            range.selectNodeContents(body);
+            return range.getClientRects()[0].top - title.bottom;
+          };
+          return { sentence: below('sentence'), paragraph: below('paragraph') };
+        }"""
+    )
+    assert gaps["paragraph"] == pytest.approx(gaps["sentence"], abs=1), gaps

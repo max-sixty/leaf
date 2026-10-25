@@ -147,7 +147,9 @@ make a cramped working region usable.
 
 `density-working` is a style, not a Layout. It sets smaller type, tighter spacing and
 options as rows on any block, for a surface the reader operates. A workspace usually
-takes it, and so can a dense table on a column page.
+takes it, and so can a dense table on a column page. On the `main` of a column or
+sidebar page, such as a dashboard, it also sets the title at working size and starts
+the page nearer the window's top.
 
 For a queue of items decided one at a time, such as tickets or findings, make the body
 one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`

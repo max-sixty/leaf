@@ -1,6 +1,6 @@
 import { TEXT_FIELD, afterSettling, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, onUserInput } from "./bundle-dom-move.js";
 import { el, hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-errors.js";
-import { holdScrollHeight } from "./bundle-reading-regions.js";
+import { contentRides } from "./bundle-reading-regions.js";
 import { inChrome } from "./bundle-passages.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
 import { motionPlays, playMotion } from "./bundle-motion.js";
@@ -757,7 +757,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			return;
 		}
 		if (!element.checkVisibility()) return;
-		if (element !== root && style.positionAnchor.startsWith("--")) return;
+		if (style.positionAnchor.startsWith("--")) return;
 		const [dx, dy] = carried(element);
 		const part = {
 			element,
@@ -825,7 +825,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		parts.forEach(note);
 		watch();
 		if (!(theirs() === "send" && [...streamFrom].some(([scroller, then]) => !(streams.has(scroller) && progress < 1) && scroller.contains(then.child) && !near(then.child.getBoundingClientRect().top, then.top))) && rests?.size === next.size && [...next].every(([element, at]) => rests.has(element) && same(rests.get(element), at))) return;
-		for (const scroller of streams.keys()) holdScrollHeight(scroller, null);
+		for (const scroller of streams.keys()) contentRides(scroller, false);
 		for (const animation of running) animation.cancel();
 		running = [];
 		if (!next.has(box)) {
@@ -1069,10 +1069,10 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			const scroller = part.element;
 			const then = streamed.get(scroller) ?? streamFrom.get(scroller);
 			if (!then || !scroller.contains(then.child)) return;
-			const to = then.child.getBoundingClientRect().top;
+			const to = then.child.getBoundingClientRect().top - carriedBy(0)(then.child)[1];
 			const dy = then.top - to;
 			if (Math.abs(dy) < .5) return;
-			holdScrollHeight(scroller, scroller.scrollHeight);
+			contentRides(scroller, true);
 			hold(scroller, "overflowAnchor", "none");
 			streams.set(scroller, {
 				child: then.child,
@@ -1152,7 +1152,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		animations.at(-1).onfinish = () => {
 			if (running !== animations) return;
 			restoreTranslations();
-			for (const scroller of streams.keys()) holdScrollHeight(scroller, null);
+			for (const scroller of streams.keys()) contentRides(scroller, false);
 		};
 	}
 	return {
@@ -1178,6 +1178,10 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 					if (theirs() === "send" && timing) follow(timing);
 					else stopStreaming.abort();
 				}, {
+					signal,
+					passive: true
+				});
+				for (const type of ["wheel", "touchstart"]) element.addEventListener(type, () => stopStreaming.abort(), {
 					signal,
 					passive: true
 				});

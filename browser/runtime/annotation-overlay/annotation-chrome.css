@@ -269,8 +269,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview-card {
     box-sizing: border-box;
     min-height: 0;
-    overflow: hidden;
-    scroll-padding-block: var(--focus-ring-room);
+    /* It only clips, so nothing scrolls it, and its motion letting what it carries
+       stand past its edge changes no scroll container (box-motion.js). */
+    overflow: clip;
     padding: var(--lf-comment-inset);
     border: 1px solid transparent;
     border-radius: var(--r-l);

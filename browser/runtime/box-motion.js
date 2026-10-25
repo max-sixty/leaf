@@ -61,14 +61,14 @@
  *
  * A change arriving during the tween starts each part from where it is drawn then;
  * news arriving while the user's change still carries parts shows them where they now
- * stand, but for a send's ride (below). A part placed against the window, as the attachment shelf is, moves with no
- * ancestor's transform, so a part holding one is never carried whole: its parts are
- * placed one by one. The motion is presentation only: each part's layout is where it
- * stands from the change on, and a part's motion ends with the tween, so nothing it
- * leaves behind needs undoing. Each part's motion plays through motion.js's `playMotion`,
- * so reduced motion and the presentation boundary are answered there: while motion
- * does not play, each reading takes the box as it stands, and a user asking for
- * stillness mid-tween finishes what is moving.
+ * stand, but for a send's ride (below). A part placed against the window, as the
+ * attachment shelf is, moves with no ancestor's transform, so a part holding one is
+ * never carried whole: its parts are placed one by one. The motion is presentation
+ * only: each part's layout is where it stands from the change on, and a part's motion
+ * ends with the tween, so nothing it leaves behind needs undoing. Each part's motion
+ * plays through motion.js's `playMotion`, so reduced motion and the presentation
+ * boundary are answered there: while motion does not play, each reading takes the box
+ * as it stands, and a user asking for stillness mid-tween finishes what is moving.
  *
  * Every reading is taken in the box's own plane: a box the page's scroll or its
  * placement carries whole is read from the edges that hold it (`held`), so only a change
@@ -85,7 +85,7 @@
  * up to take the new message, its header moving with it. A head stuck to the scroller's
  * edge rides as a scroll that far back would stick it (`streamContent`). While the
  * content rides, the scroller's end stays where its layout puts it
- * (scrolling.js, `holdScrollHeight`), and its scroll is anchored to nothing, so neither
+ * (scrolling.js, `contentRides`), and its scroll is anchored to nothing, so neither
  * a landing at its end nor the browser's scroll anchoring chases the ride, and a reading
  * meanwhile, news included, carries the ride on from where it is drawn. Rejected:
  * scrolling the scroller through the ride, which a card's send once did on its own
@@ -101,7 +101,7 @@ import { motionPlays, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { onUserInput } from "./focus.js";
 import { afterSettling, nextRender } from "./rendering.js";
-import { holdScrollHeight } from "./scrolling.js";
+import { contentRides } from "./scrolling.js";
 
 // Whose change it is, one clock for every box, since an input anywhere is the user's:
 // their key, press or typing owns what it sets going until that rendering settles
@@ -179,13 +179,16 @@ const paints = (style) =>
 const rings = (style) =>
   style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
 
-// root: the element whose parts move, the box among them. box: the part the surface
-// draws. room: the surface's layer, reaching past every outline the box can travel
-// through, against which its cuts are measured; it moves with the box's plane. surface():
-// each layer drawing the box, with how far past the outline it reaches. ring: the two
-// layers that draw a part's ring, a ring and a fill inside it. observer: reads the box
-// again when any part changes size. held(): the root's edges that hold it in its plane,
-// as `{x: "left" | "right", y: "top" | "bottom"}`, or null for a box fixed in the window.
+// root: the element whose parts move, the box among them, and only what moves with the
+// box: a part with a job of its own beside it, such as a grip whose clip leaves its
+// middle open to presses, stands outside it, since a cut would replace that clip. box:
+// the part the surface draws. room: the surface's layer, reaching past every outline
+// the box can travel through, against which its cuts are measured; it moves with the
+// box's plane. surface(): each layer drawing the box, with how far past the outline it
+// reaches. ring: the two layers that draw a part's ring, a ring and a fill inside it.
+// observer: reads the box again when any part changes size. held(): the root's edges
+// that hold it in its plane, as `{x: "left" | "right", y: "top" | "bottom"}`, or null
+// for a box fixed in the window.
 export function boxMotion({
   root,
   box,
@@ -304,10 +307,9 @@ export function boxMotion({
       return;
     }
     if (!element.checkVisibility()) return;
-    // CSS-anchored surfaces inside the box already follow their anchor's painted
-    // position. Reading that travel as a layout change would retarget the anchor on
-    // every frame. A root anchored in the page is read in its own plane (`rebase`).
-    if (element !== root && style.positionAnchor.startsWith("--")) return;
+    // CSS-anchored surfaces already follow their anchor's painted position. Reading
+    // that travel as a layout change would retarget the anchor on every frame.
+    if (style.positionAnchor.startsWith("--")) return;
     const [dx, dy] = carried(element);
     const part = {
       element,
@@ -416,7 +418,7 @@ export function boxMotion({
       )
     )
       return;
-    for (const scroller of streams.keys()) holdScrollHeight(scroller, null);
+    for (const scroller of streams.keys()) contentRides(scroller, false);
     for (const animation of running) animation.cancel();
     running = [];
     // A box not drawn at all, as in print, has nothing to move, and its next reading
@@ -684,10 +686,12 @@ export function boxMotion({
       const scroller = part.element;
       const then = streamed.get(scroller) ?? streamFrom.get(scroller);
       if (!then || !scroller.contains(then.child)) return;
-      const to = then.child.getBoundingClientRect().top;
+      // Where layout stands the child: a part holding the scroller may already be
+      // carried, which its box includes and `move` subtracts again.
+      const to = then.child.getBoundingClientRect().top - carriedBy(0)(then.child)[1];
       const dy = then.top - to;
       if (Math.abs(dy) < 0.5) return;
-      holdScrollHeight(scroller, scroller.scrollHeight);
+      contentRides(scroller, true);
       // Firefox anchors the scroll to where a child is drawn, so it would scroll the
       // ride away frame by frame.
       hold(scroller, "overflowAnchor", "none");
@@ -786,7 +790,7 @@ export function boxMotion({
     animations.at(-1).onfinish = () => {
       if (running !== animations) return;
       restoreTranslations();
-      for (const scroller of streams.keys()) holdScrollHeight(scroller, null);
+      for (const scroller of streams.keys()) contentRides(scroller, false);
     };
   }
 
@@ -824,6 +828,13 @@ export function boxMotion({
           },
           { signal, passive: true },
         );
+        // A wheel or a finger in the scroller starts no gesture, but the scroll it
+        // makes is the user's, which the content follows rather than rides.
+        for (const type of ["wheel", "touchstart"])
+          element.addEventListener(type, () => stopStreaming.abort(), {
+            signal,
+            passive: true,
+          });
       }
     },
     // The window changed size: the next reading takes the box as it stands.

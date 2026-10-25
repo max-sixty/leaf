@@ -284,7 +284,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 	};
 	const followed = sizeObserver(followCard);
 	const following = boxMotion({
-		root: preview,
+		root: face,
 		box: face,
 		room: ground,
 		surface: () => [

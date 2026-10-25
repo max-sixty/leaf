@@ -199,7 +199,9 @@ export function createThreadPreview({
   };
   const followed = sizeObserver(followCard);
   const following = boxMotion({
-    root: preview,
+    // The face is the root, so the grip beside it, whose clip opens its middle to
+    // the card's own presses, is never cut by the motion.
+    root: face,
     box: face,
     room: ground,
     // The ground is cut to the outline grown by its shadow's reach, the ring is the

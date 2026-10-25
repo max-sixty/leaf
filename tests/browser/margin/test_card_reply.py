@@ -370,6 +370,129 @@ def test_a_card_send_moves_the_card_as_one_stream(browser, serve):
     assert drawn[:3] == pytest.approx(stood, abs=1), (stood, drawn)
 
 
+# Where a card's outline, its head row, each turn and each turn's name are drawn now.
+FULL_CARD_DRAWN = """card => {
+  const ring = card.querySelector('.lf-margin-preview-ring');
+  const ground = card.querySelector('.lf-margin-preview-ground');
+  const cut = getComputedStyle(ring).clipPath.match(/inset\\(([-\\d.]+)px/);
+  const tops = (selector) => [...card.querySelectorAll(selector)]
+    .map(node => node.getBoundingClientRect().top);
+  return {
+    outline: ground.getBoundingClientRect().top + Number(cut?.[1] ?? 0),
+    controls: tops('.lf-margin-thread-controls')[0],
+    turns: tops('.lf-thread-transcript > .lf-msg'),
+    names: tops('.lf-thread-transcript .lf-msg-head'),
+  };
+}"""
+
+
+def sending_from_a_full_card(browser, serve):
+    """A card at its height cap, its transcript scrolled, with a two-line reply sent from
+    it and every motion the send starts held at its first frame. Returns the page, the
+    card, its transcript and where the card's parts stood before the send."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    transcript = preview.locator(".lf-thread-transcript")
+    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    write(editor, "And the mobile cohort too.\nAnd the weekend shift.")
+    rendered(page)
+    page.wait_for_function(CARD_AT_REST)
+    assert transcript.evaluate("list => list.scrollTop > 100"), "nothing scrolled away"
+    stood = preview.evaluate(FULL_CARD_DRAWN)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    with sending(page, "the reply"):
+        editor.press("Enter")
+    expect(preview.locator(".lf-msg")).to_have_count(4)
+    rendered(page)
+    return page, preview, transcript, stood
+
+
+def test_a_send_from_a_full_card_rides_its_turns_and_names_up(browser, serve):
+    """A send from a card at its cap scrolls its transcript to the new turn, which the
+    card presents as the turns riding up together. At the first frame every turn and
+    every name, the one stuck at the top included, stands where it stood, and the
+    outline and head row stay put; at rest the turns have all moved up one shared
+    distance and the transcript stands at its end."""
+    page, preview, transcript, stood = sending_from_a_full_card(browser, serve)
+    drawn = preview.evaluate(FULL_CARD_DRAWN)
+    page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
+    page.wait_for_function(CARD_AT_REST)
+    rest = preview.evaluate(FULL_CARD_DRAWN)
+    for part in ("outline", "controls"):
+        assert drawn[part] == pytest.approx(stood[part], abs=1), (part, stood, drawn)
+    for part in ("turns", "names"):
+        assert drawn[part][:3] == pytest.approx(stood[part], abs=1), (
+            part,
+            stood,
+            drawn,
+        )
+    rode = [d - r for d, r in zip(drawn["turns"], rest["turns"], strict=True)]
+    assert min(rode) > 10, f"the turns did not ride: {rode}"
+    assert max(rode) - min(rode) < 1, f"the turns came apart: {rode}"
+    assert transcript.evaluate(
+        "list => list.scrollHeight - list.clientHeight - list.scrollTop < 2"
+    )
+
+
+def test_news_during_a_card_s_ride_lands_at_its_end(browser, serve):
+    """An answer arriving while a send's turns still ride lands the transcript at its
+    new end, as it would at rest: the end the ride holds is the layout's, with the
+    answer in it."""
+    page, preview, transcript, _stood = sending_from_a_full_card(browser, serve)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": LONG_THREAD_ROOT["id"],
+            "responds": preview.locator(".lf-msg").last.get_attribute("data-event"),
+            "text": "Noted, the weekend shift as well.",
+        },
+    )
+    told(page)
+    expect(preview.locator(".lf-msg")).to_have_count(5)
+    rendered(page)
+    page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
+    page.wait_for_function(CARD_AT_REST)
+    rendered(page)
+    assert transcript.evaluate(
+        "list => list.scrollHeight - list.clientHeight - list.scrollTop < 2"
+    ), transcript.evaluate(
+        "list => [list.scrollHeight, list.clientHeight, list.scrollTop]"
+    )
+
+
+def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
+    """While a card moves after a change of its size, a press on one of its controls
+    reaches that control: the grip along the card's edge takes presses only in its
+    band, mid-motion as at rest. Its own clip opens its middle, and a motion cutting
+    the grip replaced that clip, so the press started a drag instead."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    write(editor, "A first line.")
+    rendered(page)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("A second line grows the card.")
+    page.wait_for_function("() => window.__lfHeld.some(m => m.playState !== 'idle')")
+    close = preview.locator(".lf-margin-preview-close").bounding_box()
+    page.mouse.click(close["x"] + close["width"] / 2, close["y"] + close["height"] / 2)
+    expect(preview).to_be_hidden()
+
+
 def test_typing_in_a_margin_reply_leaves_the_transcript_where_the_reader_put_it(
     browser, serve
 ):

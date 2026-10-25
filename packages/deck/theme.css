@@ -55,6 +55,27 @@
 .lf-deck-pip[data-state="open"] {
   background: var(--ink-2);
 }
+/* Where the cards stood once the pass is over: a quiet frame saying what is left, with
+   the way back in as words, since no symbol says "go through what's left". */
+.lf-deck-end:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px dashed var(--rule);
+  border-radius: var(--r);
+  color: var(--muted);
+}
+.lf-deck-end > p {
+  margin: 0;
+}
+@media print {
+  .lf-deck-end {
+    display: none;
+  }
+}
 /* Back and forward are one kind of control, a square symbol named by its title. */
 .lf-deck-action {
   display: inline-flex;

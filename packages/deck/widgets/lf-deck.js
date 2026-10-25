@@ -5,10 +5,11 @@
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
  * card no longer waits, after the user answered it on the card or on a control standing
  * for it, such as a suggestion's margin entry, the card flies right and the next waiting
- * card after it comes up. A wait that ends anywhere else, as when
- * the user comments on the card and leaves it with the agent, the agent ends the
- * question, or the user answers it in another window, leaves the card where it is with
- * Next, since news never moves what the user is reading. Later sends a card left and
+ * card after it comes up, unless a field on the card still holds words the user has not
+ * sent, such as an open draft editor, which the card keeps in view. A wait that ends
+ * anywhere else, as when the user comments on the card and leaves it with the agent,
+ * the agent ends the question, or the user answers it in another window, leaves the
+ * card where it is with Next, since news never moves what the user is reading. Later sends a card left and
  * leaves its obligation open, which is Leaf's keep unread: nothing is recorded, the
  * pass ends with the cards kept for later still waiting, and Go through starts again
  * from the first of them. Back returns to the card before, where the widget's own
@@ -29,7 +30,9 @@
  * The bar above the cards holds Back, the tally's count of the deck's obligations
  * (`tallyWords`) with a mark per card, Reply on a card asked in words, and one forward
  * control: Later on a waiting card, Next on any other, then Go through the cards left,
- * or Review, once the pass is over. They are symbols of one size and one style, named by
+ * or Review, once the pass is over. Then a quiet frame stands where the cards stood,
+ * saying how many still wait, with the same step back in as words, since a symbol
+ * alone at the end of the pass went unnoticed. They are symbols of one size and one style, named by
  * their titles as a draft's actions are, that never take focus from a pointer, so none
  * wears a frame another lacks. Each is a command row whose control it is, so the arrow
  * keys toward and away from the text's start are Back and forward wherever the user is
@@ -62,9 +65,12 @@ import {
   currentLocationIn,
   keepView,
   keeps,
+  keepsHidden,
+  keepsText,
   layoutChanged,
   LeafElement,
   motion,
+  obligationActions,
   obligationsIn,
   offer,
   placeOf,
@@ -74,6 +80,7 @@ import {
   scrollBehavior,
   scrollIntoView,
   signal,
+  TEXT_FIELD,
   tally,
   tallyWords,
   under,
@@ -104,6 +111,8 @@ customElements.define(
     #back = null;
     #reply = null;
     #forward = null;
+    #end = null;
+    #again = null;
     #cards = [];
     // The open card, or null once the pass is over.
     #open = signal(null);
@@ -144,6 +153,13 @@ customElements.define(
       this.#reply = control("reply", "comment");
       this.#forward = control("forward", "next");
       this.#bar.append(this.#back, this.#status, this.#reply, this.#forward);
+      // Where the cards stood once the pass is over: what is left, and a way back in.
+      this.#end = offer("div", "lf-deck-end");
+      this.#end.hidden = true;
+      this.#end.append(document.createElement("p"));
+      this.#again = offer("button", "lf-btn lf-deck-again");
+      this.#again.addEventListener("click", () => this.#forwardPress(this.#readings()));
+      this.#end.append(this.#again);
       const [back, ahead] = rowArrows(this);
       commands(this, "In a deck", [
         {
@@ -183,6 +199,7 @@ customElements.define(
         });
       }
       this.prepend(this.#bar);
+      this.append(this.#end);
       this.classList.add("lf-rendered");
       const opening = openingView(this, this.#cards, null);
       this.#show(opening ?? this.#cards[0]);
@@ -224,7 +241,7 @@ customElements.define(
     // Leave the open card toward `side` and bring up `next` (null ends the pass). The
     // leaving card keeps its box over the deck while it flies, so the next card is
     // already in place beneath it.
-    #go(next, side, from = "none") {
+    #go(next, side, { from = "none", answered = false } = {}) {
       this.#leaving?.finish();
       const card = this.#open.value;
       if (!card || next === card) return this.#show(next);
@@ -283,7 +300,7 @@ customElements.define(
         setTimeout(() => keeps(next, "data-lf-deck-settling", null), SETTLE_MS);
       }
       layoutChanged(this);
-      carry(next);
+      carry(next, answered ? SETTLE_MS : 0);
       if (this.getBoundingClientRect().top < 0)
         scrollIntoView(this, { block: "start", behavior: scrollBehavior() });
     }
@@ -301,7 +318,7 @@ customElements.define(
     // The user sends the open card toward `side`, from where a drag left it.
     #onward(side, from) {
       const card = this.#open.value;
-      if (card) this.#go(this.#after(card, this.#readings(), true), side, from);
+      if (card) this.#go(this.#after(card, this.#readings(), true), side, { from });
     }
 
     #index() {
@@ -309,17 +326,48 @@ customElements.define(
       return card ? this.#cards.indexOf(card) : this.#cards.length;
     }
 
-    // What becomes of the user on a card the deck puts away: one who was on it by
-    // keyboard goes to the card that comes up, where its own keys answer it, or to the
-    // forward control once the pass is over; one who pressed lets go of the hidden
-    // card, and Tab goes on from where it was. Read before the card goes.
+    // What becomes of the user on a card the deck puts away, or on a control standing
+    // for it such as a suggestion's margin entry or its thread's reply box: one who was
+    // there by keyboard arrives at the card that comes up as `m` would, on what waits
+    // there, so its own keys answer it, or at the forward control once the pass is
+    // over; one who pressed lets go of the hidden card, and Tab goes on from where it
+    // was. After an answer the arrival waits until the card has settled, so a key
+    // pressed twice answers one card. Read before the card goes.
     #carry(card) {
-      const inside = card ? currentLocationIn(card) : false;
-      const keyed = inside && focused()?.matches(":focus-visible");
-      return (next) => {
-        if (keyed) focusDestination(next ?? this.#forward, "move");
-        else if (inside) focused()?.blur();
+      const here = focused();
+      const place = here && placeOf(here);
+      const inside = Boolean(
+        card && (currentLocationIn(card) || (place && under(place, card))),
+      );
+      const keyed = inside && here.matches(":focus-visible");
+      return (next, wait = 0) => {
+        // A caret or selection left in the hidden card would start the next walk there.
+        const selection = getSelection();
+        if (selection.rangeCount && card && under(selection.anchorNode, card))
+          selection.removeAllRanges();
+        if (!inside) return;
+        if (!keyed || wait) here.blur();
+        if (!keyed) return;
+        if (!wait) return this.#arrive(next);
+        setTimeout(() => {
+          if ([null, document.body].includes(focused())) this.#arrive(next);
+        }, wait);
       };
+    }
+
+    #arrive(card) {
+      if (!card) {
+        keepsHidden(this.#end, false);
+        return void focusDestination(this.#again, "move");
+      }
+      const waiting = this.#readings()
+        ?.get(card)
+        .find(
+          (item) =>
+            item.status === "open" && item.next_actor === "user" && !answeredInWords(item),
+        );
+      if (waiting) obligationActions.open(waiting.id);
+      else focusDestination(card, "move");
     }
 
     #stepBack() {
@@ -370,7 +418,9 @@ customElements.define(
         return this.#onward(readings && waitsOn(readings.get(card)) ? "left" : "right");
       const waiting =
         readings && this.#cards.find((each) => waitsOn(readings.get(each)));
+      const keyed = this.#end.contains(focused()) && focused().matches(":focus-visible");
       this.#show(waiting ?? this.#cards[0]);
+      if (keyed) this.#arrive(this.#open.value);
     }
 
     // A touch drag on the open card, begun anywhere but on a control inside it.
@@ -481,7 +531,22 @@ customElements.define(
         keeps(button, "title", word);
       }
       keeps(this.#reply, "hidden", this.#asking() ? null : "");
+      // Once the pass is over the end frame's button is the step back in.
+      keeps(this.#forward, "hidden", this.#open.value ? null : "");
       const readings = this.#readings();
+      keepsHidden(this.#end, Boolean(this.#open.value));
+      if (!this.#open.value) {
+        const left = readings
+          ? this.#cards.filter((each) => waitsOn(readings.get(each))).length
+          : 0;
+        keepsText(
+          this.#end.firstChild,
+          left
+            ? `You've been through every card. ${left === 1 ? "One still waits" : `${left} still wait`} on you.`
+            : "You've been through every card, and none waits on you.",
+        );
+        keepsText(this.#again, word);
+      }
       if (!readings || this.#drag) return;
       const card = this.#open.value;
       const waiting = this.#cards.filter((each) => waitsOn(readings.get(each)));
@@ -515,8 +580,11 @@ customElements.define(
         document.hasFocus() &&
         (Boolean(place && under(place, card)) ||
           (this.#pressed === card && [null, document.body].includes(here)));
-      if (this.#waited && !waits && closed && onCard) {
-        this.#go(this.#after(card, readings), "right");
+      // Unsent words in a field on the card, such as an open draft's editor, keep it,
+      // since moving on would hide them.
+      const writing = [...card.querySelectorAll(TEXT_FIELD)].some((field) => field.value);
+      if (this.#waited && !waits && closed && onCard && !writing) {
+        this.#go(this.#after(card, readings), "right", { answered: true });
       } else this.#waited = waits;
     }
   },

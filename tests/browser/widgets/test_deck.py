@@ -6,6 +6,8 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import leaf_page, open_page, round_trip
 
+from leaf import event_log as events_model
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
@@ -45,6 +47,11 @@ def forward(page, title):
     control.click()
 
 
+def again(page, words):
+    """The end frame's step back in, which stands where the cards stood."""
+    page.locator("lf-deck .lf-deck-end").get_by_role("button", name=words).click()
+
+
 def test_a_pass_moves_on_by_answers_keeps_later_and_reviews_every_card(browser, serve):
     """An answer moves the deck to the next card that waits; Later moves on and leaves
     its card waiting, which the end of the pass comes back to; Back returns to an
@@ -59,7 +66,7 @@ def test_a_pass_moves_on_by_answers_keeps_later_and_reviews_every_card(browser, 
     answer(page, "notes-no")
     expect(page.locator("lf-deck > [data-lf-deck-open]")).to_have_count(0)
 
-    forward(page, "Go through the 1 left")
+    again(page, "Go through the 1 left")
     open_card(page, "beta-ask")
     page.locator("lf-deck .lf-deck-back").click()
     open_card(page, "store-ask")
@@ -68,7 +75,7 @@ def test_a_pass_moves_on_by_answers_keeps_later_and_reviews_every_card(browser, 
     answer(page, "beta-yes")
     expect(page.locator("lf-deck > [data-lf-deck-open]")).to_have_count(0)
 
-    forward(page, "Review from the start")
+    again(page, "Review from the start")
     open_card(page, "store-ask")
     forward(page, "Next")
     open_card(page, "beta-ask")
@@ -102,3 +109,58 @@ def test_an_answer_from_another_window_leaves_the_card_in_place(browser, serve):
         "title", "Next"
     )
     open_card(watching, "store-ask")
+
+
+DRAFT_DECK_PAGE = leaf_page(
+    "Deck with a draft",
+    '<h1>Before the release</h1><lf-deck id="deck">'
+    '<lf-ask id="reply-ask"><h3>Send this reply?</h3>'
+    '<lf-draft id="reply-draft"><pre>\nThanks for the report.</pre></lf-draft>'
+    '<lf-options id="reply-choice" choose>'
+    '<lf-option id="reply-send"><strong>Send it</strong></lf-option>'
+    '<lf-option id="reply-hold"><strong>Hold it</strong></lf-option>'
+    "</lf-options></lf-ask>" + card("notes", "Post the notes?") + "</lf-deck>",
+)
+
+
+def test_a_card_holding_unsent_words_stays_when_answered(browser, serve):
+    """An answer on a card whose draft editor is still open leaves the card in view,
+    since moving on would hide the words not yet saved; Next then moves on."""
+    page = open_page(browser, serve(DRAFT_DECK_PAGE))
+    open_card(page, "reply-ask")
+    page.locator("#reply-draft .lf-draft-body").click()
+    expect(page.locator("#reply-draft leaf-text")).to_be_focused()
+    answer(page, "reply-send")
+    expect(page.locator("lf-deck .lf-deck-forward")).to_have_attribute("title", "Next")
+    open_card(page, "reply-ask")
+    expect(page.locator("#reply-draft leaf-text")).to_be_visible()
+
+
+def test_by_keyboard_an_answer_lands_on_the_next_question_once(browser, serve):
+    """A digit that answers a card brings the user to the next card's question once it
+    has settled, so its digits answer it, and a digit pressed twice answers one card.
+    Once the pass is over, the end frame says what is left and takes the user back in."""
+    page = open_page(browser, serve(DECK_PAGE))
+    page.keyboard.press("m")
+    expect(page.locator("#store-ask")).to_be_focused()
+    page.keyboard.press("1")
+    page.keyboard.press("1")
+    round_trip(page)
+    open_card(page, "beta-ask")
+    expect(page.locator("#beta-ask")).to_be_focused()
+    chosen = [
+        event["widget"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "choose"
+    ]
+    assert chosen == ["store-choice"], chosen
+    page.keyboard.press("ArrowRight")
+    open_card(page, "notes-ask")
+    page.keyboard.press("2")
+    round_trip(page)
+    end = page.locator("lf-deck .lf-deck-end")
+    expect(end).to_contain_text("One still waits on you.")
+    again = end.get_by_role("button", name="Go through the 1 left")
+    expect(again).to_be_focused()
+    page.keyboard.press("Enter")
+    open_card(page, "beta-ask")

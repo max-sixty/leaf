@@ -1,5 +1,3 @@
-import { isSampleFrame, sampleFrameImage } from "./bundle-sample2.js";
-
 //#region runtime/composing/page-image.js
 const asDataUrl = async (blob) => `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
 const pageRenderer = () => import("/vendor/snapdom.esm.js");
@@ -58,7 +56,7 @@ function captureRoot(region, skip) {
 	};
 }
 async function pageImage(clip, { exclude = [] } = {}) {
-	const { snapdom } = await pageRenderer();
+	const [{ snapdom }, { isSampleFrame, sampleFrameImage }] = await Promise.all([pageRenderer(), import("./bundle-sample.js")]);
 	const warnings = /* @__PURE__ */ new Set();
 	async function sampleContent(frame) {
 		const box = document.createElement("div");

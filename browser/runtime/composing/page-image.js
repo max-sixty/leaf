@@ -35,8 +35,6 @@
  * a shadow host and never descends into SVG or an element with no content of its own,
  * such as an image or a frame.
  */
-import { isSampleFrame, sampleFrameImage } from "../sample.js";
-
 const asDataUrl = async (blob) =>
   `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
 
@@ -121,7 +119,12 @@ function captureRoot(region, skip) {
 }
 
 export async function pageImage(clip, { exclude = [] } = {}) {
-  const { snapdom } = await pageRenderer();
+  // The sample host loads here and with the first sample a widget mounts, so a page
+  // that shows none never loads it on the way to its first paint.
+  const [{ snapdom }, { isSampleFrame, sampleFrameImage }] = await Promise.all([
+    pageRenderer(),
+    import("../sample.js"),
+  ]);
   const warnings = new Set();
   // The crop meets the frame's content box in this viewport's coordinates; the
   // child and the substitute's own box read it in the frame's, unscaled.

@@ -950,7 +950,7 @@
               </thead>
               <tbody>
                 <tr>
-                  <td><a href="#loop">Workflow</a></td>
+                  <td><a href="#workflow">Workflow</a></td>
                   <td>
                     How does an agent publish, receive an update, answer, and finish?
                     How do the harnesses differ?
@@ -958,7 +958,7 @@
                 </tr>
                 <tr>
                   <td>
-                    <a href="#page">Pages</a> · <a href="#styling">Styles</a> ·
+                    <a href="#pages">Pages</a> · <a href="#styles">Styles</a> ·
                     <a href="#layout">Layout</a>
                   </td>
                   <td>
@@ -968,7 +968,7 @@
                 </tr>
                 <tr>
                   <td>
-                    <a href="#data">State</a> · <a href="#revisions">Revisions</a>
+                    <a href="#state">State</a> · <a href="#revisions">Revisions</a>
                   </td>
                   <td>
                     What is recorded, what is derived, and what survives edits, Undo,
@@ -996,8 +996,8 @@
             </table>
           </section></lf-tab
         >
-        <lf-tab id="loop" label="Workflow"
-          ><details class="topic-outline" id="loop-outline">
+        <lf-tab id="workflow" label="Workflow"
+          ><details class="topic-outline" id="workflow-outline">
             <summary>In this topic</summary>
             <nav aria-label="Workflow sections">
               <ul>
@@ -1039,7 +1039,7 @@
                 <code>leaf page init</code> installs the page’s
                 <a href="#layer">runtime and selected packages</a>. The agent then
                 authors its content using the HTML and Leaf elements described in
-                <a href="#page">Pages</a>.
+                <a href="#pages">Pages</a>.
               </p>
               <p id="handoff-serving">
                 <code>leaf server start</code> starts the page’s HTTP server and claims
@@ -1777,18 +1777,18 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
           </section>
         </lf-tab>
 
-        <lf-tab id="page" label="Pages"
-          ><details class="topic-outline" id="page-outline">
+        <lf-tab id="pages" label="Pages"
+          ><details class="topic-outline" id="pages-outline">
             <summary>In this topic</summary>
             <nav aria-label="Pages sections">
               <ul>
-                <li><a href="#pages">Parts of a page</a></li>
+                <li><a href="#pages-parts">Parts of a page</a></li>
                 <li><a href="#layer">Runtime and packages</a></li>
                 <li><a href="#widgets">Widgets</a></li>
               </ul>
             </nav>
           </details>
-          <section id="pages">
+          <section id="pages-parts">
             <h2>Parts of a page</h2>
             <p id="scaffold">
               The agent writes an HTML document containing the page's title,
@@ -1975,19 +1975,19 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
             </p>
           </section>
         </lf-tab>
-        <lf-tab id="styling" label="Styles"
-          ><details class="topic-outline" id="styling-outline">
+        <lf-tab id="styles" label="Styles"
+          ><details class="topic-outline" id="styles-outline">
             <summary>In this topic</summary>
             <nav aria-label="Styles sections">
               <ul>
-                <li><a href="#styles">Styles and overrides</a></li>
+                <li><a href="#styles-overrides">Styles and overrides</a></li>
                 <li><a href="#styles-try-title">Which rule wins</a></li>
                 <li><a href="#styles-tiers">The tiers</a></li>
                 <li><a href="#styles-packages">Writing a package&#x27;s styles</a></li>
               </ul>
             </nav>
           </details>
-          <section id="styles">
+          <section id="styles-overrides">
             <h2>Styles and overrides</h2>
             <p id="styles-lede">
               A page’s <code>&lt;style&gt;</code> changes that page; a theme package
@@ -3428,8 +3428,8 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
             </figure>
           </section>
         </lf-tab>
-        <lf-tab id="data" label="State"
-          ><details class="topic-outline" id="data-outline">
+        <lf-tab id="state" label="State"
+          ><details class="topic-outline" id="state-outline">
             <summary>In this topic</summary>
             <nav aria-label="State sections">
               <ul>
@@ -4785,6 +4785,14 @@ EOF</code></pre>
                   <td>
                     <kbd>/</kbd> opens search. <kbd>Enter</kbd> chooses a match;
                     <kbd>n</kbd> / <kbd>Shift</kbd> + <kbd>n</kbd> then walk matches.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Link to a section</td>
+                  <td>
+                    The link mark beside a heading, shown under the pointer or by a tap,
+                    copies the page's address of that section. On the section,
+                    <kbd>Enter</kbd> copies it.
                   </td>
                 </tr>
                 <tr>

@@ -934,6 +934,15 @@ export function createMarginProjection({
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
       else if (destination) focusDestination(destination, "return");
+    } else if (focus.focusedToggle && more.hidden) {
+      // An unfolded face shows its options inline and hides the toggle that opened
+      // them, as a folded pin does when `e` stands reactions in it: the user goes on to
+      // the first of them, as a press on the toggle would land them.
+      focus.restore?.(
+        clusterMarginEntries(options)[0],
+        primary,
+        clusterMarginEntries(host)[0],
+      );
     } else if (lostOptionFocus || lostPrimaryFocus) {
       // A changed contribution can replace either the focused primary or an option.
       // Return to the corresponding control in the new projection.
@@ -1065,6 +1074,7 @@ export function createMarginProjection({
       const focus = {
         focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
         focusedOption: Boolean(host.options && currentLocationIn(host.options)),
+        focusedToggle: focused() === more,
         // The entry the user is on, by its contribution's key, across the projection
         // that may replace its control (focus.js, keyed `holdFocus`).
         restore: holdFocus(host, { key: "data-lf-margin-entry-identity" }),

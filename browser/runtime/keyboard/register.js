@@ -63,6 +63,8 @@ const STACK = [
   "thread",
   "link",
   "disclosure",
+  // A heading or the section it opens, whose link Enter copies (heading-links.js).
+  "heading",
   // The modes keep their own letters here and declare their Escape on the ladder,
   // because a mode is the stance the whole page is in and a surface opened while one
   // holds is opened inside it: a view the floating panel opens in Design mode comes off

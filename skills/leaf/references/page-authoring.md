@@ -138,6 +138,13 @@ or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for
 polish adds visual weight without meaning.
 
+When page CSS reveals controls while a container is hovered or focused, include
+`:has([data-lf-control-active])` in the condition if it contains a code block.
+Leaf marks that block while its floating Copy control is hovered or focused, since
+Copy lives outside the block's tree. For example,
+`.card:is(:hover, :focus-within, :has([data-lf-control-active])) .actions`
+keeps a card's actions visible when the pointer or focus moves onto Copy.
+
 `page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
 for inspecting how much CSS a page adds and where it comes from.
 
@@ -211,6 +218,9 @@ grammar's aliases, such as `language-js` and `language-sh`. Format example code 
 the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.
+The Copy button over a code block follows its line height. Set
+`--lf-code-copy-size` on the block or its container when its visible button
+needs another size; its press target still keeps the theme's `--aim-floor`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="scroll"` to that same box. Leaf contains its positioned descendants and
@@ -219,12 +229,9 @@ change overflow at a breakpoint; Leaf measures the declared surface, never all o
 descendants. Use a bounded reading region for independently scrolling vertical content.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. It scrolls them sideways only, so one given a
-`max-height` clips what runs past it. Leave a long block unbounded or put it in
-`<details>`, and bound a live log with `data-bound` (`page-layout.md`, "Bounds and
-widths"). In a table that scrolls sideways, prose wraps a word per line. Put
-identifiers in `<code>`, which can break inside a cell, and keep the columns to what
-fits at the narrowest width the page's readers use.
+to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
+line. Put identifiers in `<code>`, which can break inside a cell, and keep the columns
+to what fits at the narrowest width the page's readers use.
 
 ## Stable anchors
 
@@ -238,4 +245,5 @@ When that title starts a section with an id, the `<section>` carries the address
 instead. An id a heading needs for `aria-labelledby` is not the section's address.
 
 Threads, reading position and version comparison all find a block by its id, so a
-rewritten paragraph keeps its id.
+rewritten paragraph keeps its id. A heading offers the reader a link to that address, so
+a heading with no id on it, its `<hgroup>` or the section it opens offers none.

@@ -4,16 +4,20 @@ import {
   ago,
   highlightBlocks,
   html,
+  keeps,
   keyed,
   LeafElement,
   loadMarkdown,
   markdownReady,
   noChange,
-  projectData,
   renderMarkdown,
   repeat,
   unsafeHTML,
 } from "/runtime/widget-api.js";
+
+// A check's state is a status, drawn as the page's other statuses are (`.tag`), toned
+// where the forge's word says how it went.
+const TONES = { passed: "ok", success: "ok", failed: "danger", failure: "danger" };
 
 const identityOf = (record) =>
   record ? `${record.repository}#${record.number}` : "unavailable";
@@ -21,29 +25,42 @@ const identityOf = (record) =>
 customElements.define(
   "lf-pr-brief",
   class extends LeafElement {
-    // The revision whose Markdown load the brief last waited on, and the delivery it
-    // drew.
+    // The pull request, set by whoever hosts the widget: Leaf from the bound source
+    // (the registry's `x-data.request.property`), or null while that source has none.
+    static properties = { value: { attribute: false } };
+
+    // The request whose Markdown load the brief last waited on, the request it drew,
+    // and the drawing that follows the update under way, which its `updateComplete`
+    // waits for.
     #loading = null;
     #drawn;
+    #work;
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
+    // Also waits for the drawing the latest update started: a newer update's drawing
+    // replaces one still pending.
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.#work;
+      return result;
+    }
 
     render() {
-      const snapshot = this.data("request");
-      const record = snapshot?.value;
+      this.#work = undefined;
+      const record = this.value;
       // The author's description is Markdown. The brief waits for its renderer once a
-      // delivery, the delivery's claim with it; a load that fails draws the escaped
+      // delivery, the delivery's draw with it; a load that fails draws the escaped
       // source, and the next delivery tries again.
-      const delivery = JSON.stringify([snapshot?.revision, snapshot?.run]);
-      if (record && !markdownReady() && this.#loading !== delivery) {
-        this.#loading = delivery;
-        this.drawing(
-          loadMarkdown().then(() => {
-            this.requestUpdate();
-            return this.updateComplete;
-          }),
-        );
+      if (record && !markdownReady() && this.#loading !== record) {
+        this.#loading = record;
+        this.#work = loadMarkdown().then(() => this.requestUpdate());
         return noChange;
       }
-      this.#drawn = snapshot;
+      this.#drawn = record;
       this.classList.toggle("lf-rendered", Boolean(record));
       const identity = identityOf(record);
       return keyed(
@@ -90,7 +107,11 @@ customElements.define(
                           ([name, status]) =>
                             html`<tr>
                               <th scope="row">${name}</th>
-                              <td>${status}</td>
+                              <td>
+                                <small class=${`tag ${TONES[status] ?? ""}`}
+                                  >${status}</small
+                                >
+                              </td>
                             </tr>`,
                         )
                       : html`<tr>
@@ -107,27 +128,19 @@ customElements.define(
       );
     }
 
-    // The drawn brief's datum and code highlighting follow each draw; the draw's claim
-    // waits for the highlighting.
+    // The drawn brief's datum mark and code highlighting follow each draw; the draw's
+    // `updateComplete` waits for the highlighting.
     updated(changed) {
       super.updated(changed);
-      const snapshot = this.#drawn;
-      if (snapshot === undefined) return;
+      const record = this.#drawn;
+      if (record === undefined) return;
       this.#drawn = undefined;
-      const record = snapshot?.value;
       const identity = identityOf(record);
-      projectData(
-        this,
-        [
-          {
-            node: this.firstElementChild,
-            key: identity,
-            ...(record ? { identity } : {}),
-          },
-        ],
-        { snapshot },
-      );
-      if (record) this.drawing(highlightBlocks(this));
+      const node = this.firstElementChild;
+      keeps(node, "data-lf-datum", identity);
+      keeps(node, "data-lf-identity", record ? identity : null);
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value: record } }));
+      if (record) this.#work = highlightBlocks(this);
     }
   },
 );

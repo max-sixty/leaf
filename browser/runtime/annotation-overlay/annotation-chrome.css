@@ -22,28 +22,22 @@ body.lf-over-mark {
   .lf-mark-el:not(.lf-pending, .lf-mark-here, [data-lf-focus]) {
   cursor: auto;
 }
-/* The draft's own element uses the accent contour. An open composer is on screen
-   whenever this is. */
-.lf-mark-el.lf-pending {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-  cursor: auto;
+/* The draft's own element (an open composer is on screen whenever this is), the pointer
+   on the thread's row in Threads and the thread the user is in share one contour
+   (--mark-contour-w and --mark-contour-ink, theme.css). It stands outside the element
+   at the focus ring's gap, clear of the words at its edge: drawn inside, it ran into a
+   heading's first letters. Focus on the element itself is the distinct state that
+   earns the full ring, in the same place. */
+.lf-mark-el:is(.lf-pending, .lf-mark-hover, .lf-mark-here) {
+  outline: var(--mark-contour-w) solid var(--mark-contour-ink);
+  outline-offset: var(--focus-ring-gap);
 }
-/* The pointer on the thread's row in Threads and the current thread use one accent
-   contour. Focus is the distinct state that earns a complete outer ring. */
-.lf-mark-el.lf-mark-hover {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+.lf-mark-el.lf-pending {
+  cursor: auto;
 }
 .lf-mark-el:not(.lf-projected-mark)[data-lf-focus-visible] {
   outline: var(--focus-ring);
-  outline-offset: 2px;
-}
-/* The thread the user is in draws the same accent contour. Focus on the element
-   itself is the separate outer ring above. */
-.lf-mark-el.lf-mark-here {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline-offset: var(--focus-ring-gap);
 }
 /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
    hand here is the aim's answer rather than the thread's: it stands where the aim has
@@ -202,18 +196,26 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-visual-marks {
     display: contents;
   }
-  /* Every projected state is a moment (anchor-paint.js), drawn as one accent contour;
-     an action's target alone keeps the hairline. */
+  /* Every projected state is a moment (anchor-paint.js), drawn as the contour the
+     fallback above draws, outside the target; focus on the target wears the focus ring
+     there instead, and an action's target alone keeps the hairline. A shaped mark
+     strokes the target's own shape (target-paint-geometry.js), so it spends no outline. */
   .lf-visual-mark {
     position: absolute;
     display: none;
     pointer-events: none;
-    --lf-shape-ink: var(--accent);
-    --lf-shape-stroke: var(--focus-ring-w);
-    border: var(--focus-ring-w) solid var(--accent);
+    --lf-shape-ink: var(--mark-contour-ink);
+    --lf-shape-stroke: var(--mark-contour-w);
+    outline: var(--lf-shape-stroke) solid var(--lf-shape-ink);
+    outline-offset: var(--focus-ring-gap);
     /* This layer is above the target's children. Keep its interior physically unable
        to paint over them, including under package and page-local theme rules. */
     background: none !important;
+  }
+  .lf-visual-mark.lf-visual-mark-focus {
+    --lf-shape-ink: var(--accent);
+    --lf-shape-stroke: var(--focus-ring-w);
+    outline: var(--focus-ring);
   }
   .lf-visual-mark.lf-visual-mark-action:not(
       .lf-visual-mark-pending,
@@ -222,7 +224,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       .lf-visual-mark-here
     ) {
     --lf-shape-stroke: 1px;
-    border-width: 1px;
+  }
+  .lf-visual-mark.lf-shaped {
+    outline: none;
   }
   .lf-visual-mark-shape {
     display: block;
@@ -266,6 +270,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview:not([data-lf-thread-placement]) {
     opacity: 0;
     pointer-events: none;
+  }
+  /* So it fades in where its first placement stands it, and out where it stood when the
+     user put it away (thread-preview.js, `close`), in a disclosure's time. Only its
+     paint changes: it takes presses from the frame it is placed, and none once put away.
+     A card Send opened grows out of its comment box instead (`data-lf-grows`, below),
+     which the same task that places it marks. */
+  .lf-margin-preview {
+    transition: opacity var(--lf-motion-disclosure) linear;
+  }
+  .lf-margin-preview[data-lf-grows] {
+    transition: none;
   }
   /* The card is the thread's one frame. The thread fills it with no ground or ring of its
      own, so focus on the thread rings the card: the ring takes the
@@ -480,6 +495,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     > :is(.lf-thread-checkpoint, .lf-msg[data-lf-summary]) {
     margin-block-end: 0;
   }
+  /* A to-do on the user heads the card, over its transcript (thread-card.js). */
+  .lf-margin-thread .lf-thread-todos {
+    grid-row: 1;
+  }
   .lf-margin-thread .lf-reply-space {
     grid-row: 3;
   }
@@ -584,8 +603,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      the words under it take its height as their `--lf-top` and `scroll-margin`
      (theme.css, at `--lf-top`): a reveal lands them below it and the runtime's reading
      counts what it covers as hidden, while a whole message lands flush with its own
-     head. The card draws no reactions, so an agent's head keeps no room for their
-     trigger under a finger. */
+     head. The card draws no reactions, so a head keeps a control's room only where it
+     draws one, the user's Edit; an agent's keeps none for a trigger under a finger. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
     --lf-top: var(--lf-msg-head-height);
   }
@@ -659,6 +678,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     inset-block-start: 0;
     z-index: 1;
     background-color: var(--lf-msg-ground);
+  }
+  .lf-margin-thread
+    .lf-thread-transcript
+    .lf-msg:not(:has(.lf-msg-control))
+    > .lf-msg-head {
     padding-inline-end: 0;
   }
   /* A short name keeps its whole width even where the shared cap

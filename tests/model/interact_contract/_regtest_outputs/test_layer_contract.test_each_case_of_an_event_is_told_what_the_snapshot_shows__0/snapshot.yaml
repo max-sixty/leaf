@@ -47,10 +47,10 @@
 #              or the visual inside it that the optional `drawing.frame` names (CSS
 #              pixels for HTML, user units for SVG, intrinsic pixels for an image,
 #              canvas or video), and `drawing.box` is that frame's size. To see what
-#              the mark covers, run `leaf page picture <page> <id>` with the comment's
-#              `id`; it prints the path of a PNG of the revision as the user saw it,
-#              with the ink drawn over it. Answer it like any comment; its `text`, if
-#              any, explains the mark.
+#              the mark covers, run `leaf page picture <page> <message>` with the
+#              comment's `id`; it prints the path of a PNG of the revision as the user
+#              saw it, with the ink drawn over it. Answer it like any comment; its
+#              `text`, if any, explains the mark.
 #      clause 2, does not apply:
 #        when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
 #        text: The message links an image in Markdown, as `/media/<digest>.<ext>`
@@ -80,7 +80,7 @@
 #        when: {"required": ["token"]}
 #        text: A reaction owes no answer. Act on the token if it calls for a change,
 #              and reply only if its meaning is unclear. Once the page reflects it,
-#              close it with `leaf thread resolve <page> <event-id>`.
+#              close it with `leaf thread resolve <page> <message>`.
 #      clause 7, applies:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
 #        text: If the event asks for work, first post one line in its thread saying
@@ -134,7 +134,7 @@
 #        "format": "leaf-delivery/15",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
-#        "acknowledge": "If the output was cut off, reread it with `leaf delivery read e8417b8a` and follow any `next` commands. Then, before any other work, start `leaf wait --ack e8417b8a` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
+#        "acknowledge": "If the output was cut off, reread it with `leaf delivery read e8417b8a` and follow any `next` commands. Then, before any other work, start `leaf delivery ack e8417b8a && leaf wait` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
 #        "batches": [
 #          {
 #            "page": "/path/to/page",
@@ -348,8 +348,8 @@ comment with a drawing:
         that the optional `drawing.frame` names (CSS pixels for HTML, user units
         for SVG, intrinsic pixels for an image, canvas or video), and `drawing.box`
         is that frame's size. To see what the mark covers, run `leaf page picture
-        <page> <id>` with the comment's `id`; it prints the path of a PNG of the
-        revision as the user saw it, with the ink drawn over it. Answer it like
+        <page> <message>` with the comment's `id`; it prints the path of a PNG of
+        the revision as the user saw it, with the ink drawn over it. Answer it like
         any comment; its `text`, if any, explains the mark.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
@@ -489,7 +489,7 @@ reaction on the page:
       text: >-
         A reaction owes no answer. Act on the token if it calls for a change, and
         reply only if its meaning is unclear. Once the page reflects it, close it
-        with `leaf thread resolve <page> <event-id>`.
+        with `leaf thread resolve <page> <message>`.
 
 reply:
   event:
@@ -503,7 +503,7 @@ reply:
     - when: {"not": {"required": ["token"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
-        <thread-id>` reads its full history.
+        <message>` reads its full history.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
@@ -536,7 +536,7 @@ reply in an untitled thread:
     - when: {"not": {"required": ["token"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
-        <thread-id>` reads its full history.
+        <message>` reads its full history.
     - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
       text: >-
         The thread has no title yet. Name its subject with `--title "<a few words>"`
@@ -572,7 +572,7 @@ reply with a pasted image:
     - when: {"not": {"required": ["token"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
-        <thread-id>` reads its full history.
+        <message>` reads its full history.
     - when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
       text: >-
         The message links an image in Markdown, as `/media/<digest>.<ext>` under
@@ -613,7 +613,7 @@ reply in a long thread:
     - when: {"not": {"required": ["token"]}}
       text: >-
         The batch's `threads` holds the thread's context; `leaf page state <page>
-        <thread-id>` reads its full history.
+        <message>` reads its full history.
     - when: {"required": ["thread"], "properties": {"thread": {"required": ["summary_hint"]}}, "not": {"required": ["token"]}}
       text: >-
         This thread's entry in the batch's `threads` has a `summary_hint`: an earlier
@@ -745,9 +745,10 @@ pick on the page:
     - text: >-
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
-        `leaf task start <page> <event-id> "<the work, in a line>"`; then do it,
-        write the answer into the markup, and stamp a version. An option the user
-        added needs no writing in; the page keeps it where the user put it.
+        `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
+        do it, write the answer into the markup, and stamp a version. An option
+        the user added needs no writing in; the page keeps it where the user put
+        it.
 
 option the user added:
   event:
@@ -818,9 +819,10 @@ decided suggestion:
     - text: >-
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
-        `leaf task start <page> <event-id> "<the work, in a line>"`; then do it,
-        write the answer into the markup, and stamp a version. An option the user
-        added needs no writing in; the page keeps it where the user put it.
+        `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
+        do it, write the answer into the markup, and stamp a version. An option
+        the user added needs no writing in; the page keeps it where the user put
+        it.
 
 pick inside a thread:
   event:
@@ -903,7 +905,7 @@ unresolve:
     - text: >-
         The user reopened a closed thread. Reopening needs no separate answer; if
         the thread's latest user message was never answered, `leaf page state <page>
-        <thread-id>` shows the `answer` still owed.
+        <message>` shows the `answer` still owed.
 
 Done on a to-do on the user:
   event:

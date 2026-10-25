@@ -157,7 +157,8 @@ def _snapshot(path: Path, raw: bytes) -> dict:
 def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
     """Grant this page read/write access to one existing text file, recorded by its
     canonical path (`locations.canonical_path`), the one its watchers hear about and
-    every page's save of it locks, whichever spelling named it.
+    every page's save of it locks, whichever spelling named it. Returns the grant:
+    the binding, the path and the file's size in bytes as bound.
 
     The author named the path, so a path the system cannot reach or read is refused
     in the system's own words, path included. The page's own storage failing is a
@@ -171,13 +172,15 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
         raise FileBindingError("A page cannot edit its own file access grants.")
     with page_locked(page_dir):
         try:
-            snapshot = _snapshot(path, _read(path))
+            raw = _read(path)
         except OSError as error:
             raise FileBindingError(str(error)) from error
+        # Refuse a file the editor could not hold before granting it.
+        _snapshot(path, raw)
         bindings = _bindings(page_dir)
         bindings[binding] = str(path)
         BINDINGS.write(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
-    return snapshot
+    return {"binding": binding, "path": str(path), "bytes": len(raw)}
 
 
 def unbind_file(page_dir: Path, binding: str) -> dict:

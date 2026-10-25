@@ -18,6 +18,7 @@
 
 import {
   compoundReadingRegionId,
+  generatedElement,
   holdFocus,
   keeps,
   keepsHidden,
@@ -198,6 +199,11 @@ customElements.define(
       const settingsTitle = document.createElement("summary");
       settingsTitle.textContent = "Change the run";
       this.settings.append(settingsTitle, flags);
+      // The caption and the drawing are the film's words, which a reader can point
+      // at; the settings label the run's controls.
+      generatedElement(this.caption, { says: true });
+      generatedElement(stage, { says: true });
+      generatedElement(this.settings, { says: false });
       this.append(this.caption, stage, bar, this.settings);
       this.stage = stage;
       this.scrub.max = this.#film.total;

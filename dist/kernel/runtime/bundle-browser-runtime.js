@@ -900,6 +900,7 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
 			attention: thread.attention,
 			obligations: obligations.filter((obligation) => obligation.thread === thread.id),
 			todos: todos.filter((todo) => todo.owner === "agent" && todo.thread === thread.id),
+			userTodos: todos.filter((todo) => todo.owner === "user" && todo.thread === thread.id),
 			workflows: workflows.filter((workflow) => workflow.thread === thread.id),
 			bare_reaction: thread.bare_reaction,
 			seat: thread.seat,

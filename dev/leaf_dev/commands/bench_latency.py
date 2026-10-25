@@ -348,7 +348,13 @@ class Session:
     def status(self, run: int) -> dict:
         detail = f"Bench status {run + 1}"
         act = self.written(
-            "events.jsonl", "task", "start", str(self.page_dir), self.task, detail
+            "events.jsonl",
+            "task",
+            "start",
+            str(self.page_dir),
+            self.task,
+            "--text",
+            detail,
         )
         return self.measure("status", {"painted": ("status", detail)}, act)
 
@@ -381,14 +387,14 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
     leaf = partial(run_leaf, arm_dir, state, check=True)
     thread = json.loads(
         leaf(
-            "thread", "open", str(page_dir), "--section", PASSAGE, "--quote", QUOTE,
+            "thread", "create", str(page_dir), "--section", PASSAGE, "--quote", QUOTE,
             "--text", THREAD_TEXT,
         ).stdout
     )["id"]  # fmt: skip
     # The status transition starts this task, the page's own item, with a new line.
-    task = json.loads(leaf("task", "open", str(page_dir), "page", "Bench task").stdout)[
-        "id"
-    ]
+    task = json.loads(
+        leaf("task", "create", str(page_dir), "page", "--title", "Bench task").stdout
+    )["id"]
     with serving(arm_dir, state, page_dir) as address:
         context = browser.new_context(
             viewport={"width": DESKTOP[0], "height": DESKTOP[1]}

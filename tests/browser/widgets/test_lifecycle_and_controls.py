@@ -84,10 +84,16 @@ customElements.define('lf-source-stage', class extends HTMLElement {
             page.goto(url, wait_until="commit")
         displayed(page)
         fallback = page.locator("#document").evaluate(face)
+        typography = ("font", "size", "line", "color")
         for widget_id in ("code", "diagram", "diff"):
             widget = page.locator(f"#{widget_id}")
             expect(widget).not_to_have_class(re.compile("lf-rendered"))
-            assert widget.evaluate(face) == fallback
+            actual = widget.evaluate(face)
+            # Packages own layout: an inline diff clips its reserved first-paint
+            # box. The shared source primitive supplies the readable type.
+            assert {key: actual[key] for key in typography} == {
+                key: fallback[key] for key in typography
+            }, widget_id
         assert len(boot) == 1, "the preview runtime was not held before widget upgrade"
     finally:
         for route in boot:

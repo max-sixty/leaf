@@ -55,7 +55,7 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert hosting_model.start_server(
         claimed, harness=harness_model.session_harness()
     )  # a real detached server to clean up
-    session_model.cmd_waiting(claimed, "")
+    session_model.cmd_waiting(claimed)
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
     )
@@ -374,14 +374,14 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
     serving(page_dir, 41000, "session")
     record_claim(page_dir, id="predecessor")
     record_claim(page_dir, id="successor")
-    session_model.cmd_waiting(page_dir, "successor is reviewing")
+    session_model.cmd_waiting(page_dir)
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "predecessor"}
     )
     assert service_model.page_claim(page_dir)["id"] == "successor"
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
     assert read_record(page_dir / "service.json")["enabled"] is True
-    assert declared(page_dir)["detail"] == "successor is reviewing"
+    assert declared(page_dir)["state"] == "waiting"
     assert server_model.running_server(page_dir)
 
 

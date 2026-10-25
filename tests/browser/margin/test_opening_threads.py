@@ -364,7 +364,7 @@ def open_where_the_user_stands(page, section, **options):
           const {readThreads, threadActions} = await window.__lfWidgetApi();
           const thread = readThreads().threads.find(t => t.anchor.section === section);
           const opening = threadActions.open(
-            thread.key, {focus: false, travel: false, flash: false, ...options});
+            thread.key, {focus: false, travel: false, ...options});
           const late = new Promise(resolve => setTimeout(() => resolve('late'), 5000));
           const shown = await Promise.race([opening, late]);
           return shown === 'late' ? shown : Boolean(shown);

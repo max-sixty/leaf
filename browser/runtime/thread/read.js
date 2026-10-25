@@ -178,6 +178,7 @@ export function createReadTracking({ markRead, openThread }) {
     keys: ["u"],
     title: "first unread",
     touch: false,
+    travels: true,
     when: () => actionableUnread().length > 0,
     run: () => void firstUnread(),
   };

@@ -1,5 +1,5 @@
 import { closeLayer, focusDestination, focused, handBack, keeps, keepsHidden, keepsText, nextRender } from "./bundle-dom-move.js";
-import { clamp, el, layoutWindow, notice, paintKeys, raiseError } from "./bundle-layer-client.js";
+import { clamp, el, layoutWindow, notice, paintKeys, raiseError } from "./bundle-errors.js";
 import { runtime } from "./bundle-context.js";
 import { pageImage } from "./bundle-page-image2.js";
 

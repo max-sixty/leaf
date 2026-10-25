@@ -33,6 +33,7 @@ from render_harness import (
     holding,
     leaf_page,
     names,
+    nudge,
     open_page,
     page_comment,
     panel_control,
@@ -418,9 +419,20 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
 
     # A fresh document cannot claim native retention and still waits for composition.
     (serve.page_dir / "index.html").write_text(executable_revision(third, "reload"))
-    # The menu holds the rows it opened with, so it opens once the page has heard.
+    # The menu holds the rows it opened with, so it opens once the page has heard. It
+    # is reached by keys: a press on the leaf is a press away from the reply's row,
+    # which ends its composition (thread/replies.js), and then only the open menu
+    # would hold the fresh document back. A state read after the menu closes asks
+    # again whether the page may follow, and the composition still says no.
     told(page)
-    expect_panel_offers(page, "latest")
+    page.locator(".lf-fp-leaf").press("Enter")
+    expect(
+        page.locator('.lf-fp-menu .lf-fp-item[data-row="latest"]:not(:disabled)')
+    ).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-floating-panel")).not_to_have_attribute("data-menu", "")
+    nudge(serve.page_dir)
+    told(page)
     assert editor.evaluate("node => node === window.heldReply")
     send.press("Shift+Tab")
     expect(editor).to_be_focused()
@@ -642,6 +654,9 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    # The record stands in the hub's track, which stays in view beside the goal, so
+    # the reply waits behind its news as the pause did.
+    page.locator("#atlas-record .lf-activity-news").click()
     replied = page.locator("#atlas-record .lf-activity-row").first
     expect(replied.locator(".lf-activity-line")).to_contain_text("Relay replied")
     expect(replied.locator(".lf-activity-excerpt")).to_have_text(
@@ -652,13 +667,16 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     with sending(page, "the resolution"):
         page.locator(".lf-fp-settle").click()
     expect(goal).not_to_have_attribute("data-lf-held")
+    page.locator("#atlas-record .lf-activity-news").click()
     released = page.locator("#atlas-record .lf-activity-row").first
     expect(released).to_contain_text(
         "Me resolved “Finish the current hunk, then park here.”"
     )
 
     undo(page)
-    # Taking the resolution back leaves its row where it stood, marked undone.
+    # Taking the resolution back leaves its row where it stood, marked undone, once
+    # the record shows the change it holds.
+    page.locator("#atlas-record .lf-activity-news").click()
     expect(released).to_have_attribute("data-lf-undone", "")
     expect(released).to_contain_text("undone")
     expect(goal).to_have_attribute("data-lf-held", root["id"])

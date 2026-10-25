@@ -1459,9 +1459,10 @@ dd {
   margin: 0 0 8px 0;
 }
 
-/* The apparatus voice, said once per layer. Every label, caption, chip, badge and
- * column heading on the page is the page pointing at its own content rather than
- * saying something — so it takes the UI sans at a small size, usually tracked, and
+/* The apparatus voice, said once per layer. Every label, caption, chip, badge,
+ * disclosure summary and column heading on the page is the page pointing at its own
+ * content rather than saying something — so it takes the UI sans at a small size,
+ * usually tracked, and
  * the serif is left to carry what there is to read. Listing them in one rule is the
  * point: what counts as apparatus is a judgement, and a judgement made in twenty
  * places is twenty chances to answer it differently. This rule is the layer's own
@@ -1502,7 +1503,8 @@ dd {
 figcaption,
 caption,
 th:not([scope="row"]),
-.facts dt {
+.facts dt,
+summary {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }

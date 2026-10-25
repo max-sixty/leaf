@@ -139,7 +139,7 @@ Options:
 Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
 
   Answer a delivered update by its `answer.ref` alone, or post into the thread
-  PAGE MESSAGE names, which never stands in for an answer you owe.
+  PAGE MESSAGE names, which is refused while that thread owes an answer.
 
   An answer declares what it leaves with --done, --todo or --obligation, or
   carries a widget in --markup that asks; --ephemeral progress and a --failure

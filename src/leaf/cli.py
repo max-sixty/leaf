@@ -1027,8 +1027,8 @@ LIFETIMES = {
 
 def serve_flags(*lifetimes: str):
     """The statements a serve takes: `--lifetime`, among `lifetimes`, and `--host`.
-    `server start` forwards both verbatim to the `server _serve` it spawns, so one
-    spelling keeps the pair from drifting. The values are the `lifetime` a started
+    `server start` hands both to the `server _serve` it spawns
+    (`hosting._starting_server`), so one spelling keeps the pair from drifting. The values are the `lifetime` a started
     server prints (`hosting.server_reading`)."""
 
     def decorate(command):
@@ -1294,7 +1294,7 @@ def thread_reply(
     **options,
 ) -> dict | None:
     """Answer a delivered update by its `answer.ref` alone, or post into the
-    thread PAGE MESSAGE names, which never stands in for an answer you owe.
+    thread PAGE MESSAGE names, which is refused while that thread owes an answer.
 
     An answer declares what it leaves with --done, --todo or --obligation, or
     carries a widget in --markup that asks; --ephemeral progress and a --failure

@@ -87,8 +87,9 @@ While the session an update was delivered to holds the page,
 delivered before the user's newer correction does not answer that correction.
 
 Successful answers check the saved `index.html` and make it the active revision
-with the answer. Progress and failure reports use the active revision without
-checking or publishing an in-progress draft. Rerunning an
+with the answer; the first answer on a revision also notes the advice `page check`
+gives. Progress and failure reports use the active revision without checking or
+publishing an in-progress draft. Rerunning an
 answer with the same `ref` adds nothing.
 When no answer is coming, `--failure <code>` posts a failure receipt, which settles
 the input without reopening a resolved thread.
@@ -154,7 +155,8 @@ Use `--ephemeral` for progress while work is underway:
 leaf thread reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 ```
 
-It does not answer the update, but on an update you owe it starts the update, and
+It does not answer the update, so a turn whose final message is the answer still
+posts that message. On an update you owe it starts the update, and
 its text becomes the **Working** status in Leaf's panel, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply <page> <message> --ephemeral`.

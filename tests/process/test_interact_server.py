@@ -4585,7 +4585,9 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
         assert stopped.exit_code == 0, stopped.output
 
 
-def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_dir):
+def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(
+    page_dir, tmp_path
+):
     """A re-vendor across a protocol bump leaves the revisions the page saved before
     it in place, each with the runtime it was saved with. Served, that runtime would
     talk to this Leaf's server across the bump, so its address refuses, as does an
@@ -4671,6 +4673,42 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         assert commented(2)[0] == 200
     finally:
         temporary.close()
+
+    # A picture serves the revision its drawing was made on, so one made on the
+    # older revision refuses as the address does, before any browser opens.
+    drawn = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "plan"},
+            "drawing": {
+                "viewport": [800, 600],
+                "scheme": "light",
+                "box": [100, 100],
+                "strokes": [[[10, 10], [90, 90]]],
+            },
+        },
+    )
+    pictured = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(page_dir), drawn["id"]]
+    )
+    assert pictured.exit_code == 1, pictured.output
+    assert f"Revision 1 was saved at page protocol {foreign}" in pictured.output
+    # So does an export of a version stamped on it, which would run this Leaf's
+    # runtime against that revision's widgets.
+    append_carried_log_record(
+        page_dir,
+        {"kind": "note", "author": "agent", "revision": 1, "version": 1, "text": "v1"},
+    )
+    exported = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(page_dir), "--out", str(tmp_path / "v1.html")],
+    )
+    assert exported.exit_code == 1, exported.output
+    assert f"Revision 1 was saved at page protocol {foreign}" in exported.output
+    assert not (tmp_path / "v1.html").exists()
 
 
 def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input(

@@ -176,8 +176,6 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
     expect(mark).to_have_attribute("aria-label", "On me: 1")
     mark.click()
     row = page.locator('.lf-fp-on-item[data-list="you"]')
-    # A press on its line opens the question in place.
-    row.locator(".lf-fp-on-line").click()
     expect(row).to_contain_text(question)
     expect(row.get_by_role("button", name="Reply", exact=True)).to_be_visible()
     row.get_by_role("button", name="Show", exact=True).click()
@@ -220,7 +218,6 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
     mark.click()
     row = page.locator(f'.lf-fp-on-item[data-obligation="{todo["id"]}"]')
     expect(row).to_contain_text("Try the build on your phone")
-    row.locator(".lf-fp-on-line").click()
     row.get_by_role("button", name="Discuss", exact=True).click()
     reply = page.locator(PANEL_REPLY)
     write(reply, "Which phone should I use?")
@@ -228,7 +225,6 @@ def test_a_thread_task_stays_on_me_until_done(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(mark).to_have_attribute("aria-label", "On me: 1")
     mark.click()
-    row.locator(".lf-fp-on-line").click()
     with sending(page, "the completed phone check"):
         row.get_by_role("button", name="Done", exact=True).click()
     expect(mark).to_have_attribute("aria-label", "On me")

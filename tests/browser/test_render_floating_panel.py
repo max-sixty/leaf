@@ -603,9 +603,7 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
 def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, serve):
     """A question the agent asked in a thread reads in the On view as its message, drawn
     whole as the thread draws it, so what it introduces after a colon is there with it.
-    The view grows to show the card once the message is drawn, its Reply above the
-    view's foot. Reply opens its thread with On behind it, where the back link
-    returns."""
+    Reply opens its thread with On behind it, where the back link returns."""
     url = serve(LONG_PAGE)
     panel_comment(
         serve.page_dir,
@@ -617,14 +615,9 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
     page = floating(browser, url)
     page.locator(".lf-fp-on-user").click()
     card = page.locator(".lf-fp-on-item", has_text="Which build should ship?")
-    card.locator(".lf-fp-on-line").click()
     expect(card.locator(".lf-msg")).to_have_count(1)
     expect(card.locator("li")).to_have_count(2)
     expect(card).to_contain_text("#4812 manual")
-    settled(page)
-    reply = card.locator(".lf-fp-answer", has_text="Reply").bounding_box()
-    view = page.locator(panel_view("queue")).bounding_box()
-    assert reply["y"] + reply["height"] <= view["y"] + view["height"], (reply, view)
 
     card.locator(".lf-fp-answer", has_text="Reply").click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
@@ -3236,12 +3229,10 @@ def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
 
 
 def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
-    """On me lists what waits on the user, a line each, and a press on a line opens its
-    obligation in place, where it takes its answer by the widget's own choice: the
-    event is the widget's action. The answered card keeps its place and height, so the
-    next obligation does not move under the pointer, and Undo takes the answer back.
-    Escape folds the card back to its line, standing there, and then puts the view
-    away."""
+    """On me lists what waits on the user, and each obligation takes its answer there, by the
+    widget's own choice: the event is the widget's action. The answered card keeps its
+    place and height, so the next obligation does not move under the pointer, and
+    Undo takes the answer back."""
     page = floating(browser, serve(OBLIGATION_PAGE))
     chip = page.locator(".lf-fp-on-user")
     expect(chip).to_contain_text("2")
@@ -3253,10 +3244,6 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     cards = view.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
     expect(cards.first).to_contain_text("How should the schema migrate?")
-    line = cards.first.locator(".lf-fp-on-line")
-    expect(cards.first.locator(".lf-fp-answer")).to_have_count(0)
-    line.click()
-    expect(line).to_have_attribute("aria-expanded", "true")
     settled(page)
     first, second = cards.first.bounding_box(), cards.nth(1).bounding_box()
     with sending(page, "the answer"):
@@ -3275,12 +3262,7 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(cards.first.locator(".lf-fp-answer", has_text="Shim")).to_be_visible()
     expect(chip).to_contain_text("2")
-    # The pressed Undo is gone; Escape folds the card to its line, then puts the view
-    # away.
-    page.keyboard.press("Escape")
-    expect(line).to_have_attribute("aria-expanded", "false")
-    expect(line).to_be_focused()
-    expect(cards.first.locator(".lf-fp-answer")).to_have_count(0)
+    # The pressed Undo is gone, and Escape still puts the view away.
     page.keyboard.press("Escape")
     expect(view).to_have_count(0)
 
@@ -3288,8 +3270,8 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
 def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser, serve):
     """While the agent's plan gives the user a step, On me groups by it until the user
     picks another grouping: under each goal the items its steps name, in step order,
-    and those no goal names last; a goal holding one item has no heading, its line
-    saying what the item is and ending with the goal's name. On Claude, which replaced
+    and those no goal names last; a goal holding one item has no heading, its card
+    saying what the item is and the goal's name. On Claude, which replaced
     the Plan tab, is headed at its foot by the plan's progress, which discloses the
     goal and its steps over the list; a step waiting on the user turns the view to On
     me, and focus with it."""
@@ -3309,13 +3291,11 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     page.locator(".lf-fp-on-user").click()
     view = page.locator(panel_view("queue"))
     expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
-    # Each goal holds one item, so neither stands under a heading: each line ends
-    # with its group's name where its place would be.
+    # Each goal holds one item, so neither stands under a heading: each card says
+    # its group's name where its place would be.
     expect(view.locator(".lf-fp-on-group")).to_have_count(0)
-    lines = view.locator(".lf-fp-on-line")
-    expect(lines.locator(".lf-fp-on-kind")).to_have_text(["Options", "Options"])
-    expect(lines.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
-        ["Ship the migration", "Not in the plan"]
+    expect(view.locator(".lf-fp-on-kind")).to_have_text(
+        ["Options · Ship the migration", "Options · Not in the plan"]
     )
 
     tabs = page.locator(".lf-fp-filters button")
@@ -3868,7 +3848,7 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
 
     on_mark.click()
     expect(page.get_by_role("button", name="On me 2", exact=True)).to_be_visible()
-    cards = page.locator(f"{panel_view('queue')} .lf-fp-on-line")
+    cards = page.locator(f"{panel_view('queue')} .lf-fp-on-item")
     expect(cards).to_have_count(2)
     page.keyboard.press("ArrowDown")
     expect(cards.first).to_be_focused()
@@ -4133,7 +4113,6 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
     )
     page = open_page(browser, url, context=context)
     page.locator(".lf-fp-on-user").click()
-    page.locator(f"{panel_view('queue')} .lf-fp-on-line").first.click()
     answers = page.locator(f"{panel_view('queue')} .lf-fp-answers").first
     expect(answers).to_be_visible()
     heights = answers.evaluate("""line => {

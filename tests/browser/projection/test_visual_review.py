@@ -93,7 +93,6 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
         has=page.get_by_text("Optional packages get focused destinations", exact=True)
     )
     expect(card).to_be_visible()
-    card.locator(".lf-fp-on-line").click()
     card.get_by_role("button", name="Show", exact=True).click()
     expect(case).to_have_attribute("data-lf-datum", first)
     expect(case).to_be_focused()
@@ -130,7 +129,6 @@ def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve
     card = page.locator(
         '.lf-fp-on-item[data-obligation="widget:reply-review:keep-mobile-destinations"]'
     )
-    card.locator(".lf-fp-on-line").click()
     card.get_by_role("button", name="Show", exact=True).click()
     case = page.locator("#reply-review").locator(SELECTED)
     expect(case).to_have_attribute("data-lf-datum", "keep-mobile-destinations")

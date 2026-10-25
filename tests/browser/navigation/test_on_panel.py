@@ -434,8 +434,6 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
     panel_settled(page, view="queue")
     you = page.locator('.lf-fp-on-item[data-list="you"]')
     expect(you).to_have_count(2)
-    # A press on its line opens the to-do in place, with its Done.
-    you.filter(has_text="Read it through").locator(".lf-fp-on-line").click()
     finish = you.get_by_role("button", name="Done", exact=True)
     expect(finish).to_have_count(1)
     expect(you.filter(has_text="Read it through")).to_have_count(1)
@@ -504,9 +502,9 @@ def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    card = page.locator('.lf-fp-on-item[data-list="you"]').filter(has_text=notes)
-    card.locator(".lf-fp-on-line").click()
-    card.get_by_role("button", name="Show").click()
+    page.locator('.lf-fp-on-item[data-list="you"]').filter(has_text=notes).get_by_role(
+        "button", name="Show"
+    ).click()
     panel_settled(page, open=False)
     expect(page.locator("#notes")).to_be_focused()
     expect(todo_field(page)).to_have_attribute(
@@ -565,7 +563,6 @@ def test_a_finger_ends_a_todo_on_you_where_show_lands(browser, serve):
     page.locator(".lf-fp-on-user").tap()
     panel_settled(page, view="queue")
     card = page.locator(".lf-fp-on-item", has_text="Check the notes")
-    card.locator(".lf-fp-on-line").tap()
     card.get_by_role("button", name="Show", exact=True).tap()
     expect(page.locator("#notes")).to_be_focused()
     expect(todo_field(page)).to_have_attribute(

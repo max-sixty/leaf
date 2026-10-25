@@ -681,9 +681,9 @@ def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
     panel_settled(page, view="queue")
     row = page.locator(f"{panel_view('queue')} .lf-fp-on-item").first
     # The card names the Ask by its question; its options stand below as answers.
-    expect(
-        row.locator(".lf-fp-on-line .lf-fp-label, .lf-fp-prompt").first
-    ).to_have_text("Which jobs are worth starting?")
+    expect(row.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(
+        "Which jobs are worth starting?"
+    )
     page.keyboard.press("Escape")
 
     page.keyboard.press("g")

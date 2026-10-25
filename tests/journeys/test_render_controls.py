@@ -260,7 +260,7 @@ CONTROL_ARCHETYPES = (
 
 # The panel's own controls draw the ring with one rule (floating-panel.css); this is the
 # part of its selector that makes the rule the panel's.
-PANEL_RING = ".lf-fp-face:focus-visible"
+PANEL_RING = ".lf-fp-on-item)"
 
 
 # The page the chrome's surfaces are sampled on: small, with a board's grips, and served

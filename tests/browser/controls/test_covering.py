@@ -137,7 +137,7 @@ def test_an_open_view_stands_through_a_replaced_document(browser, serve):
     resized(page, 500, 640)
     toggle_queue(page)
     view = page.locator(panel_view("queue"))
-    page.locator(".lf-fp-on-line").first.focus()
+    page.locator(".lf-fp-on-item").first.focus()
 
     revised = source.replace(
         '<h1 id="t">Long</h1>', '<h1 id="t">Long after replacement</h1>'

@@ -260,9 +260,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    row = page.locator(
-        ".lf-fp-on-item[data-key*='\"widget:second-options\"'] .lf-fp-on-line"
-    )
+    row = page.locator(".lf-fp-on-item[data-key*='\"widget:second-options\"']")
     expect(row).to_be_visible()
     row.focus()
     expect(row).to_be_focused()

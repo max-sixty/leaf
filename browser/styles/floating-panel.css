@@ -187,10 +187,10 @@
       cursor: default;
       background: none;
     }
-    /* The ring of the panel's controls, a chooser's select among them. The On me item
-       the `m` walk stands on wears it too, though focus is at its ask on the page
-       (floating-panel.js, `walkedStop`). */
-    .lf-fp-face:focus-visible,
+    /* The ring of the panel's controls, a chooser's select among them, and of On me's
+       cards. The card the `m` walk stands on wears it too, though focus is at its ask
+       on the page (floating-panel.js, `walkedStop`). */
+    :is(.lf-fp-face, .lf-fp-on-item[data-card]):focus-visible,
     .lf-fp-on-item[data-walked] {
       outline: var(--focus-ring);
       outline-offset: -2px;
@@ -1418,8 +1418,8 @@
     color: var(--ink);
   }
 
-  /* ---------- On: one line per item ---------- */
-  /* A group's heading over its lines, in the label voice (`.lf-label`), with how many
+  /* ---------- On: a card or a line per item ---------- */
+  /* A group's heading over its items, in the label voice (`.lf-label`), with how many
      it holds. */
   .lf-fp-on-group {
     display: flex;
@@ -1466,7 +1466,7 @@
   .lf-fp-on-says > .lf-fp-label {
     flex: 1 1 auto;
   }
-  .lf-fp-on-kind,
+  .lf-fp-on-noun,
   .lf-fp-on-says > .lf-fp-value {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1483,6 +1483,23 @@
   }
   .lf-fp-on-body {
     padding: 0 8px 10px;
+  }
+  /* On me's card reads as the thread it belongs to, its words in a thread's face, and
+     the answers it takes, answered here. What it is and its question's heading set
+     cards apart, with the space between them, so no rule runs between them. */
+  .lf-fp-on-item[data-card] {
+    display: block;
+    padding: 10px 8px 12px;
+  }
+  .lf-fp-on-kind,
+  .lf-fp-on-title {
+    margin: 0 0 2px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--lf-fp-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .lf-fp-prompt {
     margin: 0;

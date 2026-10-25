@@ -5638,7 +5638,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			draw: () => onView(),
 			controls: () => queueControls(),
 			nominate: (_route, collection, parts) => nominateAsked(collection, parts),
-			rows: ".lf-fp-on-line",
+			rows: ".lf-fp-on-item[data-card], .lf-fp-on-line",
 			mark: "onUser"
 		},
 		leaves: {
@@ -6838,7 +6838,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			within: view
 		});
 	}
-	function onItemCard(item, list, { says = null, group = null, leads = true } = {}) {
+	function onItemCard(item, list, { card = false, says = null, group = null, leads = true } = {}) {
 		const record = carriesObligation(item) ? item.obligation : null;
 		const thread = item.thread ? threadByKey(item.thread) : null;
 		const inWords = record !== null && answeredInWords(record);
@@ -6878,7 +6878,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         </button>` : nothing;
 		let answers;
 		let discussHere = true;
-		if (list === "done" && !record) answers = nothing;
+		if (list === "done" && !record) answers = card ? html`<span class="lf-fp-said"
+            >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
+          >` : nothing;
 		else if (list !== "you" && !answered) answers = html`<span class="lf-fp-said">${workOn(item).line}</span>`;
 		else if (answered) {
 			discussHere = false;
@@ -6924,6 +6926,31 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const opened = openItem === key;
 		const stop = queueStop(item);
 		const kind = item.owner === "user" ? says === "kind" ? "" : stop.noun : agentNoun(item);
+		const where = group ?? (says === "place" ? "" : onMe.place(item));
+		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
+		if (card) {
+			const about = [kind, where].filter(Boolean);
+			return html`<section
+        class="lf-fp-on-item"
+        data-card
+        data-list=${list}
+        data-key=${key}
+        data-obligation=${record?.id ?? nothing}
+        ?data-walked=${walked}
+        style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
+      >
+        ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+                <div
+                  class="lf-fp-asked lf-fp-outlet"
+                  data-thread=${thread.key}
+                  data-message=${message.key}
+                ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
+                  <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}
+        <div class="lf-fp-answers">
+          ${answers}${discussHere ? discuss : nothing}${show}
+        </div>
+      </section>`;
+		}
 		let end = nothing;
 		if (list === "agent") {
 			const work = workOn(item);
@@ -6934,10 +6961,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         >${itemOutcome(item)}${item.ended ? html` <span class="lf-fp-age">${shortAgo(item.ended)}</span>` : nothing}</span
       >`;
 		else if (answered && !opened) end = html`<span class="lf-fp-value">${obligationEnding(record)}</span>`;
-		else {
-			const where = group ?? (says === "place" ? "" : onMe.place(item));
-			if (where) end = html`<span class="lf-fp-value">${where}</span>`;
-		}
+		else if (where) end = html`<span class="lf-fp-value">${where}</span>`;
 		const name = heading || (thread ? threadHeading(thread) : queueTitle(item));
 		return html`<section
       class="lf-fp-on-item"
@@ -6945,7 +6969,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
       ?data-open=${opened}
-      ?data-walked=${leads && queueTab === "you" && walkedStop() === stop.key}
+      ?data-walked=${walked}
       style=${opened && seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
       <button
@@ -6955,7 +6979,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-resolved=${!opened && (list === "done" || Boolean(answered))}
         @click=${() => toggleItem(key)}
       >
-        <span class="lf-fp-value lf-fp-on-kind">${kind}</span
+        <span class="lf-fp-value lf-fp-on-noun">${kind}</span
         ><span class="lf-fp-on-says"
           ><span class="lf-fp-label">${name}</span>${end}</span
         >
@@ -6972,7 +6996,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             </div>` : nothing}
     </section>`;
 	}
-	function groupedLines(groups, line) {
+	function groupedItems(groups, line) {
 		const rows = [];
 		let running = false;
 		for (const group of groups) {
@@ -7031,18 +7055,18 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const grouping = onMe.grouping();
 		const says = grouping === "plan" ? null : grouping;
 		const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
-		forgetOpened([...items, ...finished]);
 		const waits = (item) => lists.you.includes(item);
 		const groups = onMe.groups(items).map((group) => ({
 			...group,
 			headed: group.items.length > 1,
 			count: group.items.filter(waits).length
 		}));
-		return html`${items.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedLines([...groups, ...finished.length ? [{
+		return html`${items.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
 			key: "done",
 			title: "Done",
 			items: finished
-		}] : []], (item, group) => group.key === "done" ? onItemCard(item, "done") : onItemCard(item, listOf(item), {
+		}] : []], (item, group) => group.key === "done" ? onItemCard(item, "done", { card: true }) : onItemCard(item, listOf(item), {
+			card: true,
 			says: group.headed ? says : null,
 			group: group.headed || grouping === "kind" ? null : group.title,
 			leads: group.leads.has(item)
@@ -7069,7 +7093,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}
 		].filter((group) => group.items.length);
 		forgetOpened([...lists.agent, ...lists.done]);
-		return html`${planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedLines(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
+		return html`${planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
 	}
 	function workSummary(inHand, queued, done) {
 		const agent = agentName();
@@ -7315,7 +7339,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function seatOnItems() {
 		if (!showing({ view: "queue" })) return;
 		let draw = false;
-		for (const card of stage.querySelectorAll(".lf-fp-view:not([data-leaving]) .lf-fp-on-item[data-open]")) {
+		for (const card of stage.querySelectorAll(".lf-fp-view:not([data-leaving]) .lf-fp-on-item:is([data-card], [data-open])")) {
 			const outlet = card.querySelector(".lf-fp-asked:empty");
 			if (outlet) {
 				draw ||= !asked.has(outlet);

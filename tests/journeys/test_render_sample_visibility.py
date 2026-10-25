@@ -112,5 +112,8 @@ def test_sample_exposure_preserves_parent_declared_occlusion(browser, serve):
 
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    _on_me_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
+    # The sample's thread stays open, so its row's seat holds that thread's Close.
+    child.locator(".lf-fp-close").evaluate(
+        "close => close.focus({preventScroll: true})"
+    )
     _read_by_the_sample(page, child)

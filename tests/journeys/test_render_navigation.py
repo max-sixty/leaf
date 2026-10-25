@@ -1787,7 +1787,6 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
     expect(child.get_by_role("button", name="On me", exact=True)).to_be_visible()
-    expect(child.get_by_role("button", name="Threads, 0 open")).to_be_visible()
     for width in (720, 390):
         resized(page, width, 900)
         sample.scroll_into_view_if_needed()

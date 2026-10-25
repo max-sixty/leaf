@@ -60,7 +60,7 @@ from leaf_dev.arms import (
     run_leaf,
     serving,
 )
-from leaf_dev.browser import DESKTOP, headless_shell, open_threads
+from leaf_dev.browser import DESKTOP, go_to_threads, headless_shell
 from leaf_dev.commands.distribution import cached_installation
 from leaf_dev.example_data import named_source
 from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
@@ -181,7 +181,7 @@ class Session:
 
     def threads(self) -> None:
         """Open the floating panel's Threads view, listing every thread."""
-        open_threads(self.page)
+        go_to_threads(self.page)
 
     def settle(self) -> None:
         """Wait until the page is quiet and has stayed quiet for SETTLE_MS."""

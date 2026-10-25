@@ -238,3 +238,21 @@ def open_threads(page: Page | FrameLocator) -> None:
         if host.get_attribute("data-open") != "threads":
             tab.click()
     page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])').wait_for()
+
+
+def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
+    """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
+    `frame`'s page where given, a live sample's. The pointer's route to Threads has
+    changed between runtimes, so a driver one checkout runs against another's runtime,
+    as `stills`, `bench-latency`, thread snapshots and `verify-site` do, takes this
+    route, which both share."""
+    within = frame or page
+    # A press at the frame's top corner gives its document the keys; the page's own
+    # only needs focus off any control.
+    if frame:
+        frame.locator("body").click(position={"x": 2, "y": 2})
+    else:
+        page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    within.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])').wait_for()

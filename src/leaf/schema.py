@@ -255,6 +255,7 @@ AWAITS_SCHEMA = {
         },
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "reply": {"const": True},
         "encloses": {"const": True},
     },
@@ -265,6 +266,7 @@ AWAITS_SCHEMA = {
             "answered": False,
             "all": False,
             "records": False,
+            "key": False,
         },
     },
     "else": {"required": ["value", "answered"]},
@@ -372,6 +374,15 @@ EXTENSION_SCHEMA = {
             "additionalProperties": {"enum": ["before", "after"]},
         },
         "x-shadow": {"type": "boolean"},
+        # A view of another widget's answer (`shown_answers.py`): `attr` names that
+        # widget, and `value` the attribute of the view's compound owner that names
+        # the answer it holds.
+        "x-shows": {
+            "type": "object",
+            "properties": {"attr": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
+            "required": ["attr", "value"],
+            "additionalProperties": False,
+        },
         "x-state": STATE_SCHEMA,
         "x-thread-surface": {"const": True},
         "x-tone": _ATTRIBUTE_NAME,
@@ -459,6 +470,7 @@ EXTENSION_SCHEMA = {
         "x-retired-when": ["x-owners"],
         "x-within": ["x-owners"],
         "x-measured": ["x-data"],
+        "x-shows": ["x-owners", "x-refers"],
     },
     # An upgraded container can retain authored children, native markup included.
     "if": {"required": ["x-patch"]},

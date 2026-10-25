@@ -542,7 +542,10 @@ def squeezed_table_advice(readings) -> list[Finding]:
     Advice rather than a failure because the table still scrolls and every word in it
     stays in reach: what costs the reader is prose wrapped a word a line beside a
     scroller, and the remedy (a column fewer, shorter words, an identifier in `<code>`)
-    is a choice of composition only the author can make."""
+    is a choice of composition only the author can make. Its words say what the reader
+    keeps and what hiding a column at the narrow width would take: authors told only
+    the remedies chased the advice for up to eight render checks, hiding columns at
+    phone widths, which a phone reader then missed."""
     return _swept(
         readings,
         lambda reading: {

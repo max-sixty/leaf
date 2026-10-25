@@ -728,7 +728,6 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
         action = page.locator(identity)
         action.tap()
         expect(action).to_have_text("Opened")
-    context.close()
 
 
 @pytest.mark.parametrize("viewport", list(pin_cases.VIEWPORTS))
@@ -752,4 +751,3 @@ def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
         for case in pin_cases.CASES
     }
     assert not {name: faults for name, faults in found.items() if faults}
-    context.close()

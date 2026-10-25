@@ -1,8 +1,9 @@
 import { SVG_NS, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-target-paint.js";
 import { Z, bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextFrame, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, tabStops, under } from "./bundle-dom-move.js";
-import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, setRuntimeRootAttribute, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-layer-client.js";
+import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { whenDocumentPresented } from "./bundle-context.js";
+import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-errors.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, pageScroller, placeKept, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";

@@ -1,7 +1,8 @@
 import { PENDING, Z, bindQueuedWork, editable, html, isElementName, isReaction, keyed, lastMovedAt, messageKey, moved, nothing, pendingForParent, render as render$1, repeat, sameAnchor, seatRoot, share, threadKey, threadNames, turns } from "./bundle-browser-runtime.js";
 import { CARET_KEYS, TEXT_FIELD, afterScript, atLayoutPrecision, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
-import { PAGE_PAINT_ATTRIBUTE, PRESS, admitResponse, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, pagePresented, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, registry as registry$1, repaint, reportPageError, revealLayer, sameLayer, seenRect, shownBox, shownRect, shownWindow, skipped, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-layer-client.js";
+import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
 import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
+import { PRESS, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -374,10 +375,11 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 			const destination = destinationBox(where);
 			const byX = nearestScrollBy(destination.left - scrollMargin(where, "Left"), destination.right + scrollMargin(where, "Right"), left, right);
 			const byY = inside ? placementBy(where, "nearest", box, topMargin(where, box, start)) : 0;
-			if (byX || byY) land(box, localScrollBy(box, {
+			const by = localScrollBy(box, {
 				x: byX,
 				y: byY
-			}), "instant");
+			});
+			if (by.left || by.top) land(box, by, "instant");
 		}
 		if (box === within || box === pageScroller || getComputedStyle(box).position === "fixed") break;
 	}
@@ -1706,13 +1708,13 @@ function watchHeadingLinks() {
 		if (heading && headingAddress(heading)) focusDestination(heading, "move");
 	}, { capture: true });
 	let current = null;
-	onCurrentLocation((node) => {
-		const heading = (node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null) ?? headingOn(node);
-		if (heading === current) return;
+	const stand = (heading) => {
+		if (heading === current) return links.get(heading);
 		if (current) show(current, "current", false);
 		current = heading;
-		if (heading) show(heading, "current", true);
-	});
+		return heading && show(heading, "current", true);
+	};
+	onCurrentLocation((node) => stand(node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null));
 	pageScope("heading", {
 		title: "On a section heading",
 		root: focused,
@@ -1724,8 +1726,7 @@ function watchHeadingLinks() {
 			title: "copy link to section",
 			touch: false,
 			run: () => {
-				const heading = headingOn(focused());
-				(heading && show(heading, "current", true))?.control.shadowRoot.querySelector("button").click();
+				stand(headingOn(focused()))?.control.shadowRoot.querySelector("button").click();
 			}
 		}]
 	});
@@ -3426,6 +3427,7 @@ var MessageEditor = class {
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
 			sendBtn: save,
+			icon: "save",
 			submitIn: actions,
 			sentMedia: true,
 			save: (value) => {

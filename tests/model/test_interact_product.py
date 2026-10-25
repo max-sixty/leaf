@@ -587,11 +587,11 @@ def test_shipped_widget_purposes_live_in_their_descriptions():
 def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
 
-    def errors(attributes):
+    def errors(attributes, name="setting"):
         return fragment_errors(
             '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
             '<lf-playground id="kind-playground">'
-            f'<lf-playground-control name="setting" label="Setting" {attributes}>'
+            f'<lf-playground-control name="{name}" label="Setting" {attributes}>'
             "</lf-playground-control>"
             "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
             "<lf-playground-output>Use this setting.</lf-playground-output>"
@@ -608,6 +608,13 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     assert not errors('kind="toggle" value="false"')
     assert not errors('kind="color" value="#A0b1c2"')
     assert not errors('kind="text" value="yes"')
+    # A name, like an id, may start with a digit: an alert called 5xx keeps its name.
+    assert not errors('kind="toggle" value="false"', name="5xx-pages")
+    # A control is a Leaf element a user points at, so it takes a stable id.
+    assert not errors('kind="toggle" value="false" id="setting-control"')
+    # `class` and `style` are the page's styling hooks on a widget as on any element.
+    assert not errors('kind="toggle" value="false" class="route"')
+    assert not errors('kind="toggle" value="false" style="grid-column: 2"')
     assert refused('kind="range" value="12"') == [("attribute-schema", "required", [])]
     assert refused('kind="range" value="twelve" max="24"') == [
         ("attribute-schema", "pattern", ["value"])
@@ -876,6 +883,34 @@ def test_reply_validates_widget_markup(page_dir):
     assert event["author"] == "agent"
     assert event["text"] == "See:"
     assert event["markup"].startswith("<lf-diagram")
+
+
+def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_dir):
+    """A thread inserts a message's markup through `template.innerHTML`, which runs no
+    script in it, so the browser run that draws the message's widgets before it posts
+    leaves its scripts unrun too, rather than refusing it for code the user never runs."""
+    publish(page_dir)
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
+    )
+    posted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "See:",
+            "--markup",
+            (
+                '<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>'
+                '<script type="module">throw new Error("inert-message-script")</script>'
+            ),
+        ],
+    )
+    assert posted.exit_code == 0, posted.output
+    assert "inert-message-script" in events_model.read_events(page_dir)[-1]["markup"]
 
 
 def test_reply_validates_typed_references_against_the_page(page_dir):

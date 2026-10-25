@@ -71,9 +71,9 @@ from leaf_dev.thread_snapshot_plugin import (
 )
 from model_folds import leaf_page
 from PIL import Image
+from playwright.sync_api import BrowserContext, Page, expect
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
-from playwright.sync_api import expect
 
 from leaf import cli as cli_model
 from leaf import files as files_model
@@ -1419,12 +1419,28 @@ def watched(page, *, java_script_enabled=True):
     page.expose_binding(
         "__leafWatchFinding", lambda _source, found: errors.append(Finding.read(found))
     )
-    page.add_init_script(path=WRITE_WATCH_SOURCE)
-    # One init script keeps cause tracking installed before its words and swap
-    # subscribers; Playwright does not promise an order between separately registered
-    # scripts.
-    page.add_init_script(
-        script="\n".join(
+    # The watch reads the Layout Instability API, which only Chromium implements.
+    shifts = page.context.browser.browser_type.name == "chromium" and (
+        _TEST is None or watches_shifts(_TEST)
+    )
+    page.add_init_script(script=watch_sources(shifts))
+    return errors
+
+
+@cache
+def watch_sources(shifts: bool) -> str:
+    """Every sensor `watched` installs, as the one init script it registers.
+
+    One script keeps them in the order they rely on: write tracking first, then cause
+    tracking before the words and swap subscribers, then the shift watch, which
+    installs after write_watch.js. Playwright does not promise an order between
+    separately registered scripts, and each registration is a round trip to the
+    browser for every page a test makes. Each sensor runs in a block of its own, so
+    one that throws still reaches the page's error collector and the rest install,
+    as they did as separate scripts."""
+    sensors = [
+        WRITE_WATCH_SOURCE.read_text(),
+        *(
             source.read_text()
             for source in (
                 WATCH_PLATFORM_SOURCE,
@@ -1432,21 +1448,14 @@ def watched(page, *, java_script_enabled=True):
                 WORDS_WATCH_SOURCE,
                 SWAP_WATCH_SOURCE,
             )
-        )
-        + "\n"
-        + rendering_job_binding_source()
-        + "\n"
-        + document_port_binding_source()
-    )
-    # The watch reads the Layout Instability API, which only Chromium implements.
-    if page.context.browser.browser_type.name == "chromium" and (
-        _TEST is None or watches_shifts(_TEST)
-    ):
-        page.add_init_script(script=shift_watch_source())
-    # Diagnostics join the captured graph through its compiled public entries. Tests
-    # cannot name a private source path or load a second runtime from the mutable layer.
-    page.add_init_script(
-        script="""(() => {
+        ),
+        rendering_job_binding_source(),
+        document_port_binding_source(),
+        *([shift_watch_source()] if shifts else []),
+        # Diagnostics join the captured graph through its compiled public entries.
+        # Tests cannot name a private source path or load a second runtime from the
+        # mutable layer.
+        """(() => {
           const entry = path => {
             const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
             return import(new URL(path, new URL(boot, location.href)).href);
@@ -1456,9 +1465,12 @@ def watched(page, *, java_script_enabled=True):
           window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
           window.__lfClientApi = () => entry('runtime/layer-client.js');
           window.__lfVendorImport = name => entry(`vendor/${name}`);
-        })();"""
+        })();""",
+    ]
+    return "\n".join(
+        f"try {{\n{sensor}\n}} catch (error) {{ queueMicrotask(() => {{ throw error; }}); }}"
+        for sensor in sensors
     )
-    return errors
 
 
 @contextmanager
@@ -2086,15 +2098,88 @@ def opened_tab(page, destination, press):
 # side. It is the escape `held_events` was written around, and why that fixture
 # routes from navigation onward.
 #
-# So each page arms itself when it is made, on a pattern nothing ever asks for.
-# Nothing is intercepted by it and no request's behavior changes; what changes is
-# that a route registered later — a keystroke before the gesture it holds — only
-# adds a pattern to a list the browser is already consulting.
+# Interception is not free, though. While any route is set, Playwright pauses every
+# request the page makes until its driver lets it go, and turns Chromium's HTTP cache
+# off (`Fetch.enable` on `*` and `Network.setCacheDisabled`). Measured on a plain test
+# page in October 2026, the arm added about 30 ms of CPU to each opening's 550, in the
+# browser process and the driver. Most pages are never routed.
 #
-# The arm is the render gate's own, which needs it for the other end of the same
-# fact: interception comes back down when a route list empties, and requests
-# crossing that transition are lost just as silently.
-arm_interception = render_gate_model.arm_interception
+# So a page the suite makes arms itself when something first routes it or its
+# context, on a pattern nothing else asks for, ahead of that first route. Before the
+# page navigates, nothing is in flight to escape and the arm is in place before the
+# first request, as `held_events` needs. After, the arm proves itself before the
+# test's route is added: the page fetches a probe the arm answers, and a probe the
+# arm missed escaped to the page server's quiet `favicon.ico` and is sent again. A
+# route registered later then only adds a pattern to a list the browser is already
+# consulting. The arm stays for the page's life, since interception comes back down
+# when a route list empties and requests crossing that transition are lost just as
+# silently; `unroute_all` takes it too, so the next route arms again.
+ARM_PROBE = re.compile(r"/favicon\.ico\?lf-interception-armed=\d+$")
+_route_page = Page.route
+_route_context = BrowserContext.route
+_unroute_all_page = Page.unroute_all
+
+
+def _arm(page):
+    """Turn interception on for a page the suite made, before its first route."""
+    if getattr(page, "lf_armed", True):
+        return
+    page.lf_armed = True
+    caught = set()
+
+    def arm(route):
+        caught.add(route.request.url)
+        route.fulfill(status=204)
+
+    _route_page(page, ARM_PROBE, arm)
+    # A page that has not navigated has nothing in flight, and a document that is no
+    # page server's has no quiet address to probe.
+    if not page.url.startswith(("http://", "https://")):
+        return
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    for attempt in itertools.count():
+        probe = page.evaluate(
+            """attempt => {
+              const probe = new URL(`/favicon.ico?lf-interception-armed=${attempt}`,
+                location.href).href;
+              return fetch(probe, { cache: "no-store" }).then(() => probe, () => probe);
+            }""",
+            attempt,
+        )
+        if probe in caught:
+            return
+        assert time.monotonic() < deadline, (
+            f"request interception never caught a probe on {page.url}"
+        )
+
+
+def _arming_page(self, url, handler, **kwargs):
+    __tracebackhide__ = True
+    _arm(self)
+    return _route_page(self, url, handler, **kwargs)
+
+
+def _arming_context(self, url, handler, **kwargs):
+    __tracebackhide__ = True
+    # A page this context makes from here on starts with the context's route set, so
+    # it arms as it is made (`readable`).
+    self.lf_routed = True
+    for page in self.pages:
+        _arm(page)
+    return _route_context(self, url, handler, **kwargs)
+
+
+def _disarming(self, *args, **kwargs):
+    __tracebackhide__ = True
+    result = _unroute_all_page(self, *args, **kwargs)
+    if hasattr(self, "lf_armed"):
+        self.lf_armed = False
+    return result
+
+
+Page.route = _arming_page
+BrowserContext.route = _arming_context
+Page.unroute_all = _disarming
 
 # A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
 # "Functional results do not depend on execution speed"). One that names no deadline
@@ -2109,7 +2194,8 @@ def readable(page, *, java_script_enabled=True):
     """Install what the suite reads off a page, before the page navigates.
 
     The three readings are the same for every scripted page: the delivery ledger the traffic
-    helpers consume, the arm that keeps a later route real, and the problem list the
+    helpers consume, the arm that keeps a later route real (installed with the page's
+    first route, `_arm`), and the problem list the
     browser fixture rejects at the end of the test. None of them can be installed
     afterwards — an init script has to precede the navigation it instruments, and a
     console entry from a page nobody was listening to is simply gone — so a page that
@@ -2130,7 +2216,9 @@ def readable(page, *, java_script_enabled=True):
     if _CPU_THROTTLE and page.context.browser.browser_type.name == "chromium":
         slow_cpu(page, _CPU_THROTTLE)
     page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
-    arm_interception(page)
+    page.lf_armed = False
+    if getattr(page.context, "lf_routed", False):
+        _arm(page)
     if java_script_enabled:
         page.lf_traffic = Traffic(page)
     watched(page, java_script_enabled=java_script_enabled)

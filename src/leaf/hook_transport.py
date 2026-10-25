@@ -51,7 +51,8 @@ as new. A batch can still be refused, as when the page changed hands after
 delivery whose context the harness wouldn't show the model whole goes as a pointer
 (`Harness.fits_hook_context`), as does one the hook recorded none of; the agent's
 `leaf delivery ack` confirms it. A pointer never follows a recorded batch, whose
-opened pickup the turn's next hook would confirm though the model read none of it.
+opened pickup would read as handed into the turn, and under Pi as received, though
+the model read none of it.
 
 A pointer's input stays unconfirmed until its reader runs `leaf delivery ack`, so a
 later tool boundary of the same turn would freeze it again and point at it under a
@@ -64,15 +65,18 @@ over again, as they do input Escape dropped.
 
 Pi has the context once the hook returns, so its hook records the receipt with the
 pickup. Claude Code reads it only once every hook of the event has exited, and
-Escape before then drops it with the prompt or the tool boundary. So a Claude Code
-hook leaves the receipt to the turn's next hook, PreToolUse before a `leaf` command,
-PostToolBatch or Stop, which runs only once the model has read the context
-(`delivery.confirm_turn`). Until then the handed input is not offered again. Once
-the turn reads ended without that hook, or a prompt opens it again, it is input
-again (`delivery.deliverable`): Claude Code submits a wake Escape interrupted again
-at once, whose prompt hook hands it over anew; a watch from before the turn wakes for
-it; and where none runs, as after a turn a wake opened, the page's server nudges the
-session (`presence.nudge_interrupted`).
+Escape before then drops a prompt with its context, though not a tool boundary's.
+So a Claude Code hook leaves the receipt to the transcript's record of the model's
+context, which every later hook reads first (`delivery.confirm_entered`). Until
+then the handed input is not offered again. Once its turn reads ended, it may not
+have reached the model, so it is input again (`delivery.deliverable`): Claude Code
+submits a wake Escape interrupted again at once as a new prompt, and the watch
+its turn's prompt started wakes for it (`hooks.cmd_watch`), or where none runs, as
+after the turn that first claimed the page, the page's server nudges the session
+(`presence.nudge_interrupted`). The hook of the prompt that opens confirms what the
+transcript shows before it reads the page, so it hands over again only what never
+reached the model, and names an update the model did read and left unanswered as
+owed.
 
 A page vendored at an older protocol is re-vendored before it is read
 (`vendoring.renew_layer`), and the turn is told why that failed or which checks
@@ -472,12 +476,12 @@ def render(
 ) -> dict | None:
     """The hook's output, or None where it puts nothing in the turn. Where the
     harness shows the whole message to the model (`Harness.fits_hook_context`), it
-    hands over inline the batches `confirm` records as opened in the turn, which the
-    turn's next hook may confirm, and leaves a refused batch's input pending for a
-    later handover. Otherwise, or where `confirm` records none, it calls `point` and
-    hands over the delivery's pointer, which its reader's `leaf delivery ack`
-    confirms after complete reading: a pointer must leave no opened pickup a later
-    hook would confirm unread."""
+    hands over inline the batches `confirm` records as opened in the turn, and
+    leaves a refused batch's input pending for a later handover. Otherwise, or
+    where `confirm` records none, it calls `point` and hands over the delivery's
+    pointer, which its reader's `leaf delivery ack` confirms after complete
+    reading: a pointer must leave no opened pickup, which would read as handed
+    over inline though the model read none of it."""
     if delivery is None:
         return harness.hook_context(event, "\n".join(attention)) if attention else None
 

@@ -407,7 +407,7 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
   and refines it if a reading warrants, while a failure still blocks a record's
   stamp. Measured 2026-10-24
   ([notes](notes/agent-usability-evals.md#render-findings-after-handover-2026-10-24)):
-  the pass takes a median 8 s on catalog and eval pages; 8 of 20 agents handed a
+  the pass takes a median 7–8 s on catalog and eval pages; 8 of 20 agents handed a
   quick edit over without it, and 20 of 21 agents that got its findings after
   handover, delivered as the page's `error` event, fixed the page in the same wake.
   Decide how the findings arrive before building it: the `error` event's handling

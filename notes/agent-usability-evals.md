@@ -394,22 +394,42 @@ the server when a version goes live and deliver them through `leaf wait`. Two
 measurements decide whether to build it: how long the readings take, and whether an
 agent that has handed a page over acts on findings that arrive afterwards.
 
-**How long `page check --render` takes.** `.tmp/overnight/time_checks.py` (kept with
-the run evidence, not in the tree) built each catalog example and the render corpus
-with this checkout and timed the command, launcher included, plain and with
-`--render`, under `LEAF_RENDER_VIEWPORT=fixed`, on a shared Mac at a 1-minute load of
-10–39.
+**How long `page check --render` takes.** Each catalog example and the render corpus
+was built with this checkout and the command timed, launcher included, plain and
+with `--render`, under `LEAF_RENDER_VIEWPORT=fixed`, on the shared Mac; the eval
+pages were the saved final pages, re-vendored. One run per example:
 
-| Pages                                         | `--render`, median (p10–p90) | Plain, no browser run | Plain with the page-code run |
-| --------------------------------------------- | ---------------------------- | --------------------- | ---------------------------- |
-| 17 catalog examples, 2 runs each              | 8.1 s (6.0–12.5)             | 0.23 s (12 runs)      | 1.21 s (22 runs)             |
-| 70 final pages from `widgets-draw-as-written` | 7.7 s (6.2–11.1)             | 0.29 s (42)           | 1.28 s (28)                  |
-| The render corpus                             | 384 s (2 runs)               | —                     | 15.6 s                       |
+```sh
+LEAF_RENDER_VIEWPORT=fixed uv run python - <<'PY'
+import tempfile, time
+from pathlib import Path
+from leaf_dev import ROOT
+from leaf_dev.arms import build_source, run_leaf
+from leaf_dev.commands.distribution import cached_installation
+from leaf_dev.example_data import catalog_sources
+arm = cached_installation(ROOT)
+scratch = Path(tempfile.mkdtemp(dir=ROOT / ".tmp"))
+for source in catalog_sources():
+    page = scratch / source.stem
+    build_source(arm, scratch / "state", source, page)
+    for flags in ((), ("--render",)):
+        started = time.perf_counter()
+        run_leaf(arm, scratch / "state", "page", "check", str(page), *flags)
+        print(source.stem, flags, round(time.perf_counter() - started, 2))
+    run_leaf(arm, scratch / "state", "server", "stop", str(page))
+PY
+```
+
+| Pages, 1-minute load                                 | `--render`, median (p10–p90) | Plain, no browser run | Plain with the page-code run |
+| ---------------------------------------------------- | ---------------------------- | --------------------- | ---------------------------- |
+| 17 catalog examples, 3 runs each, load 6–10          | 7.0 s (5.3–11.6)             | 0.20 s (18 runs)      | 0.99 s (33 runs)             |
+| 17 catalog examples, 2 runs each, load 10–22         | 8.1 s (6.0–12.5)             | 0.23 s (12)           | 1.21 s (22)                  |
+| 70 final pages from `widgets-draw-as-written`, 14–39 | 7.7 s (6.2–11.1)             | 0.29 s (42)           | 1.28 s (28)                  |
+| The render corpus, 2 runs, 12–18                     | 384 s                        | —                     | 15.6 s                       |
 
 By context, eval pages took 6.5 s (text documents, thread pages) to 11.1 s (visual
-reviews). Plain check with its page-code run took the 1.3 s that #1691 measured for a
-page with a chart, so the load seems to have stretched these little; `--render` was
-not timed on an idle machine.
+reviews), and the slowest example, `pr-walkthrough`, 15 s. At the lower load the
+check took about 1 s less; no run was on an idle machine.
 
 **Whether agents act on findings delivered after handover.**
 `document/render-after-handover` hands the agent `evals/usability/fixtures/cutover.html`,
@@ -463,11 +483,11 @@ error framing as the reason to change a layout it had judged the user's. One
 fixture and one request; a page an agent wrote itself may get a different response
 than a draft the user handed over.
 
-What this says about the TODO item: the readings take about 8 s on typical pages, the
-time an agent saves by not waiting on them (about 40 s per handover including the
-reading and fixing it prompts) is real, and agents that skip them do act when the
-findings arrive afterwards. The measurements support building the pass, with a
-handling clause per severity rather than the `error` channel's.
+For the TODO item: the readings take 7–8 s on a typical page. An agent that handed
+over without them did so about 40 s sooner, the check plus the reading and fixing it
+prompted, and every such agent that got the findings afterwards fixed the page. That
+supports building the pass, with a handling clause for each severity rather than the
+`error` event's.
 
 ## Remaining evaluation gaps
 

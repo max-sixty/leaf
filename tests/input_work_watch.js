@@ -359,7 +359,9 @@
     // return and before its dispatch completes, so the blur and focus that move
     // dispatches are that gesture's work: a box that closes on blur, as a file tree's
     // search does, closes for the press elsewhere. Script focus inside a callback
-    // keeps that callback's source.
+    // keeps that callback's source; a script focus() run outside one before the
+    // gesture's task ends, as from a continuation the watch doesn't capture, is
+    // credited to the gesture too.
     if (event.isTrusted && FOCUS_MOVES.has(event.type) && !callbackDepth) {
       const gesture = [...finishing].findLast((s) => s.event.type !== "storage");
       if (gesture) {

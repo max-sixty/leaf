@@ -753,7 +753,8 @@
    * anchors no reading, and is a reading region of the Layout's own. A scrolling box
    * clips at its padding edge, and the blocks run the body's full width, so the body
    * holds the ring's room inside its edges and gives it back as a negative margin:
-   * what it holds stands where it would without it. */
+   * in flow, what it holds stands where it would without it; stuck, it stands one
+   * ring's room lower. */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
     flex: 1 1 18rem;
     --lf-margin-content: track;

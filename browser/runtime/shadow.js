@@ -142,11 +142,10 @@ export let shadowRules = "";
 // The shadow's contents paint immediately and its controls after upgrade, on the same
 // boundaries as authored and generated light DOM. A selector in the tree cannot see
 // body's stamps, so the theme states each boundary as an inherited property these rules
-// query with
-// `@container style()`, which Chrome, Firefox and Safari support; `:host-context()`,
-// which reads the stamps directly, has no Firefox or Safari support. The anonymous
-// layer leads the tree's sheets, so these important declarations outrank every later
-// layer.
+// query with `@container style()`, which Chrome, Firefox and Safari support;
+// `:host-context()`, which reads the stamps directly, has no Firefox or Safari support.
+// The anonymous layer leads the tree's sheets, so these important declarations outrank
+// every later layer.
 export const SHADOW_LEADING_CSS = `
 @layer {
   [hidden]:not([hidden="until-found"]),

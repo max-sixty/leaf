@@ -376,6 +376,17 @@ Decision, made on this evidence:
 - `lf-chart` reports a mark it drew at NaN, keeping the drawing (`79c1a185e`), so
   plain check's chart run, `--render` and `leaf wait` all hear the dashboard mistake.
 
+The thread-diagram context then ran on Codex beside the merge base:
+
+```sh
+uv run leaf-dev eval widgets-draw-as-written/thread-diagram --harness codex --base --repeat 8 -j 2
+```
+
+On the base, 4 of 8 diagram messages didn't draw (22–78%; 9 of 14 with the first
+run, 39–84%). With the message run, 7 of 8 authors had their first message refused
+with Mermaid's parse error, fixed it and posted again, and all 8 final messages drew
+(0 of 8, 0–32%). Mean author time rose from 1.0 to 1.2 minutes.
+
 ## Render findings after handover, 2026-10-24
 
 TODO.md's "Read the full render gate after handover" would run the render readings on

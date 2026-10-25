@@ -102,7 +102,7 @@ def test_recorded_web_journey_keeps_evidence_on_success_and_failure(tmp_path, ou
     if fails:
         assert reading["failed"] == "journey: AssertionError"
     else:
-        assert reading["journey"] == "A saved journey"
+        assert reading["result"] == "A saved journey"
     recorded = output / "worktree"
     assert reading["recording"] == str(recorded)
     with ZipFile(recorded / "trace.zip") as trace:

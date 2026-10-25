@@ -104,7 +104,8 @@ def viewport(value: str) -> tuple[int, int]:
 @click.option(
     "--journey",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help="Python file defining run(page); run after --do steps. Its return is JSON.",
+    help="Python file defining run(page); run after --do steps. Its return is JSON "
+    "and is the arm's `result`, as --js's value is; the two are exclusive.",
 )
 @click.option(
     "--record",
@@ -184,7 +185,7 @@ def probe(
     base,
 ) -> None:
     """Open SOURCE in Chrome, or Firefox with --firefox, run each --do step, and
-    print what --js returns.
+    print what --js or --journey returns.
 
     SOURCE is an example or fixture name, an authored .html path built fresh
     from this working tree, or any http(s) URL. Each --do step is one input:
@@ -203,7 +204,8 @@ def probe(
     Prints one JSON line per arm: startup phases and resources; native layout shifts
     through the journey, including recent input and affected node rectangles;
     long animation frames during startup and input steps, with script
-    entry points and forced layout; what --js returned, or the error that stopped the arm;
+    entry points and forced layout; `result`, what --js or --journey returned (absent when the arm failed);
+    `failed`, the stage and error that stopped the arm;
     the page's console errors and warnings and its uncaught exceptions; and with
     --shot the screenshot's path under .tmp/probe/.
 
@@ -237,6 +239,10 @@ def probe(
     if (gif or actions or checkpoint_images) and record_dir is None:
         raise click.UsageError(
             "--gif, --actions and --checkpoint-images require --record DIR"
+        )
+    if expression and journey:
+        raise click.UsageError(
+            "--js and --journey both set `result`; have the journey return the value"
         )
     if throttle and firefox:
         raise click.UsageError("--cpu-throttle needs Chromium's CDP, not --firefox")
@@ -303,7 +309,7 @@ def probe(
                                 STEPS[verb](page, arg)
                             if run:
                                 doing = "journey"
-                                reading["journey"] = run(page)
+                                reading["result"] = run(page)
                             doing = "settle"
                             if not isinstance(source, str):
                                 settle(page)

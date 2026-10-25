@@ -791,7 +791,10 @@ def test_a_constrained_target_carries_its_row_through_scroll(
     stays put through the document's scroll. Firefox draws a stuck target's row where
     the target would stand unstuck, and WebKit moves a fixed target's row with the
     document's scroll (notes/browser-support.md, "A stuck sticky anchor in Firefox",
-    "An anchor under a fixed box in WebKit"); WebKit runs the fixed case alone.
+    "An anchor under a fixed box in WebKit"). WebKit runs the fixed case alone, and
+    passes it: this case pins its target and scrolls only the document, which is not
+    the shape of the WebKit gap (a fixed box anchored under a fixed panel; see
+    test_a_fixed_box_anchored_under_a_fixed_panel_holds_through_scroll in #3842).
     """
     page = open_page(request.getfixturevalue(engine), serve(PANEL_PAGE))
     resized(page, 1280, 900)

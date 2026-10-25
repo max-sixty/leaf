@@ -40,11 +40,6 @@ has tried; settle that before building it.
 
 ### User experience
 
-- **#25 — Answer one decision beside its evidence and on a board.** A section's
-  picker and its board card currently record independent facts. The section's widget
-  owns the answer; build the board's write to that owner and test both views against
-  one decision, including ordering, write-ins and revision retraction
-  ([design](notes/shared-decisions.md)).
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
@@ -93,10 +88,6 @@ has tried; settle that before building it.
   them (see "A reply's widgets in every view of it"). Hiding resolved cards in place
   would show them among open ones unless CSS reorders them, so it needs the user's
   say; the `lf-diff` fix is keeping rows stable or the containers outside them.
-- **A summary's fold button ignores a press while words are selected.** With text
-  selected in a thread message, pressing "Show/Hide N earlier messages" does nothing,
-  even twice; Enter works. Reproduced in Chromium with a selection set by script,
-  before the flat transcript too.
 
 ### Agent and author experience
 
@@ -315,13 +306,6 @@ that changes size after first paint, with its cause.
   another line and its removal shortens the box. Drawing nothing until the first
   state answer has been read would leave the theme's stand-in frame and caption until
   then.
-- **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
-  (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
-  disclosure stays closed until the module opens it, so the spine and its markers
-  first show at upgrade. Opening it earlier would show the markers evenly spaced and
-  then move them, since each row's share is the module's measurement of the document
-  (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
-  would put them in place.
 - **Keep what a live revision adds above the reader from moving it.** A revision
   that puts a tab set above the gallery's page tabs, read from the page's top, moves
   their strip 430px down the window as it arrives
@@ -558,6 +542,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   real task.
 - **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
+- **Consider Leaf running the agent session.** A side lane that answers questions
+  while the session runs a long tool, or Leaf hosting the whole session, would reach
+  controls Claude Code and the Codex app don't expose to a companion
+  ([evidence and options](notes/leaf-run-sessions.md)). Trigger: busy-agent waits
+  grow past a few questions a day, or a user wants Leaf to be where they work.
 - **Decide whether an exported page carries its threads.** `leaf page
 export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the

@@ -185,6 +185,17 @@ me, and resolves to whether it arrived. A control that calls it prevents `moused
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
+An element declaring `x-shows`, such as a board card, is a view of another widget's
+answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).
+`shownAnswer(element)` reads it in `render()`, which then redraws with every change to
+that widget's state, and returns `null` where the element shows no answer. Otherwise
+it returns `{owner, value, available, takes, answer}`: the widget, the value its
+answer names now (`null` for none), whether the user can change it, `takes(value)`,
+whether the widget can answer `value` (`null` clears it), and `answer(value, says)`,
+which sends the widget's own command and returns what `dispatch` returns, or `null`
+where the widget can't take `value`. Place the view by `value`, and change it only
+through `answer`, so the view records nothing of its own.
+
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>. Each row has a `kind`, which is its obligation's
 `source.kind` (with the obligation as `obligation`) or `todo` (with the to-do as

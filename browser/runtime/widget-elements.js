@@ -39,7 +39,7 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
-import { WORKS } from "./control-selectors.js";
+import { PRESSES, WORKS } from "./control-selectors.js";
 import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
@@ -402,8 +402,12 @@ document.addEventListener(
     // A drag is a pointer's; the keyboard's own activation of the control is not one and
     // is read the one way every press claim reads it (pointer.js).
     if (pressIsKeyboardActivation(ev)) return;
+    // The question goes to the innermost control the press landed on. A native control
+    // inside chrome a widget made, such as a fold's toggle in a thread card that wears
+    // `data-lf-offer`, is its own press: asked of the card, a selection anywhere in the
+    // card's words deadened every button in it.
     const control = /** @type {Partial<Element>} */ (ev.target).closest?.(
-      "[data-lf-offer]",
+      `${PRESSES},[data-lf-offer]`,
     );
     if (control && reachedForWords(control)) {
       ev.stopPropagation();

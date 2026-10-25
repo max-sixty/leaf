@@ -9,6 +9,12 @@
     transition: none !important;
   }
 }
+:where(:root) .lf-ui,
+:where(:root) .lf-ui *,
+:where(:root) .lf-ui *::before,
+:where(:root) .lf-ui *::after {
+  box-sizing: border-box;
+}
 :where(:root) :is(.lf-ui-face, .button, .field) {
   font-family: var(--sans);
   font-size: var(--t-5);
@@ -1763,6 +1769,12 @@ button.lf-media-open {
 }
 .lf-msg-edit-actions > .lf-msg-edit-save:not([aria-disabled=true]) {
   color: var(--accent);
+}
+:is(.lf-page-thread, .lf-fp-opened):has(.lf-msg-editor) :is(.lf-resolve, .lf-reopen) {
+  display: none;
+}
+.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) .lf-msg-edit-actions {
+  inset-inline-end: calc(anchor(right) - var(--lf-thread-action-room) - var(--sp-2));
 }
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-response-height: var(--lf-line);

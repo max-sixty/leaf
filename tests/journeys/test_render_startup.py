@@ -455,12 +455,14 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
                     throw new Error('read broke');
                   return window.clockVersion;
                 });
-                if (!version) return noChange;
-                if (stage === 'async') {
-                  this.drawing(Promise.reject(new Error('async broke')));
-                  return noChange;
-                }
+                this.failing = version && stage === 'async';
+                if (!version || this.failing) return noChange;
                 throw new Error('paint broke');
+              }
+              async getUpdateComplete() {
+                const result = await super.getUpdateComplete();
+                if (this.failing) throw new Error('async broke');
+                return result;
               }
             });
             const probe = document.createElement(tag);
@@ -730,7 +732,6 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     page.keyboard.press("c")
     write(page_comment(page), "Still usable.")
     expect(page_comment(page)).to_have_js_property("value", "Still usable.")
-    page.close()
 
 
 @pytest.mark.parametrize("answer", ["ready", "offline"])
@@ -780,4 +781,3 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     expect(page.get_by_role("status").filter(has_text="Draft kept")).to_have_count(0)
     if answer == "offline":
         consume_browser_errors(page, "net::ERR_INTERNET_DISCONNECTED")
-    page.close()

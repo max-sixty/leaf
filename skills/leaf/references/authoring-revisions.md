@@ -91,10 +91,12 @@ context. Keep deferred work in the list with enough context to resume it.
 
 A decision the user answered and you have acted on becomes a record. Give its
 `lf-options` group the `settled` attribute, which collapses it to the pick, and say
-beside it what came of the choice. Keep the result and its evidence in the current
-reading flow while the reader still needs them (`page-authoring.md`, "Reading cost");
-retire the superseded interaction as finished work. Pose anything still worth asking
-as a new decision with new ids. Use `$restated` to withdraw the decision and ask again.
+beside it what you did about the choice. Anything the choice sets in motion that
+hasn't happened yet reads as decided, not under way. Keep the result and its evidence
+in the current reading flow while the reader still needs them (`page-authoring.md`,
+"Reading cost"); retire the superseded interaction as finished work. Pose anything
+still worth asking as a new decision with new ids. Use `$restated` to withdraw the
+decision and ask again.
 Don't mark a decision `settled` until you have finished applying it, and keep a section
 open while the user is still commenting there.
 

@@ -473,7 +473,8 @@ _TEXT = {
     ),
     "gesture-scrolled": lambda at, v: (
         f"a scroll during the {v['input']} on {placed(v['node'])} moved it{_by(v)};"
-        " only a command that takes the user somewhere (`travels`) may"
+        " only a gesture that takes the user somewhere may, as its command's"
+        " `travels` or the history entry it adds says"
         f"{_shift_evidence(v)}"
     ),
     "shift-watch-missed": lambda at, v: (
@@ -682,13 +683,15 @@ _TEXT = {
         " (authoring-evidence.md, Interactive and visual evidence)"
     ),
     "unreserved-height": lambda at, v: (
-        f"{at} draws {v['drawn']}px tall where its first paint "
+        f"{at} first paints {v['first']}px tall, "
         + (
-            "reserves no height"
+            "reserving no height"
             if v["reserved"] is None
-            else f"reserves {v['reserved']}px"
+            else f"reserving {v['reserved']}px"
         )
-        + f', so what follows it moves when it is drawn: state data-height="{v["drawn"]}"'
+        + f", and draws {v['drawn']}px tall, so what follows it moves"
+        f" {abs(v['drawn'] - v['first'])}px when it is drawn:"
+        f' state data-height="{v["drawn"]}"'
     ),
     # The page's own code, run once in the browser.
     "page-report": lambda at, v: v["text"],
@@ -1120,6 +1123,7 @@ _TEXT = {
     "invalid-extensions": _declared(
         lambda v: f"registry extensions are invalid: {v['reason']}"
     ),
+    "example-data": _declared(lambda v: f"x-example-data is invalid: {v['reason']}"),
     "invalid-example": _declared(
         lambda v: f"x-example is invalid: {Finding.loads(v['finding'])}"
     ),

@@ -63,6 +63,7 @@
     color: var(--ink);
   }
   .lf-fp-card {
+    isolation: isolate;
     anchor-name: --lf-fp-panel;
     display: flex;
     flex-direction: column;
@@ -257,9 +258,10 @@
     display: grid;
   }
   .lf-floating-panel[data-expanded] {
-    --lf-fp-max: 760px;
+    --lf-fp-max: 1100px;
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
+    min-height: 50dvh;
     max-height: 75dvh;
   }
   .lf-fp-editors,
@@ -531,6 +533,9 @@
     flex: none;
     display: flex;
     width: var(--lf-fp-aim);
+  }
+  .lf-floating-panel[data-drafted] .lf-fp-exit-seat {
+    width: auto;
   }
   .lf-floating-panel[data-rest=mark] {
     --lf-fp-fold-pad-inline: calc((var(--lf-fp-folded) - var(--lf-fp-aim)) / 2);
@@ -875,9 +880,8 @@
     width: 100cqi;
     font: 13px / 1.45 var(--sans);
   }
-  .lf-fp-copy-item wa-icon {
+  .lf-fp-copy-icon {
     color: var(--lf-fp-muted);
-    font-size: 13px;
   }
   .lf-fp-chevron {
     width: 12px;
@@ -1158,12 +1162,6 @@
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
   }
-  .lf-fp-messages .lf-msg.user {
-    --lf-msg-text-end: calc( 2 * (var(--lf-fp-row-pad) + var(--lf-fp-aim) + 8px) + var(--lf-fp-send-room) - 32px );
-  }
-  .lf-fp-messages .lf-msg.user .lf-msg-text {
-    box-sizing: border-box;
-  }
   .lf-fp-messages .lf-msg-editor > .lf-compose-field {
     --lf-response-height: var(--lf-line);
   }
@@ -1282,8 +1280,11 @@
     background: var(--lf-fp-surface);
     box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-2);
   }
-  .lf-floating-panel:not([data-menu]) .lf-fp-menu {
+  .lf-floating-panel:not([data-menu]) .lf-fp-menu:not([data-leaving]) {
     display: none;
+  }
+  .lf-fp-menu[data-leaving] {
+    pointer-events: none;
   }
   .lf-floating-panel[data-menu] .lf-fp-menu {
     @starting-style {
@@ -1552,11 +1553,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     opacity: 0.5;
   }
 }
-@keyframes lf-runtime-4f3c2a8d-flash {
-  from {
-    background-color: var(--hi-tint);
-  }
-}
 @scope (.lf-chrome) {
   .lf-foreground {
     position: absolute;
@@ -1694,11 +1690,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: var(--muted-2);
     font: 500 var(--t-6)/1.25 var(--sans);
   }
-  .lf-msg.flash,
-  .lf-thread-reply.flash,
-  .lf-thread-reply leaf-text.flash {
-    animation: lf-runtime-4f3c2a8d-flash var(--lf-motion-flash) ease-out;
-  }
   .lf-quote {
     margin: 0 0 12px;
     padding: 2px 8px 2px 10px;
@@ -1816,13 +1807,31 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     border-radius: var(--r-l);
     box-shadow: var(--raise-3);
     padding: 14px 18px;
+    flex-direction: column;
   }
   .lf-command-reference.open {
     display: flex;
-    flex-direction: column;
   }
   .lf-command-reference::backdrop {
     background: color-mix(in srgb, var(--ink) 24%, transparent);
+  }
+  :is(.lf-command-reference, .lf-page-map-dialog),
+  :is(.lf-command-reference, .lf-page-map-dialog)::backdrop {
+    opacity: 0;
+    transition:
+      opacity var(--lf-motion-disclosure) linear,
+      display var(--lf-motion-disclosure) allow-discrete,
+      overlay var(--lf-motion-disclosure) allow-discrete;
+  }
+  :is(.lf-command-reference:not(.open), .lf-page-map-dialog:not([open])) {
+    pointer-events: none;
+  }
+  :is(.lf-command-reference.open, .lf-page-map-dialog[open]),
+  :is(.lf-command-reference.open, .lf-page-map-dialog[open])::backdrop {
+    opacity: 1;
+    @starting-style {
+      opacity: 0;
+    }
   }
   .lf-media-viewer {
     position: fixed;
@@ -2175,11 +2184,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background: var(--paper);
     color: var(--ink);
     box-shadow: var(--raise-3);
+    flex-direction: column;
   }
   .lf-page-map-dialog[open],
   .lf-inspection-dialog[open] {
     display: flex;
-    flex-direction: column;
   }
   .lf-page-map-dialog::backdrop,
   .lf-inspection-dialog::backdrop {

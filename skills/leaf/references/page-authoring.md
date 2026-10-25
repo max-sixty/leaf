@@ -81,8 +81,9 @@ extend beside it. Compose the page from these:
 
 - **Prose read in order**, such as a plan, review or decision, is plain semantic HTML.
 - **Independent status tiles** are a block with `class="layout-tiles"`, whose children
-  sit in equal cells. Each cell holds a metric, chart, table, list or log, with at most
-  a caption; tiles of paragraphs read worse than the column.
+  sit in equal cells. Each cell holds a metric (the theme's `.metric` entry), chart,
+  table, list or log, with at most a caption; tiles of paragraphs read worse than the
+  column.
 - **A comparison** is a table, or native sections arranged by the page's CSS.
 - **Controls beside evidence** is a playground. Aim for one coherent experience to
   read, operate and comment on. Embedded documents can isolate a demonstration, but
@@ -141,11 +142,14 @@ page of parts, whose column parts each take their own outline.
 
 Use Leaf's default styling for ordinary content, with semantic HTML from the registry's
 elements and class idioms. The vendored theme supplies colours, type, spacing,
-headings, tables, code and widgets. Polish a page through clearer content and hierarchy
+headings, tables, code and widgets. Page CSS spaces with its steps, `--sp-1` to
+`--sp-5`, which `density-working` tightens. Polish a page through clearer content and hierarchy
 within that treatment. Reserve page CSS for task-specific arrangement, visualization
 or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for
-polish adds visual weight without meaning.
+polish adds visual weight without meaning. A box page CSS makes opaque, such as a
+sticky bar, paints `background: var(--lf-ground)`: the surface it stands on, which a
+card or a playground's preview sets for what it holds.
 
 When page CSS reveals controls while a container is hovered or focused, include
 `:has([data-lf-control-active])` in the condition if it contains a code block.
@@ -227,9 +231,6 @@ grammar's aliases, such as `language-js` and `language-sh`. Format example code 
 the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.
-The Copy button over a code block follows its line height. Set
-`--lf-code-copy-size` on the block or its container when its visible button
-needs another size; its press target still keeps the theme's `--aim-floor`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="scroll"` to that same box. Leaf contains its positioned descendants and
@@ -238,9 +239,14 @@ change overflow at a breakpoint; Leaf measures the declared surface, never all o
 descendants. Use a bounded reading region for independently scrolling vertical content.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
-line. Put identifiers in `<code>`, which can break inside a cell, and keep the columns
-to what fits at the narrowest width the page's readers use.
+to it, so none needs a width. A table's columns size to their content, so leave its
+cells' widths and wrapping to the theme too. Text that can't break, such as a bare
+identifier or a cell kept on one line, holds its column at its full length, and once
+the table scrolls sideways, prose in the other columns wraps a word per line. Put
+identifiers in `<code>`, which can break inside a cell, and keep the columns to what
+fits at the narrowest width the page's readers use. Write each row's name as its
+first cell, a `<th scope="row">`, and the names stay in view while the other columns
+scroll.
 
 ## Stable anchors
 

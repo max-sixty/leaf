@@ -1,7 +1,238 @@
 import { AsyncDirective, Directive, PartType, Z, directive, html, isElementName, nothing, render, x as x$1 } from "./bundle-browser-runtime.js";
-import { CARET_KEYS, WORKS, canPlaceFocus, cancelRender, closeLayer, controlNavigationKeys, focusRevision, focused, handBack, isNativeLayer, keeps, keepsText, move, nativeLayerHolding, nativeLayerKind, nextRender, onCurrentLocation, releaseFocus, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
+import { CARET_KEYS, PRESSES, WORKS, canPlaceFocus, cancelRender, closeLayer, controlNavigationKeys, excludedByInert, focusRevision, focused, handBack, isNativeLayer, keeps, keepsText, move, nativeLayerHolding, nativeLayerKind, nextRender, onCurrentLocation, releaseFocus, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
 import { runtime } from "./bundle-context.js";
 
+//#region runtime/arrivals.js
+const watches$1 = /* @__PURE__ */ new Set();
+const stages = /* @__PURE__ */ new WeakSet();
+const stageRefs = /* @__PURE__ */ new Set();
+const owners = /* @__PURE__ */ new WeakMap();
+let offerOwner;
+function watchOwner(owner, lifecycle) {
+	let connected = false;
+	const subscription = {
+		connect() {
+			if (connected || !owner.isConnected) return;
+			connected = true;
+			try {
+				lifecycle.connect?.();
+			} catch (error) {
+				subscriptions.delete(subscription);
+				subscription.disconnect();
+				throw error;
+			}
+		},
+		disconnect() {
+			if (!connected) return;
+			connected = false;
+			lifecycle.disconnect?.();
+		}
+	};
+	let subscriptions = owners.get(owner);
+	if (!subscriptions) owners.set(owner, subscriptions = /* @__PURE__ */ new Set());
+	if (!offerOwner) {
+		const notify = (element, method) => {
+			for (const subscription of owners.get(element) ?? []) try {
+				subscription[method]();
+			} catch (error) {
+				queueMicrotask(() => {
+					throw error;
+				});
+			}
+		};
+		offerOwner = watchArrivals("*", [], {
+			arrive: (element) => notify(element, "connect"),
+			leave: (element) => notify(element, "disconnect")
+		});
+	}
+	if (owner.isConnected) offerOwner(owner);
+	subscriptions.add(subscription);
+	const stop = () => {
+		subscriptions.delete(subscription);
+		subscription.disconnect();
+	};
+	subscription.connect();
+	return stop;
+}
+function whileConnected(owner, start) {
+	let held;
+	return watchOwner(owner, {
+		connect() {
+			const controller = new AbortController();
+			held = {
+				controller,
+				cleanup: null
+			};
+			held.cleanup = start(controller.signal);
+		},
+		disconnect() {
+			const current = held;
+			held = null;
+			current.controller.abort();
+			current.cleanup?.();
+		}
+	});
+}
+function frameFor(owner, run) {
+	let frame = 0;
+	watchOwner(owner, { disconnect() {
+		cancelRender(frame);
+		frame = 0;
+	} });
+	return () => {
+		if (frame || !owner.isConnected) return;
+		frame = nextRender(() => {
+			frame = 0;
+			if (owner.isConnected) run();
+		});
+	};
+}
+function liveStages() {
+	const live = [];
+	for (const ref of stageRefs) {
+		const root = ref.deref();
+		if (root) live.push(root);
+		else stageRefs.delete(ref);
+	}
+	return live;
+}
+const isStage = (root) => stages.has(root);
+const stands = (el) => {
+	const root = el.getRootNode();
+	return root === document ? document.body.contains(el) : stages.has(root) && root.host.isConnected;
+};
+function* matching(node, selector) {
+	if (node?.nodeType !== Node.ELEMENT_NODE) return;
+	if (node.matches(selector)) yield node;
+	yield* node.querySelectorAll(selector);
+	for (const stage of liveStages()) if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
+}
+function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
+	const arrived = /* @__PURE__ */ new WeakSet();
+	const offerMany = (elements) => {
+		const present = [];
+		for (const el of elements) if (stands(el) && el.matches(selector)) present.push(el);
+		else if (arrived.delete(el)) leave(el);
+		if (!arriveBatch) for (const el of present) offer(el);
+		else if (present.length) {
+			for (const el of present) arrived.add(el);
+			arriveBatch(present);
+		}
+	};
+	const offer = (el) => {
+		if (stands(el) && el.matches(selector)) {
+			arrived.add(el);
+			if (arriveBatch) arriveBatch([el]);
+			else arrive(el);
+		} else if (arrived.delete(el)) leave(el);
+	};
+	const beside = (node) => node?.nodeType === Node.ELEMENT_NODE && (arrived.has(node) || node.matches(selector)) ? [node] : [];
+	const read = (records) => {
+		const offered = /* @__PURE__ */ new Set();
+		for (const record of records) {
+			if (record.type === "attributes") {
+				offered.add(record.target);
+				continue;
+			}
+			for (const el of [
+				...beside(record.target),
+				...beside(record.previousSibling),
+				...beside(record.nextSibling)
+			]) offered.add(el);
+			for (const node of record.addedNodes) for (const el of matching(node, selector)) offered.add(el);
+			for (const node of record.removedNodes) for (const el of matching(node, selector)) if (arrived.has(el)) offered.add(el);
+		}
+		offerMany(offered);
+	};
+	const observer = new MutationObserver(read);
+	const watch = {
+		selector,
+		attributes,
+		observer,
+		offerMany
+	};
+	watches$1.add(watch);
+	for (const root of [document.body, ...liveStages()]) enroll(watch, root);
+	return (el) => {
+		read(observer.takeRecords());
+		offer(el);
+	};
+}
+function enroll({ selector, attributes, observer, offerMany }, root) {
+	observer.observe(root, {
+		childList: true,
+		subtree: true,
+		attributes: true,
+		attributeFilter: attributes
+	});
+	offerMany(root.querySelectorAll(selector));
+}
+function watchArrivalsIn(stage) {
+	if (stages.has(stage)) return;
+	stages.add(stage);
+	stageRefs.add(new WeakRef(stage));
+	for (const watch of watches$1) enroll(watch, stage);
+	stage.addEventListener("scroll", heardIn(stage), SCROLL);
+}
+const scrollListeners = /* @__PURE__ */ new Set();
+const SCROLL = {
+	capture: true,
+	passive: true
+};
+const heardIn = (stage) => (event) => {
+	if (event.target.getRootNode() !== stage) return;
+	for (const listener of scrollListeners) listener(event);
+};
+function watchScrolls(listener) {
+	scrollListeners.add(listener);
+	document.addEventListener("scroll", listener, SCROLL);
+	return () => {
+		scrollListeners.delete(listener);
+		document.removeEventListener("scroll", listener, SCROLL);
+	};
+}
+const SETTLE_MS = 80;
+const settleListeners = /* @__PURE__ */ new Set();
+let inFlight = false;
+let gliding = false;
+let settleTimer = 0;
+let trackingScrolls = false;
+function settle() {
+	if (!inFlight || gliding) return;
+	inFlight = false;
+	clearTimeout(settleTimer);
+	for (const listener of settleListeners) listener();
+}
+function trackScrolls() {
+	if (trackingScrolls) return;
+	trackingScrolls = true;
+	watchScrolls(() => {
+		inFlight = true;
+		clearTimeout(settleTimer);
+		settleTimer = setTimeout(settle, SETTLE_MS);
+	});
+	document.addEventListener("scrollend", settle, SCROLL);
+}
+function scrollGlides(on) {
+	trackScrolls();
+	gliding = on;
+	if (on) inFlight = true;
+	else if (inFlight) {
+		clearTimeout(settleTimer);
+		settleTimer = setTimeout(settle, SETTLE_MS);
+	}
+}
+function scrolling() {
+	trackScrolls();
+	return inFlight;
+}
+function watchScrollEnds(listener) {
+	trackScrolls();
+	settleListeners.add(listener);
+	return () => settleListeners.delete(listener);
+}
+
+//#endregion
 //#region runtime/registry.js
 const registry = runtime.registry;
 const tokenEntry = (name) => registry.$reactions.tokens[name];
@@ -432,250 +663,12 @@ function nativeActivationAt(control) {
 }
 
 //#endregion
-//#region runtime/arrivals.js
-const watches$1 = /* @__PURE__ */ new Set();
-const stages = /* @__PURE__ */ new WeakSet();
-const stageRefs = /* @__PURE__ */ new Set();
-const owners = /* @__PURE__ */ new WeakMap();
-let offerOwner;
-function watchOwner(owner, lifecycle) {
-	let connected = false;
-	const subscription = {
-		connect() {
-			if (connected || !owner.isConnected) return;
-			connected = true;
-			try {
-				lifecycle.connect?.();
-			} catch (error) {
-				subscriptions.delete(subscription);
-				subscription.disconnect();
-				throw error;
-			}
-		},
-		disconnect() {
-			if (!connected) return;
-			connected = false;
-			lifecycle.disconnect?.();
-		}
-	};
-	let subscriptions = owners.get(owner);
-	if (!subscriptions) owners.set(owner, subscriptions = /* @__PURE__ */ new Set());
-	if (!offerOwner) {
-		const notify = (element, method) => {
-			for (const subscription of owners.get(element) ?? []) try {
-				subscription[method]();
-			} catch (error) {
-				queueMicrotask(() => {
-					throw error;
-				});
-			}
-		};
-		offerOwner = watchArrivals("*", [], {
-			arrive: (element) => notify(element, "connect"),
-			leave: (element) => notify(element, "disconnect")
-		});
-	}
-	if (owner.isConnected) offerOwner(owner);
-	subscriptions.add(subscription);
-	const stop = () => {
-		subscriptions.delete(subscription);
-		subscription.disconnect();
-	};
-	subscription.connect();
-	return stop;
-}
-function whileConnected(owner, start) {
-	let held;
-	return watchOwner(owner, {
-		connect() {
-			const controller = new AbortController();
-			held = {
-				controller,
-				cleanup: null
-			};
-			held.cleanup = start(controller.signal);
-		},
-		disconnect() {
-			const current = held;
-			held = null;
-			current.controller.abort();
-			current.cleanup?.();
-		}
-	});
-}
-function frameFor(owner, run) {
-	let frame = 0;
-	watchOwner(owner, { disconnect() {
-		cancelRender(frame);
-		frame = 0;
-	} });
-	return () => {
-		if (frame || !owner.isConnected) return;
-		frame = nextRender(() => {
-			frame = 0;
-			if (owner.isConnected) run();
-		});
-	};
-}
-function liveStages() {
-	const live = [];
-	for (const ref of stageRefs) {
-		const root = ref.deref();
-		if (root) live.push(root);
-		else stageRefs.delete(ref);
-	}
-	return live;
-}
-const isStage = (root) => stages.has(root);
-const stands = (el) => {
-	const root = el.getRootNode();
-	return root === document ? document.body.contains(el) : stages.has(root) && root.host.isConnected;
-};
-function* matching(node, selector) {
-	if (node?.nodeType !== Node.ELEMENT_NODE) return;
-	if (node.matches(selector)) yield node;
-	yield* node.querySelectorAll(selector);
-	for (const stage of liveStages()) if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
-}
-function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
-	const arrived = /* @__PURE__ */ new WeakSet();
-	const offerMany = (elements) => {
-		const present = [];
-		for (const el of elements) if (stands(el) && el.matches(selector)) present.push(el);
-		else if (arrived.delete(el)) leave(el);
-		if (!arriveBatch) for (const el of present) offer(el);
-		else if (present.length) {
-			for (const el of present) arrived.add(el);
-			arriveBatch(present);
-		}
-	};
-	const offer = (el) => {
-		if (stands(el) && el.matches(selector)) {
-			arrived.add(el);
-			if (arriveBatch) arriveBatch([el]);
-			else arrive(el);
-		} else if (arrived.delete(el)) leave(el);
-	};
-	const beside = (node) => node?.nodeType === Node.ELEMENT_NODE && (arrived.has(node) || node.matches(selector)) ? [node] : [];
-	const read = (records) => {
-		const offered = /* @__PURE__ */ new Set();
-		for (const record of records) {
-			if (record.type === "attributes") {
-				offered.add(record.target);
-				continue;
-			}
-			for (const el of [
-				...beside(record.target),
-				...beside(record.previousSibling),
-				...beside(record.nextSibling)
-			]) offered.add(el);
-			for (const node of record.addedNodes) for (const el of matching(node, selector)) offered.add(el);
-			for (const node of record.removedNodes) for (const el of matching(node, selector)) if (arrived.has(el)) offered.add(el);
-		}
-		offerMany(offered);
-	};
-	const observer = new MutationObserver(read);
-	const watch = {
-		selector,
-		attributes,
-		observer,
-		offerMany
-	};
-	watches$1.add(watch);
-	for (const root of [document.body, ...liveStages()]) enroll(watch, root);
-	return (el) => {
-		read(observer.takeRecords());
-		offer(el);
-	};
-}
-function enroll({ selector, attributes, observer, offerMany }, root) {
-	observer.observe(root, {
-		childList: true,
-		subtree: true,
-		attributes: true,
-		attributeFilter: attributes
-	});
-	offerMany(root.querySelectorAll(selector));
-}
-function watchArrivalsIn(stage) {
-	if (stages.has(stage)) return;
-	stages.add(stage);
-	stageRefs.add(new WeakRef(stage));
-	for (const watch of watches$1) enroll(watch, stage);
-	stage.addEventListener("scroll", heardIn(stage), SCROLL);
-}
-const scrollListeners = /* @__PURE__ */ new Set();
-const SCROLL = {
-	capture: true,
-	passive: true
-};
-const heardIn = (stage) => (event) => {
-	if (event.target.getRootNode() !== stage) return;
-	for (const listener of scrollListeners) listener(event);
-};
-function watchScrolls(listener) {
-	scrollListeners.add(listener);
-	document.addEventListener("scroll", listener, SCROLL);
-	return () => {
-		scrollListeners.delete(listener);
-		document.removeEventListener("scroll", listener, SCROLL);
-	};
-}
-const SETTLE_MS = 80;
-const settleListeners = /* @__PURE__ */ new Set();
-let inFlight = false;
-let gliding = false;
-let settleTimer = 0;
-let trackingScrolls = false;
-function settle() {
-	if (!inFlight || gliding) return;
-	inFlight = false;
-	clearTimeout(settleTimer);
-	for (const listener of settleListeners) listener();
-}
-function trackScrolls() {
-	if (trackingScrolls) return;
-	trackingScrolls = true;
-	watchScrolls(() => {
-		inFlight = true;
-		clearTimeout(settleTimer);
-		settleTimer = setTimeout(settle, SETTLE_MS);
-	});
-	document.addEventListener("scrollend", settle, SCROLL);
-}
-function scrollGlides(on) {
-	trackScrolls();
-	gliding = on;
-	if (on) inFlight = true;
-	else if (inFlight) {
-		clearTimeout(settleTimer);
-		settleTimer = setTimeout(settle, SETTLE_MS);
-	}
-}
-function scrolling() {
-	trackScrolls();
-	return inFlight;
-}
-function watchScrollEnds(listener) {
-	trackScrolls();
-	settleListeners.add(listener);
-	return () => settleListeners.delete(listener);
-}
-
-//#endregion
 //#region runtime/shadow.js
 const refusedRoots = /* @__PURE__ */ new WeakSet();
 const refuseShadowRoot = (root) => refusedRoots.add(root);
 const declaredRoot = (host) => host.shadowRoot && registry[host.localName]?.["x-shadow"] && isStage(host.shadowRoot) && !refusedRoots.has(host.shadowRoot) ? host.shadowRoot : null;
 const shadowRootsIn = (root) => liveStages().filter((stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage);
 const pageShadowRoots = () => shadowRootsIn(document);
-function excludedByInert(node) {
-	for (let owner = node; owner; owner = renderedParent(owner)) {
-		if (owner.inert) return true;
-		if (nativeLayerKind(owner) === "modal") break;
-	}
-	return false;
-}
 const renderedChildren = (node) => node.localName === "slot" ? node.assignedNodes({ flatten: true }) : (node.shadowRoot ?? node).childNodes;
 const hostIn = (node, root) => {
 	let at = node;
@@ -2177,6 +2170,7 @@ const ICONS = {
 	change: "<path d=\"M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13\"/>",
 	check: "<path d=\"m3 8.25 3.15 3.15L13 4.75\"/>",
 	comment: "<path d=\"M3 3.25h10v7H7.25L4 12.75v-2H3z\"/>",
+	copy: "<path d=\"M3 6h7v7H3zM6 6V3h7v7h-3\"/>",
 	cross: "<path d=\"m4 4 8 8M12 4l-8 8\"/>",
 	dot: "<circle cx=\"8\" cy=\"8\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/>",
 	down: "<path d=\"m4 6.25 4 4 4-4\"/>",
@@ -2198,6 +2192,7 @@ const ICONS = {
 	question: "<path d=\"M5.6 6.1a2.5 2.5 0 1 1 3.1 2.45c-.7.2-.7.8-.7 1.2\"/><circle cx=\"8\" cy=\"12.35\" r=\".7\" fill=\"currentColor\" stroke=\"none\"/>",
 	reaction: "<circle cx=\"6.5\" cy=\"8.25\" r=\"4.25\"/><circle cx=\"5\" cy=\"7.25\" r=\".55\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"8\" cy=\"7.25\" r=\".55\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M4.75 9.25c.5.75 1.08 1.1 1.75 1.1s1.25-.35 1.75-1.1M11 4h4M13 2v4\"/>",
 	retry: "<path d=\"M12.5 5.25V2.75M12.5 2.75H10M12.35 3.1A5 5 0 1 0 13 9\"/>",
+	save: "<path d=\"M3 4.25A1.25 1.25 0 0 1 4.25 3h6.5L13 5.25v6.5A1.25 1.25 0 0 1 11.75 13h-7.5A1.25 1.25 0 0 1 3 11.75zM5.5 3v2.5h4V3\"/>",
 	search: "<circle cx=\"7\" cy=\"7\" r=\"3.75\"/><path d=\"m10 10 3 3\"/>",
 	send: SEND,
 	sent: SEND,
@@ -2377,7 +2372,7 @@ function reachedForWords(el) {
 }
 document.addEventListener("click", (ev) => {
 	if (pressIsKeyboardActivation(ev)) return;
-	const control = ev.target.closest?.("[data-lf-offer]");
+	const control = ev.target.closest?.(`${PRESSES},[data-lf-offer]`);
 	if (control && reachedForWords(control)) {
 		ev.stopPropagation();
 		ev.preventDefault();
@@ -2587,4 +2582,4 @@ function dismissErrors() {
 }
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, SAID, SHADOW_LEADING_CSS, TEXT_ENTRY, UI_MARKS, adoptRegistry, advertisesKeys, allBindings, annotationMarkSheets, annotationSheets, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, chromeSharedClasses, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeControl, closeNativeLayer, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declareOccluder, declareWindowChrome, declaredBindings, declaredRoot, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, dragging, el, elementDeclarations, elementDirective, elementsDeclaring, errorsReading, excludedByInert, exhibits, frameFor, frameView, generated, generatedElement, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, holdStatus, holdingError, hostIn, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inUi, inWindowChrome, intersect, isCommandScope, keys, labelOf, landingBand, landingInsets, layerFact, layoutChanged, layoutWindow, live, liveEl, loadShadowRules, marksSheet, matchesWhen, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, notice, noticeReading, offer, offered, overIn, overlaps, overlapsAcross, pageShadowRoots, paintClips, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, presented, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reachedForWords, recordedWidgetSelector, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, relabel, renderedChildren, repaint, repaintPage, responseAction, restorePointer, reveal, rightCover, routedCommand, rowArrows, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, searchField, seeErrors, seenRect, selectableOffer, selectableOffered, setNoticeContext, setQuickShortcuts, shadowRootsIn, shadowRules, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, spell, spokenBinding, stackLevel, startsAt, stateSpecs, stuckBox, submitBindings, submitLabel, tagsDeclaring, titleOf, tokenEntry, touchPresses, uiInside, underOccluder, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchCommandAvailability, watchCommandScopes, watchLayers, watchOwner, watchRoom, watchScrollEnds, watchScrolls, whenNone, whileConnected, windowChromeBoxes, word, worksInside };
+export { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, SAID, SHADOW_LEADING_CSS, TEXT_ENTRY, UI_MARKS, adoptRegistry, advertisesKeys, allBindings, annotationMarkSheets, annotationSheets, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, chromeSharedClasses, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeControl, closeNativeLayer, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declareOccluder, declareWindowChrome, declaredBindings, declaredRoot, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, dragging, el, elementDeclarations, elementDirective, elementsDeclaring, errorsReading, exhibits, frameFor, frameView, generated, generatedElement, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, holdStatus, holdingError, hostIn, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inUi, inWindowChrome, intersect, isCommandScope, keys, labelOf, landingBand, landingInsets, layerFact, layoutChanged, layoutWindow, live, liveEl, loadShadowRules, marksSheet, matchesWhen, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, notice, noticeReading, offer, offered, overIn, overlaps, overlapsAcross, pageShadowRoots, paintClips, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, presented, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reachedForWords, recordedWidgetSelector, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, relabel, renderedChildren, repaint, repaintPage, responseAction, restorePointer, reveal, rightCover, routedCommand, rowArrows, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, searchField, seeErrors, seenRect, selectableOffer, selectableOffered, setNoticeContext, setQuickShortcuts, shadowRootsIn, shadowRules, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, spell, spokenBinding, stackLevel, startsAt, stateSpecs, stuckBox, submitBindings, submitLabel, tagsDeclaring, titleOf, tokenEntry, touchPresses, uiInside, underOccluder, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchCommandAvailability, watchCommandScopes, watchLayers, watchOwner, watchRoom, watchScrollEnds, watchScrolls, whenNone, whileConnected, windowChromeBoxes, word, worksInside };

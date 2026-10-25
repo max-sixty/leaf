@@ -8,11 +8,13 @@
    own height change does not become passive space. The reply editor retains its room
    across mirrored draft replacement and while it is scrolled out of sight; native
    input returns it to intrinsic size. A departed or closed response releases both
-   mechanical allocations. */
+   mechanical allocations. A message folding away (transcript.js) gives its room back
+   over the fold rather than at once, so the spacer takes that room frame by frame,
+   holding the extent the presentation left, until the last fold ends. */
 import { growthIsSeen, whenNone } from "../geometry.js";
 import { atLayoutPrecision, layoutPx } from "../keeps.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { nextRender, sizeObserver } from "../rendering.js";
+import { nextAnimation, nextRender, sizeObserver } from "../rendering.js";
 import { placeKeeper } from "../user-place.js";
 import { scrollerFor } from "../reading-regions.js";
 import { offFlowSurfaceOf } from "../off-flow.js";
@@ -24,6 +26,8 @@ export class ReplyContinuity {
   #row = null;
   #departure = null;
   #space = 0;
+  // The folds the spacer follows now (`#holdThrough`).
+  #through = null;
   // Growth already deducted from passive space while a refused draft returns.
   #returningWriting = 0;
   // The writing areas a presentation changes, each with its height before it.
@@ -102,7 +106,8 @@ export class ReplyContinuity {
         });
     return { extent, place, held: place?.take({ spans: false }) };
   }
-  after(reading) {
+  // `folds` are the transcript's folds under way (transcript.js, `folds`).
+  after(reading, folds = []) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
     this.#presenting = [];
@@ -157,6 +162,36 @@ export class ReplyContinuity {
       if (!this.#owner.isConnected) this.release();
       else this.#releaseSpace();
     });
+    if (reading != null && folds.length) this.#holdThrough(folds);
+  }
+  // The extent this presentation left holds until its folds end. Words a refusal hands
+  // back grow the editor only into room a fold has given back, scrolling inside it
+  // until then, since the turn's room has not yet gone.
+  #holdThrough(folds) {
+    const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
+    const through = { cut: 0 };
+    this.#through = through;
+    const take = () => {
+      if (this.#through !== through) return;
+      const writing = this.#writing;
+      const cut = writing?.input.matches(":state(placeholder-shown)") ? 0 : through.cut;
+      const now = parseFloat(getComputedStyle(this.#owner).blockSize);
+      const room = extent - (now - this.#space + cut);
+      this.#cutWriting(writing ? Math.max(0, -room) : 0);
+      this.#keep(Math.max(0, room));
+    };
+    const frame = () => {
+      if (this.#through !== through) return;
+      take();
+      nextAnimation(frame);
+    };
+    nextAnimation(frame);
+    // A fold's end removes its message before the frame paints, which this last
+    // reading answers in the same frame.
+    void Promise.all(folds.map(({ finished }) => finished.catch(() => {}))).then(() => {
+      take();
+      if (this.#through === through) this.#through = null;
+    });
   }
   #keep(space) {
     if (space === this.#space) return;
@@ -203,7 +238,19 @@ export class ReplyContinuity {
     this.#sizes.unobserve(input);
     this.#writing = null;
   }
+  #cutWriting(cut) {
+    const through = this.#through;
+    if (!through || cut === through.cut) return;
+    through.cut = cut;
+    const { input, room } = this.#writing ?? {};
+    input?.style.setProperty(
+      "--lf-reply-writing-room",
+      cut ? `calc(${room} - ${layoutPx(cut)})` : room,
+    );
+  }
   #releaseSpace() {
+    this.#cutWriting(0);
+    this.#through = null;
     this.#departure?.();
     this.#departure = null;
     this.#space = 0;

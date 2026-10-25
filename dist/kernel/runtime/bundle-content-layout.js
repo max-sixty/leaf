@@ -1,7 +1,7 @@
 import { Z, anchorKey, isElementName } from "./bundle-browser-runtime.js";
 import { PRESSES, WORKS, afterScript, keeps, layoutPx, move, nativeLayerHolding, nextFrame, nextRender, renderedParent, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
-import { documentChanged } from "./bundle-context.js";
 import { PRESSABLE, clamp, clippedContents, headerCuts, hostIn, inUi, layoutChanged, nearObserver, nearWindow, overlaps, registry, repaintPage, scrollContainer, scrollsContent, shownBox, shownParts, skipped, tagsDeclaring, uiInside, watchArrivals } from "./bundle-errors.js";
+import { documentChanged } from "./bundle-context.js";
 import { atScrollEnd, compoundReadingRegionId, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeRoot } from "./bundle-chrome.js";
 import { DATUM, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
@@ -1062,22 +1062,22 @@ function localScrollBy(source, { x, y }) {
 	const along = (axis) => {
 		return [...x && axis.x ? [x / axis.x] : [], ...y && axis.y ? [y / axis.y] : []].reduce((move, amount) => Math.abs(amount) > Math.abs(move) ? amount : move, 0);
 	};
-	if (!horizontal) return {
-		left: 0,
-		top: vertical ? along(axes.y) : 0
-	};
-	if (!vertical) return {
-		left: along(axes.x),
-		top: 0
-	};
-	const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
-	const left = (x * axes.y.y - y * axes.y.x) / determinant;
-	const top = (y * axes.x.x - x * axes.x.y) / determinant;
 	const reach = (offset, current, minimum, maximum) => Math.max(minimum - current, Math.min(maximum - current, offset));
 	const horizontalLimit = source.scrollWidth - source.clientWidth;
 	const rtl = getComputedStyle(source).direction === "rtl";
 	const reachLeft = (offset) => reach(offset, source.scrollLeft, rtl ? -horizontalLimit : 0, rtl ? 0 : horizontalLimit);
 	const reachTop = (offset) => reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
+	if (!horizontal) return {
+		left: 0,
+		top: vertical ? reachTop(along(axes.y)) : 0
+	};
+	if (!vertical) return {
+		left: reachLeft(along(axes.x)),
+		top: 0
+	};
+	const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
+	const left = (x * axes.y.y - y * axes.y.x) / determinant;
+	const top = (y * axes.x.x - x * axes.x.y) / determinant;
 	const reachableLeft = reachLeft(left);
 	const reachableTop = reachTop(top);
 	if (reachableLeft !== left && axes.y.y) return {

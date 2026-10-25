@@ -62,6 +62,16 @@
  * does not play, each reading takes the box as it stands, and a user asking for
  * stillness mid-tween finishes what is moving.
  *
+ * A send is the user's change joining a stream ("send" from `theirs()`, read where
+ * the stream starts from with `stream`). What the box shows above its field then
+ * moves as one stream sliding up to take the new turn: a scroller's content is
+ * carried from where it stood when the send began, its own scroll included, so the
+ * new turn comes up at the scroller's foot while every turn above it rides up with
+ * the name over them; and a part new to the box, as a view the send opens is, rises
+ * with the box's top edge out of the box's old outline rather than being uncovered in
+ * place. The user asked for this on 25 October: a stream that slides up to take the
+ * new message, its header moving with it.
+ *
  * The platform's own way to move a layout change, a view transition, draws the old
  * state as a picture, sends every press to the root while it runs, and abandons a
  * running one when the next change starts, as each keystroke would; here every part
@@ -137,6 +147,9 @@ export function boxMotion({
   // from the shape on screen, not the rectangle a simultaneous resize would draw.
   let shapeUntil = 1;
   let rtl = false;
+  // Where each scroller's content stood when a send began, in the window, as carried
+  // parts are read: the send's stream starts from there (`stream`).
+  let streamFrom = new Map();
   const interpolate = (from, to, progress) => {
     const rect = between(from, to, progress);
     const shape = Math.min(1, progress / shapeUntil);
@@ -280,9 +293,22 @@ export function boxMotion({
     };
     parts.forEach(note);
     watch();
+    // A send's scroll moves a scroller's content without changing any part's layout,
+    // as in a view already at its cap: that content still rides.
+    const scrolled =
+      theirs() === "send" &&
+      [...streamFrom].some(([scroller, then]) => {
+        const content = scroller.firstElementChild;
+        if (!content || (motions.get(content)?.stream && progress < 1)) return false;
+        return !near(
+          content.getBoundingClientRect().top - carried(content)[1],
+          then.top,
+        );
+      });
     // Nothing's layout changed, as when the observer reads a part it starts observing:
     // whatever moves keeps moving.
     if (
+      !scrolled &&
       rests?.size === next.size &&
       [...next].every(
         ([element, at]) => rests.has(element) && same(rests.get(element), at),
@@ -308,6 +334,12 @@ export function boxMotion({
       [...motions].filter(([, moving]) => moving.frames).map(([element]) => element),
     );
     const before = rests;
+    // A stream's content mid-ride starts the next reading from where it is drawn.
+    const streamed = new Map();
+    if (progress < 1)
+      for (const [element, moving] of motions)
+        if (moving.stream)
+          streamed.set(element, between(moving.from, moving.to, progress));
     motions = new Map();
     rests = next;
 
@@ -388,7 +420,11 @@ export function boxMotion({
     // it stood.
     function carryContent(part, from) {
       const to = part.box;
-      if (part.scrolls && !part.element.matches(TEXT_FIELD)) return grow(part, from);
+      if (part.scrolls && !part.element.matches(TEXT_FIELD)) {
+        grow(part, from);
+        if (gesture === "send") streamContent(part);
+        return;
+      }
       let dx = rtl ? from.right - to.right : from.left - to.left;
       let dy = from.top - to.top;
       // A shrinking frame starts outside its final box, so children remain visible
@@ -485,10 +521,55 @@ export function boxMotion({
       start(part.element, [clipFrame(from), clipFrame(end)]);
     }
 
+    // A part new to the box, in a send: it rises with the box's top edge, from as far
+    // below its rest as that edge rises, cut where the box's old outline stood, so it
+    // comes up out of the box as the stream does.
+    function rise(part, frame, siblings) {
+      const to = part.box;
+      const dy = boxFrom.top - boxAt.top;
+      if (dy < 0.5) return reveal(part, frame, siblings);
+      motions.set(part.element, { from: shifted(to, 0, dy), to, carries: "left" });
+      move(part.element, 0, dy);
+      // How far it stands below the old outline's top at its start; the cut reaches
+      // nothing once the part has risen clear of it.
+      const first = Math.max(0, to.bottom + dy - boxFrom.top);
+      if (first < 0.5) return;
+      const clear = 1 - Math.max(0, boxFrom.top - to.bottom) / dy;
+      const frames = [clipFrame([0, 0, first, 0])];
+      if (clear > 0 && clear < 1)
+        frames.push({ ...clipFrame([0, 0, 0, 0]), offset: clear });
+      frames.push(clipFrame([0, 0, 0, 0]));
+      start(part.element, frames);
+    }
+
+    // A scroller's content in a send: carried from where it stood when the send began,
+    // or from where it is drawn while the stream already carries it, so its new turn
+    // comes up at the scroller's foot under the scroller's own clip.
+    function streamContent(part) {
+      const content = part.element.firstElementChild;
+      if (!content) return;
+      const then = streamed.get(content) ?? streamFrom.get(part.element);
+      if (!then) return;
+      const [cx, cy] = carriedBy(0)(content);
+      const now = shifted(boxOf(content.getBoundingClientRect()), -cx, -cy);
+      const dy = then.top - now.top;
+      if (Math.abs(dy) < 0.5) return;
+      motions.set(content, { from: shifted(now, 0, dy), to: now, stream: true });
+      move(content, 0, dy);
+    }
+
+    function streamWithin(part) {
+      if (part.scrolls) streamContent(part);
+      else part.parts.forEach(streamWithin);
+    }
+
     function place(part, frame, siblings = []) {
       const { element, style, box: to } = part;
       const from = was.get(element);
-      if (!from) return reveal(part, frame, siblings);
+      if (!from)
+        return gesture === "send"
+          ? rise(part, frame, siblings)
+          : reveal(part, frame, siblings);
       const rest = before.get(element);
       const sized =
         !framed.has(element) &&
@@ -497,8 +578,13 @@ export function boxMotion({
       let within = frame;
       if (element !== box && element !== root) {
         const carries = gesture !== null;
-        if (sized && !part.holdsWindow)
-          return carries ? carry(part, from) : reveal(part, frame, siblings);
+        if (sized && !part.holdsWindow) {
+          if (!carries) return reveal(part, frame, siblings);
+          carry(part, from);
+          // A part carried whole still holds the stream a send moves.
+          if (gesture === "send") streamWithin(part);
+          return;
+        }
         if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
         if (!same(from, to)) within = { from, to };
         if (!sized && rings(style)) {
@@ -544,6 +630,23 @@ export function boxMotion({
 
   return {
     follow,
+    // A send begins: read where each scroller's content stands now, before the send
+    // draws, so the readings the send makes carry it from here.
+    stream() {
+      const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+      const carried = carriedBy(progress);
+      streamFrom = new Map();
+      for (const element of rests?.keys() ?? []) {
+        const content = element.firstElementChild;
+        if (!content || !/auto|scroll/.test(getComputedStyle(element).overflowY))
+          continue;
+        const [dx, dy] = carried(content);
+        streamFrom.set(
+          element,
+          shifted(boxOf(content.getBoundingClientRect()), -dx, -dy),
+        );
+      }
+    },
     // The window changed size: the next reading takes the box as it stands.
     forget() {
       rests = null;

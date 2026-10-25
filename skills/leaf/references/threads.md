@@ -54,9 +54,10 @@ practice page in the thread (`live-samples.md`).
 leaf thread reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
 ```
 
-Leaf checks markup when you post it but does not draw it. If a data widget, such as a
-chart, fails to draw, you get an `error` event when the user opens the thread; answer
-with a corrected reply.
+Leaf checks markup when you post it, and draws a data widget, such as a chart or
+diagram, once first: a widget that fails to draw refuses the message with its error.
+Fix it and post again. Where Leaf has no browser, the failure reaches you instead as an
+`error` event when the user opens the thread; answer with a corrected reply.
 
 A thread shows in a narrow card or panel, so a paragraph that reads fine in chat is a
 wall there. Say what changed or where to look in a sentence or two, or one short item per
@@ -125,16 +126,19 @@ open a new thread for a different subject. Don't resolve a thread to get rid of 
 anchor you removed: Leaf leaves a resolved thread's anchor as it was, so if the user
 reopens it, it points at something the page no longer shows.
 
-Every answer declares what it leaves the thread with:
+Every answer declares whose move it leaves:
 
-- `--done`: it delivers what the message asked for.
-- `--todo "<what you owe>"`: it promises work it does not deliver, and opens that
-  to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
+- `--obligation`: the user's. It leaves them a decision, or something to try or
+  review before making one, or asks them for an answer or permission. It creates
+  `message:<its id>` on On me until their next reply or a settling reaction answers
+  it, or they resolve the thread, so the answer stays on their list even where the
+  decision it informs is already there. A widget in `--markup` can instead register
+  the answer it captures ([The On lists](conversation-loop.md#the-on-lists)).
+- `--todo "<what you owe>"`: yours. It promises work it does not deliver, and opens
+  that to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
-- `--obligation`: the message needs the user's answer, decision, permission or review.
-  It creates `message:<its id>` on On me until their next reply or a settling
-  reaction answers it. A widget in `--markup` can instead register the answer it
-  captures ([The On lists](conversation-loop.md#the-on-lists)).
+- `--done`: nobody's. It delivers what the message asked for and leaves the user
+  nothing to decide.
 
 ```bash
 leaf thread reply <answer.ref> --obligation --text "Which store should own it?"

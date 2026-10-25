@@ -2658,6 +2658,14 @@ def root_overflow(page) -> float:
     return render_checks_model.evaluate_probe(page, "rootOverflow")
 
 
+def wide_width(page) -> float:
+    """The page's `--wide` in pixels: the theme derives it from the code size, and a
+    page may restate it, so a width check reads it rather than copying the number."""
+    return page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wide'))"
+    )
+
+
 def painted_words(page, selector: str) -> list[dict]:
     """Where the words under `selector` are painted, as the render gate reads them
     (`paintedWords`): one `{left, top, right, bottom, text}` per run, each cut to what

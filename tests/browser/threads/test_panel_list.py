@@ -73,6 +73,9 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(thread_row(page, asked).locator(".lf-fp-value")).to_have_text(
         "My turn to answer"
     )
+    # The reply is news, which the row's mark says, in words to assistive tech alone.
+    expect(thread_row(page, asked)).to_have_attribute("data-unread", "")
+    expect(thread_row(page, asked)).to_have_accessible_name(re.compile(r"^New What"))
     expect(thread_row(page, answered).locator(".lf-fp-value")).not_to_contain_text(
         "My turn"
     )

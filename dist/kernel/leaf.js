@@ -5597,15 +5597,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const threadStatus = (thread, shownBy) => {
 		const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label;
 		const said = {
-			unread: "New",
 			resolved: "Resolved",
 			drafts: "Draft"
 		}[shownBy];
-		return [
-			hasUnread(thread) && "New",
-			state,
-			draftHasContent(replyContext(thread.key)) && "Draft"
-		].filter((word) => word && word !== said).join(" · ");
+		return [state, draftHasContent(replyContext(thread.key)) && "Draft"].filter((word) => word && word !== said).join(" · ");
 	};
 	const rows = () => pageControls();
 	const VIEWS = Object.freeze({
@@ -6508,7 +6503,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			thread: thread.key
 		})}
                 >
-                  <span class="lf-fp-news-mark" aria-hidden="true"></span>
+                  <span class="lf-fp-news-mark"
+                    >${hasUnread(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+                  >
                   <span class="lf-fp-label">${threadHeading(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span

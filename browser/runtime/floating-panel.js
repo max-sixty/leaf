@@ -908,20 +908,17 @@ export function createFloatingPanel({
     const queues = readQueues();
     return queues.phase === "ready" ? queues.on_user.length : 0;
   };
-  // Ordinary open state is implicit. Rows name attention, resolution, news and drafts,
-  // less the state the selected filter already says, such as "New" under Unread.
+  // Ordinary open state is implicit, and news is the row's mark (`data-unread`), which
+  // says New to assistive tech alone. Rows
+  // name attention, resolution and drafts, less the state the selected filter already
+  // says, such as "Draft" under Drafts.
   const threadStatus = (thread, shownBy) => {
     const state = thread.resolved ? "Resolved" : threadAttention(thread)?.label;
     const said = {
-      unread: "New",
       resolved: "Resolved",
       drafts: "Draft",
     }[shownBy];
-    return [
-      hasUnread(thread) && "New",
-      state,
-      draftHasContent(replyContext(thread.key)) && "Draft",
-    ]
+    return [state, draftHasContent(replyContext(thread.key)) && "Draft"]
       .filter((word) => word && word !== said)
       .join(" · ");
   };
@@ -2308,7 +2305,9 @@ export function createFloatingPanel({
                   ?data-yours=${threadAttention(thread)?.kind === "needs_user"}
                   @click=${() => open({ view: "thread", thread: thread.key })}
                 >
-                  <span class="lf-fp-news-mark" aria-hidden="true"></span>
+                  <span class="lf-fp-news-mark"
+                    >${hasUnread(thread) ? html`<span class="lf-quiet">New</span>` : nothing}</span
+                  >
                   <span class="lf-fp-label">${threadHeading(thread)}</span>
                   <span class="lf-fp-value"
                     >${threadStatus(thread, query.trim() ? null : filter)}</span

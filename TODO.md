@@ -416,16 +416,18 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
 - **Decide whether plain `page check` keeps drawing data widgets and page media.**
   It draws a page in the host's browser, about 1.3 s, where the page has a script or
   places a page widget, a data widget or a widget naming page media (`needs_browser`,
-  `render_gate/page_code.py`); any other page checks in about 0.15 s. The widgets it
-  leaves undrawn failed to draw in 0 of 65 final pages and thread messages (0–6%), so
-  they stay undrawn, and page code stays drawn, since it caught a failure in 1 of the
-  5 pages it drew during authoring
+  `render_gate/page_code.py`); any other page checks in about 0.15 s. Text
+  documents, playgrounds and visual reviews, which it leaves undrawn, failed to draw
+  in none of 35 pages, at the end or during authoring, so they stay undrawn; page code
+  stays drawn, since it caught a failure on 1 of the 5 pages it drew
   ([notes](notes/agent-usability-evals.md#widgets-that-fail-to-draw-2026-10-24)).
-  Data widgets and media failed nowhere either, but the samples are 30 thread charts
-  and 3 `lf-shot` pages. To settle them, add `placed-widgets-draw` contexts in which
-  agents write Mermaid diagrams, diffs and screenshot pairs, and stop drawing a kind
-  once its interval's upper end is low enough that the 1.2 s no longer pays for the
-  failures it would catch.
+  The only data widget measured is `lf-chart` in thread messages, where at least 2 of
+  29 drafts failed, and media only on 3 `lf-shot` pages. To settle them, add
+  `placed-widgets-draw` contexts in which agents write charts, Mermaid diagrams,
+  diffs and screenshot pairs on the page, and stop drawing a kind once its interval's
+  upper end is low enough that the 1.2 s no longer pays for the failures it would
+  catch. The same runs bear on whether `thread open` and `thread reply` should draw
+  a message's widgets before posting, which one draft in 29 doesn't settle.
 - **Derive the waiting status from the page's open obligation.** Consider using the obligation's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open obligations and an informational page before choosing how the panel's

@@ -3,22 +3,23 @@
 A Promptfoo `python` assertion for short authoring cases, measuring what plain
 `page check` would catch if it ran every page in a browser (TODO.md, "Decide what
 plain `page check` runs in a browser"). It serves the final page's source as `page
-check` does and draws it once, as `render_gate.page_code.run_page_code` does,
-whether or not `needs_browser` would have asked for that run. It then opens each
-thread whose messages carry markup, as a reader would, so the widgets an agent
-posted there draw too. A failure is what the runtime reports to the agent as an
-`error` event, the report `leaf wait` would deliver, intercepted before it reaches
-the log.
+check` does and runs `render_gate.page_code.run_page_code` on it, whether or not
+`needs_browser` would have asked for that run. Where an agent message carries
+markup, it then opens each such thread, as a reader would, so the widgets posted
+there draw too. A failure is what the runtime reports to the agent as an `error`
+event, the report `leaf wait` would deliver, intercepted before it reaches the log.
 
 The assertion passes when nothing reported. Its metadata says, for the page and
-for its thread messages, which widgets were placed and what each drawing reported,
-whether plain `page check` would have run the page in a browser, and which page
-check runs during authoring reported a drawing failure, so a run's rates by widget
-kind read from `results.json`.
+for its thread messages, which widgets were placed and what each drawing reported;
+whether plain `page check` would have run the page in a browser; which drawing
+failures the executor's final `--render` read, console errors the runtime doesn't
+report included; and which page check runs during authoring reported a drawing
+failure. A run's rates by widget kind read from `results.json`.
 
 It reads the page with this checkout's Leaf, so it grades the candidate arm.
 """
 
+import re
 from pathlib import Path
 
 from leaf.event_log import read_events
@@ -31,34 +32,43 @@ from leaf.render_checks import (
     wait_until_ready,
 )
 from leaf.render_gate.command import NoBrowser, run_in_browser
-from leaf.render_gate.page_code import needs_browser
+from leaf.render_gate.page_code import needs_browser, run_page_code
 from leaf.render_gate.preview import preview_server
 from leaf.render_gate.scheme import answer_reports, served
 from leaf.structure import SourceDocument
 from leaf.validation.source import check_source
 
-# What a drawing failure is called in `page check`'s output: the page's own code
-# reporting (`page_code`), or a console error the render check read.
-DRAW_FAILURES = ('"code": "page-report"', '"code": "console-error"')
+# What a drawing failure is called in `page check`'s output, however an author
+# reformatted it (`jq -c` drops the spaces): the page's own code reporting
+# (`page_code`), or a console error or uncaught exception the render check read.
+DRAW_FAILURE = re.compile(r'"code":\s*"(page-report|console-error|page-exception)"')
 
 
-def draw(browser, url: str) -> dict:
-    """What the page reports while it upgrades and first presents, then what it
-    reports while each thread holding markup is drawn."""
+def draw(browser, url: str, *, threads: bool) -> dict:
+    """What plain `page check`'s own run reports for the page (`run_page_code`),
+    then, where `threads`, what the page reports while each thread holding markup
+    is drawn."""
+    found = {"page": [str(f) for f in run_page_code(browser, url)], "threads": {}}
+    if threads:
+        found["threads"] = draw_threads(browser, url)
+    return found
+
+
+def draw_threads(browser, url: str) -> dict[str, list[str]]:
+    """Each thread holding markup, opened in turn where a reader would find it, as
+    the render check opens them (`readings.thread_findings`), with what the page
+    reported while it drew; a failure to open them at all is keyed `unopened`."""
     from playwright.sync_api import Error as PlaywrightError
 
-    reports = []
+    reports, found = [], {}
     page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme="light")
     answer_reports(page, reports.append)
-    found = {"page": [], "threads": {}}
     try:
         page.goto(url)
-        wait_until_ready(
-            page, served(page, url, "/api/state").json(), fixed_server=True
-        )
+        state = served(page, url, "/api/state").json()
+        wait_until_ready(page, state, fixed_server=True)
         rendered(page)
         wait_for_probe(page, "sendsAcked")
-        found["page"] = reports[:]
         for thread in evaluate_probe(page, "threadsHoldingMarkup"):
             reports.clear()
             evaluate_probe(page, "openThreadToCheck", thread)
@@ -67,11 +77,9 @@ def draw(browser, url: str) -> dict:
                 reports.append(f"thread {thread} never drew")
             rendered(page)
             wait_for_probe(page, "sendsAcked")
-            found["threads"][thread] = reports[:]
-    except PageNotReady as error:
-        found["page"] = [*reports, f"not ready ({error.stage}): {error}"]
-    except PlaywrightError as error:
-        found["page"] = [*reports, f"browser error: {str(error).strip()}"]
+            found[thread] = reports[:]
+    except (PageNotReady, PlaywrightError) as error:
+        found["unopened"] = [*reports, str(error).strip()]
     finally:
         page.close()
     return found
@@ -107,7 +115,7 @@ def session_reports(check_log: list[dict]) -> list[dict]:
     return [
         entry["input"]
         for entry in check_log
-        if "output" in entry and any(code in entry["output"] for code in DRAW_FAILURES)
+        if "output" in entry and DRAW_FAILURE.search(entry["output"])
     ]
 
 
@@ -130,7 +138,9 @@ def get_assert(output: str, context: dict) -> dict:
             result.revision.candidate,
             artifact=result.artifact,
         ) as url:
-            found, browser = run_in_browser(lambda browser: draw(browser, url))
+            found, browser = run_in_browser(
+                lambda browser: draw(browser, url, threads=bool(widgets["messages"]))
+            )
     except NoBrowser as error:
         return unscored(f"no browser: {error}")
     failed = [*found["page"], *(r for rs in found["threads"].values() for r in rs)]
@@ -144,6 +154,11 @@ def get_assert(output: str, context: dict) -> dict:
                 **widgets,
                 "browser": browser,
                 "reports": found,
+                # The executor's own final `--render`, which also reads console
+                # errors the runtime doesn't report to the agent.
+                "final_render": sorted(
+                    set(DRAW_FAILURE.findall(metadata["check_output"]["render"]))
+                ),
                 "session_reports": session_reports(metadata["check_log"]),
             }
         },

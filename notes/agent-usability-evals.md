@@ -236,11 +236,31 @@ failed to draw, with Wilson 95% intervals:
 | `lf-chart` in a thread message             | 0 of 17     | 0 of 13 | 0 of 30 (0–11%) |
 | All the kinds plain check leaves undrawn   | 0 of 37     | 0 of 28 | 0 of 65 (0–6%)  |
 
-Most of these authors had no browser reading of these widgets before handing over:
-19 of the 41 Claude Code authors and 6 of the 28 Codex authors ran `--render`, and
-`--render` is the only check that opens a thread. Authors of 25 of the 29
-thread-message samples never ran it. Two of the 30 thread messages also carried an
-`lf-ask` with `lf-options`, and drew.
+The table counts final pages, so a failure an author found and fixed during
+authoring is missing from it. Only `--render`, which reports a widget that fails to
+draw as a `console-error`, could have shown these authors one: 19 of the 41 Claude
+Code authors ran it 46 times, and 6 of the 28 Codex authors 10 times. For text
+documents, playgrounds and visual reviews it reported no drawing failure, so their
+rows hide none.
+
+The thread charts are the least biased row, since `--render` is the only check that
+opens a thread and the authors of 25 of the 29 thread-message samples never ran it.
+Those 25 posted no chart that failed. The other 4 Claude Code authors drew their
+chart on a scratch page with `--render`, and 2 of them found a failure:
+
+- One chart failed with `invalid lineAnchor` (a function where Plot takes a
+  constant), which the runtime reports and `leaf wait` would deliver. The author
+  fixed it before posting; an author who ran only plain `page check` would have
+  posted it.
+- One chart, already posted, logs Plot's `translate(0.5,NaN)` console error. The
+  author said so in an edit and re-asked with a working chart in a reply, but the
+  frozen message keeps the broken chart: the final `--render` still reports it. The
+  runtime posts no `error` event for it, so `page_draws.py` counts it as drawn, and
+  plain `page check` would not have caught it either.
+
+So at least 2 of the 29 thread-message samples (7%, 2–22%) had a chart draft that
+failed. Two of the 30 thread messages also carried an `lf-ask` with `lf-options`,
+and drew.
 
 Asked for "a Leaf visual review", all 3 Claude Code authors paired the captures in
 `lf-shot` instead of `lf-visual-review`, so the case now names the package. Its
@@ -254,20 +274,29 @@ page scripts, and the 3 pages pairing captures in `lf-shot`, drew.
 
 What follows for `needs_browser`:
 
-- The kinds it leaves undrawn stay undrawn. Agents wrote none that failed, so a
-  browser run would add about 1.2 s to each such check and catch nothing these
-  samples show.
-- Page code stays drawn: it caught the one failure in these runs.
-- Data widgets and widgets naming page media stay drawn, though no sample shows
-  them failing. The thread charts, mostly written with no browser reading, are
-  evidence about `lf-chart` bodies, but a data widget is also a Mermaid diagram, a
-  diff or a draft, which these cases do not exercise, and 3 `lf-shot` pages say
-  little about media.
+- Text documents, playgrounds and visual reviews stay undrawn. Agents wrote none
+  that failed, at the end or during authoring, so a browser run would add about
+  1.2 s to each such check and catch nothing these samples show.
+- Page code stays drawn: it caught a failure on 1 of the 5 pages it drew.
+- Data widgets and widgets naming page media stay drawn. The thread charts show
+  `lf-chart` drafts failing in at least 2 of 29 samples, so its page run is not
+  idle, and a data widget is also a Mermaid diagram, a diff or a draft, which these
+  cases do not exercise; 3 `lf-shot` pages say little about media.
 
-These counts come from the runtime's own reports. A widget that draws something
-wrong without reporting, such as an empty review, counts as drawn. The bound runs of
-7 visual reviews, 5 from Claude Code and 2 from Codex, were read by hand: each held
-both cases, with focus rectangles inside the 1200×700 captures.
+Thread markup is outside `needs_browser`: `thread open` and `thread reply` check it
+as markup and post it without drawing it. The thread charts are the closest call
+these runs found. Drawing a message's markup before posting, about 1.2 s for each
+message carrying a widget, would have caught the `lineAnchor` draft for an author
+who skipped `--render`, but not the `NaN` chart, whose error the runtime does not
+report. One draft in 29 doesn't settle whether that delay pays for itself, so
+posting stays as it is.
+
+The table's counts come from the runtime's own reports. A widget that draws
+something wrong without reporting, such as an empty review or the `NaN` chart above,
+counts as drawn; `page_draws.py` records the final `--render`'s readings beside
+them, and on the other 68 samples that run reported no drawing failure either. The
+bound runs of 7 visual reviews, 5 from Claude Code and 2 from Codex, were read by
+hand: each held both cases, with focus rectangles inside the 1200×700 captures.
 
 The first Codex runs predate a fix to `authoring_eval.check_log`, which had read
 page checks only from shell commands and so missed every check Codex ran through

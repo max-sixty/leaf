@@ -16,9 +16,9 @@ and one rendering frame after it, at the render viewport in the light scheme.
 Which pages run follows the mistakes agents make, which `evals/placed-widgets-draw`
 measures. A widget whose module reads only its markup, its attributes or a bound
 data source, such as a playground, a text document or a visual review, is left to
-report when a browser first draws it, as is every widget in a thread message:
-agents' final pages and messages drew all of them in 65 samples (2026-10-24), while
-page code failed on 1 of the 5 pages this run drew during authoring.
+report when a browser first draws it, because agents wrote these so that they drew,
+without a browser check. Page code is run because agents' pages failed there
+(`notes/agent-usability-evals.md`, "Widgets that fail to draw", has the counts).
 
 What fails it is what the runtime would report to the agent. `runtime/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and

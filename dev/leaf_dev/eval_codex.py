@@ -94,6 +94,9 @@ def records_for(message: dict, session: str, final: str) -> list[dict]:
                 }
             ]
         if item["type"] == "mcpToolCall":
+            # A result's `content` is the list of text parts Claude Code records for
+            # a tool's result too; an error has no such list.
+            result = item.get("result")
             block = (
                 {
                     "type": "tool_use",
@@ -105,7 +108,9 @@ def records_for(message: dict, session: str, final: str) -> list[dict]:
                 else {
                     "type": "tool_result",
                     "tool_use_id": item["id"],
-                    "content": json.dumps(item.get("result") or item.get("error")),
+                    "content": result["content"]
+                    if result
+                    else json.dumps(item.get("error")),
                     "is_error": item["status"] != "completed",
                 }
             )

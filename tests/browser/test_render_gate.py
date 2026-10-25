@@ -2328,9 +2328,11 @@ def untouched_resize_findings(page):
     said = landmark.evaluate("node => node.textContent.trim().slice(0, 60)")
     scrolled = page.evaluate("() => document.scrollingElement.scrollTop")
     return [
-        f"opened at {RESIZE_PATH[0]}px and scrolled by no one, narrowed to "
-        f"{RESIZE_PATH[-1]}px: the page scrolled to {scrolled}px, away from its "
-        f"place ({said})"
+        (
+            f"opened at {RESIZE_PATH[0]}px and scrolled by no one, narrowed to "
+            f"{RESIZE_PATH[-1]}px: the page scrolled to {scrolled}px, away from its "
+            f"place ({said})"
+        )
     ]
 
 

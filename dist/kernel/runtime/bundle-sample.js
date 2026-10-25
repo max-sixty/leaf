@@ -1,4 +1,4 @@
-import { frameVisibility, keeps, move, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-dom-move.js";
+import { frameVisibility, inputInFrame, keeps, move, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-dom-move.js";
 import { recordInteraction, requestJson } from "./bundle-layer-client.js";
 import { pageUrl, runtime } from "./bundle-context.js";
 import { frameView, layoutWindow, presented, watchRoom } from "./bundle-errors.js";
@@ -255,7 +255,10 @@ function mountSample(frame, { template, window: asWindow = false }) {
 				composed: true,
 				detail: data.detail
 			}));
-			else notify(data.type, data.detail);
+			else {
+				if (data.type === "input") inputInFrame(frame, data.detail.type);
+				notify(data.type, data.detail);
+			}
 		};
 		event.source.postMessage({
 			sample: event.data.sample,

@@ -521,7 +521,6 @@ def test_a_quoted_passage_stands_its_own_rail_row_level_with_its_words(browser, 
     assert whole["place"] == passage["place"] == "rail", read
     assert abs(whole["top"] - read["paragraph"]) < 1, read
     assert abs(passage["top"] - read["line"]) < 1, read
-    context.close()
 
 
 @pytest.mark.watch_shifts
@@ -579,7 +578,6 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, focused):
     page.keyboard.press("Escape")
     rail.get_by_role("button", name="Activate rail", exact=True).click()
     assert page.evaluate("()=>window.railActivated")
-    context.close()
 
 
 @pytest.mark.watch_shifts
@@ -626,4 +624,3 @@ def test_new_pin_keeps_a_rail_reachable(browser, serve, focused):
     assert page.evaluate("()=>window.placementActivated") == "rail"
     pin.get_by_role("button", name="Activate pin", exact=True).click()
     assert page.evaluate("()=>window.placementActivated") == "pin"
-    context.close()

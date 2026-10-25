@@ -1563,6 +1563,9 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] {
     margin: 0;
   }
+  :scope:is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[hidden] {
+    overflow-anchor: none;
+  }
   :scope:is(lf-tabs).lf-rendered[data-lf-views-flow=box] > lf-tab {
     container-type: inline-size;
   }
@@ -2767,7 +2770,15 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   border-radius: var(--r);
   background: var(--paper);
 }
-.lf-sample-frame[data-lf-focus] {
+.lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
+  border-left-color: var(--accent);
+}
+@media (forced-colors: active) {
+  .lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
+    border-left-color: Highlight;
+  }
+}
+.lf-sample-frame[data-lf-focus-visible] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
@@ -2797,8 +2808,6 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
 .lf-sample-view:modal > .lf-sample-exhibit {
   flex: 1;
   min-height: 0;
-  padding: 0;
-  border: 0;
 }
 .lf-sample-view:modal .lf-sample-frame {
   flex: 1;

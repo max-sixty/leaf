@@ -291,6 +291,276 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
 twelve-author Codex comparison above. The continuing brief is TODO #20.
 
+## Widgets plain page check doesn't run, 2026-10-24
+
+Plain `page check` runs a page in a browser only where `needs_browser`
+(`render_gate/page_code.py`) finds a script, a page widget, a data widget or a widget
+naming page media. `widgets-draw-as-written` measures the kinds it left out: a tuning
+playground (the case's primary context), a playground of candidates
+(`/playground-candidates`), a text document with a Markdown preview
+(`/text-document`), and a chart or a Mermaid diagram in a thread message
+(`/thread-chart`, `/thread-diagram`). `visual-change-uses-captures/review` does the
+same for a visual review, since that case holds the captures. `/dashboard` is the
+control: its charts are a kind plain check already runs. Each sample authors one page
+in one turn; `dev/leaf_dev/draw_failures.py` reads the executor's final
+`page check --render`, which opens every thread holding markup, and every check the
+author ran, for findings that say a widget or the page's code failed to run or draw.
+
+```sh
+uv run leaf-dev eval 'widgets-draw-as-written*' visual-change-uses-captures/review --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval 'widgets-draw-as-written*' visual-change-uses-captures/review --harness codex --repeat 6 -j 2
+```
+
+The runs authored at `73222dc97` with the cases of `371e34337`: 70 pages on Claude Code
+with Opus 5.5 (mean $0.41–1.77 a page by context) and 42 on Codex with Sol 6.1
+(medium). Codex samples' own checks are read since `ff445bcdc`, which keeps a
+`leaf` MCP call's output in the check log; before it, a Codex author's checks never
+reached the log, so earlier readings of "the author's own checks" undercount Codex.
+Every sample placed the widget its context asks for.
+
+| Kind                                | Claude Code: a check saw it fail / final page fails | Codex      | Authors who ran `--render` |
+| ----------------------------------- | --------------------------------------------------- | ---------- | -------------------------- |
+| Tuning playground                   | 0 / 0 of 10                                         | 0 / 0 of 6 | 10 of 10; 0 of 6           |
+| Playground of candidates            | 0 / 0 of 10                                         | 0 / 0 of 6 | 7 of 10; 0 of 6            |
+| Text document with preview          | 0 / 0 of 10                                         | 0 / 0 of 6 | 2 of 10; 6 of 6            |
+| Visual review of supplied captures  | 0 / 0 of 10                                         | 0 / 0 of 6 | 10 of 10; 1 of 6           |
+| Chart in a thread message           | 0 / 0 of 10                                         | 0 / 0 of 6 | 1 of 10; 0 of 6            |
+| Mermaid diagram in a thread message | 0 / 0 of 10                                         | 0 / 5 of 6 | 5 of 10; 0 of 6            |
+| Control: charts on a dashboard page | 5 / 0 of 10                                         | 1 / 0 of 6 | 10 of 10; 6 of 6           |
+
+Measured:
+
+- None of the 64 pages with a playground, text document or visual review had the
+  widget fail to draw, at any check its author ran or on the final page (0 of 64,
+  0–6%). Authors wrote values on the step, choices that exist and focus rectangles
+  inside their captures; all 16 visual reviews set a focus rectangle.
+- 5 of 6 Codex thread messages holding a sequence diagram didn't draw (44–97%):
+  each put a `;` in a `loop` label or a `Note`, which Mermaid reads as the end of a
+  statement. None of those authors ran `--render`, and plain check never draws a
+  thread, so all five reached the user as an error box; Leaf would have told the
+  author only once the user opened the thread. Claude Code's 10 diagrams and all 16
+  thread charts drew.
+- On dashboards, 5 of 10 Claude Code authors and 1 of 6 Codex authors first gave a
+  Plot `text` mark a function for `dy`, which Plot takes as a constant, after
+  `--render` reported their end labels drawn over each other. Plot drew those labels
+  at `translate(x,NaN)`. Plain check runs those charts and passed them, since it hears
+  only what the runtime reports and nothing threw; only `--render`, which reads the
+  console, reported them. Every dashboard author ran `--render`, so every final page
+  was clean.
+- The run plain check already gives a page caught the page-code failures Codex
+  authors made: a playground script that created an `lf-chart` at runtime ("has no
+  captured widget descriptor", then the chart's body throwing) and a script that
+  registered a command id the runtime refused. No author's plain check run failed on
+  a widget's authored values.
+- Two Claude Code playground authors (in 11, counting the smoke run) hit the render
+  gate's own crash, `gate-failed` from `shrunkLabels` reading `ownerSVGElement` of a
+  `<text>` in the HTML namespace, which a lit `html` sub-template inside an `<svg>`
+  makes. Each read the gate's `words.js` to work out why, and rebuilt the drawing
+  with `createElementNS`.
+
+Two harder contexts then tested whether those widgets hold up where the values are
+easier to get wrong. `widgets-draw-as-written/playground-fine-steps` gives today's
+settings at values a round step skips (quality 0.82, sharpening 0.7 px, saturation
+1.15×, width 1,250 px), and `visual-change-uses-captures/review-scaled` states the
+captures at device scale 2, so a focus rectangle has to be in CSS pixels, half the
+image's own. All 40 drew (10 per context and harness; 0 of 104 with the plain
+contexts, 0–4%): every Claude Code author gave quality `step="0.01"`, and all 20
+reviews set a focus rectangle that fit the 600×350 capture. One Codex author's page
+script misused `generatedElement`, and its plain check, which runs any page with a
+script, caught it.
+
+```sh
+uv run leaf-dev eval widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness codex --repeat 10 -j 2
+```
+
+Inferred, not measured: the thread results cover one request per widget, and the
+semicolon failure is specific to Mermaid's grammar.
+
+Decision, made on this evidence:
+
+- Plain `page check` keeps its criterion. The left-out page widgets didn't fail, and
+  every failure its browser run caught came from a trigger it already has.
+- A thread message whose markup places a widget that criterion names is run once
+  before it posts and refused on what the run reports (`bed5963ff`,
+  `render_gate/command.message_check`), reversing #1691 for those messages only.
+  Reposting the 32 eval messages with it refused exactly the 5 that don't draw and
+  posted the other 27, each in 1.3–1.9 s at a load of 10–20; markup without such a
+  widget waits on no browser.
+- `lf-chart` refuses a mark whose `dx`, `dy` or margin is not a number before Plot
+  draws it, naming the mark and the option (#3956), so plain check's chart run,
+  `--render` and `leaf wait` all hear the dashboard mistake. Every NaN drawing in
+  these runs came from that one cause.
+
+The thread-diagram context then ran on Codex beside the merge base:
+
+```sh
+uv run leaf-dev eval widgets-draw-as-written/thread-diagram --harness codex --base --repeat 8 -j 2
+```
+
+On the base, 4 of 8 diagram messages didn't draw (22–78%; 9 of 14 with the first
+run, 39–84%). With the message run, 7 of 8 authors had their first message refused
+with Mermaid's parse error, fixed it and posted again, and all 8 final messages drew
+(0 of 8, 0–32%). Mean author time rose from 1.0 to 1.2 minutes. Claude Code's
+thread charts and diagrams, 6 of each per arm, all drew on both arms, and no message
+was refused; mean author time was 1.1 minutes with the run and 1.4 without.
+
+```sh
+uv run leaf-dev eval widgets-draw-as-written/thread-diagram widgets-draw-as-written/thread-chart --harness claude-code --base --repeat 6 -j 2
+```
+
+An earlier run of similar cases, from the closed #3901 at `f00911ed1`, agrees and
+adds two observations. In its `placed-widgets-draw` cases and a visual-review case,
+agents authored 41 samples on Claude Code (Opus 5.5) and 28 on Codex (Sol 6.1), and
+its grader counted a widget as failed only where the runtime posted an `error`
+event. No final page or message failed on that count: text documents 0 of 13
+(0–23%), markup-only playgrounds 0 of 9 (0–30%), visual reviews 0 of 13 (0–23%) and
+charts in thread messages 0 of 30 (0–11%), from 29 samples.
+
+- 2 of 29 thread-chart samples (7%, 2–22%) had a chart draft that failed while its
+  author wrote it, both found by the 4 Claude Code authors who drew their chart on
+  a scratch page with `--render`. One failed with `invalid lineAnchor`, which the
+  runtime reports. The other logged Plot's `translate(0.5,NaN)` and was posted; the
+  runtime of the time reported nothing, so it counted as drawn. Its `Plot.text`
+  mark took `dy: (d) => (d.region === "us-east" ? 14 : -10)`, the per-datum offset
+  #3956 now refuses. On the page at main `d91276596`, plain `page check` reports
+  that chart as `marks[1] (text) has a dy that is not a number`, and `thread create`
+  would refuse the message. #3901 reported no other NaN drawing, so a scan for NaN
+  after the chart draws, which #3923's branch had and its merge dropped, would
+  catch nothing these runs show.
+- Asked for "a Leaf visual review", 3 of 3 Claude Code authors (44–100%) paired the
+  captures in `lf-shot` rather than `lf-visual-review`. #3901 then named the package
+  in the prompt, as `visual-change-uses-captures/review` does, so the visual-review
+  rates in both runs measure whether the widget draws once chosen, not whether
+  authors find it.
+
+`dev/tests/browser/test_draw_failures.py` is #3901's control for the grader: a
+playground control at `value="40"` over `max="24"` passes plain `page check`
+without a browser, and `draw_failures.py` reports it from `--render`, beside a
+thread message's `lf-chart` whose body throws.
+
+## Render findings after handover, 2026-10-24
+
+TODO.md's "Read the full render gate after handover" would run the render readings on
+the server when a version goes live and deliver them through `leaf wait`. Two
+measurements decide whether to build it: how long the readings take, and whether an
+agent that has handed a page over acts on findings that arrive afterwards.
+
+**How long `page check --render` takes.** Each catalog example and the render corpus
+was built with this checkout and the command timed, launcher included, plain and
+with `--render`, under `LEAF_RENDER_VIEWPORT=fixed`, on the shared Mac; the eval
+pages were the saved final pages, re-vendored. One run per example:
+
+```sh
+LEAF_RENDER_VIEWPORT=fixed uv run python - <<'PY'
+import tempfile, time
+from pathlib import Path
+from leaf_dev import ROOT
+from leaf_dev.arms import build_source, run_leaf
+from leaf_dev.commands.distribution import cached_installation
+from leaf_dev.example_data import catalog_sources
+arm = cached_installation(ROOT)
+scratch = Path(tempfile.mkdtemp(dir=ROOT / ".tmp"))
+for source in catalog_sources():
+    page = scratch / source.stem
+    build_source(arm, scratch / "state", source, page)
+    for flags in ((), ("--render",)):
+        started = time.perf_counter()
+        run_leaf(arm, scratch / "state", "page", "check", str(page), *flags)
+        print(source.stem, flags, round(time.perf_counter() - started, 2))
+    run_leaf(arm, scratch / "state", "server", "stop", str(page))
+PY
+```
+
+| Pages, 1-minute load                                 | `--render`, median (p10–p90) | Plain, no browser run | Plain with the page-code run |
+| ---------------------------------------------------- | ---------------------------- | --------------------- | ---------------------------- |
+| 17 catalog examples, 3 runs each, load 6–10          | 7.0 s (5.3–11.6)             | 0.20 s (18 runs)      | 0.99 s (33 runs)             |
+| 17 catalog examples, 2 runs each, load 10–22         | 8.1 s (6.0–12.5)             | 0.23 s (12)           | 1.21 s (22)                  |
+| 70 final pages from `widgets-draw-as-written`, 14–39 | 7.7 s (6.2–11.1)             | 0.29 s (42)           | 1.28 s (28)                  |
+| The render corpus, 2 runs, 12–18                     | 384 s                        | —                     | 15.6 s                       |
+
+By context, eval pages took 6.5 s (text documents, thread pages) to 11.1 s (visual
+reviews), and the slowest example, `pr-walkthrough`, 15 s. At the lower load the
+check took about 1 s less; no run was on an idle machine.
+
+**Whether agents act on findings delivered after handover.**
+`document/render-after-handover` hands the agent `evals/usability/fixtures/cutover.html`,
+a drafted status page whose four consumer cards run out of any window up to 920px
+wide (`page-scrolls`, `past-column` and `clipped-out` failures) and whose SVG chart's
+labels shrink below 10px (`shrunk-labels` advice). The user asks for a one-line date
+change and a handover. Once the agent's turn ends, the driver's `render` move runs
+`page check --render` on the page as served and posts what plain check doesn't report
+as the page's `error` event, the channel a failure the user's browser saw takes; a
+page with nothing to report gets no delivery. The `-quick` context drops the closing
+line other live cases share, "Use headless browser tooling for your own inspection",
+and says only that the user will open the page.
+
+```sh
+uv run leaf-dev eval document/render-after-handover document/render-after-handover-quick --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval document/render-after-handover document/render-after-handover-quick --harness codex --repeat 10 -j 2
+```
+
+| Context, harness           | Ran `--render` before handing over | Got a delivery: failures / advice only | Edited and checked again after it | Final page fails `--render` |
+| -------------------------- | ---------------------------------- | -------------------------------------- | --------------------------------- | --------------------------- |
+| with the line, Claude Code | 10 of 10                           | 0 / 2                                  | 2 of 2                            | 0 of 10                     |
+| with the line, Codex       | 10 of 10                           | 0 / 1                                  | 1 of 1                            | 0 of 10                     |
+| quick, Claude Code         | 7 of 10                            | 5 / 5                                  | 9 of 10                           | 1 of 10                     |
+| quick, Codex               | 5 of 10                            | 5 / 3                                  | 8 of 8                            | 0 of 10                     |
+
+Measured (40 sessions, Opus 5.5 and Sol 6.1, on runtimes that differ from
+`73222dc97` only outside this fixture's path):
+
+- Every agent told to inspect ran `--render` before handing over a one-line edit,
+  though the skill says a quick page takes plain `page check` alone. Without that
+  line, 8 of 20 skipped it (40%, 22–61%).
+- Of the 21 sessions that got a delivery, 20 edited the page and ran
+  `--render` again in the same wake (95%, 77–99%), finishing a median 34 s (Claude
+  Code) and 39 s (Codex) after the delivery in the quick runs. All 11 advice-only
+  deliveries (the shrunk labels) were acted on too (74–100%).
+- The one that didn't act had run `--render` itself, judged the overflowing cards the
+  user's own drafting choice, and asked the user about them in a thread before
+  handing over; it read the delivery as a repeat of that question. One other agent
+  asked the same question before handing over and then fixed the cards when the
+  delivery arrived, saying Leaf had marked them as errors.
+- Handing over without `--render` took a median 37 s (Claude Code, 3) and 36 s
+  (Codex, 5); with it, 78 s and 67 s.
+- All 8 agents who skipped `--render` and got the failures fixed them, so every
+  final page in the quick runs is clean of failures but one, the agent above.
+
+The delivery came as an `error` event, whose handling clause says "The page's
+runtime reported a failure the user saw. Fix the page or widget and save the fix.",
+and one agent cited that framing as the reason to change a layout it had judged the
+user's; the next paragraphs measure a clause of the pass's own. Not measured: this
+is one fixture and one request, and a page an agent wrote itself may get a different
+response than a draft the user handed over.
+
+To see what the clause decides, the quick context ran again on both harnesses with
+the `error` kind's handling in `browser/registry.json` replaced, in the arm only, by
+one a render pass might carry: "Leaf's render check read the version you handed over,
+as the user's browser draws it. Fix each failure it lists and save the fix. Weigh each
+piece of advice against the page, and change the page only where that helps the user.
+Reply only if the user asked about it." (runs `20261024-233654-7g77ma3o` and
+`20261024-234904-48a2x9q8`; the registry change was not committed).
+
+| Quick context, harness, clause  | Ran `--render` first | Failures delivered: fixed | Advice only delivered: page changed | Final pages keeping the advice |
+| ------------------------------- | -------------------- | ------------------------- | ----------------------------------- | ------------------------------ |
+| Claude Code, `error` clause     | 7 of 10              | 4 of 5                    | 5 of 5                              | 3 of 10                        |
+| Claude Code, render-pass clause | 7 of 10              | 5 of 5                    | 1 of 5                              | 9 of 10                        |
+| Codex, `error` clause           | 5 of 10              | 5 of 5                    | 3 of 3                              | 0 of 10                        |
+| Codex, render-pass clause       | 5 of 10              | 5 of 5                    | 1 of 1                              | 0 of 10                        |
+
+With the render-pass clause every agent that got failures fixed them (10 of 10,
+72–100%), and Claude Code left the shrunk labels as they were in 4 of 5 advice-only
+deliveries, where the `error` clause had it change the chart every time. Codex changed
+the page for advice under either clause.
+
+For the TODO item: the readings take 7–8 s on a typical page. An agent that handed
+over without them did so about 40 s sooner, the check plus the reading and fixing it
+prompted, and every such agent that got the failures afterwards fixed them. That
+supports building the pass. Its delivery decides what agents do with advice: a clause
+of its own that tells failures from advice kept the failure fixes and let Claude Code
+weigh the advice.
+
 ## Authoring effort, 2026-10-24
 
 An overnight campaign read Claude Code (Opus 5.5) and Codex (Sol 6.1) authors' tool

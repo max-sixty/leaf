@@ -656,7 +656,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">'
         '<rect width="24" height="24" fill="navy"/></svg>'
     )
-    _, image_url = media_model.cmd_media(serve.page_dir, [image])[0]
+    image_url = media_model.cmd_media(serve.page_dir, [image])[0]["path"]
     root = append_carried_log_record(
         serve.page_dir,
         {

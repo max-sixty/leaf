@@ -21,14 +21,14 @@ def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, serve
     a name the user has already approved can never come to mean different pixels."""
     shot = tmp_path / "nav.png"
     shot.write_bytes(b"\x89PNG\r\n\x1a\n" + b"pretend pixels")
-    (url,) = [u for _, u in media_model.cmd_media(page_dir, [shot])]
+    (url,) = [item["path"] for item in media_model.cmd_media(page_dir, [shot])]
     assert re.fullmatch(r"/media/[a-f0-9]{16}\.png", url)
     # Re-adding the same bytes is the same file, not a second copy of it, whatever
     # case the source's suffix is in: the name is the one the server serves.
-    assert media_model.cmd_media(page_dir, [shot])[0][1] == url
+    assert media_model.cmd_media(page_dir, [shot])[0]["path"] == url
     loud = tmp_path / "NAV.PNG"
     loud.write_bytes(shot.read_bytes())
-    assert media_model.cmd_media(page_dir, [loud])[0][1] == url
+    assert media_model.cmd_media(page_dir, [loud])[0]["path"] == url
     assert len(list((page_dir / "media").iterdir())) == 1
 
     status, body = fetch(server + url)
@@ -51,7 +51,7 @@ def test_a_media_digest_can_never_change_the_bytes_behind_an_existing_name(
     second = tmp_path / "second.png"
     first.write_bytes(b"first pixels")
     second.write_bytes(b"different pixels")
-    path = media_model.cmd_media(page_dir, [first])[0][1]
+    path = media_model.cmd_media(page_dir, [first])[0]["path"]
 
     with pytest.raises(RuntimeError, match="media digest collision"):
         media_model.cmd_media(page_dir, [second])

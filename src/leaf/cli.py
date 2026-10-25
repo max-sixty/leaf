@@ -508,10 +508,7 @@ def media(page_dir: Path, files) -> list[dict]:
     """
     from leaf.media import cmd_media
 
-    return [
-        {"path": url, "source": str(src)}
-        for src, url in cmd_media(page_dir, [Path(f) for f in files])
-    ]
+    return cmd_media(page_dir, [Path(f) for f in files])
 
 
 @page.command(short_help="Read selected vocabulary instructions by audience as JSON.")
@@ -884,11 +881,9 @@ def file() -> None:
 def file_bind(page_dir: Path, binding: str, path: Path) -> dict:
     """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH. Prints the binding,
     the file it grants, and its size in bytes."""
-    from leaf.file_bindings import bind_file, bound_paths
+    from leaf.file_bindings import bind_file
 
-    bind_file(page_dir, binding, path)
-    bound = bound_paths(page_dir)[binding]
-    return {"binding": binding, "path": str(bound), "bytes": bound.stat().st_size}
+    return bind_file(page_dir, binding, path)
 
 
 @file.command("unbind", short_help="Withdraw a page's access to one bound file.")

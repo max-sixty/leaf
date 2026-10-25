@@ -939,7 +939,7 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
     data = b"0123456789" * 200_000
     source = tmp_path / "large.mp4"
     source.write_bytes(data)
-    _, path = media_model.cmd_media(page_dir, [source])[0]
+    path = media_model.cmd_media(page_dir, [source])[0]["path"]
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>", f'<video controls preload="none" src="{path}"></video></main>'
@@ -4316,7 +4316,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     second = tmp_path / "second.svg"
     first.write_text('<svg xmlns="http://www.w3.org/2000/svg"><text>First</text></svg>')
     second.write_text(first.read_text().replace("First", "Second"))
-    urls = [item[1] for item in media_model.cmd_media(page_dir, [first, second])]
+    urls = [item["path"] for item in media_model.cmd_media(page_dir, [first, second])]
     data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
     data_model.cmd_data_set(
         page_dir,

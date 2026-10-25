@@ -72,7 +72,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
     }.items():
         source = tmp_path / ("recording" + suffix.upper())
         source.write_bytes(data)
-        _, path = media_model.cmd_media(page_dir, [source])[0]
+        path = media_model.cmd_media(page_dir, [source])[0]["path"]
         paths.append((path, mime))
     markup = "".join(f'<audio controls src="{path}"></audio>' for path, _ in paths)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))

@@ -48,8 +48,10 @@ import {
 // What the inventory reads from the semantic root: the Questions, the workflows its
 // entries report, the shown revision and the agent's to-dos, and the projection whose
 // reported and overridden marks it lists once the projection's chrome has painted them.
-// Threads reach it through their presentation, which renders the annotations once it
-// commits.
+// What the thread pass decides about a thread reaches it as readings its paint follows:
+// where the thread is placed (`placedAt`) and whether a widget seats or holds it
+// (`claimed`, `heldOut`), so a pass that moves one repaints the margin, and one that
+// moves none leaves it.
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
   obligations: root.effective.obligations,

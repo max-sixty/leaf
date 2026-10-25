@@ -107,7 +107,9 @@ export const queueWidgetUpdate = (widget, update, committed) => {
 // The DOM each document owner reads: projection decorates widget output, threads
 // resolve passages over that decoration, obligations locate controls in threads,
 // and annotations measure those targets. Imperative Lit render commits in its call;
-// later preparation explicitly refreshes consumers when it materializes more DOM.
+// what a later preparation decides, such as where the thread pass places and seats
+// each thread, reaches its consumers as readings their paints follow
+// (anchor-placement.js `placedAt`, thread/surfaces.js `claimed`).
 export const PRESENTATION_DOM = Object.freeze({
   widgets: () => [...widgetCommits.values()],
   projection: () => documentCommits.get("projection:chrome")?.() ?? [],

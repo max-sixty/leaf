@@ -627,15 +627,6 @@ export` writes a file that boots the page's own runtime offline, and that file
   medians were 632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four
   examples, a server's first load took 120 to 230 ms longer than its reloads. The
   Mac's load average was near 12 on 18 cores throughout.
-- **Draw the margin's annotations once per thread pass.** They draw from their own
-  watcher, which waits only for the projection's chrome, and again when the thread
-  presentation commits (`untracked(renderAnnotations)`, `thread/presentation.js`):
-  22 ms of applying a comment's answer, profiled. Making the watcher wait for the
-  thread region drew the margin once (11 ms) but broke reply continuity
-  (`continueReplies`, `thread/focus.js`, which expects the margin's cards drawn;
-  seven cases in `tests/browser/threads/test_seated_threads.py`), and a held thread
-  pass would withhold every margin paint. A fix needs continuity to wait for the
-  margin's paint and the margin to stop depending on the thread region committing.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
   experimental and about 820 lines in the core runtime, consumed by `lf-shot`,

@@ -81,8 +81,9 @@ extend beside it. Compose the page from these:
 
 - **Prose read in order**, such as a plan, review or decision, is plain semantic HTML.
 - **Independent status tiles** are a block with `class="layout-tiles"`, whose children
-  sit in equal cells. Each cell holds a metric, chart, table, list or log, with at most
-  a caption; tiles of paragraphs read worse than the column.
+  sit in equal cells. Each cell holds a metric (the theme's `.metric` entry), chart,
+  table, list or log, with at most a caption; tiles of paragraphs read worse than the
+  column.
 - **A comparison** is a table, or native sections arranged by the page's CSS.
 - **Controls beside evidence** is a playground. Aim for one coherent experience to
   read, operate and comment on. Embedded documents can isolate a demonstration, but
@@ -141,7 +142,8 @@ page of parts, whose column parts each take their own outline.
 
 Use Leaf's default styling for ordinary content, with semantic HTML from the registry's
 elements and class idioms. The vendored theme supplies colours, type, spacing,
-headings, tables, code and widgets. Polish a page through clearer content and hierarchy
+headings, tables, code and widgets. Page CSS spaces with its steps, `--sp-1` to
+`--sp-5`, which `density-working` tightens. Polish a page through clearer content and hierarchy
 within that treatment. Reserve page CSS for task-specific arrangement, visualization
 or a particular design the user requests. An added card surface should express a
 grouping or interaction the task needs; wrapping already styled elements just for
@@ -237,9 +239,14 @@ change overflow at a breakpoint; Leaf measures the declared surface, never all o
 descendants. Use a bounded reading region for independently scrolling vertical content.
 
 The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. In a table that scrolls sideways, prose wraps a word per
-line. Put identifiers in `<code>`, which can break inside a cell, and keep the columns
-to what fits at the narrowest width the page's readers use.
+to it, so none needs a width. A table's columns size to their content, so leave its
+cells' widths and wrapping to the theme too. Text that can't break, such as a bare
+identifier or a cell kept on one line, holds its column at its full length, and once
+the table scrolls sideways, prose in the other columns wraps a word per line. Put
+identifiers in `<code>`, which can break inside a cell, and keep the columns to what
+fits at the narrowest width the page's readers use. Write each row's name as its
+first cell, a `<th scope="row">`, and the names stay in view while the other columns
+scroll.
 
 ## Stable anchors
 

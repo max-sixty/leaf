@@ -126,8 +126,12 @@
   }
   /* The card wears the surface's colour over the ground's own fill, which it matches
      at rest and inside every move, so what stands under the panel is under a box that
-     paints for a contrast checker too, which reads no clipped layer. */
+     paints for a contrast checker too, which reads no clipped layer.
+     The card is one layer of the panel, under the leaf's menu and the peek that follow
+     it: it isolates the z-indexes of what it holds, such as a glyph raised over its
+     press's disc, which otherwise stacked beside the menu and drew over it. */
   .lf-fp-card {
+    isolation: isolate;
     anchor-name: --lf-fp-panel;
     display: flex;
     flex-direction: column;
@@ -745,11 +749,16 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
-  /* The way out of the stance the user is in, after the counts. */
+  /* The way out of the stance the user is in, after the counts. The seat keeps its
+     room while the counts stand, so a view closing on its own leaves them where they
+     were; once a draft steps them aside, an empty seat gives the field its room. */
   .lf-fp-exit-seat {
     flex: none;
     display: flex;
     width: var(--lf-fp-aim);
+  }
+  .lf-floating-panel[data-drafted] .lf-fp-exit-seat {
+    width: auto;
   }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */
@@ -1484,20 +1493,6 @@
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding-inline-start: 0;
   }
-  /* A sent reply keeps the field's reading width, so no line reflows merely because
-     it moved above the leaf. The field's text column is the panel less, on each side,
-     the row's padding, a seat as wide as the leaf (the leaf's, the exit's), a 2px gap
-     and the field's 6px edge, and less Send's room; the 32px the view and transcript
-     already keep from the panel's edges are the message's own. */
-  .lf-fp-messages .lf-msg.user {
-    --lf-msg-text-end: calc(
-      2 * (var(--lf-fp-row-pad) + var(--lf-fp-aim) + 8px) + var(--lf-fp-send-room) -
-        32px
-    );
-  }
-  .lf-fp-messages .lf-msg.user .lf-msg-text {
-    box-sizing: border-box;
-  }
   /* A rewrite in a thread's view stands where the message stood (response.css,
      `.lf-msg-editor`), at the height of the field below it, frame included, its frame
      reaching back over the words' inset as far as the quote's rule. */
@@ -1632,8 +1627,13 @@
       0 0 0 1px var(--lf-fp-ring),
       var(--raise-2);
   }
-  .lf-floating-panel:not([data-menu]) .lf-fp-menu {
+  .lf-floating-panel:not([data-menu]) .lf-fp-menu:not([data-leaving]) {
     display: none;
+  }
+  /* A closing menu keeps its last rows while it fades out (floating-panel.js,
+     `menuFade`), inert and passing presses to the page beneath. */
+  .lf-fp-menu[data-leaving] {
+    pointer-events: none;
   }
   .lf-floating-panel[data-menu] .lf-fp-menu {
     @starting-style {

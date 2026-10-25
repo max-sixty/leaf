@@ -103,7 +103,8 @@ and its answering action's unit. The named label field supplies the prompt. For 
 `value: "review"` with `answered: {"review": {"detail": {"approved": true}}}` completes
 each record's obligation while that unit's latest review approves it. Clearing or undoing
 approval reopens it. Source reordering preserves these identities; removing a record
-removes its obligation. The widget projects those same keys with `projectData` so Leaf's
+removes its obligation. The widget marks those same keys as its drawn data
+([module-state.md, "Marking drawn data"](module-state.md#marking-drawn-data)) so Leaf's
 On me navigation can reveal each record.
 
 `x-awaits.retired` names the attribute an author sets to close an obligation but keep its
@@ -224,9 +225,10 @@ one kind of record needs, so `data set` refuses a value the widget couldn't show
 the widget needn't check it again. A `format` must be one Leaf checks: `date-time` is a
 timezone-aware instant, `uri` an absolute URL, and `package check` lists the rest.
 
-A widget declares the inputs it can show under `x-data`, each naming its contract and
-the attribute that carries the page's source id. Make that attribute required when the
-widget can't work without the input; an unbound optional input delivers `null`. Tell
+A widget declares the inputs it can show under `x-data`, each naming its contract, the
+attribute that carries the page's source id, and the element `property` Leaf sets to
+the value. Make that attribute required when the widget can't work without the input;
+Leaf leaves the property of an input the markup doesn't bind to the widget. Tell
 page authors how to bind it in `x-instructions`, and whoever produces the data in the
 contract's `instructions` (`packages.md`, "Package contract").
 
@@ -244,7 +246,8 @@ contract's `instructions` (`packages.md`, "Package contract").
     "x-data": {
       "builds": {
         "contract": "build-status",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-instructions": "Bind `source` to the build feed this page should show.",
@@ -273,7 +276,8 @@ an external source or another widget's output:
     "contract": "file-list",
     "source": "source",
     "reference": "for",
-    "output": "files"
+    "output": "files",
+    "property": "value"
   }
 },
 "x-refers": {"for": {}}
@@ -336,7 +340,7 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 A contract whose value holds keyed rows declares `records`, naming the array and each
 row's key, which must be a unique non-empty string. A row's large payload can be
 `deferred`: the file keeps it, but the page receives rows without it, and a widget
-fetches one with `loadDeferred(snapshot, key)`. The widget decides when it needs that
+fetches one with `loadDeferred(value, key)`. The widget decides when it needs that
 evidence; `lf-diff` loads and checks each patch before showing its row, and defers only
 textual rendering until the file opens. Its contract's schema has a `files` array of
 `{path, patch}` objects:

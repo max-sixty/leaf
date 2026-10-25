@@ -2,8 +2,8 @@ import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_ex
 import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
-import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
+import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
 import { commandSteps, createAnchorTravel, createVersionController, initializeServedDocument, keepPageRulesOffLayer, mountHistory, paintCoreControls, readPlace, returnPlace, versionPicker, versionsReading } from "./runtime/bundle-version.js";
@@ -4721,6 +4721,7 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 	let running = [];
 	let shapeUntil = 1;
 	let rtl = false;
+	let streamFrom = /* @__PURE__ */ new Map();
 	const interpolate = (from, to, progress) => {
 		const rect = between(from, to, progress);
 		const shape = Math.min(1, progress / shapeUntil);
@@ -4829,7 +4830,11 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		};
 		parts.forEach(note);
 		watch();
-		if (rests?.size === next.size && [...next].every(([element, at]) => rests.has(element) && same$1(rests.get(element), at))) return;
+		if (!(theirs() === "send" && [...streamFrom].some(([scroller, then]) => {
+			const content = scroller.firstElementChild;
+			if (!content || motions.get(content)?.stream && progress < 1) return false;
+			return !near(content.getBoundingClientRect().top - carried(content)[1], then.top);
+		})) && rests?.size === next.size && [...next].every(([element, at]) => rests.has(element) && same$1(rests.get(element), at))) return;
 		for (const animation of running) animation.cancel();
 		running = [];
 		if (!next.has(box)) {
@@ -4842,6 +4847,10 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		const gesture = theirs();
 		const framed = new Set([...motions].filter(([, moving]) => moving.frames).map(([element]) => element));
 		const before = rests;
+		const streamed = /* @__PURE__ */ new Map();
+		if (progress < 1) {
+			for (const [element, moving] of motions) if (moving.stream) streamed.set(element, between(moving.from, moving.to, progress));
+		}
 		motions = /* @__PURE__ */ new Map();
 		rests = next;
 		const space = boxOf(room.getBoundingClientRect());
@@ -4908,7 +4917,11 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 		}
 		function carryContent(part, from) {
 			const to = part.box;
-			if (part.scrolls && !part.element.matches(TEXT_FIELD)) return grow(part, from);
+			if (part.scrolls && !part.element.matches(TEXT_FIELD)) {
+				grow(part, from);
+				if (gesture === "send") streamContent(part);
+				return;
+			}
 			let dx = rtl ? from.right - to.right : from.left - to.left;
 			let dy = from.top - to.top;
 			const end = width(to) - width(from);
@@ -5025,16 +5038,77 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 			});
 			start(part.element, [clipFrame(from), clipFrame(end)]);
 		}
+		function rise(part, frame, siblings) {
+			const to = part.box;
+			const dy = boxFrom.top - boxAt.top;
+			if (dy < .5) return reveal(part, frame, siblings);
+			motions.set(part.element, {
+				from: shifted(to, 0, dy),
+				to,
+				carries: "left"
+			});
+			move(part.element, 0, dy);
+			const first = Math.max(0, to.bottom + dy - boxFrom.top);
+			if (first < .5) return;
+			const clear = 1 - Math.max(0, boxFrom.top - to.bottom) / dy;
+			const frames = [clipFrame([
+				0,
+				0,
+				first,
+				0
+			])];
+			if (clear > 0 && clear < 1) frames.push({
+				...clipFrame([
+					0,
+					0,
+					0,
+					0
+				]),
+				offset: clear
+			});
+			frames.push(clipFrame([
+				0,
+				0,
+				0,
+				0
+			]));
+			start(part.element, frames);
+		}
+		function streamContent(part) {
+			const content = part.element.firstElementChild;
+			if (!content) return;
+			const then = streamed.get(content) ?? streamFrom.get(part.element);
+			if (!then) return;
+			const [cx, cy] = carriedBy(0)(content);
+			const now = shifted(boxOf(content.getBoundingClientRect()), -cx, -cy);
+			const dy = then.top - now.top;
+			if (Math.abs(dy) < .5) return;
+			motions.set(content, {
+				from: shifted(now, 0, dy),
+				to: now,
+				stream: true
+			});
+			move(content, 0, dy);
+		}
+		function streamWithin(part) {
+			if (part.scrolls) streamContent(part);
+			else part.parts.forEach(streamWithin);
+		}
 		function place(part, frame, siblings = []) {
 			const { element, style, box: to } = part;
 			const from = was.get(element);
-			if (!from) return reveal(part, frame, siblings);
+			if (!from) return gesture === "send" ? rise(part, frame, siblings) : reveal(part, frame, siblings);
 			const rest = before.get(element);
 			const sized = !framed.has(element) && near(width(rest), width(to)) && near(height(rest), height(to));
 			let within = frame;
 			if (element !== box && element !== root) {
 				const carries = gesture !== null;
-				if (sized && !part.holdsWindow) return carries ? carry(part, from) : reveal(part, frame, siblings);
+				if (sized && !part.holdsWindow) {
+					if (!carries) return reveal(part, frame, siblings);
+					carry(part, from);
+					if (gesture === "send") streamWithin(part);
+					return;
+				}
 				if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
 				if (!same$1(from, to)) within = {
 					from,
@@ -5078,6 +5152,16 @@ function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], obse
 	}
 	return {
 		follow,
+		stream() {
+			const carried = carriedBy(running[0]?.effect.getComputedTiming().progress ?? 1);
+			streamFrom = /* @__PURE__ */ new Map();
+			for (const element of rests?.keys() ?? []) {
+				const content = element.firstElementChild;
+				if (!content || !/auto|scroll/.test(getComputedStyle(element).overflowY)) continue;
+				const [dx, dy] = carried(content);
+				streamFrom.set(element, shifted(boxOf(content.getBoundingClientRect()), -dx, -dy));
+			}
+		},
 		forget() {
 			rests = null;
 		}
@@ -5294,6 +5378,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const menuOpen = Z(false);
 	const menuAt = Z(null);
 	let menuRoom = null;
+	let menuFade = null;
+	let menuDrawn = false;
 	let filter = "open";
 	let query = "";
 	let searching = false;
@@ -5330,7 +5416,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let drafted = false;
 	let postureMoved = true;
 	let landing = null;
-	const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
+	const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg[data-message]").length ?? 0;
 	function sayable() {
 		const input = host.dataset.rest === "mark" ? null : fieldInput();
 		if (!input?.isConnected || draftOf(input) !== "") return [];
@@ -5426,6 +5512,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			},
 			send: (_text, raw, owns) => {
 				let flight = null;
+				streamSend();
 				const handle = sendMessage(PAGE_DRAFT, owns, (attempt) => flight = threadActions.create({
 					attempt,
 					text: raw
@@ -5470,6 +5557,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			hint: () => saying(key, replyInput()),
 			hintAside: () => passingAside(key, replyInput()),
 			accessibleName: () => `Reply to ${threadTitle(key)}`,
+			sending: streamSend,
 			sent: (flight) => {
 				room = null;
 				rewriting = false;
@@ -5801,6 +5889,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		});
 	};
 	onUserInput(beginGesture);
+	function streamSend() {
+		if (gesture === null) return;
+		gesture = "send";
+		following.stream();
+	}
 	window.addEventListener("click", beginGesture, {
 		capture: true,
 		passive: true
@@ -5809,7 +5902,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const box = card.getBoundingClientRect();
 		setRuntimeRootStyle(document.documentElement, "--lf-panel-reach", layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0));
 		const compact = host.dataset.rest === "mark";
-		const duration = compact ? foldMs() : performance.now() < viewMovingUntil ? viewResizeMs() : resizeMs();
+		const duration = compact ? foldMs() : performance.now() < viewMovingUntil && gesture !== "send" ? viewResizeMs() : resizeMs();
 		following.follow({
 			duration,
 			easing: compact ? foldEase() : ease()
@@ -6087,7 +6180,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			return;
 		}
 		const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-		if (arriving) playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
+		if (arriving && gesture !== "send") playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
 			duration: fadeMs(),
 			delay: leaving ? outMs() : 0,
 			easing: "linear"
@@ -7064,10 +7157,32 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const sayingNow = new Set(sayable().map((error) => error.id));
 		const unseen = errorsReading().some((error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error));
 		keeps(errorDot, "data-shown", unseen ? "" : null);
-		render(menuOpen.value ? menuTemplate() : nothing, menu);
+		if (menuOpen.value) {
+			if (menuFade) {
+				menuFade.cancel();
+				menuFade = null;
+				render(nothing, menu);
+			}
+		} else if (menuDrawn && !menuFade) {
+			menu.setAttribute("data-leaving", "");
+			menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
+				duration: motionTime("--lf-motion-disclosure", menu),
+				easing: "linear"
+			});
+			menuFade?.finished.then(() => {
+				menuFade = null;
+				paint();
+			}, () => {});
+		}
+		menuDrawn = menuOpen.value;
+		keeps(menu, "data-leaving", menuFade ? "" : null);
+		keeps(menu, "inert", menuFade ? "" : null);
+		if (!menuFade) render(menuOpen.value ? menuTemplate() : nothing, menu);
 		for (const copy of [...copyItems.values(), ...copies.values()]) if (!copy.isConnected) copy.remove();
-		keeps(menu, "data-level", menuOpen.value && menuAt.value ? menuAt.value.view : null);
-		keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+		if (!menuFade) {
+			keeps(menu, "data-level", menuOpen.value && menuAt.value ? menuAt.value.view : null);
+			keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+		}
 		keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
 		if (menuOpen.value) {
 			const rows = menuRows();
@@ -7475,6 +7590,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		return present({ release: true }).then(() => true);
 	}
+	function openThread(id) {
+		const thread = threadByKey(id);
+		if (!thread) return;
+		open({
+			view: "thread",
+			thread: thread.key
+		}, { reopen: true });
+	}
 	function captureCurrentLocation() {
 		const top = trail.value.at(-1);
 		const view = openView();
@@ -7583,6 +7706,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		searchPage,
 		doors,
 		showForSample,
+		openThread,
 		captureCurrentLocation,
 		restoreCurrentLocation,
 		responseHome: responseSeat,
@@ -10606,6 +10730,7 @@ app = mountApplication({
 		pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
 		renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
 		scrollThreadIntoView,
+		openInPanel: (id) => floatingPanel?.openThread(id),
 		goToObligation: (...args) => items.goToObligation(...args)
 	},
 	state: {

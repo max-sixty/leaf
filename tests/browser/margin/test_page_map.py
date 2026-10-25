@@ -1092,6 +1092,8 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         "min-height", "44px"
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    # Contrast is read on the sheet at rest, once its opening fade has ended.
+    dialog.evaluate("d => Promise.all(d.getAnimations().map((a) => a.finished))")
 
     result = Axe().run(
         page,

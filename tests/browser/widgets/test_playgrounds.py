@@ -258,6 +258,52 @@ def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve)
     expect(page.get_by_role("slider", name="Threshold")).to_have_value("5")
 
 
+def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
+    browser, serve
+):
+    """Plain label choices run in a row that breaks between labels, and
+    `--playground-choice-columns` arranges them in the author's columns instead."""
+    choices = "".join(
+        f'<lf-playground-choice value="{value}" label="{label}"></lf-playground-choice>'
+        for value, label in (
+            ("page", "Page on-call (today)"),
+            ("ticket", "Open a ticket"),
+            ("mute", "Mute"),
+        )
+    )
+    source = leaf_page(
+        "Choice arrangements",
+        f"""<style>
+  .card {{ inline-size: 28rem; }}
+  #columned {{ --playground-choice-columns: repeat(2, minmax(0, 1fr)); }}
+</style>
+<h1>Route the alert</h1>
+<lf-playground id="routes">
+  <lf-playground-preview>
+    <div class="card"><lf-playground-control name="row" label="Row"
+      kind="choice" value="page">{choices}</lf-playground-control></div>
+    <div class="card" id="columned"><lf-playground-control name="columns"
+      label="Columns" kind="choice" value="page">{choices}</lf-playground-control></div>
+  </lf-playground-preview>
+  <lf-playground-output>Route the alert.</lf-playground-output>
+</lf-playground>""",
+    )
+    page = open_page(browser, serve(source))
+    read = """control => [...control.querySelectorAll('label.choice')].map(face => {
+      const words = document.createRange();
+      words.selectNodeContents(face.querySelector('.lf-playground-choice-label'));
+      const box = face.getBoundingClientRect();
+      return {left: Math.round(box.left), top: Math.round(box.top),
+              lines: words.getClientRects().length};
+    })"""
+    row = page.locator('lf-playground-control[name="row"]').evaluate(read)
+    assert {face["top"] for face in row} == {row[0]["top"]}
+    assert [face["lines"] for face in row] == [1, 1, 1]
+    columns = page.locator('lf-playground-control[name="columns"]').evaluate(read)
+    assert columns[0]["left"] == columns[2]["left"] < columns[1]["left"]
+    assert columns[0]["top"] == columns[1]["top"] < columns[2]["top"]
+
+
 def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     browser, serve
 ):

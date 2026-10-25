@@ -2846,9 +2846,9 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
 # or its `x` key does what the page's `data-how` says: scroll the window 9px; grow the
 # box above it 60px and scroll by as much, holding it still; grow the box 40px and
 # scroll 31px, taking back part of that; announce a command that travels and scroll
-# 9px; scroll 9px for a key the page leaves to the browser; or scroll by nothing while
-# a frame loop no input began scrolls 9px within the gesture's rendering, as a test's
-# script may.
+# 9px; add a history entry, or rename the one it is on, and scroll 9px; scroll 9px for
+# a key the page leaves to the browser; or scroll by nothing while a frame loop no
+# input began scrolls 9px within the gesture's rendering, as a test's script may.
 AIMED = """<!doctype html><body style="margin:0">
 <div style="height: 100px"></div><div id="above"></div>
 <button id="control">Control</button><div style="height: 3000px"></div>
@@ -2867,6 +2867,8 @@ AIMED = """<!doctype html><body style="margin:0">
       document.dispatchEvent(
         new CustomEvent("lf-command-invoked", { detail: { travels: true } }),
       );
+    if (how === "adds an entry") history.pushState(null, "", "#elsewhere");
+    if (how === "renames its entry") history.replaceState(null, "", "#renamed");
     if (how === "holds") above.style.height = "60px";
     if (how === "takes back") above.style.height = "40px";
     passive = how === "passive";
@@ -2889,17 +2891,25 @@ AIMED = """<!doctype html><body style="margin:0">
         ("holds", "press"),
         ("takes back", "press"),
         ("travels", "key"),
+        ("adds an entry", "press"),
+        ("renames its entry", "press"),
         ("native", "key"),
         ("passive", "press"),
     ],
 )
 def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gesture):
-    """Only a command that takes the user somewhere may scroll the control it was made
-    on across the screen (`shift_watch.js`, "Scrolls a gesture makes"). Layout
-    coordinates remove scrolling, so before this the watch compared the scrolled
-    control's page position with itself and found nothing."""
+    """Only a gesture that takes the user somewhere, by a command that declares it or
+    the history entry it adds, may scroll the control it was made on across the screen
+    (`shift_watch.js`, "Scrolls a gesture makes"). Layout coordinates remove scrolling,
+    so before this the watch compared the scrolled control's page position with itself
+    and found nothing."""
     page = browser.new_page()
-    page.goto("data:text/html," + quote(AIMED))
+    # Served from an origin, which a data: URL lacks, so it has a history to write.
+    page.route(
+        "http://aimed.test/",
+        lambda route: route.fulfill(body=AIMED, content_type="text/html"),
+    )
+    page.goto("http://aimed.test/")
     paint(page)
     page.evaluate("how => { document.body.dataset.how = how; }", how)
     if gesture == "press":
@@ -2910,7 +2920,7 @@ def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gestu
     page.wait_for_function("scrollY > 0")
     paint(page)
     judge_watches()
-    if how == "scrolls":
+    if how in ("scrolls", "renames its entry"):
         consume_browser_errors(
             page,
             {
@@ -2919,6 +2929,41 @@ def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gestu
                 "input": "click" if gesture == "press" else "keydown x",
                 "by": [0, -9],
             },
+        )
+
+
+# A tab 40px past what its strip shows, the strip's 10px scroll-padding included: its
+# press scrolls the strip by what `data-by` says.
+STRIP = """<!doctype html><body style="margin:0">
+<div id="strip" style="width:200px;overflow-x:auto;white-space:nowrap;
+  scroll-padding:0 10px;margin:20px"><span style="display:inline-block;width:170px"
+  ></span><button id="tab"
+  style="width:60px;box-sizing:border-box">Tab</button><span
+  style="display:inline-block;width:400px"></span></div>
+<script>
+  tab.addEventListener("click", () => strip.scrollBy(+document.body.dataset.by, 0));
+</script>"""
+
+
+@pytest.mark.parametrize(("by", "found"), [(40, False), (80, True)])
+def test_a_press_may_bring_its_control_whole_into_its_scroller(browser, by, found):
+    """A scroll may bring the control a press lands on whole into the scroller that
+    showed only part of it, as the browser's own focus does, and no further
+    (`shift_watch.js`, "Scrolls a gesture makes")."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(STRIP))
+    paint(page)
+    page.evaluate("by => { document.body.dataset.by = by; }", str(by))
+    # Press the part the strip shows; a locator's click would scroll the tab in first.
+    strip = page.locator("#strip").bounding_box()
+    page.mouse.click(strip["x"] + 190, strip["y"] + strip["height"] / 2)
+    page.wait_for_function("strip.scrollLeft > 0")
+    paint(page)
+    judge_watches()
+    if found:
+        consume_browser_errors(
+            page,
+            {"code": "gesture-scrolled", "node": ["button#tab"], "by": [-by, 0]},
         )
 
 

@@ -1381,9 +1381,9 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
 
 def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serve):
-    """A box that starts scrolling after the page loads is reachable, shows its edge
-    mark, and starts the sticky-header slot again, as it does when the page loads with
-    it scrolling: whether a shorter window, a narrower container, or a page script made
+    """A declared scroll surface (`class="scroll"`) that starts scrolling after the page
+    loads is reachable, shows its edge mark, and starts the sticky-header slot again, as
+    it does when the page loads with it scrolling: whether a shorter window, a narrower container, or a page script made
     it scroll, by a class it adds as it adapts to the box's size or by a box it inserts,
     and announced it with `layoutChanged`. A box the window grows out of scrolling gives
     all three back. The window's case asks its height, which no box's size follows. A
@@ -1400,9 +1400,10 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
             leaf_page(
                 "Late scrollers",
                 '<div id="meter"></div>'
-                f'<div id="by-window">{wide}</div>'
-                f'<div id="holder"><div id="by-container">{wide}</div></div>'
-                f'<div id="by-script">{wide}</div>'
+                f'<div id="by-window" class="scroll">{wide}</div>'
+                '<div id="holder">'
+                f'<div id="by-container" class="scroll">{wide}</div></div>'
+                f'<div id="by-script" class="scroll">{wide}</div>'
                 '<details id="more"><summary>More</summary><table id="drawn"><tbody>'
                 "<tr><td>Cell</td></tr></tbody></table></details>",
                 head="<style>.wide { width: 900px; }"
@@ -1435,6 +1436,7 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
         }).observe(box);
         const inserted = document.createElement('div');
         inserted.id = 'by-insert';
+        inserted.className = 'scroll';
         inserted.innerHTML = '<div class="wide">An inserted block.</div>';
         document.querySelector('main').append(inserted);
         layoutChanged(inserted);
@@ -1460,7 +1462,8 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     )
     rendered(page)
     page.locator("#more > summary").click()
-    expect(page.locator("#drawn")).to_have_attribute("data-lf-scrolls", "")
+    # The theme scrolls a table only sideways, which the slot reads as `across`.
+    expect(page.locator("#drawn")).to_have_attribute("data-lf-scrolls", "across")
 
     entries = "".join(f"<li>Sidebar entry {n}</li>" for n in range(40))
     page = open_page(

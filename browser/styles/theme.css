@@ -264,6 +264,7 @@
   --sp-2: 8px;
   --sp-3: 16px;
   --sp-4: 24px;
+  --sp-5: 32px;
   /* The smallest box the layer offers a user to aim at, on either axis. One token
      rather than a number in each rule, and one token rather than two floors and a media
      query in each of them: what changes between a mouse and a finger is this length and
@@ -1368,6 +1369,7 @@ p {
   --sp-2: 6px;
   --sp-3: 10px;
   --sp-4: 14px;
+  --sp-5: 18px;
   --code-size: 12px;
   --code-line: 17px;
   --pane-bar-pad: 6px 12px;

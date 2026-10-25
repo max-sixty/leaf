@@ -74,9 +74,8 @@ App Server. The supplied writer determines the reply route for that delivery.
 
 When connected to App Server, Leaf shows the task's current step, such as a tool
 call or a wait for approval, in the status of Leaf's panel as what the agent is doing on the page as a whole.
-If you started an update or to-do with `leaf task start`, its line stays the status's
-sentence and the step appears in the status's full text, which the user reads by
-pointing at it.
+If you started an update or to-do with `leaf task start`, the panel keeps showing that
+line, and the step appears in the full text the user reads by pointing at it.
 
 ## Sandbox
 

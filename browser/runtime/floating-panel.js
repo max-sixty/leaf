@@ -492,8 +492,9 @@ export function createFloatingPanel({
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   // The way out of the stance the user is in, at the row's end beside the counts,
-  // and there while the user types (touch-controls.js, `stance`). Its seat keeps
-  // room after a view closes, so news cannot shift the count chips under the reader.
+  // and there while the user types (touch-controls.js, `stance`). Beside the counts its
+  // seat keeps room after a view closes, so news cannot shift them under the reader;
+  // while a draft steps them aside, an empty seat leaves the field the row's end.
   const exitSeat = el("div", "lf-fp-exit-seat");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own

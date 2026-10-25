@@ -1339,15 +1339,21 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		}
 		const currentLocation = available.find((row) => row === focused());
 		const candidates = visible.length ? visible : available;
-		const held = visible.find((row) => row.tabIndex === 0);
 		const room = shownWindow();
-		const distance = (row) => {
+		const place = (row) => {
 			const box = row.getBoundingClientRect();
-			if (box.bottom < room.top) return room.top - box.bottom;
-			if (box.top > room.bottom) return box.top - room.bottom;
-			return 0;
+			return [
+				box.bottom < room.top ? room.top - box.bottom : box.top > room.bottom ? box.top - room.bottom : 0,
+				box.top,
+				box.left
+			];
 		};
-		holdTabStop(currentLocation ?? held ?? candidates.reduce((best, row) => distance(row) < distance(best) ? row : best));
+		const before = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+		const nearest = () => candidates.map((row) => ({
+			row,
+			at: place(row)
+		})).reduce((best, next) => before(next.at, best.at) < 0 ? next : best).row;
+		holdTabStop(currentLocation ?? nearest());
 	}
 	function scheduleRoving() {
 		cancelRender(rovingFrame);

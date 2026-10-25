@@ -10415,7 +10415,10 @@ if (validationEntry) {
 	validationEntry.lfObserveWidgetPreparations = observePreparations;
 	validationEntry.lfNativeLayers = nativeLayers;
 }
-const recoverComposer = retainUserIntent({ since: 0 });
+const recoverComposer = retainUserIntent({
+	since: 0,
+	available: () => window === window.top || document.hasFocus()
+});
 const overlaySelected = annotationMode === "overlay";
 const annotationRenderer = overlaySelected ? await import("./runtime/bundle-annotation-overlay.js") : null;
 if (validationEntry && annotationRenderer) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;

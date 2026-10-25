@@ -56,6 +56,7 @@ from render_harness import (
     holding,
     leaf_page,
     names,
+    nudge,
     open_page,
     page_comment,
     page_registry,
@@ -678,9 +679,20 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
 
     # A fresh document cannot claim native retention and still waits for composition.
     (serve.page_dir / "index.html").write_text(executable_revision(third, "reload"))
-    # The menu holds the rows it opened with, so it opens once the page has heard.
+    # The menu holds the rows it opened with, so it opens once the page has heard. It
+    # is reached by keys: a press on the leaf is a press away from the reply's row,
+    # which ends its composition (thread/replies.js), and then only the open menu
+    # would hold the fresh document back. A state read after the menu closes asks
+    # again whether the page may follow, and the composition still says no.
     told(page)
-    expect_panel_offers(page, "latest")
+    page.locator(".lf-fp-leaf").press("Enter")
+    expect(
+        page.locator('.lf-fp-menu .lf-fp-item[data-row="latest"]:not(:disabled)')
+    ).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-floating-panel")).not_to_have_attribute("data-menu", "")
+    nudge(serve.page_dir)
+    told(page)
     assert editor.evaluate("node => node === window.heldReply")
     send.press("Shift+Tab")
     expect(editor).to_be_focused()

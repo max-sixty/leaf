@@ -1364,7 +1364,6 @@ function constructSheet(text) {
 const chromeSheet = constructSheet(sheets.chrome);
 const chromeSharedClasses = Object.freeze([
 	"lf-aiming",
-	"lf-btn",
 	"lf-ins-block",
 	"lf-over-item",
 	"lf-react-mark",
@@ -2350,6 +2349,13 @@ function elementDirective(name, write) {
 	});
 }
 const offered = elementDirective("offered", offerElement);
+const offerActionElement = (...args) => document.documentElement.lfInitial.offerActionElement(...args);
+function offerAction(role, className, label, { title, icon } = {}) {
+	const control = document.documentElement.lfInitial.offerAction(role, className, label, title === void 0 ? void 0 : { title });
+	if (icon) control.append(iconElement(icon, role === "mark" ? "lf-mark-icon" : "lf-action-icon"));
+	return control;
+}
+const offeredAction = elementDirective("offeredAction", offerActionElement);
 function selectableOfferElement(node, role, cls) {
 	keeps(node, "role", role);
 	keeps(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
@@ -2384,14 +2390,10 @@ function relabel(node, label, { says } = {}) {
 	generatedElement(node, { says });
 	keepsText(node, label);
 }
-function closeControl({ name, title = name, className = "" }) {
-	const control = el("button", `lf-btn lf-icon-action lf-quiet-action ${className}`.trim());
-	control.type = "button";
-	control.append(iconElement("cross", "lf-action-icon"));
-	control.setAttribute("aria-label", name);
-	control.title = title;
-	return control;
-}
+const closeControl = ({ name, title = name, className = "" }) => offerAction("symbol", className, name, {
+	title,
+	icon: "cross"
+});
 function responseAction(control, { glyph = null, icon = null, label, behavior = "action", collapse = false }) {
 	if (Boolean(String(glyph ?? "").trim()) === Boolean(icon)) throw new TypeError("A response action needs exactly one glyph or icon");
 	control.classList.toggle("lf-response-control", true);
@@ -2582,4 +2584,4 @@ function dismissErrors() {
 }
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, SAID, SHADOW_LEADING_CSS, TEXT_ENTRY, UI_MARKS, adoptRegistry, advertisesKeys, allBindings, annotationMarkSheets, annotationSheets, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, chromeSharedClasses, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeControl, closeNativeLayer, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declareOccluder, declareWindowChrome, declaredBindings, declaredRoot, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, dragging, el, elementDeclarations, elementDirective, elementsDeclaring, errorsReading, exhibits, frameFor, frameView, generated, generatedElement, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, holdStatus, holdingError, hostIn, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inUi, inWindowChrome, intersect, isCommandScope, keys, labelOf, landingBand, landingInsets, layerFact, layoutChanged, layoutWindow, live, liveEl, loadShadowRules, marksSheet, matchesWhen, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, notice, noticeReading, offer, offered, overIn, overlaps, overlapsAcross, pageShadowRoots, paintClips, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, presented, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reachedForWords, recordedWidgetSelector, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, relabel, renderedChildren, repaint, repaintPage, responseAction, restorePointer, reveal, rightCover, routedCommand, rowArrows, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, searchField, seeErrors, seenRect, selectableOffer, selectableOffered, setNoticeContext, setQuickShortcuts, shadowRootsIn, shadowRules, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, spell, spokenBinding, stackLevel, startsAt, stateSpecs, stuckBox, submitBindings, submitLabel, tagsDeclaring, titleOf, tokenEntry, touchPresses, uiInside, underOccluder, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchCommandAvailability, watchCommandScopes, watchLayers, watchOwner, watchRoom, watchScrollEnds, watchScrolls, whenNone, whileConnected, windowChromeBoxes, word, worksInside };
+export { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, SAID, SHADOW_LEADING_CSS, TEXT_ENTRY, UI_MARKS, adoptRegistry, advertisesKeys, allBindings, annotationMarkSheets, annotationSheets, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, chromeSharedClasses, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, closeControl, closeNativeLayer, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declareOccluder, declareWindowChrome, declaredBindings, declaredRoot, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, dragging, el, elementDeclarations, elementDirective, elementsDeclaring, errorsReading, exhibits, frameFor, frameView, generated, generatedElement, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, holdStatus, holdingError, hostIn, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inUi, inWindowChrome, intersect, isCommandScope, keys, labelOf, landingBand, landingInsets, layerFact, layoutChanged, layoutWindow, live, liveEl, loadShadowRules, marksSheet, matchesWhen, measure, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nearestScrollBy, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, overIn, overlaps, overlapsAcross, pageShadowRoots, paintClips, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, presented, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reachedForWords, recordedWidgetSelector, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, relabel, renderedChildren, repaint, repaintPage, responseAction, restorePointer, reveal, rightCover, routedCommand, rowArrows, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, scrollContainer, scrollGlides, scrolling, scrollsBy, scrollsContent, searchField, seeErrors, seenRect, selectableOffer, selectableOffered, setNoticeContext, setQuickShortcuts, shadowRootsIn, shadowRules, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, skipped, spell, spokenBinding, stackLevel, startsAt, stateSpecs, stuckBox, submitBindings, submitLabel, tagsDeclaring, titleOf, tokenEntry, touchPresses, uiInside, underOccluder, union, userScrollport, visibleBand, watchArrivals, watchArrivalsIn, watchCommandAvailability, watchCommandScopes, watchLayers, watchOwner, watchRoom, watchScrollEnds, watchScrolls, whenNone, whileConnected, windowChromeBoxes, word, worksInside };

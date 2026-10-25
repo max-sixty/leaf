@@ -136,14 +136,12 @@ export function createThreadPreview({
   // Open in panel moves the card's thread into the floating panel's view of it, which
   // reads a long thread wider than the card's room beside the column. The card closes,
   // so one thread stands open, and the view's Show on page comes back.
-  const previewOpenInPanel = offer(
-    "button",
-    "lf-btn lf-icon-action lf-quiet-action lf-margin-preview-expand",
+  const previewOpenInPanel = offerAction(
+    "symbol",
+    "lf-margin-preview-expand",
+    "Open in panel",
+    { icon: "expand" },
   );
-  previewOpenInPanel.type = "button";
-  previewOpenInPanel.append(iconElement("expand", "lf-action-icon"));
-  previewOpenInPanel.setAttribute("aria-label", "Open in panel");
-  previewOpenInPanel.title = "Open in panel";
   const previewList = el("div", "lf-margin-preview-list");
   let dismiss = () => {};
   // Carried by its grip, the card stands where the user drops it, relative to what it is

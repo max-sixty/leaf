@@ -1,7 +1,7 @@
 import { PENDING, Z, bindQueuedWork, editable, html, isElementName, isReaction, keyed, lastMovedAt, messageKey, moved, nothing, pendingForParent, render as render$1, repeat, sameAnchor, seatRoot, share, threadKey, threadNames, turns } from "./bundle-browser-runtime.js";
 import { CARET_KEYS, TEXT_FIELD, afterScript, atLayoutPrecision, cancelRender, caretAtKey, carriedFrom, currentLocationIn, currentLocationNodes, currentLocationTouches, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, nextAnimation, nextFrame, nextRender, onCurrentLocation, onPress, onPressAway, readCaret, recentPlaceInput, renderedOrder, renderedParent, renderedUnder, ringBox, selectsAll, sizeObserver, takesLetters, under, upFrom } from "./bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, admitResponse, pagePresented, randomId, reportPageError, revealLayer, sameLayer } from "./bundle-layer-client.js";
-import { PRESS, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offered, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
+import { PRESS, adoptRegistry, announce, bindings, checked, clampedRow, clippedContents, clippingAxes, commandScope, cycledRow, declarationFor, declareCommandReadiness, descriptionOf, el, elementDeclarations, elementsDeclaring, exhibits, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdStatus, iconElement, iconTemplate, inUi, inWindowChrome, keys, landingBand, loadShadowRules, measure, nearestScrollBy, notice, offer, offerAction, offered, offeredAction, paintKeys, passErrorsAt, placeBox, placeHolder, plainPress, pointerAt, pressIsKeyboardActivation, projectCommandScope, raiseError, registry as registry$1, repaint, seenRect, shownBox, shownRect, shownWindow, skipped, stuckBox, tagsDeclaring, titleOf, tokenEntry, touchPresses as touchPresses$1, union, userScrollport, visibleBand, watchArrivals, watchCommandScopes, watchOwner, whenNone } from "./bundle-errors.js";
 import { applicationState, attachApplicationPresentation, offlineInteractive, pageClaimed, readApplication, readPart, runtime, runtimeModule, runtimeResource, whenApplicationPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
@@ -1306,7 +1306,8 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
 	let copy = controls.get(pre);
 	if (!copy) {
-		copy = copyControl("lf-code-copy lf-mark", {
+		copy = copyControl("lf-code-copy", {
+			role: "mark",
 			label: `Copy ${noun}`,
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
@@ -4621,7 +4622,7 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 		const row = offer("div", "lf-thread-reply");
 		const input = offer(TEXT_FIELD);
 		input.name = "reply";
-		const send = offer("button", "lf-btn lf-thread-send", "Send");
+		const send = offer("button", "lf-thread-send", "Send");
 		row.append(input, send);
 		return wireReply(key, row, input, send, commands.wireInput, {
 			hint,
@@ -6054,13 +6055,7 @@ function threadTodos(todos, done) {
 	return html`<ul class="lf-thread-todos">
     ${todos.map((todo) => html`<li class="lf-thread-todo">
           <span class="lf-thread-todo-title">To-do · ${todo.title}</span
-          ><button
-            type="button"
-            class="lf-btn lf-thread-action"
-            @click=${() => done(todo.id)}
-          >
-            Done
-          </button>
+          ><button ${offeredAction("word")} @click=${() => done(todo.id)}>Done</button>
         </li>`)}
   </ul>`;
 }
@@ -6399,8 +6394,7 @@ var ThreadView = class {
 		const face = `${state.kind} ${place}`;
 		let button = this.#settlements.get(face);
 		if (!button) {
-			button = offer("button", `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${icon ? "lf-icon-action" : "lf-thread-action"}`);
-			button.type = "button";
+			button = offerAction(icon ? "symbol" : "word", reopen ? "lf-reopen" : "lf-resolve");
 			this.#settlements.set(face, button);
 			const word = reopen ? "Reopen" : "Resolve";
 			keys(button, `On a thread's ${word} button`, [{

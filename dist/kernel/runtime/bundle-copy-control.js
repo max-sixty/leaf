@@ -1,5 +1,5 @@
 import { focusDestination, focused } from "./bundle-dom-move.js";
-import { iconElement, notice, offer, raiseError } from "./bundle-errors.js";
+import { iconElement, notice, offer, offerActionElement, raiseError } from "./bundle-errors.js";
 
 //#region runtime/copy-control.js
 function copyThroughSelection(value) {
@@ -24,8 +24,8 @@ function copyThroughSelection(value) {
 		if (before?.isConnected) focusDestination(before, "return");
 	}
 }
-function copyControl(className, { label = "", success, error, icon = "copy" }) {
-	const copy = offer("wa-copy-button", className);
+function copyControl(className, { label = "", success, error, icon = "copy", role = void 0 }) {
+	const copy = role ? offerActionElement(document.createElement("wa-copy-button"), role, className) : offer("wa-copy-button", className);
 	for (const [name, slot] of [
 		[icon, "copy-icon"],
 		["check", "success-icon"],

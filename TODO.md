@@ -333,9 +333,8 @@ that changes size after first paint, with its cause.
   (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
   would put them in place.
 - **Let a press say it takes the user somewhere.** **Waits on the user.** The
-  shift watch lets a key move
-  the control it was pressed on only where its command declares `travels`, and a
-  press only on a link (`shift_watch.js`, "Scrolls a gesture makes"); a press on any
+  shift watch lets a key move the control it was pressed on only where its command
+  declares `travels`, and a press only on a link (`shift_watch.js`, "Scrolls a gesture makes"); a press on any
   other control has no command to declare it. Forced onto the unsurveyed tab tests,
   the watch reports `lf-tabs` presses: a root set's switch, which adds a history entry
   and opens the view at its place, carries the pressed tab up to 295px; an embedded

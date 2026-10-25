@@ -476,6 +476,8 @@ def test_runtime_features_require_an_upgraded_widget(page_dir, tag, key, fallbac
     registry = json.loads((page_dir / "registry.json").read_text())
     registry[tag][key] = registry[tag].get(key, fallback)
     registry[tag]["x-upgrade"] = False
+    # An initial renderer needs an upgrade too, but answers through its own finding.
+    registry[tag].pop("x-initial", None)
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     status, findings = check_findings(page_dir)

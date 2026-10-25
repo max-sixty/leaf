@@ -23,8 +23,9 @@ def css_block(css):
 
 @lru_cache(maxsize=32)
 def css_stylesheet(css: str):
-    """One independent stylesheet's read-only syntax tree, including EOF recovery."""
-    return tinycss2.parse_stylesheet(css)
+    """One independent stylesheet's read-only syntax tree, including EOF recovery,
+    without its comments, which no reading needs and no page receives."""
+    return tinycss2.parse_stylesheet(css, skip_comments=True)
 
 
 @lru_cache(maxsize=32)

@@ -8,9 +8,9 @@ import { pathToFileURL } from "node:url";
 import { styleEntries } from "../../build/styles.mjs";
 
 // The publisher loads this declaration from its trusted default-branch checkout,
-// never from the PR or its artifact. Package sheets count only when the build owns
-// their source entry, so authored CSS elsewhere remains outside this boundary.
-const styles = new Set((await styleEntries()).map(([, output]) => output));
+// never from the PR or its artifact. A sheet counts only when the build writes it, so
+// authored CSS remains outside this boundary.
+const styles = new Set(styleEntries.map(([, output]) => output));
 
 function generated(path) {
   return (

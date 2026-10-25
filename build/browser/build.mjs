@@ -7,7 +7,8 @@
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module owns its source root, outputs, and their layer
  * paths, and writes and checks every other committed Node-built output beside them:
- * the initial renderers (`build/initial.mjs`), the stylesheets (`build/styles.mjs`),
+ * the initial renderers (`build/initial.mjs`), the third-party stylesheets
+ * (`build/styles.mjs`),
  * the modules generated from the registry (`build/registry.mjs`), the page
  * protocol's types, the event records and the served state (`contract-types.mjs`),
  * and the baseline its schemas are held to (`protocol.mjs`), the third-party bundles

@@ -139,6 +139,11 @@ def input_paths(inputs: list[Path]) -> list[Path]:
             for name in VENDORED_FILES
             if ((path := root / name).exists() or path.is_symlink())
         )
+        paths.extend(
+            imported
+            for sheet in sorted(root.glob("*.css"))
+            for imported in imported_sheets(sheet, root)
+        )
         for sub in PACKAGE_DIRS:
             directory = root / sub
             if not (directory.exists() or directory.is_symlink()):
@@ -213,8 +218,19 @@ CASCADE_LAYERS = (
 _CSS_SURROGATES = dict.fromkeys(range(0xD800, 0xE000), 0xFFFD)
 
 
-def _sheet(source: Path) -> str:
-    """Validate one source and complete its EOF recovery before composition."""
+def stylesheet(source: Path, root: Path) -> str:
+    """One sheet as a page receives it: validated, its EOF recovery completed, its
+    comments dropped, and each `@import` replaced by the sheet it names.
+
+    A sheet's sources are what an author edits, so a sheet split into files needs no
+    build and can never be served older than its parts. An import names a file inside
+    `root`, relative to the importing sheet, optionally with `layer(name)`; its rules
+    stand where the import stood, so a relative `url()` in them resolves against the
+    page's copy of the importing sheet. The page then receives complete sheets and asks
+    for no import, which an adopted sheet couldn't make anyway. A dependency's sheet,
+    which an install has no `node_modules` to read, is bundled into a file beside its
+    importer (`build/styles.mjs`).
+    """
     from .styles import css_stylesheet, css_syntax_errors
 
     try:
@@ -223,8 +239,61 @@ def _sheet(source: Path) -> str:
         raise Refused(f"{source} must be UTF-8")
     if errors := css_syntax_errors(css, str(source)):
         raise Refused(str(errors[0]))
-    serialized = tinycss2.serialize(css_stylesheet(css)).translate(_CSS_SURROGATES)
+    parts = []
+    for node in css_stylesheet(css):
+        if _is_import(node):
+            path, layer = _import(node, source, root)
+            sheet = stylesheet(path, root)
+            parts.append(f"@layer {layer} {{\n{sheet}}}\n" if layer else sheet)
+        else:
+            parts.append(tinycss2.serialize([node]))
+    serialized = "".join(parts).translate(_CSS_SURROGATES)
     return serialized if serialized.endswith("\n") else serialized + "\n"
+
+
+def imported_sheets(source: Path, root: Path) -> list[Path]:
+    """Every file `stylesheet(source, root)` reads besides `source`, for a reader that
+    follows a sheet's inputs. An import composition would refuse is left out, since
+    composing reports it."""
+    from .styles import css_stylesheet
+
+    found = []
+    try:
+        rules = css_stylesheet(source.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return found
+    for node in filter(_is_import, rules):
+        try:
+            path, _ = _import(node, source, root)
+        except Refused:
+            continue
+        found += [path, *imported_sheets(path, root)]
+    return found
+
+
+def _is_import(node) -> bool:
+    return node.type == "at-rule" and node.lower_at_keyword == "import"
+
+
+def _import(rule, source: Path, root: Path) -> tuple[Path, str | None]:
+    """The file one `@import` names, and the cascade layer it asks for."""
+    target, *conditions = [t for t in rule.prelude if t.type != "whitespace"] or [None]
+    if target is not None and target.type == "function" and target.lower_name == "url":
+        target = next((t for t in target.arguments if t.type == "string"), None)
+    layer = None
+    if conditions and getattr(conditions[0], "lower_name", None) == "layer":
+        layer = tinycss2.serialize(conditions[0].arguments).strip() or None
+    unplaced = conditions[1:] if layer else conditions
+    if target is None or target.type not in ("string", "url") or unplaced:
+        raise Refused(
+            f"{source}: `@import {tinycss2.serialize(rule.prelude).strip()}` takes a "
+            "file's relative path and at most `layer(name)`; wrap the imported rules in "
+            "@media or @supports inside that file"
+        )
+    path = (source.parent / target.value).resolve()
+    if not path.is_relative_to(root.resolve()) or not path.is_file():
+        raise Refused(f"{source} imports {target.value!r}, which is no file in {root}")
+    return path, layer
 
 
 def widget_confinement(root: Path) -> tuple[str, str] | None:
@@ -295,7 +364,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             source = root / name
             if not source.is_file():
                 continue
-            css = _sheet(source)
+            css = stylesheet(source, root)
             placed = scoped(css, where[0]) if where else css
             if name == "shadow.css":
                 shadow_css = scoped(css, where[1]) if where else css
@@ -309,7 +378,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             theme.append(f"@layer {tier} {{\n{placed}}}\n")
     for name in ("layouts.css", "state.css"):
         if (source := inputs[0] / name).is_file():
-            sheet = _sheet(source)
+            sheet = stylesheet(source, inputs[0])
             theme.append(sheet)
             if name == "state.css":
                 shadow.append(sheet)
@@ -415,13 +484,20 @@ def payload_server_inputs(root: Path) -> list[Path]:
         root / "dist/kernel",
         root / "src/leaf/render-checks",
     ]
+    served = sorted(
+        path
+        for top in runtime
+        for path in ([top] if top.is_file() else top.rglob("*"))
+        if path.is_file()
+    )
     return [
         *sorted((root / "src").rglob("*.py")),
-        *sorted(
-            path
-            for top in runtime
-            for path in ([top] if top.is_file() else top.rglob("*"))
-            if path.is_file()
+        *served,
+        *(
+            sheet
+            for path in served
+            if path.suffix == ".css"
+            for sheet in imported_sheets(path, root / "browser")
         ),
         root / "pyproject.toml",
         root / "uv.lock",

@@ -6,8 +6,8 @@ its local contract, the contracts modules and packages build on are in
 `../skills/leaf/references/module-*.md` and `../skills/leaf/references/packages.md`, and the rules shared with
 Python are in root `AGENTS.md`, "Cross-runtime invariants".
 
-Edit stylesheet sources under `styles/`, never the generated sheets, and rebuild them
-(`build/AGENTS.md`).
+Stylesheets need no build: page composition and the serving runtime place each file a
+sheet `@import`s where the import stands (`stylesheet` in `src/leaf/layer.py`).
 
 ## Layout and motion
 
@@ -166,7 +166,7 @@ representative desktop viewport.
   a square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
   `test_no_rule_rounds_a_box_edged_on_one_side`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
-  heights, `--raise-1` to `--raise-3` (`styles/theme.css`). Check:
+  heights, `--raise-1` to `--raise-3` (`theme.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
   Threads toggle, filters, panel, margin entry and Page Map change together. Green marks

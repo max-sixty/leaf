@@ -12,6 +12,7 @@ from interact_support import (
     append_command,
     refused_on,
 )
+from leaf_dev.browser import threads_tab
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -55,6 +56,7 @@ from render_harness import (
     navigate,
     nudge,
     open_page,
+    open_threads,
     page_comment,
     pane_scroll_behavior,
     panel_control,
@@ -192,9 +194,7 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
 
     undo(page)
     # Back among the open threads: the user's own and the third, the agent's closed.
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "title", re.compile("^Threads, 2 open")
-    )
+    expect(threads_tab(page).locator(".lf-fp-count")).to_have_text("2")
     log = events_model.read_events(serve.page_dir)
     assert log[-1] == {
         **log[-1],
@@ -2374,7 +2374,7 @@ def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     holding(page, held, 1, "the accepted suggestion")
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_focused()
 
-    elsewhere = page.locator(".lf-fp-threads")
+    elsewhere = page.locator(".lf-fp-on-user")
     elsewhere.focus()
     held.pop(0).continue_()
     round_trip(page)
@@ -2824,9 +2824,8 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "held open across the panel opening")
-    # A press on the panel's Threads mark gives the Threads view focus.
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    # Opening the panel's Threads takes focus into the panel.
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert root_overflow(page) == 0
 

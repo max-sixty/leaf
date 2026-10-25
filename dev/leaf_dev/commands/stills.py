@@ -61,6 +61,7 @@ from leaf_dev.arms import (
 from leaf_dev.browser import (
     BESIDE,
     DESKTOP,
+    go_to_threads,
     headless_shell,
     load,
     scroll_settled,
@@ -298,15 +299,9 @@ def panel_status_hover(page: Page) -> None:
     page.locator(".lf-fp-leaf").hover()
 
 
-def open_threads(page: Page) -> None:
-    """The floating panel's Threads view, listing every open thread."""
-    page.locator(".lf-fp-threads").click()
-    page.locator(".lf-fp-filters button", has_text="Open").click()
-
-
 def open_thread(page: Page, key: str) -> None:
     """The thread `key`, opened from Threads in the floating panel's view."""
-    open_threads(page)
+    go_to_threads(page)
     page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
     expect(page.locator(".lf-fp-view[data-view=thread] .lf-msg").first).to_be_visible()
 
@@ -314,7 +309,7 @@ def open_thread(page: Page, key: str) -> None:
 def floating_thread(page: Page) -> None:
     """The floating panel with a thread opened from Threads: the thread's title over
     its view, and under it, on the row, the way back, Show on page, Resolve and Close."""
-    open_threads(page)
+    go_to_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
@@ -464,12 +459,6 @@ def seat_held_news(page: Page) -> None:
     held_news(page, thread)
 
 
-def threads_panel(page: Page) -> None:
-    """Threads, opened from the floating panel's thread mark."""
-    page.locator(".lf-fp-threads").click()
-    expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
-
-
 def call_tree(page: Page) -> None:
     """The CallDiff root and its unchanged landmarks beside added and removed calls."""
     page.get_by_role("tab", name="CallDiff", exact=True).click()
@@ -535,8 +524,7 @@ def retained_quote(page: Page) -> None:
     sample = page.locator("#bg-retained-quote-sample")
     sample.scroll_into_view_if_needed()
     child = sample.frame_locator("iframe")
-    child.locator(".lf-fp-threads").click()
-    child.locator(".lf-fp-filters button", has_text="Open").click()
+    go_to_threads(page, child)
     child.locator('.lf-fp-thread[data-key="bg-retained-quote-thread"]').click()
     expect(child.locator(".lf-fp-view[data-view=thread] .lf-msg").first).to_be_visible()
 
@@ -746,8 +734,8 @@ def card_reply_long(page: Page) -> None:
 def panel_reply_long(page: Page) -> None:
     """The last open thread, opened from Threads in the floating panel, with a reply
     of two wrapped paragraphs in the panel's field, its reply box."""
-    open_threads(page)
-    page.locator(".lf-fp-thread").last.click()
+    go_to_threads(page)
+    page.locator(".lf-fp-thread:not([data-resolved])").last.click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
     page.locator(".lf-fp-field leaf-text").click()
     page.keyboard.insert_text(LONG_DRAFT)
@@ -1955,13 +1943,13 @@ STATES = (
         "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
     ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
-    State("plan-panel", "review-a-plan", threads_panel),
-    State("plan-panel-dark", "review-a-plan", threads_panel, scheme="dark"),
+    State("plan-panel", "review-a-plan", go_to_threads),
+    State("plan-panel-dark", "review-a-plan", go_to_threads, scheme="dark"),
     State(
         "plan-panel-keyboard-dark", "review-a-plan", panel_by_keyboard, scheme="dark"
     ),
     State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
-    State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
+    State("plan-panel-beside", "review-a-plan", go_to_threads, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
     State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
@@ -1991,7 +1979,7 @@ STATES = (
     State(
         "plan-panel-touch",
         "review-a-plan",
-        threads_panel,
+        go_to_threads,
         viewport=(390, 844),
         touch=True,
     ),

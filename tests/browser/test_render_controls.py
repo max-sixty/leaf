@@ -32,6 +32,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     opened_tab,
     page_comment,
     panel_settled,
@@ -875,8 +876,7 @@ def test_live_samples_preserve_optimistic_refusal_and_child_escape(browser, serv
     )
     page.unroute(event_url)
 
-    child.locator(".lf-fp-threads").click()
-    panel_settled(child, view="threads")
+    open_threads(child)
     page.keyboard.press("Escape")
     panel_settled(child, open=False)
     page.keyboard.press("Escape")

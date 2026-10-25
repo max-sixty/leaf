@@ -1418,8 +1418,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     write(editor, "Words about the violet subject")
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
-    page.locator(".lf-fp-threads").tap()
-    panel_settled(page, view="threads")
+    page.locator(".lf-fp-on-user").tap()
+    panel_settled(page, view="queue")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function(
@@ -1431,8 +1431,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     page.wait_for_function(
         "expected => getSelection().toString() === expected", arg=selected
     )
-    # The command closes the borrowed menu and keeps its Threads view open.
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    # The command closes the borrowed menu and keeps the On view open.
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "queue")
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")

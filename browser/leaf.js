@@ -577,7 +577,7 @@ layout = createPageLayout({
 if (document.documentElement.lfSample) {
   let viewOperation;
   onSampleNotice("cancel-view", () => viewOperation?.abort());
-  registerSampleCommand("thread", async ({ id, surface, status }) => {
+  registerSampleCommand("thread", async ({ id, surface }) => {
     viewOperation?.abort();
     viewOperation = new AbortController();
     const { signal } = viewOperation;
@@ -590,8 +590,7 @@ if (document.documentElement.lfSample) {
       if (!intent()) return false;
       if (surface === "panel") {
         let shown = null;
-        const show = () =>
-          (shown = floatingPanel.showForSample({ thread: id, status }));
+        const show = () => (shown = floatingPanel.showForSample({ thread: id }));
         if (!intent.handoff(show)) return false;
         return (await shown) && intent.available();
       }

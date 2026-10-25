@@ -21,8 +21,8 @@ from render_cases_layout import token_colour
 from render_cases_navigation import TAB_AND_DOT, TAB_TONE, live_watcher
 from render_harness import (
     LONG_PAGE,
-    PANEL,
     open_page,
+    open_threads,
     panel_settled,
     panel_view,
     shown,
@@ -63,15 +63,11 @@ def workflow_of(scope, message):
 
 
 def thread_row_says(page, thread, resolved=False):
-    """Open the panel's Threads at Open, or Resolved, and return what `thread`'s row says
-    of where it stands, beside its name."""
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button").filter(
-        has_text="Resolved" if resolved else "Open"
-    ).click()
-    return page.locator(f'.lf-fp-thread[data-key="{thread}"] .lf-fp-value')
+    """Open the panel's Threads and return what `thread`'s row says of where it stands,
+    beside its name, among the open threads or, where `resolved`, under Resolved."""
+    open_threads(page)
+    state = "[data-resolved]" if resolved else ":not([data-resolved])"
+    return page.locator(f'.lf-fp-thread[data-key="{thread}"]{state} .lf-fp-value')
 
 
 def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):

@@ -628,7 +628,9 @@ leaf-text.lf-fab-input {
 .lf-fab-bar
   .lf-compose-field:not([data-words]):has(> .lf-response-trigger:not([hidden]))
   > leaf-text.lf-fab-input {
-  padding-inline-end: calc(var(--lf-comment-text-end) + var(--lf-icon-action-hit) - 1px);
+  padding-inline-end: calc(
+    var(--lf-comment-text-end) + var(--lf-icon-action-hit) - 1px
+  );
 }
 .lf-response-action {
   min-width: max(30px, var(--aim-floor));

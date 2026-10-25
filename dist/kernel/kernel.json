@@ -90,7 +90,7 @@
     "runtime/held-word.js": "3374ee3979d9b73d6709003963543ac6ece7e3758da445a698ccacfa26fade9f",
     "runtime/history.js": "90848abb0c5dfad16c0f5bd683a53841b38cfb33a925a77504edb4f4666cfe6d",
     "runtime/http-api.js": "57012483cb02a2204e224ae7e0d50509d5061ac96a37e47f879cea6ae962339f",
-    "runtime/icons.js": "38fb1044a356e534605e2dd25e78baa86cf0953fbc9142e2070eb567560be728",
+    "runtime/icons.js": "ff8caf9f05cec42381a55b1511cde7f4d22ba01ec7efbe06c9e75980596bc38c",
     "runtime/ids.js": "eb4def53d836be4790db5f4037d5fa780592751beea38a01354378720201cdd3",
     "runtime/indication.js": "a2ee25405d93e5c51e31ff63bc196b1b8727b4ab530e859187baf4318f8cd985",
     "runtime/initial-render.js": "e29f2d89b0e40fa3fccc033c558426ebe630fa4d251800e80e99453817cc7e59",

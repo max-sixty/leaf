@@ -491,14 +491,16 @@ def test_a_draw_that_lands_after_a_newer_value_keeps_the_revision_it_drew(
     data_model.cmd_data_set(serve.page_dir, "note", "Held older words")
     older = source_revision(serve.page_dir, "note")
     page.wait_for_function("() => window.heldDraws?.['Held older words']")
-    data_model.cmd_data_set(serve.page_dir, "note", "Newer words")
+    data_model.cmd_data_set(serve.page_dir, "note", "Held newer words")
     newer = source_revision(serve.page_dir, "note")
-    expect(datum).to_have_text("Newer words")
-    expect(datum).to_have_attribute("data-lf-source-revision", newer)
+    page.wait_for_function("() => window.heldDraws?.['Held newer words']")
 
     page.evaluate("() => window.heldDraws['Held older words']()")
     expect(datum).to_have_text("Held older words")
     expect(datum).to_have_attribute("data-lf-source-revision", older)
+    page.evaluate("() => window.heldDraws['Held newer words']()")
+    expect(datum).to_have_text("Held newer words")
+    expect(datum).to_have_attribute("data-lf-source-revision", newer)
 
 
 def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):

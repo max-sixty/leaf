@@ -63,11 +63,13 @@
    one. This element finds the snapshot that supplied the value and stamps the marks
    with it, so a draw that finishes after a newer value arrived keeps the revision it
    drew. An object value is one delivery's copy, which names its snapshot for as long
-   as the widget holds it (`suppliedSnapshot`, data.js); an equal primitive value has
-   an equal revision, a digest of the value, so the newest of the last few set
-   supplies it. A null value, or an input the markup leaves unbound, names words no
-   bound value supplied, stamped without a source. Off a Leaf page no one listens, and
-   the marks mean nothing. */
+   as the widget holds it (`suppliedSnapshot`, data.js). A primitive value has no
+   identity, so this element keeps the one the widget last reported and every one set
+   since, each with its snapshot: a widget draws a value it holds or one handed to it
+   after, so a report retires only the values set before the one it names. Equal
+   primitive values share a revision, a digest of the value. A null value, or an input
+   the markup leaves unbound, names words no bound value supplied, stamped without a
+   source. Off a Leaf page no one listens, and the marks mean nothing. */
 import {
   LitElement,
   SignalWatcher,
@@ -100,11 +102,6 @@ import {
 } from "./data.js";
 import { registry } from "./registry.js";
 import { projectMarked } from "./projection/data.js";
-
-// How many primitive values set on one bound property a `drawn` can still name. A draw
-// names the value it started from, which a widget abandons once a newer one arrives,
-// so only the last few can still finish.
-const DRAWABLE = 8;
 
 let regions = 0;
 
@@ -181,8 +178,8 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   // The x-data inputs that name a property, `{input, property, bound, read}`, with
   // `read` the delivery reader of one the markup binds.
   #inputs = [];
-  // Each bound property's last snapshot set, and its last few primitive values with the
-  // snapshot that supplied each, newest last.
+  // Each bound property's last snapshot set, and the primitive values a `drawn` can
+  // still name with the snapshot that supplied each, in the order they were set.
   #sent = new Map();
 
   createRenderRoot() {
@@ -313,8 +310,6 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       if (value !== null && typeof value !== "object") {
         primitives.delete(value);
         primitives.set(value, snapshot);
-        if (primitives.size > DRAWABLE)
-          primitives.delete(primitives.keys().next().value);
       }
       this.#sent.set(entry.property, { snapshot, primitives });
       this[entry.property] = value;
@@ -341,7 +336,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
           ? null
           : typeof value === "object"
             ? suppliedSnapshot(value)
-            : this.#sent.get(property)?.primitives.get(value);
+            : this.#retire(property, value);
       if (snapshot === undefined)
         throw new Error(
           `<${this.localName} id=${this.id}> drew a ${property} Leaf did not set`,
@@ -350,6 +345,18 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     } catch (error) {
       failSoft(this, error);
     }
+  }
+
+  // The snapshot of the primitive `value` a widget reported drawing from `property`,
+  // retiring the values set before it, which it no longer holds.
+  #retire(property, value) {
+    const primitives = this.#sent.get(property)?.primitives;
+    if (!primitives?.has(value)) return undefined;
+    for (const earlier of primitives.keys()) {
+      if (earlier === value) break;
+      primitives.delete(earlier);
+    }
+    return primitives.get(value);
   }
 
   // The controller's `defer` for this widget, which refuses a second hold and releases

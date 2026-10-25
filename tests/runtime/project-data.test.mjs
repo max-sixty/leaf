@@ -228,18 +228,18 @@ test("a draw reported after a newer value arrived keeps the revision it drew", a
   while (!releases.has("Newer")) await new Promise((resolve) => setTimeout(resolve, 0));
   // The data version waits on the widget's `updateComplete`, which its drawing extends.
   const held = document.body.dataset.lfDataVersion;
-  releases.get("Newer")();
-  await newer;
-  const afterNewer = read();
   releases.get("Older")();
-  await older;
+  while (read()[0] !== "Older") await new Promise((resolve) => setTimeout(resolve, 0));
+  const afterOlder = read();
+  releases.get("Newer")();
+  await Promise.all([older, newer]);
   assert.deepEqual(
-    { first, held, afterNewer, afterOlder: read() },
+    { first, held, afterOlder, afterNewer: read() },
     {
       first: ["First", "first"],
       held: "first",
-      afterNewer: ["Newer", "newer"],
       afterOlder: ["Older", "older"],
+      afterNewer: ["Newer", "newer"],
     },
   );
   document.body.replaceChildren();
@@ -253,33 +253,42 @@ test("a value the widget holds keeps its revision however many newer ones arrive
         notes: { contract: "rows", source: "notes", property: "notes" },
       },
     },
+    "lf-held-text": {
+      "x-data": { text: { contract: "rows", source: "source", property: "value" } },
+    },
   });
   // A widget that keeps drawing the first rows it was handed, as a held reading does,
   // and reports what `report` says it drew.
   let report = (widget) => ({ value: widget.held });
-  customElements.define(
-    "lf-held",
-    class extends LeafElement {
-      render() {
-        this.held ??= this.value;
-        return nothing;
-      }
-      updated(changed) {
-        super.updated(changed);
-        const p =
-          this.querySelector("p") ?? this.appendChild(document.createElement("p"));
-        if (p.dataset.lfDatum !== "row") p.dataset.lfDatum = "row";
-        this.dispatchEvent(new CustomEvent("drawn", { detail: report(this) }));
-      }
-    },
-  );
+  class Held extends LeafElement {
+    render() {
+      this.held ??= this.value;
+      return nothing;
+    }
+    updated(changed) {
+      super.updated(changed);
+      const p =
+        this.querySelector("p") ?? this.appendChild(document.createElement("p"));
+      if (p.dataset.lfDatum !== "row") p.dataset.lfDatum = "row";
+      this.dispatchEvent(new CustomEvent("drawn", { detail: report(this) }));
+    }
+  }
+  customElements.define("lf-held", class extends Held {});
+  customElements.define("lf-held-text", class extends Held {});
+  // A row object for `lf-held`, and its revision as a string for `lf-held-text`.
   const reading = (revision) => ({
     version: revision,
-    sources: { rows: { contract: "rows", revision, value: { revision } } },
+    sources: {
+      rows: { contract: "rows", revision, value: { revision } },
+      text: { contract: "rows", revision, value: revision },
+    },
   });
   acceptData(reading("r0"), 1);
-  document.body.innerHTML = '<main><lf-held id="held" source="rows"></lf-held></main>';
+  document.body.innerHTML =
+    '<main><lf-held id="held" source="rows"></lf-held>' +
+    '<lf-held-text id="held-text" source="text"></lf-held-text></main>';
   const widget = document.querySelector("#held");
+  const text = document.querySelector("#held-text");
   await notifyDataSubscribers();
   for (let n = 1; n <= 12; n += 1) {
     acceptData(reading(`r${n}`), 1);
@@ -290,6 +299,12 @@ test("a value the widget holds keeps its revision however many newer ones arrive
     [widget.value.revision, row.dataset.lfSourceRevision],
     ["r12", "r0"],
   );
+  assert.deepEqual(
+    [text.value, text.querySelector("p").dataset.lfSourceRevision],
+    ["r12", "r0"],
+  );
+  for (const held of [widget, text])
+    assert.equal(held.querySelector(".lf-error"), null);
 
   // The unbound input's words carry no source; Leaf leaves its property to the widget.
   report = () => ({ notes: "authored" });

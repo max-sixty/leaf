@@ -5860,7 +5860,6 @@ async function loadDeferred(value, key) {
 
 //#endregion
 //#region runtime/leaf-element.js
-const DRAWABLE = 8;
 let regions = 0;
 var UpdateBoundary = class extends LitElement {
 	signalUpdateFailed(error) {
@@ -6001,7 +6000,6 @@ var LeafElement = class extends q(UpdateBoundary) {
 			if (value !== null && typeof value !== "object") {
 				primitives.delete(value);
 				primitives.set(value, snapshot);
-				if (primitives.size > DRAWABLE) primitives.delete(primitives.keys().next().value);
 			}
 			this.#sent.set(entry.property, {
 				snapshot,
@@ -6016,12 +6014,21 @@ var LeafElement = class extends q(UpdateBoundary) {
 			if (named.length !== 1 || Object.keys(detail).length !== 1) throw new Error(`<${this.localName}> drawn must name one bound property (${this.#inputs.map(({ property }) => property).join(", ")}) with the value it drew`);
 			const [{ property, bound }] = named;
 			const value = detail[property];
-			const snapshot = !bound || value === null ? null : typeof value === "object" ? suppliedSnapshot(value) : this.#sent.get(property)?.primitives.get(value);
+			const snapshot = !bound || value === null ? null : typeof value === "object" ? suppliedSnapshot(value) : this.#retire(property, value);
 			if (snapshot === void 0) throw new Error(`<${this.localName} id=${this.id}> drew a ${property} Leaf did not set`);
 			projectMarked(this, snapshot);
 		} catch (error) {
 			failSoft(this, error);
 		}
+	}
+	#retire(property, value) {
+		const primitives = this.#sent.get(property)?.primitives;
+		if (!primitives?.has(value)) return void 0;
+		for (const earlier of primitives.keys()) {
+			if (earlier === value) break;
+			primitives.delete(earlier);
+		}
+		return primitives.get(value);
 	}
 	#hold() {
 		this.#held = true;

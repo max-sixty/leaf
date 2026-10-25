@@ -168,7 +168,9 @@ data; a node you remove takes its marks with it.
 The detail names the property and the value drawn from it, and Leaf stamps the marks
 with that value's source and revision, so a draw that finishes after a newer value
 arrived keeps the revision it drew. Name the value Leaf set, not a copy, or `null` for
-words no bound value supplied, such as records the widget composed itself. A widget
+words no bound value supplied, such as records the widget composed itself. A string or
+number value can be one you still hold or one Leaf set after the value you last
+reported; after reporting a newer one, don't go back to an older one. A widget
 with several bound inputs marks the items of one of them and names that one, since a
 widget's marks carry one source. Marks on nodes inside a nested widget belong to that
 widget. On a page without Leaf, nothing listens and the marks mean nothing.

@@ -386,6 +386,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
+    openInPanel: (id) => floatingPanel?.openThread(id),
     goToObligation: (...args) => items.goToObligation(...args),
   },
   state: {

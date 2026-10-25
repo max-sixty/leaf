@@ -175,17 +175,17 @@ html[data-lf-interactive] #counted:not(.lf-rendered) { block-size: 60px; }
         (
             "unreserved-height",
             "<lf-test-drawn id=unreserved>",
-            {"drawn": 120, "reserved": None},
+            {"first": 0, "drawn": 120, "reserved": None},
         ),
         (
             "unreserved-height",
             "<lf-test-drawn id=misreserved>",
-            {"drawn": 120, "reserved": "40"},
+            {"first": 40, "drawn": 120, "reserved": "40"},
         ),
     ]
     assert str(reading.advice[1]) == (
-        "<lf-test-drawn id=misreserved> draws 120px tall where its first paint "
-        "reserves 40px, so what follows it moves when it is drawn: state "
+        "<lf-test-drawn id=misreserved> first paints 40px tall, reserving 40px, and "
+        "draws 120px tall, so what follows it moves 80px when it is drawn: state "
         'data-height="120"'
     )
 

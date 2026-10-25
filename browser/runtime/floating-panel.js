@@ -71,7 +71,10 @@
  *   left the field, since the caret is the innermost thing open. A thread's view
  *   also goes when a route, such as the `t` walk, opens a thread's card on the page,
  *   so one thread stands open (`reveal`; the user chose this on 23 October, after a
- *   walk left the panel's thread under the card it opened). The view stands right
+ *   walk left the panel's thread under the card it opened). A card's Open in panel
+ *   moves the other way, closing the card for this view (`openThread`), which the
+ *   user chose on 25 October for a long thread read in a card's narrow room beside
+ *   the column; rejected was opening it wider than other views. The view stands right
  *   on the row, with no line between them that typing would show or hide.
  *   The user chose that (2026-10-14), reversing a blank line's room kept under every
  *   open view, which read in Threads as a missing row. Rejected there: the line pushing
@@ -3943,6 +3946,15 @@ export function createFloatingPanel({
     return present({ release: true }).then(() => true);
   }
 
+  // A margin card's Open in panel hands its thread here, where a long thread reads
+  // wider than in the card's room beside the column (thread-preview.js), as its row in
+  // Threads opens it.
+  function openThread(id) {
+    const thread = threadByKey(id);
+    if (!thread) return;
+    open({ view: "thread", thread: thread.key }, { reopen: true });
+  }
+
   // A live revision carries the thread open here, and where its view was read to,
   // across it (version.js, `captureRetainedCurrentLocation`): the reader is still at it, so
   // the view comes back as they left it, without taking focus, which the reply's own
@@ -4075,6 +4087,7 @@ export function createFloatingPanel({
     searchPage,
     doors,
     showForSample,
+    openThread,
     captureCurrentLocation,
     restoreCurrentLocation,
     // The anchored comment box opening in its home (`responseSeat`) clears the row for

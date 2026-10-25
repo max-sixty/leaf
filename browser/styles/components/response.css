@@ -606,12 +606,6 @@ button.lf-media-open {
   line-height: inherit;
   padding-block: var(--lf-compose-pad-block);
 }
-/* Words that scroll reveal the caret with the padding beside it, as a textarea does,
-     so typing on the last line rests them at their end, where the card that Send opens
-     stands them (thread-preview.js, `showArrival`). */
-leaf-text.lf-response-control {
-  scroll-padding-block: var(--lf-compose-pad-block);
-}
 /* The physical response presentation allocates the field's box. The host is
      the editor's scrollport; its content-sized editor keeps native caret reveals. */
 leaf-text.lf-fab-input {

@@ -750,7 +750,10 @@
    * Whether the track stands beside the body depends on widths no query reads, so the
    * margin reading marks it (`data-lf-beside`, prepaint.js `marginContentLayout`). Like a
    * margin sidebar, the body restarts the slot and landing band, keeps the ring's room,
-   * anchors no reading, and is a reading region of the Layout's own. */
+   * anchors no reading, and is a reading region of the Layout's own. A scrolling box
+   * clips at its padding edge, and the blocks run the body's full width, so the body
+   * holds the ring's room inside its edges and gives it back as a negative margin:
+   * what it holds stands where it would without it. */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
     flex: 1 1 18rem;
     --lf-margin-content: track;
@@ -760,6 +763,10 @@
     > aside
     > [data-lf-track-body] {
     --lf-reading-region: layout;
+    box-sizing: border-box;
+    padding: var(--focus-ring-room);
+    margin: calc(-1 * var(--focus-ring-room));
+    scroll-padding: var(--focus-ring-room);
   }
   @media screen {
     :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar {

@@ -4913,7 +4913,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
     prior = source_revision(serve.page_dir, "review-patch")
     page = open_page(browser, url)
-    page.evaluate("window.priorManifest = document.querySelector('#patch').snapshot")
+    page.evaluate("window.priorManifest = document.querySelector('#patch').value")
     replacement = original.replace('return "first"', 'return "replacement"')
     manifest["files"][0]["patch"] = replacement
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
@@ -4928,7 +4928,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
             stale = error.message;
           }
           const current = await loadDeferred(
-            document.querySelector('#patch').snapshot, 'app.py'
+            document.querySelector('#patch').value, 'app.py'
           );
           return {stale, current};
         }"""

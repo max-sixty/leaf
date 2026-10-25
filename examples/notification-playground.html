@@ -173,6 +173,7 @@
     <script type="module">
       import {
         PAGE_INTERFACE,
+        generatedElement,
         keeps,
         keepsText,
         layoutChanged,
@@ -302,6 +303,8 @@
             this.#strip = candidate("B · Status stream", "status strip");
             const candidates = element("div", "notification-demo-candidates");
             candidates.append(this.#banner.figure, this.#strip.figure);
+            // The simulated notifications are this module's words, not the page's source.
+            generatedElement(candidates, { says: true });
             this.append(candidates);
           }
 

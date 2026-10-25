@@ -413,7 +413,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    size from chrome.css only when focus reveals it.
    Native and selectable choice marks keep their enclosing labelled target; a button's
    face takes its reach (below) and version rows the padding floor described above. Inline offered words
-   remain inline: like links in prose, their words determine their target. */
+   remain inline: like links in prose, their words determine their target.
+
+   Whether the face or a reach meets the block floor is one fact about a control: its
+   place in the reach's list (below), which sets --lf-face-floor to auto for the floor
+   to read. A pressable offer therefore stands a floor tall unless it hangs a reach, and
+   never does both. When this rule kept a list of its own for the block axis, a control
+   missing from it did both: message controls are offers, and stood 44px tall in a
+   28px head, over the message's words. The inline floor holds for a reach too, since
+   a reach sizes its sideways room from a floor-wide face. */
 [data-lf-offer]:where(
   :not(
     [data-lf-offer=""],
@@ -431,22 +439,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
-}
-[data-lf-offer]:where(
-  :not(
-    [data-lf-offer=""],
-    [data-lf-offer="checkbox"],
-    [data-lf-offer="radio"],
-    .lf-mark-note,
-    .lf-btn,
-    .lf-msg-control
-  )
-),
-.lf-react,
-.lf-margin-entry,
-.lf-command-reference-command,
-.lf-quote {
-  min-height: var(--aim-floor);
+  min-height: var(--lf-face-floor, var(--aim-floor));
 }
 /* A control a line tall or shorter meets the aim floor with a reach: a box of its own
    that paints nothing, standing out from its face to the floor on each axis the face
@@ -457,7 +450,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    controls are floor-wide boxes, so a place keeps room by the box's width, not the
    face's. A native field, picker or range can draw no box, so it stands at the line;
    a row of a stack, such as a group's Done, has no room for a reach and keeps the
-   floor as its face. */
+   floor as its face.
+
+   A control on this list leaves the floor's block axis (above) to its reach. No box
+   inherits that, so a control inside one keeps its own floor. */
+@property --lf-face-floor {
+  syntax: "*";
+  inherits: false;
+}
 :where(
   .lf-btn,
   .button,
@@ -469,6 +469,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-corner-mark,
   button.lf-fp-face
 ) {
+  --lf-face-floor: auto;
   position: relative;
   &::after {
     content: "";

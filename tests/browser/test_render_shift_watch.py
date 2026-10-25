@@ -2201,6 +2201,40 @@ def test_native_shift_evidence_survives_a_controlled_timer_clock(browser):
     consume_browser_errors(page, moved_within("textarea#field", by=[0, 40]))
 
 
+def test_a_media_change_announces_its_reading_before_its_event(browser):
+    """A media preference can change clipping without moving an outer box or
+    delivering a layout-shift entry. Its current value must refresh the reading even
+    before the query's change event reaches the watch."""
+    context = browser.new_context(forced_colors="none")
+    context.add_init_script("""(() => {
+      window.mediaHoldFirst = window.lfShiftsJudged === undefined;
+      const original = window.matchMedia;
+      window.matchMedia = function (...args) {
+        const query = original.apply(this, args);
+        query.addEventListener('change', event => event.stopImmediatePropagation());
+        return query;
+      };
+    })()""")
+    page = context.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            "<!doctype html><style>button {box-sizing:border-box;width:100px;"
+            "height:40px;border:0 solid transparent}"
+            "@media (forced-colors:active) {button {border-width:2px}}"
+            '</style><button id="control">Control</button>'
+        )
+    )
+    paint(page)
+    assert page.evaluate("mediaHoldFirst")
+    before = page.locator("#control").bounding_box()
+    page.emulate_media(forced_colors="active")
+    assert page.locator("#control").evaluate("node => node.clientLeft") == 2
+    assert page.locator("#control").bounding_box() == before
+    judge_watches()
+    assert take_browser_errors(page) == []
+
+
 @pytest.mark.parametrize("presentation", ["resize", "print", "color-scheme"])
 def test_a_native_presentation_change_seals_typing_before_its_layout(
     browser, presentation

@@ -74,9 +74,15 @@ const separateTranscript = (held) => {
 // area, including Send and Resolve; an oversized editor reveals only its control.
 // scrollIntoView(nearest) on a card spanning both edges otherwise moves nothing, and
 // so does one aimed at a pinned reply row, so a long thread with one lands its end.
+// A control inside the thread that the user already sees stays where it is, as a
+// summary's Show or Hide does: bringing the rest of the thread into view would carry
+// it from under their aim (browser/AGENTS.md, "Stability"). A reply row pinned to its
+// scroller's foot stays put whatever lands, so its landing still shows the thread's end.
 const landingTarget = (held, control) => {
-  if (fitsWhole(held)) return { node: held };
   const reply = replyRowOf(held, control);
+  if (control !== held && !replyPinned(reply) && alreadyShown(control))
+    return { node: null };
+  if (fitsWhole(held)) return { node: held };
   // The thread itself, landed as a whole, is not a way into its pinned reply.
   if (replyPinned(reply))
     return control === held ? { node: null } : { node: held, block: "end" };

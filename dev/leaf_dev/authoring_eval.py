@@ -81,6 +81,12 @@ def capture_evidence(
     }
 
 
+def leaf_command(call: dict) -> str:
+    """The command line a tool call ran: a shell's `command`, or the arguments of
+    Codex's `leaf` MCP tool, which runs a Leaf command without a shell."""
+    return str(call.get("command") or " ".join(map(str, call.get("args", []))))
+
+
 def check_log(trace: list[dict]) -> list[dict]:
     """Each tool call the author made, in order and whole, with the whole output of
     its page checks, so a reader can tell what a check reported and whether a later
@@ -97,7 +103,7 @@ def check_log(trace: list[dict]) -> list[dict]:
         if block.get("type") != "tool_use":
             continue
         entry = {"tool": block["name"], "input": block["input"]}
-        if "page check" in str(block["input"].get("command", "")):
+        if "page check" in leaf_command(block["input"]):
             output = results.get(block["id"])
             if isinstance(output, list):
                 output = "\n".join(part.get("text", "") for part in output)

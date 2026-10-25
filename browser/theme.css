@@ -1299,12 +1299,13 @@
   --sp-2: 8px;
   --sp-3: 16px;
   --sp-4: 24px;
+  --sp-5: 32px;
   --aim-floor: 24px;
   --lf-line: 32px;
   --lf-reach-room: max(0px, (var(--aim-floor) - var(--lf-line)) / 2);
   --entry-floor: 0px;
   --margin-entry: max(32px, var(--aim-floor));
-  --corner-mark: 20px;
+  --mark-size: 20px;
   --pin-inset: 4px;
   --margin-gap: 4px;
   --rail-hang: 22px;
@@ -1413,6 +1414,8 @@
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
+  --mark-contour-w: 1.5px;
+  --mark-contour-ink: color-mix(in srgb, var(--accent) 72%, var(--paper));
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
@@ -1719,7 +1722,7 @@ h3 {
   margin: var(--h3-start) 0 8px;
   text-wrap: balance;
 }
-@container style(--lf-wide-page: 1) {
+@container style(--lf-wide-page: 1) and (not style(--lf-density: working)) {
   h1 {
     font-size: clamp(36px, 3.2cqi, 46px);
     font-weight: 700;
@@ -1739,6 +1742,7 @@ p {
 }
 .density-working {
   --lf-density: working;
+  --page-pad-start: 28px;
   --t-1: 22px;
   --t-2: 18px;
   --t-3: 15.5px;
@@ -1750,6 +1754,7 @@ p {
   --sp-2: 6px;
   --sp-3: 10px;
   --sp-4: 14px;
+  --sp-5: 18px;
   --code-size: 12px;
   --code-line: 17px;
   --pane-bar-pad: 6px 12px;
@@ -1831,7 +1836,8 @@ dd {
 figcaption,
 caption,
 th:not([scope=row]),
-.facts dt {
+.facts dt,
+summary {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }

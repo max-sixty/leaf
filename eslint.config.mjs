@@ -1340,8 +1340,9 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
-    // Initial sources are compiled to self-contained scripts. Sharing these pure SVG paths adds no
-    // private runtime dependency to the package shipped to a page.
+    // Initial sources are compiled to self-contained scripts. Sharing these pure SVG paths
+    // and the time axis's geometry adds no private runtime dependency to the package
+    // shipped to a page.
     files: ["packages/*/initial/*.js"],
     rules: {
       "no-restricted-imports": [
@@ -1353,7 +1354,8 @@ export default [
               pattern.regex === "^\\.{1,2}/(?:.*/)?runtime/"
                 ? {
                     ...pattern,
-                    regex: "^\\.{1,2}/(?:.*/)?runtime/(?!motion-icon-paths\\.js$)",
+                    regex:
+                      "^\\.{1,2}/(?:.*/)?runtime/(?!(?:motion-icon-paths|time-axis)\\.js$)",
                   }
                 : pattern,
           ),
@@ -1587,6 +1589,9 @@ export default [
           "browser/runtime/composing/text-field.js",
           // The shared CodeMirror adapter places its own native editor.
           "browser/runtime/editor-view.js",
+          // A held release stands in for the browser's own press, so it focuses the
+          // control as that press does, ringless; focus.js reads it as the press's.
+          "browser/runtime/held-word.js",
         ],
       ],
       "architecture/open-layers": [

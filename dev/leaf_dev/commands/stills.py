@@ -1077,6 +1077,21 @@ def aim_cut_by_pane(page: Page) -> None:
     )
 
 
+def table_scrolled_sideways(page: Page) -> None:
+    """A table whose rows open with their names, scrolled to its far end on a phone."""
+    page.locator("#security-deep-record > summary").click()
+    page.locator("#security-vendor-table").evaluate(
+        """table => {
+          table.scrollIntoView({block: 'center'});
+          table.scrollLeft = table.scrollWidth;
+        }"""
+    )
+    page.wait_for_function(
+        "() => document.getElementById('security-vendor-table')"
+        ".hasAttribute('data-lf-more-before')"
+    )
+
+
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
@@ -2099,6 +2114,21 @@ STATES = (
         "security-boundary",
         steps_in_view,
         region="#security-contract-list",
+    ),
+    State(
+        "table-scrolled-phone",
+        "security-boundary",
+        table_scrolled_sideways,
+        viewport=(390, 844),
+        region="#security-vendor-table",
+    ),
+    State(
+        "table-scrolled-phone-dark",
+        "security-boundary",
+        table_scrolled_sideways,
+        viewport=(390, 844),
+        scheme="dark",
+        region="#security-vendor-table",
     ),
     State(
         "alert-options-in-pane-touch",

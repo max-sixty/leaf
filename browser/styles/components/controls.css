@@ -374,7 +374,10 @@ svg[data-lf-icon] {
  * its descendants, so a playground's preview, whose cards fill it to the edge, showed
  * none of it. A widget whose content reads otherwise states how wide the fade is
  * (--lf-more-fade, 24px) and how much of the content is left at the edge
- * (--lf-more-fade-to, none); lf-diagram's theme does, for a drawing.
+ * (--lf-more-fade-to, none); lf-diagram's theme does, for a drawing. A box whose start
+ * stands still while the rest scrolls under it, as a table's row names do (reading.css),
+ * fades nothing there (--lf-more-fade-start, 0px), since what stands at that edge is
+ * whole, and marks where the scrolled content passes under it itself.
  *
  * Each axis states its gradient's stops in a property no box inherits, so a nested
  * scroller fades only where it is cut itself, and one rule intersects the two gradients,
@@ -399,26 +402,41 @@ svg[data-lf-icon] {
 @media screen {
   [data-lf-more-after]:where(
     [data-lf-scroll-direction="ltr"]:not([data-lf-more-before])
-  ),
-  [data-lf-more-before]:where(
-    [data-lf-scroll-direction="rtl"]:not([data-lf-more-after])
   ) {
     --lf-more-across:
       #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-before]:where(
+    [data-lf-scroll-direction="rtl"]:not([data-lf-more-after])
+  ) {
+    --lf-more-across:
+      #000 calc(100% - var(--lf-more-fade-start, var(--lf-more-fade, 24px))),
+      var(--lf-more-fade-to, transparent);
+  }
+  [data-lf-more-before]:where(
     [data-lf-scroll-direction="ltr"]:not([data-lf-more-after])
-  ),
+  ) {
+    --lf-more-across:
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade-start, var(--lf-more-fade, 24px));
+  }
   [data-lf-more-after]:where(
     [data-lf-scroll-direction="rtl"]:not([data-lf-more-before])
   ) {
     --lf-more-across:
       var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px);
   }
-  [data-lf-more-before][data-lf-more-after] {
+  [data-lf-more-before][data-lf-more-after]:where([data-lf-scroll-direction="ltr"]) {
+    --lf-more-across:
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade-start, var(--lf-more-fade, 24px)),
+      #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
+  }
+  [data-lf-more-before][data-lf-more-after]:where([data-lf-scroll-direction="rtl"]) {
     --lf-more-across:
       var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px),
-      #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
+      #000 calc(100% - var(--lf-more-fade-start, var(--lf-more-fade, 24px))),
+      var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-below] {
     --lf-more-down:

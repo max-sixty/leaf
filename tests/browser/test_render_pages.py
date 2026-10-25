@@ -1794,6 +1794,48 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction):
+    """A table whose rows open with a `<th scope="row">` keeps that column at its start
+    as the other columns scroll sideways, the heading over the names with it, and the
+    names paint over the columns passing under them. An overnight dashboard's table
+    scrolled its run names away, leaving values no reader could place."""
+    cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
+    heads = "".join(f"<th>Measure {i}</th>" for i in range(8))
+    rows = "".join(
+        f'<tr><th scope="row" id="name-{n}">run {n}</th>{cells}</tr>' for n in range(3)
+    )
+    body = (
+        "<h1>Runs</h1>"
+        f'<table id="runs"><thead><tr><th id="corner">Run</th>{heads}</tr></thead>'
+        f"<tbody>{rows}</tbody></table>"
+    )
+    source = leaf_page("Runs", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    table = page.locator("#runs")
+    assert table.evaluate("t => t.scrollWidth > t.clientWidth")
+    table.evaluate(
+        "(t, x) => { t.scrollLeft = x; }", -10_000 if direction == "rtl" else 10_000
+    )
+    rendered(page)
+    at = table.evaluate("""t => {
+      const box = t.getBoundingClientRect();
+      const start = getComputedStyle(t).direction === 'rtl' ? 'right' : 'left';
+      return [...t.querySelectorAll('tr > :first-child')].map(c => {
+        const r = c.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return {id: c.id, offset: Math.abs(r[start] - box[start]), on_top: c.contains(hit)};
+      });
+    }""")
+    assert [cell["id"] for cell in at] == ["corner", "name-0", "name-1", "name-2"]
+    for cell in at:
+        assert cell["offset"] <= 0.5, at
+        assert cell["on_top"], at
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_what_an_outer_column_draws_outside_itself_stays_whole(
     browser, serve, direction
 ):

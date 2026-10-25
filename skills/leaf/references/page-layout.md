@@ -77,11 +77,9 @@ verdict and file list stay beside the code. The region kept in view is the `asid
     <p class="lede">…</p>
   </header>
   <aside id="status">
-    <div class="overview">
-      <lf-toc id="contents"></lf-toc>
-      <p>…</p>
-      <!-- short verdict or status -->
-    </div>
+    <lf-toc id="contents"></lf-toc>
+    <p>…</p>
+    <!-- short verdict or status -->
   </aside>
   <div id="body">…</div>
   <!-- document and supporting evidence -->
@@ -97,9 +95,12 @@ such as a dashboard's log; it then sits on the right. Stack the regions inside t
 and inside the `aside`, so every region shares the same two vertical edges, rather than
 splitting each row anew.
 
-Put everything the `aside` holds in one block, as the `div` above does. While the two
-sit side by side, Leaf keeps that block in view at the window's top as the body scrolls.
-Write no `position`, `top`, height or overflow for it.
+While the two sit side by side, Leaf keeps everything the `aside` holds in view at the
+window's top as the body scrolls, however many blocks it is, and scrolls it within the
+window when it is taller. Write no `position`, `top`, height or overflow for the `aside`
+or its blocks. Leaf does this by gathering the blocks into a box of its own inside the
+`aside`, so a rule that names the `aside`'s children, such as `aside > p`, no longer
+reaches them: write `aside p`, or name the block by its class or id.
 
 ## A workspace
 

@@ -144,11 +144,11 @@ def shift_watch_source():
             "--input-type=module",
             "--eval",
             (
-                'import { WORKS, PRESSES } from "./browser/runtime/control-selectors.js";'
+                'import { WORKS, PRESSES, CARET_KEYS } from "./browser/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./browser/runtime/rect.js";'
                 'import { elementAxes, scrollAxes } from "./browser/runtime/element-frame.js";'
                 'import { shadowHost, upFrom, renderedParent } from "./browser/runtime/shadow.js";'
-                "process.stdout.write(JSON.stringify([WORKS,PRESSES,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
+                "process.stdout.write(JSON.stringify([WORKS,PRESSES,CARET_KEYS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],
         cwd=ROOT,
@@ -158,6 +158,7 @@ def shift_watch_source():
     (
         interactive,
         presses,
+        caret_keys,
         clipping,
         host,
         parent,
@@ -171,10 +172,10 @@ def shift_watch_source():
         + "const nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
         + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, pressControls, clippingAxes) => {{\n"
+        + f"((interactive, pressControls, caretKeys, clippingAxes) => {{\n"
         f"const shadowHost = {host};\nconst upFrom = {parent};\n"
         f"const renderedParent = {rendered_parent};\nconst elementAxes = {element_axes};\nconst scrollAxes = {axes};\n"
-        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {clipping});"
+        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {json.dumps(caret_keys)}, {clipping});"
     )
 
 
@@ -2359,11 +2360,11 @@ def any_suggestion_control(scope, key: str | None = None, *, visible=True):
 
 
 def command_reference_rows(page, heading):
-    """The rows of the command reference table titled `heading`."""
+    """The rows of the command reference section titled `heading`."""
     heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
         "id"
     )
-    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
+    return page.locator(f'[role=rowgroup][aria-labelledby="{heading_id}"]')
 
 
 # The page shell's box on screen: where the document's room starts and ends. The runtime
@@ -2569,6 +2570,13 @@ def root_overflow(page) -> float:
     return render_checks_model.evaluate_probe(page, "rootOverflow")
 
 
+def painted_words(page, selector: str) -> list[dict]:
+    """Where the words under `selector` are painted, as the render gate reads them
+    (`paintedWords`): one `{left, top, right, bottom, text}` per run, each cut to what
+    the boxes holding it show, so a word said only to a screen reader hides nothing."""
+    return render_checks_model.evaluate_probe(page, "paintedWords", selector)
+
+
 def hold_selection(page, start, end, steps=8, frame_the_press=False):
     """Drag a selection without releasing, pressing on a whole pixel.
 
@@ -2758,16 +2766,17 @@ def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
 
 
 def scroll_followers(writes, frames=None):
-    """The places a scroll writes on more than two of its steps, or on more than a
-    third of a gesture's `frames`, as findings.
+    """The places a scroll writes on more than two of its `frames`, a gesture's frames
+    or a pass's steps, and on more than a third of them, as findings.
 
-    A state the scroll changes crosses a small pass at most once each way, while a
-    position written from scroll events is written on every step, a frame behind the
+    A position written from scroll events is written on every step, a frame behind the
     browser, which carries a box that CSS lays out (an anchor, a sticky offset, a scroll
-    timeline) with the scroll itself. A gesture takes as many frames as its speed gives
-    it, and crosses more as it goes further, as a tag steps clear of each neighbour
-    crossing beside it, so it is allowed a share of them. A write that changes nothing needs no reading here: the browser fixture
-    fails it wherever it happens (`write_watch.js`)."""
+    timeline) with the scroll itself. A state the scroll changes is written only where
+    the scroll crosses it, and a scroll crosses more as it goes further, as a section
+    shorter than a pass is current once each way for each of its two edges, or a tag
+    steps clear of each neighbour crossing beside it, so the scroll is allowed a share
+    of its frames. A write that changes nothing needs no reading here: the browser
+    fixture fails it wherever it happens (`write_watch.js`)."""
     places = {}
     for w in writes:
         places.setdefault(w["key"], []).append(w)

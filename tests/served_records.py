@@ -300,7 +300,7 @@ def build() -> dict:
 # a start's line stays current for (`activity.WORKING_GRACE`).
 HELD = {
     **UNCLAIMED,
-    "status": {"state": "working", "detail": "", "ts": NOW},
+    "status": {"state": "working", "ts": NOW},
     "listening": True,
     "session_alive": True,
     "claim_session": "served-records",

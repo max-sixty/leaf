@@ -16,7 +16,7 @@ from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 
 # ---------- anchors written without a browser ----------
-# `leaf thread open` writes an anchor by reading the mapped revision; the runtime
+# `leaf thread create` writes an anchor by reading the mapped revision; the runtime
 # resolves it against the DOM that revision becomes. Nothing static can check that those
 # two readings agree, and every way they can come apart — a widget's upgrade, an
 # attribute rendered as text, the space a block boundary stands for — only exists
@@ -24,7 +24,7 @@ from leaf.structure import SourceDocument
 
 
 def written_anchors(page_dir, html, limit=40):
-    """Anchors `leaf thread open` would write for windows over a page's own prose. A
+    """Anchors `leaf thread create` would write for windows over a page's own prose. A
     window the page says twice, or one crossing a fence, is refused on purpose —
     skipping those here is that refusal, and what survives is exactly what the command
     promises to place."""

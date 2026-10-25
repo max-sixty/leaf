@@ -1,8 +1,8 @@
 import { J, LitElement, PENDING, W, Z, actionForWidget, anchorKey, bindQueuedWork, d, discussed, editable, foldWidgetStates, isMessageEvent, isThreadEvent, moved, obligationValue, projectionOrigins, q, reactionsAt, render, stateCoordinate, threadKey, tokenChoices, turns, x } from "./bundle-browser-runtime.js";
 import { PRESSES, TEXT_BOX, TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextAnimation, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readCaret, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom, whenLeft } from "./bundle-dom-move.js";
-import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, TEXT_ENTRY, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, claimsEsc, clamp, clippedContents, clippedPlace, clipsPastSurfaces, closeNativeLayer, commandAvailable, commandRoutes, completeData, countTraffic, cycledRow, dataHeaders, el, frameFor, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, labelOf, landingBand, landingInsets, layerHeaders, layoutChanged, layoutWindow, live, matchesWhen, notice, offer, paintKeys, paintKeysWithin, placeBox, placeHolder, pointerAt, postEvent, presented, pruneScopedElements, raiseError, randomId, recordInteraction, registry, repaint, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal as reveal$1, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, seenRect, sessionIsActive, setRuntimeRootAttribute, shadowRootsIn, showNativeLayer, shownBox, shownWindow, skipped, spell, tagsDeclaring, union, watchOwner, watchPendingTraffic, watchRoom, whenNone, whileConnected, word } from "./bundle-layer-client.js";
+import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, TEXT_ENTRY, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, claimsEsc, clamp, clippedContents, clippedPlace, clipsPastSurfaces, closeNativeLayer, commandAvailable, commandRoutes, completeData, countTraffic, cycledRow, dataHeaders, el, frameFor, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, labelOf, landingBand, landingInsets, layerHeaders, layoutChanged, layoutWindow, live, matchesWhen, notice, offer, paintKeys, paintKeysWithin, placeBox, placeHolder, pointerAt, postEvent, presented, pruneScopedElements, raiseError, randomId, recordInteraction, registry, repaint, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, seenRect, sessionIsActive, setRuntimeRootAttribute, shadowRootsIn, showNativeLayer, shownBox, shownWindow, skipped, spell, tagsDeclaring, union, watchOwner, watchPendingTraffic, watchRoom, whenNone, whileConnected, word } from "./bundle-layer-client.js";
 import { LIVE_ROOT, PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, layerRoot, offlineData, offlineInteractive, offlineState, pageUrl, presentDocument, projectView, queueWidgetUpdate, readApplication, readPart, revisionLabel, runtime, setPresentationFailureReporter, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
-import { activityTransitionDue, ago, chosenSince, containingReadingRegionFor, effectiveScroller, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageScroller, placeKept, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, settlePageInterface, shownRegionBounds, stopScroll, tickClock, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
+import { activityTransitionDue, afterPresentation, ago, chosenSince, containingReadingRegionFor, effectiveScroller, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageScroller, placeKept, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, settlePageInterface, shownRegionBounds, stopScroll, tickClock, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { DATUM, TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageDocument, pageParts, pageRange, pageReadingVersion, quoteFrom, rangeOf, readingFrom, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
 import { ADDRESSABLE, addressableLabel, addressableWord, addressedElements, anchorForRange, anchoringIsReady, fragmentTarget, resolveAnchor, revealAddressed, sectionOf, targetElement, targetPlace, targetSegments, visualPartLabel, widgetWord } from "./bundle-css-anchors.js";
 import { authoredBody, initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
@@ -13,7 +13,6 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "./bundle-media.js";
 import { createProjectionPresentation } from "./bundle-presentation.js";
 import { KINDS, activateContributionControl, annotationItems, clearContributionControls, compareContributions, contributionControlKey, contributionEntries, contributionEntryRecord, contributionSource, entryControls, marginInventory, materializeContributionControls, presentContributionReceipts, presentingContributions, registerContribution, spokenSubject, threadMarks, watchContributions } from "./bundle-margin-model.js";
 import { PAGE_CONTROL_RANK, commitPoint, livePoint, registerPageControl, settleMarginContentLayout, visibleTargetParts } from "./bundle-visible-target-parts.js";
-import { Compartment, Decoration, Direction, EditorState, EditorView, LanguageSupport, StateEffect, ViewPlugin, WidgetType, history as history$1, historyKeymap, insertNewlineContinueMarkup, invertedEffects, isolateHistory, keymap, markdownLanguage, standardKeymap } from "/vendor/codemirror.esm.js";
 
 //#region runtime/document-identity.js
 const servedRevision = document.querySelector("meta[name=\"lf-revision\"][data-lf-runtime]")?.content;
@@ -635,104 +634,536 @@ function travel(start, end, low, high, alignment, margin, side) {
 	if (alignment === "center" && end - start <= high - low) return (start + end - low - high) / 2;
 	return alignment === "start" || alignment === "center" && side < 0 ? start - low - margin : end - high + margin;
 }
-function caretAt(view, at) {
-	const position = view.domAtPos(at);
-	const caret = document.createRange();
-	caret.setStart(position.node, position.offset);
-	caret.collapse(true);
-	if (caret.getClientRects().length) return {
-		destination: caret,
-		rectangle: caret.getBoundingClientRect()
-	};
-	const destination = position.node instanceof Element ? position.node : position.node.parentElement;
-	const box = destination.getBoundingClientRect();
-	const x = view.textDirection === Direction.LTR ? box.left : box.right;
-	return {
-		destination,
-		rectangle: {
-			left: x,
-			right: x,
-			top: box.top,
-			bottom: box.bottom
+const classes = /* @__PURE__ */ new WeakMap();
+function leafEditorView(codemirror) {
+	let made = classes.get(codemirror);
+	if (!made) classes.set(codemirror, made = editorViewOver(codemirror));
+	return made;
+}
+function editorViewOver({ Compartment, Direction, EditorState, EditorView, StateEffect }) {
+	function caretAt(view, at) {
+		const position = view.domAtPos(at);
+		const caret = document.createRange();
+		caret.setStart(position.node, position.offset);
+		caret.collapse(true);
+		if (caret.getClientRects().length) return {
+			destination: caret,
+			rectangle: caret.getBoundingClientRect()
+		};
+		const destination = position.node instanceof Element ? position.node : position.node.parentElement;
+		const box = destination.getBoundingClientRect();
+		const x = view.textDirection === Direction.LTR ? box.left : box.right;
+		return {
+			destination,
+			rectangle: {
+				left: x,
+				right: x,
+				top: box.top,
+				bottom: box.bottom
+			}
+		};
+	}
+	function placeWithinEditor(view, selection, options, head) {
+		const rectangle = union(selection.empty ? [head] : [head, caretAt(view, selection.anchor).rectangle]);
+		const margins = {
+			top: 0,
+			bottom: 0,
+			left: 0,
+			right: 0
+		};
+		for (const provider of view.state.facet(EditorView.scrollMargins)) {
+			const supplied = provider(view);
+			if (supplied) for (const edge of Object.keys(margins)) margins[edge] = Math.max(margins[edge], supplied[edge] ?? 0);
+		}
+		const port = view.scrollDOM;
+		const box = port.getBoundingClientRect();
+		const { scaleX, scaleY } = view;
+		const left = box.left + port.clientLeft * scaleX;
+		const top = box.top + port.clientTop * scaleY;
+		const right = left + port.clientWidth * scaleX;
+		const bottom = top + port.clientHeight * scaleY;
+		const side = selection.head < selection.anchor ? -1 : 1;
+		const horizontal = view.textDirection === Direction.RTL ? options.x === "start" ? "end" : options.x === "end" ? "start" : options.x : options.x;
+		const xMargin = clamp(options.xMargin, -port.offsetWidth, port.offsetWidth);
+		const yMargin = clamp(options.yMargin, -port.offsetHeight, port.offsetHeight);
+		const x = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(rectangle.left - margins.left, rectangle.right + margins.right, left, right, horizontal, xMargin, side);
+		const y = travel(rectangle.top - margins.top, rectangle.bottom + margins.bottom, top, bottom, options.y, yMargin, side);
+		port.scrollBy({
+			left: port.scrollWidth > port.clientWidth ? x / scaleX : 0,
+			top: port.scrollHeight > port.clientHeight ? y / scaleY : 0,
+			behavior: "instant"
+		});
+	}
+	const navigation = new Compartment();
+	const reveal = EditorView.scrollHandler.of((view, selection, options) => {
+		const { destination, rectangle } = caretAt(view, selection.head);
+		placeWithinEditor(view, selection, options, rectangle);
+		scrollIntoView(destination, {
+			block: "nearest",
+			behavior: "instant"
+		});
+		return true;
+	});
+	const withNavigation = (state) => navigation.get(state) === void 0 ? state.update({ effects: StateEffect.appendConfig.of(navigation.of(reveal)) }).state : state;
+	return class LeafEditorView extends EditorView {
+		constructor(config = {}) {
+			super({
+				...config,
+				state: withNavigation(config.state ?? EditorState.create(config))
+			});
+			this.scrollDOM.classList.add("scroll");
+			this.contentDOM.addEventListener("focus", () => this.placeSelection());
+		}
+		setState(state) {
+			super.setState(withNavigation(state));
+		}
+		focus() {
+			if (!canPlaceFocus()) return;
+			const selection = this.#selection();
+			if (this.root.activeElement !== this.contentDOM && selection.getComposedRanges({ shadowRoots: this.root instanceof ShadowRoot ? [this.root] : [] }).some((range) => this.contentDOM.contains(range.startContainer) || this.contentDOM.contains(range.endContainer))) selection.removeAllRanges();
+			this.contentDOM.focus({ preventScroll: true });
+			this.placeSelection();
+		}
+		placeSelection() {
+			if (this.root.activeElement !== this.contentDOM) return;
+			const { anchor, head } = this.state.selection.main;
+			const from = this.domAtPos(anchor);
+			const to = this.domAtPos(head);
+			this.#selection().setBaseAndExtent(from.node, from.offset, to.node, to.offset);
+		}
+		#selection() {
+			return this.root.getSelection?.() ?? this.dom.ownerDocument.getSelection();
 		}
 	};
 }
-function placeWithinEditor(view, selection, options, head) {
-	const rectangle = union(selection.empty ? [head] : [head, caretAt(view, selection.anchor).rectangle]);
-	const margins = {
-		top: 0,
-		bottom: 0,
-		left: 0,
-		right: 0
-	};
-	for (const provider of view.state.facet(EditorView.scrollMargins)) {
-		const supplied = provider(view);
-		if (supplied) for (const edge of Object.keys(margins)) margins[edge] = Math.max(margins[edge], supplied[edge] ?? 0);
-	}
-	const port = view.scrollDOM;
-	const box = port.getBoundingClientRect();
-	const { scaleX, scaleY } = view;
-	const left = box.left + port.clientLeft * scaleX;
-	const top = box.top + port.clientTop * scaleY;
-	const right = left + port.clientWidth * scaleX;
-	const bottom = top + port.clientHeight * scaleY;
-	const side = selection.head < selection.anchor ? -1 : 1;
-	const horizontal = view.textDirection === Direction.RTL ? options.x === "start" ? "end" : options.x === "end" ? "start" : options.x : options.x;
-	const xMargin = clamp(options.xMargin, -port.offsetWidth, port.offsetWidth);
-	const yMargin = clamp(options.yMargin, -port.offsetHeight, port.offsetHeight);
-	const x = horizontal === "center" ? (rectangle.left - margins.left + rectangle.right + margins.right - left - right) / 2 : travel(rectangle.left - margins.left, rectangle.right + margins.right, left, right, horizontal, xMargin, side);
-	const y = travel(rectangle.top - margins.top, rectangle.bottom + margins.bottom, top, bottom, options.y, yMargin, side);
-	port.scrollBy({
-		left: port.scrollWidth > port.clientWidth ? x / scaleX : 0,
-		top: port.scrollHeight > port.clientHeight ? y / scaleY : 0,
-		behavior: "instant"
-	});
-}
-const navigation = new Compartment();
-const reveal = EditorView.scrollHandler.of((view, selection, options) => {
-	const { destination, rectangle } = caretAt(view, selection.head);
-	placeWithinEditor(view, selection, options, rectangle);
-	scrollIntoView(destination, {
-		block: "nearest",
-		behavior: "instant"
-	});
-	return true;
-});
-const withNavigation = (state) => navigation.get(state) === void 0 ? state.update({ effects: StateEffect.appendConfig.of(navigation.of(reveal)) }).state : state;
-var LeafEditorView = class extends EditorView {
-	constructor(config = {}) {
-		super({
-			...config,
-			state: withNavigation(config.state ?? EditorState.create(config))
-		});
-		this.scrollDOM.classList.add("scroll");
-		this.contentDOM.addEventListener("focus", () => this.placeSelection());
-	}
-	setState(state) {
-		super.setState(withNavigation(state));
-	}
-	focus() {
-		if (!canPlaceFocus()) return;
-		const selection = this.#selection();
-		if (this.root.activeElement !== this.contentDOM && selection.getComposedRanges({ shadowRoots: this.root instanceof ShadowRoot ? [this.root] : [] }).some((range) => this.contentDOM.contains(range.startContainer) || this.contentDOM.contains(range.endContainer))) selection.removeAllRanges();
-		this.contentDOM.focus({ preventScroll: true });
-		this.placeSelection();
-	}
-	placeSelection() {
-		if (this.root.activeElement !== this.contentDOM) return;
-		const { anchor, head } = this.state.selection.main;
-		const from = this.domAtPos(anchor);
-		const to = this.domAtPos(head);
-		this.#selection().setBaseAndExtent(from.node, from.offset, to.node, to.offset);
-	}
-	#selection() {
-		return this.root.getSelection?.() ?? this.dom.ownerDocument.getSelection();
-	}
+
+//#endregion
+//#region runtime/composing/field-editor.js
+const touches = (state, from, to) => state.selection.ranges.some((range) => range.from <= to && range.to >= from);
+const read = (state) => {
+	return placedMarkdownTokens(state.doc.toString());
 };
+const FACE_PROBE = "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre><blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
+const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
+const GAP = "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
+function readFaces(field, display) {
+	const probe = display.cloneNode(false);
+	probe.removeAttribute("id");
+	probe.setAttribute("aria-hidden", "true");
+	probe.style.cssText = "position: absolute; visibility: hidden; inline-size: 0; display: block";
+	probe.innerHTML = FACE_PROBE;
+	field.after(probe);
+	const face = {};
+	const own = getComputedStyle(field);
+	const TYPE = [
+		"font-size",
+		"line-height",
+		"font-weight",
+		"letter-spacing"
+	];
+	for (const node of probe.querySelectorAll(":scope > :not(div), li + li")) {
+		const s = getComputedStyle(node);
+		const px = (value) => Number.parseFloat(value) || 0;
+		face[node.localName] = {
+			type: TYPE.filter((name) => s.getPropertyValue(name) !== own.getPropertyValue(name)).map((name) => `${name}: ${s.getPropertyValue(name)}`).join("; "),
+			start: px(s.marginTop),
+			end: px(s.marginBottom),
+			padStart: px(s.paddingTop),
+			padEnd: px(s.paddingBottom),
+			inset: s.paddingInlineStart,
+			indent: s.marginInlineStart
+		};
+	}
+	probe.remove();
+	const { li, pre, blockquote: quote } = face;
+	const rules = [];
+	for (const [tag, { type, start, end }] of Object.entries(face)) {
+		const list = tag === "ul" || tag === "ol";
+		rules.push(`.lf-face-${tag} { ${type} }`, `.lf-starts-${tag} { --lf-gap-start: ${list ? collapsed(start, li.start) : start}px }`, `.lf-ends-${tag} { --lf-gap-end: ${list ? collapsed(end, li.end) : end}px }`);
+	}
+	rules.push(`.lf-face-gap { line-height: ${GAP} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`, `.lf-face-rule { line-height: 0 }`, `.lf-face-gap-above { padding-block-start: ${GAP} }`, `.lf-face-fence-open { line-height: ${pre.padStart}px }`, `.lf-face-fence-close { line-height: ${pre.padEnd}px }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; padding-inline-start: ${quote.inset}; --lf-marker-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
+	return rules.join("\n");
+}
+const blockTag = (token) => token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
+function standBlocks(state, placed, out, line) {
+	const lines = (from, to, each) => {
+		for (let at = from; at < to;) {
+			const current = state.doc.lineAt(at);
+			each(current);
+			at = current.to + 1;
+		}
+	};
+	const named = (from, cls) => out.push(line(cls).range(from));
+	const gapLines = (from, to, gap) => {
+		const runs = state.doc.lineAt(to).number - state.doc.lineAt(from).number;
+		const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
+		lines(from, to, (each) => named(each.from, `lf-face-gap${share} ${gap}`));
+	};
+	const lineTouched = (at) => {
+		const { from, to } = state.doc.lineAt(at);
+		return touches(state, from, to);
+	};
+	const before = [];
+	const open = [];
+	let item = null;
+	const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
+	for (const { token, from, to, markers, contentLines } of placed) {
+		if (!token.block) continue;
+		const tag = blockTag(token);
+		if (token.type === "heading_open") {
+			lines(...contentLines, (each) => named(each.from, `lf-face-${tag}`));
+			if (!token.markup.startsWith("#")) {
+				for (const [at] of markers) if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
+			}
+		} else if (token.type === "fence" || token.type === "code_block") {
+			lines(from, to, (each) => named(each.from, "lf-face-code"));
+			const opener = state.doc.lineAt(from).number;
+			for (const [at] of token.type === "fence" ? markers : []) {
+				const fence = state.doc.lineAt(at);
+				if (lineTouched(at)) continue;
+				const side = fence.number === opener ? "open" : "close";
+				named(fence.from, `lf-face-fence-${side}`);
+			}
+		}
+		while (open.at(-1)?.to <= from) before.length = open.pop().level + 1;
+		const within = open.at(-1)?.type;
+		if (token.type === "list_item_open" && within !== "list_item_open") {
+			if (item?.to === from) named(from, "lf-face-item");
+			item = { to };
+		}
+		if (/^(blockquote|bullet_list|ordered_list|list_item)_open$/.test(token.type)) open.push({
+			type: token.type,
+			to,
+			level: token.level
+		});
+		if (token.type === "list_item_open" || within === "list_item_open") continue;
+		const level = token.level;
+		if (!FACE_PROBE.includes(`<${tag}>`)) {
+			before[level] = null;
+			continue;
+		}
+		const list = tag === "ul" || tag === "ol";
+		if (list && from === 0) named(0, "lf-face-list-lead");
+		if (list && to >= state.doc.length) named(state.doc.lineAt(state.doc.length).from, "lf-face-list-tail");
+		const prior = before[level];
+		const gap = `lf-ends-${prior?.tag} lf-starts-${tag}`;
+		if (prior && prior.to < from) gapLines(prior.to, from, gap);
+		else if (prior) named(from, `lf-face-gap-above ${gap}`);
+		let end = to;
+		while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
+		before[level] = {
+			tag,
+			to: end
+		};
+		before.length = level + 1;
+		if (token.type === "paragraph_open" && level === 0) lines(from, to, (each) => named(each.from, "lf-face-p"));
+		else if (token.type === "blockquote_open" && level === 0) {
+			lines(from, end, (each) => named(each.from, "lf-face-quote"));
+			named(from, "lf-face-quote-first");
+			named(state.doc.lineAt(Math.max(from, end - 1)).from, "lf-face-quote-last");
+		}
+	}
+	const last = state.doc.line(state.doc.lines);
+	const final = before[0];
+	if (final && final.to < last.from) gapLines(final.to, last.from, `lf-ends-${final.tag} lf-starts-p`);
+}
+let loaded = null;
+const loadFieldEditor = () => loaded ??= import("/vendor/codemirror.esm.js").then((codemirror) => fieldEditor(codemirror, leafEditorView(codemirror)));
+function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, WidgetType, Decoration, LanguageSupport, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects, markdownLanguage, insertNewlineContinueMarkup }, LeafEditorView) {
+	const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
+	const ownerStep = StateEffect.define();
+	const hide = Decoration.replace({});
+	const dim = Decoration.mark({ class: "lf-md-mark" });
+	const link = Decoration.mark({ class: "lf-md-link" });
+	const unseen = Decoration.mark({
+		class: "lf-md-unseen",
+		attributes: { "aria-hidden": "true" }
+	});
+	const marker = Decoration.mark({
+		class: "lf-md-marker lf-md-unseen",
+		attributes: { "aria-hidden": "true" }
+	});
+	const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
+	const line = (cls) => Decoration.line({ class: cls });
+	const BULLETS = [
+		"lf-md-disc",
+		"lf-md-circle",
+		"lf-md-square"
+	];
+	const itemLine = (depth, kind, number) => Decoration.line({
+		class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
+		attributes: { style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}` }
+	});
+	const INLINE = {
+		code_inline: Decoration.mark({ tagName: "code" }),
+		em_open: Decoration.mark({ tagName: "em" }),
+		strong_open: Decoration.mark({ tagName: "strong" }),
+		s_open: Decoration.mark({ tagName: "s" })
+	};
+	class Picture extends WidgetType {
+		constructor(src, alt) {
+			super();
+			this.src = isCanonicalMediaUrl(src) ? scopedMediaUrl(src) : src;
+			this.alt = alt;
+		}
+		eq(other) {
+			return other.src === this.src && other.alt === this.alt;
+		}
+		toDOM(view) {
+			const img = document.createElement("img");
+			img.className = "lf-md-picture";
+			img.alt = this.alt;
+			img.src = this.src;
+			img.addEventListener("load", () => view.requestMeasure(), { once: true });
+			return img;
+		}
+		ignoreEvent() {
+			return false;
+		}
+	}
+	class ExternalMark extends WidgetType {
+		eq() {
+			return true;
+		}
+		toDOM() {
+			return document.documentElement.lfExternalLink.mark();
+		}
+	}
+	const externalMark = Decoration.widget({
+		widget: new ExternalMark(),
+		side: -1
+	});
+	const opensElsewhere = (href) => document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
+	function decorate(state, placed) {
+		const out = [];
+		const lists = [];
+		const items = /* @__PURE__ */ new Map();
+		const code = [];
+		const add = (from, to, deco) => {
+			if (from >= to) return;
+			if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
+			out.push(deco.range(from, to));
+		};
+		const lines = (from, to, each) => {
+			for (let at = from; at < to;) {
+				const current = state.doc.lineAt(at);
+				each(current);
+				at = current.to + 1;
+			}
+		};
+		for (const { token, from, to, contentFrom, contentTo, escapes, markers, contentLines, words: said } of placed) {
+			const syntax = touches(state, from, to) ? dim : hide;
+			if (token.type === "code_inline" || contentFrom !== void 0) {
+				const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
+				if (words[0] > words[1]) continue;
+				if (INLINE[token.type]) add(from, to, INLINE[token.type]);
+				else if (token.type === "link_open" && token.meta.linked) {
+					add(words[0], words[1], link);
+					if (opensElsewhere(token.attrGet("href"))) out.push(externalMark.range(words[1]));
+				}
+				add(from, words[0], syntax);
+				add(words[1], to, syntax);
+			} else if (token.type === "image") {
+				if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
+				const widget = new Picture(token.attrGet("src"), token.content);
+				out.push(touches(state, from, to) ? Decoration.widget({
+					widget,
+					side: 1
+				}).range(to) : Decoration.replace({ widget }).range(from, to));
+			} else if (token.type === "text") for (const at of escapes ?? []) add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
+			else if (token.type === "heading_open") {
+				lines(...contentLines, (each) => {
+					out.push(line("lf-md-heading").range(each.from));
+				});
+				for (const [a, b] of markers) {
+					const rule = state.doc.lineAt(a);
+					const shown = touches(state, rule.from, rule.to) ? dim : unseen;
+					add(a, b, token.markup.startsWith("#") ? syntax : shown);
+				}
+			} else if (token.type === "fence" || token.type === "code_block") {
+				code.push([from, to]);
+				const body = token.content.split("\n");
+				const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
+				lines(from, to, (each) => {
+					const ends = [
+						each.from <= from ? " lf-md-code-first" : "",
+						each.to + 1 >= to ? " lf-md-code-last" : "",
+						token.type === "code_block" ? " lf-md-code-bare" : ""
+					].join("");
+					out.push(line(`lf-md-code-block${ends}`).range(each.from));
+					const kept = body[each.number - opened];
+					if (kept === void 0 || each.number - opened >= body.length - 1) return;
+					const lead = each.text.match(/^[ \t]*/)[0].length;
+					add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
+				});
+				for (const [a, b] of markers ?? []) {
+					const fence = state.doc.lineAt(a);
+					add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
+				}
+			} else if (token.type === "blockquote_open") {
+				lines(from, to, (each) => {
+					out.push(line("lf-md-quote").range(each.from));
+				});
+				for (const [a, b] of markers) add(a, b, touches(state, a, b) ? shownMarker : marker);
+			} else if (token.type === "bullet_list_open" || token.type === "ordered_list_open") {
+				while (lists.at(-1)?.to <= from) lists.pop();
+				const ordered = token.type === "ordered_list_open";
+				lists.push({
+					to,
+					next: ordered ? Number(token.attrGet("start") ?? 1) : null
+				});
+			} else if (token.type === "list_item_open") {
+				while (lists.at(-1)?.to <= from) lists.pop();
+				const list = lists.at(-1);
+				const depth = lists.length;
+				const head = state.doc.lineAt(from);
+				const [at, end] = markers[0];
+				const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
+				if (head.text.slice(0, start - head.from).trim()) {
+					add(start, end, dim);
+					continue;
+				}
+				lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
+					items.set(each.from, {
+						depth,
+						continued: true
+					});
+				});
+				const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
+				const shown = state.selection.ranges.some((range) => range.from < end && range.to >= start);
+				items.set(head.from, {
+					depth,
+					kind: shown ? null : kind,
+					number: list.next
+				});
+				if (list.next !== null) list.next++;
+				add(start, end, shown ? shownMarker : marker);
+			}
+		}
+		for (const [from, { depth, kind, number, continued }] of items) {
+			out.push(itemLine(depth, kind, number).range(from));
+			if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
+			add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
+		}
+		standBlocks(state, placed, out, line);
+		return Decoration.set(out, true);
+	}
+	const livePreview = ViewPlugin.fromClass(class {
+		constructor(view) {
+			this.live = true;
+			this.placed = read(view.state);
+			this.decorations = decorate(view.state, this.placed);
+			this.judged = markdownReady();
+			if (!this.judged) loadMarkdown().then(() => this.live && view.dispatch({}), () => {});
+		}
+		destroy() {
+			this.live = false;
+		}
+		update(update) {
+			const judged = markdownReady();
+			if (update.docChanged || judged !== this.judged) {
+				this.judged = judged;
+				this.placed = read(update.state);
+			} else if (!update.selectionSet) return;
+			this.decorations = decorate(update.state, this.placed);
+		}
+	}, { decorations: (plugin) => plugin.decorations });
+	const editable = new Compartment();
+	const histories = new Compartment();
+	const attributes = new Compartment();
+	function fieldState(words, field) {
+		const { base, text } = words;
+		let from = 0;
+		while (from < Math.min(base.length, text.length) && base[from] === text[from]) from++;
+		let kept = 0;
+		while (kept < Math.min(base.length, text.length) - from && base[base.length - 1 - kept] === text[text.length - 1 - kept]) kept++;
+		let state = EditorState.create({
+			doc: base,
+			selection: { anchor: from },
+			extensions: [
+				EditorView.inputHandler.of((view, _from, _to, _text, insert) => {
+					field.typed(!view.contentDOM.editContext, () => view.dispatch(insert()));
+					return true;
+				}),
+				histories.of(history()),
+				invertedEffects.of((tr) => tr.effects.filter((effect) => effect.is(ownerStep)).map(({ value }) => ownerStep.of({
+					run: value.back,
+					back: value.run
+				}))),
+				keymap.of([
+					{
+						key: "Enter",
+						run: (view) => field.returned() && insertNewline(view)
+					},
+					{
+						key: "Shift-Enter",
+						run: insertNewlineContinueMarkup
+					},
+					{
+						key: "Shift-Enter",
+						run: (view) => (view.dispatch(view.state.update(view.state.replaceSelection("\n"), {
+							scrollIntoView: true,
+							userEvent: "input"
+						})), true)
+					},
+					...standardKeymap.filter(({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter"),
+					...historyKeymap
+				]),
+				new LanguageSupport(markdownLanguage),
+				livePreview,
+				EditorView.lineWrapping,
+				editable.of(EditorState.readOnly.of(field.readOnly)),
+				attributes.of(EditorView.contentAttributes.of(field.attributes))
+			]
+		});
+		state = state.update({
+			...text !== base && {
+				changes: {
+					from,
+					to: base.length - kept,
+					insert: text.slice(from, text.length - kept)
+				},
+				annotations: isolateHistory.of("full"),
+				userEvent: "input.type"
+			},
+			selection: {
+				anchor: words.anchor,
+				head: words.head
+			}
+		}).state;
+		for (const [undo, redo] of words.steps) state = state.update(record(undo, redo)).state;
+		return state;
+	}
+	const readOnly = (on) => ({ effects: editable.reconfigure(EditorState.readOnly.of(on)) });
+	const contentAttributes = (wanted) => ({ effects: attributes.reconfigure(EditorView.contentAttributes.of(wanted)) });
+	const record = (undo, redo) => ({
+		effects: ownerStep.of({
+			run: redo,
+			back: undo
+		}),
+		annotations: isolateHistory.of("full")
+	});
+	const forgetHistory = { effects: histories.reconfigure([]) };
+	const startHistory = () => ({ effects: histories.reconfigure(history()) });
+	function runOwnerSteps(transactions) {
+		for (const tr of transactions) if (tr.isUserEvent("undo") || tr.isUserEvent("redo")) {
+			for (const effect of tr.effects) if (effect.is(ownerStep)) effect.value.run();
+		}
+	}
+	return {
+		LeafEditorView,
+		fieldState,
+		readOnly,
+		contentAttributes,
+		record,
+		forgetHistory,
+		startHistory,
+		runOwnerSteps
+	};
+}
 
 //#endregion
 //#region runtime/composing/text-field.js
-const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
   :host { display: block; cursor: text; }
@@ -745,8 +1176,10 @@ sheet.replaceSync(`
   .cm-content { padding: 0; caret-color: currentColor; min-height: 1lh; }
   /* An empty field draws no editor until the user arrives in it (#build). This box
      holds the empty line's place, as tall as the editor's line, and takes the focus
-     that builds the editor. */
-  .lf-field-rest { min-height: 1lh; outline: none; }
+     that builds the editor; while the editor loads, it holds the words, wrapped as
+     the editor wraps them. */
+  .lf-field-rest { min-height: 1lh; outline: none; white-space: pre-wrap;
+    overflow-wrap: break-word; }
   .cm-line { padding: 0; }
   /* A space after a line's last word hangs past its end, as in a textarea and in the
      sent message (reading.css, \`.lf-msg-text > p\`), rather than taking room on the
@@ -846,341 +1279,26 @@ sheet.replaceSync(`
   .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
-const ownerStep = StateEffect.define();
-const hide = Decoration.replace({});
-const dim = Decoration.mark({ class: "lf-md-mark" });
-const link = Decoration.mark({ class: "lf-md-link" });
-const unseen = Decoration.mark({
-	class: "lf-md-unseen",
-	attributes: { "aria-hidden": "true" }
-});
-const marker = Decoration.mark({
-	class: "lf-md-marker lf-md-unseen",
-	attributes: { "aria-hidden": "true" }
-});
-const shownMarker = Decoration.mark({ class: "lf-md-marker lf-md-mark" });
-const line = (cls) => Decoration.line({ class: cls });
-const BULLETS = [
-	"lf-md-disc",
-	"lf-md-circle",
-	"lf-md-square"
-];
-const itemLine = (depth, kind, number) => Decoration.line({
-	class: kind ? `lf-md-item lf-md-listed ${kind}` : "lf-md-item",
-	attributes: { style: `--lf-list-depth: ${depth}${kind === "lf-md-number" ? `; counter-set: list-item ${number}` : ""}` }
-});
-const INLINE = {
-	code_inline: Decoration.mark({ tagName: "code" }),
-	em_open: Decoration.mark({ tagName: "em" }),
-	strong_open: Decoration.mark({ tagName: "strong" }),
-	s_open: Decoration.mark({ tagName: "s" })
-};
-const touches = (state, from, to) => state.selection.ranges.some((range) => range.from <= to && range.to >= from);
-const read = (state) => {
-	return placedMarkdownTokens(state.doc.toString());
-};
-const FACE_PROBE = "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre><blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
-const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
-const GAP = "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
-function readFaces(field, display) {
-	const probe = display.cloneNode(false);
-	probe.removeAttribute("id");
-	probe.setAttribute("aria-hidden", "true");
-	probe.style.cssText = "position: absolute; visibility: hidden; inline-size: 0; display: block";
-	probe.innerHTML = FACE_PROBE;
-	field.after(probe);
-	const face = {};
-	const own = getComputedStyle(field);
-	const TYPE = [
-		"font-size",
-		"line-height",
-		"font-weight",
-		"letter-spacing"
-	];
-	for (const node of probe.querySelectorAll(":scope > :not(div), li + li")) {
-		const s = getComputedStyle(node);
-		const px = (value) => Number.parseFloat(value) || 0;
-		face[node.localName] = {
-			type: TYPE.filter((name) => s.getPropertyValue(name) !== own.getPropertyValue(name)).map((name) => `${name}: ${s.getPropertyValue(name)}`).join("; "),
-			start: px(s.marginTop),
-			end: px(s.marginBottom),
-			padStart: px(s.paddingTop),
-			padEnd: px(s.paddingBottom),
-			inset: s.paddingInlineStart,
-			indent: s.marginInlineStart
-		};
-	}
-	probe.remove();
-	const { li, pre, blockquote: quote } = face;
-	const rules = [];
-	for (const [tag, { type, start, end }] of Object.entries(face)) {
-		const list = tag === "ul" || tag === "ol";
-		rules.push(`.lf-face-${tag} { ${type} }`, `.lf-starts-${tag} { --lf-gap-start: ${list ? collapsed(start, li.start) : start}px }`, `.lf-ends-${tag} { --lf-gap-end: ${list ? collapsed(end, li.end) : end}px }`);
-	}
-	rules.push(`.lf-face-gap { line-height: ${GAP} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`, `.lf-face-rule { line-height: 0 }`, `.lf-face-gap-above { padding-block-start: ${GAP} }`, `.lf-face-fence-open { line-height: ${pre.padStart}px }`, `.lf-face-fence-close { line-height: ${pre.padEnd}px }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; padding-inline-start: ${quote.inset}; --lf-marker-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
-	return rules.join("\n");
-}
-var Picture = class extends WidgetType {
-	constructor(src, alt) {
-		super();
-		this.src = isCanonicalMediaUrl(src) ? scopedMediaUrl(src) : src;
-		this.alt = alt;
-	}
-	eq(other) {
-		return other.src === this.src && other.alt === this.alt;
-	}
-	toDOM(view) {
-		const img = document.createElement("img");
-		img.className = "lf-md-picture";
-		img.alt = this.alt;
-		img.src = this.src;
-		img.addEventListener("load", () => view.requestMeasure(), { once: true });
-		return img;
-	}
-	ignoreEvent() {
-		return false;
+let editor = null;
+const loadEditor = () => loadFieldEditor().then((loaded) => editor = loaded);
+afterPresentation(loadEditor);
+var Draft = class {
+	steps = [];
+	constructor(text) {
+		this.text = this.base = text;
+		this.anchor = this.head = text.length;
 	}
 };
-var ExternalMark = class extends WidgetType {
-	eq() {
-		return true;
-	}
-	toDOM() {
-		return document.documentElement.lfExternalLink.mark();
-	}
-};
-const externalMark = Decoration.widget({
-	widget: new ExternalMark(),
-	side: -1
-});
-const opensElsewhere = (href) => document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
-function decorate(state, placed) {
-	const out = [];
-	const lists = [];
-	const items = /* @__PURE__ */ new Map();
-	const code = [];
-	const add = (from, to, deco) => {
-		if (from >= to) return;
-		if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
-		out.push(deco.range(from, to));
-	};
-	const lines = (from, to, each) => {
-		for (let at = from; at < to;) {
-			const current = state.doc.lineAt(at);
-			each(current);
-			at = current.to + 1;
-		}
-	};
-	for (const { token, from, to, contentFrom, contentTo, escapes, markers, contentLines, words: said } of placed) {
-		const syntax = touches(state, from, to) ? dim : hide;
-		if (token.type === "code_inline" || contentFrom !== void 0) {
-			const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
-			if (words[0] > words[1]) continue;
-			if (INLINE[token.type]) add(from, to, INLINE[token.type]);
-			else if (token.type === "link_open" && token.meta.linked) {
-				add(words[0], words[1], link);
-				if (opensElsewhere(token.attrGet("href"))) out.push(externalMark.range(words[1]));
-			}
-			add(from, words[0], syntax);
-			add(words[1], to, syntax);
-		} else if (token.type === "image") {
-			if (said !== "" || state.doc.sliceString(from, to).includes("\n")) continue;
-			const widget = new Picture(token.attrGet("src"), token.content);
-			out.push(touches(state, from, to) ? Decoration.widget({
-				widget,
-				side: 1
-			}).range(to) : Decoration.replace({ widget }).range(from, to));
-		} else if (token.type === "text") for (const at of escapes ?? []) add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
-		else if (token.type === "heading_open") {
-			lines(...contentLines, (each) => {
-				out.push(line("lf-md-heading").range(each.from));
-			});
-			for (const [a, b] of markers) {
-				const rule = state.doc.lineAt(a);
-				const shown = touches(state, rule.from, rule.to) ? dim : unseen;
-				add(a, b, token.markup.startsWith("#") ? syntax : shown);
-			}
-		} else if (token.type === "fence" || token.type === "code_block") {
-			code.push([from, to]);
-			const body = token.content.split("\n");
-			const opened = state.doc.lineAt(from).number + (token.type === "fence" ? 1 : 0);
-			lines(from, to, (each) => {
-				const ends = [
-					each.from <= from ? " lf-md-code-first" : "",
-					each.to + 1 >= to ? " lf-md-code-last" : "",
-					token.type === "code_block" ? " lf-md-code-bare" : ""
-				].join("");
-				out.push(line(`lf-md-code-block${ends}`).range(each.from));
-				const kept = body[each.number - opened];
-				if (kept === void 0 || each.number - opened >= body.length - 1) return;
-				const lead = each.text.match(/^[ \t]*/)[0].length;
-				add(each.from, each.from + lead - kept.match(/^[ \t]*/)[0].length, hide);
-			});
-			for (const [a, b] of markers ?? []) {
-				const fence = state.doc.lineAt(a);
-				add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
-			}
-		} else if (token.type === "blockquote_open") {
-			lines(from, to, (each) => {
-				out.push(line("lf-md-quote").range(each.from));
-			});
-			for (const [a, b] of markers) add(a, b, touches(state, a, b) ? shownMarker : marker);
-		} else if (token.type === "bullet_list_open" || token.type === "ordered_list_open") {
-			while (lists.at(-1)?.to <= from) lists.pop();
-			const ordered = token.type === "ordered_list_open";
-			lists.push({
-				to,
-				next: ordered ? Number(token.attrGet("start") ?? 1) : null
-			});
-		} else if (token.type === "list_item_open") {
-			while (lists.at(-1)?.to <= from) lists.pop();
-			const list = lists.at(-1);
-			const depth = lists.length;
-			const head = state.doc.lineAt(from);
-			const [at, end] = markers[0];
-			const start = at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length;
-			if (head.text.slice(0, start - head.from).trim()) {
-				add(start, end, dim);
-				continue;
-			}
-			lines(head.to + 1, Math.min(to, state.doc.length), (each) => {
-				items.set(each.from, {
-					depth,
-					continued: true
-				});
-			});
-			const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
-			const shown = state.selection.ranges.some((range) => range.from < end && range.to >= start);
-			items.set(head.from, {
-				depth,
-				kind: shown ? null : kind,
-				number: list.next
-			});
-			if (list.next !== null) list.next++;
-			add(start, end, shown ? shownMarker : marker);
-		}
-	}
-	for (const [from, { depth, kind, number, continued }] of items) {
-		out.push(itemLine(depth, kind, number).range(from));
-		if (!continued || code.some(([a, b]) => from >= a && from < b)) continue;
-		add(from, from + state.doc.lineAt(from).text.match(/^[ \t]*/)[0].length, hide);
-	}
-	standBlocks(state, placed, out);
-	return Decoration.set(out, true);
-}
-const blockTag = (token) => token.type === "fence" || token.type === "code_block" ? "pre" : token.tag;
-function standBlocks(state, placed, out) {
-	const lines = (from, to, each) => {
-		for (let at = from; at < to;) {
-			const current = state.doc.lineAt(at);
-			each(current);
-			at = current.to + 1;
-		}
-	};
-	const named = (from, cls) => out.push(line(cls).range(from));
-	const gapLines = (from, to, gap) => {
-		const runs = state.doc.lineAt(to).number - state.doc.lineAt(from).number;
-		const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
-		lines(from, to, (each) => named(each.from, `lf-face-gap${share} ${gap}`));
-	};
-	const lineTouched = (at) => {
-		const { from, to } = state.doc.lineAt(at);
-		return touches(state, from, to);
-	};
-	const before = [];
-	const open = [];
-	let item = null;
-	const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
-	for (const { token, from, to, markers, contentLines } of placed) {
-		if (!token.block) continue;
-		const tag = blockTag(token);
-		if (token.type === "heading_open") {
-			lines(...contentLines, (each) => named(each.from, `lf-face-${tag}`));
-			if (!token.markup.startsWith("#")) {
-				for (const [at] of markers) if (!lineTouched(at)) named(state.doc.lineAt(at).from, "lf-face-rule");
-			}
-		} else if (token.type === "fence" || token.type === "code_block") {
-			lines(from, to, (each) => named(each.from, "lf-face-code"));
-			const opener = state.doc.lineAt(from).number;
-			for (const [at] of token.type === "fence" ? markers : []) {
-				const fence = state.doc.lineAt(at);
-				if (lineTouched(at)) continue;
-				const side = fence.number === opener ? "open" : "close";
-				named(fence.from, `lf-face-fence-${side}`);
-			}
-		}
-		while (open.at(-1)?.to <= from) before.length = open.pop().level + 1;
-		const within = open.at(-1)?.type;
-		if (token.type === "list_item_open" && within !== "list_item_open") {
-			if (item?.to === from) named(from, "lf-face-item");
-			item = { to };
-		}
-		if (/^(blockquote|bullet_list|ordered_list|list_item)_open$/.test(token.type)) open.push({
-			type: token.type,
-			to,
-			level: token.level
-		});
-		if (token.type === "list_item_open" || within === "list_item_open") continue;
-		const level = token.level;
-		if (!FACE_PROBE.includes(`<${tag}>`)) {
-			before[level] = null;
-			continue;
-		}
-		const list = tag === "ul" || tag === "ol";
-		if (list && from === 0) named(0, "lf-face-list-lead");
-		if (list && to >= state.doc.length) named(state.doc.lineAt(state.doc.length).from, "lf-face-list-tail");
-		const prior = before[level];
-		const gap = `lf-ends-${prior?.tag} lf-starts-${tag}`;
-		if (prior && prior.to < from) gapLines(prior.to, from, gap);
-		else if (prior) named(from, `lf-face-gap-above ${gap}`);
-		let end = to;
-		while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;
-		before[level] = {
-			tag,
-			to: end
-		};
-		before.length = level + 1;
-		if (token.type === "paragraph_open" && level === 0) lines(from, to, (each) => named(each.from, "lf-face-p"));
-		else if (token.type === "blockquote_open" && level === 0) {
-			lines(from, end, (each) => named(each.from, "lf-face-quote"));
-			named(from, "lf-face-quote-first");
-			named(state.doc.lineAt(Math.max(from, end - 1)).from, "lf-face-quote-last");
-		}
-	}
-	const last = state.doc.line(state.doc.lines);
-	const final = before[0];
-	if (final && final.to < last.from) gapLines(final.to, last.from, `lf-ends-${final.tag} lf-starts-p`);
-}
-const livePreview = ViewPlugin.fromClass(class {
-	constructor(view) {
-		this.live = true;
-		this.placed = read(view.state);
-		this.decorations = decorate(view.state, this.placed);
-		this.judged = markdownReady();
-		if (!this.judged) loadMarkdown().then(() => this.live && view.dispatch({}), () => {});
-	}
-	destroy() {
-		this.live = false;
-	}
-	update(update) {
-		const judged = markdownReady();
-		if (update.docChanged || judged !== this.judged) {
-			this.judged = judged;
-			this.placed = read(update.state);
-		} else if (!update.selectionSet) return;
-		this.decorations = decorate(update.state, this.placed);
-	}
-}, { decorations: (plugin) => plugin.decorations });
+const placeWords = (node) => node.nodeType === Node.TEXT_NODE ? node.data : node.nodeName === "BR" ? "\n" : [...node.childNodes].map(placeWords).join("");
 var LeafText = class extends HTMLElement {
-	#model;
+	#model = new Draft("");
 	#view = null;
 	#rest = document.createElement("div");
+	#waiting = null;
+	#composing = false;
 	#nativeInput = false;
 	#root;
 	#internals = null;
-	#editable = new Compartment();
-	#history = new Compartment();
-	#attributes = new Compartment();
 	facesOf = null;
 	#faces = new CSSStyleSheet();
 	#facesRead = "";
@@ -1271,9 +1389,14 @@ var LeafText = class extends HTMLElement {
 		this.#rest.className = "lf-field-rest";
 		this.#rest.append(document.createElement("br"));
 		this.#rest.addEventListener("focusin", () => this.#build());
+		for (const type of [
+			"beforeinput",
+			"input",
+			"compositionstart",
+			"compositionend"
+		]) this.#rest.addEventListener(type, (event) => this.#typeAtRest(event));
 		this.#frame.append(this.#placeholderLayer, this.#rest);
 		this.#root.append(this.#frame);
-		this.#model = this.#create("");
 		this.#dressRest();
 		this.addEventListener("mousedown", (event) => this.#pressPadding(event));
 		this.addEventListener("dragenter", () => {
@@ -1283,57 +1406,109 @@ var LeafText = class extends HTMLElement {
 		this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), { capture: true });
 		for (const type of ["input", "beforeinput"]) this.#root.addEventListener(type, (event) => event.stopPropagation());
 	}
-	#create(text) {
-		return EditorState.create({
-			doc: text,
-			selection: { anchor: text.length },
-			extensions: [
-				EditorView.inputHandler.of((view, _from, _to, _text, insert) => {
-					this.#nativeInput = !view.contentDOM.editContext;
-					try {
-						view.dispatch(insert());
-					} finally {
-						this.#nativeInput = false;
-					}
-					return true;
-				}),
-				this.#history.of(history$1()),
-				invertedEffects.of((tr) => tr.effects.filter((effect) => effect.is(ownerStep)).map(({ value }) => ownerStep.of({
-					run: value.back,
-					back: value.run
-				}))),
-				keymap.of([
-					{
-						key: "Enter",
-						run: (view) => this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) && insertNewline(view)
-					},
-					{
-						key: "Shift-Enter",
-						run: insertNewlineContinueMarkup
-					},
-					{
-						key: "Shift-Enter",
-						run: (view) => (view.dispatch(view.state.update(view.state.replaceSelection("\n"), {
-							scrollIntoView: true,
-							userEvent: "input"
-						})), true)
-					},
-					...standardKeymap.filter(({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter"),
-					...historyKeymap
-				]),
-				new LanguageSupport(markdownLanguage),
-				livePreview,
-				EditorView.lineWrapping,
-				this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
-				this.#attributes.of(EditorView.contentAttributes.of(this.#contentAttributes()))
-			]
+	#typeAtRest(event) {
+		if (this.#view || !(this.#model instanceof Draft)) return;
+		if (event.type === "compositionstart") {
+			this.#composing = true;
+			return;
+		}
+		if (event.type === "beforeinput") {
+			if (this.#readOnly || event.inputType === "insertParagraph" && !this.#returned()) event.preventDefault();
+			return;
+		}
+		if (event.type === "compositionend") this.#composing = false;
+		else if (this.#composing || event.isComposing) return;
+		this.#readRest();
+		this.#paintEmpty();
+		this.dispatchEvent(new Event("input", { bubbles: true }));
+		if (event.type === "compositionend" && editor) this.#build();
+	}
+	#readRest() {
+		const words = placeWords(this.#rest);
+		const text = this.#rest.lastChild?.nodeName === "BR" ? words.slice(0, -1) : words;
+		const selection = this.#selection();
+		const [range] = selection.getComposedRanges({ shadowRoots: [this.#root] });
+		const at = (node, offset) => {
+			if (!this.#rest.contains(node)) return text.length;
+			const before = document.createRange();
+			before.setStart(this.#rest, 0);
+			before.setEnd(node, offset);
+			return Math.min(placeWords(before.cloneContents()).length, text.length);
+		};
+		const from = range ? at(range.startContainer, range.startOffset) : text.length;
+		const to = range ? at(range.endContainer, range.endOffset) : text.length;
+		const backward = selection.direction === "backward";
+		Object.assign(this.#model, {
+			text,
+			anchor: backward ? to : from,
+			head: backward ? from : to
 		});
+	}
+	#selection() {
+		return this.#root.getSelection?.() ?? document.getSelection();
+	}
+	#paintRest() {
+		if (this.#composing) return;
+		const text = this.#view ? "" : this.#text;
+		const here = !this.#view && this.#root.activeElement === this.#rest;
+		const last = this.#rest.lastChild?.nodeName === "BR";
+		const shown = placeWords(this.#rest).slice(0, last ? -1 : void 0) === text;
+		const plain = (node) => node?.nodeType === Node.TEXT_NODE;
+		const one = this.#rest.childNodes.length === (text ? 1 : 0) + Number(last) && (!text || plain(this.#rest.firstChild));
+		if (shown && (!here || one)) return this.#placeRestCaret(here);
+		this.#rest.replaceChildren(...text ? [text] : [], ...!text || text.endsWith("\n") ? [document.createElement("br")] : []);
+		this.#placeRestCaret(here);
+	}
+	#placeRestCaret(here) {
+		if (!here) return;
+		const { anchor, head } = this.#range;
+		const words = this.#rest.firstChild;
+		if (words.nodeType === Node.TEXT_NODE) this.#selection().setBaseAndExtent(words, anchor, words, head);
+		else this.#selection().setBaseAndExtent(this.#rest, 0, this.#rest, 0);
+	}
+	#returned() {
+		return this.dispatchEvent(new Event("lf-edit-return", { cancelable: true }));
+	}
+	#hooks() {
+		return {
+			readOnly: this.#readOnly,
+			attributes: this.#contentAttributes(),
+			returned: () => this.#returned(),
+			typed: (native, insert) => {
+				this.#nativeInput = native;
+				try {
+					insert();
+				} finally {
+					this.#nativeInput = false;
+				}
+			}
+		};
+	}
+	get #state() {
+		return this.#view?.state ?? this.#model;
+	}
+	get #text() {
+		const state = this.#state;
+		return state instanceof Draft ? state.text : state.doc.toString();
+	}
+	get #length() {
+		const state = this.#state;
+		return state instanceof Draft ? state.text.length : state.doc.length;
+	}
+	get #range() {
+		const state = this.#state;
+		return state instanceof Draft ? state : state.selection.main;
+	}
+	#change(spec, draft = () => {}) {
+		if (this.#view) this.#view.dispatch(spec(editor));
+		else if (this.#model instanceof Draft) draft(this.#model);
+		else this.#model = this.#model.update(spec(editor)).state;
 	}
 	attributeChangedCallback(name) {
 		if (name === "placeholder") this.#placeholderText.data = this.placeholder;
 		if (name === "aria-describedby") return this.#describe();
 		this.#dressRest();
-		this.#apply({ effects: this.#attributes.reconfigure(EditorView.contentAttributes.of(this.#contentAttributes())) });
+		this.#change((module) => module.contentAttributes(this.#contentAttributes()));
 	}
 	connectedMoveCallback() {
 		this.#view?.placeSelection();
@@ -1346,7 +1521,7 @@ var LeafText = class extends HTMLElement {
 		if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
 		this.#internals ??= this.attachInternals();
 		this.#root.adoptedStyleSheets = [sheet, this.#faces];
-		if (this.#model.doc.length) this.#build();
+		if (this.#length) this.#build();
 		else this.#describe();
 		this.#paintEmpty();
 		this.#internals.states.add("ready");
@@ -1367,18 +1542,30 @@ var LeafText = class extends HTMLElement {
 		for (const [name, value] of Object.entries(wanted)) if (this.#rest.getAttribute(name) !== value) this.#rest.setAttribute(name, value);
 	}
 	#build() {
+		if (this.#view) return;
+		if (!editor) {
+			this.#paintRest();
+			if (this.#waiting) return;
+			this.#waiting = holdRendering();
+			loadEditor().then(() => this.isConnected && this.#build()).finally(() => {
+				this.#waiting();
+				this.#waiting = null;
+			});
+			return;
+		}
+		if (this.#composing) return;
+		if (this.#model instanceof Draft && this.#root.activeElement === this.#rest) this.#readRest();
 		this.#readFaces();
-		this.#view = new LeafEditorView({
+		const module = editor;
+		this.#view = new module.LeafEditorView({
 			root: this.#root,
 			parent: this.#frame,
-			state: this.#model,
+			state: this.#model instanceof Draft ? module.fieldState(this.#model, this.#hooks()) : this.#model,
 			dispatchTransactions: (transactions, view) => {
 				const edited = transactions.some((tr) => tr.docChanged);
 				if (edited && !this.#nativeInput) this.#beforeEdit();
 				view.update(transactions);
-				for (const tr of transactions) if (tr.isUserEvent("undo") || tr.isUserEvent("redo")) {
-					for (const effect of tr.effects) if (effect.is(ownerStep)) effect.value.run();
-				}
+				module.runOwnerSteps(transactions);
 				this.#paintEmpty();
 				this.#measureOverflow();
 				if (edited) this.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1396,6 +1583,7 @@ var LeafText = class extends HTMLElement {
 			this.#view.placeSelection();
 		}
 		this.#rest.hidden = true;
+		this.#paintRest();
 		this.#measureOverflow();
 	}
 	#beforeEdit() {
@@ -1423,14 +1611,15 @@ var LeafText = class extends HTMLElement {
 		if (described.length !== current.length || described.some((element, at) => element !== current[at])) content.ariaDescribedByElements = described;
 	}
 	focus(options) {
-		if (!this.#view && this.isConnected) this.#build();
-		if (!this.#view) return;
-		this.#view.focus();
-		if (this.#root.activeElement !== this.#view.contentDOM) return;
+		if (!this.isConnected) return;
+		this.#build();
+		if (this.#view) this.#view.focus();
+		else this.#rest.focus({ preventScroll: true });
+		if (this.#root.activeElement !== (this.#view?.contentDOM ?? this.#rest)) return;
 		if (!options?.preventScroll) scrollIntoView(this, { block: "nearest" });
 	}
 	blur() {
-		this.#view?.contentDOM.blur();
+		(this.#view?.contentDOM ?? this.#rest).blur();
 	}
 	#pressPadding(event) {
 		if (event.button !== 0) return;
@@ -1451,14 +1640,6 @@ var LeafText = class extends HTMLElement {
 		this.#view.focus();
 		this.#view.dispatch({ selection: { anchor: at } });
 	}
-	get #state() {
-		return this.#view?.state ?? this.#model;
-	}
-	#apply(spec) {
-		if (!this.#view && spec.changes && this.isConnected) this.#build();
-		if (this.#view) this.#view.dispatch(spec);
-		else this.#model = this.#model.update(spec).state;
-	}
 	#contentAttributes() {
 		const attributes = {
 			spellcheck: "true",
@@ -1471,37 +1652,43 @@ var LeafText = class extends HTMLElement {
 		return attributes;
 	}
 	#paintEmpty() {
-		if (this.#state.doc.length) this.#internals.states.delete("placeholder-shown");
+		if (this.#length) this.#internals.states.delete("placeholder-shown");
 		else this.#internals.states.add("placeholder-shown");
 	}
 	get value() {
-		return this.#state.doc.toString();
+		return this.#text;
 	}
 	edit(text) {
 		text = String(text).replace(/\r\n?/g, "\n");
 		if (text === this.value) return;
-		this.#apply({
+		if (!this.#view && this.isConnected) this.#build();
+		this.#change(() => ({
 			changes: {
 				from: 0,
-				to: this.#state.doc.length,
+				to: this.#length,
 				insert: text
 			},
 			selection: { anchor: text.length },
 			userEvent: "input.dictation"
+		}), (draft) => {
+			if (this.isConnected) this.#beforeEdit();
+			draft.text = text;
+			draft.anchor = draft.head = text.length;
+			if (!this.isConnected) return;
+			this.#paintRest();
+			this.#paintEmpty();
+			this.dispatchEvent(new Event("input", { bubbles: true }));
 		});
 	}
 	record(undo, redo) {
-		this.#apply({
-			effects: ownerStep.of({
-				run: redo,
-				back: undo
-			}),
-			annotations: isolateHistory.of("full")
-		});
+		this.#change((module) => module.record(undo, redo), (draft) => draft.steps.push([undo, redo]));
 	}
 	restartHistory() {
-		this.#apply({ effects: this.#history.reconfigure([]) });
-		this.#apply({ effects: this.#history.reconfigure(history$1()) });
+		this.#change((module) => module.forgetHistory, (draft) => Object.assign(draft, {
+			steps: [],
+			base: draft.text
+		}));
+		this.#change((module) => module.startHistory());
 	}
 	get naturalBlockSize() {
 		const host = getComputedStyle(this);
@@ -1512,7 +1699,10 @@ var LeafText = class extends HTMLElement {
 		if (text === this.value) return;
 		if (!this.#view && this.isConnected) this.#build();
 		if (!this.#view) {
-			this.#model = this.#create(text);
+			this.#model = new Draft(text);
+			if (!this.isConnected) return;
+			this.#paintRest();
+			this.#paintEmpty();
 			return;
 		}
 		const content = this.#view.contentDOM;
@@ -1525,38 +1715,41 @@ var LeafText = class extends HTMLElement {
 				insert: text
 			},
 			selection: { anchor: text.length },
-			effects: this.#history.reconfigure([])
+			...editor.forgetHistory
 		});
-		const fresh = reset.state.update({ effects: this.#history.reconfigure(history$1()) });
+		const fresh = reset.state.update(editor.startHistory());
 		this.#view.update([reset, fresh]);
 		if (composing) content.editContext = composing;
 		this.#paintEmpty();
 		this.#measureOverflow();
 	}
 	get selectionStart() {
-		return this.#state.selection.main.from;
+		const { anchor, head } = this.#range;
+		return Math.min(anchor, head);
 	}
 	get selectionEnd() {
-		return this.#state.selection.main.to;
+		const { anchor, head } = this.#range;
+		return Math.max(anchor, head);
 	}
 	get selectionDirection() {
-		const { main } = this.#state.selection;
-		return main.empty ? "none" : main.head < main.anchor ? "backward" : "forward";
+		const { anchor, head } = this.#range;
+		return anchor === head ? "none" : head < anchor ? "backward" : "forward";
 	}
 	setSelectionRange(start, end, direction = "none") {
-		const length = this.#state.doc.length;
+		const length = this.#length;
 		const to = Math.min(Math.max(Number(end) || 0, 0), length);
 		const from = Math.min(Math.max(Number(start) || 0, 0), to);
-		this.#apply({ selection: direction === "backward" ? {
-			anchor: to,
-			head: from
-		} : {
-			anchor: from,
-			head: to
-		} });
+		const [anchor, head] = direction === "backward" ? [to, from] : [from, to];
+		this.#change(() => ({ selection: {
+			anchor,
+			head
+		} }), (draft) => Object.assign(draft, {
+			anchor,
+			head
+		}));
 	}
 	select() {
-		this.setSelectionRange(0, this.#state.doc.length);
+		this.setSelectionRange(0, this.#length);
 	}
 	get placeholder() {
 		return this.getAttribute("placeholder") ?? "";
@@ -1570,7 +1763,7 @@ var LeafText = class extends HTMLElement {
 	set readOnly(on) {
 		this.#readOnly = Boolean(on);
 		this.#dressRest();
-		this.#apply({ effects: this.#editable.reconfigure(EditorState.readOnly.of(this.#readOnly)) });
+		this.#change((module) => module.readOnly(this.#readOnly));
 	}
 	get name() {
 		return this.getAttribute("name") ?? "";
@@ -2323,7 +2516,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		const first = resolve();
 		const holder = first && placeHolder(first.where);
 		if (!holder || !intent()) return false;
-		const disclosures = [holder, ...first.reveal ?? []].map((target) => reveal$1(target, intent));
+		const disclosures = [holder, ...first.reveal ?? []].map((target) => reveal(target, intent));
 		const replacedView = disclosures.some((disclosure) => disclosure.replacedView);
 		const place = (complete = false) => {
 			let completed = false;
@@ -2552,7 +2745,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		});
 	}
 	function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
-		const { replacedView } = reveal$1(element, retainUserIntent());
+		const { replacedView } = reveal(element, retainUserIntent());
 		placeScroll({
 			at: element,
 			behavior,
@@ -2582,7 +2775,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 	function scrollToRange(where, behavior = scrollBehavior()) {
 		const holder = placeHolder(where);
 		if (!holder) return;
-		const { replacedView } = reveal$1(holder, retainUserIntent());
+		const { replacedView } = reveal(holder, retainUserIntent());
 		placeScroll({
 			at: where,
 			behavior
@@ -3491,7 +3684,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		releaseHolds();
 		const regions = new Map(readingRegions().map((region) => [region.id, region]));
 		const active = regions.get(view.activeRegion) ?? containingReadingRegionFor(focusedInView()) ?? readingRegionFor(pageReadingBlock());
-		if (active) reveal$1(active.host, currentIntent);
+		if (active) reveal(active.host, currentIntent);
 		const restored = /* @__PURE__ */ new Set();
 		const activeReading = active && view.regions?.[active.id];
 		const activeScroller = active && effectiveScroller(regions.get(active.id));
@@ -3906,7 +4099,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		return function landFragment() {
 			aimedAt ??= fresh && fragmentTarget(arrivedAt);
 			if (!aimedAt || !currentIntent()) return;
-			reveal$1(aimedAt, currentIntent);
+			reveal(aimedAt, currentIntent);
 			scrollToFragment(aimedAt);
 		};
 	}
@@ -5342,7 +5535,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				if (destination === null) return UNDRAWN;
 				if (!(destination instanceof Element) || !destination.isConnected || !renderedUnder(destination, selected.owner) || !selected.reader.ownsDestination(destination)) throw new TypeError("A Thread destination must be a retained part of its registered presentation");
 				if (focus === false) {
-					await whileCurrent(reveal$1(destination, intent).ready);
+					await whileCurrent(reveal(destination, intent).ready);
 					return mayPresent() ? destination : null;
 				}
 				departure?.plan(destination);
@@ -5375,7 +5568,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 						intent
 					})) return null;
 				} else if (focus === false) {
-					await reveal$1(surfaceFocusTarget(id, { part: localPart }), intent).ready;
+					await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
 					if (!mayPresent()) return null;
 				} else if (!await arrive(() => {
 					const current = surfaceFocusTarget(id, { part: localPart });
@@ -5396,7 +5589,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			const place = preview && !navigationStep ? threadTarget(id) : null;
 			const placeDrawn = () => visibleTargetParts(place).length > 0;
 			if (place && scroll && !placeDrawn()) {
-				await reveal$1(place, intent).ready;
+				await reveal(place, intent).ready;
 				if (!mayPresent()) return null;
 			}
 			let opened = null;
@@ -8098,4 +8291,4 @@ function obligationEnding(item) {
 }
 
 //#endregion
-export { DRAWING_COORDINATE_LIMIT, LeafEditorView, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, answerWords, beginRead, claimTraversals, commandSteps, comparisonChanges, composerOpen, composerQuote, consumeAnnotations, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, currentProjection, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, landInThread, leavesBox, loadDeferred, mountApplication, mountHistory, navigateToDatum, notifyDataSubscribers, obligationActions, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, projectData, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, referencedProjection, registerThreadPresentation, replaceEntry, requireReference, returnPlace, sendReaction, textField, threadActions, threadBox, threadInput, versionPicker, versionsReading, widgetController, wireInput };
+export { DRAWING_COORDINATE_LIMIT, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, answerWords, beginRead, claimTraversals, commandSteps, comparisonChanges, composerOpen, composerQuote, consumeAnnotations, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, currentProjection, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, landInThread, leafEditorView, leavesBox, loadDeferred, mountApplication, mountHistory, navigateToDatum, notifyDataSubscribers, obligationActions, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, projectData, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, referencedProjection, registerThreadPresentation, replaceEntry, requireReference, returnPlace, sendReaction, textField, threadActions, threadBox, threadInput, versionPicker, versionsReading, widgetController, wireInput };

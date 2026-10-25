@@ -280,6 +280,99 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         context.unroute_all(behavior="wait")
 
 
+def _hold_the_editor(context):
+    """Hold CodeMirror's module; the returned list collects each held request."""
+    held = []
+    context.route("**/vendor/codemirror.esm.js", lambda route: held.append(route))
+    return held
+
+
+def _release(page, held, context):
+    while held:
+        held.pop(0).continue_()
+    wait_until_ready(page)
+
+
+def test_words_typed_while_the_editor_loads_are_its_first_words(browser, serve):
+    """CodeMirror stays off the presentation path: held, it keeps the page from reading
+    as arrived but not from presenting. `c` still puts the user in the page comment's
+    field in the same turn, and what they type before CodeMirror arrives, where they
+    moved the caret to and all, is what the editor holds once it does, as one step
+    undo takes back."""
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    held = _hold_the_editor(context)
+    page = open_page(browser, serve(LONG_PAGE), context=context, upgraded=False)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    try:
+        wait_until_ready(page, through="presented")
+        holding(page, held, 1, "CodeMirror")
+        assert (
+            page.evaluate(
+                "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+            )
+            == "arrived"
+        )
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        page.keyboard.type("Typed early")
+        page.keyboard.press("ArrowLeft")
+        page.keyboard.press("ArrowLeft")
+        page.keyboard.type(" and ")
+        expect(field).to_have_js_property("value", "Typed ear and ly")
+        expect(field).to_have_js_property("selectionStart", len("Typed ear and "))
+
+        _release(page, held, context)
+        expect(field).to_be_focused()
+        page.keyboard.type("kept ")
+        expect(field).to_have_js_property("value", "Typed ear and kept ly")
+        page.keyboard.press("ControlOrMeta+z")
+        expect(field).to_have_js_property("value", "Typed ear and ly")
+        page.keyboard.press("ControlOrMeta+z")
+        expect(field).to_have_js_property("value", "")
+    finally:
+        for route in held:
+            route.continue_()
+        context.unroute_all(behavior="wait")
+
+
+def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, serve):
+    """While CodeMirror loads, a field's kept draft stands in its place with the caret
+    where the draft left it, so words typed on arrival follow the draft. Words an input
+    method is still composing as CodeMirror lands join the field once committed, once."""
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    page.keyboard.press("c")
+    page.keyboard.type("Kept")
+    expect(field).to_have_js_property("value", "Kept")
+    held = _hold_the_editor(context)
+    try:
+        page.reload()
+        wait_until_ready(page, through="presented")
+        holding(page, held, 1, "CodeMirror")
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        page.keyboard.type(" words")
+        expect(field).to_have_js_property("value", "Kept words")
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        expect(field).to_have_js_property("value", "")
+
+        ime = context.new_cdp_session(page)
+        ime.send(
+            "Input.imeSetComposition",
+            {"text": "にほ", "selectionStart": 2, "selectionEnd": 2},
+        )
+        _release(page, held, context)
+        ime.send("Input.insertText", {"text": "日本"})
+        expect(field).to_have_js_property("value", "日本")
+        expect(field).to_be_focused()
+    finally:
+        for route in held:
+            route.continue_()
+        context.unroute_all(behavior="wait")
+
+
 def test_an_unavailable_floating_ui_module_leaves_no_surface_open_and_unseen(
     browser, serve
 ):

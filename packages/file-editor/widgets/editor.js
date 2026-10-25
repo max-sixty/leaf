@@ -1,7 +1,8 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
-import { LeafEditorView, langForPath, sizeObserver } from "/runtime/widget-api.js";
+import { langForPath, leafEditorView, sizeObserver } from "/runtime/widget-api.js";
+import * as codemirror from "/vendor/codemirror.esm.js";
 import {
   ChangeSet,
   Compartment,
@@ -39,6 +40,8 @@ import {
   closeBracketsKeymap,
   completionKeymap,
 } from "/vendor/extensions.esm.js";
+
+const LeafEditorView = leafEditorView(codemirror);
 
 const theme = EditorView.theme({
   "&": { color: "var(--ink)", backgroundColor: "var(--card)" },

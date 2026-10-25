@@ -9,8 +9,6 @@ from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
-import tinycss2
-
 from .findings import Finding
 from .locations import located, locations_overlap
 from .machine import package_store
@@ -231,8 +229,16 @@ def stylesheet(source: Path, root: Path) -> str:
     which an install has no `node_modules` to read, is bundled into a file beside its
     importer (`build/styles.mjs`).
     """
+    return _stylesheet(source, root, ())
+
+
+def _stylesheet(source: Path, root: Path, opened: tuple[Path, ...]) -> str:
+    """`stylesheet`, inside the imports of `opened`."""
+    import tinycss2
+
     from .styles import css_stylesheet, css_syntax_errors
 
+    opened = (*opened, source.resolve())
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
@@ -242,8 +248,8 @@ def stylesheet(source: Path, root: Path) -> str:
     parts = []
     for node in css_stylesheet(css):
         if _is_import(node):
-            path, layer = _import(node, source, root)
-            sheet = stylesheet(path, root)
+            path, layer = _import(node, source, root, opened)
+            sheet = _stylesheet(path, root, opened)
             parts.append(f"@layer {layer} {{\n{sheet}}}\n" if layer else sheet)
         else:
             parts.append(tinycss2.serialize([node]))
@@ -255,8 +261,13 @@ def imported_sheets(source: Path, root: Path) -> list[Path]:
     """Every file `stylesheet(source, root)` reads besides `source`, for a reader that
     follows a sheet's inputs. An import composition would refuse is left out, since
     composing reports it."""
+    return _imported_sheets(source, root, ())
+
+
+def _imported_sheets(source: Path, root: Path, opened: tuple[Path, ...]) -> list[Path]:
     from .styles import css_stylesheet
 
+    opened = (*opened, source.resolve())
     found = []
     try:
         rules = css_stylesheet(source.read_text(encoding="utf-8"))
@@ -264,10 +275,10 @@ def imported_sheets(source: Path, root: Path) -> list[Path]:
         return found
     for node in filter(_is_import, rules):
         try:
-            path, _ = _import(node, source, root)
+            path, _ = _import(node, source, root, opened)
         except Refused:
             continue
-        found += [path, *imported_sheets(path, root)]
+        found += [path, *_imported_sheets(path, root, opened)]
     return found
 
 
@@ -275,8 +286,13 @@ def _is_import(node) -> bool:
     return node.type == "at-rule" and node.lower_at_keyword == "import"
 
 
-def _import(rule, source: Path, root: Path) -> tuple[Path, str | None]:
-    """The file one `@import` names, and the cascade layer it asks for."""
+def _import(
+    rule, source: Path, root: Path, opened: tuple[Path, ...]
+) -> tuple[Path, str | None]:
+    """The file one `@import` in `source` names, and the cascade layer it asks for.
+    `opened` is the chain of sheets importing it, `source` last."""
+    import tinycss2
+
     target, *conditions = [t for t in rule.prelude if t.type != "whitespace"] or [None]
     if target is not None and target.type == "function" and target.lower_name == "url":
         target = next((t for t in target.arguments if t.type == "string"), None)
@@ -293,6 +309,9 @@ def _import(rule, source: Path, root: Path) -> tuple[Path, str | None]:
     path = (source.parent / target.value).resolve()
     if not path.is_relative_to(root.resolve()) or not path.is_file():
         raise Refused(f"{source} imports {target.value!r}, which is no file in {root}")
+    if path in opened:
+        cycle = [*opened[opened.index(path) :], path]
+        raise Refused("stylesheets import each other: " + " -> ".join(map(str, cycle)))
     return path, layer
 
 

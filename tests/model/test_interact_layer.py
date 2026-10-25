@@ -2618,6 +2618,19 @@ def test_a_sheet_imports_only_its_own_files_whole(tmp_path, imported):
         layer_model.composed_sheets([package])
 
 
+def test_sheets_that_import_each_other_are_refused_by_name(tmp_path):
+    """A cycle of imports is refused naming its files, and a reader that follows the
+    layer's inputs, as vendoring and a live preview do, still finishes and lists them."""
+    (tmp_path / "theme.css").write_text('@import "a.css";\n')
+    (tmp_path / "a.css").write_text('@import "b.css";\n.a {}\n')
+    (tmp_path / "b.css").write_text('@import "a.css";\n.b {}\n')
+    with pytest.raises(Refused, match=r"a\.css -> .*b\.css -> .*a\.css"):
+        layer_model.composed_sheets([tmp_path])
+    assert {(tmp_path / name).resolve() for name in ("a.css", "b.css")} <= set(
+        layer_model.input_paths([tmp_path])
+    )
+
+
 @pytest.mark.parametrize(
     "css",
     [

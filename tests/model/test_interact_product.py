@@ -608,6 +608,8 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     assert not errors('kind="toggle" value="false"')
     assert not errors('kind="color" value="#A0b1c2"')
     assert not errors('kind="text" value="yes"')
+    # `class` is the page's styling hook on a widget as on any element.
+    assert not errors('kind="toggle" value="false" class="route"')
     assert refused('kind="range" value="12"') == [("attribute-schema", "required", [])]
     assert refused('kind="range" value="twelve" max="24"') == [
         ("attribute-schema", "pattern", ["value"])

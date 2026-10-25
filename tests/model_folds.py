@@ -46,7 +46,7 @@ NOW = "2026-09-19T12:00:00+00:00"
 # facts a fold is allowed to see, and a fixture that reached for the real reading
 # would bring the developer's own machine with it.
 UNCLAIMED = {
-    "status": {"state": "waiting", "detail": ""},
+    "status": {"state": "waiting"},
     "listening": False,
     "cursor": 0,
     "pending": 0,

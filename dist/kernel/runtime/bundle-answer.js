@@ -5,7 +5,7 @@ import { LIVE_ROOT, PRESENTATION_DOM, agentLabel, annotationMode, applicationPre
 import { activityTransitionDue, ago, chosenSince, containingReadingRegionFor, effectiveScroller, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageScroller, placeKept, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, settlePageInterface, shownRegionBounds, stopScroll, tickClock, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { DATUM, TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageDocument, pageParts, pageRange, pageReadingVersion, quoteFrom, rangeOf, readingFrom, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
 import { ADDRESSABLE, addressableLabel, addressableWord, addressedElements, anchorForRange, anchoringIsReady, fragmentTarget, resolveAnchor, revealAddressed, sectionOf, targetElement, targetPlace, targetSegments, visualPartLabel, widgetWord } from "./bundle-css-anchors.js";
-import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
+import { authoredBody, initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
 import { HOLDS_WORD, HeldNews, MessageView, PAGE_SCOPE, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed as claimed$1, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, drawnThreadId, fitsWhole, focusThread, focusedInView, focusedThreadTarget, formatDeclaredMarkdown, hasLandmark, heldOut, heldThread, heldThreadId, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, openingPassage, pageCommand, pageReadingBlock, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeNode, placeOf as placeOf$1, placeOffset, placePageThreads as placePageThreads$1, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, rawOffsetFits, readObligations, readThreads, readingReturn, registerWritingDestination, reindexPassageOwners, rememberPassageParts, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDestination, replyDraftContext, replyThreadKey, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, saveDraft, scrollIntoReadingBand, scrollIntoView, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, tabStore, textBlocks, threadDraft, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
 import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, failSoft, failSoftUnreported, once, orderChildren, patchRetains, patchTree, placesFailure, quoted as quoted$1, rememberAuthoredParents, reportFailure, setChildren, stageAuthoredStates, stageWidgetDescriptors, widgetDescriptor } from "./bundle-abort.js";
 import { scrollBehavior } from "./bundle-motion.js";
@@ -3265,12 +3265,16 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		};
 		return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
 	}
-	const shell = (element) => {
+	const shell = (element, members) => {
 		const copy = element.cloneNode(false);
-		for (const child of element.childNodes) copy.append(child.cloneNode(false));
+		if (members) for (const child of element.childNodes) copy.append(child.cloneNode(false));
 		return copy;
 	};
-	const reachesMembers = (before, after, arrivingRoot) => registry[before.localName]?.["x-patch"] === "members" && sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
+	const reachesMembers = (before, after, arrivingRoot) => {
+		if (registry[before.localName]?.["x-patch"] !== "members") return false;
+		const members = !authoredBody(sourcePairs.get(before));
+		return sameAuthoredMarkup(shell(before, members), shell(after, members), arrivingRoot);
+	};
 	function patchRules(doc) {
 		const source = pageDocument(doc);
 		const arrivingWidgets = documentWidgetDigests(doc);
@@ -3281,6 +3285,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			pairs: sourcePairs,
 			contains: under,
 			declared: upgraded,
+			body: authoredBody,
 			reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
 			unchanged: (before, after) => {
 				const digest = authoredWidgets[heldKeys.get(before)];
@@ -4103,17 +4108,17 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				activate: () => openThread(id)
 			}, pointed);
 		}
-		for (const item of readObligations().user) {
+		const placed = () => readObligations().user.filter((item) => obligationPlace(item).node);
+		for (const item of placed()) {
 			const id = item.id;
 			const target = obligationPlace(item).node;
-			if (!target) continue;
 			add(groups, target, {
 				kind: "on-me",
 				id: `on-me:${id}`,
 				text: "Waiting on me",
-				label: addressableLabel(target) || null,
+				label: (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) || null,
 				activate: () => {
-					const items = readObligations().user.filter((item) => item.source.kind === "widget");
+					const items = placed();
 					const next = items.find((candidate) => candidate.id === id);
 					if (next) goToObligation(next, items);
 				}
@@ -7023,6 +7028,10 @@ function mountApplication(dependencies) {
 			registerSurface: dependencies.registerReactSurface,
 			actions: threadActions
 		},
+		todos: { done: (id) => queueActions.done(queueItemKey({
+			kind: "todo",
+			id
+		})) },
 		read,
 		openThread: openPageThread,
 		landInThread: dependencies.landInThread

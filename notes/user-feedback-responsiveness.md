@@ -117,7 +117,7 @@ reaches the tab by one of two routes, depending on which comes first:
   the save, once its process has started. The tab's read waits for the stamp's
   whole check under the lock. The state read that follows checks the same source
   again, since the server's record that a source passed its check lives in that
-  process only. A stamp right after a save, or one `--from-directory`, can take
+  process only. A stamp right after a save, or one with `--replace`, can take
   this route.
 
 `uv run leaf-dev bench-latency --page corpus --transition revision` reads both;

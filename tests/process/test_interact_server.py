@@ -939,7 +939,7 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
     data = b"0123456789" * 200_000
     source = tmp_path / "large.mp4"
     source.write_bytes(data)
-    _, path = media_model.cmd_media(page_dir, [source])[0]
+    path = media_model.cmd_media(page_dir, [source])[0]["path"]
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>", f'<video controls preload="none" src="{path}"></video></main>'
@@ -3118,10 +3118,9 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
     delivered = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert delivered.exit_code == 0, delivered.output
     delivery = json.loads(delivered.output)
-    result = CliRunner().invoke(cli_model.cli, ["wait", "--ack", delivery["id"]])
-    # The page error was an acknowledgeable target, so the cursor moved and the
-    # re-armed wait ended on its own 2; a refused acknowledgement would be 1.
-    assert result.exit_code == 2, result.output
+    result = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery["id"]])
+    # The page error was an acknowledgeable target, so the cursor moved.
+    assert result.exit_code == 0, result.output
     assert acknowledged_through(page_dir) == error["seq"]
 
 
@@ -3174,7 +3173,7 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     assert reading() == first
     assert calls == 1
 
-    declare(page_dir, "waiting", "measuring")
+    declare(page_dir, "waiting")
     refreshed = reading()
     assert refreshed == first
     assert calls == 1
@@ -3256,11 +3255,10 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     monkeypatch.setattr(presence_model, "other_leaves", observe)
     presence_model.neighbor_reading(page_dir)
     for n in range(20):
-        declare(page_dir, "waiting", str(n))
+        declare(page_dir, "waiting")
         own.refresh()
         record = files_model.read_json(own.path)
-        # Give every pass a concrete changed canonical producer publication,
-        # even when waiting's detail is absent from the compact activity fold.
+        # Give every pass a concrete changed canonical producer publication.
         cleanup_model.write_json(
             own.path, {**record, "row": {**record["row"], "title": f"Own {n}"}}
         )
@@ -4301,7 +4299,7 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     second = tmp_path / "second.svg"
     first.write_text('<svg xmlns="http://www.w3.org/2000/svg"><text>First</text></svg>')
     second.write_text(first.read_text().replace("First", "Second"))
-    urls = [item[1] for item in media_model.cmd_media(page_dir, [first, second])]
+    urls = [item["path"] for item in media_model.cmd_media(page_dir, [first, second])]
     data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
     data_model.cmd_data_set(
         page_dir,
@@ -4480,7 +4478,7 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     runner = CliRunner()
     started = runner.invoke(
-        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4496,7 +4494,15 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     runner = CliRunner()
     started = runner.invoke(
         cli_model.cli,
-        ["server", "start", "--persistent", "--host", "localhost", str(page_dir)],
+        [
+            "server",
+            "start",
+            "--lifetime",
+            "persistent",
+            "--host",
+            "localhost",
+            str(page_dir),
+        ],
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4509,7 +4515,7 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
 def test_server_start_names_the_page_layer_and_running_payload(page_dir):
     runner = CliRunner()
     started = runner.invoke(
-        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4563,7 +4569,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     stamp.unlink()
     stamp.write_text(json.dumps({**newer, "$future": 1}), encoding="utf-8")
     reshaped = runner.invoke(
-        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     assert reshaped.exit_code != 0, reshaped.output
     assert f"Use a Leaf at protocol {foreign} or later" in reshaped.output
@@ -4585,7 +4591,9 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
         assert stopped.exit_code == 0, stopped.output
 
 
-def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_dir):
+def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(
+    page_dir, tmp_path
+):
     """A re-vendor across a protocol bump leaves the revisions the page saved before
     it in place, each with the runtime it was saved with. Served, that runtime would
     talk to this Leaf's server across the bump, so its address refuses, as does an
@@ -4671,6 +4679,42 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         assert commented(2)[0] == 200
     finally:
         temporary.close()
+
+    # A picture serves the revision its drawing was made on, so one made on the
+    # older revision refuses as the address does, before any browser opens.
+    drawn = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "plan"},
+            "drawing": {
+                "viewport": [800, 600],
+                "scheme": "light",
+                "box": [100, 100],
+                "strokes": [[[10, 10], [90, 90]]],
+            },
+        },
+    )
+    pictured = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(page_dir), drawn["id"]]
+    )
+    assert pictured.exit_code == 1, pictured.output
+    assert f"Revision 1 was saved at page protocol {foreign}" in pictured.output
+    # So does an export of a version stamped on it, which would run this Leaf's
+    # runtime against that revision's widgets.
+    append_carried_log_record(
+        page_dir,
+        {"kind": "note", "author": "agent", "revision": 1, "version": 1, "text": "v1"},
+    )
+    exported = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(page_dir), "--out", str(tmp_path / "v1.html")],
+    )
+    assert exported.exit_code == 1, exported.output
+    assert f"Revision 1 was saved at page protocol {foreign}" in exported.output
+    assert not (tmp_path / "v1.html").exists()
 
 
 def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input(
@@ -4783,7 +4827,8 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
             "server",
             "_serve",
             str(page_dir),
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--harness",
             "null",
             "--handshake",
@@ -4862,7 +4907,8 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             "server",
             "_serve",
             str(neighbor),
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--revive",
             "--harness",
             "null",
@@ -4980,7 +5026,8 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
             "server",
             "_serve",
             str(page_dir),
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--harness",
             "null",
             "--handshake",
@@ -5398,7 +5445,8 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
             str(page_dir),
             "--host",
             "page.example",
-            "--persistent",
+            "--lifetime",
+            "persistent",
             "--revive",
             "--harness",
             "null",
@@ -5431,7 +5479,7 @@ while json.loads((page / "service.json").read_text())["enabled"]:
 
 
 def hold_persistent(page: Path, start) -> subprocess.Popen:
-    """A persistent page with its lease held, as `server run --persistent` leaves one."""
+    """A persistent page with its lease held, as `server run --lifetime persistent` leaves one."""
     page.mkdir(parents=True)
     write_record(
         page / "service.json",
@@ -5565,7 +5613,7 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
     status, raw = fetch(f"{server}/api/state")
 
     assert status == 200, raw
-    assert json.loads(raw)["status"] == {"state": "waiting", "detail": ""}
+    assert json.loads(raw)["status"] == {"state": "waiting"}
 
 
 def test_others_ships_on_a_network_facing_bind_too(page_dir):

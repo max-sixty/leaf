@@ -276,17 +276,16 @@ def test_a_panel_row_follows_its_pages_status_live(
     told(page)
     expect(row).to_contain_text("Working — recording the demo")
     # A neighbour waiting on its own user says so in this seat's shorter words, and
-    # in the same term its own status uses, with what it is waiting for: All pages is
-    # where a user picks which page to go to. The hover holds it whole, since the
-    # line ellipsizes at the panel's width, and it is the row's hover and not a part's,
-    # the innermost title winning where two overlap.
+    # in the same term its own status uses: All pages is where a user picks which
+    # page to go to. The hover holds it whole, since the line ellipsizes at the
+    # panel's width, and it is the row's hover and not a part's, the innermost title
+    # winning where two overlap.
     end_work(other_dir)
-    declare(other_dir, "waiting", "pick a storage engine")
+    declare(other_dir, "waiting")
     told(page)
-    expect(row).to_contain_text("Awaits — pick a storage engine")
+    expect(row).to_contain_text("Awaits")
     expect(row).to_have_attribute(
-        "title",
-        f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine",
+        "title", f"The other leaf\n{tmp_path / 'other-work'}\nAwaits"
     )
     assert row.locator("[title]").count() == 0, (
         "a part of the row carries a tooltip of its own, which wins under the pointer "

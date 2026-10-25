@@ -165,7 +165,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     corrected_candidate = f"{corrected_target.origin}/versions/"
 
     media = {
-        name: media_model.cmd_media(review_dir, [path])[0][1]
+        name: media_model.cmd_media(review_dir, [path])[0]["path"]
         for name, path in capture_files.items()
     }
     conditions = {

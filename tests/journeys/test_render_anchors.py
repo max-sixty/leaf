@@ -1206,6 +1206,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
             "start",
             str(serve.page_dir),
             question["id"],
+            "--text",
             "checking the inline placement",
         ],
     )

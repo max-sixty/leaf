@@ -351,7 +351,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         detached = detached_threads(page, [thread["id"] for thread in listed])
         assert detached == retained, (
             f"{example.stem} has unexpected detached anchors: {detached - retained}. "
-            "Recapture unintended quotes with `leaf thread open --quote` against "
+            "Recapture unintended quotes with `leaf thread create --quote` against "
             f"the current file; missing historical sample quotes: {retained - detached}."
         )
         # Only where the log named a passage. The thread count above already allows a
@@ -480,7 +480,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     browser, serve, source
 ):
-    """The claim `leaf thread open` makes is that a quote read out of the mapped revision
+    """The claim `leaf thread create` makes is that a quote read out of the mapped revision
     names the same passage in the browser. Four unlike authored pages cover native
     blocks, representative widgets, and projected text that can make the file and
     browser readings disagree. The generated corpus derives its tab bodies from these

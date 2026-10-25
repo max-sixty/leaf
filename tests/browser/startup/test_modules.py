@@ -293,12 +293,14 @@ def _release(page, held, context):
     wait_until_ready(page)
 
 
-def test_words_typed_while_the_editor_loads_are_its_first_words(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_typed_while_the_editor_loads_are_its_first_words(engine, request, serve):
     """CodeMirror stays off the presentation path: held, it keeps the page from reading
     as arrived but not from presenting. `c` still puts the user in the page comment's
     field in the same turn, and what they type before CodeMirror arrives, where they
-    moved the caret to and all, is what the editor holds once it does, as one step
-    undo takes back."""
+    moved the caret to and the line Shift+Return broke included, is what the editor
+    holds once it does, as one step undo takes back."""
+    browser = request.getfixturevalue(engine)
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     held = _hold_the_editor(context)
     page = open_page(browser, serve(LONG_PAGE), context=context, upgraded=False)
@@ -317,16 +319,17 @@ def test_words_typed_while_the_editor_loads_are_its_first_words(browser, serve):
         page.keyboard.type("Typed early")
         page.keyboard.press("ArrowLeft")
         page.keyboard.press("ArrowLeft")
-        page.keyboard.type(" and ")
-        expect(field).to_have_js_property("value", "Typed ear and ly")
-        expect(field).to_have_js_property("selectionStart", len("Typed ear and "))
+        page.keyboard.type(" and")
+        page.keyboard.press("Shift+Enter")
+        expect(field).to_have_js_property("value", "Typed ear and\nly")
+        expect(field).to_have_js_property("selectionStart", len("Typed ear and\n"))
 
         _release(page, held, context)
         expect(field).to_be_focused()
         page.keyboard.type("kept ")
-        expect(field).to_have_js_property("value", "Typed ear and kept ly")
+        expect(field).to_have_js_property("value", "Typed ear and\nkept ly")
         page.keyboard.press("ControlOrMeta+z")
-        expect(field).to_have_js_property("value", "Typed ear and ly")
+        expect(field).to_have_js_property("value", "Typed ear and\nly")
         page.keyboard.press("ControlOrMeta+z")
         expect(field).to_have_js_property("value", "")
     finally:
@@ -371,6 +374,39 @@ def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, 
         for route in held:
             route.continue_()
         context.unroute_all(behavior="wait")
+
+
+def test_an_unavailable_editor_module_leaves_fields_writing_plain_words(browser, serve):
+    """When CodeMirror's module fails to load, Leaf reports it each time a field asks
+    for its editor, and the field keeps the plain words it holds while waiting for one:
+    the user types, Shift+Return breaks the line, and Return sends."""
+    url = serve(LONG_PAGE)
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    watched(page)
+    page.route("**/vendor/codemirror.esm.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    wait_until_ready(page)
+    failed = ("Failed to fetch dynamically imported module", "net::ERR_FAILED")
+    consume_browser_errors(page, *failed)
+
+    page.evaluate(RELEASE_FOCUS)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    with page.expect_event("pageerror") as raised:
+        page.keyboard.press("c")
+    assert failed[0] in str(raised.value)
+    consume_browser_errors(page, *failed)
+    expect(field).to_be_focused()
+    page.keyboard.type("Written")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("plain")
+    expect(field).to_have_js_property("value", "Written\nplain")
+    # The thread's reply field, opening in the sent comment's place, asks for the
+    # editor again.
+    with page.expect_event("pageerror") as raised:
+        page.keyboard.press("Enter")
+    assert failed[0] in str(raised.value)
+    expect(page.locator(".lf-live")).to_have_text("Message sent")
+    consume_browser_errors(page, *failed)
 
 
 def test_an_unavailable_floating_ui_module_leaves_no_surface_open_and_unseen(

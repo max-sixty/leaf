@@ -262,7 +262,8 @@ export {
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
-// the caller imported, so the runtime never loads CodeMirror for a page that doesn't edit.
+// the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once
+// the page has presented.
 export { leafEditorView } from "./editor-view.js";
 
 // Internal: what Leaf's own bundled packages and kernel widgets import beyond the

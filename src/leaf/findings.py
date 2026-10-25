@@ -469,6 +469,11 @@ _TEXT = {
         f" the key found {_box(v['found'])}, the frame painted {_box(v['painted'])}"
         f"{_shift_evidence(v)}"
     ),
+    "gesture-scrolled": lambda at, v: (
+        f"a scroll during the {v['input']} on {placed(v['node'])} moved it{_by(v)};"
+        " only a command that takes the user somewhere (`travels`) may"
+        f"{_shift_evidence(v)}"
+    ),
     "shift-watch-missed": lambda at, v: (
         "shift watch missed a change to "
         + (placed(v["node"]) if v["node"] else "the page's nodes")

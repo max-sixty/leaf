@@ -119,12 +119,7 @@ export function createFloatingResponsePlacement({
     const scaleY = bar.height / parseFloat(style.height);
     const left = parseFloat(style.paddingLeft);
     const top = parseFloat(style.paddingTop);
-    // The frame is never narrower than the card (annotation-chrome.css), so neither is
-    // the origin, though the options trigger beside the field takes part of that width.
-    const width = Math.max(
-      field.width / scaleX + left + parseFloat(style.paddingRight),
-      parseFloat(style.minWidth) || 0,
-    );
+    const width = field.width / scaleX + left + parseFloat(style.paddingRight);
     const height = field.height / scaleY + top + parseFloat(style.paddingBottom);
     // The reserved header and footer surround the words the user sends. Attachment
     // shelves and options disappear on Send, so their tracks are not the card's origin.

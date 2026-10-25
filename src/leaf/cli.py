@@ -24,6 +24,7 @@ from typing import NamedTuple, TextIO
 
 import click
 
+from leaf.render_gate.browser import VARIABLES as BROWSER_VARIABLES
 from leaf.schema import WAIT_BATCH_OUTPUT_INSTRUCTION
 from leaf.state import EVENTS_FILE, PLUGIN_ROOT
 
@@ -446,20 +447,22 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
     cmd_package_run(name, script, arguments)
 
 
-@page.command(short_help="Check the mutable page source.")
+@page.command(
+    short_help="Check the mutable page source.",
+    help=(
+        "Check PAGE/index.html.\n\nRuns the markup checks and, where the page has "
+        "scripts or widgets only a browser can judge, runs them in the host's "
+        "browser. --render also checks the drawn page. The browser is the executable "
+        f"{' or '.join(BROWSER_VARIABLES)} names, else the installed Chrome, else "
+        "the first browser on PATH; a host with none is told why in place of each "
+        "browser check."
+    ),
+)
 @page_argument(renew=False)
 @click.option(
     "--render", is_flag=True, help="also check the rendered page in the host's browser"
 )
 def check(page_dir: Path, render: bool) -> Reported:
-    """Check PAGE/index.html.
-
-    Runs the markup checks and, where the page has scripts or widgets only a
-    browser can judge, runs them in the host's browser. --render also checks the
-    drawn page. The browser is whichever executable LEAF_BROWSER_EXECUTABLE,
-    CHROME_PATH, or CHROME_BIN names, else the installed Chrome, else the first
-    browser on PATH; a host with none is told why in place of each browser check.
-    """
     from leaf.validation.command import cmd_check
 
     report = cmd_check(page_dir, render)
@@ -1295,28 +1298,15 @@ def thread_reply(
     done: bool,
     **options,
 ) -> dict | None:
-    """Reply to a delivered update using its `answer.ref` as the only argument, or
-    post an agent-initiated message using PAGE MESSAGE, any message in the thread.
-    A page and message cannot bypass an owed answer: use its delivered reference
-    instead.
+    """Answer a delivered update by its `answer.ref` alone, or post into the
+    thread PAGE MESSAGE names, which never stands in for an answer you owe.
 
-    With a reference, mark every answer with --done (it delivers what the message
-    asked for) or --todo TITLE (it promises work it doesn't deliver, which stays
-    on you as a to-do), or --obligation when the next move is the user's. A widget
-    in --markup can also register its own obligation. A progress line
-    (--ephemeral) or a failure (--failure) takes none of them.
-
-    The reply publishes your saved page edits with it, checking them as `page
-    check` does without a browser: an error refuses the reply, and the first reply
-    on a revision notes the advice `page check` gives on its source. It runs none
-    of the page's scripts or data widgets, which `page check` runs in a browser;
-    one that fails for the user arrives as an `error` event.
-
-    With a reference, an answer suppresses your turn's final message as a second
-    reply; an --ephemeral line does not. --done and --failure require a
-    reference.
-    PAGE MESSAGE accepts --obligation when the message needs the user's next move,
-    or --todo for promised work.
+    An answer declares what it leaves with --done, --todo or --obligation, or
+    carries a widget in --markup that asks; --ephemeral progress and a --failure
+    declare nothing, and both --done and --failure need a reference. The reply
+    publishes your saved page edits, checked as `page check` checks them without a
+    browser. The Leaf skill's references/threads.md says which to use and what
+    each leaves.
     """
     from leaf.thread import post_reply, post_response
 
@@ -1410,16 +1400,11 @@ def task() -> None:
     """Create and end to-dos, say which item on your list you are working on, and
     lay out your plan.
 
-    Your list, which the user sees as On <your name>, holds each user update you owe
-    an answer, named by the update's event id, and each to-do you opened. Before
-    working on one, run `leaf task start` with a line saying what you are doing:
-    the item reads Working with that line, beside it and in Leaf's panel. A to-do
-    stays on your list through replies, resolutions, versions and the end of the
-    session that opened it, until `leaf task end` or a stamp that `--completes` its
-    widget ends it. A to-do you create `--on user` goes on the user's On me list
-    instead, until they press its Done or you end it. `leaf task plan` arranges
-    to-dos, obligations and plain steps into one outline of the work. Every write prints
-    the record it appended, one JSON line, as `page events` prints it.
+    Your list, On <your name>, holds each update you owe an answer and each to-do
+    you opened; a to-do `--on user` is on the user's On me instead. Every write
+    prints the record it appended, one JSON line, as `page events` prints it. The
+    Leaf skill's references/conversation-loop.md, "Long-running work" and "The On
+    lists", says when to use each.
     """
 
 

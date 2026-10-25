@@ -449,7 +449,7 @@ class PageTransaction:
         """The one writer of `stream.json` (`STREAM`)."""
         STREAM.write(self.page_dir / STREAM_FILE, stream)
 
-    def set_status(self, state: str, detail: str) -> dict:
+    def set_status(self, state: str) -> dict:
         """Append the page's `waiting` or `idle` declaration, a `status` event in the
         posting session's voice, and return the record.
 
@@ -465,7 +465,6 @@ class PageTransaction:
                 "kind": "status",
                 "author": "agent",
                 "state": state,
-                "detail": detail,
             },
         )
         if state == "idle" and self.stream != no_stream():

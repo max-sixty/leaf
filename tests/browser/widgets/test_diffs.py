@@ -21,6 +21,7 @@ from render_cases_widgets import (
 from render_harness import (
     RELEASE_FOCUS,
     consume_browser_errors,
+    displayed,
     holding,
     leaf_page,
     open_page,
@@ -40,7 +41,7 @@ from browser.widgets import (
 )
 from leaf import data as data_model
 from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -58,6 +59,154 @@ LONG_DIFF_PATCH = (
 
 def long_diff(id):
     return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
+
+
+def test_a_rewrite_reads_its_deletions_above_its_additions(browser, serve):
+    """A change of 4 lines into 19 reads as git wrote it, its old lines above its new.
+    Pierre re-splits such a change to pair similar lines, which in Leaf's unified
+    view set the old function between the new one's 11th and 12th lines."""
+    old = [
+        "def upload(client, job, payload):",
+        '    response = client.post("/objects", json=payload, timeout=10)',
+        "    response.raise_for_status()",
+        '    return response.json()["object_id"]',
+    ]
+    new = [
+        '"""Upload one artifact."""',
+        "",
+        "import time",
+        "",
+        "",
+        "def upload(client, job, payload, max_attempts=2):",
+        '    key = f"upload:{job.tenant_id}:{job.id}"',
+        "    for attempt in range(max_attempts):",
+        "        try:",
+        "            response = client.post(",
+        '                "/objects", json=payload,',
+        '                headers={"Idempotency-Key": key}, timeout=10,',
+        "            )",
+        "            response.raise_for_status()",
+        '            return response.json()["object_id"]',
+        "        except TimeoutError:",
+        "            if attempt + 1 == max_attempts:",
+        "                raise",
+        "            time.sleep(0.5 * 2**attempt)",
+    ]
+    path = "src/uploader.py"
+    patch = (
+        (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1,{len(old)} +1,{len(new)} @@\n"
+            + "".join(f"-{line}\n" for line in old)
+            + "".join(f"+{line}\n" for line in new)
+        )
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Rewrite", f'<lf-diff id="rewrite"><pre>{patch}</pre></lf-diff>')
+        ),
+    )
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    sides = page.evaluate("""() => [
+      ...document.querySelector('#rewrite').shadowRoot.querySelectorAll('[data-lf-datum]'),
+    ].map(row => JSON.parse(row.dataset.lfDatum)).filter(d => d.length === 3)
+      .map(([, side, line]) => `${side}${line}`)""")
+    assert sides == [f"old{n}" for n in range(1, 5)] + [
+        f"new{n}" for n in range(1, 20)
+    ], sides
+
+
+def _patch_file(path, start, lines):
+    """One file's section of a patch whose single hunk, at `start`, adds `lines`."""
+    return (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f"@@ -{start},1 +{start},{len(lines) + 1} @@\n context\n"
+        + "".join(f"+{line}\n" for line in lines)
+    )
+
+
+FIRST_PAINT_PAGE = leaf_page(
+    "Diff first paint",
+    "<h1>Diffs</h1>"
+    # Code scrolls: a hunk below the first line draws a separator, and four-digit line
+    # numbers widen the gutter.
+    + '<lf-diff id="code"><pre>'
+    + _patch_file("src/app.py", 1200, ["x = 1", "y = 2"])
+    + _patch_file("src/util.py", 1, ["z = 3"])
+    + "</pre></lf-diff>"
+    # Prose wraps at the drawing's column: words, runs of spaces, and words longer
+    # than the column by every count up to a few columns, so a column more or less
+    # than the drawing's changes some row's lines at either width.
+    + '<lf-diff id="prose"><pre>'
+    + _patch_file(
+        "docs/guide.md",
+        1,
+        [
+            (
+                "A paragraph kept on one source line, long enough to wrap at every "
+                "width the page is read at, with words of several lengths to break at."
+            ),
+            "Spaces    run    between    these    words    before    the    line    "
+            * 3,
+            "https://example.com/" + "a" * 160,
+            *("a" * length for length in range(30, 150)),
+        ],
+    )
+    + _patch_file("notes.txt", 1, ["Plain text wraps too, " * 8])
+    + "</pre></lf-diff>"
+    + '<lf-diff id="folded" collapsed><pre>'
+    + _patch_file("src/app.py", 1, ["x = 1"])
+    + _patch_file("src/util.py", 1, ["z = 3"])
+    + "</pre></lf-diff><p id='after'>After the diffs.</p>",
+)
+
+
+@pytest.mark.parametrize(
+    "viewport, touch", [((1280, 900), False), ((390, 844), True)], ids=["wide", "touch"]
+)
+def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
+    browser, serve, viewport, touch
+):
+    """An inline patch's first paint holds the height its drawing lands at, so nothing
+    after it moves when it upgrades: each file's frame and name row, a row per line
+    and hunk separator, and each prose row as many lines as it wraps to at the column
+    the drawing gives it. Under a finger the name rows stand at a finger's reach."""
+    context = browser.new_context(
+        viewport={"width": viewport[0], "height": viewport[1]},
+        has_touch=touch,
+        is_mobile=touch,
+    )
+    page = context.new_page()
+    boot = []
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    heights = "() => [...document.querySelectorAll('lf-diff')].map(d => [d.id, d.getBoundingClientRect().height])"
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(FIRST_PAINT_PAGE), wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+        first = page.evaluate(heights)
+        boot.pop().continue_()
+        wait_until_ready(page)
+        page.wait_for_function(
+            "() => [...document.querySelectorAll('lf-diff')].every(d => d.matches('.lf-rendered'))"
+        )
+        drawn = page.evaluate(heights)
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        context.close()
+    moved = [
+        (id, before, after)
+        for (id, before), (_, after) in zip(first, drawn, strict=True)
+        if abs(after - before) >= 1
+    ]
+    assert not moved, moved
 
 
 def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, serve):

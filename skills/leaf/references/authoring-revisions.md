@@ -23,7 +23,7 @@ Prepare a separate directory holding the replacement `index.html` and whole `pag
 tree, with any media it uses already in the live page, then publish:
 
 ```sh
-leaf page stamp <page> --from-directory <candidate> --if-source <digest> --text 'Updated the page'
+leaf page stamp <page> --replace <candidate> <digest> --text 'Updated the page'
 ```
 
 A successful stamp adds its version note while preserving the existing event history
@@ -91,12 +91,20 @@ context. Keep deferred work in the list with enough context to resume it.
 
 A decision the user answered and you have acted on becomes a record. Give its
 `lf-options` group the `settled` attribute, which collapses it to the pick, and say
-beside it what came of the choice. Keep the result and its evidence in the current
-reading flow while the reader still needs them (`page-authoring.md`, "Reading cost");
-retire the superseded interaction as finished work. Pose anything still worth asking
-as a new decision with new ids. Use `$restated` to withdraw the decision and ask again.
+beside it what you did about the choice. Anything the choice sets in motion that
+hasn't happened yet reads as decided, not under way. Keep the result and its evidence
+in the current reading flow while the reader still needs them (`page-authoring.md`,
+"Reading cost"); retire the superseded interaction as finished work. Pose anything
+still worth asking as a new decision with new ids. Use `$restated` to withdraw the
+decision and ask again.
 Don't mark a decision `settled` until you have finished applying it, and keep a section
 open while the user is still commenting there.
+
+A playground whose submitted configuration you have applied becomes a record too.
+Author each control at the chosen value, so the preview, Reset and the page's account
+of the choice agree, and keep it and its evidence open beside what came of the choice,
+since the user reads the record against that evidence. The user can still explore from
+it, and Reset brings them back to the record.
 
 The user reads threads to learn where their input stands. When a revision settles or
 lands what an open thread discusses, reply in that thread with what happened and where

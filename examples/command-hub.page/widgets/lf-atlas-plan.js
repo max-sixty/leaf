@@ -2,6 +2,7 @@
  * stopped tasks and assignments consistent with the recorded decisions. */
 import {
   authoredScope,
+  generatedElement,
   keeps,
   HeldReading,
   html,
@@ -22,6 +23,13 @@ customElements.define(
         `#${CSS.escape(this.getAttribute("overview"))}`,
       );
       if (!this.overview) return;
+      // The counts are this plan's words; the stopped list repeats task titles the
+      // page says in the tree.
+      for (const count of this.overview.querySelectorAll("[data-atlas-count]"))
+        generatedElement(count, { says: true });
+      generatedElement(this.overview.querySelector(".atlas-stopped > ul"), {
+        says: "echo",
+      });
       this.hold = new HeldReading(
         this,
         () => [this.overview.querySelector(".atlas-stopped")],

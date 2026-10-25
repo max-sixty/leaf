@@ -220,16 +220,62 @@ export function afterScript(callback) {
     owedThisScript.set(callback, enqueueWork(callback));
 }
 
+// An observation started during delivery can request an initial notification at the
+// same depth the browser just delivered, even when no box changed. Install those
+// subscriptions before the next frame's layout. Owners still change state and paint
+// synchronously; only the new sensor waits. Counted sensors keep readiness pending.
+let deliveringSizes = 0;
 /** A `ResizeObserver` whose deliveries the settled reading counts, unless it watches
  * boxes that may move for as long as the page plays, which `counted: false` says. */
 export function sizeObserver(callback, { counted = true } = {}) {
-  return new ResizeObserver((entries, observer) => {
+  const pending = new Map();
+  let installation = null;
+  const observer = new ResizeObserver((entries, observer) => {
     if (counted) {
       heard = true;
       unsettle();
     }
-    callback(entries, observer);
+    deliveringSizes++;
+    try {
+      callback(entries, observer);
+    } finally {
+      deliveringSizes--;
+    }
   });
+  const observe = observer.observe.bind(observer);
+  const unobserve = observer.unobserve.bind(observer);
+  const disconnect = observer.disconnect.bind(observer);
+  const install = () => {
+    installation = null;
+    for (const [target, options] of pending) observe(target, options);
+    pending.clear();
+  };
+  const retireInstallation = () => {
+    if (pending.size || installation === null) return;
+    (counted ? cancelRender : cancelAnimation)(installation);
+    installation = null;
+  };
+  observer.observe = (target, options) => {
+    if (!deliveringSizes) {
+      pending.delete(target);
+      retireInstallation();
+      return observe(target, options);
+    }
+    pending.set(target, options);
+    if (installation === null)
+      installation = (counted ? nextRender : nextAnimation)(install);
+  };
+  observer.unobserve = (target) => {
+    pending.delete(target);
+    retireInstallation();
+    unobserve(target);
+  };
+  observer.disconnect = () => {
+    pending.clear();
+    retireInstallation();
+    disconnect();
+  };
+  return observer;
 }
 
 export const renderingState = () => {

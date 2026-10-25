@@ -26,7 +26,6 @@ import {
   navigateToDatum,
   nothing,
   offer,
-  projectData,
   setChildLists,
   setChildren,
   plainPress,
@@ -222,6 +221,14 @@ function renderLine(record, line, owner, count = null) {
   return line;
 }
 
+// A drawn row's marks, which make it a datum on a Leaf page (`module-state.md`,
+// "Marking drawn data").
+function mark(node, key, label, path) {
+  keeps(node, "data-lf-datum", key);
+  keeps(node, "data-lf-datum-label", label);
+  keeps(node, "data-lf-origin-path", path ? JSON.stringify(path) : null);
+}
+
 function labelOf(record) {
   if (record.meta) return record.body;
   const location = record.location ? ` at ${record.location}` : "";
@@ -231,12 +238,21 @@ function labelOf(record) {
 customElements.define(
   "lf-call-diff",
   class extends LeafElement {
+    // The CallDiff document, set by whoever hosts the widget: Leaf from the bound
+    // source (the registry's `x-data.document.property`), or null while it has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
     render() {
-      this.show(this.data("document"));
+      this.show(this.value);
       return nothing;
     }
 
-    message(snapshot) {
+    message(value) {
       this.groups = new Map();
       this.rows = new Map();
       /** @type {HTMLElement} */
@@ -245,26 +261,17 @@ customElements.define(
       keeps(node, "class", "lf-call-line lf-call-missing");
       keepsText(node, "Waiting for call-diff data.");
       setChildren(this, [node]);
-      projectData(
-        this,
-        [
-          {
-            node,
-            key: "unavailable",
-            label: "Call-diff data unavailable",
-          },
-        ],
-        { snapshot },
-      );
+      mark(node, "unavailable", "Call-diff data unavailable", null);
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
     }
 
-    show(snapshot) {
-      const records = snapshot?.value ? recordsOf(snapshot.value) : [];
+    show(value) {
+      const records = value ? recordsOf(value) : [];
       // Drawn from its data, which lifts the height the page reserved (x-height), and
       // held at that height again while the data is absent.
       this.classList.toggle("lf-rendered", records.length > 0);
       if (!records.length) {
-        this.message(snapshot);
+        this.message(value);
         return;
       }
 
@@ -291,7 +298,7 @@ customElements.define(
         ]),
       );
       const rows = new Map();
-      const datums = records.map((record) => {
+      for (const record of records) {
         const group = groups.get(record.groupKey);
         const node =
           oldRows.get(record.key) ?? (record.root ? group.summary : buildLine());
@@ -302,13 +309,8 @@ customElements.define(
           render(locationLink(record, this), group.location);
         }
         rows.set(record.key, node);
-        return {
-          node,
-          key: record.key,
-          label: labelOf(record),
-          origin: { ...snapshot.origin, path: record.originPath },
-        };
-      });
+        mark(node, record.key, labelOf(record), record.originPath);
+      }
       const placements = [...groups].map(([key, { group, body }]) => {
         const [root, ...children] = groupRows.get(key);
         return {
@@ -344,7 +346,7 @@ customElements.define(
       ]);
       this.groups = groups;
       this.rows = rows;
-      projectData(this, datums, { snapshot });
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
       updateDisclosureControl(this);
     }
   },

@@ -141,26 +141,15 @@ test("work waiting in the agent's own session says where it is answered, and is 
   assert.equal(pageStatus(state({ kind: "working" })).actionableWork, null);
 });
 
-test("listening keeps the agent's request on the row until input supersedes it", () => {
-  assert.deepEqual(said({ kind: "listening", detail: "pick a storage engine" }), [
-    "Claude awaits — pick a storage engine",
-    "Claude awaits — pick a storage engine",
-  ]);
+test("listening says where a comment starts until input is on its way", () => {
   assert.equal(
     said({ kind: "listening", detail: "" })[0],
     "Claude awaits — select text to comment",
   );
-  assert.deepEqual(
-    said({
-      kind: "listening",
-      detail: "pick a storage engine",
-      counts: { pending: 1 },
-    }),
-    [
-      "Claude listening",
-      "Claude is listening — pick a storage engine. 1 response owed on updates awaiting delivery.",
-    ],
-  );
+  assert.deepEqual(said({ kind: "listening", detail: "", counts: { pending: 1 } }), [
+    "Claude listening",
+    "Claude is listening. 1 response owed on updates awaiting delivery.",
+  ]);
 });
 
 test("a quiet claim is dated by its last word, and a dropped one by the turn's ending", () => {
@@ -243,26 +232,18 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
 test("a status asks the user to act only where its words do", () => {
   const asks = (activity) =>
     statusModel(pageStatus(state(activity)), NO_QUEUES, "Claude").asks;
-  // A nudge, the agent's declared request, and work waiting in its own session ask.
+  // A nudge and work waiting in its own session ask.
   assert.equal(asks({ kind: "away", dropped: true, counts: { overdue: 1 } }), true);
-  assert.equal(asks({ kind: "listening", detail: "pick a storage engine" }), true);
   assert.equal(
     asks({ kind: "working", observed_kind: "awaiting_approval", awaiting: true }),
     true,
   );
-  // Work, waiting the agent's turn, the stock words that say where a comment starts,
-  // and a request the user's input already answers only report.
+  // Work, waiting the agent's turn, and the stock words that say where a comment
+  // starts only report.
   assert.equal(asks({ kind: "working", detail: "revising the plan" }), false);
   assert.equal(asks({ kind: "away", detail: "" }), false);
   assert.equal(asks({ kind: "listening", detail: "" }), false);
-  assert.equal(
-    asks({
-      kind: "listening",
-      detail: "pick a storage engine",
-      counts: { pending: 1 },
-    }),
-    false,
-  );
+  assert.equal(asks({ kind: "listening", detail: "", counts: { pending: 1 } }), false);
   assert.equal(asks({ kind: "stalled", ts: minutesAgo(20) }), false);
   assert.equal(asks({ kind: "unheld" }), false);
   // A server that went away reconnects by itself; a refused key waits on the user.
@@ -322,7 +303,7 @@ test("what the disclosure adds to the row says only what the row does not", () =
     adds({ ...work, observed_kind: "tool", observed: "Running the tests" }, queues),
     "Running the tests. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Claude: 1 reply, 1 to-do (Rebuild the chart).",
   );
-  assert.equal(adds({ kind: "listening", detail: "pick a storage engine" }), "");
+  assert.equal(adds({ kind: "listening", detail: "" }), "");
   // What the sentence says past the row, without the state the row already says.
   assert.equal(
     adds({
@@ -334,12 +315,8 @@ test("what the disclosure adds to the row says only what the row does not", () =
     "It hasn't said what it's doing yet.",
   );
   assert.equal(
-    adds({
-      kind: "listening",
-      detail: "pick a storage engine",
-      counts: { pending: 1 },
-    }),
-    "It asked: pick a storage engine. 1 response owed on updates awaiting delivery.",
+    adds({ kind: "listening", detail: "", counts: { pending: 1 } }),
+    "1 response owed on updates awaiting delivery.",
   );
   assert.equal(
     adds({ kind: "away", detail: "" }),
@@ -368,11 +345,6 @@ test("a published page's agent is on call, and its explanation introduces the pa
     assert.equal(status.summary, "Agent awaits — comment to revise this copy");
     assert.equal(status.asks, false);
   }
-  // A request it declared still stands.
-  assert.equal(
-    published({ kind: "listening", detail: "pick a plan" }).summary,
-    "Agent awaits — pick a plan",
-  );
   // Its work reads as on any page.
   const working = published({ kind: "working", detail: "revising the plan" });
   assert.equal(working.tone, "working");
@@ -417,10 +389,7 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
     }),
     "Using a tool · 2 responses owed on queued updates · 1 response owed on updates awaiting delivery",
   );
-  assert.equal(
-    row({ kind: "listening", detail: "pick a storage engine" }),
-    "Awaits — pick a storage engine",
-  );
+  assert.equal(row({ kind: "listening", detail: "" }), "Awaits");
   assert.equal(
     row({ kind: "listening", detail: "", counts: { pending: 1 } }),
     "Listening · 1 response owed on updates awaiting delivery",

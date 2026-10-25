@@ -508,7 +508,24 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     expect(attachment).to_be_visible()
     image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
     assert image.size == (360, 260)
+    # Which element each part of the removal tap reached, for the reading below.
+    page.evaluate("""() => {
+        window.removalTap = [];
+        const named = node => node instanceof Element
+            ? `${node.localName}.${[...node.classList].join('.')}`
+              + (node.isConnected ? '' : ' (removed)')
+            : String(node);
+        for (const type of ['touchstart', 'pointerdown', 'click'])
+            window.addEventListener(type, event => removalTap.push(
+                `${type} on ${named(event.composedPath()[0])}`
+                + (event.defaultPrevented ? ' (prevented)' : '')),
+                {capture: true});
+    }""")
     page.get_by_role("button", name="Remove attached image 1", exact=True).tap()
+    # Removal is synchronous in the click, so the shelf is empty as the tap returns,
+    # with the drag's timers still held. An image here with the click on the ✕ says
+    # the click did not remove it; a click elsewhere, or none, says the tap missed.
+    assert attachment.count() == 0, page.evaluate("removalTap")
     # The next press began while drag timers were held; let its native activation
     # finish before reading the result.
     page.clock.resume()

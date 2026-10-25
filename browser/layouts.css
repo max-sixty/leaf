@@ -403,7 +403,7 @@
         --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
         --lf-top-outer: var(--lf-top);
       }
-      /* It sticks and scrolls what it holds, as a sidebar page's track block does
+      /* It sticks and scrolls what it holds, as a sidebar page's track body does
        * (Sticking blocks, below). */
       :is(
           :scope[data-lf-margin~="sidebar"],
@@ -704,7 +704,13 @@
    * Layout's `aside`: written before the body it stands left, after it right, so source
    * order is reading order at every width. Body and track take 2:1 of the room from
    * bases of 30rem and 18rem, and stack where they no longer fit or where the body would
-   * lose its content's minimum. A header or footer takes the whole row. Flex margins do
+   * lose its content's minimum. A page sizes the track by setting `--aside` on the
+   * Layout's box to a length or a share of the row, such as `20rem` or `25%`: the track
+   * then stands that wide beside the body and the body takes the rest, and the two
+   * stack where the body's base or its content's minimum no longer fits beside it. The
+   * body's grow factor dwarfs the track's, so beside the body the track keeps its width,
+   * and alone on a line each fills it. `auto`, the default, keeps the 2:1 shares. A
+   * header or footer takes the whole row. Flex margins do
    * not collapse, so the items' block margins go. The row holds its edge
    * (`--lf-holds-edge`, theme.css): each item beside another stands at both of its
    * edges, so the trim follows into each alike, a header only from the top and a footer
@@ -722,6 +728,7 @@
     align-items: flex-start;
     gap: var(--sp-4);
     --lf-holds-edge: 1;
+    --aside: auto;
   }
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
     > :not(footer) {
@@ -741,24 +748,40 @@
     flex: 2 1 30rem;
     margin-block: 0;
   }
+  /* A track keeps what it holds in view beside the scrolling body: the box the runtime
+   * gathers its blocks into (`data-lf-track-body`, prepaint.js `holdTrack`) sticks below
+   * the window's head room and any tab strip, scrolls what it holds within the window,
+   * and stays inside the track, which runs its flex line's height, so it never stands
+   * over a footer or a later line. The track itself, a flex item, would be bounded by
+   * the whole flex container. The track never scrolls, so it keeps its flex sizing.
+   * Whether the track stands beside the body depends on widths no query reads, so the
+   * margin reading marks it (`data-lf-beside`, prepaint.js `marginContentLayout`). Like a
+   * margin sidebar, the body restarts the slot and landing band, keeps the ring's room,
+   * anchors no reading, and is a reading region of the Layout's own. Where it sticks it
+   * scrolls, and keeps the ring's room inside its edges (Sticking blocks, below). */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
     flex: 1 1 18rem;
     --lf-margin-content: track;
-  }
-  /* A track holding one block keeps it in view beside the scrolling body: sticky below
-   * the window's head room and any tab strip, scrolling what it holds within the window, and only
-   * inside its own flex line. The track itself never scrolls, so it keeps its flex
-   * sizing. Whether the track stands beside the body depends on widths no query reads,
-   * so the margin reading marks it (`data-lf-beside`, prepaint.js `marginContentLayout`). Like a
-   * margin sidebar, the block restarts the slot and landing band, keeps the ring's room,
-   * anchors no reading, and is a reading region of the Layout's own. */
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
-    > aside:has(> :only-child) {
     align-self: stretch;
+  }
+  @container not style(--aside: auto) {
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+      > :not(header, footer) {
+      flex: 1000000 1 30rem;
+    }
+    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar > aside {
+      flex: 1 1 var(--aside);
+    }
+  }
+  /* The track beside the body says so to what it holds, as a column's margin sidebar
+   * says `margin`: a contents outline there stands open (toc.css). */
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+    > aside[data-lf-beside] {
+    --lf-sidebar-slot: beside;
   }
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
     > aside
-    > :only-child {
+    > [data-lf-track-body] {
     --lf-reading-region: layout;
   }
   @media screen {
@@ -766,12 +789,12 @@
       --lf-top-outer: var(--lf-top);
     }
     /* A widget's track: a box a widget generates beside what it serves, such as a
-     * playground's rail beside its stage, marked `data-lf-track`. It sticks as a track
-     * block does (module-scroll-and-motion.md, "Reading regions"). */
+     * playground's rail beside its stage, marked `data-lf-track`. It sticks as a track's
+     * body does (module-scroll-and-motion.md, "Reading regions"). */
     :has(> [data-lf-track]) {
       --lf-top-outer: var(--lf-top);
     }
-    /* Sticking blocks: a column's sidebar in the margin, a sidebar page's track block
+    /* Sticking blocks: a column's sidebar in the margin, a sidebar page's track body
      * beside the body and a widget's track stand below the window's head room and any tab
      * strip, and scroll what they hold within the window below that, so each restarts
      * `--lf-top` and its landing band (theme.css), a focused link keeps the ring's room
@@ -802,7 +825,7 @@
           > aside.sidebar:nth-child(1 of aside.sidebar),
         :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
           > aside[data-lf-beside]
-          > :only-child,
+          > [data-lf-track-body],
         [data-lf-track] {
           position: sticky;
           --lf-head-inset: 0px;
@@ -818,6 +841,20 @@
           overflow-y: auto;
           overflow-anchor: none;
           --lf-holds-height: 1;
+        }
+        /* A scrolling box clips at its padding edge, and a track body's blocks run its
+         * full width, so a full-width control's ring would be cut at both sides and the
+         * last one's at the foot. The body holds the ring's room as padding. It gives
+         * the block-axis room back as a negative margin, so its blocks start where they
+         * would without it; the inline room stays inside the track, since a box set
+         * past the track's sides stands past the column (render check `past-column`). */
+        :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+          > aside[data-lf-beside]
+          > [data-lf-track-body] {
+          box-sizing: border-box;
+          padding: var(--focus-ring-room);
+          margin-block: calc(-1 * var(--focus-ring-room));
+          scroll-padding: var(--focus-ring-room);
         }
       }
     }

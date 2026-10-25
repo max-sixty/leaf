@@ -655,20 +655,22 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
   const scope = promoted
     ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>`
     : nothing;
-  // Whitespace in this cell is observable to accessibility and command consumers.
+  // Whitespace in these cells is observable to accessibility and command consumers.
   // prettier-ignore
-  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
-  const actionCell = html`<td role="gridcell">${actionBody}</td>`;
+  const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
+  // prettier-ignore
+  const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
   return html`
-    <tr
+    <div
       id=${entry.rowId}
       role="row"
-      class=${entry.sequenceControl ? "lf-sequence-command" : ""}
+      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}
     >
-      <td role="gridcell">
+      ${actionCell}
+      <div role="gridcell" class="lf-command-reference-key">
         ${
           entry.keySequence
             ? keySequenceTemplate(entry.keySequence, {
@@ -677,18 +679,18 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
               })
             : nothing
         }
-      </td>
-      ${actionCell}
-    </tr>
+      </div>
+      ${descriptionCell}
+    </div>
   `;
 }
 
 const headingRow = (id, title, hidden = false) => html`
-  <tbody ?hidden=${hidden}>
-    <tr role="row">
-      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
-    </tr>
-  </tbody>
+  <div role="rowgroup" ?hidden=${hidden}>
+    <div role="row">
+      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
+    </div>
+  </div>
 `;
 
 const commandReferenceItems = () => {
@@ -748,7 +750,7 @@ const commandReferenceItems = () => {
 
 function commandReferenceItemTemplate(item) {
   if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
-  return html`<tbody
+  return html`<div
     role="rowgroup"
     aria-labelledby=${
       item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId
@@ -757,7 +759,7 @@ function commandReferenceItemTemplate(item) {
     ?hidden=${item.hidden}
   >
     ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
-  </tbody>`;
+  </div>`;
 }
 
 function commandReferenceTemplate() {
@@ -804,13 +806,7 @@ function commandReferenceTemplate() {
       role="grid"
       aria-label="Command reference"
     >
-      <table role="presentation">
-        <colgroup>
-          <col class="lf-command-reference-key-column" />
-          <col />
-        </colgroup>
-        ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
-      </table>
+      ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
         <div class="lf-command-reference-empty" role="gridcell">
           No matching commands
@@ -989,7 +985,7 @@ function moveCommandReferenceSelection(dir) {
   presentCommandReference();
   const next = commandButton(nextId);
   if (focusedId) focusDestination(next, "move");
-  scrollIntoView(next.closest("tr"), { block: "nearest" });
+  scrollIntoView(next.closest('[role="row"]'), { block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
     return listWalkPosition(
@@ -1038,6 +1034,7 @@ pageScope("command reference", {
       keys: ["ArrowDown"],
       title: "choose next",
       repeat: true,
+      travels: true,
       runFromCommandReference: false,
       // The list is built before search receives focus, so physical liveness is false at
       // that instant even though the reference always lists this instruction.
@@ -1051,6 +1048,7 @@ pageScope("command reference", {
       keys: ["ArrowUp"],
       title: "choose previous",
       repeat: true,
+      travels: true,
       runFromCommandReference: false,
       commandReferenceWhen: () => true,
       when: () => commandReferenceCommandActive(),

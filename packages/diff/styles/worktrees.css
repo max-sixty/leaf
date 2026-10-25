@@ -130,7 +130,7 @@
   color: var(--danger-ink);
 }
 
-.lf-worktree-disclosure > :last-child {
+.lf-worktree-body > :last-child {
   margin-block-end: 0;
 }
 
@@ -155,33 +155,33 @@
   font-size: inherit;
 }
 
-.lf-worktree-disclosure > p {
+.lf-worktree-body > p {
   margin-block: var(--sp-2) var(--sp-3);
 }
 
-.lf-worktree-disclosure > aside {
+.lf-worktree-body > aside {
   margin-block: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
   border-inline-start: 1px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 5%, var(--paper));
 }
 
-.lf-worktree-disclosure > aside > :first-child {
+.lf-worktree-body > aside > :first-child {
   margin-block-start: 0;
 }
 
-.lf-worktree-disclosure > aside > :last-child {
+.lf-worktree-body > aside > :last-child {
   margin-block-end: 0;
 }
 
-.lf-worktree-disclosure > details {
+.lf-worktree-body > details {
   margin-block: var(--sp-2) var(--sp-3);
   padding: 0;
   color: var(--muted);
   font-size: var(--t-6);
 }
 
-.lf-worktree-disclosure > details > summary {
+.lf-worktree-body > details > summary {
   font-size: inherit;
   font-weight: 500;
 }

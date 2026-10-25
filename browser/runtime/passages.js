@@ -288,7 +288,7 @@ export const leafSurface = (node) => (node ? closestAcross(node, LEAF_SURFACE) :
 // was this one — a declared label is nearer than the panel and answers for itself, so a
 // drag across a question an agent asked in a reply read as a passage of the page. It
 // raised the page's 💬 and wrote an anchor onto a thread's own id, into an append-only
-// log, naming a section no version holds. `leaf thread open --section` refuses exactly that
+// log, naming a section no version holds. `leaf thread create --section` refuses exactly that
 // from the file side, and file capture is the reading that is supposed to promise less.
 export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
 // The two readings, each one predicate over a text node and named for the question it

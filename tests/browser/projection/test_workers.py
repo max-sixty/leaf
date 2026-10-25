@@ -343,7 +343,14 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     assert report.exit_code == 0, report.output
     started = CliRunner().invoke(
         cli_model.cli,
-        ["task", "start", str(d), thread["id"], "checking the user's question"],
+        [
+            "task",
+            "start",
+            str(d),
+            thread["id"],
+            "--text",
+            "checking the user's question",
+        ],
     )
     assert started.exit_code == 0, started.output
     told(page)

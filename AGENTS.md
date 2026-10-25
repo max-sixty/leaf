@@ -157,7 +157,8 @@ browser assets and the packages into a page's layer.
 - `worker/`: the Cloudflare Worker and containers behind <https://leaf.page/>
   (`worker/README.md`).
 - `docs/`: the site's own pages, each a Leaf source.
-- `TODO.md`: the ordered priority list.
+- `TODO.md`: the biggest current challenges, and how to query the backlog, the
+  GitHub issues labelled `backlog`.
 - `notes/`: research and plans for unresolved work. When a design lands, its
   contract moves beside the code or into a reference and the note is deleted.
 

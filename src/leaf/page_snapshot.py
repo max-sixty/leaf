@@ -17,6 +17,8 @@ from .files import (
     revision_path,
     version_descriptors,
 )
+from .findings import Rejected
+from .layer import incompatible_revision
 from .passages import SourceReading
 from .presence import neighbor_reading, presence_fingerprint, presence_with_activity
 from .registry.storage import read_page_registry
@@ -121,6 +123,11 @@ def capture_page_snapshot(
 
     A host publishing from an existing transition lends its held transaction;
     other callers take the page's append lease for the complete capture.
+
+    Every reader of a snapshot runs this Leaf's runtime against the selected
+    revision's capture, so the capture refuses a revision this Leaf cannot serve
+    (`layer.incompatible_revision`), as that revision's address does on a page
+    server.
     """
     if artifact is not None and artifact.html != document.data:
         raise ValueError("preview artifact does not contain the checked document")
@@ -149,6 +156,8 @@ def capture_page_snapshot(
                 declaration_sources=page_registry.declaration_sources,
                 widget_sources=page_registry.widget_sources,
             )
+        if refusal := incompatible_revision(revision, selected.registry):
+            raise Rejected([refusal])
         # The server delivering the snapshot supplies its runtime and this Leaf's
         # probes beside it (`runtime_selection`), so the probes call the runtime
         # they were written against, whichever Leaf captured the revision.

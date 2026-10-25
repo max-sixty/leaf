@@ -316,6 +316,7 @@ Undo choice`;
       for (const slot of output.querySelectorAll("lf-playground-value")) {
         if (!belongsTo(host, slot)) continue;
         const name = slot.getAttribute("for");
+        generatedElement(slot, { says: true });
         text(slot, formatted(controlByName.get(name), next[name]));
       }
     };

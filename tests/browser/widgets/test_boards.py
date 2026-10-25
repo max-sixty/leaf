@@ -1,20 +1,28 @@
 """Boards: the column each card announces, keyboard moves that keep the card in view,
-grips, narrow and phone layouts, and releasing a detached board."""
+grips, narrow and phone layouts, releasing a detached board, and cards that show a
+section's answer."""
 
 import re
 
 import pytest
+from interact_support import stamp
 from playwright.sync_api import expect
-from render_cases_interaction import HOLD_MOTION
+from render_cases_interaction import HOLD_MOTION, live_url
 from render_cases_widgets import SQUEEZED_BOARD_PAGE
 from render_harness import (
     BOARD_PAGE,
+    consume_browser_errors,
+    http_error_console,
     leaf_page,
     open_page,
     resized,
     scroll_settled,
     sending,
+    told,
+    undo,
 )
+
+from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -665,3 +673,90 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     with sending(page, "the phone return move"):
         to_lane_0.tap()
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
+
+
+ANSWERS_BOARD_PAGE = leaf_page(
+    "proposals",
+    """
+<h1 id="t">Proposals</h1>
+<section id="rail-section">
+  <h2>Keep the rail beside the text</h2>
+  <lf-options id="rail" choose>
+    <lf-option id="rail-next" value="next">Next</lf-option>
+    <lf-option id="rail-later" value="later" chosen>Later</lf-option>
+  </lf-options>
+</section>
+<lf-board id="plan">
+  <lf-column id="col-open" label="Undecided"></lf-column>
+  <lf-column id="col-next" label="Next" value="next"></lf-column>
+  <lf-column id="col-later" label="Later" value="later">
+    <lf-card id="card-rail" shows="rail"><strong>Keep the rail</strong></lf-card>
+  </lf-column>
+</lf-board>
+""",
+)
+
+
+def test_a_section_and_a_board_answer_one_decision(browser, serve):
+    """The card shows the section's answer and changes it through the section's own
+    command, so a pick and a drop are one fact at one coordinate, and both views follow
+    its undo, its refusal and a version's retraction (`shown_answers.py`)."""
+    page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
+    grip = page.locator("#card-rail .lf-grip")
+
+    def stands(column, option):
+        expect(page.locator(f"#{column} > #card-rail")).to_have_count(1)
+        chosen = page.locator("#rail > lf-option[chosen]")
+        if option:
+            expect(chosen).to_have_attribute("id", option)
+        else:
+            expect(chosen).to_have_count(0)
+
+    def drop(key):
+        grip.focus()
+        for press in ("Enter", key, "Enter"):
+            page.keyboard.press(press)
+
+    def picks():
+        return [
+            (event["widget"], event["action"], event["detail"])
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "action"
+        ]
+
+    with sending(page, "the pick"):
+        page.locator("#rail-next").click()
+    stands("col-next", "rail-next")
+    with sending(page, "the drop"):
+        drop("ArrowLeft")
+    stands("col-open", None)
+    assert picks() == [
+        ("rail", "choose", {"value": ["rail-next"]}),
+        ("rail", "choose", {"value": []}),
+    ]
+
+    page.locator("#rail-section").scroll_into_view_if_needed()
+    undo(page)
+    stands("col-next", "rail-next")
+
+    (serve.page_dir / "index.html").write_text(
+        ANSWERS_BOARD_PAGE.replace(
+            '<lf-options id="rail" choose>', '<lf-options id="rail" choose restated>'
+        )
+    )
+    assert stamp(serve.page_dir, "Ask again").exit_code == 0
+    told(page)
+    stands("col-later", "rail-later")
+
+    def refuse(route):
+        attempt = route.request.post_data_json["attempt"]
+        body = {"ok": False, "attempt": attempt, "error": "refused", "final": True}
+        route.fulfill(status=400, json=body)
+
+    page.route("**/api/event", refuse)
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        drop("ArrowLeft")
+    stands("col-later", "rail-later")
+    page.unroute("**/api/event")
+    consume_browser_errors(page, http_error_console(400))
+    assert len(picks()) == 2

@@ -2,6 +2,7 @@
 following claim and lifecycle publications, and re-arming roots that are created or
 replaced."""
 
+import json
 import os
 import shutil
 import threading
@@ -16,6 +17,7 @@ from interact_support import (
     record_claim,
     write_record,
 )
+from watchfiles._rust_notify import WatchfilesRustInternalError
 
 from leaf import event_log as events_model
 from leaf import harness as harness_model
@@ -608,3 +610,62 @@ def test_shared_native_page_owner_survives_held_memory_and_closes_on_eviction(
         assert all(not thread.is_alive() for thread in changes.threads)
     finally:
         changes.close()
+
+
+@pytest.mark.parametrize(
+    ("refusal", "limit"),
+    [
+        (
+            lambda _paths: WatchfilesRustInternalError(
+                "Error creating recommended watcher: Too many open files (os error 24)"
+            ),
+            "fs.inotify.max_user_instances or RLIMIT_NOFILE",
+        ),
+        (
+            lambda paths: OSError(
+                f"OS file watch limit reached. about {json.dumps(paths)}"
+                f" (Error {{ kind: MaxFilesWatch, paths: {json.dumps(paths)} }})"
+            ),
+            "fs.inotify.max_user_watches",
+        ),
+    ],
+    ids=["instances", "watches"],
+)
+def test_an_exhausted_native_watcher_polls_instead(
+    tmp_path, monkeypatch, capfd, refusal, limit
+):
+    """The kernel's inotify limits are shared with every program the user runs, so a
+    watcher it refuses for want of one polls instead and names the limit, rather
+    than ending the process that asked. The refusals are watchfiles 1.3.0's own
+    words for EMFILE and ENOSPC, which only a Linux host with a spent limit raises."""
+    from leaf import file_changes
+
+    rust_notify = watchfiles.main.RustNotify
+
+    def kernel(paths, debug, force_polling, *args):
+        if not force_polling:
+            raise refusal(paths)
+        return rust_notify(paths, debug, force_polling, *args)
+
+    monkeypatch.setattr(watchfiles.main, "RustNotify", kernel)
+    changes = file_changes.FileChanges({tmp_path: False}, lambda _path: True)
+    try:
+        mark = changes.mark()
+        (tmp_path / "written").write_text("x")
+        assert changes.wait(mark, timeout=10)
+    finally:
+        changes.close()
+    [said] = [json.loads(line) for line in capfd.readouterr().err.splitlines()]
+    assert said["code"] == "watch-limit"
+    assert said["values"] == {"limit": limit, "roots": [str(tmp_path)]}
+
+
+def test_any_other_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
+    from leaf import file_changes
+
+    def broken(*_args, **_kwargs):
+        raise WatchfilesRustInternalError("Error creating recommended watcher: broken")
+
+    monkeypatch.setattr(watchfiles.main, "RustNotify", broken)
+    with pytest.raises(WatchfilesRustInternalError, match="broken"):
+        file_changes.FileChanges({tmp_path: False}, lambda _path: True)

@@ -10,7 +10,7 @@ import { chromeForeground, chromeRoot } from "./runtime/bundle-chrome.js";
 import { COLLAPSE, LEAF_SURFACE, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
 import { ADDRESSABLE, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-css-anchors.js";
 import { fragmentId } from "./runtime/bundle-initial-render.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadState, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
+import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, newsNotice, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadState, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
 import { copyControl } from "./runtime/bundle-copy-control.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, setChildren, watchDisclosures } from "./runtime/bundle-abort.js";
 import { motionEasing, motionPlays, motionTime, playMotion, reducedMotion, scrollBehavior } from "./runtime/bundle-motion.js";
@@ -5135,7 +5135,7 @@ var FloatingPanel = class extends LeafElement {
 	}
 };
 customElements.define("leaf-floating-panel", FloatingPanel);
-function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject, annotationsHidden }) {
+function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject, atLastResort, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
 	const ease = () => motionEasing("--lf-motion-panel-ease", host);
@@ -5699,11 +5699,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		trail.value = trail.value.slice(0, -1);
 		transition(before);
 	}
-	function close() {
+	function close({ handedOn = false } = {}) {
 		const before = trail.value.at(-1);
 		trail.value = [];
 		searching = false;
-		transition(before);
+		transition(before, { handedOn });
 	}
 	function putAwayThen(run) {
 		const inside = currentLocationIn(host);
@@ -5827,7 +5827,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			if (unreadSeat) paint();
 		});
 	}
-	const unplaced = /* @__PURE__ */ new Set();
 	let room = null;
 	let drawnTop = null;
 	let stood = null;
@@ -6016,7 +6015,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		return true;
 	}
-	function transition(before, { focus = true } = {}) {
+	function transition(before, { focus = true, handedOn = false } = {}) {
 		const after = trail.value.at(-1);
 		postureMoved = true;
 		const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
@@ -6037,7 +6036,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			onPageSeat = false;
 			unreadSeat = null;
 		}
-		if (changed && before?.thread) dismissReply(threadByKey(before.thread)?.key ?? before.thread);
+		if (changed && before?.thread && !handedOn) dismissReply(threadByKey(before.thread)?.key ?? before.thread);
 		leaving = changed && before && after ? before : null;
 		if (changed) viewMovingUntil = performance.now() + outMs() + viewResizeMs();
 		paint();
@@ -6998,7 +6997,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const thread = threadOf(route);
 		if (!thread) return {};
 		const inMessage = Boolean(placedAt(thread.id)?.message);
-		onPageSeat ||= Boolean(thread.anchor) && (inMessage || !unplaced.has(thread.key));
+		onPageSeat ||= Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
 		const aux = html`${unreadSeat ? html`<button
               type="button"
               class="lf-fp-face lf-fp-next-unread"
@@ -7618,11 +7617,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				const shown = threadOf(top)?.key === thread.key;
 				if (thread.anchor && !(part === "message" && shown)) {
 					if (!last) {
-						unplaced.delete(thread.key);
-						if (top?.thread) close();
+						if (shown) releaseReplies(replyOutlet);
+						if (top?.thread) close({ handedOn: shown });
 						return false;
 					}
-					unplaced.add(thread.key);
 				}
 				open({
 					view: "thread",
@@ -8776,6 +8774,35 @@ if (SHARE_ROOT) registerPageControl({
 	label: "link",
 	value: "Grants access to all Leaf pages on this machine.",
 	copies: shareUrl,
+	group: "page"
+});
+function claimantValue(state) {
+	const { session_name: name, claim_session: id, session_cwd: cwd } = state;
+	const where = cwd ? cwd.split("/").findLast(Boolean) : null;
+	return [
+		name || id.slice(0, 8),
+		where,
+		state.session_alive === false && "ended"
+	].filter(Boolean).join(" · ");
+}
+function claimantDiagnostics(state) {
+	return [
+		"Agent session",
+		`agent: ${state.agent}`,
+		...state.session_name ? [`name: ${state.session_name}`] : [],
+		`id: ${state.claim_session}`,
+		...state.session_cwd ? [`directory: ${state.session_cwd}`] : [],
+		`running: ${state.session_alive !== false}`
+	].join("\n");
+}
+const claimed = () => Boolean(runtime.state?.claim_session);
+registerPageControl({
+	key: "claimant",
+	rank: PAGE_CONTROL_RANK.claimant,
+	label: "agent session",
+	value: () => claimed() ? claimantValue(runtime.state) : "",
+	copies: () => claimed() ? claimantDiagnostics(runtime.state) : "",
+	offered: claimed,
 	group: "page"
 });
 const preview = () => runtime.state?.preview ?? null;
@@ -10701,6 +10728,7 @@ floatingPanel = createFloatingPanel({
 	settlement: app.settlement,
 	placedAt: anchorPlacement.placedAt,
 	openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options),
+	atLastResort: (key) => app.threadDestinations.atLastResort(key),
 	annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false
 });
 const generalComment = floatingPanel.pageComment;

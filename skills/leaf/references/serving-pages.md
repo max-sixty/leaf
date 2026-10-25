@@ -108,7 +108,11 @@ closed. To end the page's conversation, follow `page-checkpoints.md`, "Ending".
 
 ## Resuming a persistent or foreign page
 
-Resume a page from one session only. First read it:
+Resume a page from one session only. `leaf page list` prints each page on the machine
+as a JSON line, served or stopped, with the session holding it, by the name its harness
+gives it (`session_name`) and whether it still runs (`session_alive`). Use it to find
+the page the user means, and to see whether another live session holds it before you
+claim it. Then read the page:
 
 ```bash
 leaf page state <page>

@@ -187,6 +187,10 @@
           "description": "The claimant session, or null.",
           "type": ["string", "null"]
         },
+        "session_name": {
+          "description": "What the claimant's harness calls its session now (`Harness.session_name`), or null where it names none.",
+          "type": ["string", "null"]
+        },
         "claim_turn": {
           "description": "The claimant's current turn, which an opened delivery names, or null.",
           "type": ["string", "null"]
@@ -293,6 +297,7 @@
         "pending",
         "agent",
         "claim_session",
+        "session_name",
         "claim_turn",
         "turn_closed",
         "turn_opened",

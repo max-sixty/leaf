@@ -37,6 +37,8 @@ type LeafInitialRenderer = (
     offerElement: LeafInitial["offerElement"];
     generatedElement: LeafInitial["generatedElement"];
     keeps: LeafInitial["keepsAttribute"];
+    /** Moves every child of the host into `node`, the box that holds its authored body. */
+    authoredBody<T extends Element>(node: T): T;
   },
 ) => unknown;
 
@@ -88,6 +90,8 @@ interface LeafInitial {
   generatedElement<T extends Element>(node: T, options: { says: boolean | "echo" }): T;
   origin(node: Node): Node | undefined;
   parent(node: Node): Element | null;
+  /** The box a producer built to hold the host's authored children, if it built one. */
+  authoredBody(host: Element): Element | null;
 }
 
 /** A sample child's channel to the page that embeds it (`bootstrap.js`). */

@@ -18,7 +18,8 @@ CONTEXT_PAGE = leaf_page(
 )
 
 
-def test_releasing_a_drawing_does_not_read_every_card_before_preview(browser, serve):
+def test_releasing_a_drawing_and_its_preview_read_only_the_drawn_card(browser, serve):
+    """Neither the release nor the preview's capture walks the rest of a long page."""
     lines = "\n".join(
         f"{number:02d} alpha bravo charlie delta echo" for number in range(40)
     )
@@ -80,6 +81,8 @@ def test_releasing_a_drawing_does_not_read_every_card_before_preview(browser, se
     )
     assert "card-20" in before_renderer
     assert len(before_renderer) <= 2, before_renderer
+    after_capture = page.evaluate("[...window.drawingStyleCards]")
+    assert len(after_capture) <= 2, after_capture
 
 
 @pytest.mark.parametrize("scheme,touch", [("light", False), ("dark", True)])

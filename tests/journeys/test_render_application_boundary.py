@@ -17,6 +17,7 @@ from browser.test_render_application_boundary import (
 )
 from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
+from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
@@ -502,9 +503,7 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
     if cross_boundary:
         # Long native frames expose the compositor's one-frame anchor delay as the
         # contextual card travels into the viewport and changes placement plane.
-        page.context.new_cdp_session(page).send(
-            "Emulation.setCPUThrottlingRate", {"rate": 6}
-        )
+        slow_cpu(page, 6)
     if back_before_frame:
         page.evaluate("""() => {
           const scrollBy = Element.prototype.scrollBy;

@@ -6,7 +6,7 @@
   // packages/motion/initial/lf-motion.js
   document.documentElement.lfInitial.register(
     "lf-motion",
-    (host, { offer, tabStore }) => {
+    (host, { offer, tabStore, authoredBody }) => {
       const saved = JSON.parse(
         tabStore.get(`motion:${host.id}`) || '{"time":0,"rate":1}'
       );
@@ -59,8 +59,7 @@
       controls.append(play, time, clock, speedLabel);
       const body = document.createElement("div");
       body.className = "lf-motion-body";
-      body.append(...host.childNodes);
-      host.append(controls, body);
+      host.append(controls, authoredBody(body));
       return { controls, play, paintPlay, time, clock, speed };
     }
   );

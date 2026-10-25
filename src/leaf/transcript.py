@@ -5,13 +5,13 @@ from pathlib import Path
 
 from leaf.event_log import read_events
 from leaf.events import build_threads, is_reaction, taken_back
-from leaf.files import latest_revision, revision_label
+from leaf.files import revision_label
 from leaf.gesture_words import GestureWords, revisions_on_disk
 from leaf.registry.kernel import verb_writers
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import json_value
 from leaf.registry.storage import active_registry
-from leaf.revision_artifact import read_revision
+from leaf.revision_artifact import latest_title, read_revision
 from leaf.schema import agent_name
 
 # A quote as a transcript names it. The anchor stores the passage whole, because that
@@ -28,15 +28,6 @@ def shown(quote: str) -> str:
         return quote
     half = QUOTE_SHOWN // 2
     return f"{quote[:half].rstrip()} … {quote[-half:].lstrip()}"
-
-
-def _revision_title(page_dir: Path) -> tuple[int | None, str]:
-    """The active revision and its authored title, if the page has one."""
-    title = ""
-    revision = latest_revision(page_dir)
-    if revision is not None:
-        title = read_revision(page_dir, revision).document.authoring.title.strip()
-    return revision, title
 
 
 def _versions(events: list) -> Iterator[str]:
@@ -168,7 +159,7 @@ def cmd_transcript(page_dir: Path) -> str:
     """The page's exchange as Markdown, for reuse in a PR description."""
     events = read_events(page_dir)
     registry = active_registry(page_dir) or {}
-    revision, title = _revision_title(page_dir)
+    revision, title = latest_title(page_dir)
     within = _published_within(page_dir, registry, revision)
     return "\n".join(
         [

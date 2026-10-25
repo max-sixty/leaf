@@ -48,7 +48,8 @@ keycap.
 repeats, and `native: true` runs without preventing the browser's default.
 `travels: true` marks a command that takes the user somewhere, such as a step to the
 next item, so its result may scroll away the control it was pressed on; every other
-command leaves that control where it stood on screen. Where one
+command leaves that control where it stood on screen, unless it brings the control
+whole into a scroller that showed only part of it. Where one
 row's keys mean different things, `routes` lists subcommands, each with its own `id`,
 `title`, `binding` or `contextKeys`, and optional `when`; the command reference lists
 and runs each route.

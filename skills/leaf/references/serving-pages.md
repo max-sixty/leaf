@@ -7,7 +7,8 @@ re-vendoring and resuming a page.
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the main
-skill's "Review and stamp a record" step), since only a stamped version exports, then
+skill's "Review an important page in the browser" and "Stamp a record" steps), since
+only a stamped version exports, then
 run:
 
 ```bash

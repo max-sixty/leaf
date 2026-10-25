@@ -394,13 +394,16 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
             render() {
               clockValue(() => window.probeVersion);
               window.probePaints += 1;
-              this.drawing(new Promise(() => {}));
               return noChange;
+            }
+            // A drawing that never finishes.
+            getUpdateComplete() {
+              return new Promise(() => {});
             }
           });
           const probe = document.createElement('lf-pending-paint');
           document.body.append(probe);
-          await probe.updateComplete;
+          await new Promise((resolve) => setTimeout(resolve));
           window.probeVersion = 1;
         }"""
     )

@@ -18,10 +18,16 @@ a record or system page, put each decision in the part of the page it decides: a
 decision about one entry goes with that entry, and one that turns on a claim contains
 the claim and its evidence. Only a decision about the whole record comes last.
 
-Keep the question, its evidence and the options on screen together. Where a table,
-chart or playground inside the decision, or the pictures in its options, can't be read
-at the prose's width, give that block, or the `lf-options`, its own `data-width`
-(`page-layout.md`, "Bounds and widths").
+Keep the question, its evidence and the options on screen together, so the user
+compares the options without scrolling between them and always sees which one they
+are reading. Where a table, chart or playground inside the decision, or the pictures in
+its options, can't be read at the prose's width, give that block, or the `lf-options`,
+its own `data-width` (`page-layout.md`, "Bounds and widths"). Size an option's picture
+by the difference the user weighs between the options rather than by the capture: crop
+it to the region that differs, and scale it down as far as that difference still reads,
+so all the options fit the window together. A difference of size or extent, such as how
+much of a thread a panel shows, reads at a scale where the words inside it don't, and a
+picture that links its original keeps the detail a click away.
 
 Write decisions the user can answer independently in page order. If a later one depends
 on an earlier answer, pose it in the next turn rather than writing every branch.
@@ -51,7 +57,9 @@ Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the decision lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
 position. The recommended option stays where that order puts it; its `recommended`
-label marks your advice.
+label marks your advice. Prose that recommends or discusses an option names it by
+its title, as in “I'd keep handwritten types”, never by its position or by a letter
+from an earlier list, since the options' order can change after you write it.
 
 Let the user judge each option by its result rather than a description of it, on plans
 and work-item lists too: an interaction they can try, a drawing of an arrangement or

@@ -10,8 +10,10 @@ package appears in (`packages.package_layer_inputs`), and reads only the tags th
 package's own `registry.json` declares. Examples share a page where their ids allow,
 so an example that points at another's element finds it, and a page costs one render
 however many examples it holds; the next page starts where an example's ids would
-repeat one already on the page. Each page is read twice, once as a column document and
-once in the pane of a full-height workspace (`WRAPPERS`), since a widget meets both and
+repeat one already on the page, or two examples bind the same data source.
+Each example may supply `x-example-data`, source ids mapped to validated JSON values,
+which the preview serves through the ordinary page data store. Each page is read
+twice, once as a column document and once in the pane of a full-height workspace (`WRAPPERS`), since a widget meets both and
 what holds its height or its width differs between them; a finding names which one it
 was read in (`layout`). A page is rendered as authored, without `page check`:
 an example may point at data or an element a package cannot carry, and what the report
@@ -46,7 +48,10 @@ import struct
 import tempfile
 import zlib
 from pathlib import Path
+from uuid import uuid4
 
+from leaf.data import write_data
+from leaf.data_contracts import declared_data_bindings, resource_urls
 from leaf.findings import Finding, element_at
 from leaf.layer import LayerComposition, checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
@@ -60,7 +65,8 @@ from leaf.render_checks import (
     wait_until_ready,
 )
 from leaf.revision_artifact import ArtifactError, capture_artifact
-from leaf.schema import DIR_FILES, MEDIA_DIR
+from leaf.schema import DATA_DIR, DIR_FILES, MEDIA_DIR
+from leaf.state import now_iso
 from leaf.structure import SourceDocument
 from leaf.vendoring import start_throwaway_page
 
@@ -108,20 +114,27 @@ def own_tags(package: Path) -> list[str]:
     return list(element_declarations(declarations))
 
 
-def example_pages(registry: dict, tags: list[str]) -> list[tuple[str, str]]:
+def example_pages(registry: dict, tags: list[str]) -> list[tuple[str, str, dict]]:
     """The worked examples of `tags`, gathered into as few pages as their ids allow,
     each page once in every Layout of `WRAPPERS`, with the Layout's name."""
     pages = []
     ids = set()
+    sources = set()
     for tag in tags:
         if (example := registry[tag].get("x-example")) is None:
             continue
-        own = SourceDocument(example, fragment=True).ids
-        if not pages or own & ids:
-            pages.append([])
+        document = SourceDocument(example, fragment=True)
+        own = document.ids
+        bindings, _ = declared_data_bindings(document.lf_elements, registry)
+        if not pages or own & ids or sources & bindings.keys():
+            pages.append(([], {}))
             ids = set()
-        pages[-1].append(example)
+            sources = set()
+        examples, data = pages[-1]
+        examples.append(example)
+        data.update(registry[tag].get("x-example-data", {}))
         ids |= own
+        sources.update(bindings)
     return [
         (
             layout,
@@ -129,8 +142,9 @@ def example_pages(registry: dict, tags: list[str]) -> list[tuple[str, str]]:
             f"</head>\n<body>\n{opening}\n"
             + "\n".join(examples)
             + f"\n{closing}\n</body>\n</html>\n",
+            data,
         )
-        for examples in pages
+        for examples, data in pages
         for layout, (opening, closing) in WRAPPERS.items()
     ]
 
@@ -197,7 +211,7 @@ def _readings(
 def _page_findings(
     browser,
     composition: LayerComposition,
-    pages: list[tuple[str, SourceDocument]],
+    pages: list[tuple[str, SourceDocument, dict]],
     tags: list[str],
 ) -> list[Finding]:
     """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
@@ -209,8 +223,35 @@ def _page_findings(
         start_throwaway_page(page_dir, composition)
         candidate = read_page_registry(page_dir)
         (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
-        for layout, document in pages:
-            for reference in sorted(document.authoring.media_refs):
+        for layout, document, data in pages:
+            # Each page owns its source values; a following example may intentionally
+            # leave the same source unset.
+            for path in (page_dir / DATA_DIR).glob("*.json"):
+                path.unlink()
+            bindings, _ = declared_data_bindings(
+                document.lf_elements, candidate.registry
+            )
+            write_data(
+                page_dir,
+                {
+                    source: {
+                        "contract": bindings[source],
+                        "run": uuid4().hex,
+                        "updated": now_iso(),
+                        "value": value,
+                    }
+                    for source, value in data.items()
+                },
+            )
+            media = set(document.authoring.media_refs)
+            for source, value in data.items():
+                contract = candidate.registry["$data"]["contracts"][bindings[source]]
+                media.update(
+                    url
+                    for url in resource_urls(value, contract)
+                    if url.startswith(f"/{MEDIA_DIR}/")
+                )
+            for reference in sorted(media):
                 # Only a name the server serves gets a stand-in, which also keeps
                 # every write inside the page: a name cannot hold a directory.
                 if not MEDIA_REFERENCE.fullmatch(reference):
@@ -276,10 +317,10 @@ def widget_findings(browser, package: Path) -> list[Finding]:
     tags = own_tags(package)
     composition = compose_layer(checked_layer_inputs(package_layer_inputs(package)))
     pages = [
-        (layout, SourceDocument(html))
-        for layout, html in example_pages(composition.registry, tags)
+        (layout, SourceDocument(html), data)
+        for layout, html, data in example_pages(composition.registry, tags)
     ]
-    shown = {record["tag"] for _, page in pages for record in page.lf_elements}
+    shown = {record["tag"] for _, page, _ in pages for record in page.lf_elements}
     findings = [_finding("example", tag) for tag in tags if tag not in shown]
     if pages:
         findings += _page_findings(browser, composition, pages, tags)

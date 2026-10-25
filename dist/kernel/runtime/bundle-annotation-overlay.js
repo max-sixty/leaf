@@ -2,8 +2,8 @@ import { SVG_NS, dropStand, paintGeometry, paintShape, paintStand, paintTrace, p
 import { Z, bareReaction, html, render, sameAnchor, turns } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, cancelAnimation, cancelRender, closeLayer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nativeLayerHolding, nextAnimation, nextRender, onCurrentLocation, onPressAway, onUserInput, pressLed, renderedOrder, renderedUnder, roomPx, rove, tabStops, under } from "./bundle-dom-move.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { whenDocumentPresented } from "./bundle-context.js";
 import { LAYOUT, PRESS, clamp, closeControl, coarsePointer, cycledRow, el, generatedElement, hostIn, iconElement, keys, notice, offer, paintKeys, repaint, rightCover, rowArrows, seenRect, shownBox, shownWindow, skipped, union, watchRoom } from "./bundle-errors.js";
+import { whenDocumentPresented } from "./bundle-context.js";
 import { atScrollEnd, effectiveScroller, moveScrollerBy, readingRegionFor, registerReadingRegion, scrollToEnd } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageRange, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
@@ -216,7 +216,7 @@ const CUT_EDGES = [
 	"--lf-cut-bottom",
 	"--lf-cut-left"
 ];
-function createThreadPreview({ inventory, renderMarginThread, placedAt, openPageThread, scrollThreadIntoView, scrollToElement, onClose }) {
+function createThreadPreview({ inventory, renderMarginThread, placedAt, openPageThread, scrollThreadIntoView, scrollToElement, openInPanel, onClose }) {
 	const { targetFor, entryPoint, entryPlace, sourceItem } = inventory;
 	const preview = el("aside", "lf-ui lf-margin-preview");
 	preview.id = THREAD_CARD;
@@ -239,7 +239,13 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 	previewNext.setAttribute("aria-label", "Next thread");
 	previewNext.title = "Next thread";
 	previewNav.append(previewPrevious, previewPosition, previewNext);
+	const previewOpenInPanel = offer("button", "lf-btn lf-icon-action lf-quiet-action lf-margin-preview-expand");
+	previewOpenInPanel.type = "button";
+	previewOpenInPanel.append(iconElement("expand", "lf-action-icon"));
+	previewOpenInPanel.setAttribute("aria-label", "Open in panel");
+	previewOpenInPanel.title = "Open in panel";
 	const previewList = el("div", "lf-margin-preview-list");
+	let dismiss = () => {};
 	const carry = surfaceGrip({
 		surface: preview,
 		bounds: () => commentBoundary({ region: previewSession?.region }),
@@ -662,8 +668,14 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			const body = el("div", "lf-margin-thread-body");
 			node.append(body);
 		}
-		renderMarginThread(node.querySelector(":scope > .lf-margin-thread-body"), sourceItem(item).thread, {
+		const shownThread = sourceItem(item).thread;
+		previewOpenInPanel.onclick = () => {
+			dismiss();
+			openInPanel(shownThread.id);
+		};
+		renderMarginThread(node.querySelector(":scope > .lf-margin-thread-body"), shownThread, {
 			nav: previewNav.hidden ? null : previewNav,
+			expand: previewOpenInPanel,
 			close: previewClose,
 			anchor: previewSession.anchor,
 			prepareLanding: () => {
@@ -739,6 +751,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 			return null;
 		}
 		keepsHidden(preview, false);
+		keeps(preview, "inert", null);
 		buildThreadCard(entry, selected.id);
 		const positioned = placedThreadPreview();
 		return session.sent ? growOut(session, positioned) : positioned;
@@ -762,10 +775,20 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		if (!previewSession) return;
 		const closed = selection();
 		retirePreviewSession();
-		placementDriver.stop();
+		placementDriver.supersede();
 		delete preview.dataset.lfThreadPlacement;
-		for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
-		keepsHidden(preview, true);
+		const hide = () => {
+			if (previewSession) return;
+			placementDriver.stop();
+			for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
+			keepsHidden(preview, true);
+			keeps(preview, "inert", null);
+		};
+		const fade = preview.hidden ? null : preview.getAnimations().find((played) => played.transitionProperty === "opacity");
+		if (fade) {
+			keeps(preview, "inert", "");
+			fade.finished.then(hide, hide);
+		} else hide();
 		releaseAuthoredUnder(preview);
 		onClose(closed);
 	}
@@ -787,6 +810,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, openPage
 		}) : null;
 	}
 	function mount(onDismiss) {
+		dismiss = onDismiss;
 		previewClose.onclick = onDismiss;
 		previewPrevious.onclick = () => stepPreviewThread(-1);
 		previewNext.onclick = () => stepPreviewThread(1);
@@ -1052,7 +1076,7 @@ function createMarginClusterViews({ activateContribution, materializeReading, op
 
 //#endregion
 //#region runtime/annotation-overlay/margin-projection.js
-function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, scrollToElement }) {
+function createMarginProjection({ inventory, refreshInventory, renderAnnotations, openPageThread, designModeActive, pointerModeActive, leavePageMap, openPageMap, pageMapDialogContains, scrollThreadIntoView, renderMarginThread, placedAt, marksFor, scrollToElement, openInPanel }) {
 	const { targetFor, entryPoint, entryPlace, entryPassage, sourceItem, workflowReceipt, threadIdsAt, threadItem: marginThreadItem } = inventory;
 	const nav = el("nav", "lf-ui lf-margin-projection");
 	generatedElement(nav, { says: false });
@@ -1068,6 +1092,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		openPageThread,
 		scrollThreadIntoView,
 		scrollToElement,
+		openInPanel,
 		onClose: closedPreview
 	});
 	const preview = card.element;

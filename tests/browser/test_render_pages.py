@@ -82,6 +82,7 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    wide_width,
     write,
 )
 
@@ -637,12 +638,11 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     look = overlay.evaluate(
         """el => { const style = getComputedStyle(el); return {
           background: style.backgroundImage,
-          borders: [style.borderTopWidth, style.borderRightWidth,
-                    style.borderBottomWidth, style.borderLeftWidth],
+          outline: [style.outlineStyle, style.outlineWidth],
         }; }"""
     )
     assert look["background"] == "none", look
-    assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
+    assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
     page.keyboard.press("Escape")
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
@@ -722,10 +722,10 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
     clip = {
-        "x": math.floor(box["x"]) - 2,
-        "y": math.floor(box["y"]) - 2,
-        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 4,
-        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 4,
+        "x": math.floor(box["x"]) - 8,
+        "y": math.floor(box["y"]) - 8,
+        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 16,
+        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 16,
     }
 
     def screenshot():
@@ -739,13 +739,28 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
     overlay = page.locator(".lf-visual-mark-pending")
     expect(overlay).to_be_visible()
-    ink = overlay.evaluate(
-        """element => getComputedStyle(element).borderLeftColor
-          .match(/[0-9.]+/g).slice(0, 3).map(Number)"""
+    contour = overlay.evaluate(
+        """element => { const style = getComputedStyle(element);
+          // A mixed ink computes as color(srgb …); a canvas reads any colour as bytes.
+          const pen = document.createElement('canvas').getContext('2d');
+          pen.fillStyle = style.outlineColor;
+          pen.fillRect(0, 0, 1, 1);
+          return {
+            ink: [...pen.getImageData(0, 0, 1, 1).data.slice(0, 3)],
+            outset: parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth),
+          }; }"""
     )
     marked = screenshot()
 
-    changed, _ = _edge_ink_changes(quiet, marked, box, clip, ink)
+    # The contour stands outside the frame, so its edges are the outline's outer box.
+    outset = contour["outset"]
+    outer = {
+        "x": box["x"] - outset,
+        "y": box["y"] - outset,
+        "width": box["width"] + 2 * outset,
+        "height": box["height"] + 2 * outset,
+    }
+    changed, _ = _edge_ink_changes(quiet, marked, outer, clip, contour["ink"])
     assert all(changed[side] > 0 for side in changed), (
         f"the screenshot frame covered part of its annotation contour: {changed}"
     )
@@ -779,6 +794,8 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     mark = page.locator('.lf-visual-mark[data-for="lp-k-checks"].lf-visual-mark-here')
     expect(mark).to_be_visible()
     card.scroll_into_view_if_needed()
+    # Include the floating thread's final placement and shadow in both captures.
+    rendered(page)
     box = card.bounding_box()
 
     def screenshot():
@@ -1447,7 +1464,7 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at["board-4"]["scrolls"] > 0, at
                 assert at["board-5"]["scrolls"] > 0, at
             elif width == 1440:
-                assert at["wide"]["width"] == pytest.approx(840, abs=1), at
+                assert at["wide"]["width"] == pytest.approx(wide_width(page), abs=1), at
                 assert at["room"]["width"] > at["wide"]["width"], at
 
 
@@ -1493,13 +1510,14 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     resized(page, 1726, 900)
     at = page.evaluate(measure)
     edge = at["prose"]["left"]
+    wide = round(wide_width(page))
     # An option list keeps the measure whatever one option holds: only a box's own
     # blocks widen it.
     for boxed in ("ask", "callout", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
-    for wide in ("granted", "granted-c", "holds"):
-        assert at[wide] == {"width": 840, "left": edge}, (wide, at)
+    for granted in ("granted", "granted-c", "holds"):
+        assert at[granted] == {"width": wide, "left": edge}, (granted, at)
     # The widened obligation frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
@@ -1544,7 +1562,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
             " 'wrapped']",
         )
     )
-    assert at["holds-t"]["width"] == 840, at
+    assert at["holds-t"]["width"] == wide, at
     assert at["holds-t"]["left"] == at["prose"]["left"], at
     assert at["holds"] == at["holds-t"], at
     heading = column.locator("#holds h3").bounding_box()
@@ -1552,7 +1570,9 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     assert at["ask"] == at["prose"], at
     assert at["listed"] == at["listed-t"], at
     assert at["listed"]["width"] < at["prose"]["width"], at
-    assert at["both"] == at["both-t"] == {"width": 840, "left": at["holds"]["left"]}, at
+    assert at["both"] == at["both-t"] == {"width": wide, "left": at["holds"]["left"]}, (
+        at
+    )
     assert at["tracked"]["width"] == 350, at
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
@@ -1719,8 +1739,9 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     # A `wide` table grows only from the prose's start edge, toward the end side.
     assert at["edge"][start] == pytest.approx(prose[start], abs=1), at
     free_end = free_right if direction == "ltr" else free_left
-    if width(prose) + free_end >= 840:
-        expected = min(840, width(at["wide"]))
+    wide = wide_width(page)
+    if width(prose) + free_end >= wide:
+        expected = min(wide, width(at["wide"]))
         assert width(at["edge"]) == pytest.approx(expected, abs=1), at
     for edge in ("left", "right"):
         assert at["turned"][edge] == pytest.approx(at["wide"][edge], abs=1), at
@@ -1777,6 +1798,48 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
                 assert at["caption"][0] >= at["box"][0] - 1, (end, at)
                 assert at["caption"][1] <= at["box"][1] + 1, (end, at)
     assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction):
+    """A table whose rows open with a `<th scope="row">` keeps that column at its start
+    as the other columns scroll sideways, the heading over the names with it, and the
+    names paint over the columns passing under them. An overnight dashboard's table
+    scrolled its run names away, leaving values no reader could place."""
+    cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
+    heads = "".join(f"<th>Measure {i}</th>" for i in range(8))
+    rows = "".join(
+        f'<tr><th scope="row" id="name-{n}">run {n}</th>{cells}</tr>' for n in range(3)
+    )
+    body = (
+        "<h1>Runs</h1>"
+        f'<table id="runs"><thead><tr><th id="corner">Run</th>{heads}</tr></thead>'
+        f"<tbody>{rows}</tbody></table>"
+    )
+    source = leaf_page("Runs", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    table = page.locator("#runs")
+    assert table.evaluate("t => t.scrollWidth > t.clientWidth")
+    table.evaluate(
+        "(t, x) => { t.scrollLeft = x; }", -10_000 if direction == "rtl" else 10_000
+    )
+    rendered(page)
+    at = table.evaluate("""t => {
+      const box = t.getBoundingClientRect();
+      const start = getComputedStyle(t).direction === 'rtl' ? 'right' : 'left';
+      return [...t.querySelectorAll('tr > :first-child')].map(c => {
+        const r = c.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return {id: c.id, offset: Math.abs(r[start] - box[start]), on_top: c.contains(hit)};
+      });
+    }""")
+    assert [cell["id"] for cell in at] == ["corner", "name-0", "name-1", "name-2"]
+    for cell in at:
+        assert cell["offset"] <= 0.5, at
+        assert cell["on_top"], at
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -3075,6 +3138,39 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
         assert (track_box["top"] < body_box["top"]) is first
 
 
+def test_a_sidebar_pages_aside_takes_the_width_the_page_sets(browser, serve):
+    """A page sizes a sidebar page's `aside` with `--aside` (page-layout.md, "A sidebar
+    page"): beside the body it stands that wide and the body takes the rest of the row,
+    and where the body's base no longer fits beside it the two stack, each across the
+    row. Authors otherwise read the Layout's flex shares to find a rule to override."""
+    source = leaf_page(
+        "a sidebar page",
+        "<header><h1>Review</h1></header>"
+        "<aside id='track'><p>Summary and contents.</p></aside>"
+        "<div id='body'>" + "<p>Body paragraph. " * 40 + "</p></div>",
+        head="<style>main { --aside: 16rem; }</style>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    box = "(id) => document.getElementById(id).getBoundingClientRect()"
+    resized(page, 1440, 900)
+    body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
+    assert track_box["width"] == pytest.approx(256, abs=0.5)
+    assert track_box["top"] == pytest.approx(body_box["top"], abs=1)
+    row = page.locator("main").evaluate(
+        "node => node.clientWidth - parseFloat(getComputedStyle(node).paddingLeft)"
+        " - parseFloat(getComputedStyle(node).paddingRight)"
+    )
+    gap = page.locator("main").evaluate(
+        "node => parseFloat(getComputedStyle(node).columnGap)"
+    )
+    assert body_box["width"] == pytest.approx(row - 256 - gap, abs=0.5)
+    resized(page, 760, 844)
+    body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
+    assert track_box["top"] < body_box["top"]
+    assert track_box["width"] == pytest.approx(body_box["width"], abs=0.5)
+
+
 def test_a_sidebar_pages_items_trim_their_words_at_both_edges(browser, serve):
     """Each item in a sidebar page's row trims its words' outer margins, through any
     wrapper, as a column does at its edges: beside the body, a track whose heading sits in
@@ -3444,7 +3540,6 @@ def test_a_page_views_sidebar_uses_the_columns_margin(browser, serve):
     resized(page, 1440, 900)
     expect(page.locator("#page-route")).to_have_css("float", "left")
     expect(page.locator("#view-route")).to_have_css("float", "none")
-    page.close()
 
 
 def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, serve):
@@ -3550,7 +3645,6 @@ def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, 
     assert title[1] <= strip[0] and strip[1] <= view[0], stacked
     assert view[2] == 390, stacked
     assert root_overflow(page) == 0
-    page.close()
 
 
 def test_margin_content_fits_where_the_column_leaves_room(browser, serve):

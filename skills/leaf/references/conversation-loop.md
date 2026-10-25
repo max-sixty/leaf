@@ -120,6 +120,10 @@ stamped version that completes its widget:
 leaf page stamp <page> --text "…" --completes <widget-id>
 ```
 
+A start on the user's update, such as a widget action or a comment, ends with your
+answer to it. The stamped version that records a widget answer takes it in without
+`--completes`, which names only your own to-dos.
+
 ## Long-running work
 
 Follow the parent and worker roles in the main skill's "Stay responsive" section.
@@ -193,9 +197,10 @@ help.
 | Permission for a stated action                                                  | A decision with the action and an option keeping things as they are (`authoring-decisions.md`, "Permission")                      | The user's pick and its row in On me                                                  |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task create <page> <id> --title "<direct question naming the action>" --on user`, on its thread, widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
-Generally pass `--obligation` when a message hands the next move to the user.
+Generally pass `--obligation` when a message hands the next move to the user,
+including an answer that informs a decision already on On me.
 Progress and information that need no response create no obligation. When a widget
-already captures the same answer, its obligation is sufficient.
+in the message's markup captures the same answer, its obligation is sufficient.
 
 Obligation ids are `message:<message>` for an explicit message request,
 `widget:<widget-id>` for a widget, `lf-ask` included,

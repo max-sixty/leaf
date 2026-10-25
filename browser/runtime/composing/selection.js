@@ -751,7 +751,6 @@ export function createSelectionComposer({
             part: "thread",
             focus: true,
             travel: false,
-            flash: false,
             intent: restrictUserIntent(currentIntent, revealAvailable),
             origin,
           });

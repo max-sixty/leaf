@@ -37,7 +37,7 @@ An item marked **Unconfirmed** rests on a reading nobody has run or a design nob
 has tried; settle that before building it.
 An item marked **Waits on the user** needs Max's decision, review or go-ahead
 before more work; the item says which. Any other item in Now and Next is open to
-an agent working unattended. An agent that finds an unmarked item needs the user
+an agent working unattended (`/grinding-todo`). An agent that finds an unmarked item needs the user
 adds the mark.
 
 ## Now

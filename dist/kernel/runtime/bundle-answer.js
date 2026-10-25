@@ -4119,6 +4119,7 @@ function createReadTracking({ markRead, openThread }) {
 		keys: ["u"],
 		title: "first unread",
 		touch: false,
+		travels: true,
 		when: () => actionableUnread().length > 0,
 		run: () => void firstUnread()
 	};
@@ -5427,7 +5428,8 @@ function returnToThread(thread) {
 		return;
 	}
 	focusThread(thread, "move");
-	if (!shown) scrollIntoView(thread, { block: "nearest" });
+	const box = threadReplyInput(thread);
+	if (!shown && !(box && seenRect(box, /* @__PURE__ */ new Map()))) scrollIntoView(thread, { block: "nearest" });
 }
 const cardThread = () => focusedThreadTarget();
 const resolutionControl = (thread) => thread ? threadPart(thread, "settlement") : null;

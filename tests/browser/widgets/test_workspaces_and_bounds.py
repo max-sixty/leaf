@@ -66,7 +66,19 @@ WORKSPACE_PAGE = leaf_page(
 def test_workspace_root_scrollbar_appears_only_when_page_overflows(
     scrollbar_browser, serve
 ):
-    page = open_page(scrollbar_browser, serve(WORKSPACE_PAGE))
+    """A workspace scrolls its own panes, so a platform with classic scrollbars shows
+    the root's track only where the workspace flows past the window."""
+    page = open_page(
+        scrollbar_browser,
+        serve(WORKSPACE_PAGE),
+        # macOS draws the root's scrollbar as an overlay, which takes no width; a styled
+        # track is classic on every host, as Linux and Windows draw it.
+        init_script="""(() => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('html::-webkit-scrollbar { width: 15px; }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        })()""",
+    )
     resized(page, 1200, 900)
     assert page.evaluate(
         """() => {
@@ -831,7 +843,8 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
 def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, serve):
     """A sidebar page of body and track: the lede starts at the page's edge and keeps
     the reading measure, as does the status callout, every other region of the body
-    shares the body's two edges and every region of the track the track's, and the
+    shares the body's two edges and every region of the track its content edges,
+    leaving room for focus rings inside the track, and the
     checks table's box fills its panel. On a narrow
     window the track stacks under the body, and the bounded log opens on its newest
     line. Paper shows the log whole."""
@@ -850,6 +863,13 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
       const left = box.left + parseFloat(style.paddingLeft);
       const right = box.right - parseFloat(style.paddingRight);
       read.main = {{left, right, width: right - left}};
+      const track = document.querySelector('[data-lf-track-body]');
+      const trackBox = track.getBoundingClientRect();
+      const trackStyle = getComputedStyle(track);
+      read.track = {{
+        right: trackBox.right,
+        contentRight: trackBox.right - parseFloat(trackStyle.paddingRight),
+      }};
       return read;
     }}"""
 
@@ -866,7 +886,10 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
                 round(wide[track[0]][edge])
             }
     assert wide["lp-status"]["left"] == pytest.approx(page_box["left"], abs=1)
-    assert wide["lp-steps"]["right"] == pytest.approx(page_box["right"], abs=1)
+    assert wide["track"]["right"] == pytest.approx(page_box["right"], abs=1)
+    assert wide["lp-steps"]["right"] == pytest.approx(
+        wide["track"]["contentRight"], abs=1
+    )
     assert wide["lp-log"]["right"] < wide["lp-steps"]["left"]
     assert wide["lp-checks-table"]["width"] > wide["lp-checks"]["width"] - 48
     listing = page.locator("#lp-live-log pre")

@@ -118,7 +118,11 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
+/* The ring is the shadow button's, and so is the focus a Tab reveals: it stands half
+   above its block, where a scroller's edge can meet it, so it keeps the ring's room as a
+   focused control in the page does (shadow.css, `:focus`). */
 .lf-code-copy::part(button) {
+  scroll-margin: var(--focus-ring-landing);
   position: relative;
   box-sizing: border-box;
   width: var(--lf-code-copy-size);
@@ -143,17 +147,19 @@ html[data-lf-draw-mode] main {
 :root {
   --lf-heading-link-size: var(--lf-line);
 }
-/* The gutter's room is the box between the containing block's start and the heading,
-   which only a `right` inset bounds, so the browser tries the far end once the control
-   overflows it. */
-@position-try --lf-heading-link-end {
-  right: auto;
-  left: calc(
-    anchor(right, -9999px) - var(--lf-heading-link-size) +
-      var(--lf-block-control-dx, 0px)
-  );
-}
+/* The gutter's room is the box between the containing block's start and the heading.
+   `--lf-heading-link-room` is what that box holds beyond the control, and where it is
+   negative the control stands one heading's width further on. The width alone decides,
+   so arithmetic chooses rather than `position-try-fallbacks`: a browser keeps the
+   fallback it last took until that overflows too (CSS Anchor Positioning, "last
+   successful position option"), so a window narrowed and widened again would leave
+   the control at the far end. The `right` inset carries it, since Firefox 155 left a
+   `left`-inset control where its heading had stood before the window widened. */
 .lf-heading-link {
+  --lf-heading-link-room: calc(
+    100% - anchor(left, 9999px) + var(--lf-block-control-dx, 0px) -
+      var(--lf-heading-link-size)
+  );
   position: absolute;
   top: calc(
     anchor(top, -9999px) + var(--lf-heading-link-top, 0px) +
@@ -163,8 +169,11 @@ html[data-lf-draw-mode] main {
       ) /
       2 + var(--lf-block-control-dy, 0px)
   );
-  right: calc(anchor(left, 9999px) - var(--lf-block-control-dx, 0px));
-  position-try-fallbacks: --lf-heading-link-end;
+  right: calc(
+    anchor(left, 9999px) - var(--lf-block-control-dx, 0px) +
+      (1 - clamp(0, sign(var(--lf-heading-link-room)) + 1, 1)) *
+      (anchor(right, 9999px) - anchor(left, 9999px))
+  );
   width: var(--lf-heading-link-size);
   height: var(--lf-heading-link-size);
   z-index: 1;

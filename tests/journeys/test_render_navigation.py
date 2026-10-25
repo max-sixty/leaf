@@ -410,8 +410,10 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
 def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     """The current page location unwinds before the panel view around it.
 
-    An Ask stood on while On me stands lets go first, then On me; a thread's Ask
-    reached by `m` with Threads open leaves through the panel's own step."""
+    An Ask stood on while On me stands lets go first, then On me. A thread's Ask
+    reached by `m` with Threads open stands in the thread's margin card, since the
+    panel declines a thread about a passage, and Escape leaves the Ask for its passage,
+    then puts the card away, and only then puts Threads away."""
     # A page obligation stood on while On me, which the keyboard opened, stands over the page.
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("g")
@@ -426,8 +428,8 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
-    # `m` from a heading into a thread's obligation, with Threads already open: Escape puts the
-    # panel's view away, without returning to the heading.
+    # `m` from a heading into a thread's obligation, with Threads already open: each Escape
+    # leaves one layer, the innermost first, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
@@ -435,7 +437,13 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")).to_be_focused()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator("lf-ask[data-lf-obligation]")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#off-t-resync")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
@@ -998,9 +1006,9 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
 
 def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serve):
-    """A box that starts scrolling after the page loads is reachable, shows its edge
-    mark, and starts the sticky-header slot again, as it does when the page loads with
-    it scrolling: whether a shorter window, a narrower container, or a page script made
+    """A declared scroll surface (`class="scroll"`) that starts scrolling after the page
+    loads is reachable, shows its edge mark, and starts the sticky-header slot again, as
+    it does when the page loads with it scrolling: whether a shorter window, a narrower container, or a page script made
     it scroll, by a class it adds as it adapts to the box's size or by a box it inserts,
     and announced it with `layoutChanged`. A box the window grows out of scrolling gives
     all three back. The window's case asks its height, which no box's size follows. A
@@ -1017,9 +1025,10 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
             leaf_page(
                 "Late scrollers",
                 '<div id="meter"></div>'
-                f'<div id="by-window">{wide}</div>'
-                f'<div id="holder"><div id="by-container">{wide}</div></div>'
-                f'<div id="by-script">{wide}</div>'
+                f'<div id="by-window" class="scroll">{wide}</div>'
+                '<div id="holder">'
+                f'<div id="by-container" class="scroll">{wide}</div></div>'
+                f'<div id="by-script" class="scroll">{wide}</div>'
                 '<details id="more"><summary>More</summary><table id="drawn"><tbody>'
                 "<tr><td>Cell</td></tr></tbody></table></details>",
                 head="<style>.wide { width: 900px; }"
@@ -1052,6 +1061,7 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
         }).observe(box);
         const inserted = document.createElement('div');
         inserted.id = 'by-insert';
+        inserted.className = 'scroll';
         inserted.innerHTML = '<div class="wide">An inserted block.</div>';
         document.querySelector('main').append(inserted);
         layoutChanged(inserted);
@@ -1077,7 +1087,8 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     )
     rendered(page)
     page.locator("#more > summary").click()
-    expect(page.locator("#drawn")).to_have_attribute("data-lf-scrolls", "")
+    # The theme scrolls a table only sideways, which the slot reads as `across`.
+    expect(page.locator("#drawn")).to_have_attribute("data-lf-scrolls", "across")
 
     entries = "".join(f"<li>Sidebar entry {n}</li>" for n in range(40))
     page = open_page(
@@ -1855,14 +1866,35 @@ _REPAINTED_KEYS = (
 )
 
 
+# A press may hand an element to the browser's fullscreen, which arrives frames after
+# the press and moves focus as it does, past every wait the reading takes: a reading
+# it lands inside compares keys painted before the move with keys painted after it.
+# The page counts the requests still unanswered, so the reading waits for the browser
+# to answer each.
+_FULLSCREEN_REQUESTS = """(() => {
+  const request = Element.prototype.requestFullscreen;
+  window.__lfFullscreenRequests = 0;
+  const answered = () => window.__lfFullscreenRequests--;
+  Element.prototype.requestFullscreen = function (...args) {
+    window.__lfFullscreenRequests++;
+    const answer = request.apply(this, args);
+    answer.then(answered, answered);
+    return answer;
+  };
+})()"""
+
+
 def _stale_keys(page):
     """What a forced repaint of every element's keys changes, once the page has
     rendered what the input so far asked for: each change is an attribute that was
     stale. A control a send or a load holds unavailable is ready again once that
     finishes, so the reading waits for both: for the page's readiness, which includes
-    every live sample's arrival, and for every send to come back."""
+    every live sample's arrival, and for every send to come back. It waits too for
+    every fullscreen request the input made, which moves focus when the browser
+    answers it."""
     wait_until_ready(page)
     round_trip(page)
+    page.wait_for_function("() => window.__lfFullscreenRequests === 0")
     rendered(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
     page.evaluate("async () => (await window.__lfWidgetApi()).paintKeys()")
@@ -1888,7 +1920,7 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
     press reads the rows afresh, so no other test fails on such a row. A page change
     reshuffles the steps; the failure names the step and the control pressed."""
     rng = random.Random(example.stem)
-    page = open_page(browser, serve(example))
+    page = open_page(browser, serve(example), init_script=_FULLSCREEN_REQUESTS)
     stale = [{"step": "arrival", **finding} for finding in _stale_keys(page)]
     for step in range(_SWEEP_STEPS):
         # Handles rather than a locator's nth, so a page that changes between the

@@ -108,8 +108,21 @@ def _completed_tasks(
     on_widgets = [todo for todo in todos if todo["subject"]["kind"] == "widget"]
     unearned = sorted(set(completes) - {todo["subject"]["id"] for todo in on_widgets})
     if unearned:
+        # An author who has just recorded a user's answer on a widget, such as a
+        # playground's submitted settings, reaches for --completes to finish it; the
+        # version that records an answer takes it in by itself.
+        mine = "; ".join(
+            f"{todo['id']} on {todo['subject'].get('id') or todo['subject']['kind']}"
+            f" ({todo['title']})"
+            for todo in todos
+        )
         raise Refused(
-            "no open to-do on " + ", ".join(repr(widget) for widget in unearned)
+            "no open to-do on "
+            + ", ".join(repr(widget) for widget in unearned)
+            + ": --completes ends the agent's own to-dos opened on a widget, and "
+            + (f"the open ones are {mine}" if todos else "none is open")
+            + ". A user's answer on a widget needs no --completes: the version that"
+            " records it takes it in; end a to-do on the page with `leaf task end`"
         )
     completed = [todo for todo in on_widgets if todo["subject"]["id"] in completes]
     not_later = sorted(

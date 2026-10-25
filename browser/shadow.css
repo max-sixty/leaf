@@ -2023,6 +2023,9 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
+.lf-code-copy::part(button) {
+  scroll-margin: var(--focus-ring-landing);
+}
 :root {
   --lf-heading-link-size: var(--lf-line);
 }
@@ -2230,11 +2233,9 @@ wa-radio[appearance=button][data-lf-focus-visible] {
 }
 wa-input::part(base lf-focus-visible-within) {
   outline: var(--focus-ring);
-  --lf-wears-ring: 1;
 }
 wa-select::part(combobox lf-focus-visible-within) {
   outline: var(--focus-ring);
-  --lf-wears-ring: 1;
 }
 wa-option {
   --focus-ring-gap: calc(-1 * var(--focus-ring-w));

@@ -404,9 +404,8 @@
         --lf-top-outer: var(--lf-top);
       }
       /* It sticks and scrolls what it holds, as a sidebar page's track body does
-       * (Sticking blocks, below), whose block-axis margin outranks this one while it
-       * sticks: `:where()` keeps this selector the less specific. */
-      :where(
+       * (Sticking blocks, below). */
+      :is(
           :scope[data-lf-margin~="sidebar"],
           :scope[data-lf-margin~="sidebar"]:not(:has(> aside.sidebar))
             > [data-lf-views-flow="page"]
@@ -791,14 +790,7 @@
      * flows in a window shorter than 480px, where a workspace flows too (below). Bounded
      * to such a window, the block would show a few lines of what it holds, and its foot,
      * such as a playground's submit button, only by scrolling inside it; flowing, the
-     * page scrolls to all of it.
-     *
-     * Scrolling, a block clips at its padding edge, and what it holds runs its full width,
-     * so a ring drawn outside a box at either side, or at the head or foot, would be cut.
-     * The block holds the ring's room as padding. It gives the block-axis room back as a
-     * negative margin, so what it holds starts where it would without it; the inline room
-     * stays inside, since a box set past a track's sides stands past the column (render
-     * check `past-column`). */
+     * page scrolls to all of it. */
     @media (min-height: 480px) {
       @container not style(--lf-track-scroll-behavior: flow) {
         :is(
@@ -833,6 +825,16 @@
           overflow-y: auto;
           overflow-anchor: none;
           --lf-holds-height: 1;
+        }
+        /* A scrolling box clips at its padding edge, and a track body's blocks run its
+         * full width, so a full-width control's ring would be cut at both sides and the
+         * last one's at the foot. The body holds the ring's room as padding. It gives
+         * the block-axis room back as a negative margin, so its blocks start where they
+         * would without it; the inline room stays inside the track, since a box set
+         * past the track's sides stands past the column (render check `past-column`). */
+        :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+          > aside[data-lf-beside]
+          > [data-lf-track-body] {
           box-sizing: border-box;
           padding: var(--focus-ring-room);
           margin-block: calc(-1 * var(--focus-ring-room));

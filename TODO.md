@@ -59,6 +59,13 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across On me,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
+- **#31 — Keep focus rings whole at every scroller's edge, by one mechanism.** A
+  scroller clips a ring drawn outside its box, and Leaf reserves the ring's room one
+  scroller at a time, while a Web Awesome control's ring sits on a box Leaf's landing
+  never reads. [`notes/focus-ring-room.md`](notes/focus-ring-room.md) lists each case
+  with its measurement and a reproduction, plus the two mechanisms tried. Add new cases
+  there rather than patching one, and choose the mechanism once the list shows its
+  shape.
 - **#28 — Finish the floating panel.** The floating panel, rebuilt on 12 October to
   the sketch the user configured (the header of
   `browser/runtime/floating-panel.js` holds its contract), is Leaf's only

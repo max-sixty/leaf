@@ -116,16 +116,12 @@ wa-radio[appearance="button"][data-lf-focus-visible] {
 }
 
 /* Text and select frames cover their editor and auxiliary controls, including Clear.
-   Their native input/button outlines stay off so a group has one focus carrier, and the
-   frame is what a landing shows for the ring: measured by its editor, a select Tab
-   brought in at a pane's foot kept 2.3px of its ring cut. */
+   Their native input/button outlines stay off so a group has one focus carrier. */
 wa-input::part(base lf-focus-visible-within) {
   outline: var(--focus-ring);
-  --lf-wears-ring: 1;
 }
 wa-select::part(combobox lf-focus-visible-within) {
   outline: var(--focus-ring);
-  --lf-wears-ring: 1;
 }
 /* An open select's options fill its listbox, which clips what it holds, so the ring on
    the option the user is on is inset: outside its box, three of its sides were cut

@@ -118,6 +118,12 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
+/* The ring is the shadow button's, and so is the focus a Tab reveals: it stands half
+   above its block, where a scroller's edge can meet it, so it keeps the ring's room as a
+   focused control in the page does (shadow.css, `:focus`). */
+.lf-code-copy::part(button) {
+  scroll-margin: var(--focus-ring-landing);
+}
 /* A heading's link stands in the gutter before its first line, centered on that line
    (heading-links.js writes where the line stands in the heading's box), and at the
    heading's far end where the gutter has no room for it. It shows as Copy does. */

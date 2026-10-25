@@ -65,7 +65,6 @@
  * it. Once the focused control is visible, reveal that ring if the decision
  * fits the room. Its own scroll margin already reserves the outline's gap.
  */
-import { isStage } from "./arrivals.js";
 import { localScrollBy, scrollAxes } from "./element-frame.js";
 import { deepFocus, onCurrentLocation, ringBox } from "./focus.js";
 import {
@@ -87,26 +86,12 @@ const land = (box, by, behavior) => {
   box.scrollBy({ ...by, behavior });
 };
 
-// The element whose margins Leaf's rules state for `el`. They reach the document and
-// its stages, the only open roots Leaf attaches (shadow-stage.js), and no other shadow
-// tree, so a node a Web Awesome control focuses in its own takes the margins of the
-// host they do reach, the ring's room a focused control keeps (surfaces.css, `:focus`)
-// among them: a code block's Copy and a diff's file filter, each focusing a node in its
-// own tree, stood flush with a pane's edge after Tab, their rings cut.
-function styledBy(el) {
-  for (let root = el.getRootNode(); root instanceof ShadowRoot && !isStage(root);)
-    root = (el = root.host).getRootNode();
-  return el;
-}
-
 // A destination's landing margin on one side. A range has none of its own and takes the
 // larger of those of the elements it starts and ends with, so a side list's run of a
 // group's label and a tab keeps the room the tab's ring needs (lf-tabs.js, `#showTab`).
 function scrollMargin(where, side = "Top") {
   if (!(where instanceof Range))
-    return (
-      Number.parseFloat(getComputedStyle(styledBy(where))[`scrollMargin${side}`]) || 0
-    );
+    return Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
   const edges = [
     where.startContainer.childNodes[where.startOffset],
     where.endContainer.childNodes[where.endOffset - 1],

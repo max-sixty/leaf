@@ -291,6 +291,151 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
 twelve-author Codex comparison above. The continuing brief is TODO #20.
 
+## Authoring effort, 2026-10-24
+
+An overnight campaign read Claude Code (Opus 5.5) and Codex (Sol 6.1) authors' tool
+timelines for where a Leaf author spends time an HTML author doesn't. On the full
+configuration workflow at main `73222dc97`, Opus Leaf authors took 9.6 native minutes
+(n=5) against HTML's 6.3 (n=2), and the gap sat in the first authoring turn (4.2 against
+2.05 minutes); the width, comment and decision phases were alike. So most measurement
+ran only that first turn, with arrangement_eval's real first prompt and no browser
+user or judge, several authors per arm, arms interleaved. Minutes vary by about a
+quarter between authors on one arm and with host load (10–58 tonight), so three per
+arm separate a mechanism (a refusal fires or not, a grep happens or not) but rarely
+minutes.
+
+What a first turn spent, at main: reading the skill and references (~50 s against
+HTML's ~10), render checks (13 s each; 3–11 per dashboard, 41–133 s of tool time,
+where an HTML author's tools total 1–13 s), the author's own revisions after reading
+the saved screens, and avoidable rounds:
+
+| Sink at main                                                                                   | Seen in                                                               | Repair                                                                                                                                  | After                                                     |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Grepping Leaf's source for how a page script reaches the playground (6–9 calls)                | 3/3 configuration authors, 3/3 on a retry-policy playground           | The playground's author instructions show the whole page script (#3952)                                                                 | 0/3 and 0/3; configuration first turn 4.4 → 3.5 min (3+3) |
+| `name="5xx-threshold"` refused by a leading-letter pattern                                     | 2/3                                                                   | Names take ids' pattern (#3952)                                                                                                         | gone                                                      |
+| `class` or `style` on a playground control refused                                             | 8 and 2 samples                                                       | Both are outside every widget schema (#3954)                                                                                            | can't fire                                                |
+| `id` on a playground control refused, though page-authoring.md asks for ids                    | 4/4 Codex authors                                                     | Controls, choices and presets declare `id` (#3952)                                                                                      | can't fire                                                |
+| Per-datum `dy` in lf-chart → NaN, reported only as a console error from Plot's bundle          | 14/17 dashboards                                                      | The chart names the mark and option; its instructions say offsets are one per mark (#3956)                                              | 0/3                                                       |
+| squeezed-table advice chased over many render checks, ending in a column hidden at phone width | 7/8 dashboards hid data                                               | The advice says every column stays in reach (#3956)                                                                                     | 1/15                                                      |
+| `stamp --completes <playground>` refused with no fix                                           | 4/4 Codex decision phases                                             | The refusal lists open to-dos and says an answer needs no flag; conversation-loop.md says how a start on the user's update ends (#3959) | 2/3 with the message alone, 0/3 with both                 |
+| Sticky boxes painted with guessed tokens (`var(--bg)`)                                         | 9/37 pages used an undefined token                                    | page-authoring.md states the `--lf-ground` rule (#3959)                                                                                 | 3/3 use it                                                |
+| `--playground-choice-columns` ignored by plain threshold choices, so authors read theme.css    | 24 configuration samples; 13/78 pages styled `.lf-playground-choices` | Plain choices read the property too (#3952)                                                                                             | probe: one column with the property set                   |
+
+On the configuration first turn, main against the campaign branch with every
+repair through the harness fix, 5 interleaved authors each: 3.6 against 4.1 minutes,
+$1.09 against $1.28, 20 against 29 tool calls; main's mean over all 10 of its first
+turns tonight was 4.3 minutes. Validation on the full configuration workflow, main
+against the branch through the chart offsets, Opus, 3 per arm: totals 9.0, 9.2, 13.2
+against 7.6, 8.5, 9.7 minutes, first turns 4.4, 4.8, 4.4 against 2.8, 3.3, 5.6, cost
+$3.14 against $2.49 a sample; every final judge passed.
+Codex, two runs pooled: first turns 2.7 against 2.5 minutes (n=5 each), all completed
+judgments passed. In three Codex runs, 3 of 8 base samples and none of 8 candidates
+errored in the harness's comment journey (a 15 s wait for the selection field or a
+response); the cause wasn't traced. Dashboard and document first turns didn't get
+faster; their time is the record review: render checks, up to 23 screenshot reads, the
+fresh-eyes subagent page-checkpoints.md asks for, and the author's own rounds after
+clean checks. On the full dashboard workflow, Opus Leaf took 8.9 minutes at main (n=6)
+and 9.1 at the branch (n=9). The branch's dashboards wrote a final status such as
+"eu-west is rolling back to 4.11" after the user had only decided in 6 of 15 samples,
+against 0 of 6 at main (5 of 12 against 0 of 6 for the final branch, Fisher p ≈ 0.11);
+removing conversation-loop.md's sentence on how a start ends left it at 1 of 3. The
+workflow's last message is "Apply them: update the page so it records them as final",
+and authoring-revisions.md asked the record to "say beside it what came of the
+choice": of the 21 Opus Leaf dashboard samples, the 3 that read that reference (all on
+the branch) were all failed for the overclaim, against 3 of the 18 that didn't. #3959
+rewrites the sentence so what a choice sets in motion reads as decided, not under way,
+unscored; why branch authors read the reference, and the other 3 cases, are open.
+
+Removing that subagent on the document task (`page-reads-at-every-width`, two runs of
+3 per arm) cut 4.3 to 3.3 minutes and $1.39 to $0.92 a page, with 4 against 3 judged
+defects the author owned beside the thread chrome's. That judge reads layout and the
+supplied facts, not whether a reader can follow the argument, so the result prices
+the review rather than showing it adds nothing.
+
+The configuration anchor, restated with same-night HTML controls: Opus Leaf took 9.6
+minutes at main (n=5) and 8.1 at the branch with the harness fix below (n=5), against
+HTML's 7.3 (n=5); Sol Leaf took 7.8 at main (n=6) and 7.6 at the branch (n=8), against
+HTML's 7.1 (n=3), with Leaf's first turns now shorter than HTML's (2.7 against 3.5).
+The 2026-10-21 gap (10.3 against 5.5 on Sol) had mostly closed on main before this
+campaign.
+
+Until 2026-10-25 the arrangement executor pinned the author's render check to the
+fixed 1280×720 window and the browser user first opened the page in the comment
+phase, so in the width phase, where the user states a 1600×1000 window, 8 of 12 Opus
+Leaf authors hunted for a way to change the check's window (setting
+`LEAF_RENDER_VIEWPORT=1600x1000`, grepping Leaf's source). In use the check reads the
+user's window. The executor now opens the handed-over page at the run's window and
+leaves authors unpinned; earlier width-phase minutes include that hunt.
+
+The driver, analysis scripts and per-cycle log are in the campaign worktree's
+`.tmp/overnight/` (`firstturn.py`, `timing.py`, `rounds.py`, `buckets.py`,
+`toolsplit.py`, `friction.py`, `authoring-effort.md`).
+
+## Opus page-quality campaign, 2026-10-24
+
+An overnight `/grinding-ui` run with fresh Claude Code authors (Opus 5.5) and Sol live
+and pair judges, on the arrangement tasks at 1600×1000. The runs named in the two
+sections above no longer existed, so every control was authored fresh. Each repair
+was compared on its own task against the commit before it (`--base`), then on a
+dissimilar task, then against HTML controls through an index of chosen samples, since
+`eval-pairs` pairs only the two columns inside its runs.
+
+Retained, in commit order on the campaign branch:
+
+- Playground label choices wrap between whole labels instead of filling equal grid
+  cells, which broke "over 1% (today)" across two lines in a half-empty card; one
+  author had overridden the cells in page CSS.
+- Dashboards and tuning pages keep their working state in the first window
+  (`page-authoring.md`, "Composing a page"), and a working-density `main` on a column
+  or sidebar page takes the working title and a 28px head. Leaf dashboards authored on
+  main were 2667–3390px tall at their first version (median about 3020), with the
+  chart, region table or checks below the window; with the change, 1704–1947px
+  (median about 1790), with metrics, regions, chart and decision in the window. Pair
+  judgments against main: 7 of 8. Configuration first versions fell from
+  1804–3332px to 1000–1944px, though both arms reached a fitting page once the user
+  stated the window, and the pair judges then split 1 of 4 for the change.
+- A panel heading names its region and the panel's first line states its finding. All
+  7 Leaf dashboards with panels written without that line had a panel heading over 40
+  characters (up to 129, in small capitals); the 2 written with it had none over 20.
+- Queue summaries take `--t-working-label` instead of the label size, in an 18rem list.
+- An applied playground stays open, authored at the chosen values, as its record
+  (`authoring-revisions.md`). Authors given the line did so 7 of 8 times, authors on
+  main 0 of 4 (today's values, or the tuner in a disclosure). Judgments against base
+  on the first pair of runs: 4 of 4.
+- `lf-diff` joins the pieces `@pierre/diffs` 1.6 splits an uneven change into, so a
+  rewrite reads deletions above additions in the unified view.
+
+Rejected: a 24em measure for the wide-page title (no visible change on 55–60
+character titles), and laying a page out by how its reader uses its parts (patch
+review, latency review and a document control: 4 of 10 judgments for the change
+against base, 0 of 4 against HTML), and asking for a configuration's items as aligned
+rows (every author already wrote rows; base won 4 of 4).
+
+At the end, two fresh samples per task on main and on the campaign branch: the
+branch won 17 of 24 judgments against main, 4 of 4 on configuration, dashboard and
+queue, 3 of 4 on latency review, 2 of 4 on the document control and 0 of 4 on patch
+review, where the judges cited each page's content (which diff it showed, how it
+recorded the approval). Two queue judgments named the branch's larger, "more
+readable" summaries. Codex authors (Sol 6.1) wrote working-density dashboards,
+workspaces and short panel headings on both arms, so the instruction changes moved
+nothing there; their configuration and queue pairs went to main 4 of 4 on a browser
+user's wrong click and a queue item the branch's author left open. At a 900×600
+window (one sample per arm) the branch took 3 of 6: configuration 2 of 2, queue 1 of
+2, and dashboard 0 of 2, where main's author wrote a workspace of independently
+scrolling columns and the branch's a sidebar page, which the guidance names for a
+dashboard. Against the
+same HTML controls both arms gave identical winners: Leaf for dashboard, document
+and queue, HTML for configuration, latency review and patch review. The HTML
+dashboard, queue and document controls each had a decision route that recorded
+nothing or lost a decision, which the judges weighed heavily. HTML's remaining
+advantages as the judges named them: aligned rows and summary links on configuration
+pages, a chart beside all its rows and the plan where Leaf used separate views, and
+code at 13.5px beside the decision where Leaf set it at 12px in another part.
+
+Runs and pair indexes are under `.tmp/eval/` in the campaign's worktree,
+`leaf.agent-a10f091f355e3a600`; the running log with each cycle's screenshots is
+`.tmp/overnight/page-quality.md` there.
+
 ## Remaining evaluation gaps
 
 - Recovering a long thread's middle after the agent has lost it. `elided` now

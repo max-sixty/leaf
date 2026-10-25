@@ -59,6 +59,24 @@
     display: none;
   }
 }
+/* A track standing beside the body (`--lf-sidebar-slot: beside`, layouts.css) is room the
+ * page gave to navigation, so the outline stands open there under its label, and the
+ * section in view takes the ink. Folded, it left a third of the window empty beside a
+ * long review. Where the track stacks above the body, the disclosure returns with the
+ * reader's own choice (lf-toc.js, `#measure`). */
+@media screen {
+  @container style(--lf-sidebar-slot: beside) {
+    :scope:is(lf-toc) .lf-toc-heading {
+      display: block;
+    }
+    :scope:is(lf-toc) .lf-toc-toggle {
+      display: none;
+    }
+    :scope:is(lf-toc) a[aria-current="location"] {
+      color: var(--ink);
+    }
+  }
+}
 :scope:is(lf-toc) .lf-toc-start,
 :scope:is(lf-toc) .lf-toc-window {
   display: none;

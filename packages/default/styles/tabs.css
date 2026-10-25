@@ -308,7 +308,7 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     :scope:is(lf-tabs)[list="side"]:not(.lf-rendered):has(> lf-tab) {
     container-type: inline-size;
     display: grid;
-    grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+    grid-template-columns: minmax(10rem, 18rem) minmax(0, 1fr);
     align-items: start;
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip,
@@ -395,11 +395,13 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list="side"]) {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* A summary is what the reader chooses an item by, read down the list, so it is set
+   * on the rung between the name's size and the label size of "To answer" beside it. */
   :scope:is(lf-tabs[list="side"], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-summary {
     grid-column: 1 / -1;
     grid-row: 2;
     padding: 0 5px;
-    font-size: var(--t-6);
+    font-size: var(--t-working-label);
     line-height: var(--lf-tab-summary-h);
     color: var(--muted);
   }

@@ -80,7 +80,8 @@ class Harness:
       (`commits_hook_context`); the other Stop hook does only under plain
       `--print`, where no watch follows the turn (`hook_transport`). The prompt
       hook starts a watch too, which waits while its turn runs, so a turn an
-      interrupt ends without its Stop hooks still has one. A watch can still
+      interrupt ends without its Stop hooks still has one, unless the session
+      held no page when that turn's prompt came. A watch can still
       stop while the session lives on, failing or at its hook's timeout, or with
       a background job's retired worker, which is why this is the harness with a
       `nudge`.

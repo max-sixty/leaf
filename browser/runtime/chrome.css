@@ -63,6 +63,7 @@
     color: var(--ink);
   }
   .lf-fp-card {
+    isolation: isolate;
     anchor-name: --lf-fp-panel;
     display: flex;
     flex-direction: column;
@@ -531,6 +532,9 @@
     flex: none;
     display: flex;
     width: var(--lf-fp-aim);
+  }
+  .lf-floating-panel[data-drafted] .lf-fp-exit-seat {
+    width: auto;
   }
   .lf-floating-panel[data-rest=mark] {
     --lf-fp-fold-pad-inline: calc((var(--lf-fp-folded) - var(--lf-fp-aim)) / 2);

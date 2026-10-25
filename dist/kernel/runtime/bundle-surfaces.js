@@ -6482,7 +6482,8 @@ var ThreadView = class {
 			}
 		}, () => this.repaint(), {
 			onChange: replyChanged,
-			editLast: this.#rewrites.editLast
+			editLast: this.#rewrites.editLast,
+			sending: () => this.#marginControls?.sending?.()
 		});
 	}
 	commit() {

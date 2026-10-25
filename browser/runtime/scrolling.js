@@ -105,8 +105,18 @@ document.addEventListener(
   { capture: true, passive: true },
 );
 
+// The scroll height a box's layout gives it, where its content is drawn elsewhere for a
+// while. A send's stream (box-motion.js) draws a scroller's content where it stood,
+// below where its layout now stands it, and the browser counts that drawing in the
+// box's scroll height while the content rides; the stream states the layout's height
+// meanwhile (`holdScrollHeight`, null when the ride ends), so the box's end stays where
+// its layout puts it and a landing at the end doesn't chase the ride.
+const laidOut = new WeakMap();
+export const holdScrollHeight = (box, height) =>
+  height === null ? laidOut.delete(box) : laidOut.set(box, height);
 // The furthest a box scrolls down: its scroll height less what its scrollport shows.
-export const scrollLimit = (box) => Math.max(0, box.scrollHeight - box.clientHeight);
+export const scrollLimit = (box) =>
+  Math.max(0, (laidOut.get(box) ?? box.scrollHeight) - box.clientHeight);
 
 // How far short of a scroll edge a box still stands at it: fractional layout and scaled
 // displays leave the browser a pixel short of where a scroll was aimed.
@@ -116,7 +126,7 @@ export const SCROLL_SLACK = 2;
 export const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
 export const scrollToEnd = (box, behavior = "instant") => {
   if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
-  box.scrollTo({ top: box.scrollHeight, behavior });
+  box.scrollTo({ top: scrollLimit(box), behavior });
 };
 
 // Apply a relative movement to the scroller the caller resolved. Keeping the box explicit

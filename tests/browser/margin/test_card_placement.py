@@ -329,7 +329,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const reply = document.querySelector('.lf-margin-thread .lf-thread-reply')
             .getBoundingClientRect();
-          const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
+          const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview-card'));
           return {mainLeft: main.left,
                   mainRight: main.right, controlsRight: controls.right,
                   controlsTop: controls.top, controlsBottom: controls.bottom,

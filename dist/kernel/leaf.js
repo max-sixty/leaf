@@ -1,6 +1,6 @@
-import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-target-paint.js";
+import { aimLayer, boxMotion, liftReach, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
 import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
-import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
+import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
 import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
 import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
@@ -3485,13 +3485,13 @@ declareSide((node) => {
 	}
 	return null;
 });
-const same$3 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
+const same$2 = (left, right) => left.length === right.length && left.every((node, index) => node === right[index]);
 const authoredDetails = (element, value) => (value ?? "").split(/\s+/).filter(Boolean).map((id) => element.getRootNode().getElementById?.(id)).filter(Boolean);
 const written = (element) => element.getAttribute("aria-details") === "";
 function name(element, record) {
 	if (!written(element)) record.authored = element.getAttribute("aria-details");
 	const wanted = [...authoredDetails(element, record.authored), ...record.notes];
-	if (written(element) && same$3(element.ariaDetailsElements ?? [], wanted)) return;
+	if (written(element) && same$2(element.ariaDetailsElements ?? [], wanted)) return;
 	element.ariaDetailsElements = wanted;
 }
 function shelve(element, note) {
@@ -4655,7 +4655,7 @@ let lastWalk = null;
 const statusContextReading = () => context.value;
 const stanceWords = (scope) => (scope ? word(scope.says ?? scope.title) : null) ?? null;
 const shownWalk = ({ walk }) => walk?.shown ? walk : null;
-const same$2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target;
+const same$1 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target;
 function paintStatusContext(goToStatus) {
 	const position = walkPosition();
 	const goTo = goToStatus();
@@ -4675,497 +4675,7 @@ function paintStatusContext(goToStatus) {
 		stance: stanceWords(innermostStance()?.scope)
 	});
 	setNoticeContext(Boolean(goTo));
-	if (!same$2(next, context.peek())) context.value = next;
-}
-
-//#endregion
-//#region runtime/box-motion.js
-const near = (a, b) => Math.abs(a - b) < .5;
-const boxOf = (rect) => ({
-	left: rect.left,
-	top: rect.top,
-	right: rect.right,
-	bottom: rect.bottom
-});
-const width = (box) => box.right - box.left;
-const height = (box) => box.bottom - box.top;
-const same$1 = (a, b) => [
-	"left",
-	"top",
-	"right",
-	"bottom"
-].every((side) => near(a[side], b[side]));
-const between = (from, to, progress) => Object.fromEntries(Object.keys(to).map((side) => [side, from[side] + (to[side] - from[side]) * progress]));
-const shifted = (box, dx, dy) => ({
-	left: box.left + dx,
-	top: box.top + dy,
-	right: box.right + dx,
-	bottom: box.bottom + dy
-});
-const insetOf = ([top, right, bottom, left], radius = 0) => `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
-const clipFrame = (sides, radius = 0) => ({
-	clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
-	"--lf-box-cut": sides.map((side) => `${side}px`).join(" ")
-});
-const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
-const paints = (style) => !/^(transparent|rgba\(.*,\s*0\))$/.test(style.backgroundColor) || style.backgroundImage !== "none" || style.boxShadow !== "none" || [
-	"Top",
-	"Right",
-	"Bottom",
-	"Left"
-].some((side) => Number.parseFloat(style[`border${side}Width`]) > 0);
-const rings = (style) => style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
-function boxMotion({ root, box, room, surface, ring: [ringLayer, ringFill], observer, theirs }) {
-	let rests = null;
-	let motions = /* @__PURE__ */ new Map();
-	let running = [];
-	let shapeUntil = 1;
-	let rtl = false;
-	let streamFrom = /* @__PURE__ */ new Map();
-	const interpolate = (from, to, progress) => {
-		const rect = between(from, to, progress);
-		const shape = Math.min(1, progress / shapeUntil);
-		const w = width(from) + (width(to) - width(from)) * shape;
-		const h = height(from) + (height(to) - height(from)) * shape;
-		if (rtl) rect.left = rect.right - w;
-		else rect.right = rect.left + w;
-		rect.top = rect.bottom - h;
-		return rect;
-	};
-	const translations = /* @__PURE__ */ new Map();
-	const restoreTranslations = (keep = /* @__PURE__ */ new Set()) => {
-		for (const [element, { value, priority }] of translations) {
-			if (keep.has(element)) continue;
-			element.style.setProperty("translate", value, priority);
-			translations.delete(element);
-		}
-	};
-	let observed = /* @__PURE__ */ new Set();
-	let wholes = /* @__PURE__ */ new WeakSet();
-	const insideWhole = (node) => {
-		for (let up = node.parentElement; up && up !== root; up = up.parentElement) if (wholes.has(up)) return true;
-		return false;
-	};
-	function carriedBy(progress) {
-		const offsets = /* @__PURE__ */ new Map();
-		const offset = (carrier) => {
-			if (!offsets.has(carrier)) {
-				const { from, to, carries: edge } = motions.get(carrier);
-				const now = between(from, to, progress);
-				offsets.set(carrier, [now[edge] - to[edge], now.top - to.top]);
-			}
-			return offsets.get(carrier);
-		};
-		return (element) => {
-			for (let up = element; up && up !== root; up = up.parentElement) if (motions.get(up)?.carries) return offset(up);
-			return [0, 0];
-		};
-	}
-	function read(element, into, carried) {
-		const style = getComputedStyle(element);
-		if (style.display === "contents") {
-			for (const child of element.children) read(child, into, carried);
-			return;
-		}
-		if (!element.checkVisibility()) return;
-		if (style.positionAnchor.startsWith("--")) return;
-		const [dx, dy] = carried(element);
-		const part = {
-			element,
-			style,
-			box: shifted(boxOf(element.getBoundingClientRect()), -dx, -dy),
-			window: style.position === "fixed",
-			parts: []
-		};
-		part.scrolls = /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`);
-		part.whole = element !== root && element.localName.includes("-") || element instanceof SVGElement || part.scrolls || element.childElementCount === 0 || [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.data.trim());
-		if (!part.whole) for (const child of element.children) read(child, part.parts, carried);
-		part.holdsWindow = part.parts.some((inner) => inner.window || inner.holdsWindow);
-		if (part.whole) wholes.add(element);
-		into.push(part);
-	}
-	function drawn(progress, carried) {
-		const at = /* @__PURE__ */ new Map();
-		for (const [element, rest] of rests) {
-			const moving = motions.get(element);
-			if (moving?.revealed && progress < 1) continue;
-			at.set(element, moving ? (element === box ? interpolate : between)(moving.from, moving.to, progress) : shifted(rest, ...carried(element)));
-		}
-		return at;
-	}
-	const arrived = /* @__PURE__ */ new Set();
-	let watching = 0;
-	const watch = () => {
-		watching ||= nextRender(() => {
-			watching = 0;
-			const parts = /* @__PURE__ */ new Set([
-				box,
-				...rests?.keys() ?? [],
-				...arrived
-			]);
-			arrived.clear();
-			for (const element of observed) if (!parts.has(element)) observer.unobserve(element);
-			for (const element of parts) if (!observed.has(element)) observer.observe(element);
-			observed = parts;
-		});
-	};
-	new MutationObserver((records) => {
-		for (const record of records) for (const node of record.type === "childList" ? record.addedNodes : [record.target]) if (node instanceof Element && !insideWhole(node)) arrived.add(node);
-		watch();
-	}).observe(root, {
-		subtree: true,
-		childList: true,
-		attributeFilter: ["hidden"]
-	});
-	function follow({ duration, easing }, compact = false) {
-		const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
-		const carried = carriedBy(progress);
-		const parts = [];
-		wholes = /* @__PURE__ */ new WeakSet();
-		read(root, parts, carried);
-		const next = /* @__PURE__ */ new Map();
-		const note = (part) => {
-			next.set(part.element, part.box);
-			part.parts.forEach(note);
-		};
-		parts.forEach(note);
-		watch();
-		if (!(theirs() === "send" && [...streamFrom].some(([scroller, then]) => {
-			const content = scroller.firstElementChild;
-			if (!content || motions.get(content)?.stream && progress < 1) return false;
-			return !near(content.getBoundingClientRect().top - carried(content)[1], then.top);
-		})) && rests?.size === next.size && [...next].every(([element, at]) => rests.has(element) && same$1(rests.get(element), at))) return;
-		for (const animation of running) animation.cancel();
-		running = [];
-		if (!next.has(box)) {
-			restoreTranslations();
-			rests = null;
-			motions = /* @__PURE__ */ new Map();
-			return;
-		}
-		const was = motionPlays() && rests ? drawn(progress, carried) : null;
-		const gesture = theirs();
-		const framed = new Set([...motions].filter(([, moving]) => moving.frames).map(([element]) => element));
-		const before = rests;
-		const streamed = /* @__PURE__ */ new Map();
-		if (progress < 1) {
-			for (const [element, moving] of motions) if (moving.stream) streamed.set(element, between(moving.from, moving.to, progress));
-		}
-		motions = /* @__PURE__ */ new Map();
-		rests = next;
-		const space = boxOf(room.getBoundingClientRect());
-		const outline = (at, grow, radius) => [[
-			at.top - space.top - grow,
-			space.right - at.right - grow,
-			space.bottom - at.bottom - grow,
-			at.left - space.left - grow
-		], radius + grow];
-		const boxAt = rests.get(box);
-		const boxRadius = radiusOf(getComputedStyle(box));
-		for (const [layer, reach] of surface()) keeps(layer, "style", `clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`);
-		if (!was?.has(box)) {
-			restoreTranslations();
-			return;
-		}
-		const boxFrom = was.get(box);
-		shapeUntil = compact ? .55 : 1;
-		rtl = getComputedStyle(box).direction === "rtl";
-		const start = (element, keyframes) => running.push(playMotion(element, keyframes, {
-			duration,
-			easing
-		}));
-		const contour = (from, to, grow, radius, compact = false) => {
-			const frames = [clipFrame(...outline(from, grow, radius))];
-			if (compact) frames.push({
-				...clipFrame(...outline(interpolate(from, to, shapeUntil), grow, radius)),
-				offset: shapeUntil
-			});
-			frames.push(clipFrame(...outline(to, grow, radius)));
-			return frames;
-		};
-		const hold = (element, property, value) => start(element, [{ [property]: value }, { [property]: value }]);
-		const translated = /* @__PURE__ */ new Set();
-		const move = (element, dx, dy) => {
-			const [carriedX, carriedY] = carriedBy(0)(element.parentElement);
-			dx -= carriedX;
-			dy -= carriedY;
-			if (!translations.has(element)) translations.set(element, {
-				value: element.style.getPropertyValue("translate"),
-				priority: element.style.getPropertyPriority("translate")
-			});
-			translated.add(element);
-			element.style.setProperty("translate", "var(--lf-box-carry)");
-			start(element, [{ "--lf-box-carry": `${dx}px ${dy}px` }, { "--lf-box-carry": "0px 0px" }]);
-		};
-		const cutFrom = (element, cut, radius = 0) => start(element, [clipFrame(cut, radius), clipFrame([
-			0,
-			0,
-			0,
-			0
-		], radius)]);
-		function carry(part, from) {
-			const dx = from.left - part.box.left;
-			const dy = from.top - part.box.top;
-			const [carriedX, carriedY] = carriedBy(0)(part.element.parentElement);
-			if (near(dx, carriedX) && near(dy, carriedY)) return;
-			motions.set(part.element, {
-				from,
-				to: part.box,
-				carries: "left"
-			});
-			move(part.element, dx, dy);
-		}
-		function carryContent(part, from) {
-			const to = part.box;
-			if (part.scrolls && !part.element.matches(TEXT_FIELD)) {
-				grow(part, from);
-				if (gesture === "send") streamContent(part);
-				return;
-			}
-			let dx = rtl ? from.right - to.right : from.left - to.left;
-			let dy = from.top - to.top;
-			const end = width(to) - width(from);
-			const foot = height(to) - height(from);
-			const cut = rtl ? [
-				0,
-				0,
-				foot,
-				end
-			] : [
-				0,
-				end,
-				foot,
-				0
-			];
-			if (!part.element.matches(TEXT_FIELD) || !((rtl ? dx <= 0 : dx >= 0) && dy >= 0) && gesture !== "typing") {
-				motions.set(part.element, {
-					from,
-					to,
-					carries: rtl ? "right" : "left"
-				});
-				move(part.element, dx, dy);
-				cutFrom(part.element, cut, radiusOf(part.style));
-				return;
-			}
-			motions.set(part.element, {
-				from,
-				to
-			});
-			dx = rtl ? Math.min(0, dx) : Math.max(0, dx);
-			dy = Math.max(0, dy);
-			start(part.element, [{
-				"--lf-field-carry": `${dx}px ${dy}px`,
-				"--lf-field-cut": cut.map((side) => `${side}px`).join(" ")
-			}, {
-				"--lf-field-carry": "0px 0px",
-				"--lf-field-cut": "0px 0px 0px 0px"
-			}]);
-		}
-		function grow(part, from) {
-			const to = part.box;
-			motions.set(part.element, {
-				from,
-				to
-			});
-			cutFrom(part.element, [
-				from.top - to.top,
-				to.right - from.right,
-				to.bottom - from.bottom,
-				from.left - to.left
-			].map((inset) => Math.max(0, inset)), radiusOf(part.style));
-		}
-		function reveal(part, frame, siblings) {
-			const to = part.box;
-			if (part.holdsWindow) {
-				motions.set(part.element, {
-					from: to,
-					to,
-					revealed: true
-				});
-				for (const inner of part.parts) reveal(inner, frame, siblings);
-				return;
-			}
-			const carriedTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
-			const side = (inset, beyond) => beyond ? 0 : Math.max(0, inset);
-			const from = [
-				side(frame.from.top - carriedTo.top, to.top < frame.to.top - .5),
-				side(carriedTo.right - frame.from.right, to.right > frame.to.right + .5),
-				side(carriedTo.bottom - frame.from.bottom, to.bottom > frame.to.bottom + .5),
-				side(frame.from.left - carriedTo.left, to.left < frame.to.left - .5)
-			];
-			const end = [
-				0,
-				0,
-				0,
-				0
-			];
-			const overlaps = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
-			for (const sibling of siblings) {
-				const moving = motions.get(sibling.element);
-				if (!moving || moving.revealed) continue;
-				const { from: then, to: at } = moving;
-				const across = overlaps(at, to, "top", "bottom");
-				const along = overlaps(at, to, "left", "right");
-				[
-					along && {
-						then: then.bottom - carriedTo.top,
-						rest: at.bottom - to.top
-					},
-					across && {
-						then: carriedTo.right - then.left,
-						rest: to.right - at.left
-					},
-					along && {
-						then: carriedTo.bottom - then.top,
-						rest: to.bottom - at.top
-					},
-					across && {
-						then: then.right - carriedTo.left,
-						rest: at.right - to.left
-					}
-				].forEach((reach, index) => {
-					if (reach && reach.rest <= .5 && reach.then > from[index]) {
-						from[index] = reach.then;
-						end[index] = reach.rest;
-					}
-				});
-			}
-			if (from.every((inset) => near(inset, 0))) return;
-			motions.set(part.element, {
-				from: to,
-				to,
-				revealed: true
-			});
-			start(part.element, [clipFrame(from), clipFrame(end)]);
-		}
-		function rise(part, frame, siblings) {
-			const to = part.box;
-			const dy = boxFrom.top - boxAt.top;
-			if (dy < .5) return reveal(part, frame, siblings);
-			motions.set(part.element, {
-				from: shifted(to, 0, dy),
-				to,
-				carries: "left"
-			});
-			move(part.element, 0, dy);
-			const first = Math.max(0, to.bottom + dy - boxFrom.top);
-			if (first < .5) return;
-			const clear = 1 - Math.max(0, boxFrom.top - to.bottom) / dy;
-			const frames = [clipFrame([
-				0,
-				0,
-				first,
-				0
-			])];
-			if (clear > 0 && clear < 1) frames.push({
-				...clipFrame([
-					0,
-					0,
-					0,
-					0
-				]),
-				offset: clear
-			});
-			frames.push(clipFrame([
-				0,
-				0,
-				0,
-				0
-			]));
-			start(part.element, frames);
-		}
-		function streamContent(part) {
-			const content = part.element.firstElementChild;
-			if (!content) return;
-			const then = streamed.get(content) ?? streamFrom.get(part.element);
-			if (!then) return;
-			const [cx, cy] = carriedBy(0)(content);
-			const now = shifted(boxOf(content.getBoundingClientRect()), -cx, -cy);
-			const dy = then.top - now.top;
-			if (Math.abs(dy) < .5) return;
-			motions.set(content, {
-				from: shifted(now, 0, dy),
-				to: now,
-				stream: true
-			});
-			move(content, 0, dy);
-		}
-		function streamWithin(part) {
-			if (part.scrolls) streamContent(part);
-			else part.parts.forEach(streamWithin);
-		}
-		function place(part, frame, siblings = []) {
-			const { element, style, box: to } = part;
-			const from = was.get(element);
-			if (!from) return gesture === "send" ? rise(part, frame, siblings) : reveal(part, frame, siblings);
-			const rest = before.get(element);
-			const sized = !framed.has(element) && near(width(rest), width(to)) && near(height(rest), height(to));
-			let within = frame;
-			if (element !== box && element !== root) {
-				const carries = gesture !== null;
-				if (sized && !part.holdsWindow) {
-					if (!carries) return reveal(part, frame, siblings);
-					carry(part, from);
-					if (gesture === "send") streamWithin(part);
-					return;
-				}
-				if (part.whole) return carries ? carryContent(part, from) : grow(part, from);
-				if (!same$1(from, to)) within = {
-					from,
-					to
-				};
-				if (!sized && rings(style)) {
-					const offset = Number.parseFloat(style.outlineOffset);
-					const reach = Number.parseFloat(style.outlineWidth) + offset;
-					const radius = radiusOf(style);
-					keeps(ringLayer, "style", `background: ${style.outlineColor}`);
-					hold(element, "outlineColor", "transparent");
-					for (const [layer, grown] of [[ringLayer, reach], [ringFill, offset]]) start(layer, contour(from, to, grown, radius));
-				} else if (!sized && paints(style) && !part.holdsWindow) carries ? carryContent(part, from) : grow(part, from);
-				if (!same$1(from, to)) motions.set(element, {
-					...motions.get(element),
-					from,
-					to,
-					frames: true
-				});
-			}
-			const placed = [...part.parts].sort((a, b) => Number(!was.has(a.element)) - Number(!was.has(b.element)));
-			for (const inner of placed) place(inner, within, part.parts);
-		}
-		for (const part of parts) place(part, {
-			from: boxFrom,
-			to: boxAt
-		});
-		restoreTranslations(translated);
-		if (running.length === 0 && same$1(boxFrom, boxAt)) return;
-		motions.set(box, {
-			from: boxFrom,
-			to: boxAt
-		});
-		for (const [layer, reach] of surface()) start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
-		hold(box, "backgroundColor", "transparent");
-		hold(box, "overflow", "visible");
-		const animations = running;
-		animations.at(-1).onfinish = () => {
-			if (running === animations) restoreTranslations();
-		};
-	}
-	return {
-		follow,
-		stream() {
-			const carried = carriedBy(running[0]?.effect.getComputedTiming().progress ?? 1);
-			streamFrom = /* @__PURE__ */ new Map();
-			for (const element of rests?.keys() ?? []) {
-				const content = element.firstElementChild;
-				if (!content || !/auto|scroll/.test(getComputedStyle(element).overflowY)) continue;
-				const [dx, dy] = carried(content);
-				streamFrom.set(element, shifted(boxOf(content.getBoundingClientRect()), -dx, -dy));
-			}
-		},
-		forget() {
-			rests = null;
-		}
-	};
+	if (!same$1(next, context.peek())) context.value = next;
 }
 
 //#endregion
@@ -5224,9 +4734,9 @@ customElements.define("leaf-floating-panel", FloatingPanel);
 function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, inWalkOrder, withdraw, settlement, placedAt, openThreadSubject, atLastResort, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
-	const ease = () => motionEasing("--lf-motion-panel-ease", host);
+	const ease = () => motionEasing("--lf-motion-box-ease", host);
 	const foldEase = () => motionEasing("--lf-motion-panel-fold-ease", host);
-	const resizeMs = () => motionTime("--lf-motion-panel-resize", host);
+	const resizeMs = () => motionTime("--lf-motion-box-resize", host);
 	const foldMs = () => motionTime("--lf-motion-panel-fold", host);
 	const viewResizeMs = () => motionTime("--lf-motion-disclosure", host);
 	const fadeMs = () => motionTime("--lf-motion-view-in", host);
@@ -5859,50 +5369,22 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		root: host,
 		box: card,
 		room: ground,
-		surface: () => {
-			const lift = getComputedStyle(ground);
-			const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach, part) => reach + part);
-			return [
-				[ground, shadowReach],
-				[ring, 1],
-				[fill, 0]
-			];
-		},
+		surface: () => [
+			[ground, liftReach(ground, 2)],
+			[ring, 1],
+			[fill, 0]
+		],
 		ring: [fieldRing, fieldFill],
-		observer: follow,
-		theirs: () => gesture
+		observer: follow
 	});
-	let gesture = null;
-	let gestures = 0;
-	const beginGesture = (event) => {
-		if (![
-			"keydown",
-			"pointerdown",
-			"input",
-			"touchstart",
-			"click"
-		].includes(event.type)) return;
-		gesture = event.type === "input" ? "typing" : "press";
-		const own = ++gestures;
-		afterSettling(() => {
-			if (gestures === own) gesture = null;
-		});
-	};
-	onUserInput(beginGesture);
 	function streamSend() {
-		if (gesture === null) return;
-		gesture = "send";
 		following.stream();
 	}
-	window.addEventListener("click", beginGesture, {
-		capture: true,
-		passive: true
-	});
 	function followBox() {
 		const box = card.getBoundingClientRect();
 		setRuntimeRootStyle(document.documentElement, "--lf-panel-reach", layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0));
 		const compact = host.dataset.rest === "mark";
-		const duration = compact ? foldMs() : performance.now() < viewMovingUntil && gesture !== "send" ? viewResizeMs() : resizeMs();
+		const duration = compact ? foldMs() : performance.now() < viewMovingUntil && following.theirs() !== "send" ? viewResizeMs() : resizeMs();
 		following.follow({
 			duration,
 			easing: compact ? foldEase() : ease()
@@ -6180,7 +5662,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			return;
 		}
 		const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-		if (arriving && gesture !== "send") playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
+		if (arriving && following.theirs() !== "send") playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
 			duration: fadeMs(),
 			delay: leaving ? outMs() : 0,
 			easing: "linear"

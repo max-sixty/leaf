@@ -179,13 +179,15 @@ document.addEventListener("scrollend", ({ target }) => {
 	capture: true,
 	passive: true
 });
-const scrollLimit = (box) => Math.max(0, box.scrollHeight - box.clientHeight);
+const laidOut = /* @__PURE__ */ new WeakMap();
+const holdScrollHeight = (box, height) => height === null ? laidOut.delete(box) : laidOut.set(box, height);
+const scrollLimit = (box) => Math.max(0, (laidOut.get(box) ?? box.scrollHeight) - box.clientHeight);
 const SCROLL_SLACK = 2;
 const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
 const scrollToEnd = (box, behavior = "instant") => {
 	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
 	box.scrollTo({
-		top: box.scrollHeight,
+		top: scrollLimit(box),
 		behavior
 	});
 };
@@ -828,4 +830,4 @@ sizes.observe(pageScroller);
 addEventListener("resize", () => nextRender(measureRegions), { passive: true });
 
 //#endregion
-export { JUST_NOW, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, afterPresentation, ago, aimedTop, atScrollEnd, chosenSince, claimReachStop, clockValue, compoundReadingRegionId, containingReadingRegionFor, deferredArrival, effectiveScroller, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageReadiness, pageReadingRegion, pageScroller, placeKept, preserveReadingRegions, quietSince, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerReadingRegion, releaseReachStop, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, syncLayoutRegion, tickClock, unconcealedReadingRegions, userReadingRegion, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected };
+export { JUST_NOW, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, afterPresentation, ago, aimedTop, atScrollEnd, chosenSince, claimReachStop, clockValue, compoundReadingRegionId, containingReadingRegionFor, deferredArrival, effectiveScroller, holdScrollHeight, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageReadiness, pageReadingRegion, pageScroller, placeKept, preserveReadingRegions, quietSince, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerReadingRegion, releaseReachStop, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, syncLayoutRegion, tickClock, unconcealedReadingRegions, userReadingRegion, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected };

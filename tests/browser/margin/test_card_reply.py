@@ -6,7 +6,12 @@ import base64
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
+from render_cases_interaction import (
+    HOLD_MOTION,
+    OBLIGATION_PAGE,
+    PANEL_PAGE,
+    panel_comment,
+)
 from render_cases_layout import ring_faults, rings_drawn
 from render_harness import (
     example_media,
@@ -222,7 +227,7 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     rendered(page)
     drawn = rings_drawn(page)
     worn = [(seen["who"].split(" ")[0], seen["rule"]) for seen in drawn if seen["here"]]
-    assert [who for who, _rule in worn] == ["aside.lf-ui.lf-margin-preview"], drawn
+    assert [who for who, _rule in worn] == ["div.lf-margin-preview-card"], drawn
     assert ".lf-page-thread" in worn[0][1], drawn
     assert not (faults := ring_faults(drawn, "on a card the keyboard opened")), (
         "\n".join(faults)
@@ -238,7 +243,7 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
         };
         return {card: Math.round(card.getBoundingClientRect().left),
                 ground: getComputedStyle(thread).backgroundColor,
-                paper: getComputedStyle(card).backgroundColor,
+                paper: getComputedStyle(card.querySelector('.lf-margin-preview-card')).backgroundColor,
                 words: x(words), field: x(field),
                 fieldBorder: getComputedStyle(field).borderTopStyle,
                 inset: Math.round(words.getBoundingClientRect().left
@@ -310,6 +315,59 @@ def test_a_margin_reply_send_shows_the_sent_turn(browser, serve, place):
     rendered(page)
     reading = sent.evaluate(SHOWN_ABOVE_THE_REPLY)
     assert reading["shown"], reading
+
+
+# Whether the margin card's motion has ended (box-motion.js).
+CARD_AT_REST = (
+    "() => !document.querySelector('.lf-margin-preview').getAnimations({subtree: true})"
+    ".some(a => Number.isFinite(a.effect?.getComputedTiming().endTime))"
+)
+
+# Where the card's outline, its head row and each turn are drawn now: the outline as its
+# surface's ring is cut (box-motion.js), the rest by their boxes.
+CARD_DRAWN = """card => {
+  const ring = card.querySelector('.lf-margin-preview-ring');
+  const ground = card.querySelector('.lf-margin-preview-ground');
+  const cut = getComputedStyle(ring).clipPath.match(/inset\\(([-\\d.]+)px/);
+  return [cut ? ground.getBoundingClientRect().top + Number(cut[1])
+              : card.getBoundingClientRect().top,
+          card.querySelector('.lf-margin-thread-controls').getBoundingClientRect().top,
+          ...[...card.querySelectorAll('.lf-thread-transcript > .lf-msg')]
+            .map(turn => turn.getBoundingClientRect().top)];
+}"""
+
+
+def test_a_card_send_moves_the_card_as_one_stream(browser, serve):
+    """A send from a margin card slides the card up as one stream, as the floating
+    panel's does: at the motion's first frame the card's outline, its head row and every
+    turn already there stand one shared distance below where they come to rest, so the
+    picture starts as it stood and nothing the reader reads overtakes anything else.
+    The new turn starts that far below its rest too, coming up from the foot. Read at
+    the first frame, held, and again at rest."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    write(editor, "And the mobile cohort too.")
+    rendered(page)
+    stood = preview.evaluate(CARD_DRAWN)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    with sending(page, "the reply"):
+        editor.press("Enter")
+    expect(preview.locator(".lf-msg")).to_have_count(2)
+    rendered(page)
+    drawn = preview.evaluate(CARD_DRAWN)
+    page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
+    page.wait_for_function(CARD_AT_REST)
+    rest = preview.evaluate(CARD_DRAWN)
+    offsets = [d - r for d, r in zip(drawn, rest, strict=True)]
+    assert offsets[0] > 10, f"the card grew in place: {offsets}"
+    assert max(offsets) - min(offsets) < 1, f"the stream came apart: {offsets}"
+    assert drawn[:3] == pytest.approx(stood, abs=1), (stood, drawn)
 
 
 def test_typing_in_a_margin_reply_leaves_the_transcript_where_the_reader_put_it(
@@ -1287,6 +1345,8 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
         round_trip(page)
         expect(sent).not_to_have_attribute("aria-busy", "true")
     rendered(page)
+    # The send's own motion ends before the tokens the reading is measured against.
+    page.wait_for_function(CARD_AT_REST)
 
     def stream_tokens(repetitions):
         text = "The answer has started. " + (

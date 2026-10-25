@@ -793,8 +793,10 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
 def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     """The current page location unwinds before the panel view around it.
 
-    An Ask stood on while On me stands lets go first, then On me; a thread's Ask
-    reached by `m` with Threads open leaves through the panel's own step."""
+    An Ask stood on while On me stands lets go first, then On me. A thread's Ask
+    reached by `m` with Threads open stands in the thread's margin card, since the
+    panel declines a thread about a passage, and Escape leaves the Ask for its passage,
+    then puts the card away, and only then puts Threads away."""
     # A page obligation stood on while On me, which the keyboard opened, stands over the page.
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("g")
@@ -809,8 +811,8 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
-    # `m` from a heading into a thread's obligation, with Threads already open: Escape puts the
-    # panel's view away, without returning to the heading.
+    # `m` from a heading into a thread's obligation, with Threads already open: each Escape
+    # leaves one layer, the innermost first, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
@@ -818,7 +820,13 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")).to_be_focused()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator("lf-ask[data-lf-obligation]")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#off-t-resync")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")

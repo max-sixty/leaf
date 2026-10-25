@@ -6,8 +6,7 @@ stderr, one JSON object per line. That is a note, a finding (`findings.note`), o
 refusal ending the command, `{"error", "findings"}` (`LeafGroup`). So a reader that
 merges the streams still parses every line, one that pipes stdout alone still sees
 what was said beside it, and a refusal never reads as a result. `--help`, `--version`
-and `--root` print text, as `page transcript` prints Markdown and `package run` prints
-what its script does.
+and `--root` print text, and `package run` prints what its script does.
 
 A command returns its result and never prints it: `LeafGroup.main` prints what it
 returns, so every result has one presentation and a `cmd_*` function answers its
@@ -780,15 +779,6 @@ def claim(page_dir: Path, manual_delivery: bool) -> dict:
     from leaf.service import cmd_claim
 
     return cmd_claim(page_dir, manual_delivery=manual_delivery)
-
-
-@page.command(short_help="Print the page's exchange as Markdown.")
-@page_argument(renew=False)
-def transcript(page_dir: Path) -> str:
-    """Print the page's exchange as Markdown."""
-    from leaf.transcript import cmd_transcript
-
-    return cmd_transcript(page_dir)
 
 
 @cli.group(short_help="Read a delivery by its id, and confirm you received it.")

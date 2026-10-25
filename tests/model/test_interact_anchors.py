@@ -135,10 +135,6 @@ def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_
     passages = passages_model.page_passages(structure_model.SourceDocument(revised))
     assert resolve_quote(passages, anchor) is None
     assert resolve_quote(passages, exact["anchor"]) is not None
-    from leaf.transcript import _thread_heading
-
-    assert "passage not identified" in _thread_heading(threads[detached["id"]])
-    assert "passage not identified" not in _thread_heading(threads[exact["id"]])
 
 
 def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
@@ -1554,11 +1550,6 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     threads = state_json(page_dir)["threads"]
     assert [t["resolved"] for t in threads] == ["agent"]
 
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "resolved by Indexer" in transcript.output
-
 
 def test_resolve_refuses_a_message_the_log_has_not_got(page_dir):
     """The parent rule is the reply door's, so a thread can't be closed by naming
@@ -1569,7 +1560,7 @@ def test_resolve_refuses_a_message_the_log_has_not_got(page_dir):
 
 def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
     """The agent-side fold reads the inverse transition from the same log as the
-    browser, so page state and the transcript both show the thread open again."""
+    browser, so page state shows the thread open again."""
     published(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -1594,10 +1585,6 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
         resolved["id"],
         reopened["id"],
     ]
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "— resolved" not in transcript.output
 
 
 def test_a_closed_thread_stops_asking(page_dir):

@@ -106,7 +106,6 @@ Commands:
   report        Report a state change onto a page widget, as a worker.
   stamp         Stamp the current source as the next version.
   state         Print where the page, a thread, or a widget stands.
-  transcript    Print the page's exchange as Markdown.
 
 ## server
 Usage: leaf server [OPTIONS] COMMAND [ARGS]...

@@ -268,8 +268,7 @@ def test_server_round_trip(server, page_dir):
     moved = event_model.read_events(page_dir)[-1]
     assert moved["author"] == "user" and moved["detail"]["value"] == "col-doing"
     # A design comment names the control the press landed on beside the widget it is
-    # about. The door takes its design intent as posted, and the transcript says which
-    # kind of comment it was.
+    # about. The door takes its design intent as posted.
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -285,10 +284,6 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     design = event_model.read_events(page_dir)[-1]
     assert design["about"] == "design" and design["anchor"]["part"] == "grip"
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "> § feeder-board · grip  — about the design" in transcript.output
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -306,10 +301,8 @@ def test_server_round_trip(server, page_dir):
         ).encode(),
     )
     assert status == 200
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert "> “Remove” · grip" in transcript.output
+    quoted = event_model.read_events(page_dir)[-1]["anchor"]
+    assert (quoted["quote"], quoted["part"]) == ("Remove", "grip")
     drawing = {
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
@@ -336,13 +329,6 @@ def test_server_round_trip(server, page_dir):
     drawn = event_model.read_events(page_dir)[-1]
     assert drawn["drawing"] == drawing
     assert "text" not in drawn
-    transcript = CliRunner().invoke(
-        cli_model.cli, ["page", "transcript", str(page_dir)]
-    )
-    assert (
-        "_(drawing attached over “to reap every process … before exporting”)_"
-        in transcript.output
-    )
     for bad in [
         {"kind": []},
         {"kind": "action", "action": "move"},  # no widget

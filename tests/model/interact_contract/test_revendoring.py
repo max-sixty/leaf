@@ -117,7 +117,7 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     retired verb above: admission is the schema's only reader, and the logged event
     replays the same either way."""
     publish(page_dir)
-    append_carried_log_record(
+    comment = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -132,7 +132,9 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code == 0, result.output
-    after = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
+    after = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), comment["id"]]
+    )
     assert after.exit_code == 0, after.output
     assert "Does this still mean anything?" in after.output
 

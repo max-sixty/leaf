@@ -17,6 +17,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    painted_words,
     pane_scroll_behavior,
     panel_control,
     panel_field,
@@ -88,23 +89,15 @@ def test_a_pin_stands_by_its_run_of_text_rather_than_over_it(browser, serve):
     reading = page.evaluate(
         """() => {
           const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
-          const words = [];
-          for (const node of document.querySelectorAll('#p, #p *'))
-            for (const text of node.childNodes)
-              if (text.nodeType === Node.TEXT_NODE && text.data.trim()) {
-                const range = document.createRange();
-                range.selectNodeContents(text);
-                words.push(...[...range.getClientRects()]
-                  .filter((box) => box.width > 2 && box.height > 2).map(edges));
-              }
           const entries = [...document.querySelectorAll(
             '[data-lf-margin-for="s"] .lf-margin-entry')]
             .filter((entry) => entry.checkVisibility())
             .map((entry) => edges(entry.getBoundingClientRect()));
-          return {words, entries,
+          return {entries,
             parts: [...document.getElementById('s').getClientRects()].map(edges)};
         }"""
     )
+    reading["words"] = painted_words(page, "#p")
     # Accept and Reject.
     assert len(reading["entries"]) == 2, reading["entries"]
     for entry in reading["entries"]:
@@ -129,19 +122,6 @@ def test_a_pin_stands_by_its_run_of_text_rather_than_over_it(browser, serve):
 PIN_READING = """async (id) => {
   const {shownParts} = await window.__lfWidgetApi();
   const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
-  const words = [];
-  const walk = document.createTreeWalker(document.querySelector('main'),
-    NodeFilter.SHOW_TEXT);
-  for (let text = walk.nextNode(); text; text = walk.nextNode()) {
-    // A pending suggestion's "proposed deletion" is said only to a screen reader,
-    // clipped to nothing on screen, though its text node still reports a line box.
-    if (!text.data.trim() || !text.parentElement.checkVisibility()
-      || text.parentElement.closest('.lf-quiet')) continue;
-    const range = document.createRange();
-    range.selectNodeContents(text);
-    words.push(...[...range.getClientRects()]
-      .filter((box) => box.width > 2 && box.height > 2).map(edges));
-  }
   const parts = shownParts(document.getElementById(id))
     .flatMap((el) => [...el.getClientRects()])
     .filter((box) => box.width && box.height).map(edges);
@@ -149,13 +129,13 @@ PIN_READING = """async (id) => {
   const entries = [...row.querySelectorAll('.lf-margin-entry')]
     .filter((entry) => entry.checkVisibility())
     .map((entry) => edges(entry.getBoundingClientRect()));
-  return {words, parts, entries, carrier: edges(row.getBoundingClientRect())};
+  return {parts, entries, carrier: edges(row.getBoundingClientRect())};
 }"""
 
 
 def pin_reading(page, target):
-    """Read target parts, allocated carrier and buttons."""
-    return page.evaluate(PIN_READING, target)
+    """Read target parts, allocated carrier and buttons, and the words `main` paints."""
+    return {**page.evaluate(PIN_READING, target), "words": painted_words(page, "main")}
 
 
 def pin_distance(carrier, parts):

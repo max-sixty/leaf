@@ -242,6 +242,10 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
     browser, serve
 ):
+    """The panel's room belongs to whatever ends the page: the footer where one stands
+    after the body, so its words clear the panel's row rather than standing under it at
+    the window's foot, and the panes keep only their inset; the panes' readers where
+    the body ends the page (layouts.css, "The root workspace owns the window's foot")."""
     page = open_page(browser, serve(WORKSPACE_PAGE))
     resized(page, 1200, 900)
     geometry = page.evaluate(
@@ -249,18 +253,26 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
           const main = document.querySelector('main');
           const reader = document.querySelector('#queue > :not(header, footer)');
           reader.scrollTop = reader.scrollHeight;
+          const footer = document.querySelector('main > footer');
+          const words = document.createRange();
+          words.selectNodeContents(footer);
           return {
             mainBottom: main.getBoundingClientRect().bottom,
             windowBottom: innerHeight,
             endBottom: [...reader.querySelectorAll('p')].at(-1).getBoundingClientRect().bottom,
+            readerRoom: parseFloat(getComputedStyle(reader).paddingBottom),
+            paneInset: parseFloat(getComputedStyle(reader).paddingTop),
             panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
             paneBottom: document.querySelector('#queue').getBoundingClientRect().bottom,
-            footerTop: document.querySelector('main > footer').getBoundingClientRect().top,
+            footerTop: footer.getBoundingClientRect().top,
+            footerWordsBottom: words.getBoundingClientRect().bottom,
           };
         }"""
     )
     assert abs(geometry["mainBottom"] - geometry["windowBottom"]) <= 1, geometry
     assert geometry["endBottom"] <= geometry["panelTop"], geometry
+    assert geometry["footerWordsBottom"] <= geometry["panelTop"], geometry
+    assert geometry["readerRoom"] == geometry["paneInset"], geometry
     assert geometry["footerTop"] - geometry["paneBottom"] <= 1, geometry
     assert page.evaluate("document.scrollingElement.scrollHeight <= innerHeight + 1")
     page.locator("body").focus()

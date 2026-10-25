@@ -860,13 +860,30 @@
    * places deeper stands inside that body's own end room (below), so it keeps only its
    * inset: a visual review's stacked case strip, at the top of the window, had given
    * 72px of a 720px window to a panel it never reaches. Flowing workspaces still use
-   * the document's end room. */
+   * the document's end room.
+   *
+   * A footer after the body is then what reaches the foot, so the room is its
+   * (`--lf-workspace-end-room` is zero for the panes above it): without that, a
+   * workspace's footer stood under the panel's row, flush with the window's foot, while
+   * every pane kept 72px of empty room over it. */
   @media screen and (min-width: 720px) and (min-height: 480px) {
     html[data-lf-live][data-lf-layout~="workspace"] body {
       padding-block-end: 0;
     }
     html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
       block-size: calc(var(--lf-view-height) + var(--lf-foot-room));
+      --lf-workspace-end-room: var(--lf-foot-room);
+    }
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body
+      > main.layout-workspace:has(> footer) {
+      --lf-workspace-end-room: 0px;
+    }
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body
+      > main.layout-workspace
+      > footer {
+      padding-block-end: var(--lf-foot-room);
     }
     html[data-lf-live][data-lf-layout~="workspace"]
       body
@@ -879,7 +896,7 @@
       > :not(header, footer)
       > [data-lf-reading-role="pane"]
       > :not(header, footer) {
-      padding-block-end: calc(var(--pane-inset) + var(--lf-foot-room));
+      padding-block-end: calc(var(--pane-inset) + var(--lf-workspace-end-room));
     }
     /* A direct grid of panes already clears the panel inside each pane. A body
        grouping panes more deeply scrolls as one box and needs its own end room. */
@@ -889,7 +906,7 @@
       > :not(header, footer, [data-lf-reading-role="pane"]):not(
         :has(> [data-lf-reading-role="pane"])
       ) {
-      padding-block-end: var(--lf-foot-room);
+      padding-block-end: var(--lf-workspace-end-room);
     }
   }
   /* The header is one row: the title with the page's status beside it, wrapping only

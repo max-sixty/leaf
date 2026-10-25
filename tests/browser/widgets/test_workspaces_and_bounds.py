@@ -66,7 +66,19 @@ WORKSPACE_PAGE = leaf_page(
 def test_workspace_root_scrollbar_appears_only_when_page_overflows(
     scrollbar_browser, serve
 ):
-    page = open_page(scrollbar_browser, serve(WORKSPACE_PAGE))
+    """A workspace scrolls its own panes, so a platform with classic scrollbars shows
+    the root's track only where the workspace flows past the window."""
+    page = open_page(
+        scrollbar_browser,
+        serve(WORKSPACE_PAGE),
+        # macOS draws the root's scrollbar as an overlay, which takes no width; a styled
+        # track is classic on every host, as Linux and Windows draw it.
+        init_script="""(() => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('html::-webkit-scrollbar { width: 15px; }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        })()""",
+    )
     resized(page, 1200, 900)
     assert page.evaluate(
         """() => {

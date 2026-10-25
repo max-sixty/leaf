@@ -146,7 +146,6 @@ export function createThreadDestinations({
       part = null,
       focus = true,
       travel = true,
-      flash = true,
       scroll = true,
       intent = retainUserIntent(),
       origin = null,

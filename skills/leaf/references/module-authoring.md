@@ -137,6 +137,14 @@ its first measurements there. `PAGE_INTERFACE` fires at startup and again when a
 revision is applied in place; UI built from the authored structure rebuilds there and
 passes any asynchronous preparation to `detail.present(promise)`.
 
+A page script reaches a widget's methods only once the widget has upgraded.
+`whileInterfaceConnected(element, {declare, connect})` runs `declare()` once, for what
+the widget accepts once per lifetime, then `connect(signal)` at the first
+`PAGE_INTERFACE`, holding presentation until it returns, and again at once on each
+reconnection; the cleanup `connect` returns runs as the element leaves. A playground's
+page script is the worked example (the playground package's author instructions,
+"Stateful previews").
+
 Run a heavy renderer that can wait until the user has the page through
 `afterPresentation(() => …)`. Pass work that starts now but need not delay
 presentation, such as a slow load whose result moves nothing visible, to

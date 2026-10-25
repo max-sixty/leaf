@@ -78,7 +78,6 @@
     </style>
     <script type="module">
       import {
-        PAGE_INTERFACE,
         generatedElement,
         keepsText,
         layoutChanged,
@@ -86,7 +85,7 @@
         offerAction,
         once,
         setChildren,
-        whileConnected,
+        whileInterfaceConnected,
       } from "/runtime/widget-api.js";
 
       const RELEASES = [
@@ -144,7 +143,10 @@
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileConnected(this, (signal) => this.#connect(signal));
+            whileInterfaceConnected(this, {
+              declare: () => this.#initialize(),
+              connect: () => this.#playground.subscribe(() => this.#render()),
+            });
           }
 
           #build() {
@@ -194,22 +196,6 @@
               generatedElement(box, { says: true });
             generatedElement(this.#rows, { says: false });
             this.append(toolbar, this.#rows, this.#count, tableFrame);
-          }
-
-          #connect(signal) {
-            let unsubscribe;
-            const initialize = () => {
-              if (signal.aborted || unsubscribe) return;
-              if (!this.#filters) this.#initialize();
-              unsubscribe = this.#playground.subscribe(() => this.#render());
-            };
-            document.addEventListener(
-              PAGE_INTERFACE,
-              (event) => event.detail.present(Promise.resolve().then(initialize)),
-              { signal },
-            );
-            if (this.#filters) initialize();
-            return () => unsubscribe?.();
           }
 
           #initialize() {

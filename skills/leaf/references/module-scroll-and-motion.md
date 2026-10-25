@@ -181,7 +181,10 @@ result may scroll away the control pressed; `replaceEntry` only renames the entr
 user is on. To
 restore the page itself when the user goes Back or Forward to one of its entries, call
 `claimTraversals(claim, {signal})`, where `claim(url)` returns a function that restores
-the page for an entry of the widget's, or nothing.
+the page for an entry of the widget's, or nothing. The handler may be asynchronous.
+When it only reveals the destination view, it resolves to `false`, and Leaf restores
+the entry's saved viewport after the view is shown. Otherwise the handler owns
+viewport placement.
 
 ## Motion
 
@@ -204,7 +207,8 @@ since the effect keeps its pixels drawn until the fold finishes; keep its ordina
 sizing rules while it leaves, and cancel the effect if retirement is reversed.
 
 `backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
-own background.
+own background. `flashDuration()` is how long Leaf's own arrival tint lasts, as on a
+newly arrived message.
 
 ## Notices and spoken words
 

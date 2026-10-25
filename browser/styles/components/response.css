@@ -355,7 +355,7 @@ button.lf-media-open {
     opacity: 0;
   }
   .lf-composer-media-item > .lf-corner-mark {
-    transition: opacity 120ms;
+    transition: opacity var(--lf-motion-disclosure);
   }
 }
 /* A forced palette drops the ring, so a picture takes a system edge, which leaves the

@@ -493,8 +493,9 @@ export function createFloatingPanel({
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
   // The way out of the stance the user is in, at the row's end beside the counts,
-  // and there while the user types (touch-controls.js, `stance`). Its seat keeps
-  // room after a view closes, so news cannot shift the count chips under the reader.
+  // and there while the user types (touch-controls.js, `stance`). Beside the counts its
+  // seat keeps room after a view closes, so news cannot shift them under the reader;
+  // while a draft steps them aside, an empty seat leaves the field the row's end.
   const exitSeat = el("div", "lf-fp-exit-seat");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
@@ -558,6 +559,12 @@ export function createFloatingPanel({
   // the list moves none of the menu's rows.
   const menuAt = signal(null);
   let menuRoom = null;
+  // A closing menu's fade, which holds its last rows, inert, until it ends, so the menu
+  // goes out in a disclosure's time as it came in; null while it stands or is gone.
+  // Whether the menu was drawn open at the last paint tells a close from a menu that
+  // was never shown.
+  let menuFade = null;
+  let menuDrawn = false;
   let filter = "open";
   let query = "";
   let searching = false;
@@ -610,7 +617,8 @@ export function createFloatingPanel({
   // messages: on opening, the whole of it, at the turn the user comes back for
   // (`showReturnTurn`); after the user's turn, past it, at its end (`end`).
   let landing = null;
-  const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
+  const drawnTurns = () =>
+    outletOf()?.querySelectorAll(".lf-msg[data-message]").length ?? 0;
 
   // ---------- one native editor per destination ----------
   // The errors the field can say now, newest first (errors.js): about nothing, not yet
@@ -747,6 +755,7 @@ export function createFloatingPanel({
       },
       send: (_text, raw, owns) => {
         let flight = null;
+        streamSend();
         const handle = sendMessage(
           PAGE_DRAFT,
           owns,
@@ -801,6 +810,7 @@ export function createFloatingPanel({
         hint: () => saying(key, replyInput()),
         hintAside: () => passingAside(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
+        sending: streamSend,
         sent: (flight) => {
           // The user's turn lets go of the height a press held (`pressAt`).
           room = null;
@@ -1285,6 +1295,15 @@ export function createFloatingPanel({
     });
   };
   onUserInput(beginGesture);
+  // A send is the user's change joining the stream the box shows (box-motion.js,
+  // "send"): the box reads where that stream stands before the send draws, and the
+  // readings until the send's rendering settles carry it from there on the box's own
+  // tween.
+  function streamSend() {
+    if (gesture === null) return;
+    gesture = "send";
+    following.stream();
+  }
   window.addEventListener("click", beginGesture, { capture: true, passive: true });
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
@@ -1301,7 +1320,7 @@ export function createFloatingPanel({
     const compact = host.dataset.rest === "mark";
     const duration = compact
       ? foldMs()
-      : performance.now() < viewMovingUntil
+      : performance.now() < viewMovingUntil && gesture !== "send"
         ? viewResizeMs()
         : resizeMs();
     following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
@@ -1748,8 +1767,9 @@ export function createFloatingPanel({
       if (focus) focusView(after, drawn, stoodIn);
       return;
     }
+    // A view a send opens rises with the box as the stream does (`streamSend`).
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
-    if (arriving)
+    if (arriving && gesture !== "send")
       playMotion(arriving, [{ opacity: 0 }, { opacity: 1 }], {
         duration: fadeMs(),
         delay: leaving ? outMs() : 0,
@@ -3306,17 +3326,43 @@ export function createFloatingPanel({
     );
     keeps(errorDot, "data-shown", unseen ? "" : null);
 
-    render(menuOpen.value ? menuTemplate() : nothing, menu);
+    if (menuOpen.value) {
+      // A menu reopened while it fades draws afresh, as one opened after it had gone.
+      if (menuFade) {
+        menuFade.cancel();
+        menuFade = null;
+        render(nothing, menu);
+      }
+    } else if (menuDrawn && !menuFade) {
+      menu.setAttribute("data-leaving", "");
+      menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
+        duration: motionTime("--lf-motion-disclosure", menu),
+        easing: "linear",
+      });
+      menuFade?.finished.then(
+        () => {
+          menuFade = null;
+          paint();
+        },
+        () => {},
+      );
+    }
+    menuDrawn = menuOpen.value;
+    keeps(menu, "data-leaving", menuFade ? "" : null);
+    keeps(menu, "inert", menuFade ? "" : null);
+    if (!menuFade) render(menuOpen.value ? menuTemplate() : nothing, menu);
     // A copy control the menu keeps for its next showing leaves the list the render just
     // took down, which it would otherwise hold whole, rows and all, as its parent.
     for (const copy of [...copyItems.values(), ...copies.values()])
       if (!copy.isConnected) copy.remove();
-    keeps(
-      menu,
-      "data-level",
-      menuOpen.value && menuAt.value ? menuAt.value.view : null,
-    );
-    keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+    if (!menuFade) {
+      keeps(
+        menu,
+        "data-level",
+        menuOpen.value && menuAt.value ? menuAt.value.view : null,
+      );
+      keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
+    }
     // A text to select, which About holds where no clipboard copies it, is no menu's row.
     keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
     if (menuOpen.value) {

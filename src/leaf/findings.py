@@ -1121,6 +1121,7 @@ _TEXT = {
     "invalid-extensions": _declared(
         lambda v: f"registry extensions are invalid: {v['reason']}"
     ),
+    "example-data": _declared(lambda v: f"x-example-data is invalid: {v['reason']}"),
     "invalid-example": _declared(
         lambda v: f"x-example is invalid: {Finding.loads(v['finding'])}"
     ),

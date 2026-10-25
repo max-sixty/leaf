@@ -5,6 +5,7 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { signal } from "/vendor/browser-runtime.js";
 import { html, LeafElement, nothing, noChange } from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
@@ -322,7 +323,7 @@ test("a render that throws shows its failure and draws again for the next move",
   unrelated.element.remove();
 });
 
-test("an element that reads its bound data draws each accepted reading", async () => {
+test("an element gates its draws on the delivered bound value", async () => {
   const tag = `lf-probe-data-${++tags}`;
   adoptRegistry({
     [tag]: {
@@ -349,7 +350,11 @@ test("an element that reads its bound data draws each accepted reading", async (
   customElements.define(
     tag,
     class extends LeafElement {
+      shouldUpdate(changed) {
+        return super.shouldUpdate(changed) && this.value !== this.drawn;
+      }
       render() {
+        this.drawn = this.value;
         revisions.push(this.value?.[0].revision ?? null);
         return html`${this.value?.[0].key}`;
       }
@@ -360,6 +365,9 @@ test("an element that reads its bound data draws each accepted reading", async (
   element.setAttribute("source", "deployments");
   document.body.append(element);
   await settled(element);
+  element.requestUpdate();
+  await settled(element);
+  assert.deepEqual(revisions, ["r1"], "an unchanged value skips the draw");
   accept("second", "r2");
   await notifyDataSubscribers();
   assert.deepEqual(revisions, ["r1", "r2"]);
@@ -493,7 +501,7 @@ test("a failed preparation stands beside the render root, which the next draw st
   element.remove();
 });
 
-test("a setup that throws shows its failure and the element draws nothing", async () => {
+test("a setup that throws shows its failure and the element draws nothing, a check's redraw included", async () => {
   applicationState.setPhase("waiting");
   const errors = [];
   const original = console.error;
@@ -518,6 +526,7 @@ test("a setup that throws shows its failure and the element draws nothing", asyn
   await settled(element);
   applicationState.setPhase("offline");
   await settled(element);
+  element.redraw();
   console.error = original;
   assert.deepEqual(draws, []);
   assert.match(element.textContent, /failed: cannot build/);
@@ -723,6 +732,47 @@ test("a draw's claim waits for the drawing it holds it for", async () => {
   await settled(element);
   assert.ok(!pending(element));
   element.remove();
+});
+
+test("the first drawing after a skipped update holds presentation until it finishes", async () => {
+  const value = signal(false);
+  let finish;
+  const tag = `lf-probe-signal-drawing-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      shouldUpdate(changed) {
+        return super.shouldUpdate(changed) && value.value;
+      }
+      render() {
+        return html`${value.value}`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        this.work = value.peek() ? new Promise((done) => (finish = done)) : undefined;
+      }
+      async getUpdateComplete() {
+        const result = await super.getUpdateComplete();
+        await this.work;
+        return result;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    value.value = true;
+    await committed(element);
+    assert.ok(pending(element), "the signal's drawing holds the region");
+    finish();
+    await settled(element);
+    assert.ok(!pending(element));
+  } finally {
+    finish?.();
+    element.remove();
+  }
 });
 
 test("accepted data claims the element's region until its delivery draws", async () => {

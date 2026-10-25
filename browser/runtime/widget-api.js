@@ -189,6 +189,7 @@ export {
   matchesWhen,
 } from "./registry.js";
 export {
+  flashDuration,
   foldDuration,
   returnDuration,
   foldBlock,
@@ -206,6 +207,7 @@ export {
   PRESENTATION,
   afterPresentation,
   deferredArrival,
+  whileInterfaceConnected,
 } from "./presentation.js";
 export { quietWord } from "./declared-words.js";
 export { copyBlock } from "./code-copy.js";

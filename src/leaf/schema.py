@@ -346,6 +346,10 @@ EXTENSION_SCHEMA = {
             },
         },
         "x-example": {"type": "string"},
+        "x-example-data": {
+            "type": "object",
+            "propertyNames": {"pattern": f"^{DATA_SOURCE_NAME}$"},
+        },
         "x-exhibit": {
             "oneOf": [
                 {"type": "boolean"},

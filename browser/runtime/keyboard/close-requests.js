@@ -7,17 +7,18 @@
  * The browser's own modals and popovers hold watchers of their own, and a newer one
  * closes first, as Escape leaves them in the browser's order.
  *
- * Back never throws away words the user wrote and hasn't sent. A step whose row says
- * it would (`discards`, keyboard/bindings.js), such as Discard in a changed draft
- * editor or message rewrite, is left to Escape and the visible control: the close
- * takes no step, the editor stays open with its words, and a notice says they are
- * kept. The watcher still stands, so the gesture doesn't leave the page either. Back
- * comes before the keyboard on a phone, and an edge swipe made by accident after the
- * keyboard hides would otherwise lose the edit with no undo (Max's decision,
- * 2026-10-25). Rejected: back saving the words, as Mod+Enter does, which sends a turn
- * the user didn't ask for; and back closing the editor while the store keeps the
- * words, which leaves a closed box holding words it gives no sign of, the reading
- * lf-draft.js and message-edit.js already rejected for Escape.
+ * Back never throws away words the user wrote and hasn't sent (Max's decision,
+ * 2026-10-25), though Escape may: on a phone back comes before any key, and an edge
+ * swipe made by accident after the keyboard hides would otherwise lose an edit nothing
+ * undoes. A row whose `run` discards such words declares `keep` (bindings.js), which
+ * back takes instead: it closes the editor as Escape would, keeps the words where
+ * reopening finds them, and says so, as a composer closed over its words does. Each
+ * owner shows the kept words where they stand, beside the control that reopens them,
+ * and Resume writing reaches them from the panel's menu. Rejected: back taking no step
+ * in a changed editor, which held the user on the page, since Chrome and Firefox let a
+ * watcher rebuilt after each close catch every back, leaving only Save, Discard or a
+ * tap elsewhere; and back saving the words, which sends a turn the user didn't ask
+ * for.
  *
  * Escape's keydown stays the dispatcher's. A press it answers is canceled, which ends
  * the close request before any watcher hears it, so one key never takes two steps.
@@ -27,9 +28,7 @@
  * closes is spent, which no other owner sees, so its close asks for the frame that
  * takes the next one.
  */
-import { word } from "./bindings.js";
-import { escapeStep, pressEscape } from "./dispatch.js";
-import { notice } from "../notifications.js";
+import { answerCloseRequest, escapeTakesAStep } from "./dispatch.js";
 import { repaint } from "../repaint.js";
 
 let watcher = null;
@@ -37,7 +36,7 @@ let watcher = null;
 export function paintCloseRequests() {
   // Safari lacks CloseWatcher.
   if (!("CloseWatcher" in window)) return;
-  const step = Boolean(escapeStep());
+  const step = escapeTakesAStep();
   if (step === Boolean(watcher)) return;
   if (!step) {
     watcher.destroy();
@@ -47,8 +46,7 @@ export function paintCloseRequests() {
   const held = new window.CloseWatcher();
   held.addEventListener("close", () => {
     if (watcher === held) watcher = null;
-    if (word(escapeStep()?.discards)) notice("The unsent words are kept");
-    else pressEscape();
+    answerCloseRequest();
     repaint();
   });
   watcher = held;

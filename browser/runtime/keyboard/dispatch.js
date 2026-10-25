@@ -452,13 +452,20 @@ function resolveKey(ev) {
 }
 export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
 // Escape with no key behind it, as the platform's close request asks for it
-// (close-requests.js): the row a press would run now, or null, and taking its step.
+// (close-requests.js): whether a press would take a step now, and taking it, through
+// the row's `keep` where it declares one (bindings.js).
 const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
-export const escapeStep = () => {
+export const escapeTakesAStep = () => {
   const matched = resolveKey(escapePress());
-  return matched && matched !== INPUT_PENDING ? matched.row : null;
+  return Boolean(matched) && matched !== INPUT_PENDING;
 };
-export const pressEscape = () => dispatchKey(escapePress());
+export function answerCloseRequest() {
+  const matched = resolveKey(escapePress());
+  if (!matched || matched === INPUT_PENDING) return;
+  announceInvocation(matched);
+  if (matched.row.keep) matched.row.keep();
+  else matched.run();
+}
 
 // Scoping is the DOM's, but the resolver's stack, rather than listener order, says
 // which command wins. The controller leaves composing input to the IME.

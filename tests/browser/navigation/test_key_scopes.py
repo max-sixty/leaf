@@ -1381,10 +1381,11 @@ def test_escape_takes_one_step_where_a_back_gesture_would_take_it(browser, serve
 @pytest.mark.parametrize("owner", ["draft", "rewrite"])
 def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
     """Escape's step in an open draft editor or message rewrite is Discard, which
-    nothing undoes, so back taking it lost an edit to one stray edge swipe. Back still
-    closes an editor whose words are unchanged, as Escape does, but leaves a changed one
-    open with its words, says they are kept, and doesn't go back in history either;
-    Escape and the Discard control still discard."""
+    nothing undoes, so back taking it lost an edit to one stray edge swipe. Back closes
+    the editor as Escape does, and a changed one keeps its words: a notice says so, the
+    closed draft or message shows it holds them, and opening it again finds them. Back
+    must still get the user out, rather than holding them in the editor, and Escape
+    still discards."""
     # The browser's back stands before the page's watchers, as the open thread view
     # holds one before the rewrite opens.
     browser_back = f"({BROWSER_BACK})()"
@@ -1401,6 +1402,7 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
             init_script=browser_back,
         )
         editor = page.locator("#d leaf-text")
+        kept = page.locator("#d .lf-draft-kept")
 
         def open_editor():
             draft_control(page, "edit", "d").click()
@@ -1409,6 +1411,7 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
             browser, serve, "panel", init_script=browser_back
         )
         editor = message.locator(".lf-msg-editor leaf-text")
+        kept = message.locator(".lf-msg-kept")
 
         def open_editor():
             message.locator(".lf-msg-text").dblclick()
@@ -1417,17 +1420,22 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
     expect(editor).to_be_focused()
     back_gesture(page)
     expect(editor).to_have_count(0)
+    expect(kept).not_to_be_visible()
 
     open_editor()
     write(editor, "Unsent words.")
     back_gesture(page)
-    expect(page.locator(".lf-live")).to_have_text("The unsent words are kept")
-    expect(editor).to_have_js_property("value", "Unsent words.")
+    expect(editor).to_have_count(0)
+    expect(page.locator(".lf-live")).to_have_text("Edit kept")
+    expect(kept).to_have_text("unsaved edit")
     assert page.evaluate("window.browserBack") == 0
 
-    editor.focus()
+    open_editor()
+    expect(editor).to_have_js_property("value", "Unsent words.")
+    expect(kept).not_to_be_visible()
     page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
+    expect(kept).not_to_be_visible()
 
 
 def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):

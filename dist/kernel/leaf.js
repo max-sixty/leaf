@@ -5,7 +5,7 @@ import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, set
 import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
-import { activeCommandLabel, availableCommandRoutes, dispatchKey, escapeStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, pressEscape, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
+import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
 import { commandSteps, createAnchorTravel, createVersionController, initializeServedDocument, keepPageRulesOffLayer, mountHistory, paintCoreControls, readPlace, returnPlace, versionPicker, versionsReading } from "./runtime/bundle-version.js";
 import { chromeForeground, chromeRoot } from "./runtime/bundle-chrome.js";
 import { COLLAPSE, LEAF_SURFACE, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
@@ -9476,7 +9476,7 @@ function paintTouchControls() {
 let watcher = null;
 function paintCloseRequests() {
 	if (!("CloseWatcher" in window)) return;
-	const step = Boolean(escapeStep());
+	const step = escapeTakesAStep();
 	if (step === Boolean(watcher)) return;
 	if (!step) {
 		watcher.destroy();
@@ -9486,8 +9486,7 @@ function paintCloseRequests() {
 	const held = new window.CloseWatcher();
 	held.addEventListener("close", () => {
 		if (watcher === held) watcher = null;
-		if (word(escapeStep()?.discards)) notice("The unsent words are kept");
-		else pressEscape();
+		answerCloseRequest();
 		repaint();
 	});
 	watcher = held;

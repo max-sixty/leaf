@@ -36,7 +36,8 @@ closes the same way as one opened by its key. The focused control's own step com
 first, then steps inside the focused surface, then the surface itself, then steps
 outside it; `STACK` and `RUNG_LADDER` order siblings, and native modals and popovers
 keep the browser's order. A close request, such as Android's back gesture, takes the
-same step, unless its row `discards` words the user hasn't sent (`close-requests.js`).
+same step, through its row's `keep` where `run` would throw away unsent words
+(`close-requests.js`).
 
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.

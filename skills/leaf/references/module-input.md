@@ -59,10 +59,13 @@ browser or an outer handler makes. `control` is the visible element that activat
 `when` says whether it is available, and a route may have its own. `reach` is the short
 phrase the command reference shows while it isn't, such as `in an open draft editor`.
 Set `runFromCommandReference: false` for a step the reference can't run without a choice
-it lacks. A row whose `run` would throw away words the user wrote and hasn't sent, such
-as an editor's Escape while its words differ from the saved ones, declares `discards`,
-a function answering whether it would now; Android's back gesture, which otherwise
-takes the step Escape would, then leaves the editor open with its words. `ready` is described in `module-authoring.md`, "Startup and presentation".
+it lacks. `ready` is described in `module-authoring.md`, "Startup and presentation".
+
+Android's back gesture takes the step Escape would. A row whose `run` throws away words
+the user wrote and hasn't sent, such as an editor's Escape, also declares `keep`, which
+back runs instead: it closes the editor the same way, keeps the changed words where
+reopening finds them, shows that the widget holds them, and says so with
+`notice("Edit kept")`.
 
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a

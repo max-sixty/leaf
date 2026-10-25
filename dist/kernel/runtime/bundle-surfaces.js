@@ -3413,6 +3413,11 @@ var MessageEditor = class {
 			if (says) announce(says);
 		};
 		const close = () => leave(true, { says: unchanged() ? "Stopped editing" : "Edit discarded; the message is as it was" });
+		const keep = () => {
+			if (unchanged()) return close();
+			leave(false);
+			notice("Edit kept");
+		};
 		const putAside = () => {
 			if (!unchanged()) return;
 			leave(true, {
@@ -3473,8 +3478,8 @@ var MessageEditor = class {
 			id: "message.edit.close",
 			keys: ["Escape"],
 			title: "discard",
-			discards: () => !unchanged(),
-			run: () => close()
+			run: () => close(),
+			keep
 		}], { escape: "inner" });
 		cancel.addEventListener("mousedown", (event) => event.preventDefault());
 		cancel.addEventListener("click", () => close());

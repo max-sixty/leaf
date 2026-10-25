@@ -17,8 +17,8 @@
 //
 // Words that are gone are the user's to have put away, so a key or a press must come
 // after the last edit, in the operation that puts the words away: Escape, Send, Cancel, a press
-// elsewhere, choosing another target, or an edit in another tab of the page that reaches
-// this one as storage news. What only moves the user around the words does
+// elsewhere, choosing another target, a close request such as Android's back gesture,
+// or an edit in another tab of the page that reaches this one as storage news. What only moves the user around the words does
 // not count: a key whose typing applied or was cancelled,
 // a modifier, the caret keys, Tab, the page's scroll keys, and a press on the field itself. A wheel,
 // a scroll, a resize, a timer and the server's news are none of them either. Words gone
@@ -207,7 +207,7 @@
     const { event, node } = source;
     if (event.type === "keydown")
       return !MOVES.test(event.key) && !editingKeys.has(event);
-    if (event.type === "storage") return true;
+    if (event.type === "storage" || event.type === "close") return true;
     return (
       [
         "pointerdown",

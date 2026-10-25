@@ -25,6 +25,10 @@
    the rewrite, as in Slack, Discord and Telegram (the user's decision, 2026-10-06).
    Rejected: Escape keeping them as an unsaved edit, as a reply box keeps its draft,
    which left the user a draft to find and drop that the message could barely show.
+   Android's back gesture, which may be an accidental edge swipe, keeps them instead
+   (`keep`, keyboard/close-requests.js): the editor closes as on Escape, a notice says
+   "Edit kept", and the message's head says "unsaved edit" until the user opens the
+   rewrite again, which finds them, or Resume writing does.
 
    The editor stands where the message stood and as it read (browser/AGENTS.md,
    "Editing in place"): a comment box over the message's body, every line of its words
@@ -53,8 +57,7 @@
    ↑, landing and putting aside, over the views that reader draws. Resume writing
    (`g i`) opens a rewrite whose words were kept on the message where a message part
    opens (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
-   Discard close it, throwing away changed words, which back leaves to them
-   (`discards`, keyboard/close-requests.js); opening another rewrite in the thread
+   Discard close it, throwing away changed words; opening another rewrite in the thread
    puts this one aside, keeping them. The
    editor is a rung below the thread's reply box, so Enter, Escape and Discard each hand
    the user to that box, or, in a thread showing none, onto the thread (`land`). Save sends
@@ -87,7 +90,7 @@ import { iconElement } from "../icons.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
-import { announce } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -361,6 +364,14 @@ export class MessageEditor {
           ? "Stopped editing"
           : "Edit discarded; the message is as it was",
       });
+    // Back's way out (`keep`, keyboard/close-requests.js): closing as Escape does, but
+    // changed words stay in the draft, which the message says it holds, and opening the
+    // rewrite again finds them.
+    const keep = () => {
+      if (unchanged()) return close();
+      leave(false);
+      notice("Edit kept");
+    };
     // Making way for another rewrite, as ↑ to an earlier message or opening one
     // elsewhere in the thread does, closes one the user has not changed; changed words
     // stay in their box, which no key here meant to put away. The closed box is drawn
@@ -445,8 +456,8 @@ export class MessageEditor {
           id: "message.edit.close",
           keys: ["Escape"],
           title: "discard",
-          discards: () => !unchanged(),
           run: () => close(),
+          keep,
         },
       ],
       { escape: "inner" },

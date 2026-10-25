@@ -147,21 +147,24 @@ Merge a fix that is correct but incomplete, and open an issue for what it leaves
 
 Track each failure the session leaves unfixed in its own `ci-fix:` issue, one per
 failing test node id (or per failing check outside the suite), with the node id in
-its title. This replaces `/tend-ci-runner:ci-fix`'s tracker per failure shape: an
+its title. A failure an open pull request covers is that pull request's and needs no
+issue. A `test-macos` failure follows the same rule: one issue per node id, whichever
+job failed it. This replaces `/tend-ci-runner:ci-fix`'s tracker per failure shape: an
 issue holding several tests' rows gives none of them an owner. Search open and
 closed issues for the node id first, and reuse the one found, reopening it if
 closed. Never add another test's failure to it; a pull request that fixes a cause
 several tests share closes each of their issues.
 
 The issue's body records the first `ci` run on main the test failed in, with its
-commit, since that brackets the change that broke it; a `journeys` test runs only
-nightly, so the pull request that broke it usually passed its own CI. Below that, a
-table has one row per failure the test reports, such as its assertion and a watch
-finding at teardown, giving the status (reproduced, repaired, awaiting
-verification, unresolved), the pull request or run behind that status, and what
-remains. Edit the body as the status changes, and comment only to say what
-changed. The run summary lists every failing test in the same table form, each row
-linking its issue or pull request and marking a failure nobody investigated as such.
+commit, since that brackets the change that broke it; a `journeys` test, like the
+whole `test-macos` job, runs only nightly, so the pull request that broke it usually
+passed its own CI. Below that, a table has one row per failure the test reports in
+each job, such as its assertion and a watch finding at teardown, giving the status
+(reproduced, repaired, awaiting verification, unresolved), the pull request or run
+behind that status, and what remains. Edit the body as the status changes, and
+comment only to say what changed. The run summary lists every failing test in the
+same table form, each row linking its issue or pull request and marking a failure
+nobody investigated as such.
 
 ## A red `ci` on main is live
 

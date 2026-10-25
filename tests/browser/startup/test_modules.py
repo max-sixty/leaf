@@ -294,26 +294,19 @@ def _release(page, held, context):
 
 
 def test_words_typed_while_the_editor_loads_are_its_first_words(browser, serve):
-    """CodeMirror stays off the presentation path: held, it keeps the page from reading
-    as arrived but not from presenting. `c` still puts the user in the page comment's
-    field in the same turn, and what they type before CodeMirror arrives, where they
-    moved the caret to and all, is what the editor holds once it does, as one step
-    undo takes back."""
+    """A page nobody writes on never asks for CodeMirror: it arrives without it. `c`
+    asks for it and still puts the user in the page comment's field in the same turn,
+    and what they type before CodeMirror arrives, where they moved the caret to and
+    all, is what the editor holds once it does, as one step undo takes back."""
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     held = _hold_the_editor(context)
-    page = open_page(browser, serve(LONG_PAGE), context=context, upgraded=False)
+    page = open_page(browser, serve(LONG_PAGE), context=context)
     field = page.locator('.lf-fp-field leaf-text[name="comment"]')
     try:
-        wait_until_ready(page, through="presented")
-        holding(page, held, 1, "CodeMirror")
-        assert (
-            page.evaluate(
-                "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
-            )
-            == "arrived"
-        )
+        assert held == []
         page.keyboard.press("c")
         expect(field).to_be_focused()
+        holding(page, held, 1, "CodeMirror")
         page.keyboard.type("Typed early")
         page.keyboard.press("ArrowLeft")
         page.keyboard.press("ArrowLeft")
@@ -335,6 +328,30 @@ def test_words_typed_while_the_editor_loads_are_its_first_words(browser, serve):
         context.unroute_all(behavior="wait")
 
 
+def test_lines_typed_while_the_editor_loads_keep_their_breaks(browser, serve):
+    """Before CodeMirror arrives, a line break ending the words and words of several
+    lines inserted as one input read back as typed, and the editor builds holding
+    them."""
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    held = _hold_the_editor(context)
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    try:
+        page.keyboard.press("c")
+        holding(page, held, 1, "CodeMirror")
+        page.keyboard.type("First")
+        page.keyboard.press("Shift+Enter")
+        expect(field).to_have_js_property("value", "First\n")
+        page.keyboard.insert_text("a\n\n```\nb\n```")
+        expect(field).to_have_js_property("value", "First\na\n\n```\nb\n```")
+        _release(page, held, context)
+        expect(field).to_have_js_property("value", "First\na\n\n```\nb\n```")
+    finally:
+        for route in held:
+            route.continue_()
+        context.unroute_all(behavior="wait")
+
+
 def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, serve):
     """While CodeMirror loads, a field's kept draft stands in its place with the caret
     where the draft left it, so words typed on arrival follow the draft. Words an input
@@ -349,9 +366,9 @@ def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, 
     try:
         page.reload()
         wait_until_ready(page, through="presented")
-        holding(page, held, 1, "CodeMirror")
         page.keyboard.press("c")
         expect(field).to_be_focused()
+        holding(page, held, 1, "CodeMirror")
         page.keyboard.type(" words")
         expect(field).to_have_js_property("value", "Kept words")
         page.keyboard.press("ControlOrMeta+a")

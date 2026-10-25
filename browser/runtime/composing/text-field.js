@@ -76,15 +76,16 @@
  * surface being replaced can keep its words in flow until then, so measuring the
  * connecting field never collapses the scrollport before it has content.
  *
- * CodeMirror isn't part of the page's opening: it loads once the page has presented
- * (field-editor.js, `loadFieldEditor`), well before a reader usually starts writing, so
- * arriving in a field still builds its editor in the same turn. A field that must build
- * sooner, holding words before then or with the user arriving in it, keeps a rendering
- * hold until CodeMirror arrives, draws its words plain in the empty line's place, and
- * keeps the user's focus there; what they type meanwhile lands natively in that place,
- * which the field reads back as its value, so the editor builds holding it. Rejected:
- * loading CodeMirror with the page, about 345 KB of the bytes before the server's
- * state shows, for a capability most openings never use.
+ * CodeMirror isn't part of the page's opening: it loads when the first field must build
+ * its editor (field-editor.js, `loadFieldEditor`), because it holds words or the user
+ * arrived in it, so a page nobody writes on never loads it. Until it arrives that field
+ * keeps a rendering hold, draws its words plain in the empty line's place, and keeps the
+ * user's focus there; what they type meanwhile lands natively in that place, which the
+ * field reads back as its value, so the editor builds holding it. Rejected: loading
+ * CodeMirror with the page, about 345 KB of the bytes before the server's state shows,
+ * for a capability most openings never use; and loading it once the page has presented
+ * (#3897), which kept the first open as fast as before but still fetched and compiled
+ * it on every opening.
  *
  * The host is also the control accessibility tooling addresses, since nothing outside a
  * closed root sees into it: it takes `role="textbox"`, `aria-multiline` and a tab stop
@@ -124,7 +125,6 @@
 import { scrollIntoView } from "../landing-scroll.js";
 import { landingInsets } from "../geometry.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { afterPresentation } from "../presentation.js";
 import { loadFieldEditor, readFaces } from "./field-editor.js";
 import { holdRendering, sizeObserver } from "../rendering.js";
 
@@ -244,16 +244,13 @@ sheet.replaceSync(`
   .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
 `);
 
-// The field's editor (field-editor.js), once CodeMirror under it has loaded. It loads as
-// soon as the page has presented, as an arrival the page answers for, so a field the
-// user arrives in builds its editor in the turn that brings them, as it did when
-// CodeMirror loaded with the page; a field that must draw before then asks for it
-// sooner.
+// The field's editor (field-editor.js), once CodeMirror under it has loaded. The first
+// field that must build asks for it (`#build`); every later field builds in the turn
+// that brings the user.
 /** @typedef {Awaited<ReturnType<typeof loadFieldEditor>>} FieldEditor */
 /** @type {FieldEditor | null} */
 let editor = null;
 const loadEditor = () => loadFieldEditor().then((loaded) => (editor = loaded));
-afterPresentation(loadEditor);
 
 // A field's words before it has an editor: the source, the selection, and the steps an
 // owner recorded in its history (`record`), which the editor's history takes up as it
@@ -473,11 +470,33 @@ class LeafText extends HTMLElement {
       return;
     }
     if (event.type === "beforeinput") {
+      const input = /** @type {InputEvent} */ (event);
       if (
         this.#readOnly ||
-        (event.inputType === "insertParagraph" && !this.#returned())
+        (input.inputType === "insertParagraph" && !this.#returned())
       )
         event.preventDefault();
+      // Words of more than one line, typed as one input or pasted, would land as the
+      // browser's blocks, whose breaks the place's text doesn't hold; the draft takes
+      // them in place of the selection instead.
+      else if (!this.#composing && !input.isComposing) {
+        const words = input.data ?? input.dataTransfer?.getData("text/plain") ?? "";
+        if (words.includes("\n")) {
+          event.preventDefault();
+          this.#readRest();
+          const { text, anchor, head } = this.#model;
+          const [from, to] = anchor < head ? [anchor, head] : [head, anchor];
+          const at = from + words.length;
+          Object.assign(this.#model, {
+            text: text.slice(0, from) + words + text.slice(to),
+            anchor: at,
+            head: at,
+          });
+          this.#paintRest();
+          this.#paintEmpty();
+          this.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      }
       return;
     }
     if (event.type === "compositionend") this.#composing = false;
@@ -488,11 +507,17 @@ class LeafText extends HTMLElement {
     if (event.type === "compositionend" && editor) this.#build();
   }
 
-  // Takes the words and caret of the empty line's place into the draft. The last
-  // break only holds an empty last line open.
-  #readRest() {
+  // The words the empty line's place shows. Its last line break, a break element or a
+  // newline ending its text, only holds an empty last line open, since a block's
+  // final newline draws no line of its own.
+  #restWords() {
     const words = placeWords(this.#rest);
-    const text = this.#rest.lastChild?.nodeName === "BR" ? words.slice(0, -1) : words;
+    return words.endsWith("\n") ? words.slice(0, -1) : words;
+  }
+
+  // Takes the words and caret of the empty line's place into the draft.
+  #readRest() {
+    const text = this.#restWords();
     const selection = this.#selection();
     const [range] = selection.getComposedRanges({ shadowRoots: [this.#root] });
     const at = (node, offset) => {
@@ -524,7 +549,7 @@ class LeafText extends HTMLElement {
     const text = this.#view ? "" : this.#text;
     const here = !this.#view && this.#root.activeElement === this.#rest;
     const last = this.#rest.lastChild?.nodeName === "BR";
-    const shown = placeWords(this.#rest).slice(0, last ? -1 : undefined) === text;
+    const shown = this.#restWords() === text;
     // Placing the caret needs the words as one text node, a break after them where
     // the last line is empty, as this writes them.
     const plain = (node) => node?.nodeType === Node.TEXT_NODE;
@@ -788,6 +813,9 @@ class LeafText extends HTMLElement {
   #pressPadding(event) {
     if (event.button !== 0) return;
     if (!this.#view) {
+      // Words shown plain while the editor loads take the press natively, placing the
+      // caret or, pressed twice, selecting a word, which the editor builds holding.
+      if (this.#text) return;
       // The field is empty, so wherever the press lands the caret stands at its start.
       // Another button's press focuses the empty line's place natively, which builds the
       // editor before the press's own action, such as a context menu's, reads its target.

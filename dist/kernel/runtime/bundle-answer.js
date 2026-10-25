@@ -2,7 +2,7 @@ import { J, LitElement, PENDING, W, Z, actionForWidget, anchorKey, bindQueuedWor
 import { PRESSES, TEXT_BOX, TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextAnimation, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readCaret, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, renderingState, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom, whenLeft } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, TEXT_ENTRY, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, claimsEsc, clamp, clippedContents, clippedPlace, clipsPastSurfaces, closeNativeLayer, commandAvailable, commandRoutes, completeData, countTraffic, cycledRow, dataHeaders, el, frameFor, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, labelOf, landingBand, landingInsets, layerHeaders, layoutChanged, layoutWindow, live, matchesWhen, notice, offer, paintKeys, paintKeysWithin, placeBox, placeHolder, pointerAt, postEvent, presented, pruneScopedElements, raiseError, randomId, recordInteraction, registry, repaint, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, seenRect, sessionIsActive, setRuntimeRootAttribute, shadowRootsIn, showNativeLayer, shownBox, shownWindow, skipped, spell, tagsDeclaring, union, watchOwner, watchPendingTraffic, watchRoom, whenNone, whileConnected, word } from "./bundle-layer-client.js";
 import { LIVE_ROOT, PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, layerRoot, offlineData, offlineInteractive, offlineState, pageUrl, presentDocument, projectView, queueWidgetUpdate, readApplication, readPart, revisionLabel, runtime, setPresentationFailureReporter, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
-import { activityTransitionDue, afterPresentation, ago, chosenSince, containingReadingRegionFor, effectiveScroller, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageScroller, placeKept, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, settlePageInterface, shownRegionBounds, stopScroll, tickClock, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
+import { activityTransitionDue, ago, chosenSince, containingReadingRegionFor, effectiveScroller, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageScroller, placeKept, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, settlePageInterface, shownRegionBounds, stopScroll, tickClock, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { DATUM, TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageDocument, pageParts, pageRange, pageReadingVersion, quoteFrom, rangeOf, readingFrom, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
 import { ADDRESSABLE, addressableLabel, addressableWord, addressedElements, anchorForRange, anchoringIsReady, fragmentTarget, resolveAnchor, revealAddressed, sectionOf, targetElement, targetPlace, targetSegments, visualPartLabel, widgetWord } from "./bundle-css-anchors.js";
 import { authoredBody, initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
@@ -1281,7 +1281,6 @@ sheet.replaceSync(`
 `);
 let editor = null;
 const loadEditor = () => loadFieldEditor().then((loaded) => editor = loaded);
-afterPresentation(loadEditor);
 var Draft = class {
 	steps = [];
 	constructor(text) {
@@ -1413,7 +1412,26 @@ var LeafText = class extends HTMLElement {
 			return;
 		}
 		if (event.type === "beforeinput") {
-			if (this.#readOnly || event.inputType === "insertParagraph" && !this.#returned()) event.preventDefault();
+			const input = event;
+			if (this.#readOnly || input.inputType === "insertParagraph" && !this.#returned()) event.preventDefault();
+			else if (!this.#composing && !input.isComposing) {
+				const words = input.data ?? input.dataTransfer?.getData("text/plain") ?? "";
+				if (words.includes("\n")) {
+					event.preventDefault();
+					this.#readRest();
+					const { text, anchor, head } = this.#model;
+					const [from, to] = anchor < head ? [anchor, head] : [head, anchor];
+					const at = from + words.length;
+					Object.assign(this.#model, {
+						text: text.slice(0, from) + words + text.slice(to),
+						anchor: at,
+						head: at
+					});
+					this.#paintRest();
+					this.#paintEmpty();
+					this.dispatchEvent(new Event("input", { bubbles: true }));
+				}
+			}
 			return;
 		}
 		if (event.type === "compositionend") this.#composing = false;
@@ -1423,9 +1441,12 @@ var LeafText = class extends HTMLElement {
 		this.dispatchEvent(new Event("input", { bubbles: true }));
 		if (event.type === "compositionend" && editor) this.#build();
 	}
-	#readRest() {
+	#restWords() {
 		const words = placeWords(this.#rest);
-		const text = this.#rest.lastChild?.nodeName === "BR" ? words.slice(0, -1) : words;
+		return words.endsWith("\n") ? words.slice(0, -1) : words;
+	}
+	#readRest() {
+		const text = this.#restWords();
 		const selection = this.#selection();
 		const [range] = selection.getComposedRanges({ shadowRoots: [this.#root] });
 		const at = (node, offset) => {
@@ -1452,7 +1473,7 @@ var LeafText = class extends HTMLElement {
 		const text = this.#view ? "" : this.#text;
 		const here = !this.#view && this.#root.activeElement === this.#rest;
 		const last = this.#rest.lastChild?.nodeName === "BR";
-		const shown = placeWords(this.#rest).slice(0, last ? -1 : void 0) === text;
+		const shown = this.#restWords() === text;
 		const plain = (node) => node?.nodeType === Node.TEXT_NODE;
 		const one = this.#rest.childNodes.length === (text ? 1 : 0) + Number(last) && (!text || plain(this.#rest.firstChild));
 		if (shown && (!here || one)) return this.#placeRestCaret(here);
@@ -1624,6 +1645,7 @@ var LeafText = class extends HTMLElement {
 	#pressPadding(event) {
 		if (event.button !== 0) return;
 		if (!this.#view) {
+			if (this.#text) return;
 			event.preventDefault();
 			this.focus({ preventScroll: true });
 			return;

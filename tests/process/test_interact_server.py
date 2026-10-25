@@ -10,7 +10,6 @@ import io
 import json
 import os
 import re
-import select
 import shlex
 import shutil
 import socket
@@ -3944,10 +3943,10 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     assert answered.getheader("Connection") == "close"
 
     # A chunked body declares no length and reaches the read without passing the
-    # header check, so the bound belongs to the read: the door
-    # stops taking chunks once they pass it rather than holding the whole stream first.
-    # It answers and closes while the sender is still writing, so the writes that land
-    # on the closed connection are the refusal arriving early rather than a fault.
+    # header check, so the bound belongs to the read: the door answers once the chunks
+    # pass it, though the stream has not ended. The sender stops one byte past the bound
+    # and waits, so the door has read every byte sent when it closes: bytes left unread
+    # would make its close a reset, which can discard the answer before it is read.
     host, _, port = urllib.parse.urlsplit(server).netloc.partition(":")
     door = socket.create_connection((host, int(port)), timeout=STATED_TIMEOUT)
     spoken = b""
@@ -3963,23 +3962,11 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             )
         )
         chunk = b"x" * (1024 * 1024)
-        door.settimeout(STATED_TIMEOUT)
-        try:
-            for _ in range(12):
-                if select.select([door], [], [], 0)[0]:
-                    break
-                door.sendall(b"%x\r\n" % len(chunk) + chunk + b"\r\n")
-        except (BrokenPipeError, ConnectionResetError, TimeoutError):
-            # The door has stopped reading, so the rest of the body has nowhere to go.
-            pass
-        try:
-            while select.select([door], [], [], 30)[0]:
-                heard = door.recv(65536)
-                if not heard:
-                    break
-                spoken += heard
-        except (ConnectionResetError, TimeoutError):
-            pass
+        filled, rest = divmod(media_model.MAX_MEDIA_UPLOAD_BYTES, len(chunk))
+        for piece in [chunk] * filled + [b"x" * (rest + 1)]:
+            door.sendall(b"%x\r\n" % len(piece) + piece + b"\r\n")
+        while heard := door.recv(65536):
+            spoken += heard
     finally:
         door.close()
     head, _, body = spoken.partition(b"\r\n\r\n")

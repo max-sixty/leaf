@@ -878,10 +878,10 @@ html[data-lf-interactive] [data-lf-arriving] {
   display: none;
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
- * parse while JavaScript upgrades widgets and reads the current log. Generated page
- * interface joins it as soon as widget and page-interface upgrade gives that apparatus
- * its settled upgrade geometry; durable controls still guard mutation until presentation.
- * Ordinary prose, links, scrolling, and layout remain available.
+ * parse while JavaScript upgrades widgets and reads the current log. Generated interface
+ * an initial drawing lays out paints with it; the controls among it join at upgrade,
+ * and durable controls still guard mutation until presentation. Ordinary prose, links,
+ * scrolling, and layout remain available.
  *
  * The anonymous layer is first in the merged theme, so these important declarations
  * outrank every later layer and unlayered stylesheet declaration without reserving a
@@ -911,7 +911,15 @@ html[data-lf-interactive] [data-lf-arriving] {
     html[data-lf-interactive] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
+    /* What a widget builds to be worked (`data-lf-offer`) waits for upgrade, since an
+     * initial drawing draws it before the module that answers it has run: a press there
+     * would be lost, and a native choice made there undone. The rest of the generated
+     * interface an initial drawing lays out at its final box, such as a contents map's
+     * spine or an external link's mark, paints with the authored page. */
+    html[data-lf-interactive]
+      body:not([data-lf-upgraded])
+      > main
+      .lf-ui[data-lf-offer] {
       visibility: hidden !important;
     }
     /* A declared shadow tree cannot see body's stamps, so the same two boundaries

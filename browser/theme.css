@@ -1547,7 +1547,7 @@ html[data-lf-interactive] [data-lf-arriving] {
     html[data-lf-interactive] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui[data-lf-offer] {
       visibility: hidden !important;
     }
     html[data-lf-interactive] body:not([data-lf-presented]) {

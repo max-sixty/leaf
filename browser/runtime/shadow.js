@@ -138,9 +138,9 @@ export const inUi = (node) =>
 export let shadowRules = "";
 // Every legitimate page shadow tree is built here, so repeat the theme's leading layer
 // inside it: `hidden` hiding whatever display a rule states (theme.css), the
-// generated-interface boundary, and transition suppression. The shadow's ordinary contents paint
-// immediately and its generated interface paints after upgrade, on the same boundaries
-// as authored and generated light DOM. A selector in the tree cannot see body's stamps,
+// upgrade boundary for what a widget builds to be worked, and transition suppression. The
+// shadow's contents paint immediately and its controls after upgrade, on the same
+// boundaries as authored and generated light DOM. A selector in the tree cannot see body's stamps,
 // so the theme states each boundary as an inherited property these rules query with
 // `@container style()`, which Chrome, Firefox and Safari support; `:host-context()`,
 // which reads the stamps directly, has no Firefox or Safari support. The anonymous
@@ -161,7 +161,7 @@ export const SHADOW_LEADING_CSS = `
       }
     }
     @container style(--lf-before-upgrade: 1) {
-      .lf-ui {
+      .lf-ui[data-lf-offer] {
         visibility: hidden !important;
       }
     }

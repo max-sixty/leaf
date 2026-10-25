@@ -191,7 +191,7 @@
     "runtime/semantic-state.js": "3f625515a2c00d8242f42a8eede979e34883070290204099a1168aba2fdc0b2c",
     "runtime/shadow-stage.js": "d029bfb23315a4847dd9da3e91a770a82af68518ae5e448fa6da09dda176c65b",
     "runtime/shadow-tree.js": "902564cfc5afdcbeb120ef30f89f36466d38c8e20987a6e3b89d1a8219829f6c",
-    "runtime/shadow.js": "b1f637ae6de00101288ad9e373581c4588304f4101ad3032ef4405a404ae7046",
+    "runtime/shadow.js": "c64b3bdc559643224f85d83f68bb8bc04132b774f634af6103fc67752d40275c",
     "runtime/state-application.js": "e4feef7e9b296c9b2de39239b3e1d65df64c48723092d5ce706ef6a7f9c98683",
     "runtime/state-feed.js": "b59d52345f43f50795aee72054c65b55b8fb8d1130d98e2bc40321e871f93d70",
     "runtime/storage.js": "d6050ad31628f2d5bf4d6098bd8e11a488975e6f48968383f62069740e2389a0",

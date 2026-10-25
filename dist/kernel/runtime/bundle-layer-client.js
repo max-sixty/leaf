@@ -1135,7 +1135,7 @@ const SHADOW_LEADING_CSS = `
       }
     }
     @container style(--lf-before-upgrade: 1) {
-      .lf-ui {
+      .lf-ui[data-lf-offer] {
         visibility: hidden !important;
       }
     }

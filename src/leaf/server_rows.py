@@ -151,8 +151,7 @@ class RowPublisher:
         """Publish for this server process's lifetime, withdrawing failed output."""
         try:
             while True:
-                changes = page_changes(self.page_dir)
-                mark = changes.mark()
+                changes, mark = page_changes(self.page_dir)
                 self.refresh()
                 delay = PRESENCE_CACHE_S
                 if self.transition is not None:

@@ -32,7 +32,12 @@ from .presence import nudge_unwatched, turn_ending
 from .refusals import Refused
 from .registry.kernel import kinds_declaring
 from .schema import ANSWER_INSTRUCTION
-from .served_state.reading import outside_inputs, page_input, page_reading
+from .served_state.reading import (
+    outside_inputs,
+    page_input,
+    page_reading,
+    page_roots,
+)
 from .server import read_service, running_server
 from .service import PageTransaction, owned_pages, unacknowledged
 from .state import (
@@ -236,27 +241,32 @@ class Watch:
         """What the next pass starts from, taken before it reads, so a write that
         lands during the pass moves the stamps `await_news` compares against."""
         pages = tuple(self.watched)
-        discovery = self.discovery_targets()
-        targets = discovery | {
-            target for page in pages for target in outside_inputs(page)
-        }
-        if self.session_id:
-            targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
-        targets.update(path.resolve() for path in self.lease_paths)
-        roots = {self.claims: False}
-        roots.update({target.parent: False for target in targets})
-        for page in pages:
-            roots[page.parent] = False
-            roots[page] = True
-        key = (pages, frozenset(targets))
-        if (
-            self.changes is None
-            or key != self.change_pages
-            or not self.changes.matches(roots)
-        ):
+
+        def plan():
+            discovery = self.discovery_targets()
+            targets = discovery | {
+                target for page in pages for target in outside_inputs(page)
+            }
+            if self.session_id:
+                targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
+            targets.update(path.resolve() for path in self.lease_paths)
+            roots = {self.claims: False}
+            roots.update({target.parent: False for target in targets})
+            for page in pages:
+                roots.update(page_roots(page))
+            return discovery, (pages, frozenset(targets)), roots
+
+        def holds(key, roots):
+            return (
+                self.changes is not None
+                and key == self.change_pages
+                and self.changes.matches(roots)
+            )
+
+        def install(key, roots):
             if self.changes is not None:
                 self.changes.close()
-            watched = target_paths(targets)
+            watched = target_paths(key[1])
             self.changes = FileChanges(
                 roots,
                 lambda changed: (
@@ -267,9 +277,20 @@ class Watch:
                 ),
             )
             self.change_pages = key
-        # Stamp the subscribed set. A locator added during installation must
-        # differ at the next comparison, so its target is subscribed in turn.
-        return (list(pages), self.reading(discovery), self.changes.mark())
+
+        while True:
+            discovery, key, roots = plan()
+            if not holds(key, roots):
+                install(key, roots)
+            # Stamp the subscribed set. A locator added during installation must
+            # differ at the next comparison, so its target is subscribed in turn.
+            reading = self.reading(discovery)
+            generation = self.changes.mark()
+            # The roots follow each page's subdirectories, so a plan taken after
+            # the generation must still match: one created before it is
+            # subscribed now, and one created after it wakes the wait.
+            if holds(*plan()[1:]):
+                return (list(pages), reading, generation)
 
     def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> bool:
         """Return True once anything the pass since `mark` read has moved, or False

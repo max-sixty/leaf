@@ -79,9 +79,9 @@ def reaper_retires(page: Path, monkeypatch) -> bool:
         controlled.setattr(
             server_model,
             "page_changes",
-            lambda _page: SimpleNamespace(
-                mark=lambda: None,
-                wait=lambda _mark, seconds: next_check(seconds),
+            lambda _page: (
+                SimpleNamespace(wait=lambda _mark, seconds: next_check(seconds)),
+                None,
             ),
         )
         controlled.setattr(server_model, "os", SimpleNamespace(_exit=retire))

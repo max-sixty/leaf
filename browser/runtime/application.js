@@ -14,7 +14,7 @@ import {
   PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
-import { announce, notice } from "./notifications.js";
+import { announce } from "./notifications.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -166,12 +166,13 @@ export function mountApplication(dependencies) {
 
   commandDispatch.mount({
     afterEnqueue,
-    // A widget's gesture is acknowledged by the name the widget gave it, the name its
-    // undo is announced by too.
+    // A widget's gesture is announced by the name the widget gave it, the name its undo
+    // is announced by too. The live region alone says it: the pick is drawn where the
+    // user made it, and the margin's receipt says it was sent.
     named: (entry, says) => {
       undo.retainGesture(entry.event.attempt, { says });
       void entry.answer.then((admitted) => {
-        if (admitted) notice(`${says} — sent`);
+        if (admitted) announce(`${says} — sent`);
       });
     },
     withdraw: (candidate) => undo.withdraw(candidate),

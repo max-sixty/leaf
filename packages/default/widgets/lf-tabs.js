@@ -63,8 +63,9 @@
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, then its obligations' state on a reserved line. While any
  * obligation the panel holds is unanswered, it shows an open mark and whose turn it is, by the
- * server's next actor, the reading an `lf-tally` and its Next on me use: "To answer" while one
- * waits on the user, else "On Claude" (`agentName`) while one is the agent's, as after the user
+ * server's next actor, the reading an `lf-tally` and its Next on me use: the mark alone while one
+ * waits on the user, since the mark and the tally already say so (its description says "To
+ * answer"), else "On Claude" (`agentName`) while one is the agent's, as after the user
  * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a
  * check, with the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
  * and how far the user has worked through it, and an undo that reopens an obligation puts the
@@ -410,7 +411,8 @@ export class TabSet extends LeafElement {
     const answered = items.length > 0 && done.length === items.length;
     const only = items.length === 1 ? items[0] : null;
     const open = items.filter((item) => item.status === "open");
-    const turn = open.some((item) => item.next_actor === "user")
+    const onUser = open.some((item) => item.next_actor === "user");
+    const turn = onUser
       ? "To answer"
       : open.some((item) => item.next_actor === "agent")
         ? `On ${agentName()}`
@@ -419,7 +421,7 @@ export class TabSet extends LeafElement {
       ? only
         ? answerWords(only)
         : ""
-      : items.length
+      : items.length && !onUser
         ? turn
         : "";
     const group = this.#side && panel.getAttribute("group");

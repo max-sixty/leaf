@@ -125,6 +125,11 @@
 .lf-vr-case-status[data-approved="true"] {
   color: var(--ok-ink);
 }
+/* A case not yet checked says nothing: the header's count and the case's own Looks
+   right box say so. Its words keep their line, so checking a case moves no row. */
+.lf-vr-case-status[data-approved="false"] {
+  visibility: hidden;
+}
 .lf-vr-detail {
   display: grid;
   grid-template-rows: auto auto minmax(min-content, 1fr) auto;
@@ -285,8 +290,12 @@
   min-block-size: 0;
   --lf-full-height: inherit;
 }
+/* A case with no threads draws no discussion. The discussion is a pane, and the pane
+   grammar's `display: grid` stands in the Layouts tier above every package
+   (layouts.css), where it wins over any ordinary rule here; an important declaration
+   in this lower tier is the one the cascade ranks above it. */
 .lf-vr-discussion:has(> .lf-vr-threads:empty) {
-  display: none;
+  display: none !important;
 }
 .lf-vr-threads {
   min-block-size: 0;

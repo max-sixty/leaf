@@ -73,6 +73,9 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(thread_row(page, asked).locator(".lf-fp-value")).to_have_text(
         "My turn to answer"
     )
+    # The reply is news, which the row's mark says, in words to assistive tech alone.
+    expect(thread_row(page, asked)).to_have_attribute("data-unread", "")
+    expect(thread_row(page, asked)).to_have_accessible_name(re.compile(r"^New What"))
     expect(thread_row(page, answered).locator(".lf-fp-value")).not_to_contain_text(
         "My turn"
     )
@@ -122,8 +125,9 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     """While an agent holds the page and owes an untitled thread its work, a title is
     on its way (thread_titles.py), so every surface drawing the thread's name says so
     rather than naming the thread with its opening words, until the title lands:
-    Threads' row, Page Map's row, the agent's card in On and the thread's view. A page
-    nobody holds is sent no title, so there the thread reads its opening words."""
+    Threads' row, Page Map's row, the agent's card in On and the name the thread's view
+    gives assistive tech, which draws no heading over an untitled thread. A page nobody
+    holds is sent no title, so there the thread reads its opening words."""
     url = serve(PANEL_PAGE)
     opening = "Is the workshop room accessible?"
     pending = "Generating thread name…"

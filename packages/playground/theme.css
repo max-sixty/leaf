@@ -212,10 +212,6 @@
   min-width: 0;
 }
 
-.lf-playground-controls-title {
-  margin: 0;
-}
-
 :scope:is(lf-playground-control) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

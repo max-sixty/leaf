@@ -1781,15 +1781,21 @@ def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
 def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, width):
     """A row's § reference rides at the end of the words' last line where it fits, and
     drops under them where it doesn't, so on a phone the words keep the row's width
-    rather than wrapping into a column beside it."""
+    rather than wrapping into a column beside it. Rows that all name one block draw no
+    reference, since each would repeat the same place."""
     source = leaf_page(
         "Block references",
         """<h1>Follow-up</h1>
 <lf-options id="follow" choose>
-  <lf-option id="short" for="stall">Ship it.</lf-option>
+  <lf-option id="short" for="plan">Ship it.</lf-option>
   <lf-option id="long" for="stall">Ship with the resend and keep chasing the upstream
   fix until the vendor names a release.</lf-option>
 </lf-options>
+<lf-options id="same" choose>
+  <lf-option id="same-ship" for="stall">Ship it.</lf-option>
+  <lf-option id="same-hold" for="stall">Hold it.</lf-option>
+</lf-options>
+<section id="plan"><h2>Release plan</h2><p>Monday.</p></section>
 <section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
 </section>""",
     )
@@ -1813,6 +1819,7 @@ def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, wid
         assert reading["withRef"] == reading["without"], (option, reading)
         assert reading["inside"], (option, reading)
     expect(page.locator("#long .lf-ref")).to_have_text("§ iOS reconnect stall")
+    expect(page.locator("#same .lf-ref")).to_have_count(0)
 
 
 def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve):

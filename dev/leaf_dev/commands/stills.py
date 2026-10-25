@@ -469,6 +469,20 @@ def threads_panel(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
 
 
+def option_picked(page: Page) -> None:
+    """The panel's row just after the plan's rollout option is picked and admitted,
+    while a passing notice would still stand in its status seat."""
+    option = page.locator("#plan-admin")
+    option.scroll_into_view_if_needed()
+    option.click()
+    expect(page.locator(".lf-live")).to_contain_text("— sent")
+
+
+def option_references(page: Page) -> None:
+    """The patch decision, whose two options both name the stall block above them."""
+    page.locator("#off-workaround-review").scroll_into_view_if_needed()
+
+
 def call_tree(page: Page) -> None:
     """The CallDiff root and its unchanged landmarks beside added and removed calls."""
     page.get_by_role("tab", name="CallDiff", exact=True).click()
@@ -1425,6 +1439,21 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State("ship-threads", "ship-review", open_threads, region=".lf-fp-opened"),
+    State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
+    State(
+        "ship-option-references",
+        "ship-review",
+        option_references,
+        region="#off-workaround-decision",
+    ),
+    State(
+        "ship-option-references-phone",
+        "ship-review",
+        option_references,
+        viewport=(390, 844),
+        region="#off-workaround-decision",
+    ),
     State(
         "floating-thread-retitled",
         "ship-review",
@@ -1646,6 +1675,7 @@ STATES = (
         "developer/visual-review-gallery",
         visual_review_inspection,
     ),
+    State("visual-review", "developer/visual-review-gallery", at_rest),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),

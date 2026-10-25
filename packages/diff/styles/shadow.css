@@ -279,6 +279,11 @@
 .lf-diff-run-end {
   --lf-diff-r-end: var(--r);
 }
+/* A diff of one file draws no filter (lf-diff.js), so its file opens the drawing, with
+   no gap or shared hairline above it to stand off from. */
+.lf-diff-file:first-child {
+  margin-top: 0;
+}
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: var(--lf-diff-head-pressed);
 }

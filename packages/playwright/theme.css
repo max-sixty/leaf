@@ -481,15 +481,6 @@
   translate: -1px 0;
   background: var(--accent);
 }
-.lf-trace-legend {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding: var(--sp-1) var(--sp-2);
-  border-block-start: 1px solid var(--border-2);
-  color: var(--muted);
-  font: var(--lf-trace-small-type) / 1.4 var(--sans);
-  max-inline-size: none;
-}
 .lf-trace-timeline [data-lf-trace-tip-anchor] {
   anchor-name: --lf-trace-tip;
 }

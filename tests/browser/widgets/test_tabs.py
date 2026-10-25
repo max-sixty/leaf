@@ -902,8 +902,12 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     marks = page.locator("#queue .lf-tab-answer")
     expect(marks.nth(0)).to_have_attribute("data-lf-obligations", "open")
     expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "open")
-    # The open mark is said in words beside it, the words a tally counts by.
-    expect(marks.nth(0)).to_have_text("To answer")
+    # The open mark stands alone for the user's turn: the mark and the tally say it,
+    # and the tab's description says it in words.
+    expect(marks.nth(0)).to_have_text("")
+    expect(page.get_by_role("tab").nth(0)).to_have_accessible_description(
+        re.compile("To answer")
+    )
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -981,7 +985,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
 
     undo(page)
     expect(answer).to_have_text("Fix")
-    # The undo is announced by the name the gesture's own acknowledgement used.
+    # The undo is announced by the name the gesture's own announcement used.
     expect(page.locator(".lf-live")).to_have_text(
         "Undid: Chose “Escalate to engineering” · just now — sent"
     )

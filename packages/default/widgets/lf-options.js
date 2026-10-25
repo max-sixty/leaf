@@ -7,9 +7,11 @@
  * its own, and a group whose options are bare labels is an obligation *about* the page,
  * drawn as compact rows.
  * The difference this module sees is only what a row adds — `for`, the id of the block
- * the row names, rendered as a reference the user can follow. It points and never
- * speaks: the label stays written in the markup, so the file's reading of the page
- * holds every word the page shows.
+ * the row names, rendered as a reference the user can follow where the group's rows
+ * name different blocks. Rows that all name one block draw none, since that block
+ * usually stands just above the question and its name on every row repeats a place the
+ * reader already has. It points and never speaks: the label stays written in the
+ * markup, so the file's reading of the page holds every word the page shows.
  *
  * `choose` takes the user's pick. Every option carries one injected mark that is both
  * the keyboard path and the state — a toggle reading "choose one" or "choose any" as the
@@ -210,7 +212,10 @@ customElements.define(
         if (!inChrome(this)) this.#contextKeys("write");
         if (this.hasAttribute("multiple")) this.#contextKeys("done");
       }
-      for (const option of this.#options()) this.#reference(option);
+      const named = new Set(
+        [...this.#options()].map((option) => option.getAttribute("for")),
+      );
+      if (named.size > 1) for (const option of this.#options()) this.#reference(option);
       // Without `choose` there is nothing to press: the mark still reports the
       // document's state, as a span.
       for (const option of this.#options())

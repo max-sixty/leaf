@@ -138,6 +138,10 @@ FIRST_PAINT_PAGE = leaf_page(
     + _patch_file("src/app.py", 1200, ["x = 1", "y = 2"])
     + _patch_file("src/util.py", 1, ["z = 3"])
     + "</pre></lf-diff>"
+    # One file draws no filter row.
+    + '<lf-diff id="single"><pre>'
+    + _patch_file("src/only.py", 1, ["w = 0"])
+    + "</pre></lf-diff>"
     # Prose wraps at the drawing's column: words, runs of spaces, and words longer
     # than the column by every count up to a few columns, so a column more or less
     # than the drawing's changes some row's lines at either width.
@@ -444,7 +448,8 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
 
 def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, serve):
     """The matching count leaves the filter field in place at every result count, on a
-    phone and on a desktop window."""
+    phone and on a desktop window. A patch of one file has nothing to filter, so it
+    draws no filter."""
     url = serve(MANIFEST_DIFF_PAGE)
 
     def patch(count):
@@ -472,7 +477,7 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
 
     for width in (390, 1280):
         resized(page, width, 844)
-        for total in (12, 1):
+        for total in (12, 2):
             data_model.cmd_data_set(
                 serve.page_dir, "review-patch", patch_manifest(patch(total))
             )
@@ -494,6 +499,11 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
                 after = diff.evaluate(geometry)
                 assert after == before, (width, query, before, after)
                 expect(search).to_be_focused()
+
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch(1)))
+    told(page)
+    expect(rows).to_have_count(1)
+    expect(diff.locator(".lf-diff-search")).to_have_count(0)
 
 
 def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve):

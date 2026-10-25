@@ -3,7 +3,9 @@
  * rendered lines support selection anchors. `view="file"` draws one active file
  * for a separate navigator; datum reveal selects it without changing file or line identities. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
- * connected. The search reserves its current source's longest count label, so
+ * connected. A source of two files or more draws a search over them; one file draws
+ * none, since there is nothing to filter or open all of, and its count would restate the
+ * file's own header. The search reserves its current source's longest count label, so
  * filtering files leaves its field and controls in place. A quiet press after the count
  * opens every file the filter shows, or closes them once all are open. Changed file
  * evidence replaces only its inner presentation and hands
@@ -930,7 +932,7 @@ customElements.define(
             id: "diff.search",
             keys: ["/"],
             title: "filter files",
-            when: () => !this.singleFile,
+            when: () => Boolean(this.diffTools),
             run: () => {
               const search = this.diffTools?.search;
               if (search) {
@@ -1148,7 +1150,8 @@ customElements.define(
           this.drawnSource = source;
           this.fileEntries = entries;
           this.activePath = activePath;
-          if (!this.singleFile) this.diffTools ??= diffTools(this);
+          if (this.singleFile || entries.length < 2) this.diffTools = null;
+          else this.diffTools ??= diffTools(this);
           for (const entry of fresh) this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
           this.filesBody ??= diffBody([]);

@@ -205,12 +205,12 @@ function render(host, { tabStore, offer, offerAction, generatedElement, keeps })
     reset = null;
   if (interactive) {
     const railed = controls.filter((control) => control.parentElement === host);
+    // The box of controls evidently is one, and each control carries its own label, so
+    // its name is for assistive tech alone.
     const panel = node("div", "lf-playground-controls");
-    const panelTitle = node("p", "lf-playground-controls-title lf-label", "Controls");
-    panelTitle.id = `${host.id}-controls-title`;
     panel.setAttribute("role", "group");
-    panel.setAttribute("aria-labelledby", panelTitle.id);
-    panel.append(panelTitle, ...railed);
+    panel.setAttribute("aria-label", "Controls");
+    panel.append(...railed);
     for (const control of controls) {
       const name = control.getAttribute("name"),
         kind = control.getAttribute("kind"),

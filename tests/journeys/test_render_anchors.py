@@ -704,6 +704,12 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
  def route(request):
 -    return f"legacy:{request.token.id}"
 +    return f"tok:{request.token.id}"
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-Routes by legacy key.
++Routes by token.
 """
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)

@@ -561,7 +561,9 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     its edge, and a cue painted under them showed nothing. Focus within a region lifts
     its cue, and reaching the end removes it."""
     page = open_page(browser, serve(ROOT / "examples" / "code-comparison.html"))
-    resized(page, 1280, 540)
+    # A window where the rail's controls run well past its foot, as at 1280 they did
+    # only while a Controls label stood over them.
+    resized(page, 1100, 540)
     playground = page.locator("#code-comparison-playground")
     bodies = {
         "preview": playground.locator(".lf-playground-preview-body"),
@@ -569,20 +571,25 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     }
 
     def cue(body):
-        """How many pixels of the box's bottom band the mark changes."""
+        """How many pixels of the box's bottom band the mark changes. It puts the mark
+        back only where it found one, since a box the runtime already marked as at its
+        end is not marked again until it scrolls."""
         box = body.bounding_box()
         clip = {**box, "y": box["y"] + box["height"] - 12, "height": 12}
         marked = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        had = body.evaluate("el => el.hasAttribute('data-lf-more-below')")
         body.evaluate("el => el.removeAttribute('data-lf-more-below')")
         bare = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-        body.evaluate("el => el.toggleAttribute('data-lf-more-below', true)")
+        body.evaluate("(el, had) => el.toggleAttribute('data-lf-more-below', had)", had)
         delta = ImageChops.difference(marked, bare).get_flattened_data()
         return sum(1 for pixel in delta if max(pixel) > 24)
 
     for name, body in bodies.items():
         assert body.evaluate("el => el.scrollHeight > el.clientHeight + 1"), name
         expect(body).to_have_attribute("data-lf-more-below", "")
-        assert cue(body) > 100, name
+        # How many pixels change depends on how much ink the band holds; a cue painted
+        # under the content changes none.
+        assert cue(body) > 0, name
     # A control Tab reaches at the edge is not faded out under its own ring.
     slider = playground.get_by_role("slider", name="Comparison viewport")
     slider.press("ArrowRight")

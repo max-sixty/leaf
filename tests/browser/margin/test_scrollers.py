@@ -977,4 +977,3 @@ def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(
     # frame or two rather than at some later pass.
     page.locator("#pane").evaluate("pane => { pane.scrollTop = 0; }")
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
-    context.close()

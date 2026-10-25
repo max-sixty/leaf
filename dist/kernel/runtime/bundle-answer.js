@@ -5778,6 +5778,10 @@ function inputBinding(element, declaration) {
 const supplied = /* @__PURE__ */ new WeakMap();
 const suppliedSnapshot = (value) => supplied.get(value);
 const bindsInput = (element, { source, reference }) => Boolean(source && element.getAttribute(source) || reference && element.getAttribute(reference));
+const dataRead = applicationState.select((root) => root.data.version !== null || root.phase === "offline");
+function awaitsData(element) {
+	return Object.values(registry[element.localName]?.["x-data"] ?? {}).some((declaration) => declaration.source && element.getAttribute(declaration.source)) && !dataRead.read();
+}
 function dataReader(element, input, accepted) {
 	const declaration = declaredInput(element, input);
 	const { source, widget, selected, snapshot } = inputBinding(element, declaration);
@@ -6038,6 +6042,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 		this.#ticket = null;
 		if (this.#broken) return false;
 		if (!this.#complete()) return false;
+		if (awaitsData(this)) return false;
 		return super.shouldUpdate(changed);
 	}
 	update(changed) {

@@ -35,7 +35,10 @@
    its region on every return, so a returning widget never leaves its epoch waiting. A widget whose reading lacks a declared verb, as a revision's
    replacement does before its document is adopted, draws nothing until it has them all
    (before the first state read, the authored state supplies every verb); its claim
-   settles with nothing drawn. While its controller's `defer()` holds it, its claim stays
+   settles with nothing drawn. One bound to a page data source likewise draws nothing
+   until the page has delivered its data (`awaitsData`, data.js), so it never draws the
+   empty reading of a source nobody has read yet; the theme's first-paint box stands
+   until then. While its controller's `defer()` holds it, its claim stays
    open; the release draws the newest reading at once, changed or not, since the gesture
    may have rewritten its nodes. An update's claim settles once `updateComplete` does,
    which a widget whose drawing finishes after the render, such as highlighting or a
@@ -88,7 +91,13 @@ import {
 } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
-import { bindsInput, dataReader, joinDataDelivery, suppliedSnapshot } from "./data.js";
+import {
+  awaitsData,
+  bindsInput,
+  dataReader,
+  joinDataDelivery,
+  suppliedSnapshot,
+} from "./data.js";
 import { registry } from "./registry.js";
 import { projectMarked } from "./projection/data.js";
 
@@ -373,6 +382,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#ticket = null;
     if (this.#broken) return false;
     if (!this.#complete()) return false;
+    if (awaitsData(this)) return false;
     return super.shouldUpdate(changed);
   }
 

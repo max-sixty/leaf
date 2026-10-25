@@ -501,6 +501,44 @@ def test_a_draw_that_lands_after_a_newer_value_keeps_the_revision_it_drew(
     expect(datum).to_have_attribute("data-lf-source-revision", older)
 
 
+def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
+    """A document's source reads null until the page's first state answer brings its
+    text, as it does for a source with nothing to read. Drawn then, it showed a one-row
+    "no data" listing whose gutter widened when the text arrived, so no caption or
+    listing appears before the text does."""
+    source_page = leaf_page(
+        "waiting document",
+        """
+<lf-text-document id="full" source="full-text" label="full.toml" language="toml"></lf-text-document>
+""",
+    )
+    url = live_url(serve(source_page))
+    full = "\n".join(f"line_{n} = {n}" for n in range(1, 21)) + "\n"
+    data_model.cmd_data_set(serve.page_dir, "full-text", full)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(
+        """
+        window.documentDraws = [];
+        new MutationObserver(() => {
+          const view = document.querySelector('#full figure');
+          if (view)
+            window.documentDraws.push({
+              caption: view.querySelector('figcaption').textContent,
+              text: view.querySelector('code')?.textContent ?? '',
+            });
+        }).observe(document, {subtree: true, childList: true, characterData: true});
+        """
+    )
+    page.goto(url, wait_until="load")
+    expect(page.locator("#full code")).to_contain_text("line_20 = 20")
+    draws = page.evaluate("window.documentDraws")
+    assert draws, "the document was never observed drawn"
+    assert all(
+        draw["caption"] == "full.toml" and "line_20 = 20" in draw["text"]
+        for draw in draws
+    )
+
+
 def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     """A captured file reads under its authored label and follows its source. A
     revision that binds a source id nothing rewrites keeps the reviewed words through

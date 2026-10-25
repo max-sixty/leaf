@@ -120,7 +120,9 @@ render() {
 }
 ```
 
-Each delivery is a new copy, so a widget tells a new delivery by identity. A rerun with
+A widget bound to a source first draws once the page has read its data, or has gone
+offline without it, so until then it shows its first-paint box. Each delivery is a new
+copy, so a widget tells a new delivery by identity. A rerun with
 the same value delivers a new copy too. An input the markup leaves unbound, such as an
 `lf-diff` showing its inline patch, is left to the widget: Leaf doesn't set its
 property.

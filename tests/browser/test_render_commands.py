@@ -1261,26 +1261,41 @@ FILM_PAGE = LONG_PAGE.replace(
 )
 
 
-def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
-    browser, serve, tmp_path
+def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
+    browser, serve, tmp_path, headless_shell
 ):
-    """A message's markup is validated as it is posted, and drawn only where a browser
-    shows it, so a reply carrying a chart posts as fast as one without and needs no
-    browser. A body its module cannot draw reports to the author when the user opens
-    its thread, as the page's own widgets do, naming the widget; the log freezes the
-    message, so the author answers with a corrected reply."""
+    """Nothing draws a message's widgets before the user opens its thread, and the
+    log freezes the message, so a thread command runs markup holding a widget only a
+    browser can judge once before it posts, and refuses it with the widget's own
+    error, as plain `page check` refuses a page. A host with no browser posts it
+    unrun; the body its module cannot draw then reports to the author when the user
+    opens its thread, naming the widget, and the author answers with a corrected
+    reply."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
-    posted = subprocess.run(
-        [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
-        + ["--markup", '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>'],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "none")},
-    )
+
+    def post(executable):
+        return subprocess.run(
+            [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
+            + [
+                "--markup",
+                '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": executable},
+        )
+
+    refused = post(headless_shell)
+    assert refused.returncode != 0, refused.stdout + refused.stderr
+    refusal = json.loads(refused.stderr)["error"]
+    assert refusal.startswith("comment markup doesn't draw:"), refusal
+    assert '<lf-chart id="t-bad"> failed: ' in refusal
+    assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]
+
+    posted = post(str(tmp_path / "none"))
     assert posted.returncode == 0, posted.stdout + posted.stderr
-    assert not posted.stderr, "posting asks for no browser"
 
     [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
     page = open_page(browser, url)

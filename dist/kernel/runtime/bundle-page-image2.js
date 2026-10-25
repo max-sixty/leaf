@@ -1,6 +1,13 @@
 //#region runtime/composing/page-image.js
 const asDataUrl = async (blob) => `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
-const pageRenderer = () => import("/vendor/snapdom.esm.js");
+const pageRenderer = async () => {
+	const [{ snapdom }, { isSampleFrame, sampleFrameImage }] = await Promise.all([import("/vendor/snapdom.esm.js"), import("./bundle-sample.js")]);
+	return {
+		snapdom,
+		isSampleFrame,
+		sampleFrameImage
+	};
+};
 const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 const holds = (a, b) => a.left <= b.left && a.top <= b.top && a.right >= b.right && a.bottom >= b.bottom;
 const paintsOverChildren = (parent, style) => style.backgroundImage !== "none" || style.overflowX !== "visible" || style.overflowY !== "visible" || /paint|content|strict/.test(style.contain) || ["::before", "::after"].some((pseudo) => {
@@ -56,7 +63,7 @@ function captureRoot(region, skip) {
 	};
 }
 async function pageImage(clip, { exclude = [] } = {}) {
-	const [{ snapdom }, { isSampleFrame, sampleFrameImage }] = await Promise.all([pageRenderer(), import("./bundle-sample.js")]);
+	const { snapdom, isSampleFrame, sampleFrameImage } = await pageRenderer();
 	const warnings = /* @__PURE__ */ new Set();
 	async function sampleContent(frame) {
 		const box = document.createElement("div");

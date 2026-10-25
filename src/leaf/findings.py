@@ -209,8 +209,10 @@ def _squeezed(at: str, v: dict) -> str:
             if widest["wraps"]
             else f" beside {widest['name']} at {widest['width']}px"
         )
-        + " — an identifier in <code> breaks inside its cell; a column fewer, or a"
-        " shorter word in the widest, gives the rest the measure"
+        + " — every column stays in reach, so what this costs the reader is the"
+        " wrapped cells' words a few to a line; an identifier in <code> breaks inside"
+        " its cell, and a shorter word in the widest column gives the rest the measure,"
+        " while hiding a column at this width takes its facts from the reader"
     )
 
 

@@ -293,7 +293,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     row = (
         seat.locator(":scope > .lf-seat-news")
         if beside == "box"
-        else threads.first.locator(":scope > .lf-thread-content > .lf-thread-controls")
+        else threads.first.locator(":scope > .lf-thread-content")
     )
     news = row.get_by_role("button", name="1 new thread")
     expect(news).to_be_visible()

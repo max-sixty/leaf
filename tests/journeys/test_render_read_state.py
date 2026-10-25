@@ -9,6 +9,7 @@ from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record, served_thread
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
+from render_cases_layout import overlapped_words
 from render_cases_navigation import source_revision
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
@@ -621,9 +622,9 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         "The route-line answer is ready.",
     )
     told(page)
-    news = thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-controls"
-    ).get_by_role("button", name="1 new reply")
+    news = thread.locator(":scope > .lf-thread-content").get_by_role(
+        "button", name="1 new reply"
+    )
     expect(news).to_be_visible()
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
@@ -695,9 +696,9 @@ def test_a_walk_to_a_thread_a_diff_line_holds_lands_in_its_outlet(browser, serve
         },
     )["id"]
     told(page)
-    news = thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-controls"
-    ).get_by_role("button", name="1 new thread")
+    news = thread.locator(":scope > .lf-thread-content").get_by_role(
+        "button", name="1 new thread"
+    )
     expect(news).to_be_visible()
     landed = page.locator(f'lf-diff .lf-page-thread[data-thread="{second}"]')
     expect(landed).to_have_count(0)
@@ -780,12 +781,15 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
             )["id"]
         )
         told(page)
-    news = thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-controls"
-    ).get_by_role("button", name="2 new replies")
+    news = thread.locator(":scope > .lf-thread-content").get_by_role(
+        "button", name="2 new replies"
+    )
     expect(news).to_be_visible()
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
+    # The notice stands after the header's words, in a box of its own, so axe still
+    # reads their contrast (`overlapped_words`).
+    assert overlapped_words(page) == []
 
     if end == "opened":
         news.click()

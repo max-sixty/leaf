@@ -54,10 +54,14 @@
    and a group's one Tab stop (`rove`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
-   In a sample, only the document already holding input may place focus. A trusted
-   pointer or keyboard entry gives the child that ownership before Leaf handles the
-   gesture; remote commands and delayed work cannot borrow it from the parent. This
-   is a rule for Leaf placements, not a restriction on authored browser scripts.
+   In a framed document, a sample's or any other, only the document already holding
+   input may place focus: one the user has not entered would take them from the page
+   around it. A top-level document always may, since placing focus in a background tab
+   takes it from nobody. A trusted pointer or keyboard entry gives the frame that
+   ownership before Leaf handles the gesture (bootstrap.js); arrival, the embedding
+   page's navigation, remote commands and delayed work cannot borrow it from the
+   parent. This is a rule for Leaf placements, not a restriction on authored browser
+   scripts.
 
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
@@ -148,8 +152,7 @@ export const tabStops = (root) =>
 //
 // Placements never ask the browser to reveal their target: native focus scrolling
 // crosses browsing contexts. A caller needing reveal uses document-local scrolling.
-export const canPlaceFocus = () =>
-  !document.documentElement.lfSample || document.hasFocus();
+export const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
 export function focusDestination(
   destination,

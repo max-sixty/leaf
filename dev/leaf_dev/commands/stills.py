@@ -96,6 +96,12 @@ def native_code(page: Page) -> None:
     page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
+def native_code_copy_hover(page: Page) -> None:
+    """A document code block under the pointer, which shows its Copy on its border."""
+    native_code(page)
+    page.locator("#bg-javascript-code").hover()
+
+
 def recorded_video(page: Page) -> None:
     """The gallery's recording at rest under its play bar, beside the audio player."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -1181,6 +1187,12 @@ def draft_edit(page: Page) -> None:
     page.locator("#rn-cli .lf-draft-edit").focus()
 
 
+def draft_hover(page: Page) -> None:
+    """A draft under the pointer, which shows its toolbar of marks on its border."""
+    page.locator("#rn-cli .lf-draft-body").hover()
+    expect(page.locator("#rn-cli .lf-draft-tools")).to_have_css("opacity", "1")
+
+
 def playground_controls(page: Page) -> None:
     """The playground's controls and instruction, with keyboard focus on its range."""
     page.keyboard.press("Tab")
@@ -1311,6 +1323,12 @@ STATES = (
         "native-code",
         "developer/feature-gallery",
         native_code,
+        region="#bg-javascript-code",
+    ),
+    State(
+        "native-code-copy-hover",
+        "developer/feature-gallery",
+        native_code_copy_hover,
         region="#bg-javascript-code",
     ),
     State(
@@ -1739,6 +1757,7 @@ STATES = (
         touch=True,
     ),
     State("release-draft", "release-notes", draft_edit),
+    State("release-draft-hover", "release-notes", draft_hover, region="#rn-cli"),
     State(
         "release-draft-phone",
         "release-notes",

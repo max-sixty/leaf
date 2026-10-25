@@ -26,9 +26,6 @@ from render_harness import (
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
 
-pytestmark = pytest.mark.shifts_unsurveyed
-
-
 ROOT_TABS_PAGE = ROOT / "tests/fixtures/pages/root-tabs.html"
 ROOT_PARTS_PAGE = ROOT / "tests/fixtures/pages/root-parts.html"
 
@@ -870,7 +867,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     assert walked["list"][0] > 0 and walked["selectedShown"], walked
     assert walked["itemTop"] == before["itemTop"] and walked["page"] <= 0, walked
 
-    page.evaluate("document.documentElement.style.fontSize = '20px'")
+    # A reader's large root font, there from first paint: a script setting it on the
+    # open page would move the page without input.
+    large = "<style>html { font-size: 20px }</style></head>"
+    page = open_page(browser, serve(source.replace("</head>", large, 1)))
     resized(page, 730, 600)
     page.wait_for_function(
         """() => {

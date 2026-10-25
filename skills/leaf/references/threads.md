@@ -54,9 +54,10 @@ practice page in the thread (`live-samples.md`).
 leaf thread reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
 ```
 
-Leaf checks markup when you post it but does not draw it. If a data widget, such as a
-chart, fails to draw, you get an `error` event when the user opens the thread; answer
-with a corrected reply.
+Leaf checks markup when you post it, and draws a data widget, such as a chart or
+diagram, once first: a widget that fails to draw refuses the message with its error.
+Fix it and post again. Where Leaf has no browser, the failure reaches you instead as an
+`error` event when the user opens the thread; answer with a corrected reply.
 
 A thread shows in a narrow card or panel, so a paragraph that reads fine in chat is a
 wall there. Say what changed or where to look in a sentence or two, or one short item per

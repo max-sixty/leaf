@@ -90,11 +90,13 @@ A widget reads a bound data source in `render()` through an input its entry decl
 ```js
 render() {
   const snapshot = this.data("builds");
-  return snapshot ? html`…` : html`<p>Waiting for builds.</p>`;
+  return snapshot ? html`…` : html`<p>No builds.</p>`;
 }
 ```
 
-Leaf draws the widget again whenever the source's value, contract or validity changes.
+A widget bound to a source first draws once the page has read its data, or has gone
+offline without it, so until then it shows its first-paint box, and Leaf draws it again
+whenever the source's value, contract or validity changes.
 `this.data(input)` throws for an undeclared input, and returns `null` while there is no
 readable value, including when the value doesn't fit the contract. Otherwise it returns
 `{source, contract, revision, run, updated, value, origin}`, the same copy until the

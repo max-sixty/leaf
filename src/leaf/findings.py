@@ -473,7 +473,8 @@ _TEXT = {
     ),
     "gesture-scrolled": lambda at, v: (
         f"a scroll during the {v['input']} on {placed(v['node'])} moved it{_by(v)};"
-        " only a command that takes the user somewhere (`travels`) may"
+        " only a gesture that takes the user somewhere may, as its command's"
+        " `travels` or the history entry it adds says"
         f"{_shift_evidence(v)}"
     ),
     "shift-watch-missed": lambda at, v: (

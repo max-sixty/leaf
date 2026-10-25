@@ -3187,6 +3187,9 @@ html[data-lf-interactive] :scope:is(lf-text-document):not(:has(> *))::before {
     opacity: 1;
   }
   @media (hover: none) {
+    :scope:is(lf-draft) {
+      padding-block-end: max(10px, var(--aim-floor) / 2);
+    }
     .lf-draft-tools {
       inset-block: auto 0;
       translate: 0 calc(50% + 0.5px);

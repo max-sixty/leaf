@@ -5,6 +5,7 @@ loads the HTTP server only to revive a dead one. Status writes use those same
 projections without importing a server. Receipt remains `delivery`'s."""
 
 import contextlib
+import shlex
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -437,7 +438,7 @@ def wait_acknowledgement(
     and its wait named one page, so the delivery carries that page alone. It is
     stated once for the delivery, ahead of the batches, where output cut off
     partway still shows it."""
-    rearm = "leaf wait" if harness else f"leaf wait {page_dir}"
+    rearm = "leaf wait" if harness else shlex.join(["leaf", "wait", str(page_dir)])
     run_ack = (harness or Harness).run_ack
 
     def acknowledge(delivery_id: str) -> str:

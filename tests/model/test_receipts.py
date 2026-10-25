@@ -584,6 +584,12 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport
     assert acknowledged_through(claimed) == event["seq"]
 
 
+def test_a_standalone_wait_names_a_page_path_with_spaces_as_one_argument(tmp_path):
+    page_dir = tmp_path / "leaf page"
+    acknowledge = session_model.wait_acknowledgement(None, page_dir)("d1")
+    assert f"leaf delivery ack d1 && leaf wait '{page_dir}'" in acknowledge
+
+
 @pytest.mark.parametrize("harness_name", ["claude-code", "pi", "codex"])
 def test_explicit_pointer_confirmation_refuses_a_transferred_page(
     page_dir, monkeypatch, harness_name

@@ -265,10 +265,15 @@
 }
 /* The gap holds a focused face's ring. The ring stands outside its face, and grid items
  * paint whole in tree order, so the next face would paint over any of the ring that
- * reached it. */
+ * reached it. `--playground-choice-columns` arranges a plain choice's faces as it does
+ * rich candidates: authors set it on a row of threshold choices, saw nothing change,
+ * and wrote rules against this generated class instead. */
 .lf-playground-choices {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
+  grid-template-columns: var(
+    --playground-choice-columns,
+    repeat(auto-fit, minmax(min(100%, 6rem), 1fr))
+  );
   gap: var(--focus-ring-room);
 }
 :scope:is(lf-playground-choice) {

@@ -315,13 +315,6 @@ that changes size after first paint, with its cause.
   another line and its removal shortens the box. Drawing nothing until the first
   state answer has been read would leave the theme's stand-in frame and caption until
   then.
-- **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
-  (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
-  disclosure stays closed until the module opens it, so the spine and its markers
-  first show at upgrade. Opening it earlier would show the markers evenly spaced and
-  then move them, since each row's share is the module's measurement of the document
-  (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
-  would put them in place.
 - **Let a press say it takes the user somewhere.** The shift watch lets a key move
   the control it was pressed on only where its command declares `travels`, and a
   press only on a link (`shift_watch.js`, "Scrolls a gesture makes"); a press on any

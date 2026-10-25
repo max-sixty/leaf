@@ -1,5 +1,5 @@
 {
-  "protocol": 25,
+  "protocol": 26,
   "events": {
     "ownership": {
       "derived": ["meaning","attention"],

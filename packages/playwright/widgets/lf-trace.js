@@ -100,7 +100,6 @@ import {
   LeafElement,
   onUserInput,
   paintKeys,
-  projectData,
   signal,
   quoted,
   registerVisualParts,
@@ -165,6 +164,14 @@ const INPUT_NAMES = {
   mouseClick: "Click",
   dragTo: "Drag",
 };
+// The marks that make a drawn part a datum on a Leaf page, taken off a part kept after
+// it stops showing one.
+const MARKS = [
+  "data-lf-datum",
+  "data-lf-identity",
+  "data-lf-datum-label",
+  "data-lf-origin-path",
+];
 // The longest an image on screen may trail the playing clock, in milliseconds.
 const MAX_LAG = 150;
 // How long after an input is sent the image keeps marking it, in milliseconds of
@@ -230,10 +237,20 @@ const transport = (target, label, icon, disabled, title = label) =>
 customElements.define(
   "lf-trace",
   class extends LeafElement {
-    #snapshot = null;
-    // The delivery the last render read, and the one shown.
+    // The recording, set by whoever hosts the widget: Leaf from the bound source (the
+    // registry's `x-data.trace.property`), or null while that source has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      this.value = null;
+    }
+
+    // The recording the last render read, and the one shown.
     #delivered;
     #shown;
+    // The elements the last paint marked as drawn data.
+    #marked = new Set();
     #origins = new Map();
     #imageSizes = new Map();
     #trace = null;
@@ -479,7 +496,7 @@ customElements.define(
     }
 
     render() {
-      this.#delivered = this.data("trace");
+      this.#delivered = this.value;
       return nothing;
     }
 
@@ -913,12 +930,11 @@ customElements.define(
           : ["start", "end"];
     }
 
-    #show(snapshot) {
+    #show(trace) {
       this.pause(false);
       const restore = holdFocus(this);
       const oldArchive = this.#trace?.archive.sha256;
-      this.#snapshot = snapshot;
-      this.#trace = snapshot?.value ?? null;
+      this.#trace = trace;
       this.#boundsByScope.clear();
       this.#itemsCache = null;
       this.#origins = this.#trace ? streamOrigins(this.#trace) : new Map();
@@ -2391,19 +2407,22 @@ customElements.define(
             "nodes",
             index,
           ]);
-      // Only drawn evidence is projected. Hidden parts keep their archive coordinate
-      // in the inventory reader's label/reveal routes, not in a second semantic fold.
-      projectData(
-        this,
-        projection.map((record) => ({
-          node: record.element,
-          key: record.id,
-          identity: record.id,
-          label: record.label,
-          origin: { ...this.#snapshot.origin, path: record.path },
-        })),
-        { snapshot: this.#snapshot },
-      );
+      // Only drawn evidence is marked as data (`module-state.md`, "Marking drawn
+      // data"). Hidden parts keep their archive coordinate in the inventory reader's
+      // label/reveal routes, not in a second semantic fold.
+      const marked = new Set();
+      for (const { id, element, label, path } of projection) {
+        keeps(element, "data-lf-datum", id);
+        keeps(element, "data-lf-identity", id);
+        keeps(element, "data-lf-datum-label", label);
+        keeps(element, "data-lf-origin-path", JSON.stringify(path));
+        marked.add(element);
+      }
+      for (const element of this.#marked)
+        if (!marked.has(element))
+          for (const name of MARKS) element.removeAttribute(name);
+      this.#marked = marked;
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#trace } }));
       this.#parts.update();
       paintKeys();
     }

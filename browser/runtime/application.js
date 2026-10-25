@@ -136,7 +136,8 @@ export function mountApplication(dependencies) {
   };
 
   createProjectionPresentation();
-  const dataProjection = createDataProjection({ invalidateDom });
+  // A widget's drawn marks reach it through `projectMarked` (leaf-element.js).
+  createDataProjection({ invalidateDom });
 
   let delivery;
   const presentThread = () => threadPresenter.present();
@@ -351,7 +352,6 @@ export function mountApplication(dependencies) {
         part: "reply",
         focus: false,
         travel: false,
-        flash: false,
         intent,
       }),
     returnToPage: threadDestinations.returnToPage,
@@ -597,7 +597,6 @@ export function mountApplication(dependencies) {
       presentThreads(owner, spec, true),
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     post,
-    projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
     refreshThread,
     presentThread,
@@ -637,7 +636,6 @@ export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const post = commandDispatch.post;
-export const projectData = (...args) => app().projectData(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const registerThreadPresentation = (...args) =>

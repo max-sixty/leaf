@@ -654,6 +654,7 @@ button.lf-primary-news {
 /* browser/styles/components/reading.css */
 :root {
   --lf-text-scroll-clearance: 8px;
+  --lf-text-scroll-track: 15px;
 }
 :where(:root, .lf-thread-transcript) a {
   color: var(--accent);
@@ -699,7 +700,7 @@ button.lf-primary-news {
     content: "";
     float: inline-start;
     inline-size: 100%;
-    block-size: 15px;
+    block-size: var(--lf-text-scroll-track);
     grid-column: 1 / -1;
   }
   :where(:root, .lf-thread-transcript) :is(pre, table)::after {
@@ -777,6 +778,36 @@ button.lf-primary-news {
 }
 :where(:root, .lf-thread-transcript) th[scope=row] {
   font-weight: 600;
+}
+:where(:root, .lf-thread-transcript) table:has(> * > tr > th[scope=row]:first-child) {
+  --lf-more-fade-start: 0px;
+}
+:where(:root, .lf-thread-transcript) table:has(> * > tr > th[scope=row]:first-child) > * > tr > :first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  background: var(--lf-ground);
+}
+@media screen {
+  :where(:root, .lf-thread-transcript) table:has(> * > tr > th[scope=row]:first-child)[data-lf-more-before]:not([data-lf-focus], :has([data-lf-focus])) > * > tr > :first-child::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 100%;
+    inline-size: var(--lf-more-fade, 24px);
+    background:
+      linear-gradient(
+        to right,
+        var(--lf-ground),
+        transparent);
+    pointer-events: none;
+  }
+  :where(:root, .lf-thread-transcript) table:has(> * > tr > th[scope=row]:first-child)[data-lf-scroll-direction=rtl] > * > tr > :first-child::after {
+    background:
+      linear-gradient(
+        to left,
+        var(--lf-ground),
+        transparent);
+  }
 }
 :where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > :is(th, td) {
   vertical-align: middle;
@@ -1181,19 +1212,30 @@ svg[data-lf-icon] {
 @property --lf-more-across { syntax: "*"; inherits: false; }
 @property --lf-more-down { syntax: "*"; inherits: false; }
 @media screen {
-  [data-lf-more-after]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-before])),
-  [data-lf-more-before]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-after])) {
+  [data-lf-more-after]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-before])) {
     --lf-more-across: #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
-  [data-lf-more-before]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-after])),
+  [data-lf-more-before]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-after])) {
+    --lf-more-across: #000 calc(100% - var(--lf-more-fade-start, var(--lf-more-fade, 24px))), var(--lf-more-fade-to, transparent);
+  }
+  [data-lf-more-before]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-after])) {
+    --lf-more-across: var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade-start, var(--lf-more-fade, 24px));
+  }
   [data-lf-more-after]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-before])) {
     --lf-more-across: var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px);
   }
-  [data-lf-more-before][data-lf-more-after] {
+  [data-lf-more-before][data-lf-more-after]:where([data-lf-scroll-direction=ltr]) {
+    --lf-more-across:
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade-start, var(--lf-more-fade, 24px)),
+      #000 calc(100% - var(--lf-more-fade, 24px)),
+      var(--lf-more-fade-to, transparent);
+  }
+  [data-lf-more-before][data-lf-more-after]:where([data-lf-scroll-direction=rtl]) {
     --lf-more-across:
       var(--lf-more-fade-to, transparent),
       #000 var(--lf-more-fade, 24px),
-      #000 calc(100% - var(--lf-more-fade, 24px)),
+      #000 calc(100% - var(--lf-more-fade-start, var(--lf-more-fade, 24px))),
       var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-below] {
@@ -1631,7 +1673,7 @@ button.lf-media-open {
     opacity: 0;
   }
   .lf-composer-media-item > .lf-corner-mark {
-    transition: opacity 120ms;
+    transition: opacity var(--lf-motion-disclosure);
   }
 }
 @media (forced-colors: active) {

@@ -334,7 +334,7 @@ SAID_PAGE = leaf_page(
     """
 <h1 id="h">This week</h1>
 <div class="layout-tiles" id="numbers">
-  <dl id="m-open" class="panel"><dt>Open sessions</dt><dd><strong>1,204</strong> <small>+18%</small></dd></dl>
+  <dl id="m-open" class="metric"><dt>Open sessions</dt><dd><strong>1,204</strong> <small>+18%</small></dd></dl>
 </div>
 <lf-board id="board">
   <lf-column id="col-now" label="In flight">
@@ -2656,6 +2656,14 @@ def root_overflow(page) -> float:
     at the root scrollport the runtime scrolls. `body` is not that scroller, and a page
     that narrows it reads as overflowing where the window scrolls nothing."""
     return render_checks_model.evaluate_probe(page, "rootOverflow")
+
+
+def wide_width(page) -> float:
+    """The page's `--wide` in pixels: the theme derives it from the code size, and a
+    page may restate it, so a width check reads it rather than copying the number."""
+    return page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wide'))"
+    )
 
 
 def painted_words(page, selector: str) -> list[dict]:

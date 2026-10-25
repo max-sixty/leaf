@@ -792,7 +792,7 @@ cases:
 
           The author hands over the observed served URL, leaves the page waiting for the user's choice, receives and answers both posted comments, makes the dry-run change, and hands back the same usable page. Exact native injection/delivery/progress observations are supplied in driver records; distinguish an agent's claim from those observations.
         transform: context.metadata.texts?.['evidence'] ?? ''
-  # TODO.md, "Read the full render gate after handover": a quick edit handed over
+  # Issue #4042, "Read the full render gate after handover": a quick edit handed over
   # without `page check --render`, then the findings a render pass would deliver
   # once the version went live. The `render` move runs the check on the page as
   # served and posts what plain check doesn't report as the page's error; a page

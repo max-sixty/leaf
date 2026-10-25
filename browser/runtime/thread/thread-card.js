@@ -614,7 +614,7 @@ export class ThreadView {
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
-    this.#continuity?.after(bodyPlace);
+    this.#continuity?.after(bodyPlace, this.#transcript.folds);
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.

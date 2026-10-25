@@ -1234,12 +1234,12 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             ),
         ),
         (
-            '<dl id="lp-k-traffic" class="panel"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
-            '<dl id="lp-k-traffic" class="panel"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="metric"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="metric"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
         ),
         (
-            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
-            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
         ),
         (
             '<li id="lp-step-checks"><small class="tag danger">blocked · now</small>',

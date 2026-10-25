@@ -18,7 +18,7 @@ from leaf.render_checks import rendered
 
 
 # A live revision that puts a tab set above this one moves it 430px down the window
-# (TODO.md, "Keep what a live revision adds above the reader from moving it").
+# (issue #4036, "Keep what a live revision adds above the reader from moving it").
 @pytest.mark.shifts_unsurveyed
 @pytest.mark.parametrize(
     "placement",

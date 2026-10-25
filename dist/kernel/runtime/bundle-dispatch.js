@@ -1,15 +1,15 @@
 import { W, Z, foldWidgetStates, obligationValue, projectionOrigins, x } from "./bundle-browser-runtime.js";
 import { PRESSES, TEXT_BOX, composedParentNode, deepFocus, drawn, focusDestination, focused, inputCount, keeps, move, nextAnimation, nextRender, onCurrentLocation, onUserInput, readCaret, recoveredLabelFocus, renderedUnder, renderingState, sizeObserver, takesLetters, typesText, under, upFrom } from "./bundle-dom-move.js";
 import { LayerRefused, PAGE_PAINT_ATTRIBUTE, admitReading, reportPageError, runtimeRootState } from "./bundle-layer-client.js";
-import { LIVE_ROOT, PRESENTATION_DOM, applicationPresenter, applicationState, layerRoot, pageUrl, projectView, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation } from "./bundle-context.js";
 import { EVERYTHING, PRESSABLE, allBindings, answers, ariaShortcuts, bindingEnabledFor, bindings, buttonCommand, clippedPlace, commandAvailable, commandEntries, commandReady, commandRoutes, decisionFor, declaredBindings, descriptionOf, el, excludedByInert, frameFor, holdingError, labelOf, landingBand, layoutChanged, live, nativeActivationAt, nativeClaimAt, nativeLayers, notice, placeBox, placeHolder, pointerAt, pruneScopedElements, quickShortcuts, raiseError, referencedCommandEntry, registry, repaint, restorePointer, reveal, routedCommand, savedReadingSettled, scopeAvailable, scopeIdentity, scopesAt, scopesFor, shownBox, skipped, spell, tagsDeclaring, titleOf, word } from "./bundle-errors.js";
+import { LIVE_ROOT, PRESENTATION_DOM, applicationPresenter, applicationState, layerRoot, pageUrl, projectView, projectionRegionsPresented, readApplication, readPart, revisionLabel, runtime, watchPresentation } from "./bundle-context.js";
 import { chosenSince, containingReadingRegionFor, effectiveScroller, moveScrollerBy, onReadingInput, pageScroller, placeKept, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, shownRegionBounds, stopScroll, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, inChrome, pageDocument, pageQueryAll, pageRange, rangeOf, readingFrom, renderRetired, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressedElements, anchoringIsReady, fragmentTarget, livePoint, registerPageControl, resolveAnchor, revealAddressed, sectionOf, settleMarginContentLayout, targetElement, targetPlace, targetSegments } from "./bundle-content-layout.js";
 import { authoredBody, initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
 import { ELEMENTS, PAGE_SCOPE, blocksOnScreen, captureDraftEditing, capturePlace, draftEditingDestination, draftEditingStands, focusedInView, formatDeclaredMarkdown, hasLandmark, heldThreadId, inlineMarkdownFragment, isPagePaint, openingPassage, pageReadingBlock, pageScopes, paintMarkdown, passageBlock, patchDocument, placeNode, placeOf, placeOffset, preloadWidgets, prepareDeclaredMarkdown, rawOffsetFits, reindexPassageOwners, rememberPassageParts, renderQuiet, replyDestination, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainUserIntent, scrollIntoView, stances, tabStore, textBlocks, textEntryScope, threadNamed, universalCommandReference } from "./bundle-surfaces.js";
 import { authoredStates, commitWidgetDescriptors, patchRetains, patchTree, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
-import { scrollBehavior } from "./bundle-motion.js";
+import { backgroundFlash, flashDuration, scrollBehavior } from "./bundle-motion.js";
 
 //#region runtime/document-identity.js
 const servedRevision = document.querySelector("meta[name=\"lf-revision\"][data-lf-runtime]")?.content;
@@ -135,9 +135,9 @@ function mountHistory({ followFragment, returnToFragment }) {
 					mayReturn.handoff(() => {
 						work = handler?.();
 					});
-					await work;
+					const placed = await work;
 					if (!mayReturn()) return;
-					if (!handler) {
+					if (!handler || placed === false) {
 						if (place) window.scrollTo({
 							left: place.offset[0],
 							top: place.offset[1],
@@ -1130,7 +1130,9 @@ function blocksWithoutTwin(doc, live = document.body) {
 let versionSource = () => null;
 function selfComparison() {
 	const source = versionSource()?.source;
-	if (!source) return [];
+	return source ? blocksNewSince(source) : [];
+}
+function blocksNewSince(source) {
 	const doc = document.implementation.createHTMLDocument("");
 	doc.body.replaceChildren(doc.importNode(source, true));
 	formatDeclaredMarkdown(doc);
@@ -1579,6 +1581,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		const comparedFrom = selectedBase();
 		if (comparedFrom !== null) setDiff(false);
 		const live = pageDocument();
+		const outgoing = authoredSource;
 		const carry = captureCarry(live, authoredSource);
 		const source = pageDocument(doc);
 		const arrivingWidgets = documentWidgetDigests(doc);
@@ -1667,6 +1670,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 					await restoreEditingContinuity(editingContinuity, currentIntent);
 				}
 				if (comparedFrom !== null) showComparison(comparedFrom);
+				for (const [block] of blocksNewSince(outgoing)) backgroundFlash(block, flashDuration());
 				notice(`Updated to ${target.label}`, { background: true });
 			})
 		};

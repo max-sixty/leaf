@@ -347,6 +347,15 @@
           pointer-events: auto;
         }
       }
+      /* Focus reveals the labels through the marks focus.js writes, and before upgrade
+       * nothing writes them: a label Tab reached would stay unseen, its ring on nothing.
+       * Until then the hidden labels take no focus, so Tab passes the map as it passes
+       * any picture; hovering still shows them, and the spine and markers still paint. */
+      @container style(--lf-before-upgrade: 1) {
+        :scope:is(lf-toc):not(:hover, [data-lf-outline]) .lf-toc-nav a {
+          visibility: hidden;
+        }
+      }
       /* A crowded but physically fitting map uses one line per destination before the
        * shared scale is fitted. It still reveals the complete route. */
       :scope:is(lf-toc)[data-lf-compact] :is(.lf-toc-start, li) a {

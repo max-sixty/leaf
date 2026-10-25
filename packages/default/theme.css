@@ -2377,6 +2377,11 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
           pointer-events: auto;
         }
       }
+      @container style(--lf-before-upgrade: 1) {
+        :scope:is(lf-toc):not(:hover, [data-lf-outline]) .lf-toc-nav a {
+          visibility: hidden;
+        }
+      }
       :scope:is(lf-toc)[data-lf-compact] :is(.lf-toc-start, li) a {
         max-height: 1.25em;
         font-size: var(--t-6);

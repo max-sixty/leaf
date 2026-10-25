@@ -163,23 +163,26 @@ def test_a_later_map_only_sidebar_keeps_its_flow_spacing_before_startup(browser,
         page.unroute_all(behavior="wait")
 
 
+EARLY_INTERFACE = leaf_page(
+    "Early interface",
+    '<h1 id="title">Early interface</h1>'
+    '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
+    '<p>See <a id="away" href="https://example.com/">elsewhere</a>.</p>'
+    '<lf-activity id="feed"></lf-activity>'
+    + "".join(
+        f'<section id="part-{index}"><h2>Part {index}</h2>'
+        f'<div style="height:{height}px"></div></section>'
+        for index, height in enumerate([900, 200, 120, 1600, 400])
+    ),
+)
+
+
 def test_drawn_interface_paints_before_upgrade_and_its_controls_wait(browser, serve):
     """Before any module runs, the margin map's spine and markers and an external
     link's mark paint where upgrade keeps them. A control an initial drawing draws,
     such as the activity feed's Show activity, waits for upgrade, since no module would
     answer a press on it yet."""
-    source = leaf_page(
-        "Early interface",
-        '<h1 id="title">Early interface</h1>'
-        '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
-        '<p>See <a id="away" href="https://example.com/">elsewhere</a>.</p>'
-        '<lf-activity id="feed"></lf-activity>'
-        + "".join(
-            f'<section id="part-{index}"><h2>Part {index}</h2>'
-            f'<div style="height:{height}px"></div></section>'
-            for index, height in enumerate([900, 200, 120, 1600, 400])
-        ),
-    )
+    source = EARLY_INTERFACE
     markers = """toc => [...toc.querySelectorAll('.lf-toc-start, li')].map(row =>
       row.getBoundingClientRect().top +
       (parseFloat(getComputedStyle(row).getPropertyValue('--lf-toc-row-shift')) || 0))"""
@@ -208,6 +211,85 @@ def test_drawn_interface_paints_before_upgrade_and_its_controls_wait(browser, se
         upgraded = toc.evaluate(markers)
         assert len(upgraded) == len(early) == 6
         assert upgraded == pytest.approx(early, abs=0.5)
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
+def test_a_shadow_tree_holds_its_controls_until_the_page_upgrades(browser, serve):
+    """A shadow widget's module can build its tree while another widget still loads.
+    Its controls wait for the page's upgrade, as light DOM's do, while the rest of
+    what it generated, such as the no-newline note, paints at once."""
+    source = leaf_page(
+        "Shadow controls",
+        '<lf-diff id="shadowed"><pre>\n'
+        "diff --git a/limits.py b/limits.py\n"
+        "--- a/limits.py\n+++ b/limits.py\n@@ -1,2 +1,2 @@\n"
+        " def ceiling(limit):\n-    return limit\n+    return 2 * limit\n"
+        "\\ No newline at end of file\n"
+        '</pre></lf-diff><lf-activity id="feed"></lf-activity>',
+    )
+    held = []
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.route("**/widgets/lf-activity.js*", lambda route: held.append(route))
+    shown = """() => [...document.querySelector('#shadowed').shadowRoot
+      .querySelectorAll('.lf-ui')].map(node => [
+        node.hasAttribute('data-lf-offer'),
+        node.checkVisibility({visibilityProperty: true})])"""
+    try:
+        page.goto(serve(source), wait_until="commit")
+        page.wait_for_function(
+            "() => document.querySelector('#shadowed')?.shadowRoot"
+            "?.querySelector('.lf-ui[data-lf-offer]')"
+        )
+        assert held, "the positive control did not hold the activity module"
+        expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
+        early = page.evaluate(shown)
+        assert any(offered for offered, _ in early), early
+        assert any(not offered for offered, _ in early), early
+        assert all(visible != offered for offered, visible in early), early
+
+        held.pop().continue_()
+        wait_until_ready(page)
+        assert all(visible for _, visible in page.evaluate(shown))
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_before_upgrade_lands_only_on_what_it_shows(engine, serve, request):
+    """Before upgrade, the reveals that follow focus have no runtime to draw them, so
+    Tab reaches only what already shows: each stop it lands on paints, and none is the
+    margin map's hidden labels."""
+    boot = []
+    page = request.getfixturevalue(engine).new_page(
+        viewport={"width": 1724, "height": 900}
+    )
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(EARLY_INTERFACE), wait_until="commit")
+        displayed(page)
+        page.wait_for_function("document.readyState !== 'loading'")
+        assert boot, "the positive control did not hold the boot module"
+        stops = []
+        for _ in range(12):
+            page.keyboard.press("Tab")
+            stops.append(
+                page.evaluate(
+                    """() => {
+                      const at = document.activeElement;
+                      return [at.localName + (at.id ? '#' + at.id : ''),
+                        at === document.body || at.checkVisibility({
+                          opacityProperty: true, visibilityProperty: true})];
+                    }"""
+                )
+            )
+        assert ["a#away", True] in stops, f"Tab never reached the page's link: {stops}"
+        assert all(shown for _, shown in stops), f"Tab landed on hidden stops: {stops}"
     finally:
         for route in boot:
             route.continue_()

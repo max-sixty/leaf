@@ -912,10 +912,13 @@ html[data-lf-interactive] [data-lf-arriving] {
       transition: none !important;
     }
     /* What a widget builds to be worked (`data-lf-offer`) waits for upgrade, since an
-     * initial drawing draws it before the module that answers it has run: a press there
-     * would be lost, and a native choice made there undone. The rest of the generated
-     * interface an initial drawing lays out at its final box, such as a contents map's
-     * spine or an external link's mark, paints with the authored page. */
+     * initial drawing draws it before the module that answers it has run: a press on it
+     * would be lost, and a native choice made on it undone by the upgrade. Hidden, it
+     * takes no press or focus of its own; a press can still reach it through an element
+     * that is not generated interface, as a playground choice's label checks its radio.
+     * The rest of the generated interface paints at once: a contents map's spine and
+     * markers, the mark prepaint's link pass gives an external link, and what modules
+     * build. */
     html[data-lf-interactive]
       body:not([data-lf-upgraded])
       > main

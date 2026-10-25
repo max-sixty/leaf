@@ -1204,9 +1204,10 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const face = markerFace(entry).face;
 		const count = choice?.items.length ?? 0;
 		const userContext = spokenContext(choice);
-		const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${userContext ? `, ${userContext}` : ""}`;
 		const subject = count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
-		return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
+		const own = count === 1 ? choice.items[0].label : null;
+		const said = own && !subject?.includes(own) ? `, ${own}` : "";
+		return `${`${face.label}${count > 1 ? `s (${count})` : ""}${said}${userContext ? `, ${userContext}` : ""}`}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
 	}
 	function availableRows() {
 		return [...markerRows()].filter((row) => !row.hidden && !row.closest(".lf-withheld") && row.checkVisibility({ visibilityProperty: true }));

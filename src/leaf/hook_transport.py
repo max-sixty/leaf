@@ -128,7 +128,7 @@ def restart(obligations: list[dict]) -> str:
     return (
         f"; your start on {', '.join(items)} predates this turn or the pickup of "
         "a newer update in its thread. Answer once that work is done, or, while it runs, start it "
-        'again with `leaf task start <page> <id> "<what is still running>"`'
+        'again with `leaf task start <page> <id> --text "<what is still running>"`'
     )
 
 

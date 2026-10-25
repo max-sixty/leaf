@@ -335,6 +335,14 @@ cut 4.1 to 3.2 minutes and $1.40 to $0.90 with the same page_defects findings, m
 of them Leaf's thread chrome. That judge reads layout, not whether a reader can follow
 the page, so the result prices the review rather than showing it adds nothing.
 
+Until ca736ac63 the arrangement executor pinned the author's render check to the
+fixed 1280×720 window and the browser user first opened the page in the comment
+phase, so in the width phase, where the user states a 1600×1000 window, 8 of 12 Opus
+Leaf authors hunted for a way to change the check's window (setting
+`LEAF_RENDER_VIEWPORT=1600x1000`, grepping Leaf's source). In use the check reads the
+user's window. The executor now opens the handed-over page at the run's window and
+leaves authors unpinned; earlier width-phase minutes include that hunt.
+
 The driver, analysis scripts and per-cycle log are in the campaign worktree's
 `.tmp/overnight/` (`firstturn.py`, `timing.py`, `rounds.py`, `buckets.py`,
 `toolsplit.py`, `friction.py`, `authoring-effort.md`).

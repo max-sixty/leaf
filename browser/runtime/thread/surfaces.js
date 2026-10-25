@@ -40,6 +40,7 @@ import { under } from "../shadow.js";
 import { declareSide } from "../current-target.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { signal } from "/vendor/browser-runtime.js";
+import { tick } from "../version-signal.js";
 
 const registrations = new Map();
 let claimedIds = new Set();
@@ -305,7 +306,7 @@ export function renderSurfaces(collection, placements, commands) {
         );
         if (held && !sameSet(held, registration.heldKeys)) {
           registration.heldKeys = held;
-          ownership.value += 1;
+          tick(ownership);
         }
         const anchor = activeComposition?.anchor;
         const placement =
@@ -472,7 +473,7 @@ export function renderSurfaces(collection, placements, commands) {
       }
       if (!sameSet(claimedIds, nextClaimed)) {
         claimedIds = nextClaimed;
-        ownership.value += 1;
+        tick(ownership);
       }
       prepared = null;
     } catch (error) {

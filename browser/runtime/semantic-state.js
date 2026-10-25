@@ -14,6 +14,7 @@ import {
 } from "/vendor/browser-runtime.js";
 
 import { bindQueuedWork } from "./queued-work.js";
+import { tick } from "./version-signal.js";
 
 const documentToken = Object.freeze({});
 let reportPresentationFailure = (reason) =>
@@ -241,7 +242,7 @@ export const applicationPresenter = ({
   const present = () =>
     untracked(() =>
       batch(() => {
-        revision.value += 1;
+        tick(revision);
         return claim(selected.value);
       }),
     );
@@ -276,7 +277,7 @@ export const documentChanged = () => documentChanges.value;
 /** Claim every document-wide region before native signal notifications run. */
 export const presentDocument = () =>
   batch(() => {
-    documentChanges.value += 1;
+    tick(documentChanges);
     for (const present of documentPresenters) void present();
     return schedule.passed();
   });

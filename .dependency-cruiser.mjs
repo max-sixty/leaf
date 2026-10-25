@@ -49,7 +49,7 @@ const exactClosures = {
     "thread/workflow.js",
   ],
   "projection/model.js": ["passage-facts.js"],
-  "projection/state.js": ["semantic-state.js", "queued-work.js"],
+  "projection/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
   "thread/model.js": [
     "anchor-coordinate.js",
     "thread/identity.js",
@@ -57,6 +57,7 @@ const exactClosures = {
   ],
   "thread/state.js": [
     "semantic-state.js",
+    "version-signal.js",
     "queued-work.js",
     "thread/model.js",
     "anchor-coordinate.js",
@@ -65,10 +66,11 @@ const exactClosures = {
   ],
   "thread/workflow.js": [],
   "pending/model.js": ["thread/identity.js", "event-kinds.js"],
-  "pending/state.js": ["semantic-state.js", "queued-work.js"],
+  "pending/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
   "keyboard/dispatch.js": [
     "context.js",
     "semantic-state.js",
+    "version-signal.js",
     "queued-work.js",
     "focus.js",
     "dom-move.js",

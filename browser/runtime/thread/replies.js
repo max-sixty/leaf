@@ -45,6 +45,7 @@ import { signal } from "/vendor/browser-runtime.js";
 import { move } from "../dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { TEXT_FIELD } from "../control-selectors.js";
+import { tick } from "../version-signal.js";
 
 const REPLY_COMPOSITION = Symbol("reply composition");
 const compositions = new Map(); // context -> native session, with its current owner
@@ -54,11 +55,11 @@ const compositions = new Map(); // context -> native session, with its current o
 const sessions = signal(0);
 function openSession(context, session) {
   compositions.set(context, session);
-  sessions.value += 1;
+  tick(sessions);
   return session;
 }
 function closeSession(context) {
-  if (compositions.delete(context)) sessions.value += 1;
+  if (compositions.delete(context)) tick(sessions);
 }
 const views = new Map();
 const available = (composition) =>

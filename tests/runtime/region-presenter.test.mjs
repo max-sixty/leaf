@@ -205,6 +205,42 @@ test("an unchanged intermediary still carries its upstream DOM dependencies", as
   assert.deepEqual(seen, ["projected"]);
 });
 
+test("a paint advancing a version it does not read claims no second pass", async () => {
+  // An owner's commit advances the version its readers follow, inside the paint that
+  // commits. `tick` writes without reading, so the paint is not subscribed to its own
+  // write; `x.value += 1` reads first, and claims the region again for nothing.
+  const { tick } = await import("/runtime/version-signal.js");
+  const { signal } = await import("/vendor/browser-runtime.js");
+  const paints = { ticked: 0, added: 0 };
+  const ticked = signal(0);
+  const added = signal(0);
+  const quiet = applicationPresenter({
+    region: "probe-tick",
+    reading: () => true,
+    paint: () => {
+      paints.ticked += 1;
+      tick(ticked);
+    },
+  });
+  const noisy = applicationPresenter({
+    region: "probe-added",
+    reading: () => true,
+    paint: () => {
+      paints.added += 1;
+      // Once, as an owner whose commit moved something does; `+=` would spin forever.
+      if (paints.added === 1) added.value = added.value + 1;
+    },
+  });
+  await quiet.present();
+  await noisy.present();
+  await whenApplicationPresented();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  quiet.disconnect();
+  noisy.disconnect();
+  assert.equal(paints.ticked, 1);
+  assert.equal(paints.added, 2, "reading the version first subscribes the paint");
+});
+
 test("an optimistic cyclic move cannot deadlock widget DOM before its refusal", async () => {
   const original = applicationState.read().document;
   const move = {

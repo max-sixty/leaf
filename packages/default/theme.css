@@ -2570,7 +2570,12 @@ body > main > :scope:is(lf-tabs):nth-child(1 of lf-tabs):not([list=side]) {
   z-index: 1;
   pointer-events: none;
   outline: var(--lf-obligation-ring, var(--focus-ring));
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-gap);
+}
+@container style(--lf-full-height: 1) {
+  :scope:is(lf-ask)[data-lf-obligation]::after {
+    outline-offset: calc(-1 * var(--focus-ring-w));
+  }
 }
 @media screen {
   :scope:is(lf-ask) {

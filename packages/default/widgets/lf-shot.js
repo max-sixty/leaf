@@ -44,6 +44,7 @@ import {
   once,
   offer,
   failSoft,
+  frameFor,
   placesFailure,
   focusDestination,
   showNativeLayer,
@@ -82,6 +83,7 @@ import {
   fitShotGeometry,
   applyShotGeometry,
   shotAllocation,
+  shotBox,
 } from "./shot-view.js";
 
 customElements.define(
@@ -219,8 +221,13 @@ customElements.define(
       this.#paintAlt();
       this.#fit();
       this.#paint();
+      // A fit can change the stage's own height, which follows the frames it sizes, so
+      // it runs after ResizeObserver delivery: a fit inside the delivery that asked for
+      // it resizes the box being watched, which the browser reports as undelivered
+      // notifications.
+      const fit = frameFor(this, () => this.#fit());
       whileConnected(this, () => {
-        const observer = sizeObserver(() => this.#fit());
+        const observer = sizeObserver(fit);
         observer.observe(this.#stage);
         // Pair's bound in flow is the screen's height, which the stage doesn't track.
         const refit = () => this.#fit();
@@ -433,7 +440,7 @@ customElements.define(
         !this.#comparison &&
         customElements.get("wa-comparison")
       ) {
-        const comparison = offer("wa-comparison", "lf-shotcomparison lf-media-frame");
+        const comparison = shotBox("wa-comparison", "lf-shotcomparison lf-media-frame");
         comparison.position = this.#position;
         const handle = offer("span", "lf-shot-handle");
         handle.slot = "handle";
@@ -583,10 +590,10 @@ customElements.define(
     #showPixels() {
       this.#view = "pixels";
       if (!this.#pixelsView) {
-        const view = offer("div", "lf-shotpixels lf-shotimage lf-media-frame");
+        const view = shotBox("div", "lf-shotpixels lf-shotimage lf-media-frame");
         view.role = "img";
         view.ariaLabel = `changed pixels: ${this.getAttribute("alt")}`;
-        const plane = offer("div", "lf-shotplane");
+        const plane = shotBox("div", "lf-shotplane");
         const ground = document.createElement("img");
         ground.alt = "";
         ground.src = this.#shots[1].src;

@@ -139,6 +139,12 @@
     gap: 0;
   }
 }
+.lf-shotstage,
+.lf-shotstage *,
+.lf-shotstage *::before,
+.lf-shotstage *::after {
+  box-sizing: border-box;
+}
 .lf-shotstage {
   --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));
   padding: var(--lf-shot-frame-room);
@@ -375,9 +381,7 @@
     block-size: auto;
     overflow: visible;
   }
-  .lf-shot-toolbar,
-  .lf-shotpixels,
-  .lf-shotdiff {
+  .lf-shotpixels {
     display: none !important;
   }
   .lf-shotstage {
@@ -387,12 +391,12 @@
   .lf-shotcanvas,
   .lf-shotcomparison,
   .lf-shotframe,
+  :scope:is(lf-shot)[data-lf-shot-mode=pixels] .lf-shotframe,
   .lf-shot-frame-label,
-  .lf-shotcap,
   .lf-shotviewport,
   .lf-shotimage,
   .lf-shotplane {
-    display: block !important;
+    display: block;
     inline-size: 100% !important;
     block-size: auto !important;
     visibility: visible !important;

@@ -850,6 +850,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     narrow = page.evaluate(top_line)
     page.keyboard.press("d")
     page.wait_for_function(f"() => ({top_line})() > {narrow + 4}")
+    # The place is recorded once the scroll rests, so the read and the resize wait
+    # for that rather than landing mid-scroll.
+    scroll_settled(page)
+    rendered(page)
     read_on = page.evaluate(top_line)
     resized(page, 1280, 720)
     rendered(page)

@@ -1938,15 +1938,26 @@ html[data-lf-draw-mode] main {
   }
 }
 :root {
-  --lf-code-copy-inset: 4px;
+  --lf-mark-bar-end: 8px;
+}
+.lf-mark-bar,
+.lf-code-copy {
+  box-sizing: border-box;
+  display: flex;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  box-shadow: var(--raise-1);
 }
 .lf-code-copy {
   --lf-code-copy-size: var(--lf-line);
   position: absolute;
-  top: calc(anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-block-control-dy, 0px));
-  left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) + var(--lf-block-control-dx, 0px));
-  width: var(--lf-code-copy-size);
-  height: var(--lf-code-copy-size);
+  top: calc(anchor(top, -9999px) - (var(--lf-code-copy-size) + 4px) / 2 + var(--lf-block-control-dy, 0px));
+  left: calc(anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-code-copy-size) - 4px + var(--lf-block-control-dx, 0px));
+  width: calc(var(--lf-code-copy-size) + 4px);
+  height: calc(var(--lf-code-copy-size) + 4px);
   z-index: 1;
   white-space: normal;
   font-size: 0;
@@ -1974,20 +1985,27 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
+.lf-mark-bar > .lf-code-copy {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+}
 .lf-code-copy::part(button) {
   position: relative;
+  box-sizing: border-box;
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
   padding: min(6px, max(1px, (var(--lf-code-copy-size) - var(--t-5) - 2px) / 2));
-  border: 1px solid var(--code-border);
-  border-radius: var(--r);
-  background: var(--pre-bg);
-  color: var(--muted);
   display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: min(var(--t-5), calc(var(--lf-code-copy-size) - 4px));
-}
-.lf-code-copy::part(button):hover {
-  color: var(--ink);
 }
 .lf-code-copy::part(button)::after {
   content: "";

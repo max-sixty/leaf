@@ -258,6 +258,52 @@ def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve)
     expect(page.get_by_role("slider", name="Threshold")).to_have_value("5")
 
 
+@pytest.mark.parametrize("width, height", [(390, 844), (1600, 1000)])
+def test_inline_playground_is_read_in_the_order_it_is_drawn(
+    browser, serve, width, height
+):
+    """With every control on the stage, the presets drawn above the stage on a phone,
+    and at the head of the rail's column beside it on a desktop, come first in reading
+    order: Tab reaches the starting point, then the stage's controls, then the
+    instruction's actions."""
+    source = leaf_page(
+        "Inline playground order",
+        """<h1>Tune alert policy</h1>
+<lf-playground id="policy" data-width="available">
+  <lf-playground-preset label="Strict">
+    <lf-playground-setting for="threshold" value="2"></lf-playground-setting>
+  </lf-playground-preset>
+  <lf-playground-preview>
+    <p>Two minutes pages on every blip; nine misses the incident.</p>
+    <lf-playground-control name="threshold" label="Threshold" kind="range"
+      value="5" min="1" max="10"></lf-playground-control>
+  </lf-playground-preview>
+  <lf-playground-output>Use a <lf-playground-value for="threshold"></lf-playground-value> minute threshold.</lf-playground-output>
+</lf-playground>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, width, height)
+    playground = page.locator("#policy")
+    preset = playground.get_by_role("button", name="Strict", exact=True)
+    slider = playground.get_by_role("slider", name="Threshold")
+    reset = playground.get_by_role("button", name="Reset", exact=True)
+    if width < 700:
+        assert preset.bounding_box()["y"] < slider.bounding_box()["y"]
+    else:
+        assert preset.bounding_box()["x"] > slider.bounding_box()["x"]
+    preset.focus()
+    page.keyboard.press("Tab")
+    expect(slider).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(preset).to_be_focused()
+    slider.focus()
+    for _ in range(3):
+        page.keyboard.press("Tab")
+        if reset.evaluate("node => node === document.activeElement"):
+            break
+    expect(reset).to_be_focused()
+
+
 def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     browser, serve
 ):

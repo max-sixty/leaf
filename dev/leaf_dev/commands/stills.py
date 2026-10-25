@@ -1710,6 +1710,7 @@ STATES = (
     State("playground-controls", "notification-playground", playground_controls),
     State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
     State("playground-short-window", "data-explorer", page_end, viewport=(844, 390)),
+    State("playground-inline-stage", "motion-playground", at_rest),
     State(
         "playground-controls-phone",
         "notification-playground",

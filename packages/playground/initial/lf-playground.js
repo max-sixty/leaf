@@ -312,18 +312,16 @@ function render(host, { tabStore, offer, generatedElement, keeps }) {
     const previewBody = node("div", "lf-playground-preview-body");
     previewBody.append(preview);
     const split = node("div", "lf-playground-split");
-    // The rail's controls pane holds the controls written there and the presets, or the
-    // presets alone when every control stands in the preview; a playground with neither
+    // The rail's controls pane holds the controls written there and the presets; a
+    // playground whose every control stands in its preview and that offers no preset
     // has none. The rail is the Layout's track (`data-lf-track`, layouts.css) wherever
     // the theme stands it beside the stage, so it scrolls as a region of its own.
+    if (!railed.length && presetBar)
+      split.append(pane("controls", "Controls", null, presetBar));
     const rail = node("div", "lf-playground-rail");
     rail.dataset.lfTrack = "";
     rail.append(
-      ...(railed.length
-        ? [pane("controls", "Controls", presetBar, panel)]
-        : presetBar
-          ? [pane("controls", "Controls", null, presetBar)]
-          : []),
+      ...(railed.length ? [pane("controls", "Controls", presetBar, panel)] : []),
       pane(
         "instruction",
         "Instruction to agent",

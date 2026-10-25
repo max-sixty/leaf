@@ -22,8 +22,8 @@ Choose the playground's space by what the user needs to see and operate together
 break out of a reading column; a workspace gives it the window. A long comparison can
 flow down the page. On wide layouts the rail stands beside the preview and stays in view
 while it scrolls, holding the shared controls and presets above the instruction and its
-actions; with every control in the preview, it holds only the presets and the
-instruction and takes a quarter of the width. On narrow layouts shared controls and
+actions. With every control in the preview, the rail takes a quarter of the width and
+holds the instruction, under the presets. On narrow layouts shared controls and
 presets stand above the preview, where their own contents scroll if needed to leave
 room for the candidates, and the instruction below it. Controls authored beside an
 individual candidate stay beside it.

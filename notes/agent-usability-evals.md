@@ -311,12 +311,17 @@ sticky right sidebar beside all six alerts, and both pair judges in the earlier 
 credited that.
 
 **Change.** `packages/playground`: the rail stands beside the stage at 43.5rem and
-wider whatever it holds. With every control in the preview, the rail holds the presets
-and the instruction, takes `minmax(16rem, 25%)` rather than a third, and sticks in view
-as the shared-controls rail already did. In a workspace the instruction pane's body
-scrolls under fixed actions when the rail is too short for it. Below 43.5rem nothing
-changes, and neither does a playground with shared controls (`leaf-dev stills` on the
-six playground states: 6 of 6 unchanged; a 390px phone renders identically).
+wider whatever it holds. With every control in the preview, the rail holds the
+instruction, takes `minmax(16rem, 25%)` rather than a third, and sticks in view as the
+shared-controls rail already did. The presets keep their place before the stage in
+reading order and head the rail's column, above the instruction, so Tab reaches them
+first at every width. In a workspace the instruction pane's body scrolls under fixed
+actions when the rail is too short for it. Below 43.5rem nothing changes, and neither
+does a playground with shared controls (`leaf-dev stills` on the six playground
+states: 6 of 6 unchanged; a 390px phone renders identically). The shipped
+`motion-playground` example, whose every control is in its preview, now has its own
+stills state: at 1440×900 its recordings narrow by 30% and Send moves from below the
+fold into view.
 
 **Saved sources against both runtimes.** `leaf-dev probe --base` served each sample's
 before-decision page (phase 3) on both runtimes, and `.tmp/grind/measure.py` counted

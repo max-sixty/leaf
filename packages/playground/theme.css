@@ -2,8 +2,7 @@
  * real preview is the stage and owns the larger field, and the controls that change all
  * of it stand above the instruction they write, with its actions, in a rail beside it. A
  * control written inside the preview stands there, beside the item it changes, and the
- * rail then holds only what is left: the presets and the instruction, with all controls
- * inline. Its regions are up to three generated panes
+ * rail then holds only what is left. Its regions are up to three generated panes
  * (data-lf-reading-role="pane", the kernel's theme.css), whose bodies scroll where a
  * workspace Layout fills the window (layouts.css); here the playground only places the
  * panes and draws them.
@@ -32,19 +31,23 @@
 }
 
 /* The preview takes two thirds and the rail the third beside it: the shared controls at
- * their content's height and the instruction with its actions under them. When every
- * control stands on the stage, beside the item it sets, the stage needs the width and
- * the rail holds only the presets and the instruction, so the rail takes a quarter, and
- * no less than 16rem. The rail is the Layout's track (`data-lf-track`, layouts.css),
- * which keeps it in view while a stage taller than the window scrolls past, bounded to
- * the window and scrolling what it holds, so the instruction and its actions stay beside
- * every item the user sets. Until 2026-10-24 an all-inline playground stacked its
- * instruction under the stage at every width: the instruction stood a whole stage away
- * from the first items, and in a workspace the two took the window's height from each
- * other (notes/agent-usability-evals.md, "Playground rail beside an inline stage").
+ * their content's height and the instruction with its actions under them. The rail is
+ * the Layout's track (`data-lf-track`, layouts.css), which keeps it in view while a stage
+ * taller than the window scrolls past, bounded to the window and scrolling what it holds.
+ *
+ * When every control stands on the stage, beside the item it sets, the stage needs the
+ * width, so the rail takes a quarter, no less than 16rem, and holds only the instruction
+ * and its actions, which stay beside every item the user sets. The presets, a pane of
+ * their own before the stage in reading order, head the rail's column above it and
+ * scroll away with the page. Until 2026-10-24 such a playground stacked its instruction
+ * under the stage at every width: the instruction stood a whole stage away from the first
+ * items, and in a workspace the two took the window's height from each other
+ * (notes/agent-usability-evals.md, "Playground rail beside an inline stage").
+ *
  * Narrower than 43.5rem, a document's column included, a rail would be too narrow for
- * what it holds, so its panes stack: controls or presets, stage, instruction. Shared
- * controls stay above the scrolling stage, leaving at least half the window for it. */
+ * what it holds, so the panes stack: shared controls or presets, stage, instruction.
+ * Shared controls stay above the scrolling stage, leaving at least half the window for
+ * it. */
 .lf-playground-split {
   display: grid;
   gap: var(--sp-4);
@@ -101,8 +104,28 @@
     grid-template-columns: minmax(0, 1fr) minmax(16rem, 25%);
     --lf-track-scroll-behavior: inherit;
   }
-  .lf-playground-split:has(> .lf-playground-rail .lf-playground-controls) {
+  .lf-playground-split:has(> .lf-playground-rail > .lf-playground-controls-region) {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+
+  /* Presets with no controls beside them head the rail's column, and the stage spans
+   * both rows beside them and the rail. */
+  .lf-playground-split:has(> .lf-playground-controls-region) {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .lf-playground-split > .lf-playground-controls-region {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+  }
+  .lf-playground-split:has(> .lf-playground-controls-region)
+    > .lf-playground-preview-region {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .lf-playground-split:has(> .lf-playground-controls-region) > .lf-playground-rail {
+    grid-column: 2;
+    grid-row: 2;
   }
 
   .lf-playground-rail {
@@ -117,13 +140,13 @@
 /* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
  * the playground, its split and its rail take that height. Beside the stage, the rail's
  * shared controls give up height and scroll while the instruction and its actions stay
- * whole under them. Presets alone keep their height, and the instruction under them
- * takes its own, down to what the rail leaves it, where its body scrolls and its actions
- * stay in view, so it is the only box that scrolls. Stacked with all controls inline,
- * the stage is what the reader came to set, so it keeps at least half the window and the
- * instruction keeps its whole height below it: where both don't fit, the workspace
- * scrolls to the instruction and its actions rather than squeezing the stage (the user's
- * decision, 2026-10-22, which reversed an earlier 12rem stage floor). */
+ * whole under them. A rail holding only the instruction takes its height, down to what
+ * the rail leaves it, where its body scrolls and its actions stay in view, so it is the
+ * only box that scrolls. Stacked with all controls inline, the stage is what the reader
+ * came to set, so it keeps at least half the window and the instruction keeps its whole
+ * height below it: where both don't fit, the workspace scrolls to the instruction and
+ * its actions rather than squeezing the stage (the user's decision, 2026-10-22, which
+ * reversed an earlier 12rem stage floor). */
 @media screen {
   @container style(--lf-full-height: 1) {
     /* Each box passes the height on, so the panes in the split are told they have one
@@ -142,14 +165,17 @@
     @container (width < 43.5rem) {
       /* The instruction takes its content's height (`max-content`), since a box that
        * scrolled inside the scrolling workspace would hide its end behind two scrolls. */
-      .lf-playground-split:not(:has(.lf-playground-controls-region)) {
+      .lf-playground-split:not(
+        :has(
+          > .lf-playground-controls-region,
+          > .lf-playground-rail > .lf-playground-controls-region
+        )
+      ) {
         grid-template-rows: minmax(max(12rem, 50dvh), 1fr) max-content;
       }
 
       /* A presets pane with no controls beside it heads the stage. */
-      .lf-playground-split:has(.lf-playground-controls-region):not(
-          :has(> .lf-playground-rail .lf-playground-controls)
-        ) {
+      .lf-playground-split:has(> .lf-playground-controls-region) {
         grid-template-rows:
           minmax(min-content, auto) minmax(max(12rem, 50dvh), 1fr)
           max-content;
@@ -162,9 +188,6 @@
         grid-template-rows: minmax(0, max-content);
       }
       .lf-playground-rail:has(> .lf-playground-controls-region) {
-        grid-template-rows: max-content minmax(0, max-content);
-      }
-      .lf-playground-rail:has(.lf-playground-controls) {
         grid-template-rows: minmax(12rem, 1fr) auto;
       }
     }

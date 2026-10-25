@@ -261,10 +261,12 @@ Undo choice`;
       const previewBody = node("div", "lf-playground-preview-body");
       previewBody.append(preview);
       const split = node("div", "lf-playground-split");
+      if (!railed.length && presetBar)
+        split.append(pane("controls", "Controls", null, presetBar));
       const rail = node("div", "lf-playground-rail");
       rail.dataset.lfTrack = "";
       rail.append(
-        ...railed.length ? [pane("controls", "Controls", presetBar, panel)] : presetBar ? [pane("controls", "Controls", null, presetBar)] : [],
+        ...railed.length ? [pane("controls", "Controls", presetBar, panel)] : [],
         pane(
           "instruction",
           "Instruction to agent",

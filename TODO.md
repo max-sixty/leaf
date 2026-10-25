@@ -71,17 +71,15 @@ has tried; settle that before building it.
   went. Every follow-up the user named has landed, so the item waits on the user's
   review of the desktop design. The phone waits until the desktop design is firm, and
   where a passage thread opens from Threads waits until later.
-- **Say when a held-news notice holds more than it shows.** A notice in a seat's
-  head row keeps the width of the news it first said (`data-room`) and shows each
-  fact whole or not at all (`newsNotice`), so "1 new reply" with a message arriving
-  after it still reads "1 new reply", with nothing on screen saying more waits; the
-  title that names every fact doesn't reach touch. A count growing past that room
-  ("1 new reply", then "2 new replies") still cuts at its end ("2 new repl…"). The
-  notice stands absolutely over the free head row, so its room could be the whole
+- **Keep a held-news count whole as it grows.** A notice in a seat's head row keeps
+  the width of the news it first said (`data-room`); facts that no longer fit drop
+  whole and show as "+N" (`data-lf-more`, #3459). A single count growing past that
+  room ("1 new reply", then "2 new replies") still cuts at its end ("2 new repl…").
+  The notice stands absolutely over the free head row, so its room could be the whole
   slot up to the visible end (`thread-card.js`, `#retainHeaderSlot`), if a notice
-  wider than its words under the pointer is acceptable; a "+1" for dropped facts is
-  the other route. In a margin card the notice takes its width from the heads'
-  track, and a wide one moved the head's time sideways in CI (PR #3250's first run).
+  wider than its words under the pointer is acceptable. In a margin card the notice
+  takes its width from the heads' track, and a wide one moved the head's time
+  sideways in CI (PR #3250's first run).
 - **Stop moving live content between parents.** A thread summary hides the messages
   it covers in place, so a frame keeps its document and a selection stays.
   Four places still move live nodes, which reloads a frame in WebKit (no
@@ -96,7 +94,12 @@ has tried; settle that before building it.
 - **A summary's fold button ignores a press while words are selected.** With text
   selected in a thread message, pressing "Show/Hide N earlier messages" does nothing,
   even twice; Enter works. Reproduced in Chromium with a selection set by script,
-  before the flat transcript too.
+  before the flat transcript too. The capture-phase click guard in
+  `widget-elements.js` (`reachedForWords`) finds the card through
+  `closest("[data-lf-offer]")`, which also matches the empty `data-lf-offer` every
+  thread card and message wears, so it swallows a click on any button in a thread
+  while words in it are selected; `PRESSABLE` already excludes the empty value. The
+  summary test presses Enter, so it never caught this.
 
 ### Agent and author experience
 

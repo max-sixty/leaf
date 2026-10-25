@@ -338,6 +338,13 @@ defects the author owned beside the thread chrome's. That judge reads layout and
 supplied facts, not whether a reader can follow the argument, so the result prices
 the review rather than showing it adds nothing.
 
+The configuration anchor, restated with same-night HTML controls: Opus Leaf took 9.6
+minutes at main (n=5) and 8.1 at the branch with the harness fix below (n=5), against
+HTML's 7.3 (n=5); Sol Leaf took 7.8 at main (n=6) and 7.6 at the branch (n=8), against
+HTML's 7.1 (n=3), with Leaf's first turns now shorter than HTML's (2.7 against 3.5).
+The 2026-10-21 gap (10.3 against 5.5 on Sol) had mostly closed on main before this
+campaign.
+
 Until ca736ac63 the arrangement executor pinned the author's render check to the
 fixed 1280×720 window and the browser user first opened the page in the comment
 phase, so in the width phase, where the user states a 1600×1000 window, 8 of 12 Opus

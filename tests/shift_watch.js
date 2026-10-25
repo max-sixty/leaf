@@ -2346,8 +2346,37 @@
         }
       : null;
   };
-  const inFlow = (element) => {
+  // A reading kept for the task that takes it. Each moved box a credit is weighed for
+  // asks the same questions of the same animations and ancestors, and nothing the watch
+  // does in one task restyles the page or edits an effect, so an answer read once holds
+  // until the task ends.
+  const endOfTask = window.lfWatchPlatform.microtask;
+  const forTask = (read) => {
+    let kept = null;
+    return (key) => {
+      if (!kept) {
+        kept = new Map();
+        endOfTask(() => {
+          kept = null;
+        });
+      }
+      if (!kept.has(key)) kept.set(key, read(key));
+      return kept.get(key);
+    };
+  };
+  // The computed values the layout path reads.
+  const flowStyle = forTask((element) => {
     const style = getComputedStyle(element);
+    return {
+      display: style.display,
+      position: style.position,
+      float: style.float,
+      writingMode: style.writingMode,
+    };
+  });
+  const effectProperties = forTask(animationProperties);
+  const inFlow = (element) => {
+    const style = flowStyle(element);
     return !["absolute", "fixed"].includes(style.position) && style.float === "none";
   };
   // The box a box's layout places it in: the rendered parent, past any that generates
@@ -2356,18 +2385,43 @@
   // host, as a resolved thread folding in a diff carries the paragraphs below the diff.
   const boxParent = (element) => {
     let parent = up(element);
-    while (parent && getComputedStyle(parent).display === "contents")
-      parent = up(parent);
+    while (parent && flowStyle(parent).display === "contents") parent = up(parent);
     return parent;
   };
-  const boxUnder = (node, ancestor) => {
-    for (let at = node; at; at = boxParent(at)) if (at === ancestor) return true;
+  // Whether `element` may follow `target` in the page as rendered, read from each
+  // node's tree and its hosts alone, without a style or layout read: it runs ahead of
+  // those for every pair of a size change and a moved box. The two climb their hosts to
+  // a shared tree, which orders them; a box inside a later host follows. It is a filter,
+  // not the decision: `sizeReaches` still walks the layout path, which can still refuse.
+  const hosts = (node) => {
+    const chain = [node];
+    for (let host = node.getRootNode().host; host; host = host.getRootNode().host)
+      chain.push(host);
+    return chain;
+  };
+  const mayFollow = (target, element) => {
+    const from = hosts(target);
+    for (const at of hosts(element)) {
+      const root = at.getRootNode();
+      const shared = from.find((node) => node.getRootNode() === root);
+      if (shared)
+        return (
+          shared !== at &&
+          !!(shared.compareDocumentPosition(at) & Node.DOCUMENT_POSITION_FOLLOWING)
+        );
+    }
     return false;
   };
   const sizeReaches = (target, element, from, to, axis, change) => {
     const size = axis === "top" ? "height" : "width";
+    // The moved box's own path, read once: the branch climb asks at each step whether
+    // it has reached a box holding it, and the follower is the box on that path just
+    // under the flow they share.
+    const path = [];
+    for (let at = element; at; at = boxParent(at)) path.push(at);
+    const holding = new Set(path);
     let branch = target;
-    while (boxParent(branch) && !boxUnder(element, boxParent(branch))) {
+    while (boxParent(branch) && !holding.has(boxParent(branch))) {
       if (!inFlow(branch)) return false;
       branch = boxParent(branch);
       const before = boxAt(branch, from),
@@ -2381,30 +2435,34 @@
     // containing block: its nearest positioned ancestor or a box nearer still, such as
     // a transformed one. So an absolute box is carried only where a positioned box
     // between it and the follower holds it, as a diff line holds its comment button.
-    let follower = element,
-      placed = true;
-    while (boxParent(follower) !== flow) {
-      const style = getComputedStyle(follower);
+    const reach = path.indexOf(flow);
+    if (reach < 1) return false;
+    const follower = path[reach - 1];
+    let placed = true;
+    for (const box of path.slice(0, reach - 1)) {
+      const style = flowStyle(box);
       if (style.position === "fixed" || style.float !== "none") return false;
       if (style.position === "absolute") placed = false;
-      follower = boxParent(follower);
-      if (!follower) return false;
-      if (getComputedStyle(follower).position !== "static") placed = true;
+      else if (!placed && style.position !== "static") placed = true;
     }
-    if (!placed) return false;
+    if (!placed && flowStyle(follower).position === "static") return false;
     // Block-level children stack vertically in a horizontal-writing block flow.
     // A block container can also hold inline siblings, whose height does not carry
     // the next sibling down; flex, grid, and vertical writing have other axes.
     if (
       axis !== "top" ||
-      !["block", "flow-root"].includes(getComputedStyle(flow).display) ||
-      getComputedStyle(flow).writingMode !== "horizontal-tb" ||
-      !["block", "flow-root"].includes(getComputedStyle(branch).display) ||
-      !["block", "flow-root"].includes(getComputedStyle(follower).display)
+      !["block", "flow-root"].includes(flowStyle(flow).display) ||
+      flowStyle(flow).writingMode !== "horizontal-tb" ||
+      !["block", "flow-root"].includes(flowStyle(branch).display) ||
+      !["block", "flow-root"].includes(flowStyle(follower).display)
     )
       return false;
-    // Two boxes in one flow can stand in different trees, as a slotted node beside its
-    // slot's shadow siblings, where the DOM gives no order; those are not credited.
+    // The two are ordered by the DOM of the tree they share. Two boxes in one flow can
+    // stand in different trees, as a slotted node beside its slot's shadow siblings,
+    // where the DOM gives no order; those are not credited. Known limit: within one
+    // tree, named slots can render a host's children in another order than the DOM's,
+    // so a scripted move of a child the DOM puts after the size change but a slot
+    // renders before it is credited.
     return (
       inFlow(follower) &&
       branch !== follower &&
@@ -2417,6 +2475,7 @@
     const motion = { left: 0, top: 0, terms: [] };
     if (!element) return motion;
     for (const details of nativeClosures.keys()) {
+      if (!mayFollow(details, element)) continue;
       const before = boxAt(details, from),
         after = boxAt(details, to),
         first = layoutAt(element, from),
@@ -2441,10 +2500,13 @@
       if (!target) continue;
       if (!ancestryAt(element, to).includes(target)) {
         // A size animation can move boxes later in its flow. The size change
-        // must propagate through its ancestors to a following in-flow branch
-        // (`sizeReaches`, which also orders the two).
-        const properties = animationProperties(animation);
-        if (!properties.some((property) => SIZE_GEOMETRY.has(property))) continue;
+        // must propagate through its ancestors to a following in-flow branch.
+        const properties = effectProperties(animation);
+        if (
+          !properties.some((property) => SIZE_GEOMETRY.has(property)) ||
+          !mayFollow(target, element)
+        )
+          continue;
         const before = boxAt(target, from),
           after = boxAt(target, to);
         const first = layoutAt(element, from),
@@ -2481,7 +2543,7 @@
       const after = readings?.findLast((reading) => reading.at <= to);
       if (!before || !after) continue;
       const properties = seen.get(target) ?? new Set();
-      for (const property of animationProperties(animation)) {
+      for (const property of effectProperties(animation)) {
         if (properties.has(property)) continue;
         properties.add(property);
         if (!(property in before.values) || !(property in after.values)) continue;

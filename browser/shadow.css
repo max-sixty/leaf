@@ -845,7 +845,7 @@ leaf-text.lf-fab-input,
   --lf-measure: var(--col);
 }
 .lf-msg:where(.user) {
-  --lf-msg-text-end: calc(var(--lf-compose-send-end) + 1px);
+  --lf-msg-text-end: var(--lf-thread-text-inset);
 }
 .lf-msg-text {
   display: block;
@@ -1419,7 +1419,6 @@ svg[data-lf-icon] {
   --lf-icon-action-face: 28px;
   --lf-compose-action-inset: 6px;
 }
-:root,
 .lf-compose-field {
   --lf-compose-send-end: calc( var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset) );
 }
@@ -1755,13 +1754,12 @@ button.lf-media-open {
 }
 .lf-msg-editor > .lf-compose-field {
   --lf-compose-pad-block: calc( (var(--lf-response-height, var(--lf-line)) - 2px - 1lh) / 2 );
-  --lf-msg-edit-past-end: max( var(--lf-thread-text-inset) - var(--lf-msg-text-end, 0px), 0px );
-  margin-inline: calc(-1 * var(--lf-thread-text-inset)) calc(-1 * var(--lf-msg-edit-past-end));
+  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   margin-block: calc(var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px);
 }
 .lf-msg-editor > .lf-compose-field > leaf-text {
   min-height: 0;
-  padding-inline-end: calc(var(--lf-msg-text-end, 0px) + var(--lf-msg-edit-past-end) - 1px);
+  padding-inline-end: calc(var(--lf-msg-text-end) - 1px);
 }
 .lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
   margin-block-end: calc(-1 * var(--lf-compose-pad-block) - 1px);
@@ -1770,7 +1768,7 @@ button.lf-media-open {
   padding-block-end: var(--lf-thread-text-pad-block, 0px);
 }
 .lf-msg-editor > .lf-compose-field > .lf-msg-media {
-  margin-inline: calc(var(--lf-thread-text-inset) - 1px) calc(var(--lf-msg-edit-past-end) - 1px);
+  margin-inline: calc(var(--lf-thread-text-inset) - 1px) -1px;
   padding-block-end: var(--lf-compose-pad-block);
 }
 .lf-msg-edit-foot {

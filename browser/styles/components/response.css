@@ -12,9 +12,7 @@
   --lf-compose-action-inset: 6px;
 }
 /* How far in from a field's frame the words of a field holding Send stop: Send's hit
-   box with the action inset on either side of it. A user's message written in such a
-   field keeps the same end (reading.css, `--lf-msg-text-end`). */
-:root,
+   box with the action inset on either side of it. */
 .lf-compose-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
@@ -439,13 +437,12 @@ button.lf-media-open {
    AGENTS.md, "Editing in place"): every line of its words keeps its place and its
    breaks, its pictures stand under them as the message draws them (`sentMedia`,
    input.js), and the field's frame goes around both, in the room around the message's
-   content. The frame reaches back over the words' inset, and past their column's end
-   (`--lf-msg-text-end`) to the message's edge, or by the inset where the words keep
-   less room than that; and past their first line and last line or picture by
-   its padding and frame, a comment box line's (`--lf-response-height`), less the room
-   those lines already keep (`--lf-thread-text-pad-block`, as a margin card's do). So
-   opening it adds nothing to the message's height. Discard and Save stand at the
-   message's head (`.lf-msg-edit-actions`). Rejected by the user on 2026-10-22: the
+   content. The frame reaches back over the words' inset, and over the room after their
+   column's end (`--lf-msg-text-end`) to the message's edge; and past their first line
+   and last line or picture by its padding and frame, a comment box line's
+   (`--lf-response-height`), less the room those lines already keep
+   (`--lf-thread-text-pad-block`, as a margin card's do). So opening it adds nothing to
+   the message's height. Discard and Save stand at the message's head (`.lf-msg-edit-actions`). Rejected by the user on 2026-10-22: the
    reply box's own field, its padding inside the words' box, under a draft's cropped
    shelf of the pictures, which moved and rewrapped the words. */
 .lf-msg-editor {
@@ -462,21 +459,14 @@ button.lf-media-open {
   --lf-compose-pad-block: calc(
     (var(--lf-response-height, var(--lf-line)) - 2px - 1lh) / 2
   );
-  --lf-msg-edit-past-end: max(
-    var(--lf-thread-text-inset) - var(--lf-msg-text-end, 0px),
-    0px
-  );
-  margin-inline: calc(-1 * var(--lf-thread-text-inset))
-    calc(-1 * var(--lf-msg-edit-past-end));
+  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   margin-block: calc(
     var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px
   );
 }
 .lf-msg-editor > .lf-compose-field > leaf-text {
   min-height: 0;
-  padding-inline-end: calc(
-    var(--lf-msg-text-end, 0px) + var(--lf-msg-edit-past-end) - 1px
-  );
+  padding-inline-end: calc(var(--lf-msg-text-end) - 1px);
 }
 .lf-msg-editor > .lf-compose-field:has(> .lf-msg-media:not([hidden])) {
   margin-block-end: calc(-1 * var(--lf-compose-pad-block) - 1px);
@@ -485,8 +475,7 @@ button.lf-media-open {
   padding-block-end: var(--lf-thread-text-pad-block, 0px);
 }
 .lf-msg-editor > .lf-compose-field > .lf-msg-media {
-  margin-inline: calc(var(--lf-thread-text-inset) - 1px)
-    calc(var(--lf-msg-edit-past-end) - 1px);
+  margin-inline: calc(var(--lf-thread-text-inset) - 1px) -1px;
   padding-block-end: var(--lf-compose-pad-block);
 }
 /* Its foot stands for its last line, whose height a reveal clears above it. */

@@ -619,7 +619,7 @@ def test_shared_native_page_owner_survives_held_memory_and_closes_on_eviction(
             lambda _paths: WatchfilesRustInternalError(
                 "Error creating recommended watcher: Too many open files (os error 24)"
             ),
-            "fs.inotify.max_user_instances",
+            "fs.inotify.max_user_instances or RLIMIT_NOFILE",
         ),
         (
             lambda paths: OSError(

@@ -12,8 +12,8 @@ page's subscription accepts exactly the inputs its reading stamps
 The kernel's inotify limits are per user and shared with every program the user
 runs, so Leaf can't count on a native watcher however few it holds. When the
 kernel refuses one because a limit ran out, that subscription polls instead and
-names the limit in a note, so the process notices changes later rather than
-exiting.
+names the limit its refusal points to in a note, so the process notices changes
+later rather than exiting.
 """
 
 import errno
@@ -186,12 +186,14 @@ class FileChanges:
 
 
 # What watchfiles 1.3.0 (on notify 8) says when the kernel refuses a native watcher
-# because a per-user limit ran out, and the limit each names. It raises
+# because a limit ran out, and the limits each can mean. It raises
 # `WatchfilesRustInternalError` when the inotify instance can't be created (EMFILE)
 # and a bare `OSError` when a watch can't be added (ENOSPC, which notify renames).
-# Neither carries an errno, so these words are all a reader has.
+# Neither carries an errno, so these words are all a reader has. inotify_init gives
+# EMFILE for the per-user instance limit and the process's open-file limit alike,
+# so that refusal names both.
 _LIMITS = {
-    f"(os error {errno.EMFILE})": "fs.inotify.max_user_instances",
+    f"(os error {errno.EMFILE})": "fs.inotify.max_user_instances or RLIMIT_NOFILE",
     "OS file watch limit reached": "fs.inotify.max_user_watches",
 }
 

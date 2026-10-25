@@ -228,7 +228,7 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
     page and in no thread at all. Reading the widget alone left the gesture
     that closes a thread as the one gesture arriving with nothing behind it.
 
-    A `report` carries a widget too and belongs to no thread: `cmd_report`
+    A `report` carries a widget too and belongs to no thread: `reports.cmd_report`
     validates its target against the active revision's own elements, so one
     can never name a widget an agent sent."""
     kind = event["kind"]

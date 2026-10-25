@@ -1054,39 +1054,3 @@ def cmd_resolve(page_dir: Path, parent: str) -> dict:
             "parent": parent,
         }
         return append_admitted(page, event)[0]
-
-
-@contract_writer
-def cmd_report(
-    page_dir: Path,
-    widget: str,
-    verb: str,
-    fields: tuple,
-) -> dict:
-    """A worker's provisional news: a declared state change folded onto a page
-    widget, admitted the way the append door admits a user's action,
-    stamped with the posting session's voice, and made against the active revision —
-    the page the user is looking at. The runtime paints it live; it stands until
-    a stamped revision absorbs or overrules it by id (see `page stamp`), and the
-    page's watcher wakes to fold it in. Field values
-    are strings — the declared detail schemas for reports speak in attribute
-    values, which is all a report may move."""
-    from leaf.revisioning import activate_source
-
-    detail = {}
-    for field in fields:
-        name, eq, value = field.partition("=")
-        if not eq or not name:
-            raise Rejected([Finding("detail-field", values={"field": field})])
-        detail[name] = value
-    with PageTransaction(page_dir) as page:
-        activate_source(page_dir, transaction=page)
-        event = {
-            "kind": "report",
-            "author": "agent",
-            "widget": widget,
-            "action": verb,
-            "detail": detail,
-            "revision": require_revision(page_dir),
-        }
-        return append_admitted(page, event)[0]

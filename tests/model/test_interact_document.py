@@ -68,6 +68,7 @@ from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
+from leaf import reports as reports_model
 from leaf import revision_artifact as artifact_model
 from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
@@ -2057,7 +2058,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/attempt")
 
     with pytest.raises(Refused) as unknown_widget:
-        thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
+        reports_model.cmd_report(page_dir, "no-such-widget", "status", ())
     assert refused_on(unknown_widget.value).values == {
         "kind": "report",
         "widget": "no-such-widget",
@@ -2450,7 +2451,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
         )
         serialized = leases_model.lock_is_held(page_dir / "events.jsonl")
         reporting = executor.submit(
-            thread_model.cmd_report,
+            reports_model.cmd_report,
             page_dir,
             "t-parser",
             "status",

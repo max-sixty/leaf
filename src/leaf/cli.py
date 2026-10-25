@@ -677,7 +677,7 @@ def report(page_dir: Path, widget: str, verb: str, fields: tuple) -> dict:
     review"` moves a task. The page shows the report at once, marked provisional,
     until a stamped version writes it into the markup or overrules it.
     """
-    from leaf.thread import cmd_report
+    from leaf.reports import cmd_report
 
     return cmd_report(page_dir, widget, verb, fields)
 

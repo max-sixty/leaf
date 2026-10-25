@@ -29,6 +29,7 @@ from leaf_dev.page_fixtures import package_selection_args
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import reports as reports_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -519,7 +520,7 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
         page_dir,
         monkeypatch,
         "report",
-        lambda: thread_model.cmd_report(
+        lambda: reports_model.cmd_report(
             page_dir, "t-parser", "status", ("value=review",)
         ),
     )

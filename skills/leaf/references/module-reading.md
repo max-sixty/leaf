@@ -109,17 +109,6 @@ noun)` returns once the block is connected; it copies `source()`, and `noun`, su
 with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
 `Intl.Segmenter` with `granularity: "sentence"` as the third argument.
 
-### Image comparison (experimental)
-
-`compareImages(a, b)` compares two decoded, untainted images at natural size. It
-resolves to `{width, height, changed, throughout, regions}`: the compared size, the
-number of differing pixels, whether they differ almost everywhere, and outlines
-`{x, y, width, height, side, kind}` around content that `changed` or `moved`, on the
-before image (`a`) or the after (`b`). `differenceKind(reading)`,
-`describeDifference(reading)` and `countAreas(regions)` classify, word and count the
-result. `compareImagePixels(a, b)` resolves to one RGBA mask `{width, height, data}`,
-whose alpha is stronger where a visible pixel changed more. `lf-shot` is the worked example.
-
 ### Media URLs
 
 Pass a `/media/…` path from typed data through `scopedMediaUrl(path)` before putting it

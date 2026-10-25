@@ -288,9 +288,8 @@ one kind wears one face: `offerAction(role, className, label, {title, icon})`, o
 `<button ${offeredAction(role, className, label)}>` in a template. The roles are:
 
 - `"symbol"`, a press drawn as one of Leaf's icons (`icon`; `module-reading.md`,
-  "Icons").
-  `label` is its tooltip and accessible name, and `title` replaces the tooltip where
-  it says more, such as the key that does the same. In a template, put
+  "Icons"). `label` is its tooltip and accessible name, and `title` replaces the
+  tooltip where it says more, such as the key that does the same. In a template, put
   `${iconTemplate(name, "lf-action-icon")}` inside the button.
 - `"word"`, a press that says what it does; `label` is its words. A toggle is a word
   with `aria-pressed`, which draws as selected.

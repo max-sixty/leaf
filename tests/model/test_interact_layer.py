@@ -1680,12 +1680,16 @@ def test_controls_are_built_by_role_and_never_by_face():
     cannot draw two controls of one kind two ways. The classes of a role's face are
     spelled only in prepaint.js's `ACTION_FACES`, which `offerAction` reads; any other
     bundled module that spells one, in a string or a comment, has chosen a face itself.
+    module-authoring.md lists the roles for package authors, in the table's order.
     `primary` and the authored `button` face are ordinary words too, so they count
     where a string lists classes or a template's `class` attribute names them."""
     owner = schema_model.ASSETS / "runtime" / "prepaint.js"
     table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
     roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
     assert {"symbol", "word", "commit"} <= roles.keys(), roles
+    reference = (SKILL_ROOT / "references" / "module-authoring.md").read_text()
+    documented = re.findall(r"^- `\"(\w+)\"`, ", reference, re.MULTILINE)
+    assert documented == list(roles), "module-authoring.md lists other roles"
     faces = {name for classes in roles.values() for name in classes.split()}
     named = re.compile(
         r"(?<![\w-])("

@@ -50,8 +50,8 @@ records the receipt of what its transcript shows entered the model's context
 Session-start and prompt hooks also inspect retained claims for disconnected pages
 (`reconnect`), including inactive ownership. That notice does not reclaim a
 page or reopen a turn at SessionStart, and it persists across session generations.
-A SessionStart after a compaction also restates what the skill asks of an agent
-holding a page (`on_me`).
+A SessionStart after a compaction also has an agent holding a page read the leaf
+skill again (`reload_skill`).
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A
@@ -129,7 +129,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
 
         context = notices(harness, sid, expected)
         if context is not None and payload.get("source") == "compact":
-            context += on_me(sid)
+            context += reload_skill(sid)
         if context:
             print(
                 json.dumps(hooked.hook_context(event, "\n\n".join(context))),
@@ -199,32 +199,27 @@ def cmd_hook(harness: str, payload: dict) -> None:
         close_session_turn(sid, turn_id, expected=expected)
 
 
-def on_me(session_id: str) -> list[str]:
-    """What a compaction gives back to an agent holding live pages: each page's On
-    me count, and the skill's "Must remember", which the compaction may have dropped
-    with the rest of the skill.
+def reload_skill(session_id: str) -> list[str]:
+    """What a compaction tells an agent holding pages: to read the leaf skill again,
+    which the compaction may have dropped from its context.
 
-    An empty On me tells the user nothing waits on them, so a question asked only in
-    the agent's reply passes that silently. On 2026-10-25 five sessions did so hours
-    or days after reading the skill, four of them after compacting, while their
-    harness's own instructions for asking the user stayed in context. Restating the
-    rule on every prompt fixed that too, but weighed on every turn of every session;
-    after a compaction is where the skill's text goes missing."""
-    from .presence import live_leaves
+    On 2026-10-25 five sessions left questions for the user only in their replies,
+    so On me read empty and told the user nothing waited on them. Each had read the
+    skill hours or days before, four of them before compacting, while their
+    harness's own instructions for asking the user stayed in context. Restating one
+    rule on every prompt weighed on every turn and covered only that rule; the
+    skill is where every rule a page-holding agent follows lives."""
     from .schema import SKILL_FILE
 
-    held = {page.resolve() for page in owned_pages(session_id)}
-    leaves = live_leaves(held) if held else []
-    if not leaves:
+    pages = owned_pages(session_id)
+    if not pages:
         return []
-    section = SKILL_FILE.read_text().split("\n## Must remember\n", 1)[1]
     return [
-        *(
-            f"Leaf: “{leaf['title']}” ({page}) has {leaf['on_user']} on On me."
-            for page, leaf in leaves
-        ),
-        f"From the leaf skill ({SKILL_FILE}), which holds the rest:\n"
-        + section.split("\n## ", 1)[0].strip(),
+        (
+            f"This session holds the Leaf page {', '.join(map(str, pages))}. A "
+            f"compaction may have dropped the leaf skill; read {SKILL_FILE} again "
+            "before you next reply or run a leaf command."
+        )
     ]
 
 

@@ -4012,6 +4012,31 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
 
 
+def test_the_leaf_s_menu_covers_what_the_panel_holds(browser, serve):
+    """The leaf's menu stands over everything in the panel's box: what it covers shows
+    no pixel through it. A long draft's more-room mark drew over the menu's rows, as
+    every glyph and press raised over its own disc could, stacking beside the menu
+    rather than inside the box."""
+    page = floating(browser, serve(LONG_PAGE))
+    field(page).click()
+    page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 4)
+    expect(page.locator(".lf-fp-expand")).to_be_visible()
+    page.locator(".lf-fp-leaf").click()
+    menu = page.locator(".lf-fp-menu")
+    expect(menu.get_by_role("menuitem", name="Fold to the leaf")).to_be_visible()
+    settled(page)
+    box = menu.bounding_box()
+    clip = {
+        "x": box["x"] + 12,
+        "y": box["y"] + 12,
+        "width": box["width"] - 24,
+        "height": box["height"] - 24,
+    }
+    shown = page.screenshot(clip=clip)
+    page.locator(".lf-fp-inner").evaluate("inner => inner.style.opacity = '0'")
+    assert page.screenshot(clip=clip) == shown, "the box shows through the menu"
+
+
 def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     """A long draft and an open view share the window: the view takes what the field
     leaves and scrolls inside it, so its name, over it, stays in the window, and its
@@ -4695,9 +4720,11 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     # already holding words; load it first, so the list is drawn as it is typed.
     page.evaluate("async () => (await window.__lfWidgetApi()).loadMarkdown()")
     field(page).click()
+    # The first item wraps to two lines both in the field and in the sent message's
+    # wider column, so the two hold the same lines.
     page.keyboard.insert_text(
         "Notes:\n- "
-        + "an item long enough to wrap in the field " * 3
+        + "an item long enough to wrap in the field " * 2
         + "\n- parent\n      deeper\n    - child\n\n1. one\n\n       indented"
         + "\n\n```\ncode\n```\nend"
     )

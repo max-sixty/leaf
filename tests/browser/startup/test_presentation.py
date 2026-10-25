@@ -197,15 +197,15 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     module = serve.page_dir / "widgets" / "lf-feed.js"
     module.write_text(
         module.read_text()
-        .replace("{offer,", "{keeps, keepsText, offer,")
+        .replace("{keeps,", "{keeps, keepsText,")
         .replace(
             "const row = document.createElement('p');\n"
-            "      row.append(value, offer('button', 'inspect', 'Inspect'));",
+            "      row.append(words, offer('button', 'inspect', 'Inspect'));",
             """const prior = [...this.children].find(row => row.dataset.lfDatum === key);
       const row = prior ?? document.createElement('p');
       const link = row.querySelector('a') ?? document.createElement('a');
-      keeps(link, 'href', value === 'Ready' ? 'https://example.com/status' : '#title');
-      keepsText(link, value);
+      keeps(link, 'href', words === 'Ready' ? 'https://example.com/status' : '#title');
+      keepsText(link, words);
       if (!prior) {
         link.target = '_self';
         link.rel = 'author';

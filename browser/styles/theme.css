@@ -240,7 +240,7 @@
   --pin-on-user: light-dark(#2f7d45, #2d8047);
   /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
      Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
-     inline code, a tooltip, a checkbox, a corner mark, a word's highlight) takes --r-s.
+     inline code, a tooltip, a checkbox, a mark, a word's highlight) takes --r-s.
      A control or a box in the page's flow (a button, a field, a margin entry, a menu
      row, a code block, an option list) takes --r. A surface floating over the page
      that holds controls (the Leaf panel and its menu, a thread card, a dialog) takes
@@ -290,9 +290,9 @@
      rail below is sized from the same length, so it is named rather than written into
      each. */
   --margin-entry: max(32px, var(--aim-floor));
-  /* A corner mark's box (controls.css, `.lf-corner-mark`). A surface that keeps room
-     for the marks on its corners reads it, so it is named rather than written there. */
-  --corner-mark: 20px;
+  /* A mark's box (controls.css, `.lf-mark`), on a corner or in a toolbar. A seat that
+     keeps room around its marks reads it, so it is named rather than written there. */
+  --mark-size: 20px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
      to know where a pin will stand before packing it. */
   --pin-inset: 4px;

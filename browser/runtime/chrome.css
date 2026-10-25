@@ -875,9 +875,8 @@
     width: 100cqi;
     font: 13px / 1.45 var(--sans);
   }
-  .lf-fp-copy-item wa-icon {
+  .lf-fp-copy-icon {
     color: var(--lf-fp-muted);
-    font-size: 13px;
   }
   .lf-fp-chevron {
     width: 12px;

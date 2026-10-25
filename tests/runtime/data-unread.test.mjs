@@ -15,8 +15,12 @@ const settled = async (element) => {
 
 test("a bound element draws its source only once the page has read it", async () => {
   adoptRegistry({
-    "lf-listing": { "x-data": { rows: { source: "source", contract: "rows" } } },
-    "lf-unbound": { "x-data": { rows: { source: "source", contract: "rows" } } },
+    "lf-listing": {
+      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+    },
+    "lf-unbound": {
+      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+    },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
   const draws = [];
@@ -24,10 +28,14 @@ test("a bound element draws its source only once the page has read it", async ()
     customElements.define(
       tag,
       class extends LeafElement {
+        constructor() {
+          super();
+          this.value = null;
+        }
         render() {
-          const reading = this.data("rows");
-          draws.push([tag, reading?.revision ?? null]);
-          return html`${reading ? reading.revision : "no data"}`;
+          const revision = this.value?.[0].revision ?? null;
+          draws.push([tag, revision]);
+          return html`${revision ?? "no data"}`;
         }
       },
     );
@@ -55,7 +63,11 @@ test("a bound element draws its source only once the page has read it", async ()
     {
       version: "first",
       sources: {
-        deployments: { contract: "rows", revision: "r1", value: [{ key: "api" }] },
+        deployments: {
+          contract: "rows",
+          revision: "r1",
+          value: [{ key: "api", revision: "r1" }],
+        },
       },
     },
     1,

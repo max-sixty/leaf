@@ -1,9 +1,12 @@
 """Visual review keeps readable evidence and stable controls in its dashboard."""
 
+import json
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
+from render_cases_navigation import source_revision
 from render_harness import (
     CORPUS_SOURCES,
     example_media,
@@ -280,6 +283,13 @@ def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, ser
             ),
         )
         told(page)
+        # The case's article follows its case by id into the run it now shows.
+        case = page.locator('#visual-run [data-lf-datum="changed"]')
+        expect(case).to_have_attribute(
+            "data-lf-source-revision", source_revision(serve.page_dir, "docs-run")
+        )
+        expect(case).to_have_attribute("data-lf-identity", "changed")
+        assert json.loads(case.get_attribute("data-lf-origin"))["path"] == ["cases", 0]
         shot = page.locator("#visual-run lf-shot")
         expect(shot).to_have_attribute("before", "/media/1111111111111110.svg")
         images = shot.locator("img")

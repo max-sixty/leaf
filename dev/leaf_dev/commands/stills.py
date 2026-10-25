@@ -444,7 +444,7 @@ def seat_held_news(page: Page) -> None:
     drafts a reply in it: the agent's question on a goal, which a reload draws in
     place."""
     as_agent(
-        "thread", "open", "--section", "goal-parser", "--text", "Which worker first?"
+        "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
     )
     load(page, served_page.get().address)
     thread = page.locator("#goal-parser .lf-page-thread")

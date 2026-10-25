@@ -390,7 +390,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
             cli_model.cli,
             [
                 "thread",
-                "open",
+                "create",
                 str(serve.page_dir),
                 "--section",
                 "revised-quotes",
@@ -1167,9 +1167,8 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     """A quote is read back as prose — seeded into the suggestion box, printed in the
-    panel, emitted into a Markdown blockquote by `leaf page transcript` — and written to a
-    UTF-8 file on the way. Source text is neither: it carries the author's line wraps,
-    which break a blockquote open, and cutting it to length by UTF-16 unit can halve a
+    panel — and written to a UTF-8 file on the way. Source text is neither: it carries
+    the author's line wraps, which break the prose, and cutting it to length by UTF-16 unit can halve a
     character, which no UTF-8 file can hold. The server refuses that write and the
     user is told it is offline, with no way to ever send the comment."""
     url = serve(INLINE_PAGE)
@@ -1756,12 +1755,12 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
     so both readings collapse to the same string — which is what lets the runtime color a
-    block the file knows nothing about, and what keeps `leaf thread open` able to quote
+    block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
     One pass serves both shapes a page has for code, lf-code's `language` and a plain
     <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread open`
+    the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)

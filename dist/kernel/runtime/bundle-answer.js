@@ -5,8 +5,8 @@ import { LIVE_ROOT, PRESENTATION_DOM, agentLabel, annotationMode, applicationPre
 import { activityTransitionDue, ago, chosenSince, containingReadingRegionFor, effectiveScroller, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, onReadingInput, pageScroller, placeKept, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, saidNow, scrollChainOf, scrollChoices, scrollLimit, scrollersOf, settlePageInterface, shownRegionBounds, stopScroll, tickClock, unconcealedReadingRegions, watchReadingRegionTransitions } from "./bundle-reading-regions.js";
 import { DATUM, TEXT_BLOCK, alignInlineText, authored, authoredScope, closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageDocument, pageParts, pageRange, pageReadingVersion, quoteFrom, rangeOf, readingFrom, selectEnds, selectionBackward, textNodesUnder, wrote } from "./bundle-passages.js";
 import { ADDRESSABLE, addressableLabel, addressableWord, addressedElements, anchorForRange, anchoringIsReady, declaredName, fragmentTarget, resolveAnchor, revealAddressed, sectionOf, targetElement, targetPlace, targetSegments, visualPartLabel, widgetWord } from "./bundle-css-anchors.js";
-import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
-import { HOLDS_WORD, HeldNews, MessageView, PAGE_SCOPE, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed as claimed$1, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, drawnThreadId, fitsWhole, focusThread, focusedInView, focusedThreadTarget, formatDeclaredMarkdown, hasLandmark, heldOut, heldThread, heldThreadId, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, openingPassage, pageCommand, pageReadingBlock, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeNode, placeOf as placeOf$1, placeOffset, placePageThreads as placePageThreads$1, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, rawOffsetFits, readObligations, readThreads, readingReturn, registerWritingDestination, reindexPassageOwners, rememberPassageParts, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDestination, replyDraftContext, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, saveDraft, scrollIntoReadingBand, scrollIntoView, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, tabStore, textBlocks, threadDraft, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
+import { authoredBody, initialOrigin, restoreInitialSource, unmarkedCopy } from "./bundle-initial-render.js";
+import { HOLDS_WORD, HeldNews, MessageView, PAGE_SCOPE, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, authoredHolder, beginThreadSeats, beginWalk, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed as claimed$1, clearDraft, commitThreadSeats, completeReadingReturn, createReplyView, declareSide, dismissReplyAt, draftContexts, draftEditingDestination, draftEditingStands, drawnThreadId, fitsWhole, focusThread, focusedInView, focusedThreadTarget, formatDeclaredMarkdown, hasLandmark, heldOut, heldThread, heldThreadId, holdReplyCompositions, holdThreadPlace, importWidgets, isPageWidgetWorkflow, isWorkflowProgress, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, openingPassage, pageCommand, pageReadingBlock, pageScope, pageScopes, pageSelection, paintMarkdown, passageBlock, patchDocument, placeNode, placeOf as placeOf$1, placeOffset, placePageThreads as placePageThreads$1, placedMarkdownTokens, preloadWidgets, prepareAuthoredMessage, prepareDeclaredMarkdown, rawOffsetFits, readObligations, readThreads, readingReturn, registerWritingDestination, reindexPassageOwners, rememberPassageParts, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDestination, replyDraftContext, replyThreadKey, restoreDraftEditing, restorePlace, restoreReplyEditing, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, saveDraft, scrollIntoReadingBand, scrollIntoView, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, surfaceFocusTarget, tabStore, textBlocks, threadDraft, threadIdNamed, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, todoLabel, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowLabel } from "./bundle-surfaces.js";
 import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, failSoft, failSoftUnreported, once, orderChildren, patchRetains, patchTree, placesFailure, quoted as quoted$1, rememberAuthoredParents, reportFailure, setChildren, stageAuthoredStates, stageWidgetDescriptors, widgetDescriptor } from "./bundle-abort.js";
 import { scrollBehavior } from "./bundle-motion.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./bundle-media.js";
@@ -3280,12 +3280,16 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		};
 		return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
 	}
-	const shell = (element) => {
+	const shell = (element, members) => {
 		const copy = element.cloneNode(false);
-		for (const child of element.childNodes) copy.append(child.cloneNode(false));
+		if (members) for (const child of element.childNodes) copy.append(child.cloneNode(false));
 		return copy;
 	};
-	const reachesMembers = (before, after, arrivingRoot) => registry[before.localName]?.["x-patch"] === "members" && sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
+	const reachesMembers = (before, after, arrivingRoot) => {
+		if (registry[before.localName]?.["x-patch"] !== "members") return false;
+		const members = !authoredBody(sourcePairs.get(before));
+		return sameAuthoredMarkup(shell(before, members), shell(after, members), arrivingRoot);
+	};
 	function patchRules(doc) {
 		const source = pageDocument(doc);
 		const arrivingWidgets = documentWidgetDigests(doc);
@@ -3296,6 +3300,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			pairs: sourcePairs,
 			contains: under,
 			declared: upgraded,
+			body: authoredBody,
 			reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
 			unchanged: (before, after) => {
 				const digest = authoredWidgets[heldKeys.get(before)];
@@ -4118,17 +4123,17 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				activate: () => openThread(id)
 			}, pointed);
 		}
-		for (const item of readObligations().user) {
+		const placed = () => readObligations().user.filter((item) => obligationPlace(item).node);
+		for (const item of placed()) {
 			const id = item.id;
 			const target = obligationPlace(item).node;
-			if (!target) continue;
 			add(groups, target, {
 				kind: "on-me",
 				id: `on-me:${id}`,
 				text: "Waiting on me",
-				label: addressableLabel(target) || null,
+				label: (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) || null,
 				activate: () => {
-					const items = readObligations().user.filter((item) => item.source.kind === "widget");
+					const items = placed();
 					const next = items.find((candidate) => candidate.id === id);
 					if (next) goToObligation(next, items);
 				}
@@ -5017,7 +5022,7 @@ function renderHolds(threads) {
 	for (const node of document.querySelectorAll("[data-lf-held]")) if (!held.has(node)) node.removeAttribute("data-lf-held");
 	for (const [target, id] of held) keeps(target, "data-lf-held", id);
 }
-function createThreadPresentation({ available = true, inlineView, surfaceView, anchorPlacement, anchorPaint, anchorControls, drawingPaint, pageGeometry, readDraft, activeActionAnchor, renderAnnotations, renderSurfaces, openThread, continueThread, threadAt, read }) {
+function createThreadPresentation({ available = true, inlineView, surfaceView, anchorPlacement, anchorPaint, anchorControls, drawingPaint, pageGeometry, readDraft, activeActionAnchor, renderAnnotations, renderSurfaces, openThread, continueThread, returnToPage, threadAt, read }) {
 	let primary = null;
 	const presenter = applicationPresenter({
 		region: "thread",
@@ -5081,7 +5086,7 @@ function createThreadPresentation({ available = true, inlineView, surfaceView, a
 					d(renderAnnotations);
 					pageGeometry.pageShifted();
 					read.present();
-					continueReplies(restorePlace).catch((error) => reportPageError(error, `Reply continuation failed`));
+					continueReplies(restorePlace).then(returnToPage).catch((error) => reportPageError(error, `Reply continuation failed`));
 				}));
 			};
 			await (primaryPreparation?.then ? primaryPreparation.then(resume(paintPrepared)) : paintPrepared(primaryPreparation));
@@ -5262,6 +5267,7 @@ function createInlineContributions({ targetPath }) {
 function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arrive, prepareNavigationStep, preview = null }) {
 	let presentation = null;
 	let opening = null;
+	const lastResort = /* @__PURE__ */ new Set();
 	function register(owner, open, reader) {
 		if (presentation) throw new Error("The page already has a Thread presentation");
 		const registration = {
@@ -5306,7 +5312,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 	const threadFocusTarget = (id, { part = null } = {}) => surfaceFocusTarget(id, { part }) ?? preview?.focusTarget(id, { part }) ?? null;
 	const DECLINED = Symbol("declined");
 	const UNDRAWN = Symbol("undrawn");
-	async function openPageThread(id, { part = null, focus = true, travel = true, flash = true, scroll = true, intent = retainUserIntent(), origin = null } = {}) {
+	async function openPageThread(id, { part = null, focus = true, travel = true, flash = true, scroll = true, intent = retainUserIntent(), origin = null, returning = false } = {}) {
 		if (!intent()) return null;
 		const navigationStep = travel && scroll;
 		const selected = presentation?.owner.isConnected ? presentation : null;
@@ -5334,7 +5340,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				landing: () => selected.reader.destination(thread.key, request),
 				intent: arriving
 			}) : null;
+			if (last) lastResort.add(thread.key);
+			else lastResort.delete(thread.key);
 			const result = selected.open(thread.key, request);
+			if (result === false) lastResort.delete(thread.key);
 			if (result === false && !drawn) return mayPresent() ? DECLINED : null;
 			if (result !== false && preview) intent.handoff(preview.close);
 			return taken(result);
@@ -5441,14 +5450,38 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
 			return DECLINED;
 		}
-		const asked = selected ? inPrimary(false) : DECLINED;
+		const asked = selected && !returning ? inPrimary(false) : DECLINED;
 		const first = asked instanceof Promise ? await asked : asked;
 		if (first !== DECLINED && first !== UNDRAWN) return first;
 		const shown = await onPage();
+		if (returning) {
+			if (!shown || shown === DECLINED) return null;
+			if (selected) await inPrimary(false);
+			return shown;
+		}
 		if (shown !== DECLINED) return shown;
 		if (!selected || first !== DECLINED) return null;
 		const last = await inPrimary(true);
 		return last === DECLINED || last === UNDRAWN ? null : last;
+	}
+	async function returnToPage() {
+		const selected = presentation?.owner.isConnected ? presentation : null;
+		if (!selected) return;
+		for (const key of [...lastResort]) {
+			const thread = allThreads().find((each) => threadKey(each) === key);
+			const drawing = selected.reader.destination(key, { part: "thread" });
+			if (!thread || !drawing?.checkVisibility()) {
+				lastResort.delete(key);
+				continue;
+			}
+			await openPageThread(thread.id, {
+				part: "thread",
+				focus: replyThreadKey(focused()) !== key && drawnThreadId(heldThread()) === thread.id,
+				travel: false,
+				scroll: false,
+				returning: true
+			});
+		}
 	}
 	async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {
 		const message = placedAt(id)?.message;
@@ -5493,6 +5526,8 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		openPageThread,
 		openThreadSubject,
 		openThreadDraft,
+		returnToPage,
+		atLastResort: (key) => lastResort.has(key),
 		holdsThreadDraft: (context) => Boolean(threadHolding(context)),
 		threadFocusTarget,
 		threadHere,
@@ -7008,6 +7043,10 @@ function mountApplication(dependencies) {
 			registerSurface: dependencies.registerReactSurface,
 			actions: threadActions
 		},
+		todos: { done: (id) => queueActions.done(queueItemKey({
+			kind: "todo",
+			id
+		})) },
 		read,
 		openThread: openPageThread,
 		landInThread: dependencies.landInThread
@@ -7109,6 +7148,7 @@ function mountApplication(dependencies) {
 			flash: false,
 			intent
 		}),
+		returnToPage: threadDestinations.returnToPage,
 		threadAt: (node) => overlay?.entryThread(node) ?? null,
 		read
 	});

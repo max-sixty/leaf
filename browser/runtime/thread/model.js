@@ -340,7 +340,7 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {import("../../framework/application.ts").Workflow[]} workflows
  * @param {readonly import("../../framework/application.ts").WireTodo[]} todos
- *   the open to-dos, of which each thread holds the agent's on it
+ *   the open to-dos, of which each thread holds the agent's and the user's on it apart
  * @param {readonly import("../../framework/application.ts").ObligationRecord[]} obligations
  *   the view's obligations, of which each thread holds those its messages make
  * @param {import("../../framework/domain.ts").ContentVersion[]} markingRead
@@ -450,6 +450,12 @@ export function readThreadRecords(
       // thread's working message reads whoever's turn the thread is.
       todos: todos.filter(
         (todo) => todo.owner === "agent" && todo.thread === thread.id,
+      ),
+      // The user's open to-dos on the thread, which its head names with their Done: a
+      // to-do on a thread has no place on the page (obligations/place.js), so the
+      // thread draws it.
+      userTodos: todos.filter(
+        (todo) => todo.owner === "user" && todo.thread === thread.id,
       ),
       workflows: workflows.filter((workflow) => workflow.thread === thread.id),
       bare_reaction: thread.bare_reaction,

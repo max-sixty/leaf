@@ -619,6 +619,28 @@ button.lf-primary-news {
   color: var(--ink-2);
   font-weight: 600;
 }
+.lf-thread-todos {
+  margin: 0 0 var(--sp-2);
+  padding: 0 0 0 var(--lf-thread-text-inset);
+  list-style: none;
+}
+.lf-thread-todo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--t-6);
+}
+.lf-thread-todo-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.lf-thread-todo > .lf-thread-action {
+  flex: none;
+  white-space: nowrap;
+}
 
 /* browser/styles/components/reading.css */
 :root {

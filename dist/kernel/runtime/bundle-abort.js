@@ -55,6 +55,7 @@ function setRenderedChildren(parent, nodes) {
 		sameValue: (name, held, wanted) => held === wanted,
 		touched: () => {},
 		declared: () => false,
+		body: () => null,
 		same: (held, wanted) => held.isEqualNode(wanted),
 		generated: () => false
 	});
@@ -99,7 +100,7 @@ function staying(parent, nodes) {
 function patchTree(before, after, rules) {
 	const live = rules.pairs.get(before);
 	patchAttributes(live, before, after, rules);
-	patchChildren(tree(live), tree(before), tree(after), rules);
+	patchChildren(holder(live, rules), tree(before), tree(after), rules);
 }
 function patchRetains(before, after, target, rules) {
 	if (!target?.isConnected) return false;
@@ -130,6 +131,7 @@ function retainedWithin(before, after, target, rules) {
 	return true;
 }
 const tree = (node) => node.localName === "template" ? node.content : node;
+const holder = (live, rules) => rules.body(live) ?? tree(live);
 function patchAttributes(live, before, after, rules) {
 	let changed = false;
 	for (const { name, value } of [...before.attributes]) {
@@ -203,7 +205,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
 	}
 	order(liveParent, placed, rules.generated);
 }
-const atomic = (before, after, live, rules) => before.matches("style, link[rel~=\"stylesheet\" i]") || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some((node) => rules.pairs.get(node)?.parentNode !== tree(live));
+const atomic = (before, after, live, rules) => before.matches("style, link[rel~=\"stylesheet\" i]") || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some((node) => rules.pairs.get(node)?.parentNode !== holder(live, rules));
 const kept = (before, after, rules) => rules.declared(before) ? rules.unchanged(before, after) : rules.same(before, after);
 function matchNodes(held, wanted) {
 	const matches = /* @__PURE__ */ new Map();

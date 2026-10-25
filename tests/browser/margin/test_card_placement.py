@@ -661,12 +661,10 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
     expect(card.locator("leaf-text")).to_be_focused()
 
 
-def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
-    """A scroll the card rides with its cluster leaves the page's DOM as it was: the
-    card, its target's trace, the marks, and the obligation's binding badges stand in the
-    plane the scroll carries them with, and each owner on the scroll path writes only
-    what changed. Chrome repaints the whole document for any write while a highlight
-    holds a range, which a page with a quoted comment always has."""
+def test_a_scroll_that_carries_the_card_only_updates_the_rail_tab_stop(browser, serve):
+    """The card, trace, marks and binding badges ride with their cluster without
+    writes. The rail may move its one Tab stop to the highest visible entry, but
+    scrolling must not rewrite the paint that already stands in the page's plane."""
     page = open_page(
         browser,
         serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION, QUOTED_ON_OBLIGATION]),
@@ -684,7 +682,12 @@ def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
       document.querySelector('[data-lf-margin-for="bracket"]').getBoundingClientRect().top"""
     before = page.evaluate(offset)
     writes = scroll_writes(page, (-20, -20, 20, 20, 20))
-    assert writes == [], writes
+    assert all(
+        change["type"] == "attributes"
+        and change["attribute"] == "tabindex"
+        and all(".lf-margin-marker." in target for target in change["target"])
+        for change in writes
+    ), writes
     assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
 
 

@@ -3520,7 +3520,6 @@ def test_a_page_views_sidebar_uses_the_columns_margin(browser, serve):
     resized(page, 1440, 900)
     expect(page.locator("#page-route")).to_have_css("float", "left")
     expect(page.locator("#view-route")).to_have_css("float", "none")
-    page.close()
 
 
 def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, serve):
@@ -3626,7 +3625,6 @@ def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, 
     assert title[1] <= strip[0] and strip[1] <= view[0], stacked
     assert view[2] == 390, stacked
     assert root_overflow(page) == 0
-    page.close()
 
 
 def test_margin_content_fits_where_the_column_leaves_room(browser, serve):

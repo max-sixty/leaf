@@ -1,6 +1,6 @@
 import { html, render } from "./bundle-browser-runtime.js";
 import { afterScript, focusDestination, focused, keeps, keepsText } from "./bundle-dom-move.js";
-import { commandAvailable, commandBinding, commandRoutes, controlAvailabilityOutput, elementDirective, iconTemplate, isCommandScope, offer, pressIsKeyboardActivation, projectCommandScope, watchCommandAvailability } from "./bundle-layer-client.js";
+import { commandAvailable, commandBinding, commandRoutes, controlAvailabilityOutput, elementDirective, iconTemplate, isCommandScope, offer, pressIsKeyboardActivation, projectCommandScope, watchCommandAvailability } from "./bundle-errors.js";
 import { excerptWords } from "./bundle-passages.js";
 import { HOLDS_WORD, progressFace, threadAttention, workflowLabel } from "./bundle-surfaces.js";
 import { agentArrivalDuration, reducedMotion } from "./bundle-motion.js";

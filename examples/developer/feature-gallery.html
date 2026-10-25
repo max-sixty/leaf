@@ -13,26 +13,6 @@
         color: var(--mark-ink);
       }
 
-      #bg-metrics > dl {
-        margin: 0;
-        padding: var(--sp-3);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--card);
-      }
-      #bg-metrics dt {
-        color: var(--muted);
-        font: 600 var(--t-6)/1.3 var(--sans);
-      }
-      #bg-metrics dd {
-        margin: var(--sp-1) 0 0;
-        font: 600 var(--t-2)/1.2 var(--sans);
-        overflow-wrap: anywhere;
-      }
-      #bg-metrics dd small {
-        font: 500 var(--t-6)/1.3 var(--sans);
-      }
-
       #bg-outcome > lf-option {
         padding: 1rem;
         min-block-size: 5rem;
@@ -391,7 +371,8 @@
         const frame = document.querySelector("#bg-durable-frame");
         frame.src = new URL("versions/v2.html?pin", pageRoot).href;
         frame.hidden = false;
-        frame.scrollIntoView({ block: "center" });
+        // Only as far as the frame needs, so the press leaves its button where it was.
+        frame.scrollIntoView({ block: "nearest" });
         frameOpener.disabled = true;
       });
 
@@ -536,9 +517,9 @@
               <h3>A to-do on you</h3>
               <p>
                 The agent put a to-do on you about this section with
-                <code>leaf task open … --on user</code>: check that the trail map marks
-                the shelter. Nothing on the page answers it, so it ends only when you
-                press Done.
+                <code>leaf task create … --on user</code>: check that the trail map
+                marks the shelter. Nothing on the page answers it, so it ends only when
+                you press Done.
               </p>
               <ul>
                 <li>
@@ -1122,6 +1103,58 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
               </ul>
             </section>
+          </section>
+
+          <section id="bg-ask-board">
+            <p class="eyebrow bg-feature-elements">lf-options · lf-board · lf-card</p>
+            <h2>
+              <strong>One answer in its section and on a board</strong
+              ><span class="bg-feature-detail"
+                >: the card stands where the pick puts it</span
+              >
+            </h2>
+            <p id="bg-ask-board-guide">
+              Each proposal is answered beside its case, and the board's cards show
+              those answers. Pick Next for the flask, and its card moves to Next; drag
+              the stove's card to Drop, or grab it and press the arrows, and its
+              section's pick follows. Undo takes either gesture back in both places.
+            </p>
+            <section id="bg-board-stove">
+              <h3>Replace the sample camp stove</h3>
+              <p id="bg-board-stove-case">
+                The old stove takes ten minutes to boil a litre.
+              </p>
+              <lf-options id="bg-board-stove-choice" choose>
+                <lf-option id="bg-board-stove-next" value="next">Next</lf-option>
+                <lf-option id="bg-board-stove-later" value="later" chosen
+                  >Later</lf-option
+                >
+                <lf-option id="bg-board-stove-drop" value="drop">Drop</lf-option>
+              </lf-options>
+            </section>
+            <section id="bg-board-flask">
+              <h3>Pack a second sample flask</h3>
+              <p id="bg-board-flask-case">One flask ran dry on the last long walk.</p>
+              <lf-options id="bg-board-flask-choice" choose>
+                <lf-option id="bg-board-flask-next" value="next">Next</lf-option>
+                <lf-option id="bg-board-flask-later" value="later">Later</lf-option>
+                <lf-option id="bg-board-flask-drop" value="drop">Drop</lf-option>
+              </lf-options>
+            </section>
+            <lf-board id="bg-board-plan">
+              <lf-column id="bg-board-open" label="Undecided">
+                <lf-card id="bg-board-flask-card" shows="bg-board-flask-choice"
+                  ><strong>Second flask</strong></lf-card
+                >
+              </lf-column>
+              <lf-column id="bg-board-next" label="Next" value="next"></lf-column>
+              <lf-column id="bg-board-later" label="Later" value="later">
+                <lf-card id="bg-board-stove-card" shows="bg-board-stove-choice"
+                  ><strong>New stove</strong></lf-card
+                >
+              </lf-column>
+              <lf-column id="bg-board-drop" label="Drop" value="drop"></lf-column>
+            </lf-board>
           </section>
         </lf-tab>
 
@@ -2262,7 +2295,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: values and trends</span>
               </h3>
               <p id="bg-metrics-guide">
-                Metrics show individual values as tiles, in a
+                Metrics show individual values as <code>metric</code> tiles, in a
                 <code>layout-tiles</code> row, and a Chart compares the values across
                 runs. The metric tiles and the run under them keep to the column, and
                 the three charts take the wide width. Narrow the window: the metric
@@ -2272,15 +2305,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <div id="bg-metrics-room">
                 <div id="bg-metrics" class="layout-tiles">
-                  <dl id="bg-metric-complete" class="panel">
+                  <dl id="bg-metric-complete" class="metric">
                     <dt>checks complete</dt>
                     <dd><strong>12</strong> <small>change: +3</small></dd>
                   </dl>
-                  <dl id="bg-metric-open" class="panel">
+                  <dl id="bg-metric-open" class="metric">
                     <dt>open failures</dt>
                     <dd><strong>2</strong> <small>change: -1</small></dd>
                   </dl>
-                  <dl id="bg-metric-neutral" class="panel">
+                  <dl id="bg-metric-neutral" class="metric">
                     <dt>sample duration</dt>
                     <dd><strong>4 min</strong></dd>
                   </dl>

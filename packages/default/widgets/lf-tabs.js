@@ -31,8 +31,8 @@
  * stands until the strip is pinned; then it opens the new panel at its start. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (theme.css says where it stacks); a side list is a box even as
- * the root set, which keeps the root's history, and Back or Forward there lands the
- * set's start when the user was below it. Where a side list fills a height it is
+ * the root set, which keeps the root's history, and Back or Forward restores the
+ * entry's viewport after showing its view. Where a side list fills a height it is
  * given, as a full-height workspace's body (theme.css), its list and its open item each
  * scroll on their own. Its panels are reading regions, and so is its list while it
  * scrolls on its own, so reading keys and the user's place follow the list or the item
@@ -83,6 +83,7 @@ import {
   answerWords,
   under,
   backgroundFlash,
+  flashDuration,
   beginWalk,
   capturePlace,
   comparisonChanges,
@@ -281,6 +282,7 @@ export class TabSet extends LeafElement {
         ],
         title: "walk the tabs",
         repeat: true,
+        travels: true,
         run: (binding) => {
           const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
           walk(cycledRow(tabs(), focused(), step));
@@ -294,6 +296,7 @@ export class TabSet extends LeafElement {
           { id: "tab.last", binding: "End", title: "Last tab" },
         ],
         title: "first / last",
+        travels: true,
         run: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
       },
     ]);
@@ -545,11 +548,11 @@ export class TabSet extends LeafElement {
       // motion's shared gate answers reduced motion and initial presentation.
       if (previous && reason === "reveal") {
         const name = button.querySelector(":scope > .lf-tab-name");
-        this.#revealMotion = backgroundFlash(name, 650);
+        this.#revealMotion = backgroundFlash(name, flashDuration());
       }
       if (switched) this.#open(active, from);
       else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
-      else if (reason === "history") this.#land();
+
       if (first) {
         const mark = button.querySelector(".lf-tab-mark");
         const last = mark.getBoundingClientRect();
@@ -746,7 +749,10 @@ export class TabSet extends LeafElement {
         if (!this.#root) return null;
         const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
         return view && view !== this.#active.value
-          ? () => this.#activate(view, "history")
+          ? () => {
+              const placesPage = this.#pageFlow;
+              return this.#activate(view, "history").then(() => placesPage);
+            }
           : null;
       },
       { signal },
@@ -812,16 +818,6 @@ export class TabSet extends LeafElement {
       behavior: "instant",
     });
     if (place) restorePlace(place);
-  }
-
-  // A box's views have no places of their own, and Back or Forward is made from wherever
-  // the user reads: left where it stood, a view shorter than the one it replaced puts
-  // them at the page's end, partway down it. So a traversal lands the set's start, as a
-  // page-flow view without a place lands at its own, and leaves a set already in view
-  // where it is.
-  #land() {
-    if (this.getBoundingClientRect().top < 0)
-      scrollIntoView(this, { block: "start", behavior: "instant" });
   }
 
   #placeKey(panel) {

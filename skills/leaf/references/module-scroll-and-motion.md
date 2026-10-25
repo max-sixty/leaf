@@ -32,7 +32,7 @@ gate expects to find in the page's file.
 A box the module generates to stand beside what it serves, such as a playground's rail
 of controls beside its stage, is a track: mark it `data-lf-track`, and the Layout keeps
 it in view while the window scrolls a taller neighbour past, as it does a sidebar page's
-track block. Where the module stacks the track with what it serves, as on a phone, it
+track. Where the module stacks the track with what it serves, as on a phone, it
 declares `--lf-track-scroll-behavior: flow` on the track's parent, and the track flows
 with the page. Register the track as a reading region, since it may scroll.
 
@@ -175,10 +175,16 @@ since it turns false once the user moves on. A widget that switches view to show
 target, as `lf-tabs` does, calls `replacedView()` during the event. A listener passes
 later layout work to `present(promise)`, which Leaf waits for before placing the target.
 
-A widget that adds history entries uses `pushEntry(url)` and `replaceEntry(url)`. To
+A widget that adds history entries uses `pushEntry(url)` and `replaceEntry(url)`. An
+entry a press adds says the press takes the user somewhere, as a link's does, so its
+result may scroll away the control pressed; `replaceEntry` only renames the entry the
+user is on. To
 restore the page itself when the user goes Back or Forward to one of its entries, call
 `claimTraversals(claim, {signal})`, where `claim(url)` returns a function that restores
-the page for an entry of the widget's, or nothing.
+the page for an entry of the widget's, or nothing. The handler may be asynchronous.
+When it only reveals the destination view, it resolves to `false`, and Leaf restores
+the entry's saved viewport after the view is shown. Otherwise the handler owns
+viewport placement.
 
 ## Motion
 
@@ -201,7 +207,8 @@ since the effect keeps its pixels drawn until the fold finishes; keep its ordina
 sizing rules while it leaves, and cancel the effect if retirement is reversed.
 
 `backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
-own background.
+own background. `flashDuration()` is how long Leaf's own arrival tint lasts, as on a
+newly arrived message.
 
 ## Notices and spoken words
 

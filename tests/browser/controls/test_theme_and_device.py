@@ -87,25 +87,21 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
     result = page.evaluate("""async () => {
       const owner = await window.__lfWidgetApi();
       const chrome = document.querySelector('.lf-chrome');
-      const cue = document.createElement('div');
-      cue.className = 'lf-msg flash';
       const arrival = document.createElement('button');
       arrival.className = 'lf-margin-entry';
       arrival.dataset.lfAgentArrival = '1';
-      chrome.append(cue, arrival);
-      const cssFlash = getComputedStyle(cue).animationDuration;
+      chrome.append(arrival);
       const cssArrival = getComputedStyle(arrival).animationDuration;
       const cssFold = getComputedStyle(document.querySelector('lf-old')).transitionDuration;
       const {flashDuration, agentArrivalDuration} = await window.__lfCheckApi();
       const animation = owner.backgroundFlash(document.querySelector('#subject'), flashDuration());
       const played = animation.effect.getTiming().duration;
       animation.finish();
-      cue.remove(); arrival.remove();
-      return {cssFlash, cssArrival, cssFold, played,
+      arrival.remove();
+      return {cssArrival, cssFold, played,
         fold: owner.foldDuration(), agent: agentArrivalDuration()};
     }""")
     assert result == {
-        "cssFlash": "0.73s",
         "cssArrival": "0.91s",
         "cssFold": "0.17s",
         "played": 730,
@@ -291,7 +287,9 @@ ELEVATION_SHADOWS = """() => {
     try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
     const walk = (from) => {
       for (const rule of from) {
-        const named = rule.style ? [...rule.style] : [];
+        // Position-try descriptors expose item(i), but not indexed properties.
+        const named = rule.style
+          ? Array.from({length: rule.style.length}, (_, i) => rule.style.item(i)) : [];
         const lifted = (name) => ['box-shadow', 'filter'].includes(name) || name.startsWith('--');
         for (const property of named.filter(lifted)) {
           const value = parts(rule.style.getPropertyValue(property).trim());

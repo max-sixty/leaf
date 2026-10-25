@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/bdc00d621c2e6b0e0c8651e6fced61e09e479e05/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/bdc00d621c2e6b0e0c8651e6fced61e09e479e05/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/2d98e27fd9c7f096596ddc99d32584d32e45556d/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/2d98e27fd9c7f096596ddc99d32584d32e45556d/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/bdc00d621c2e6b0e0c8651e6fced61e09e479e05/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/2d98e27fd9c7f096596ddc99d32584d32e45556d/demo/demo.gif)
 
 </details>
 
@@ -73,6 +73,10 @@ index. Render checks use the executable named by
 `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN`, then installed Google
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`.
+
+Leaf needs Claude Code 2.1.196 or later, the first release whose hooks name the
+turn they run in. On an earlier one, an update handed into a prompt you interrupt
+waits until that turn ends before it is offered again.
 
 In Claude Code, a background Stop hook watches the session's pages between turns,
 and Leaf's hooks module shows a line above the prompt for each page the session

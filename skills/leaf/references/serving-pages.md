@@ -93,7 +93,7 @@ re-vendoring, write the current page into a new page directory and hand over its
 `server start` from an agent session claims the page for that session and connects
 the harness's delivery, even when the server is already running. The first serve sets
 the page's lifetime, and later serves keep it. To make a session page persistent, stop
-it and start it with `--persistent`, or start it from the user's shell.
+it and start it with `--lifetime persistent`, or start it from the user's shell.
 
 A session page stops when no live session holds it: when a terminal harness exits, or
 when a desktop Codex chat is archived or deleted.
@@ -108,7 +108,11 @@ closed. To end the page's conversation, follow `page-checkpoints.md`, "Ending".
 
 ## Resuming a persistent or foreign page
 
-Resume a page from one session only. First read it:
+Resume a page from one session only. `leaf page list` prints each page on the machine
+as a JSON line, served or stopped, with the session holding it, by the name its harness
+gives it (`session_name`) and whether it still runs (`session_alive`). Use it to find
+the page the user means, and to see whether another live session holds it before you
+claim it. Then read the page:
 
 ```bash
 leaf page state <page>
@@ -142,6 +146,6 @@ names the file's other owners.
 
 ## Temporary test servers
 
-`server run --temporary` serves on loopback until its foreground command exits, with
+`server run --lifetime temporary` serves on loopback until its foreground command exits, with
 its own key and no claim. It can't be revived and delivers no browser events to an
 agent. Use it for browser tests.

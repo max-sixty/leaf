@@ -232,6 +232,7 @@ class DemoWaiter:
     rearms the wait. The demo itself stands in for the reader."""
 
     def __init__(self, page_dir: Path) -> None:
+        self.page_dir = page_dir
         self.process = subprocess.Popen(
             [*LEAF_COMMAND, "wait", str(page_dir)],
             stdout=subprocess.PIPE,
@@ -260,8 +261,14 @@ class DemoWaiter:
                 f"the demo waiter exited {self.process.returncode} without one batch "
                 f"of user events\n{stderr}".rstrip()
             )
+        if not hooked:
+            subprocess.run(
+                [*LEAF_COMMAND, "delivery", "ack", payload["id"]],
+                check=True,
+                capture_output=True,
+            )
         self.process = subprocess.Popen(
-            [*LEAF_COMMAND, "wait", *([] if hooked else ["--ack", payload["id"]])],
+            [*LEAF_COMMAND, "wait", *([] if harness else [str(self.page_dir)])],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -356,7 +363,7 @@ def record(
     )
     (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")
     cmd_stamp(page_dir, "Backfill stays online; rehearsal progress is now 3 of 4")
-    cmd_waiting(page_dir, "")
+    cmd_waiting(page_dir)
     page.wait_for_function(
         "() => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
         "?.content === '2'"
@@ -417,7 +424,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
     cmd_stamp(page_dir, "On-call staffing moved into During, as the board now reads")
-    cmd_waiting(page_dir, "")
+    cmd_waiting(page_dir)
 
     for name, size, scheme in STILLS:
         with tab(browser, size, scheme) as page:
@@ -479,7 +486,7 @@ def record_demo(output: Path | None) -> None:
         cmd_init(page_dir)
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
-        cmd_waiting(page_dir, "")
+        cmd_waiting(page_dir)
         with claim_and_start(page_dir) as started:
             pass
         url = started.url

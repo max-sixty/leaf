@@ -3,8 +3,9 @@
  * decision widget the user answers there with its own controls. A card waits while it
  * holds an obligation open on the user (`obligationsIn`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
- * card no longer waits, after the user answered it on the card, the card flies right
- * and the next waiting card after it comes up. A wait that ends anywhere else, as when
+ * card no longer waits, after the user answered it on the card or on a control standing
+ * for it, such as a suggestion's margin entry, the card flies right and the next waiting
+ * card after it comes up. A wait that ends anywhere else, as when
  * the user comments on the card and leaves it with the agent, or the agent ends the
  * question, leaves the card where it is with Next, since news never moves what the user
  * is reading. Later sends a card left and leaves its obligation open, which is Leaf's
@@ -45,6 +46,7 @@ import {
   obligationsIn,
   offer,
   offered,
+  placeOf,
   openingView,
   quoted,
   readObligations,
@@ -53,6 +55,7 @@ import {
   signal,
   tally,
   tallyWords,
+  under,
   whileConnected,
   html,
   nothing,
@@ -375,11 +378,21 @@ customElements.define(
       if (!card) return;
       const waits = waiting.includes(card);
       // The reading that ends the open card's wait sends it on when the user answered
-      // it there: they are on it, or pressed in it and are on nothing else.
-      const answeredHere =
-        currentLocationIn(card) ||
-        (this.#pressed === card && [null, document.body].includes(focused()));
-      if (this.#waited && !waits && answeredHere)
+      // it from the card: every obligation it holds is closed, at least one by an
+      // answer, and the user is on the card, on a control standing for it such as a
+      // suggestion's margin entry (`placeOf`), or pressed in it and is on nothing else.
+      // A comment leaves an obligation open with the agent, and the agent ending one
+      // closes it without an answer, so neither moves the card.
+      const held = readings.get(card);
+      const answered =
+        held.some((item) => item.status === "answered") &&
+        !held.some((item) => item.status === "open");
+      const here = focused();
+      const place = here && placeOf(here);
+      const onCard =
+        Boolean(place && under(place, card)) ||
+        (this.#pressed === card && [null, document.body].includes(here));
+      if (this.#waited && !waits && answered && onCard)
         this.#go(this.#after(card, readings), "right");
       else this.#waited = waits;
     }

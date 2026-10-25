@@ -58,7 +58,6 @@ import {
   offer,
   LeafElement,
   paintKeys,
-  projectData,
   publishOutput,
   projectedDatum,
   threadSurface,
@@ -180,18 +179,28 @@ const lineLabel = ({ path, side, oldLine, newLine }) => {
 
 const fileLabel = ({ path }) => `${path || "(unnamed file)"} · file`;
 const fileNode = (entry) => entry.node;
-const fileDatum = (entry, origin = null) => ({
+const fileDatum = (entry) => ({
   file: true,
   path: entry.record.path,
   node: fileNode(entry),
-  ...(origin ? { origin } : {}),
 });
-const projectionDatum = (record) => ({
-  node: record.node,
-  key: diffDatumKey(record),
-  label: record.file ? fileLabel(record) : lineLabel(record),
-  ...(record.origin ? { origin: record.origin } : {}),
-});
+
+// The marks that make a drawn file row or line a datum on a Leaf page
+// (`module-state.md`, "Marking drawn data"), and their removal from a node kept
+// after it stops showing one.
+const MARKS = ["data-lf-datum", "data-lf-datum-label", "data-lf-origin-path"];
+const mark = (record, path) => {
+  keeps(record.node, "data-lf-datum", diffDatumKey(record));
+  keeps(
+    record.node,
+    "data-lf-datum-label",
+    record.file ? fileLabel(record) : lineLabel(record),
+  );
+  keeps(record.node, "data-lf-origin-path", path ? JSON.stringify(path) : null);
+};
+const unmark = (node) => {
+  for (const name of MARKS) node.removeAttribute(name);
+};
 
 // Pierre owns parsing, highlighting and word differences. Leaf gives each source
 // line one native row: its number is the comment control, and a conversation can
@@ -849,12 +858,27 @@ customElements.define(
       }
     };
 
-    // The source reading the last render read, and the one whose rendering last
-    // started; a departure that cuts a rendering short forgets it, so the return draws
-    // it again.
+    // The source the last render read, a bound value or an inline patch, and the one
+    // whose rendering last started; a departure that cuts a rendering short forgets
+    // it, so the return draws it again.
     #delivered;
     #shown;
     #showing = false;
+    // The rendering the update under way started, which its `updateComplete` waits for.
+    #rendered;
+    // The nodes the last marking marked as data.
+    #marked = new Set();
+
+    // The patch text or file manifest, set by whoever hosts the widget: Leaf from the
+    // bound source (the registry's `x-data.document.property`), or null while that
+    // source has none.
+    static properties = { value: { attribute: false } };
+
+    constructor() {
+      super();
+      /** @type {string | {files: any[]} | null} */
+      this.value = null;
+    }
 
     shouldUpdate(changed) {
       const ready = super.shouldUpdate(changed);
@@ -982,40 +1006,40 @@ customElements.define(
     }
 
     render() {
-      this.#delivered = this.hasAttribute("source")
-        ? this.data("document")
-        : this.inlineSource;
+      this.#delivered = this.hasAttribute("source") ? this.value : this.inlineSource;
       return nothing;
     }
 
-    // A patch renders each reading once, after the draw that read it, whose
-    // claim waits for the rendering.
+    // A patch renders each source once, after the draw that read it, whose
+    // `updateComplete` waits for the rendering.
     updated(changed) {
       super.updated(changed);
+      this.#rendered = undefined;
       if (this.#delivered === this.#shown) return;
       this.#shown = this.#delivered;
-      const bound = this.hasAttribute("source");
-      const snapshot = bound ? this.#delivered : undefined;
       this.#showing = true;
-      const rendering = this.show(
-        bound ? (snapshot?.value ?? null) : this.#delivered,
-        snapshot,
-      );
+      const rendering = this.show(this.#delivered);
       this.sourceRendering = rendering;
-      this.drawing(
-        rendering.finally(() => {
-          if (this.sourceRendering === rendering) {
-            this.#showing = false;
-            // Preparation may finish before the arrival batch reports departure.
-            if (!this.isConnected) this.#shown = undefined;
-          }
-        }),
-      );
+      this.#rendered = rendering.finally(() => {
+        if (this.sourceRendering === rendering) {
+          this.#showing = false;
+          // Preparation may finish before the arrival batch reports departure.
+          if (!this.isConnected) this.#shown = undefined;
+        }
+      });
     }
 
-    // `snapshot` is the bound delivery, null when a bound source has no value, and
-    // undefined for an inline patch.
-    async show(source, snapshot) {
+    // Also waits for the drawing the latest update started: a newer update's drawing
+    // replaces one still pending.
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.#rendered;
+      return result;
+    }
+
+    // `source` is a patch text or a file manifest, or null when a bound source has
+    // none.
+    async show(source) {
       const rendering = (this.rendering ?? 0) + 1;
       this.rendering = rendering;
       try {
@@ -1027,7 +1051,7 @@ customElements.define(
           this.filesBody = null;
           this.replaceChildren();
           shadowStage(this, []);
-          projectData(this, [], { snapshot });
+          this.markFiles(source);
           this.classList.toggle("lf-rendered", false);
           return;
         }
@@ -1044,7 +1068,7 @@ customElements.define(
         const open = !this.hasAttribute("collapsed");
         const plans = await Promise.all(
           records.map(async (record) => {
-            const evidence = await this.readEntry(snapshot, record);
+            const evidence = await this.readEntry(source, record);
             return {
               record: evidence.file?.record ?? record,
               evidence,
@@ -1072,7 +1096,7 @@ customElements.define(
           await Promise.all(
             pending.map(async (plan) => {
               plan.prepared = await this.prepareEntry(
-                snapshot,
+                source,
                 plan.record,
                 plan.previous?.details ? plan.previous.renderKey : null,
                 plan.evidence,
@@ -1129,7 +1153,7 @@ customElements.define(
             }
             return entry;
           });
-          this.snapshot = snapshot;
+          this.drawnSource = source;
           this.fileEntries = entries;
           this.activePath = activePath;
           if (!this.singleFile) this.diffTools ??= diffTools(this);
@@ -1146,7 +1170,7 @@ customElements.define(
           this.replaceChildren();
           this.markRuns();
           this.stageFiles();
-          this.projectFiles();
+          this.markFiles(source);
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools?.search.value ?? "");
           this.publishFiles();
@@ -1165,7 +1189,7 @@ customElements.define(
         // the place of every outlet, which core's composer leaves first.
         releaseOutlets(this);
         failSoft(this, err, typeof source === "string" ? source : undefined);
-        if (snapshot !== undefined) projectData(this, [], { snapshot });
+        this.markFiles(source);
       }
     }
 
@@ -1201,11 +1225,11 @@ customElements.define(
     // will, so it offers no Retry, and `applyEntry` reports it to the agent, which stored
     // it, once the current rendering shows it: the manifest's producer leaves judging a
     // patch to this widget.
-    async readEntry(snapshot, record) {
+    async readEntry(source, record) {
       let patch;
       if (!record.parsed)
         try {
-          patch = await loadDeferred(snapshot, record.path);
+          patch = await loadDeferred(source, record.path);
         } catch (error) {
           return { error, retry: true };
         }
@@ -1216,8 +1240,8 @@ customElements.define(
       }
     }
 
-    async prepareEntry(snapshot, record, renderKey, evidence) {
-      const reading = evidence ?? (await this.readEntry(snapshot, record));
+    async prepareEntry(source, record, renderKey, evidence) {
+      const reading = evidence ?? (await this.readEntry(source, record));
       if (reading.error) return reading;
       try {
         const { file } = reading;
@@ -1238,26 +1262,24 @@ customElements.define(
       shadowStage(this, [this.filesBody]);
     }
 
-    // A manifest names the source field each datum came from; a bound patch text's datums
-    // take the whole delivery's origin, and an inline patch has no delivery.
-    projectFiles() {
-      const origin = (index, field) =>
-        this.snapshot && typeof this.snapshot.value === "object"
-          ? { ...this.snapshot.origin, path: ["files", index, field] }
-          : null;
-      projectData(
-        this,
-        (this.fileEntries ?? [])
-          .flatMap((entry, index) => [
-            fileDatum(entry, origin(index, "path")),
-            ...(entry.loaded ? entry.lines : []).map((line) => ({
-              ...line,
-              origin: origin(index, "patch"),
-            })),
-          ])
-          .map(projectionDatum),
-        { snapshot: this.snapshot },
-      );
+    // Marks each drawn file row, and each line of a loaded file, as data drawn from
+    // `source`, and reports it. A manifest names the field each datum came from; a
+    // patch text's datums take the whole delivery's origin, and an inline patch has no
+    // delivery.
+    markFiles(source) {
+      const manifest = source !== null && typeof source === "object";
+      const marked = new Set();
+      for (const [index, entry] of (this.fileEntries ?? []).entries())
+        for (const [record, field] of [
+          [fileDatum(entry), "path"],
+          ...(entry.loaded ? entry.lines : []).map((line) => [line, "patch"]),
+        ]) {
+          mark(record, manifest ? ["files", index, field] : null);
+          marked.add(record.node);
+        }
+      for (const node of this.#marked) if (!marked.has(node)) unmark(node);
+      this.#marked = marked;
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value: source } }));
     }
 
     // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over, and
@@ -1346,7 +1368,7 @@ customElements.define(
       const rendering = this.rendering;
       const promise = (async () => {
         const prepared = await this.prepareEntry(
-          this.snapshot,
+          this.drawnSource,
           entry.record,
           entry.renderKey,
           entry.file ? { file: entry.file } : undefined,
@@ -1384,7 +1406,7 @@ customElements.define(
             if (ready.length) {
               this.markRuns();
               this.stageFiles();
-              this.projectFiles();
+              this.markFiles(this.drawnSource);
             }
             for (const restore of restores) restore?.();
             resolve(undefined);

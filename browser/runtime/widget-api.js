@@ -208,7 +208,6 @@ export {
   deferredArrival,
 } from "./presentation.js";
 export { quietWord } from "./declared-words.js";
-export { projectData } from "./application.js";
 export { copyBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;

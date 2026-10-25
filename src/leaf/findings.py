@@ -469,6 +469,11 @@ _TEXT = {
         f" the key found {_box(v['found'])}, the frame painted {_box(v['painted'])}"
         f"{_shift_evidence(v)}"
     ),
+    "gesture-scrolled": lambda at, v: (
+        f"a scroll during the {v['input']} on {placed(v['node'])} moved it{_by(v)};"
+        " only a command that takes the user somewhere (`travels`) may"
+        f"{_shift_evidence(v)}"
+    ),
     "shift-watch-missed": lambda at, v: (
         "shift watch missed a change to "
         + (placed(v["node"]) if v["node"] else "the page's nodes")
@@ -586,6 +591,13 @@ _TEXT = {
         f" {_json(v['words'])}. Leaf hides a retired slot by default, so this"
         " widget's own styles or module must be showing it, and no comment can"
         " anchor to its words"
+    ),
+    "read-as-changed": lambda at, v: (
+        f"{at} reads as changed when this version is compared with itself: a module"
+        f" wrote {_json(v['words'])} there without marking it, so every version"
+        " comparison marks it though nobody changed it. Mark the element the module"
+        " fills with generatedElement(node, {says}), or generated({says}) in a"
+        " template, from /runtime/widget-api.js"
     ),
     "render-threw": lambda at, v: (
         f"{at} render() threw when the complete state was rendered a second time:"

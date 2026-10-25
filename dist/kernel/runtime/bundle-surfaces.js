@@ -5,7 +5,7 @@ import { applicationState, attachApplicationPresentation, offlineInteractive, pa
 import { ago, aimedTop, atScrollEnd, claimReachStop, containingReadingRegionFor, effectiveScroller, moveScrollerBy, pageReadingRegion, pageScroller, placeKept, reachScrollers, reachable, readingRegionFor, readingRegions, releaseReachStop, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, shortAgo, shownRegionBounds, startScroll } from "./bundle-reading-regions.js";
 import { chromeForeground, chromeRoot } from "./bundle-chrome.js";
 import { COLLAPSE, alignText, closestAcross, elementById, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
-import { ADDRESSABLE, addressableWord, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, cutFrames, datumAimTarget, datumLabel, followingItsEnd, headerLevels, isAddressable, leadingTitle, localScrollBy, marks, nameAnchor, nameable, projectedDatum, refreshAnchorView, resolveAnchor, scrollAxes, sectionLabel, sectionOf, targetElement, targetSegments, visualPartLabel } from "./bundle-css-anchors.js";
+import { ADDRESSABLE, addressableWord, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, cutFrames, datumAimTarget, datumLabel, followingItsEnd, headerLevels, isAddressable, leadingTitle, localScrollBy, marks, nameAnchor, nameable, projectedDatum, refreshAnchorView, resolveAnchor, scrollAxes, sectionLabel, sectionOf, targetElement, targetSegments, visualPartLabel } from "./bundle-content-layout.js";
 import { initialOrigin, initialSource } from "./bundle-initial-render.js";
 import { copyControl } from "./bundle-copy-control.js";
 import { aborted, commitWidgetDescriptors, dataBody, rememberAuthoredParents, setChildren, stageAuthoredStates, stageWidgetDescriptors } from "./bundle-abort.js";
@@ -1313,7 +1313,7 @@ onCurrentLocation((node) => {
 function prepareCodeBlock(pre, source, noun) {
 	let copy = controls.get(pre);
 	if (!copy) {
-		copy = copyControl("lf-code-copy", {
+		copy = copyControl("lf-code-copy lf-quiet-action", {
 			label: `Copy ${noun}`,
 			success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
 			error: `Unable to copy ${noun}`
@@ -2965,6 +2965,7 @@ function createWritingResume({ revealInThread, arriveEditor, holdsThreadDraft })
 		title: "Resume writing",
 		touch: "Resume writing",
 		menu: "keys",
+		travels: true,
 		when: () => writingPlace !== null,
 		run: resume
 	};
@@ -3108,8 +3109,9 @@ const separateTranscript = (held) => {
 	return transcript && userScrollport(getComputedStyle(transcript).overflowY) ? transcript : null;
 };
 const landingTarget = (held, control) => {
-	if (fitsWhole(held)) return { node: held };
 	const reply = replyRowOf(held, control);
+	if (control !== held && !replyPinned(reply) && alreadyShown(control)) return { node: null };
+	if (fitsWhole(held)) return { node: held };
 	if (replyPinned(reply)) return control === held ? { node: null } : {
 		node: held,
 		block: "end"
@@ -3376,7 +3378,9 @@ var MessageEditor = class {
 		const save = offer("button", "lf-msg-control lf-msg-edit-save");
 		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
 		cancel.type = "button";
-		cancel.textContent = "Discard";
+		cancel.setAttribute("aria-label", "Discard");
+		cancel.title = "Discard";
+		cancel.append(iconElement("undo", "lf-msg-control-icon"));
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
@@ -3414,7 +3418,6 @@ var MessageEditor = class {
 			hint: "Edit message",
 			accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
 			sends: "save",
-			icon: null,
 			sendBtn: save,
 			submitIn: actions,
 			sentMedia: true,
@@ -4334,12 +4337,14 @@ function rowWalk({ id, noun, plural, rows, position = () => listWalkPosition(row
 		routes: [route("ArrowUp", up), route("ArrowDown", down)],
 		title: `walk the ${plural}`,
 		repeat: true,
+		travels: scroll,
 		run: (binding) => land((list) => clampedRow(list, focused(), binding === "ArrowDown" ? 1 : -1, 0))
 	}, {
 		id: `${id}.edge`,
 		keys: ["Home", "End"],
 		routes: [route("Home", home), route("End", end)],
 		title: `${home} / ${end}`,
+		travels: scroll,
 		run: (binding) => land((list) => binding === "Home" ? list[0] : list.at(-1))
 	}];
 }

@@ -294,13 +294,6 @@ and its chrome coordinate.
 - **Layout values that wait for a task:** a selection-and-detail widget whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
-- **Make a sidebar built from several blocks stick.** A sidebar's track sticks only
-  when it holds one block (`:only-child` in `layouts.css`), so multi-block asides
-  flow. The user decided (2026-10-21) to drop the condition: a multi-block aside
-  sticks as a whole, scrolling within the window like a one-block track. Sticking the
-  aside itself lets it cover a footer at the page's end (browsers bound a sticky flex
-  item by its container, not its row; #2636), so the build waits on the user's pick
-  between the runtime wrapping the blocks in one sticky box and keeping the rule.
 - **Decide whether a too-narrow table fails a page at the fixed widths.** It is
   advice at every width, the two fixed viewports included, where it once refused
   the page.
@@ -329,17 +322,18 @@ that changes size after first paint, with its cause.
   then move them, since each row's share is the module's measurement of the document
   (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
   would put them in place.
-- **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
-  measures in layout coordinates, which remove scrolling, so a scroll the runtime
-  makes during a gesture can move the control under the user's aim and fail
-  nothing; #2895's reply box moved 9–14px on a send that way. The proposed rule:
-  only a gesture that takes the user somewhere (the `t` and `q` walks, links,
-  Go-to) may move its control, and every other gesture keeps it still. Declare the
-  exemption on the command, not in a list in the watch. Then fix what it catches,
-  starting with the landings that choose where a gesture's control ends up:
-  `standOnThread`, the Threads list's landing, and `scrollThreadIntoView`. This
-  needs the user's go-ahead, and its per-frame cost measured at 4x CPU throttling
-  (`notes/shift-watch-cost.md`).
+- **Let a press say it takes the user somewhere.** The shift watch lets a key move
+  the control it was pressed on only where its command declares `travels`, and a
+  press only on a link (`shift_watch.js`, "Scrolls a gesture makes"); a press on any
+  other control has no command to declare it. Forced onto the unsurveyed tab tests,
+  the watch reports `lf-tabs` presses: a root set's switch, which adds a history entry
+  and opens the view at its place, carries the pressed tab up to 295px; an embedded
+  set's, 24px; and `#showTab` scrolls a partly hidden tab 51px into the strip.
+  Decide whether a view switch takes the user somewhere, which the history entry it
+  adds could declare as a link's does, and whether `#showTab`'s reveal is wanted.
+- **Keep the merge film's controls still as it steps.** In `examples/wt-merge.page`'s
+  `lf-merge-film`, pressing Next inspection scrolls that button 83px and `i` on Play
+  7px (`test_merge_film_inspection_has_touch_and_keyboard_routes`, unsurveyed).
 
 ### Queues
 

@@ -144,11 +144,11 @@ def shift_watch_source():
             "--input-type=module",
             "--eval",
             (
-                'import { WORKS, PRESSES } from "./browser/runtime/control-selectors.js";'
+                'import { WORKS, PRESSES, CARET_KEYS } from "./browser/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./browser/runtime/rect.js";'
                 'import { elementAxes, scrollAxes } from "./browser/runtime/element-frame.js";'
                 'import { shadowHost, upFrom, renderedParent } from "./browser/runtime/shadow.js";'
-                "process.stdout.write(JSON.stringify([WORKS,PRESSES,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
+                "process.stdout.write(JSON.stringify([WORKS,PRESSES,CARET_KEYS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],
         cwd=ROOT,
@@ -158,6 +158,7 @@ def shift_watch_source():
     (
         interactive,
         presses,
+        caret_keys,
         clipping,
         host,
         parent,
@@ -171,10 +172,10 @@ def shift_watch_source():
         + "const nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
         + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, pressControls, clippingAxes) => {{\n"
+        + f"((interactive, pressControls, caretKeys, clippingAxes) => {{\n"
         f"const shadowHost = {host};\nconst upFrom = {parent};\n"
         f"const renderedParent = {rendered_parent};\nconst elementAxes = {element_axes};\nconst scrollAxes = {axes};\n"
-        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {clipping});"
+        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {json.dumps(caret_keys)}, {clipping});"
     )
 
 
@@ -2359,11 +2360,11 @@ def any_suggestion_control(scope, key: str | None = None, *, visible=True):
 
 
 def command_reference_rows(page, heading):
-    """The rows of the command reference table titled `heading`."""
+    """The rows of the command reference section titled `heading`."""
     heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
         "id"
     )
-    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
+    return page.locator(f'[role=rowgroup][aria-labelledby="{heading_id}"]')
 
 
 # The page shell's box on screen: where the document's room starts and ends. The runtime

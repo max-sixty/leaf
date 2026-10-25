@@ -240,7 +240,7 @@ def test_a_thread_heads_with_the_task_it_holds_on_me(browser, serve):
     Done, so a reader discussing it ends it there, and the line goes as they press."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Can you check the mobile build?")
-    todo = todos_model.cmd_open(
+    todo = todos_model.cmd_create(
         serve.page_dir, root, "Try the build on your phone", "user"
     )
     page = open_page(browser, url)

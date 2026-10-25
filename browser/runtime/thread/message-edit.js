@@ -31,9 +31,10 @@
    where it stood and broken where it broke, its pictures under them as the message
    draws them (`sentMedia`), each with the removal mark a rewrite adds, and the field's
    frame and padding in the room around them (response.css, `.lf-msg-editor`). Discard
-   and Save stand at the message's head, where its own control stood
-   (`.lf-msg-edit-actions`), beside its author and time, so opening it moves nothing,
-   except that a message of pictures alone gains the line the caret needs for words.
+   and Save stand at the message's head as glyphs, where its own control stood
+   (`.lf-msg-edit-actions`), covering the end of the head's labels while they show, so
+   opening it moves nothing, except that a message of pictures alone gains the line
+   the caret needs for words.
    Rejected, by the user on 2026-10-22: the thread's reply box at its own width and
    padding, which they chose on 2026-10-13, with the pictures in a draft's cropped shelf
    over it, which pushed the words down by the pictures' height and rewrapped them in
@@ -80,6 +81,7 @@ import {
 import { TEXT_FIELD } from "../control-selectors.js";
 import { caretAtKey, focusDestination } from "../focus.js";
 import { seenRect } from "../geometry.js";
+import { iconElement } from "../icons.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
@@ -298,7 +300,9 @@ export class MessageEditor {
     const save = offer("button", "lf-msg-control lf-msg-edit-save");
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
-    cancel.textContent = "Discard";
+    cancel.setAttribute("aria-label", "Discard");
+    cancel.title = "Discard";
+    cancel.append(iconElement("undo", "lf-msg-control-icon"));
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
     // in a closed tree, so a mark of no size after it is what a reveal can aim at.
@@ -358,7 +362,6 @@ export class MessageEditor {
       hint: "Edit message",
       accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
       sends: "save",
-      icon: null,
       sendBtn: save,
       submitIn: actions,
       sentMedia: true,

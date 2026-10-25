@@ -7166,7 +7166,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				menuFade = null;
 				render(nothing, menu);
 			}
-		} else if (menuDrawn && !menuFade) {
+		} else if (menuDrawn && !menuFade && motionPlays()) {
 			menu.setAttribute("data-leaving", "");
 			menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
 				duration: motionTime("--lf-motion-disclosure", menu),

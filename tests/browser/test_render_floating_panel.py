@@ -3683,11 +3683,13 @@ def test_every_chevron_in_the_menu_is_drawn_as_a_stroke_at_one_size(browser, ser
     assert {(c["width"], c["right"]) for c in drawn} == {(12, drawn[0]["right"])}, drawn
 
 
-def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve):
+@pytest.mark.parametrize("reduce_motion", [False, True])
+def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve, reduce_motion):
     """Opened by a press, the leaf's menu is walked from the leaf by the arrows, Home and
     End, as one stop for Tab; Tab leaves it for the field, putting it away. On the leaf
     and on a count, as Escape leaves the user, the page's two-key Go-to still answers."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
+    page.emulate_media(reduced_motion="reduce" if reduce_motion else "no-preference")
     leaf = page.locator(".lf-fp-leaf")
     leaf.click()
     rows = page.locator(".lf-fp-menu .lf-fp-item:not(:disabled)")

@@ -166,6 +166,22 @@ test("a page scroll that moves a region's shown bounds keeps the side", () => {
   };
   const card = commentPlacement();
   assert.equal(card.choose({ ...input, boundary: region(58, 597) }).fresh, true);
+  // A placement superseded before it lands opened nothing, so the next is fresh too:
+  // a card opened as Floating UI first loads makes room clear of its target.
+  assert.equal(card.choose({ ...input, boundary: region(58, 597) }).fresh, true);
+  card.landed({
+    x: clear.left,
+    y: clear.bottom + 8,
+    middlewareData: {
+      scaled: {
+        scale: { x: 1, y: 1 },
+        column: clear.left,
+        attachmentInline: clear.left,
+        line: clear.bottom,
+      },
+      held: { height: 160 },
+    },
+  });
   assert.equal(card.choose({ ...input, boundary: region(50, 560) }).fresh, false);
   assert.equal(
     card.choose({ ...input, boundary: region(50, 560, [0, 0, 900, 500]) }).fresh,

@@ -448,7 +448,11 @@ export function commentPlacement() {
         forget();
       }
       input = key;
-      const fresh = side === null;
+      // A surface is fresh until it first lands, not only on the choice that picks its
+      // side: a placement a newer one supersedes before it fits never opened the
+      // surface, and a card opened while Floating UI first loads is placed again before
+      // that, so it would never make room clear of its target.
+      const fresh = held === null && initialHold === null;
       side ??= unanchored
         ? "bottom"
         : commentSide({

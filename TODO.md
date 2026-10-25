@@ -405,8 +405,24 @@ claude-code` run (its `boundary` step), the transcript held the comment in both
   advice. Run the render readings on the server when a version goes live and
   deliver the findings through `leaf wait`: the agent hands the page over at once
   and refines it if a reading warrants, while a failure still blocks a record's
-  stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
-  whether agents act on findings that arrive after handover, before building it.
+  stamp. **Pass length, measured 2026-10-24:** `page check --render` took 8.1–21.3 s
+  wall (median 11.5 s, 24 runs) on six shipped examples and two real pages, 3 runs
+  each, at a one-minute load of 18–49 on the 18-core Mac; the runs at load 25 or
+  below took 8.1–11.8 s on the examples. The generated corpus took 450–500 s, almost
+  all in saving screens. The agent-side wait agrees with the 7.5–12.8 s that
+  `notes/user-feedback-responsiveness.md` found in 6 of 47 Claude Code replies. Of
+  that, the browser launch is 0.3–1.5 s, the preview server 0.2–0.8 s, the page's own
+  code 0.5–1.8 s where it has any, the render readings (four scheme and width renders
+  plus the width sweep; the desktop light render with the sweep is 2.0–4.7 s of it)
+  3.9–10.8 s, and saving screens 2.2–6.7 s, which only the pre-handover review reads. A server-side pass can drop
+  the screens, so its readings take 4–11 s, and it delivers in the same range as the
+  wait it removes. **Unconfirmed:** whether agents act on findings that arrive after
+  handover. Test it with an eval in which the agent hands a page over, then
+  receives through `leaf wait` a render finding that is real (a seeded sideways
+  overflow) and then a harmless one, in a second arm with no finding and a third
+  with the finding in the agent's own `--render` before replying. Score whether it
+  refines after a real finding, stays quiet after a harmless one, and how long
+  handover takes, over at least 10 repeats per arm and both harnesses, before building it.
 - **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on

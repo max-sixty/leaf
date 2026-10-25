@@ -80,6 +80,8 @@ export { answeredInWords, readObligations } from "./obligations/model.js";
 export { obligationsIn } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
+// A view's reading and writing of another widget's answer (x-shows).
+export { shownAnswer } from "./shown-answer.js";
 export {
   readWork,
   workRole,

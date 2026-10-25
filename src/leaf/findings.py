@@ -903,6 +903,35 @@ _TEXT = {
     "output-contract": lambda at, v: (
         f"{_line(at, v)}: input {v['input']!r} requires output {v['output']!r} of {v['target']!r} with contract {v['contract']!r}"
     ),
+    "shows-outside": lambda at, v: (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget outside its own'
+        " document; a view shows answers in the page or message it stands in"
+    ),
+    "shows-no-answer": lambda at, v: (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget whose answer no'
+        " view can show: its x-awaits value verb records neither a value nor members"
+        " an x-awaits key names"
+    ),
+    "shows-without-open": lambda at, v: (
+        f"{_line(at, v)}: every <{v['place']}> beside its own has a `{v['value_attr']}`,"
+        f" so none can hold it while {v['target']}'s answer names no value; add a"
+        f" <{v['place']}> without `{v['value_attr']}`"
+    ),
+    "shows-untakeable": lambda at, v: (
+        f"{_line(at, v)}: {v['target']} has no answer {v['value']!r}, which a"
+        f" <{v['place']}> beside it holds"
+    ),
+    "shown-elsewhere": lambda at, v: (
+        f"{_line(at, v)}: stands in a <{v['place']}> holding "
+        + (f"{v['stands']!r}" if v["stands"] else "no value")
+        + f", but {v['target']}'s answer is "
+        + (
+            f"{v['answer']!r}; move it to the <{v['place']}> whose"
+            f" `{v['value_attr']}` is {v['answer']!r}"
+            if v["answer"]
+            else f"no value; move it to a <{v['place']}> without `{v['value_attr']}`"
+        )
+    ),
     "outside-reference": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names an element outside its'
         " own document, which it fills"
@@ -1283,6 +1312,23 @@ _TEXT = {
     ),
     "awaits-value": _declared(
         lambda v: "x-awaits value must name a user-written x-state verb"
+    ),
+    "awaits-key": _declared(
+        lambda v: (
+            f"x-awaits key `{v['key']}` needs an attribute-record value verb whose"
+            f" members declare `{v['key']}` in x-unique for this widget"
+        )
+    ),
+    "shows-reference": _declared(
+        lambda v: (
+            f"x-shows attr `{v['attr']}` must be an x-refers relation to any element"
+        )
+    ),
+    "shows-value": _declared(
+        lambda v: (
+            f"x-shows value `{v['attr']}` is no attribute of "
+            + ", ".join(f"<{owner}>" for owner in v["owners"])
+        )
     ),
     "awaits-retired": _declared(
         lambda v: (
@@ -1671,6 +1717,10 @@ _TEXT = {
     "foreign-unit": lambda at, v: (
         f"{_invalid_record(v)}position record unit {v['unit']!r} is not owned by"
         f" action widget {v['widget']!r}"
+    ),
+    "shown-unit": lambda at, v: (
+        f"{_invalid_record(v)}{v['unit']!r} shows the answer of {v['shows']!r}, which"
+        " decides where it stands; change that answer instead"
     ),
     "nested-unit": lambda at, v: (
         f"{_invalid_record(v)}position record cannot put {v['unit']!r} inside itself"

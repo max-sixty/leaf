@@ -112,7 +112,7 @@ Two test-owned failures recur:
 
 The goal is main green. Every failure in the run is the session's, including
 those earlier runs also hit, and so is every open `ci-fix:` issue, which holds a
-cause an earlier session left. A record of a failure, whether an issue, a comment
+failure an earlier session left. A record of a failure, whether an issue, a comment
 or a table of statuses, doesn't give it an owner: it waits for the next red run,
 whose session starts over. So keep working until each cause has a merged fix or a
 pull request you are still driving. A session ends at GitHub's six-hour job limit,
@@ -125,9 +125,8 @@ facts:
   what showed it.
 - Failures often share a cause, and each pull request costs a CI run, so open
   one pull request per cause that no open pull request already covers.
-- Each cause has one `ci-fix:` issue, opened when you take the cause up unless one
-  already covers it, and its fix closes it. A cause you can't finish keeps its
-  issue, with what you established, so the next session starts from there.
+- Follow **One issue per failing test** for tracking; preserve what you established
+  in each issue so the next session starts from there.
 - A pull request's CI takes most of an hour, so diagnose and fix separate causes
   in parallel subagents, each in its own worktree.
 - No cause waits on a maintainer's decision: where no repair keeps both the

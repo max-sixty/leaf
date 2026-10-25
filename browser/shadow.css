@@ -244,10 +244,8 @@ summary {
   --lf-msg-body-gap: 4px;
   --lf-msg-control-size: 26px;
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
-  --lf-msg-edit-cancel: max(52px, var(--aim-floor));
-  --lf-msg-edit-save: max(40px, var(--aim-floor));
   --lf-msg-edit-gap: 4px;
-  --lf-msg-edit-room: calc( var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save) );
+  --lf-msg-edit-width: calc( 2 * var(--lf-msg-control-width) + var(--lf-msg-edit-gap) + var(--sp-2) );
   --lf-news-count-room: 16px;
   --lf-primary-news-width: calc(5rem + var(--lf-news-count-room));
 }
@@ -296,6 +294,9 @@ summary {
   --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);
 }
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head:has(> .lf-primary-news) {
+  --lf-msg-control: var(--lf-msg-edit-width);
+}
 .lf-primary-part {
   position: relative;
   border-radius: var(--r);
@@ -307,7 +308,7 @@ summary {
   position: absolute;
   box-sizing: border-box;
   inset-block-start: 0;
-  inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
+  inset-inline-end: var(--lf-msg-control, 0px);
   max-inline-size: var(--lf-primary-news-width);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -501,7 +502,7 @@ summary {
   --lf-thread-message-control-room: calc(var(--lf-msg-control-width) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-body > .lf-msg-editor) {
-  --lf-thread-message-control-room: calc(var(--lf-msg-edit-room) + var(--sp-2));
+  --lf-thread-message-control-room: calc(var(--lf-msg-edit-width) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
   anchor-name: --lf-thread-headline, --lf-msg-head;
@@ -1031,13 +1032,10 @@ leaf-text.lf-fab-input,
 }
 .lf-msg:has(.lf-msg-control, > .lf-msg-head > .lf-progress-expand) > .lf-msg-head {
   --lf-msg-control: var(--lf-msg-control-width);
-  padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
+  padding-inline-end: calc(var(--lf-msg-control) + var(--lf-msg-head-room, 0px));
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
   scroll-margin-block-end: var(--sp-2);
-}
-.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
-  --lf-msg-control-room: var(--lf-msg-edit-room);
 }
 .lf-msg-control {
   appearance: none;
@@ -1134,7 +1132,7 @@ svg[data-lf-icon] {
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
     --lf-msg-control: var(--lf-msg-control-width);
-    padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
+    padding-inline-end: calc(var(--lf-msg-control) + var(--lf-msg-head-room, 0px));
   }
 }
 .lf-msg-meta {
@@ -1726,25 +1724,38 @@ button.lf-media-open {
   translate: 0 -50%;
   display: inline-flex;
   gap: var(--lf-msg-edit-gap);
+  padding-inline-start: var(--sp-2);
+  font-size: var(--t-6);
+  background:
+    linear-gradient(
+      to right,
+      transparent,
+      var(--lf-msg-ground) var(--sp-2)),
+    linear-gradient(
+      to right,
+      transparent,
+      var(--lf-ground) var(--sp-2));
+  background-size: 100% 1lh;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 .lf-msg-edit-actions > .lf-msg-control {
   position: relative;
   inset: auto;
   translate: none;
   opacity: 1;
-  block-size: 24px;
+  inline-size: var(--lf-msg-control-width);
+  block-size: var(--lf-msg-control-size);
   min-width: 0;
   min-height: 0;
-  font: 600 var(--t-6)/1 var(--sans);
+  border: 1px solid transparent;
+}
+.lf-msg-edit-actions > .lf-msg-control:is(:hover, [data-lf-focus]) {
+  border-color: var(--border-2);
+  background: var(--chip);
 }
 .lf-msg-edit-actions > .lf-msg-control::after {
   inset: min(0px, 100% - var(--aim-floor)) 0 0;
-}
-.lf-msg-edit-actions > .lf-msg-edit-cancel {
-  inline-size: var(--lf-msg-edit-cancel);
-}
-.lf-msg-edit-actions > .lf-msg-edit-save {
-  inline-size: var(--lf-msg-edit-save);
 }
 .lf-msg-edit-actions > .lf-msg-edit-save::before {
   display: none;

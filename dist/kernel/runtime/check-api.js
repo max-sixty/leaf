@@ -4,8 +4,8 @@ import { exceptionText, recordInteraction, runtimeRootState } from "./bundle-lay
 import { applicationPresented, presentDocument, readApplication, readApplicationPresentation, selectWidgets, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented } from "./bundle-context.js";
 import { allBindings, annotationMarkSheets, annotationSheets, chromeSharedClasses, chromeSheet, commandDeclarationsWithin, commandEntries, commandPresentations, commandRoutes, dragHeld, growthAfterIsSeen, landingBand, live, marksSheet, nativeLayers, reveal, seenRect, shownBand, shownBox, shownRect, skipped, stackLevel, stuckBox, uiInside, userScrollport, visibleBand } from "./bundle-errors.js";
 import { effectiveScroller, reachScrollers, readingRegion, readingRegionFor, readingRegions, releaseReachStop, scrollersOf, shownRegionBounds, unconcealedReadingRegions, userReadingRegion } from "./bundle-reading-regions.js";
-import { availableCommandRoutes, executeCommand, registerSampleCommand, stack } from "./bundle-dispatch.js";
-import { selfComparison, servedElements, shallowSigs } from "./bundle-version.js";
+import { registerSampleCommand } from "./bundle-sample-child.js";
+import { availableCommandRoutes, executeCommand, selfComparison, servedElements, shallowSigs, stack } from "./bundle-dispatch.js";
 import { TEXT_BLOCK, alignInlineText, closestAcross, elementById, fencePassageParts, findQuote, layoutBox, pageDocument, pageRange, pageText, quoteFrom, segmentsIn, sentenceUnits, settledAway, spanIn, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { ADDRESSABLE, aimTargetAt, aimTargets, anchorForRange, elementFrame, resolveAnchor, scrollAxes, visualPartProblems } from "./bundle-content-layout.js";
 import { authoredBody } from "./bundle-initial-render.js";

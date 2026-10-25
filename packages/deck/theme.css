@@ -19,6 +19,13 @@
   font: var(--t-6) / 1.4 var(--sans);
   color: var(--muted);
 }
+.lf-deck-status {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
 .lf-deck-count {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -54,9 +61,6 @@
   inline-size: max(var(--lf-line), var(--aim-floor));
   block-size: max(var(--lf-line), var(--aim-floor));
   padding: 0;
-}
-.lf-deck-forward {
-  margin-inline-start: auto;
 }
 
 /* Where the runtime runs, the open card stands alone in its frame, with the edges of

@@ -19,6 +19,8 @@ import json
 import re
 from pathlib import Path
 
+from leaf_dev.authoring_eval import leaf_command
+
 # The findings that say something failed to run or draw, as opposed to the geometry
 # and wording readings: what the runtime posts as the page's `error` (a widget
 # failing soft, an uncaught exception), a module that never upgraded, a render that
@@ -94,7 +96,7 @@ def get_assert(output: str, context: dict) -> dict:
     for index, entry in enumerate(metadata["check_log"]):
         if "output" not in entry:
             continue
-        command = str(entry["input"].get("command", ""))
+        command = leaf_command(entry["input"])
         found = failures(reading(entry["output"]))
         session.append(
             {

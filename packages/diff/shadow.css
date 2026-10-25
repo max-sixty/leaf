@@ -220,6 +220,9 @@
 .lf-diff-run-end {
   --lf-diff-r-end: var(--r);
 }
+.lf-diff-file:first-child {
+  margin-top: 0;
+}
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: var(--lf-diff-head-pressed);
 }

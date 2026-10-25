@@ -138,6 +138,10 @@ FIRST_PAINT_PAGE = leaf_page(
     + _patch_file("src/app.py", 1200, ["x = 1", "y = 2"])
     + _patch_file("src/util.py", 1, ["z = 3"])
     + "</pre></lf-diff>"
+    # One file draws no filter row.
+    + '<lf-diff id="single"><pre>'
+    + _patch_file("src/only.py", 1, ["w = 0"])
+    + "</pre></lf-diff>"
     # Prose wraps at the drawing's column: words, runs of spaces, and words longer
     # than the column by every count up to a few columns, so a column more or less
     # than the drawing's changes some row's lines at either width.

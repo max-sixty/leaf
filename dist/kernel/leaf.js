@@ -7163,7 +7163,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				menuFade = null;
 				render(nothing, menu);
 			}
-		} else if (menuDrawn && !menuFade) {
+		} else if (menuDrawn && !menuFade && motionPlays()) {
 			menu.setAttribute("data-leaving", "");
 			menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
 				duration: motionTime("--lf-motion-disclosure", menu),
@@ -7590,6 +7590,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		return present({ release: true }).then(() => true);
 	}
+	function openThread(id) {
+		const thread = threadByKey(id);
+		if (!thread) return;
+		open({
+			view: "thread",
+			thread: thread.key
+		}, { reopen: true });
+	}
 	function captureCurrentLocation() {
 		const top = trail.value.at(-1);
 		const view = openView();
@@ -7698,6 +7706,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		searchPage,
 		doors,
 		showForSample,
+		openThread,
 		captureCurrentLocation,
 		restoreCurrentLocation,
 		responseHome: responseSeat,
@@ -10721,6 +10730,7 @@ app = mountApplication({
 		pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
 		renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
 		scrollThreadIntoView,
+		openInPanel: (id) => floatingPanel?.openThread(id),
 		goToObligation: (...args) => items.goToObligation(...args)
 	},
 	state: {

@@ -66,6 +66,7 @@ import { signal } from "/vendor/browser-runtime.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import {
+  excludedByInert,
   isNativeLayer,
   renderedParent,
   renderedUnder,
@@ -981,10 +982,13 @@ export function ringBox(node) {
     if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
   return node;
 }
+// A focus place excludes inert content, even while its closing animation paints it.
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 export const drawn = (node) =>
-  node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+  node?.isConnected &&
+  !excludedByInert(node) &&
+  node.checkVisibility({ visibilityProperty: true });
 // The node hidden or removed by a change that left the user with no current location.
 const dropped = () => {
   const at = deepFocus();

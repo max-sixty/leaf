@@ -128,8 +128,8 @@ behavior. A compound widget may own reading regions without being a pane.
 | **View** | What opens above the row and covers the page beneath it: Threads, a thread, the On view (one tab per list, On me and On *agent*) or All pages. Escape or a press on the page puts it away |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
-as a **thread card** beside its words, and in the panel only where nothing on the page
-draws it. A comment on selected words is written in the **anchored comment box**, which
+as a **thread card** beside its words, and in the panel where nothing on the page
+draws it or the user moves it there with the card's **Open in panel**. A comment on selected words is written in the **anchored comment box**, which
 opens beside them and becomes their thread card on Send.
 
 ## Page Map and the margin
@@ -206,8 +206,7 @@ route* is any keyboard path to an action, including Tab to a native control. A r
 
 The **command reference** is the keyboard help: the searchable catalog of all
 commands, including pointer and platform ones with no key, opened by `?` or Keyboard
-shortcuts in the leaf's menu. The menu's rows show their own shortcuts; Leaf's panel
-shows no other key hints but the one that enters an open thread's reply.
+shortcuts in the leaf's menu.
 
 ## Related terms
 

@@ -2350,39 +2350,65 @@
     const style = getComputedStyle(element);
     return !["absolute", "fixed"].includes(style.position) && style.float === "none";
   };
+  // The box a box's layout places it in: the rendered parent, past any that generates
+  // no box of its own, such as a slot. The layout path runs through the rendered tree,
+  // so a size change inside a widget's shadow root carries the page's boxes after its
+  // host, as a resolved thread folding in a diff carries the paragraphs below the diff.
+  const boxParent = (element) => {
+    let parent = up(element);
+    while (parent && getComputedStyle(parent).display === "contents")
+      parent = up(parent);
+    return parent;
+  };
+  const boxUnder = (node, ancestor) => {
+    for (let at = node; at; at = boxParent(at)) if (at === ancestor) return true;
+    return false;
+  };
   const sizeReaches = (target, element, from, to, axis, change) => {
     const size = axis === "top" ? "height" : "width";
     let branch = target;
-    while (branch.parentElement && !branch.parentElement.contains(element)) {
+    while (boxParent(branch) && !boxUnder(element, boxParent(branch))) {
       if (!inFlow(branch)) return false;
-      branch = branch.parentElement;
+      branch = boxParent(branch);
       const before = boxAt(branch, from),
         after = boxAt(branch, to);
       if (!before || !after || Math.abs(after[size] - before[size] - change) >= 1)
         return false;
     }
-    if (!inFlow(branch) || !branch.parentElement) return false;
-    let follower = element;
-    while (follower.parentElement !== branch.parentElement) {
-      if (!inFlow(follower) || !follower.parentElement) return false;
-      follower = follower.parentElement;
+    const flow = boxParent(branch);
+    if (!inFlow(branch) || !flow) return false;
+    // An in-flow box moves with its parent, and an absolutely positioned one with its
+    // containing block: its nearest positioned ancestor or a box nearer still, such as
+    // a transformed one. So an absolute box is carried only where a positioned box
+    // between it and the follower holds it, as a diff line holds its comment button.
+    let follower = element,
+      placed = true;
+    while (boxParent(follower) !== flow) {
+      const style = getComputedStyle(follower);
+      if (style.position === "fixed" || style.float !== "none") return false;
+      if (style.position === "absolute") placed = false;
+      follower = boxParent(follower);
+      if (!follower) return false;
+      if (getComputedStyle(follower).position !== "static") placed = true;
     }
+    if (!placed) return false;
     // Block-level children stack vertically in a horizontal-writing block flow.
     // A block container can also hold inline siblings, whose height does not carry
     // the next sibling down; flex, grid, and vertical writing have other axes.
     if (
       axis !== "top" ||
-      !["block", "flow-root"].includes(
-        getComputedStyle(branch.parentElement).display,
-      ) ||
-      getComputedStyle(branch.parentElement).writingMode !== "horizontal-tb" ||
+      !["block", "flow-root"].includes(getComputedStyle(flow).display) ||
+      getComputedStyle(flow).writingMode !== "horizontal-tb" ||
       !["block", "flow-root"].includes(getComputedStyle(branch).display) ||
       !["block", "flow-root"].includes(getComputedStyle(follower).display)
     )
       return false;
+    // Two boxes in one flow can stand in different trees, as a slotted node beside its
+    // slot's shadow siblings, where the DOM gives no order; those are not credited.
     return (
       inFlow(follower) &&
       branch !== follower &&
+      branch.getRootNode() === follower.getRootNode() &&
       !!(branch.compareDocumentPosition(follower) & Node.DOCUMENT_POSITION_FOLLOWING)
     );
   };
@@ -2391,7 +2417,6 @@
     const motion = { left: 0, top: 0, terms: [] };
     if (!element) return motion;
     for (const details of nativeClosures.keys()) {
-      if (details.getRootNode() !== element.getRootNode()) continue;
       const before = boxAt(details, from),
         after = boxAt(details, to),
         first = layoutAt(element, from),
@@ -2416,14 +2441,10 @@
       if (!target) continue;
       if (!ancestryAt(element, to).includes(target)) {
         // A size animation can move boxes later in its flow. The size change
-        // must propagate through its ancestors to a following in-flow branch.
+        // must propagate through its ancestors to a following in-flow branch
+        // (`sizeReaches`, which also orders the two).
         const properties = animationProperties(animation);
-        if (
-          !properties.some((property) => SIZE_GEOMETRY.has(property)) ||
-          target.getRootNode() !== element.getRootNode() ||
-          !(target.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)
-        )
-          continue;
+        if (!properties.some((property) => SIZE_GEOMETRY.has(property))) continue;
         const before = boxAt(target, from),
           after = boxAt(target, to);
         const first = layoutAt(element, from),

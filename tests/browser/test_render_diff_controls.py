@@ -29,7 +29,9 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     """Several worktrees stay open independently, retaining each nested reader.
 
     Missing evidence remains visibly unknown beside known totals; neither an empty
-    collection nor a fifth member needs a different browsing surface.
+    collection nor a fifth member needs a different browsing surface. A revision to a
+    row's evidence edits it in place, and one that rebuilds the rows reopens each the
+    reader opened.
     """
     head = "1234567890abcdef1234567890abcdef12345678"
     patch = "".join(
@@ -46,20 +48,20 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
                     '<h1>Review worktrees</h1><lf-worktree-diffs id="trees">'
                     '<lf-worktree id="drafts" label="retain-drafts" '
                     'branch="codex/retain-drafts" path="/workspace/leaf.retain-drafts" '
-                    f'head="{head}" status="changed" files="2" additions="2" deletions="2"><details id="drafts-body" open>'
+                    f'head="{head}" status="changed" files="2" additions="2" deletions="2" open>'
                     "<p>Keep reply drafts keyed by thread</p>"
                     "<aside>Drafts survive changing the selected thread.</aside>"
                     "<details><summary>Snapshot details</summary>"
                     f"<p>Current commit <code>{head}</code></p></details>"
                     f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
-                    '</details></lf-worktree><lf-worktree id="missing" label="missing checkout" '
-                    'path="/workspace/missing" status="unavailable"><details id="missing-body">'
-                    "<p>The supplied checkout could not be read.</p></details></lf-worktree>"
+                    '</lf-worktree><lf-worktree id="missing" label="missing checkout" '
+                    'path="/workspace/missing" status="unavailable">'
+                    "<p>The supplied checkout could not be read.</p></lf-worktree>"
                     + "".join(
                         f'<lf-worktree id="clean-{index}" label="clean {index}" '
                         f'path="/workspace/clean-{index}" status="clean" files="0" '
-                        f'additions="0" deletions="0"><details id="clean-body-{index}">'
-                        "<p>No changes.</p></details></lf-worktree>"
+                        f'additions="0" deletions="0">'
+                        "<p>No changes.</p></lf-worktree>"
                         for index in range(3)
                     )
                     + '</lf-worktree-diffs><lf-worktree-diffs id="empty"></lf-worktree-diffs>'
@@ -113,7 +115,8 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     expect(file_summary.locator("..")).not_to_have_attribute("open")
     expect(snapshot.locator("code")).to_be_visible()
     expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
-    # Editing both the active row and its sibling retains nested reading state.
+    # Editing both the active row and its sibling retains nested reading state, even
+    # where the edit changes the evidence's own elements: the row reads none of them.
     source = serve.page_dir / "index.html"
     source.write_text(
         source.read_text()
@@ -125,12 +128,14 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
             "Keep reply drafts keyed by thread",
             "Keep reply drafts safely keyed by thread",
         )
+        .replace("<aside>", '<aside title="Agent commentary">')
     )
     told(page)
     expect(
         page.get_by_text("The supplied checkout is temporarily unavailable.")
     ).to_be_visible()
     expect(page.get_by_text("Keep reply drafts safely keyed by thread")).to_be_visible()
+    expect(row.locator("aside")).to_have_attribute("title", "Agent commentary")
     expect(search).to_have_value("app.py")
     expect(file_summary.locator("..")).not_to_have_attribute("open")
     expect(snapshot.locator("code")).to_be_visible()
@@ -145,6 +150,22 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     page.locator("#files").get_by_role("treeitem", name="app.py", exact=True).click()
     expect(row).to_have_attribute("open", "")
     expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
+    # A changed snapshot attribute rebuilds the rows; each keeps the reader's choice,
+    # whether it closed an authored-open row or opened a closed one.
+    summary.click()
+    expect(row).not_to_have_attribute("open")
+    source.write_text(
+        source.read_text().replace(
+            'path="/workspace/missing"', 'path="/workspace/gone"'
+        )
+    )
+    told(page)
+    expect(page.locator("#missing")).to_contain_text("/workspace/gone")
+    expect(row).not_to_have_attribute("open")
+    expect(
+        page.get_by_text("The supplied checkout is temporarily unavailable.")
+    ).to_be_visible()
+    expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
 
 
 def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):

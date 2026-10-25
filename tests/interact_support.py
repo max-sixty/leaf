@@ -1782,7 +1782,7 @@ def declare_idle(page_dir):
     """Write the page's `idle` declaration directly, past `leaf page close`'s refusal
     over unanswered moves, for a test whose subject is what an idle page does."""
     with service_model.PageTransaction(page_dir) as page:
-        return page.set_status("idle", "")
+        return page.set_status("idle")
 
 
 def declared(page_dir):
@@ -1798,9 +1798,9 @@ def status_and_stream(page_dir):
     return declared(page_dir), service_model.read_stream(page_dir)
 
 
-def declare(page_dir, state="waiting", detail="", *, ts=None, **voice):
+def declare(page_dir, state="waiting", *, ts=None, **voice):
     """Seed the agent's declaration as the log holds it, a `status` event, for a test
-    of how a page reads it: `state` with `detail`, dated `ts` (now by default) and
+    of how a page reads it: `state`, dated `ts` (now by default) and
     spoken in `voice` (`agent`, `session`). Raw, so a test can date it in the past;
     `leaf page open` is the command an agent runs."""
     return append_carried_log_record(
@@ -1809,7 +1809,6 @@ def declare(page_dir, state="waiting", detail="", *, ts=None, **voice):
             "kind": "status",
             "author": "agent",
             "state": state,
-            "detail": detail,
             **({"ts": ts} if ts else {}),
             **voice,
         },
@@ -1905,7 +1904,7 @@ def newest_move(page_dir, widget):
 def _start(page_dir, item, line):
     """`leaf task start`: take a move or task in hand with the status's line."""
     return CliRunner().invoke(
-        cli_model.cli, ["task", "start", str(page_dir), str(item), line]
+        cli_model.cli, ["task", "start", str(page_dir), str(item), "--text", line]
     )
 
 
@@ -1933,7 +1932,8 @@ def working(page_dir, line, subject="page"):
     )
     if task is None:
         opened = CliRunner().invoke(
-            cli_model.cli, ["task", "open", str(page_dir), subject, line[:80]]
+            cli_model.cli,
+            ["task", "create", str(page_dir), subject, "--title", line[:80]],
         )
         assert opened.exit_code == 0, opened.output
         task = json.loads(opened.output.splitlines()[-1])
@@ -2269,7 +2269,7 @@ def published(page_dir):
 
 def comment(page_dir, *args):
     """Open a thread, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(cli_model.cli, ["thread", "open", str(page_dir), *args])
+    return CliRunner().invoke(cli_model.cli, ["thread", "create", str(page_dir), *args])
 
 
 DRAFTED = PAGE.replace(
@@ -2618,7 +2618,7 @@ def continued(output: str | dict) -> str:
 
 def printed(output: str) -> tuple[dict, dict, list[dict]]:
     """Read the one delivery a wait printed, for a harness whose wait is its watcher
-    (a bare shell, a Codex watcher): its reader confirms it with `wait --ack`."""
+    (a bare shell, a Codex watcher): its reader confirms it with `delivery ack`."""
     payload = json.loads(output)
     assert payload["format"] == delivery_model.DELIVERY.format
     assert payload["acknowledge"] is not None
@@ -2628,7 +2628,7 @@ def printed(output: str) -> tuple[dict, dict, list[dict]]:
 
 @pytest.fixture
 def codex_loop(monkeypatch):
-    """A Codex task running its own `leaf wait`/`leaf wait --ack` loop, the harness
+    """A Codex task running its own `leaf wait` loop, the harness
     session whose wait prints each delivery for its reader to confirm. This process,
     and every command it spawns, carries the task's identity in place of Claude
     Code's. Call the value with a page to record the task's claim on it: a claim
@@ -2651,7 +2651,7 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
             [stored[event["id"]] for event in events],
         )
     return delivery_model.freeze_delivery(
-        [batch], acknowledge=session_model.wait_acknowledgement(None)
+        [batch], acknowledge=session_model.wait_acknowledgement(None, page_dir)
     )
 
 
@@ -2874,7 +2874,7 @@ def _interaction_prompt_evidence(page, value):
 
 def _watched(page_dir):
     """A claimed page this session watches, so only its debts reach the hooks."""
-    session_model.cmd_waiting(page_dir, "")
+    session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])

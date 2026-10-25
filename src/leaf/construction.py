@@ -1,7 +1,7 @@
 """The construction reading of a thread's frozen markup, derived from the canonical
 state fold.
 
-`leaf page state <page> <thread>` prints it for each message that carries markup:
+`leaf page state <page> <message>` prints it for each message that carries markup:
 semantic HTML and its effective inputs, not a second widget renderer. Exact event
 bodies, generated children and placement retain their event authority. Opaque widgets
 expose their source and declared data rather than invented screen text. A page's own

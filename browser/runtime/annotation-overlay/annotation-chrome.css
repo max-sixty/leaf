@@ -480,6 +480,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     > :is(.lf-thread-checkpoint, .lf-msg[data-lf-summary]) {
     margin-block-end: 0;
   }
+  /* A to-do on the user heads the card, over its transcript (thread-card.js). */
+  .lf-margin-thread .lf-thread-todos {
+    grid-row: 1;
+  }
   .lf-margin-thread .lf-reply-space {
     grid-row: 3;
   }

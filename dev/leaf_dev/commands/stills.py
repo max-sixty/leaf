@@ -1968,6 +1968,15 @@ STATES = (
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
+    State("triage-phone", "triage-board", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "triage-phone-dark",
+        "triage-board",
+        at_rest,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
     State("triage-composer", "triage-board", composer),
     State(
         "triage-composer-empty",

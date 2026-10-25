@@ -2021,11 +2021,18 @@ def codex_program(tmp_path_factory):
     `CodexHarness.lifetime` looks for above a leaf: a copy of this interpreter wearing that
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
-    interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
-    binary's signature is the system's. A framework Python's sys.executable is
-    a launcher that re-execs Python.app, so copy the running binary itself."""
+    interpreter's. A framework Python's sys.executable is a launcher that re-execs
+    Python.app, so copy the running binary itself.
+
+    macOS kills a copy on exec, silently and with SIGKILL, when its signature no
+    longer holds at the new path. A framework build's Python.app binary is signed
+    as part of its bundle, so a copy without the bundle's Info.plist fails that
+    check. Signing the copy ad hoc makes it valid wherever it lies, whichever
+    Python runs the suite."""
     program = tmp_path_factory.mktemp("codex-program") / "codex"
     shutil.copy(psutil.Process().exe(), program)
+    if sys.platform == "darwin":
+        subprocess.run(["codesign", "--force", "--sign", "-", program], check=True)
     return program
 
 

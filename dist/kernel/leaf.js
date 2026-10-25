@@ -1,22 +1,24 @@
 import { aimLayer, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-target-paint.js";
 import { LitElement, Z, bareReaction, bindQueuedWork, carriesObligation, d, hasUnread, html, itemNoun, itemOutcome, keyed, noChange, nothing, observeQueuedWork, ref, render, repeat, sameAnchor, threadCounts, threadKey, threadNames, x } from "./runtime/bundle-browser-runtime.js";
 import { CARET_KEYS, MODIFIER_KEYS, PRESSES, TEXT_BOX, TEXT_FIELD, WORKS, afterScript, afterSettling, byRenderedOrder, cancelRender, closeLayer, currentLocationIn, declareReading, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, holdRendering, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, nextFrame, nextRender, observePreparations, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, release, releaseFocus, renderedOrder, renderedUnder, renderingState, rove, selectsAll, shadowHost, sizeObserver, takesLetters, typesText, under, upFrom } from "./runtime/bundle-dom-move.js";
-import { EVERYTHING, LAYOUT, LINK, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, pagePresented, pageUpgraded, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, uploadMedia, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-layer-client.js";
+import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded, reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bundle-layer-client.js";
+import { EVERYTHING, LAYOUT, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, annotationSheets, announce, bindingEnabled, bindings, buttonCommand, chromeSheet, claimsEsc, clamp, clampedRow, clippedContents, closeControl, closeNativeLayer, coarsePointer, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, decisionFor, declareOccluder, declareWindowChrome, declaredBindings, descriptionOf, dismissError, dismissErrors, dismissPopoversOutside, dragHeld, el, errorsReading, holdingError, hostIn, iconElement, iconTemplate, inUi, intersect, keys, labelOf, landingBand, layoutWindow, live, liveEl, marksSheet, merge, mountRepaint, nativeLayers, nativeModalAdmits, notice, noticeReading, offer, offered, overlaps, overlapsAcross, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, pointerAt, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, registry, repaint, repaintPage, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, scrollGlides, scrolling, searchField, seeErrors, seenRect, setNoticeContext, setQuickShortcuts, showNativeLayer, shownBox, shownParts, shownRect, spell, spokenBinding, stackLevel, startsAt, submitBindings, submitLabel, tagsDeclaring, titleOf, underOccluder, union, watchCommandAvailability, watchScrollEnds, watchScrolls, whileConnected, windowChromeBoxes, word } from "./runtime/bundle-errors.js";
 import { DELIVERY, PRESENTATION_DOM, SHARE_ROOT, WEBSITE_DELIVERY, agentName, annotationMode, applicationPresenter, applicationState, documentChanged, offlineInteractive, readPart, runtime, runtimeResource, shareUrl, whenApplicationPresented } from "./runtime/bundle-context.js";
 import { JUST_NOW, PRESENTATION, UPGRADE, afterPresentation, ago, atScrollEnd, effectiveScroller, markPagePresented, markPageUpgraded, moveScrollerBy, pageReadiness, pageScroller, reachScrollers, readingRegionFor, registerReadingRegion, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, settlePageInterface, shortAgo, syncLayoutRegion, userReadingRegion, whenArrived } from "./runtime/bundle-reading-regions.js";
 import { activeCommandLabel, availableCommandRoutes, dispatchKey, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, sampleNotice, userIn } from "./runtime/bundle-dispatch.js";
-import { DRAWING_COORDINATE_LIMIT, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, beginRead, commandSteps, composerOpen, composerQuote, createAnchorTravel, createReactionController, createSelectionComposer, createThreadLanding, createVersionController, currentLocationThread, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, initializeServedDocument, keepPageRulesOffLayer, leavesBox, mountApplication, mountHistory, notifyDataSubscribers, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintCoreControls, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlace, readPlan, readQueues, returnPlace, sendReaction, textField, threadInput, versionPicker, versionsReading } from "./runtime/bundle-answer.js";
+import { commandSteps, createAnchorTravel, createVersionController, initializeServedDocument, keepPageRulesOffLayer, mountHistory, paintCoreControls, readPlace, returnPlace, versionPicker, versionsReading } from "./runtime/bundle-version.js";
 import { chromeForeground, chromeRoot } from "./runtime/bundle-chrome.js";
 import { COLLAPSE, LEAF_SURFACE, TEXT_BLOCK, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, programmaticSelection, quoteFrom, rangeOf, says, segmentBlock, selectEnds, selectionBackward, showsWords } from "./runtime/bundle-passages.js";
-import { ADDRESSABLE, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, resolveAnchor, resolvedInMessage, revealAddressed, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-css-anchors.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableSays, addressableWord, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, designPressAt, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, openMarginContentLayout, pageControls, pageControlsChanged, placePoints, pointInto, railStands, registerPageControl, resolveAnchor, resolvedInMessage, revealAddressed, scheduleMarginContentLayout, sectionLabel, sectionOf, setAnchoringReady, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, visualAt, visualParts, visualSelector } from "./runtime/bundle-content-layout.js";
 import { fragmentId } from "./runtime/bundle-initial-render.js";
 import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, createPassageSelection, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, heldObligation, heldThread, holdToRead, isExternalPageLink, landingPlace, landingRoom, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, mirrorDraft, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, placeKeeper, placeOf, quoteReading, readBoxPlace, readObligations, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, restrictUserIntent, retainUserIntent, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, tabStore, tellDraft, threadAttention, threadHeading, threadList, threadName, threadTodos, touchPresses, upgradeWidgets, walkOrigin, walkPosition, walkPositionLabel, workflowStep } from "./runtime/bundle-surfaces.js";
 import { copyControl } from "./runtime/bundle-copy-control.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed, setChildren, watchDisclosures } from "./runtime/bundle-abort.js";
 import { motionEasing, motionPlays, motionTime, playMotion, reducedMotion, scrollBehavior } from "./runtime/bundle-motion.js";
 import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/bundle-media.js";
+import { DRAWING_COORDINATE_LIMIT, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, acceptData, beginRead, composerOpen, composerQuote, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, mountApplication, notifyDataSubscribers, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, sendReaction, textField, threadInput } from "./runtime/bundle-answer.js";
 import { KINDS, annotationItems, clearContributionControls, contributionHost, contributionItemKey, contributionReceipts, contributionSource, entryControls, registerContribution, spokenSubject, visibleContributionEntryLabel } from "./runtime/bundle-margin-model.js";
-import { PAGE_CONTROL_RANK, livePoint, openMarginContentLayout, pageControls, pageControlsChanged, placePoints, pointInto, railStands, registerPageControl, scheduleMarginContentLayout, visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
+import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image2.js";
 import { shownScheme } from "./runtime/bundle-color-scheme.js";
 import { restoreUserView } from "./runtime/bundle-restore-state.js";
@@ -189,8 +191,8 @@ var AttachedMediaShelf = class extends LitElement {
 		};
 		this.actions = null;
 		this.sent = false;
-		this.undoIcon = iconElement("undo", "lf-corner-mark-icon");
-		this.removeIcon = iconElement("cross", "lf-corner-mark-icon");
+		this.undoIcon = iconElement("undo", "lf-mark-icon");
+		this.removeIcon = iconElement("cross", "lf-mark-icon");
 		this.pictured = {
 			drawing: null,
 			target: null,
@@ -241,7 +243,7 @@ var AttachedMediaShelf = class extends LitElement {
               </button>
               <button
                 type="button"
-                class="lf-corner-mark lf-composer-drawing-undo"
+                class="lf-mark lf-corner-mark lf-composer-drawing-undo"
                 aria-label="Undo last stroke"
                 title="Undo last stroke"
                 @mousedown=${(event) => event.preventDefault()}
@@ -251,7 +253,7 @@ var AttachedMediaShelf = class extends LitElement {
               </button>
               <button
                 type="button"
-                class="lf-corner-mark"
+                class="lf-mark lf-corner-mark"
                 aria-label="Remove drawing"
                 title="Remove drawing"
                 @mousedown=${(event) => event.preventDefault()}
@@ -263,11 +265,11 @@ var AttachedMediaShelf = class extends LitElement {
           ` : null, media.map(({ index, url }) => {
 			const remove = html`<button
           type="button"
-          class="lf-corner-mark lf-composer-media-remove"
+          class="lf-mark lf-corner-mark lf-composer-media-remove"
           aria-label=${`Remove attached image ${index + 1}`}
           @click=${() => this.actions.removeMedia(index)}
         >
-          ${iconTemplate("cross", "lf-corner-mark-icon")}
+          ${iconTemplate("cross", "lf-mark-icon")}
         </button>`;
 			return this.sent ? html`<p class="lf-composer-media-item">
               <button
@@ -377,11 +379,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 		});
 		const held = () => busy() || errorOver(ta) !== null;
 		sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
-		if (icon) sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
-		else {
-			const word = typeof sends === "function" ? sends() : sends;
-			sendBtn.replaceChildren(word.charAt(0).toUpperCase() + word.slice(1));
-		}
+		sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
 		const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
 		mediaShelf.className = sentMedia ? "lf-msg-media" : "lf-composer-media scroll";
 		mediaShelf.sent = sentMedia;
@@ -1216,7 +1214,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 	}
 	function standDown() {
 		if (composerOpen) composer.hideComposer();
-		if (fabAnchor.value) letGoOfFab();
+		if (fabAnchor.value) closeLayer(() => showFab(null), fabBar.contains(fabFocused()) && letGo);
 		setReact(false);
 	}
 	const fabAnchorAt = () => fabAnchor.value;
@@ -1440,6 +1438,7 @@ function createResponseSurface({ rememberSelection, landIn, threadHere, threadAt
 		touch: false,
 		keys: ["c"],
 		title: () => commentDestination().title,
+		travels: true,
 		when: () => anchoringIsReady() || !pageSelection(),
 		run: () => {
 			const selection = pageSelection();
@@ -1582,6 +1581,11 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 	let releaseTimer = null;
 	let mounted = false;
 	const drawModeActive = () => drawModeOn;
+	function holdCompatibilityClick() {
+		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
+		releaseTimer = null;
+		claimThroughClick = true;
+	}
 	function releaseCompatibilityClickSoon() {
 		if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
 		releaseTimer = setTimeout(() => {
@@ -1720,7 +1724,7 @@ function createDrawingController({ anchors: { aimTargetAt, resolveAnchor }, page
 		if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
 		const origin = event.composedPath()[0];
 		if (leafSurface(origin)) return;
-		claimThroughClick = true;
+		holdCompatibilityClick();
 		claimedPointer = event.pointerId;
 		claim(event);
 		const target = sessionTarget() ?? targetAtPointer();
@@ -2663,6 +2667,7 @@ function createHintSession({ layer, walk: walkKey, read, identity, scene, layout
 			keys: ["Enter"],
 			description: choose.description,
 			title: choose.title,
+			travels: true,
 			when: () => at >= 0,
 			run: () => take(hinted()[at])
 		}];
@@ -3240,6 +3245,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		}],
 		title: "search matches",
 		repeat: true,
+		travels: true,
 		when: () => Boolean(repeatedSearch),
 		run: (binding) => repeatSearch(binding === "n" ? 1 : -1)
 	};
@@ -3257,6 +3263,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		keys: HINT_KEYS,
 		label: "a–z",
 		title: "type hint",
+		travels: true,
 		when: () => hints.candidates().length > 0,
 		run: hints.type
 	};
@@ -3284,6 +3291,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 				id: "page.search.match.select",
 				keys: ["Enter"],
 				title: "select match",
+				travels: true,
 				touch: false,
 				when: () => matches.value.length > 0,
 				run: chooseMatch
@@ -3305,6 +3313,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 				}],
 				title: "matches",
 				repeat: true,
+				travels: true,
 				when: () => matches.value.length > 0,
 				run: (binding) => moveMatch(binding === "Tab" ? 1 : -1)
 			},
@@ -4575,6 +4584,7 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadHere, threadPla
 		title: "On me",
 		when: offered,
 		repeat: true,
+		travels: true,
 		run: (binding) => walk(binding === "m" ? 1 : -1)
 	});
 	pageScope("todo", {
@@ -5169,12 +5179,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	inner.append(opened, row);
 	card.append(inner);
 	host.append(card, menu, peek);
-	const minimize = el("button", "lf-corner-mark lf-fp-minimize");
+	const minimize = el("button", "lf-mark lf-corner-mark lf-fp-minimize");
 	minimize.type = "button";
 	minimize.tabIndex = -1;
 	minimize.title = "Fold to the leaf";
 	minimize.setAttribute("aria-label", "Fold to the leaf");
-	minimize.append(iconElement("subtract", "lf-corner-mark-icon"));
+	minimize.append(iconElement("subtract", "lf-mark-icon"));
 	minimize.addEventListener("click", () => rows().find((entry) => entry.key === `command:${FOLD}`).press(null));
 	host.append(minimize);
 	const CORNER = {
@@ -5460,9 +5470,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			hint: () => saying(key, replyInput()),
 			hintAside: () => passingAside(key, replyInput()),
 			accessibleName: () => `Reply to ${threadTitle(key)}`,
-			sent: () => {
+			sent: (flight) => {
 				room = null;
 				rewriting = false;
+				releaseField();
 				landing = {
 					key,
 					after: drawnTurns(),
@@ -5470,6 +5481,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				};
 				waiting = null;
 				queueMicrotask(paint);
+				holdRefused(flight);
 			}
 		});
 		return replyOptions.get(key);
@@ -5748,6 +5760,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		landReader();
 		fitAnswer();
 		stood = openView()?.offsetHeight ?? null;
+		stoodAt = openView()?.getBoundingClientRect().top ?? null;
 		followBox();
 	});
 	const follow = sizeObserver(() => {
@@ -5822,6 +5835,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let room = null;
 	let drawnTop = null;
 	let stood = null;
+	let stoodAt = null;
 	let rewriting = false;
 	const holdThread = (height) => {
 		if (!trail.value.at(-1)?.thread || room !== null || height === null) return false;
@@ -5876,6 +5890,42 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		paint();
 	});
+	function holdRefused(flight) {
+		const route = trail.value.at(-1);
+		let cleared = null;
+		nextRender(() => {
+			cleared = replyInput()?.getBoundingClientRect().height ?? null;
+		});
+		Promise.resolve(flight).then((sent) => {
+			const view = openView();
+			if (sent || trail.value.at(-1) !== route || !view || stoodAt === null) return;
+			holdField(replyInput(), cleared);
+			const height = view.offsetHeight + view.getBoundingClientRect().top - stoodAt;
+			if (holdThread(height)) paint();
+		});
+	}
+	let fieldHold = null;
+	function holdField(input, height) {
+		releaseField();
+		if (!input || height === null) return;
+		if (input.getBoundingClientRect().height <= height + .5) return;
+		const release = new AbortController();
+		fieldHold = {
+			input,
+			release
+		};
+		input.style.setProperty("max-height", layoutPx(height));
+		for (const type of ["pointerdown", "beforeinput"]) input.addEventListener(type, releaseField, {
+			capture: true,
+			signal: release.signal
+		});
+	}
+	function releaseField() {
+		if (!fieldHold) return;
+		fieldHold.release.abort();
+		fieldHold.input.style.removeProperty("max-height");
+		fieldHold = null;
+	}
 	function holdRoom() {
 		const top = trail.value.at(-1);
 		if (!top || top.thread || room !== null || refitting) return false;
@@ -6015,6 +6065,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const changed = (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
 		if (changed) {
 			room = null;
+			releaseField();
 			rewriting = false;
 			pressed = null;
 			quoteExpanded = false;
@@ -6120,7 +6171,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		copy.value = entry.copies;
 		copy.disabled = entry.disabled;
-		render(menuItem(`Copy ${entry.label}`, html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`, () => {}, {
+		render(menuItem(`Copy ${entry.label}`, iconTemplate("copy", "lf-fp-copy-icon"), () => {}, {
 			disabled: entry.disabled,
 			role: menuOpen.value ? "menuitem" : null,
 			row: entry.key,
@@ -9062,6 +9113,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 					title: "Put the focused thread at the bottom of its list"
 				}],
 				title: "thread top / bottom",
+				travels: true,
 				when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
 				run: (binding) => {
 					const thread = focusedThreadTarget();
@@ -9089,6 +9141,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 				sequenceSteps: () => [...targetFilter ? [targetFilter.key] : [], ...hints.prefix() ? [...hints.prefix(), "…"] : ["letters"]],
 				completeSequenceSteps: () => [...targetFilter ? [targetFilter.key] : [], "letters"],
 				title: "visible target",
+				travels: true,
 				when: () => goToActive ? true : targetCapability(),
 				run: hints.type
 			},
@@ -9136,6 +9189,7 @@ function createGoToSequence({ doors, hintChrome, openPageMap, directDestinations
 					title: "Go to the bottom of the page"
 				}],
 				title: "top / bottom",
+				travels: true,
 				when: atGoToTargets,
 				run: (binding) => {
 					setGoToSequence(false);
@@ -9770,33 +9824,34 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
         .textContent=${entry.title}
       ></button>` : entry.title;
 	const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
-	const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
-	const actionCell = html`<td role="gridcell">${actionBody}</td>`;
+	const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
+	const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
 	return html`
-    <tr
+    <div
       id=${entry.rowId}
       role="row"
-      class=${entry.sequenceControl ? "lf-sequence-command" : ""}
+      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}
     >
-      <td role="gridcell">
+      ${actionCell}
+      <div role="gridcell" class="lf-command-reference-key">
         ${entry.keySequence ? keySequenceTemplate(entry.keySequence, {
 		id: entry.keyId,
 		label: entry.keyLabel
 	}) : nothing}
-      </td>
-      ${actionCell}
-    </tr>
+      </div>
+      ${descriptionCell}
+    </div>
   `;
 }
 const headingRow = (id, title, hidden = false) => html`
-  <tbody ?hidden=${hidden}>
-    <tr role="row">
-      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
-    </tr>
-  </tbody>
+  <div role="rowgroup" ?hidden=${hidden}>
+    <div role="row">
+      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
+    </div>
+  </div>
 `;
 const commandReferenceItems = () => {
 	const visible = [];
@@ -9848,14 +9903,14 @@ const commandReferenceItems = () => {
 };
 function commandReferenceItemTemplate(item) {
 	if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
-	return html`<tbody
+	return html`<div
     role="rowgroup"
     aria-labelledby=${item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId}
     class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
     ?hidden=${item.hidden}
   >
     ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
-  </tbody>`;
+  </div>`;
 }
 function commandReferenceTemplate() {
 	const items = commandReferenceItems();
@@ -9899,13 +9954,7 @@ function commandReferenceTemplate() {
       role="grid"
       aria-label="Command reference"
     >
-      <table role="presentation">
-        <colgroup>
-          <col class="lf-command-reference-key-column" />
-          <col />
-        </colgroup>
-        ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
-      </table>
+      ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
         <div class="lf-command-reference-empty" role="gridcell">
           No matching commands
@@ -10018,7 +10067,7 @@ function moveCommandReferenceSelection(dir) {
 	presentCommandReference();
 	const next = commandButton(nextId);
 	if (focusedId) focusDestination(next, "move");
-	scrollIntoView(next.closest("tr"), { block: "nearest" });
+	scrollIntoView(next.closest("[role=\"row\"]"), { block: "nearest" });
 	beginWalk("shortcut-command", "Command", () => {
 		const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
 		return listWalkPosition(commandReferenceView.visibleCommands.map(({ entry }) => entry.id), current);
@@ -10048,6 +10097,7 @@ pageScope("command reference", {
 			keys: ["ArrowDown"],
 			title: "choose next",
 			repeat: true,
+			travels: true,
 			runFromCommandReference: false,
 			commandReferenceWhen: () => true,
 			when: () => commandReferenceCommandActive(),
@@ -10059,6 +10109,7 @@ pageScope("command reference", {
 			keys: ["ArrowUp"],
 			title: "choose previous",
 			repeat: true,
+			travels: true,
 			runFromCommandReference: false,
 			commandReferenceWhen: () => true,
 			when: () => commandReferenceCommandActive(),
@@ -10269,6 +10320,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		touch: "Align current item at top",
 		menu: "keys",
 		retainCurrentLocation: true,
+		travels: true,
 		run: () => {
 			const item = currentItem();
 			if (!item) return;
@@ -10295,6 +10347,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		title: "threads",
 		when: () => openThreads(placedAt).length > 0,
 		repeat: true,
+		travels: true,
 		run: (binding) => walkThreads(binding === "t" ? 1 : -1)
 	});
 	document.addEventListener("lf-sample-step", (event) => {
@@ -10316,6 +10369,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		}],
 		title: "page down / up",
 		repeat: true,
+		travels: true,
 		run: (binding) => move(binding === "d" ? .6 : -.6, "page")
 	});
 	pageCommand({
@@ -10333,6 +10387,7 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
 		}],
 		title: "scroll down / up",
 		repeat: true,
+		travels: true,
 		run: (binding) => move(binding === "j" ? 60 : -60, "pixel")
 	});
 	const arriveAtThreadById = (id, message = null) => message ? threadDestinations.openPageThread(message, {
@@ -10361,7 +10416,10 @@ if (validationEntry) {
 	validationEntry.lfObserveWidgetPreparations = observePreparations;
 	validationEntry.lfNativeLayers = nativeLayers;
 }
-const recoverComposer = retainUserIntent({ since: 0 });
+const recoverComposer = retainUserIntent({
+	since: 0,
+	available: () => window === window.top || document.hasFocus()
+});
 const overlaySelected = annotationMode === "overlay";
 const annotationRenderer = overlaySelected ? await import("./runtime/bundle-annotation-overlay.js") : null;
 if (validationEntry && annotationRenderer) validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;

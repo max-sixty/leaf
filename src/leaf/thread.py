@@ -243,6 +243,11 @@ def cmd_comment(
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
     body = checked_text(page_dir, text)
+    if markup:
+        from leaf.render_gate.command import message_check
+
+        # Apart from the page lease, since a browser run takes about a second.
+        message_check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         events = page.events
         revision, anchor = current_anchor(
@@ -377,6 +382,11 @@ def post_reply(
     write.
     """
     text = checked_text(page_dir, text)
+    if markup:
+        from leaf.render_gate.command import message_check
+
+        # Apart from the page lease, since a browser run takes about a second.
+        message_check(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:

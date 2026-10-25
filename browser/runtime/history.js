@@ -18,7 +18,7 @@
  * Chrome answers a traversal to an entry whose fragment names an element by scrolling to that element
  * instead (measured: Back to `#s2` after reading 3000px down landed on `#s2` at 666).
  * So every same-document traversal comes through here, through the Navigation API. An
- * owner that claims the destination (`claimTraversals`) places the page itself, as a
+ * owner that claims the destination (`claimTraversals`) can place the page itself, as a
  * root tab set does for the entry of each of its views. Travel takes the traversal next
  * (`mountHistory`'s `returnToFragment`, anchor-travel.js) where the entry's fragment
  * names a place the page no longer shows: the offset was saved over a page that has
@@ -158,8 +158,10 @@ export function prepareEntry() {
   };
 }
 
-// `claim(url)` returns the handler that places the page at a traversal to `url`, or
+// `claim(url)` returns the handler that reveals the destination of a traversal, or
 // nothing when the entry is not the claimant's. The first claim to answer takes it.
+// A handler places the viewport itself unless it resolves to false, handing placement
+// back to the entry's checkpoint (or the browser when no checkpoint was captured).
 /** @param {(url: URL) => unknown} claim @param {{signal?: AbortSignal}} [options] */
 export function claimTraversals(claim, { signal } = {}) {
   claims.add(claim);
@@ -201,9 +203,9 @@ export function mountHistory({ followFragment, returnToFragment }) {
           mayReturn.handoff(() => {
             work = handler?.();
           });
-          await work;
+          const placed = await work;
           if (!mayReturn()) return;
-          if (!handler) {
+          if (!handler || placed === false) {
             if (place)
               window.scrollTo({
                 left: place.offset[0],

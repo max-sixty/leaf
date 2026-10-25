@@ -255,7 +255,8 @@
     "x-data": {
       "worktrees": {
         "contract": "atlas-worktrees",
-        "source": "source"
+        "source": "source",
+        "property": "value"
       }
     },
     "x-upgrade": true,

@@ -638,7 +638,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     page.keyboard.press("?")
     page.keyboard.press("?")
     inspect_reference = page.locator(
-        '.lf-command-reference tr[data-lf-command="test.inspect"]'
+        '.lf-command-reference [role=row][data-lf-command="test.inspect"]'
     )
     expect(inspect_reference.locator("kbd")).to_have_text("I")
     expect(inspect_reference.locator(".lf-binding-sequence")).to_have_attribute(
@@ -710,7 +710,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     page.keyboard.press("?")
     page.keyboard.press("?")
     focused_inspect = page.locator(
-        '.lf-command-reference tr[data-lf-command="test.inspect"]'
+        '.lf-command-reference [role=row][data-lf-command="test.inspect"]'
     )
     expect(focused_inspect.locator("kbd")).to_have_text("I")
 

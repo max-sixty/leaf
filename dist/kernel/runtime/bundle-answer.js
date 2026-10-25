@@ -1,7 +1,8 @@
 import { J, LitElement, PENDING, Z, actionForWidget, anchorKey, bindQueuedWork, d, discussed, editable, isMessageEvent, isThreadEvent, moved, projectionOrigins, q, reactionsAt, render, stateCoordinate, threadKey, tokenChoices, turns, x } from "./bundle-browser-runtime.js";
 import { TEXT_FIELD, afterScript, byRenderedOrder, canPlaceFocus, closeLayer, deepFocus, drawn, focusDestination, focused, frameVisibility, handBack, holdFocus, holdRendering, inputCount, isNativeLayer, keeps, keepsHidden, move, nextRender, onCurrentLocation, onFrameVisibility, onUserInput, openLayer, openerOf, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, shadowHost, sizeObserver, takesLetters, under, upFrom, whenLeft } from "./bundle-dom-move.js";
-import { PAGE_PAINT_ATTRIBUTE, PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, completeData, countTraffic, cycledRow, dataHeaders, el, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, landingInsets, layerHeaders, layoutWindow, matchesWhen, notice, offer, paintKeys, paintKeysWithin, placeBox, placeHolder, postEvent, presented, raiseError, randomId, recordInteraction, registry, repaint, reportCarried, reportPageError, requestJson, responseAction, reveal as reveal$1, rowArrows, sameLayer, savedReadingSettled, saying, seenRect, sessionIsActive, setRuntimeRootAttribute, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchPendingTraffic, watchRoom, whenNone, whileConnected } from "./bundle-layer-client.js";
+import { PAGE_PAINT_ATTRIBUTE, admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, reportCarried, reportPageError, requestJson, sameLayer, sessionIsActive, setRuntimeRootAttribute, watchPendingTraffic } from "./bundle-layer-client.js";
 import { PRESENTATION_DOM, agentLabel, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, documentChanged, offlineData, offlineInteractive, offlineState, pageUrl, presentDocument, queueWidgetUpdate, readApplication, readPart, runtime, setPresentationFailureReporter, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-context.js";
+import { PRESS, TEXT_ENTRY, announce, claimsEsc, clamp, clippedContents, clipsPastSurfaces, closeNativeLayer, cycledRow, el, generatedElement, growthIsSeen, hasArea, holdingError, intersect, keys, landingInsets, layoutWindow, matchesWhen, notice, offer, paintKeys, paintKeysWithin, placeBox, placeHolder, presented, raiseError, registry, repaint, responseAction, reveal as reveal$1, rowArrows, savedReadingSettled, saying, seenRect, shadowRootsIn, showNativeLayer, shownWindow, tagsDeclaring, union, watchOwner, watchRoom, whenNone, whileConnected } from "./bundle-errors.js";
 import { activityTransitionDue, ago, markStateApplied, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, settlePageInterface, tickClock } from "./bundle-reading-regions.js";
 import { comparisonBase, comparisonChanges, createProjectionPresentation, inlineComparison, referencedProjection, requireReference, toggleInlineComparison } from "./bundle-version.js";
 import { DATUM, closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
@@ -473,13 +474,16 @@ const reveal = EditorView.scrollHandler.of((view, selection, options) => {
 });
 const withNavigation = (state) => navigation.get(state) === void 0 ? state.update({ effects: StateEffect.appendConfig.of(navigation.of(reveal)) }).state : state;
 var LeafEditorView = class extends EditorView {
+	#focusing = false;
 	constructor(config = {}) {
 		super({
 			...config,
 			state: withNavigation(config.state ?? EditorState.create(config))
 		});
 		this.scrollDOM.classList.add("scroll");
-		this.contentDOM.addEventListener("focus", () => this.placeSelection());
+		this.contentDOM.addEventListener("focus", () => {
+			if (!this.#focusing) this.placeSelection();
+		});
 	}
 	setState(state) {
 		super.setState(withNavigation(state));
@@ -488,7 +492,12 @@ var LeafEditorView = class extends EditorView {
 		if (!canPlaceFocus()) return;
 		const selection = this.#selection();
 		if (this.root.activeElement !== this.contentDOM && selection.getComposedRanges({ shadowRoots: this.root instanceof ShadowRoot ? [this.root] : [] }).some((range) => this.contentDOM.contains(range.startContainer) || this.contentDOM.contains(range.endContainer))) selection.removeAllRanges();
-		this.contentDOM.focus({ preventScroll: true });
+		this.#focusing = true;
+		try {
+			this.contentDOM.focus({ preventScroll: true });
+		} finally {
+			this.#focusing = false;
+		}
 		this.placeSelection();
 	}
 	placeSelection() {

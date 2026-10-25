@@ -357,10 +357,17 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     page.get_by_role("button", name="Wide", exact=True).click()
     assert values()["width"] == 4
     assert child_button.evaluate(focused), "preset"
+    # A range takes native focus to be dragged, and the sample's location comes back
+    # through its port after the press, so the user is back once that answer lands.
+    child = page.locator("#ring-sample iframe").element_handle().content_frame()
+    back_in_sample = (
+        "() => document.querySelector('#child-button').matches(':focus')"
+        " && document.hasFocus()"
+    )
     slider = playground.get_by_role("slider", name="Width").bounding_box()
     page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     assert values()["width"] == 1
-    assert child_button.evaluate(focused), "slider"
+    child.wait_for_function(back_in_sample)
     page.mouse.move(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     page.mouse.down()
     page.mouse.move(
@@ -370,7 +377,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     )
     page.mouse.up()
     assert values()["width"] == 4
-    assert child_button.evaluate(focused), "slider drag"
+    child.wait_for_function(back_in_sample)
     sample = page.locator("#ring-sample")
     sample.evaluate(
         """sample => {
@@ -462,8 +469,8 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
     refusal says what is wrong and keeps the source under it: code that does not parse,
     in the parser's own words, a chart with no name for a user who cannot see it, a call
     to something Plot does not export, a drawing Plot already made, which is how Plot's
-    own examples end, and a height the page could not have laid out before the chart
-    drew. The author hears the same words as the page's
+    own examples end, a height the page could not have laid out before the chart
+    drew, and an offset given per datum where Plot takes one number. The author hears the same words as the page's
     `error` event, naming the chart, since the user seeing the box is not the author
     seeing it."""
     said = {
@@ -472,6 +479,7 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         "bad-mark": "Plot.barz is not a function",
         "bad-drawn": "rather than Plot.plot(...)",
         "bad-height": "as data-height on the element",
+        "bad-offset": "marks[0] (text) has a dy that is not a number",
     }
     # Each refusal is the chart's own, so every bad body stands on one page.
     source = leaf_page(

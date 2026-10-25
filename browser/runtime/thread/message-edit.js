@@ -91,6 +91,7 @@ import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
 import { raiseError } from "../errors.js";
+import { signal } from "/vendor/browser-runtime.js";
 
 // What a message's view answers by opening its rewrite, as a press on its Edit control.
 export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
@@ -99,6 +100,14 @@ export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 const open = new Map();
 // Rewrites whose words are on their way to the log: neither open nor kept.
 const sending = new Set();
+// Moves each time any reader draws a message (`messageDrawn`, called by
+// MessageView.present). Which of the user's messages can be rewritten is read off the
+// views a reader drew, so the reply box's ↑ row reads this to be reflected again
+// whenever a draw may have changed that (keyboard/scopes.js), whichever reader drew.
+const drawn = signal(0);
+export const messageDrawn = () => {
+  drawn.value = drawn.peek() + 1;
+};
 
 // Whether `view` draws the editor for message `id`: the view holding it, or the first to
 // ask once no view does.
@@ -243,7 +252,10 @@ export function threadRewrites({
       reveal: (message, caretLine) => revealEditor(message, caretLine),
     },
     editLast: {
-      available: () => Boolean(lastEditable()),
+      available: () => {
+        void drawn.value;
+        return Boolean(lastEditable());
+      },
       open: () => lastEditable()?.openEdit(),
     },
   };

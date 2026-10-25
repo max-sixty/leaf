@@ -1069,6 +1069,10 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     again = stamp(page_dir, "Again", completes=("rollout-card",))
     assert again.exit_code != 0
     assert "no open to-do on 'rollout-card'" in again.output
+    # The refusal says what --completes is for, so an author who reached for it to
+    # finish a user's answer on the widget stamps again without it.
+    assert "none is open" in again.output
+    assert "needs no --completes" in again.output
 
 
 def test_a_stale_completing_stamp_refuses_before_publishing_or_settling_work(page_dir):

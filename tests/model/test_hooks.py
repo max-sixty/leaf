@@ -759,21 +759,36 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
     )
 
 
-def test_a_step_adopts_claude_codes_turn_over_one_leaf_minted(claimed, capsys):
-    """A claim's new lifetime mints a turn before any hook names one. Claude Code's
-    next step names it by `prompt_id` from then on, so the Stop hook closes the turn
-    Claude Code ended rather than passing over a turn it does not know."""
+def test_a_step_opens_a_claude_code_turn_no_prompt_hook_named(claimed, capsys):
+    """A claim's new lifetime mints a turn before any hook names one, and a prompt
+    the user types while a turn runs gets its prompt hook at once under that turn's
+    `prompt_id`, after which Escape submits it as a turn of its own under a new one
+    (Claude Code 2.1.310). Either way the next step names a turn no prompt hook did,
+    and it opens that turn, so its tool boundaries hand over input and its Stop hook
+    closes it rather than passing over a turn Leaf does not know."""
+
+    def hook(event: str, prompt: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": event, "session_id": "s1", "prompt_id": prompt},
+        )
+        return capsys.readouterr().out
+
     assert not cleanup_model.session_record("s1")["provider"]
-    hooks_model.cmd_hook(
-        "claude-code",
-        {"hook_event_name": "PostToolBatch", "session_id": "s1", "prompt_id": "p9"},
-    )
+    hook("PostToolBatch", "p9")
     assert cleanup_model.session_record("s1")["turn"] == "p9"
-    hooks_model.cmd_hook(
-        "claude-code",
-        {"hook_event_name": "Stop", "session_id": "s1", "prompt_id": "p9"},
+    hook("Stop", "p9")
+    assert cleanup_model.session_record("s1")["turn_closed"] is not None
+
+    hook("UserPromptSubmit", "p10")
+    # Typed while p10 runs; Escape ends p10 and the typed prompt runs as p11.
+    hook("UserPromptSubmit", "p10")
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
     )
-    capsys.readouterr()
+    assert comment["id"] in hook("PostToolBatch", "p11")
+    assert cleanup_model.session_record("s1")["turn"] == "p11"
+    hook("Stop", "p11")
     assert cleanup_model.session_record("s1")["turn_closed"] is not None
 
 

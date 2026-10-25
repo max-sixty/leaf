@@ -445,6 +445,30 @@ class ClaudeCodeHarness(EnvironmentHarness):
         prompt = payload.get("prompt_id")
         return {**payload, "turn_id": prompt} if prompt else payload
 
+    def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
+        """Claude Code runs some turns under a prompt no prompt hook named: a prompt
+        the user types while a turn runs gets its prompt hook at once, under the
+        running turn's `prompt_id`, and when Escape then ends that turn Claude Code
+        submits the typed prompt as a turn of its own under a new one (measured at
+        2.1.310). Nor does a claim's new lifetime know Claude Code's turn. Claude
+        Code runs a session's hooks in order, so a step naming a prompt the record
+        does not hold is that turn starting, never a late callback, and it opens
+        it."""
+        turn = payload.get("turn_id")
+        if (
+            not turn
+            or payload.get("hook_event_name") == "UserPromptSubmit"
+            or (expected is not None and expected["turn"] == turn)
+        ):
+            return expected
+        from .state import advance_turn, flocked, session_lock_path, session_record
+
+        with flocked(session_lock_path(self.session)):
+            record = session_record(self.session)
+            if record is None or record["ended"] is not None or record["turn"] == turn:
+                return record
+            return advance_turn(self.session, turn, running=True)
+
     def entered_context(self, payload: dict) -> set[str]:
         """What the session's transcript, which every hook's payload names, shows
         entered the model's context (`claude_code_entered`)."""

@@ -41,7 +41,7 @@ import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
 import { generatedElement, offer, measure } from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
-import { keys, paintKeysWithin } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import {
   createReplyView,
@@ -615,9 +615,6 @@ export class ThreadView {
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     this.#continuity?.after(bodyPlace);
-    // The reply's ↑ row reads the messages this paint drew, whether the user's last
-    // words can be rewritten yet (`threadRewrites`), so the paint says it moved them.
-    paintKeysWithin(this.node);
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.

@@ -771,8 +771,40 @@ async function parsedFiles(source) {
     owners.set(file.name, owned);
   }
   return [...owners.values()].map((files) =>
-    files.length === 1 ? files[0] : replacementFile(files, parseDiffFromFile),
+    joinChangeRuns(
+      files.length === 1 ? files[0] : replacementFile(files, parseDiffFromFile),
+    ),
   );
+}
+
+// Pierre 1.6 splits a change whose deleted and added line counts differ into pieces,
+// so its most similar lines pair up (`realignChangeContentBySimilarity` in
+// @pierre/diffs). That serves a split view, which Leaf never draws. In the unified
+// view it moved a rewrite's four deleted lines between the 11th and 12th of its 19
+// added ones, cutting the new function in two and painting the indentation it had
+// paired as changed words. Leaf joins the pieces back into the one change git wrote,
+// its deletions above its additions. A git patch never puts two changes side by side
+// without context, so a one-sided change beside another is always such a piece. The
+// rows, line numbers and comment coordinates are the same either way.
+function joinChangeRuns(file) {
+  for (const hunk of file.hunks ?? []) {
+    const content = [];
+    for (const part of hunk.hunkContent) {
+      const last = content.at(-1);
+      const piece =
+        part.type === "change" &&
+        last?.type === "change" &&
+        [part, last].some((change) => !change.deletions || !change.additions);
+      if (!piece) {
+        content.push({ ...part });
+        continue;
+      }
+      last.deletions += part.deletions;
+      last.additions += part.additions;
+    }
+    hunk.hunkContent = content;
+  }
+  return file;
 }
 
 // The box takes the place of the file's lines, so core's composer leaves their outlets

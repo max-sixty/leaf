@@ -60,6 +60,65 @@ def long_diff(id):
     return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
 
 
+def test_a_rewrite_reads_its_deletions_above_its_additions(browser, serve):
+    """A change of 4 lines into 19 reads as git wrote it, its old lines above its new.
+    Pierre 1.6 re-splits such a change to pair similar lines, which in Leaf's unified
+    view set the old function between the new one's 11th and 12th lines."""
+    old = [
+        "def upload(client, job, payload):",
+        '    response = client.post("/objects", json=payload, timeout=10)',
+        "    response.raise_for_status()",
+        '    return response.json()["object_id"]',
+    ]
+    new = [
+        '"""Upload one artifact."""',
+        "",
+        "import time",
+        "",
+        "",
+        "def upload(client, job, payload, max_attempts=2):",
+        '    key = f"upload:{job.tenant_id}:{job.id}"',
+        "    for attempt in range(max_attempts):",
+        "        try:",
+        "            response = client.post(",
+        '                "/objects", json=payload,',
+        '                headers={"Idempotency-Key": key}, timeout=10,',
+        "            )",
+        "            response.raise_for_status()",
+        '            return response.json()["object_id"]',
+        "        except TimeoutError:",
+        "            if attempt + 1 == max_attempts:",
+        "                raise",
+        "            time.sleep(0.5 * 2**attempt)",
+    ]
+    path = "src/uploader.py"
+    patch = (
+        (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1,{len(old)} +1,{len(new)} @@\n"
+            + "".join(f"-{line}\n" for line in old)
+            + "".join(f"+{line}\n" for line in new)
+        )
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Rewrite", f'<lf-diff id="rewrite"><pre>{patch}</pre></lf-diff>')
+        ),
+    )
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    sides = page.evaluate("""() => [
+      ...document.querySelector('#rewrite').shadowRoot.querySelectorAll('[data-lf-datum]'),
+    ].map(row => JSON.parse(row.dataset.lfDatum)).filter(d => d.length === 3)
+      .map(([, side, line]) => `${side}${line}`)""")
+    assert sides == [f"old{n}" for n in range(1, 5)] + [
+        f"new{n}" for n in range(1, 20)
+    ], sides
+
+
 def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, serve):
     paragraph = "A changed paragraph should stay within the reader's width. " * 12
 

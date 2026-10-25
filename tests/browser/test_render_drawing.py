@@ -852,22 +852,27 @@ def test_two_fingers_pan_and_zoom_in_draw_mode_while_one_draws(browser, serve):
     expect(page.locator(".lf-drawing-mark")).to_have_count(1)
     assert page.evaluate(view) == still
 
+    # Each two-finger gesture lands on the page's text, where its first finger begins a
+    # stroke for the second to take back. The drag goes before the zoom: on a zoomed
+    # page, where a dispatched touch lands depends on where the zoom left the visual
+    # viewport, which differs between Chromium builds, and on macOS it landed on the
+    # floating panel, which begins no stroke.
+    # Two fingers drag up together: the page scrolls.
+    fingers(
+        [(150, 700 - 30 * n) for n in range(12)],
+        [(240, 700 - 30 * n) for n in range(12)],
+    )
+    page.wait_for_function(f"visualViewport.pageTop > {still['top'] + 100}")
+    expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
     # Two fingers spread apart: the page zooms.
+    page.locator(".lf-live").evaluate("live => live.replaceChildren()")
     fingers(
         [(180 - 12 * n, 500) for n in range(12)],
         [(210 + 12 * n, 500) for n in range(12)],
     )
     page.wait_for_function("visualViewport.scale > 1.5")
     expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
-    # Two fingers drag up together: the page scrolls.
-    page.locator(".lf-live").evaluate("live => live.replaceChildren()")
-    top = page.evaluate(view)["top"]
-    fingers(
-        [(150, 700 - 30 * n) for n in range(12)],
-        [(240, 700 - 30 * n) for n in range(12)],
-    )
-    page.wait_for_function(f"visualViewport.pageTop > {top + 100}")
-    expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
 
 

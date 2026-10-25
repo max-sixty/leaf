@@ -133,6 +133,15 @@ def tab(
         context.close()
 
 
+def slow_cpu(page: Page, rate: float) -> None:
+    """Run Chromium's CPU for `page` `rate` times slower, through CDP, as on a slower
+    machine than this one. Set before the page navigates, the throttle holds through
+    every later navigation of the page."""
+    page.context.new_cdp_session(page).send(
+        "Emulation.setCPUThrottlingRate", {"rate": rate}
+    )
+
+
 def load(page: Page, address: str) -> None:
     """Open `address` and wait until the page has settled."""
     page.goto(address)

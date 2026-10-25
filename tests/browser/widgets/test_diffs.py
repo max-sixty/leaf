@@ -62,7 +62,7 @@ def long_diff(id):
 
 def test_a_rewrite_reads_its_deletions_above_its_additions(browser, serve):
     """A change of 4 lines into 19 reads as git wrote it, its old lines above its new.
-    Pierre 1.6 re-splits such a change to pair similar lines, which in Leaf's unified
+    Pierre re-splits such a change to pair similar lines, which in Leaf's unified
     view set the old function between the new one's 11th and 12th lines."""
     old = [
         "def upload(client, job, payload):",

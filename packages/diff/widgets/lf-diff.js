@@ -777,9 +777,9 @@ async function parsedFiles(source) {
   );
 }
 
-// Pierre 1.6 splits a change whose deleted and added line counts differ into pieces,
-// so its most similar lines pair up (`realignChangeContentBySimilarity` in
-// @pierre/diffs). That serves a split view, which Leaf never draws. In the unified
+// Pierre splits a change whose deleted and added line counts differ into pieces, so
+// its most similar lines pair up (`realignChangeContentBySimilarity`, run by
+// `parsePatchFiles` since @pierre/diffs 1.3.0). That serves a split view, which Leaf never draws. In the unified
 // view it moved a rewrite's four deleted lines between the 11th and 12th of its 19
 // added ones, cutting the new function in two and painting the indentation it had
 // paired as changed words. Leaf joins the pieces back into the one change git wrote,
